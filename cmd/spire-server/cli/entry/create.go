@@ -5,11 +5,11 @@ import (
 	"flag"
 
 	"github.com/mitchellh/cli"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
@@ -212,8 +212,8 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func createEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) (succeeded, failed []*entry.BatchCreateEntryResponse_Result, err error) {
-	resp, err := c.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: entries})
+func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (succeeded, failed []*entryv1.BatchCreateEntryResponse_Result, err error) {
+	resp, err := c.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
 		return nil, nil, err
 	}

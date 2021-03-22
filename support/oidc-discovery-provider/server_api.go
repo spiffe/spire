@@ -8,8 +8,8 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -83,7 +83,7 @@ func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, 
 	defer s.wg.Done()
 
 	defer conn.Close()
-	client := bundle.NewBundleClient(conn)
+	client := bundlev1.NewBundleClient(conn)
 
 	s.log.WithField("interval", interval).Debug("Polling started")
 	for {
@@ -97,12 +97,12 @@ func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, 
 	}
 }
 
-func (s *ServerAPISource) pollOnce(ctx context.Context, client bundle.BundleClient) {
+func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleClient) {
 	// Ensure the stream gets cleaned up
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	bundle, err := client.GetBundle(ctx, &bundle.GetBundleRequest{
+	bundle, err := client.GetBundle(ctx, &bundlev1.GetBundleRequest{
 		OutputMask: &types.BundleMask{
 			JwtAuthorities: true,
 		},

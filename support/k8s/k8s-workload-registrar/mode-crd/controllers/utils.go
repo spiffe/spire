@@ -20,8 +20,8 @@ import (
 	"errors"
 	"net/url"
 
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

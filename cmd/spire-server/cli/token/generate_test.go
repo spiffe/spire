@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/mitchellh/cli"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
@@ -28,7 +28,7 @@ func TestCreateToken(t *testing.T) {
 		token          string
 		expectedStderr string
 		expectedStdout string
-		expectedReq    *agent.CreateJoinTokenRequest
+		expectedReq    *agentv1.CreateJoinTokenRequest
 		serverErr      error
 	}{
 		{
@@ -37,7 +37,7 @@ func TestCreateToken(t *testing.T) {
 				"-spiffeID", "spiffe://example.org/agent",
 				"-ttl", "1200",
 			},
-			expectedReq: &agent.CreateJoinTokenRequest{
+			expectedReq: &agentv1.CreateJoinTokenRequest{
 				AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
 				Ttl:     1200,
 			},
@@ -47,7 +47,7 @@ func TestCreateToken(t *testing.T) {
 		{
 			name:           "without spiffe ID",
 			expectedStdout: "Token: token\nWarning: Missing SPIFFE ID.\n",
-			expectedReq: &agent.CreateJoinTokenRequest{
+			expectedReq: &agentv1.CreateJoinTokenRequest{
 				Ttl: 600,
 			},
 			token: "token",
@@ -64,7 +64,7 @@ func TestCreateToken(t *testing.T) {
 			args: []string{
 				"-spiffeID", "spiffe://example.org/agent",
 			},
-			expectedReq: &agent.CreateJoinTokenRequest{
+			expectedReq: &agentv1.CreateJoinTokenRequest{
 				AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
 				Ttl:     600,
 			},
@@ -110,7 +110,7 @@ func setupTest(t *testing.T) *tokenTest {
 	server := &fakeAgentServer{t: t}
 
 	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
-		agent.RegisterAgentServer(s, server)
+		agentv1.RegisterAgentServer(s, server)
 	})
 
 	stdin := new(bytes.Buffer)
@@ -134,15 +134,15 @@ func setupTest(t *testing.T) *tokenTest {
 }
 
 type fakeAgentServer struct {
-	agent.AgentServer
+	agentv1.AgentServer
 
 	t         testing.TB
-	expectReq *agent.CreateJoinTokenRequest
+	expectReq *agentv1.CreateJoinTokenRequest
 	err       error
 	token     string
 }
 
-func (f *fakeAgentServer) CreateJoinToken(ctx context.Context, req *agent.CreateJoinTokenRequest) (*types.JoinToken, error) {
+func (f *fakeAgentServer) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

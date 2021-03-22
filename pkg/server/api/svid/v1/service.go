@@ -7,6 +7,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -15,8 +17,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,7 +24,7 @@ import (
 
 // RegisterService registers the service on the gRPC server.
 func RegisterService(s *grpc.Server, service *Service) {
-	svid.RegisterSVIDServer(s, service)
+	svidv1.RegisterSVIDServer(s, service)
 }
 
 // Config is the service configuration
@@ -47,7 +47,7 @@ func New(config Config) *Service {
 
 // Service implements the v1 SVID service
 type Service struct {
-	svid.UnsafeSVIDServer
+	svidv1.UnsafeSVIDServer
 
 	ca ca.ServerCA
 	ef api.AuthorizedEntryFetcher
@@ -55,7 +55,7 @@ type Service struct {
 	ds datastore.DataStore
 }
 
-func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDRequest) (*svid.MintX509SVIDResponse, error) {
+func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	if len(req.Csr) == 0 {
@@ -109,7 +109,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
 
-	return &svid.MintX509SVIDResponse{
+	return &svidv1.MintX509SVIDResponse{
 		Svid: &types.X509SVID{
 			Id:        api.ProtoFromID(id),
 			CertChain: x509util.RawCertsFromCertificates(x509SVID),
@@ -118,18 +118,18 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svid.MintX509SVIDReques
 	}, nil
 }
 
-func (s *Service) MintJWTSVID(ctx context.Context, req *svid.MintJWTSVIDRequest) (*svid.MintJWTSVIDResponse, error) {
+func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
 		return nil, err
 	}
 
-	return &svid.MintJWTSVIDResponse{
+	return &svidv1.MintJWTSVIDResponse{
 		Svid: jwtsvid,
 	}, nil
 }
 
-func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SVIDRequest) (*svid.BatchNewX509SVIDResponse, error) {
+func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	if len(req.Params) == 0 {
@@ -146,13 +146,13 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svid.BatchNewX509SV
 		return nil, err
 	}
 
-	var results []*svid.BatchNewX509SVIDResponse_Result
+	var results []*svidv1.BatchNewX509SVIDResponse_Result
 	for _, svidParam := range req.Params {
 		//  Create new SVID
 		results = append(results, s.newX509SVID(ctx, svidParam, entriesMap))
 	}
 
-	return &svid.BatchNewX509SVIDResponse{Results: results}, nil
+	return &svidv1.BatchNewX509SVIDResponse{Results: results}, nil
 }
 
 // fetchEntries fetches authorized entries using caller ID from context
@@ -176,16 +176,16 @@ func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) (map
 }
 
 // newX509SVID creates an X509-SVID using data from registration entry and key from CSR
-func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams, entries map[string]*types.Entry) *svid.BatchNewX509SVIDResponse_Result {
+func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDParams, entries map[string]*types.Entry) *svidv1.BatchNewX509SVIDResponse_Result {
 	log := rpccontext.Logger(ctx)
 
 	switch {
 	case param.EntryId == "":
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
 		}
 	case len(param.Csr) == 0:
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "missing CSR", nil),
 		}
 	}
@@ -194,20 +194,20 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 
 	entry, ok := entries[param.EntryId]
 	if !ok {
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
 		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(param.Csr)
 	if err != nil {
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "malformed CSR", err),
 		}
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "invalid CSR signature", err),
 		}
 	}
@@ -215,7 +215,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 	spiffeID, err := api.TrustDomainMemberIDFromProto(s.td, entry.SpiffeId)
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
 		}
 	}
@@ -228,12 +228,12 @@ func (s *Service) newX509SVID(ctx context.Context, param *svid.NewX509SVIDParams
 		TTL:       time.Duration(entry.Ttl) * time.Second,
 	})
 	if err != nil {
-		return &svid.BatchNewX509SVIDResponse_Result{
+		return &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to sign X509-SVID", err),
 		}
 	}
 
-	return &svid.BatchNewX509SVIDResponse_Result{
+	return &svidv1.BatchNewX509SVIDResponse_Result{
 		Svid: &types.X509SVID{
 			Id:        entry.SpiffeId,
 			CertChain: x509util.RawCertsFromCertificates(x509Svid),
@@ -283,7 +283,7 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	}, nil
 }
 
-func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (resp *svid.NewJWTSVIDResponse, err error) {
+func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest) (resp *svidv1.NewJWTSVIDResponse, err error) {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
@@ -306,12 +306,12 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svid.NewJWTSVIDRequest) (
 		return nil, err
 	}
 
-	return &svid.NewJWTSVIDResponse{
+	return &svidv1.NewJWTSVIDResponse{
 		Svid: jwtsvid,
 	}, nil
 }
 
-func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstreamX509CARequest) (*svid.NewDownstreamX509CAResponse, error) {
+func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
@@ -355,7 +355,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svid.NewDownstre
 		rawRootCerts = append(rawRootCerts, cert.DerBytes)
 	}
 
-	return &svid.NewDownstreamX509CAResponse{
+	return &svidv1.NewDownstreamX509CAResponse{
 		CaCertChain:     x509util.RawCertsFromCertificates(x509CASvid),
 		X509Authorities: rawRootCerts,
 	}, nil

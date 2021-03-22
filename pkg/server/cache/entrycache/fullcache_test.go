@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	sqlds "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"

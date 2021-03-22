@@ -72,18 +72,30 @@ func (s *RotatorTestSuite) TearDownTest() {
 	s.ctrl.Finish()
 }
 
-func (s *RotatorTestSuite) TestRun() {
-	cert, key, err := util.LoadSVIDFixture()
+func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
+	// Cert that's valid for 1hr
+	temp, err := util.NewSVIDTemplate(s.mockClock, "spiffe://example.org/test")
 	s.Require().NoError(err)
-	s.expectSVIDRotation(cert)
+	goodCert, key, err := util.SelfSign(temp)
+	s.Require().NoError(err)
 
 	state := State{
-		SVID: []*x509.Certificate{cert},
+		SVID: []*x509.Certificate{goodCert},
 		Key:  key,
 	}
 	s.r.state = observer.NewProperty(state)
 
+	s.client.EXPECT().Release()
+
 	stream := s.r.Subscribe()
+
+	rotationDone := make(chan struct{}, 1)
+	s.r.SetRotationFinishedHook(func() {
+		select {
+		case rotationDone <- struct{}{}:
+		default:
+		}
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t := new(tomb.Tomb)
@@ -91,17 +103,25 @@ func (s *RotatorTestSuite) TestRun() {
 		return s.r.Run(ctx)
 	})
 
+	// Wait for the first rotation check to finish
+	select {
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for rotation check to finish")
+	case <-rotationDone:
+	}
+
 	// We should have the latest state
 	s.Assert().False(stream.HasNext())
 
 	// Should be equal to the fixture
 	state = stream.Value().(State)
 	s.Require().Len(state.SVID, 1)
-	s.Assert().Equal(cert, state.SVID[0])
+	s.Assert().Equal(goodCert, state.SVID[0])
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
-	s.Require().Equal(context.Canceled, t.Wait())
+	err = t.Wait()
+	s.Require().True(errors.Is(err, context.Canceled))
 }
 
 func (s *RotatorTestSuite) TestRunWithUpdates() {
@@ -126,6 +146,14 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 	stream := s.r.Subscribe()
 
+	rotationDone := make(chan struct{}, 1)
+	s.r.SetRotationFinishedHook(func() {
+		select {
+		case rotationDone <- struct{}{}:
+		default:
+		}
+	})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t := new(tomb.Tomb)
 	t.Go(func() error {
@@ -133,6 +161,13 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	})
 
 	s.mockClock.Add(s.r.c.Interval)
+
+	// Wait for the first rotation check to finish
+	select {
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for rotation check to finish")
+	case <-rotationDone:
+	}
 
 	select {
 	case <-time.After(time.Second):
@@ -145,12 +180,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 
 	cancel()
 	err = t.Wait()
-
-	// The error returned by the tomb is non-deterministic so we verify it is either one of the
-	// expected cases. When the Run context is cancelled, either all the runnable tasks terminate returning
-	// a nil error _or_ the Run loop itself returns and returns the context Err(), which in this case is
-	// context.Canceled.
-	s.Require().True(errors.Is(err, context.Canceled) || err == nil)
+	s.Require().True(errors.Is(err, context.Canceled))
 }
 
 func (s *RotatorTestSuite) TestRotateSVID() {

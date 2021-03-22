@@ -394,7 +394,7 @@ func (x *Pagination) GetPageSize() int32 {
 	return 0
 }
 
-//
+// It is used to request a list of all registration entries
 type ListAllEntriesRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

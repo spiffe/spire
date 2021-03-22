@@ -10,10 +10,10 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -59,7 +59,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	}
 
 	client := serverClient.NewSVIDClient()
-	resp, err := client.MintJWTSVID(ctx, &svid.MintJWTSVIDRequest{Id: &types.SPIFFEID{
+	resp, err := client.MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{Id: &types.SPIFFEID{
 		TrustDomain: spiffeID.TrustDomain().String(),
 		Path:        spiffeID.Path(),
 	},

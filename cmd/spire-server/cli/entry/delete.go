@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
@@ -45,7 +45,7 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return err
 	}
 
-	req := &entry.BatchDeleteEntryRequest{Ids: []string{c.entryID}}
+	req := &entryv1.BatchDeleteEntryRequest{Ids: []string{c.entryID}}
 	resp, err := serverClient.NewEntryClient().BatchDeleteEntry(ctx, req)
 	if err != nil {
 		return err

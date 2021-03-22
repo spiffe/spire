@@ -9,9 +9,9 @@ import (
 
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 	"google.golang.org/protobuf/proto"
 )

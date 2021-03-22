@@ -21,10 +21,10 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/zeebo/errs"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,7 +37,7 @@ type SpiffeIDWebhookConfig struct {
 	Log         logrus.FieldLogger
 	Mgr         ctrl.Manager
 	Namespace   string
-	E           entry.EntryClient
+	E           entryv1.EntryClient
 	TrustDomain string
 }
 
@@ -61,8 +61,8 @@ func (s *SpiffeID) ValidateCreate() error {
 	// TODO: filter additionally by SPIFFE ID? what about parent ID?
 
 	// Check for duplicates
-	resp, err := c.E.ListEntries(c.Ctx, &entry.ListEntriesRequest{
-		Filter: &entry.ListEntriesRequest_Filter{
+	resp, err := c.E.ListEntries(c.Ctx, &entryv1.ListEntriesRequest{
+		Filter: &entryv1.ListEntriesRequest_Filter{
 			BySelectors: &types.SelectorMatch{
 				Match:     types.SelectorMatch_MATCH_EXACT,
 				Selectors: s.TypesSelector(),

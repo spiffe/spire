@@ -16,8 +16,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	spiretypes "github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-reconcile/controllers"
 	"github.com/zeebo/errs"
 )

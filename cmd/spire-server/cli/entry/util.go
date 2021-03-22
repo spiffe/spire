@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 )
 
 // parseSelector parses a CLI string from type:value into a selector type.
@@ -131,10 +131,12 @@ func parseEntryJSON(in io.Reader, path string) ([]*types.Entry, error) {
 // this allows us to support repeatable string flags.
 type StringsFlag []string
 
+// String returns the string flag.
 func (s *StringsFlag) String() string {
 	return fmt.Sprint(*s)
 }
 
+// Set appends the string flag.
 func (s *StringsFlag) Set(val string) error {
 	*s = append(*s, val)
 	return nil

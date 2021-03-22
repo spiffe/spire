@@ -9,12 +9,12 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
 )
 
@@ -101,7 +101,7 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 	}
 
 	bundleClient := serverClient.NewBundleClient()
-	resp, err := bundleClient.BatchSetFederatedBundle(ctx, &bundle.BatchSetFederatedBundleRequest{
+	resp, err := bundleClient.BatchSetFederatedBundle(ctx, &bundlev1.BatchSetFederatedBundleRequest{
 		Bundle: federatedBundles,
 	})
 	if err != nil {

@@ -5,11 +5,11 @@ import (
 	"flag"
 
 	"github.com/mitchellh/cli"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
@@ -208,8 +208,8 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func updateEntries(ctx context.Context, c entry.EntryClient, entries []*types.Entry) (succeeded, failed []*entry.BatchUpdateEntryResponse_Result, err error) {
-	resp, err := c.BatchUpdateEntry(ctx, &entry.BatchUpdateEntryRequest{
+func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (succeeded, failed []*entryv1.BatchUpdateEntryResponse_Result, err error) {
+	resp, err := c.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 		Entries: entries,
 	})
 	if err != nil {

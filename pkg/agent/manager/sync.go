@@ -78,11 +78,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	if len(staleEntries) > 0 {
 		m.c.Log.WithFields(logrus.Fields{
 			telemetry.Count: len(staleEntries),
-			telemetry.Limit: limits.CSRLimitPerIP,
+			telemetry.Limit: limits.SignLimitPerIP,
 		}).Debug("Renewing stale entries")
 		for _, staleEntry := range staleEntries {
 			// we've exceeded the CSR limit, don't make any more CSRs
-			if len(csrs) >= limits.CSRLimitPerIP {
+			if len(csrs) >= limits.SignLimitPerIP {
 				break
 			}
 

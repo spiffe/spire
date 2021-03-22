@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -52,8 +52,8 @@ func TestCreateSynopsis(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	fakeRespOKFromCmd := &entry.BatchCreateEntryResponse{
-		Results: []*entry.BatchCreateEntryResponse_Result{
+	fakeRespOKFromCmd := &entryv1.BatchCreateEntryResponse{
+		Results: []*entryv1.BatchCreateEntryResponse_Result{
 			{
 				Entry: &types.Entry{
 					Id:       "entry-id",
@@ -78,8 +78,8 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	fakeRespOKFromFile := &entry.BatchCreateEntryResponse{
-		Results: []*entry.BatchCreateEntryResponse_Result{
+	fakeRespOKFromFile := &entryv1.BatchCreateEntryResponse{
+		Results: []*entryv1.BatchCreateEntryResponse_Result{
 			{
 				Entry: &types.Entry{
 					Id:        "entry-id-1",
@@ -110,8 +110,8 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	fakeRespErr := &entry.BatchCreateEntryResponse{
-		Results: []*entry.BatchCreateEntryResponse_Result{
+	fakeRespErr := &entryv1.BatchCreateEntryResponse{
+		Results: []*entryv1.BatchCreateEntryResponse_Result{
 			{
 				Status: &types.Status{
 					Code:    int32(codes.AlreadyExists),
@@ -125,8 +125,8 @@ func TestCreate(t *testing.T) {
 		name string
 		args []string
 
-		expReq    *entry.BatchCreateEntryRequest
-		fakeResp  *entry.BatchCreateEntryResponse
+		expReq    *entryv1.BatchCreateEntryRequest
+		fakeResp  *entryv1.BatchCreateEntryResponse
 		serverErr error
 
 		expOut string
@@ -179,7 +179,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "Server error",
 			args: []string{"-spiffeID", "spiffe://example.org/node", "-node", "-selector", "unix:uid:1"},
-			expReq: &entry.BatchCreateEntryRequest{Entries: []*types.Entry{
+			expReq: &entryv1.BatchCreateEntryRequest{Entries: []*types.Entry{
 				{
 					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/node"},
 					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/server"},
@@ -205,7 +205,7 @@ func TestCreate(t *testing.T) {
 				"-dns", "ung1000",
 				"-downstream",
 			},
-			expReq: &entry.BatchCreateEntryRequest{
+			expReq: &entryv1.BatchCreateEntryRequest{
 				Entries: []*types.Entry{
 					{
 						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
@@ -246,7 +246,7 @@ Admin            : true
 			args: []string{
 				"-data", "../../../../test/fixture/registration/good.json",
 			},
-			expReq: &entry.BatchCreateEntryRequest{
+			expReq: &entryv1.BatchCreateEntryRequest{
 				Entries: []*types.Entry{
 					{
 						SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
@@ -284,7 +284,7 @@ Selector         : unix:uid:1111
 		{
 			name: "Entry already exist",
 			args: []string{"-spiffeID", "spiffe://example.org/already-exist", "-node", "-selector", "unix:uid:1"},
-			expReq: &entry.BatchCreateEntryRequest{Entries: []*types.Entry{
+			expReq: &entryv1.BatchCreateEntryRequest{Entries: []*types.Entry{
 				{
 					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/already-exist"},
 					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/server"},

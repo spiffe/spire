@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/agent/debug/v1"
-	debug_server "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
+	agent_debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
+	server_debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -46,8 +46,8 @@ func agentEndpoints(ctx context.Context) {
 	}
 	defer conn.Close()
 
-	client := debug.NewDebugClient(conn)
-	resp, err := client.GetInfo(ctx, &debug.GetInfoRequest{})
+	client := agent_debugv1.NewDebugClient(conn)
+	resp, err := client.GetInfo(ctx, &agent_debugv1.GetInfoRequest{})
 	if err != nil {
 		log.Fatalf("Failed to get info: %v", err)
 	}
@@ -65,7 +65,7 @@ func serverWithWorkload(ctx context.Context) {
 	defer itClient.Release()
 
 	debugClient := itClient.DebugClient()
-	_, err := debugClient.GetInfo(ctx, &debug_server.GetInfoRequest{})
+	_, err := debugClient.GetInfo(ctx, &server_debugv1.GetInfoRequest{})
 	validateError(err)
 }
 
@@ -74,7 +74,7 @@ func serverWithInsecure(ctx context.Context) {
 	defer itClient.Release()
 
 	debugClient := itClient.DebugClient()
-	_, err := debugClient.GetInfo(ctx, &debug_server.GetInfoRequest{})
+	_, err := debugClient.GetInfo(ctx, &server_debugv1.GetInfoRequest{})
 	validateError(err)
 }
 

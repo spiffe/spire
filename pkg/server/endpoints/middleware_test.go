@@ -10,12 +10,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -30,34 +30,6 @@ import (
 type testEntries struct {
 	nodeAliasEntries []*types.Entry
 	workloadEntries  []*types.Entry
-}
-
-func TestAuthorizedEntryFetcher(t *testing.T) {
-	ds := fakedatastore.New(t)
-	e := createAuthorizedEntryTestData(t, ds)
-	expectedNodeAliasEntries := e.nodeAliasEntries
-	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
-	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
-	fetcher := AuthorizedEntryFetcher(ds)
-	fetcherWithCache, err := AuthorizedEntryFetcherWithCache(ds)
-	require.NoError(t, err)
-
-	for _, f := range []api.AuthorizedEntryFetcher{fetcher, fetcherWithCache} {
-		f := f
-		t.Run("success", func(t *testing.T) {
-			ds.SetNextError(nil)
-			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-			assert.NoError(t, err)
-			assert.ElementsMatch(t, expectedEntries, entries)
-		})
-
-		t.Run("failure", func(t *testing.T) {
-			ds.SetNextError(errors.New("ohno"))
-			entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
-			assert.EqualError(t, err, "ohno")
-			assert.Nil(t, entries)
-		})
-	}
 }
 
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
