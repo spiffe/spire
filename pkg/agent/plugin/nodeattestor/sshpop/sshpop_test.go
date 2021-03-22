@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
@@ -21,7 +21,7 @@ func TestSSHPoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p         nodeattestor.Plugin
+	p         nodeattestorv0.Plugin
 	sshclient *sshpop.Client
 	sshserver *sshpop.Server
 }
@@ -31,8 +31,8 @@ func (s *Suite) SetupTest() {
 	s.configure()
 }
 
-func (s *Suite) newPlugin() nodeattestor.Plugin {
-	var p nodeattestor.Plugin
+func (s *Suite) newPlugin() nodeattestorv0.Plugin {
+	var p nodeattestorv0.Plugin
 	s.LoadPlugin(BuiltIn(), &p)
 	return p
 }
@@ -91,7 +91,7 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	require.NoError(err)
 	challenge, err := server.IssueChallenge()
 	require.NoError(err)
-	err = stream.Send(&nodeattestor.FetchAttestationDataRequest{
+	err = stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
 		Challenge: challenge,
 	})
 	require.NoError(err)
@@ -118,7 +118,7 @@ func (s *Suite) TestFetchAttestationDataFailure() {
 		require.NoError(err)
 		require.NotNil(resp)
 
-		require.NoError(stream.Send(&nodeattestor.FetchAttestationDataRequest{
+		require.NoError(stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
 			Challenge: challenge,
 		}))
 
@@ -150,7 +150,7 @@ func (s *Suite) TestGetPluginInfo() {
 	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) fetchAttestationData() (nodeattestor.NodeAttestor_FetchAttestationDataClient, func()) {
+func (s *Suite) fetchAttestationData() (nodeattestorv0.NodeAttestor_FetchAttestationDataClient, func()) {
 	stream, err := s.p.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
 	return stream, func() {

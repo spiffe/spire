@@ -15,7 +15,12 @@ var (
 
 type PluginInfo interface {
 	Name() string
+	Type() string
 }
+
+type PluginName string
+
+func (name PluginName) Name() string { return string(name) }
 
 type catalogFiller struct {
 	plugins []*pluginFiller
@@ -210,7 +215,7 @@ func isInterfaceOrStructOfInterfaces(t reflect.Type) bool {
 		}
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
-			if f.Type.Kind() != reflect.Interface {
+			if !isInterfaceOrStructOfInterfaces(f.Type) {
 				return false
 			}
 		}
@@ -361,11 +366,17 @@ func (pf *pluginFiller) fillStruct(t reflect.Type) (reflect.Value, bool) {
 			continue
 		}
 
-		fieldValue, ok := pf.fillInterface(ft.Type)
+		var fieldValue reflect.Value
+		var ok bool
+		switch ft.Type.Kind() {
+		case reflect.Interface:
+			fieldValue, ok = pf.fillInterface(ft.Type)
+		case reflect.Struct:
+			fieldValue, ok = pf.fillStruct(ft.Type)
+		}
 		if !ok {
 			return reflect.Value{}, false
 		}
-
 		fv.Set(fieldValue)
 	}
 

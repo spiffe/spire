@@ -26,8 +26,6 @@ import (
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
-	agentnodeattestor "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -119,7 +117,7 @@ func TestAttestor(t *testing.T) {
 		{
 			name:                        "fail fetching attestation data",
 			bootstrapBundle:             caCert,
-			err:                         "fetching attestation data purposefully failed",
+			err:                         "fetching attestation data failed by test",
 			failFetchingAttestationData: true,
 			agentService:                &fakeAgentService{},
 			bundleService:               &fakeBundleService{},
@@ -263,7 +261,7 @@ func TestAttestor(t *testing.T) {
 			bundleService: &fakeBundleService{
 				bundle: bundle,
 			},
-			err: "attestation has been purposefully failed",
+			err: "attestation failed by test",
 		},
 		{
 			name:            "missing key in keymanager ignored",
@@ -276,7 +274,7 @@ func TestAttestor(t *testing.T) {
 			bundleService: &fakeBundleService{
 				bundle: bundle,
 			},
-			err: "attestation has been purposefully failed",
+			err: "attestation failed by test",
 		},
 		{
 			name:            "get bundle error",
@@ -301,7 +299,7 @@ func TestAttestor(t *testing.T) {
 			svidCachePath, bundleCachePath := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
 
 			// load up the fake agent-side node attestor
-			agentNA := prepareAgentNA(t, fakeagentnodeattestor.Config{
+			agentNA := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{
 				Fail:      testCase.failFetchingAttestationData,
 				Responses: testCase.agentService.challengeResponses,
 			})
@@ -311,7 +309,7 @@ func TestAttestor(t *testing.T) {
 
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()
-			catalog.SetNodeAttestor(fakeagentcatalog.NodeAttestor("test", agentNA))
+			catalog.SetNodeAttestor(agentNA)
 			catalog.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
@@ -375,7 +373,7 @@ type fakeAgentService struct {
 
 func (s *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	if s.failAttestAgent {
-		return errors.New("attestation has been purposefully failed")
+		return errors.New("attestation failed by test")
 	}
 
 	if s.joinToken != "" {
@@ -443,14 +441,6 @@ func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, stri
 	}
 
 	return svidCachePath, bundleCachePath
-}
-
-func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) agentnodeattestor.NodeAttestor {
-	var agentNA agentnodeattestor.NodeAttestor
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test",
-		agentnodeattestor.PluginServer(fakeagentnodeattestor.New(config)),
-	), &agentNA)
-	return agentNA
 }
 
 func prepareKeyManager(t *testing.T, key crypto.PrivateKey) keymanager.KeyManager {

@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -40,7 +40,7 @@ type AttestorSuite struct {
 	spiretest.Suite
 
 	dir      string
-	attestor nodeattestor.Plugin
+	attestor nodeattestorv0.Plugin
 }
 
 func (s *AttestorSuite) SetupTest() {

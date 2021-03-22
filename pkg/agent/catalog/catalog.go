@@ -23,11 +23,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 )
 
 type Catalog interface {
 	GetKeyManager() KeyManager
-	GetNodeAttestor() NodeAttestor
+	GetNodeAttestor() nodeattestor.NodeAttestor
 	GetWorkloadAttestors() []WorkloadAttestor
 }
 
@@ -38,7 +39,7 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
 		keymanager.PluginClient,
-		nodeattestor.PluginClient,
+		nodeattestorv0.PluginClient,
 		workloadattestor.PluginClient,
 	}
 }
@@ -69,11 +70,6 @@ type KeyManager struct {
 	keymanager.KeyManager
 }
 
-type NodeAttestor struct {
-	catalog.PluginInfo
-	nodeattestor.NodeAttestor
-}
-
 type WorkloadAttestor struct {
 	catalog.PluginInfo
 	workloadattestor.WorkloadAttestor
@@ -81,8 +77,8 @@ type WorkloadAttestor struct {
 
 type Plugins struct {
 	KeyManager        KeyManager
-	NodeAttestor      NodeAttestor
-	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
+	NodeAttestor      nodeattestor.NodeAttestor
+	WorkloadAttestors []WorkloadAttestor
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -91,7 +87,7 @@ func (p *Plugins) GetKeyManager() KeyManager {
 	return p.KeyManager
 }
 
-func (p *Plugins) GetNodeAttestor() NodeAttestor {
+func (p *Plugins) GetNodeAttestor() nodeattestor.NodeAttestor {
 	return p.NodeAttestor
 }
 
@@ -118,7 +114,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p := new(Plugins)
+	p := new(versionedPlugins)
 	closer, err := catalog.Fill(ctx, catalog.Config{
 		Log:           config.Log,
 		GlobalConfig:  config.GlobalConfig,
@@ -135,7 +131,22 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	p.KeyManager.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager.KeyManager, config.Metrics)
 
 	return &Repository{
-		Catalog: p,
-		Closer:  closer,
+		Catalog: &Plugins{
+			KeyManager:        p.KeyManager,
+			NodeAttestor:      p.NodeAttestor,
+			WorkloadAttestors: p.WorkloadAttestors,
+		},
+		Closer: closer,
 	}, nil
+}
+
+// versionedPlugins is a temporary struct with the v0 version shims as they are
+// introduced. The catalog will fill this struct, which is then converted to
+// the Plugins struct which contains the facade interfaces. It will be removed
+// when the catalog is refactored to leverage the new common catalog with
+// native versioning support (see issue #2153).
+type versionedPlugins struct {
+	KeyManager        KeyManager
+	NodeAttestor      nodeattestor.V0
+	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
 }
