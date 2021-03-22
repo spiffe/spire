@@ -25,7 +25,7 @@ func (v0 V0) GenerateKey(ctx context.Context) (crypto.Signer, error) {
 	}
 
 	if resp.PrivateKey == nil {
-		return nil, v0.Error(codes.Internal, "plugin generate key pair response missing private key")
+		return nil, v0.Error(codes.Internal, "plugin response missing private key")
 	}
 
 	ecKey, err := x509.ParseECPrivateKey(resp.PrivateKey)
@@ -43,7 +43,7 @@ func (v0 V0) GetKey(ctx context.Context) (crypto.Signer, error) {
 	}
 
 	if resp.PrivateKey == nil {
-		return nil, v0.Error(codes.NotFound, "key not found")
+		return nil, v0.Error(codes.NotFound, "private key not found")
 	}
 
 	ecKey, err := x509.ParseECPrivateKey(resp.PrivateKey)

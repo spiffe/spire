@@ -194,7 +194,7 @@ func TestStoreKeyOnStartup(t *testing.T) {
 	}
 
 	_, err := km.GetKey(context.Background())
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "keymanager(disk): key not found")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "keymanager(disk): private key not found")
 
 	m := newManager(c)
 	require.Error(t, m.Initialize(context.Background()))
