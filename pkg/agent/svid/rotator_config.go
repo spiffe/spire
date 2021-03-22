@@ -1,7 +1,7 @@
 package svid
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"sync"
 	"time"
@@ -27,7 +27,7 @@ type RotatorConfig struct {
 	ServerAddr  string
 	// Initial SVID and key
 	SVID    []*x509.Certificate
-	SVIDKey *ecdsa.PrivateKey
+	SVIDKey crypto.Signer
 
 	BundleStream *cache.BundleStream
 
@@ -64,7 +64,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 		Log:         c.Log,
 		Addr:        c.ServerAddr,
 		RotMtx:      rotMtx,
-		KeysAndBundle: func() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
+		KeysAndBundle: func() ([]*x509.Certificate, crypto.Signer, []*x509.Certificate) {
 			s := state.Value().(State)
 
 			bsm.RLock()

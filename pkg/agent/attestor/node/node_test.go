@@ -3,7 +3,6 @@ package attestor_test
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -25,11 +24,11 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
+	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -78,7 +77,7 @@ func TestAttestor(t *testing.T) {
 		cachedBundle                []byte
 		cachedSVID                  []byte
 		err                         string
-		storeKey                    crypto.PrivateKey
+		storeKey                    crypto.Signer
 		failFetchingAttestationData bool
 		agentService                *fakeAgentService
 		bundleService               *fakeBundleService
@@ -310,7 +309,7 @@ func TestAttestor(t *testing.T) {
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()
 			catalog.SetNodeAttestor(agentNA)
-			catalog.SetKeyManager(fakeagentcatalog.KeyManager(km))
+			catalog.SetKeyManager(km)
 
 			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 			agentv1.RegisterAgentServer(server, testCase.agentService)
@@ -443,9 +442,8 @@ func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, stri
 	return svidCachePath, bundleCachePath
 }
 
-func prepareKeyManager(t *testing.T, key crypto.PrivateKey) keymanager.KeyManager {
-	var km keymanager.KeyManager
-	spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
+func prepareKeyManager(t *testing.T, key crypto.Signer) keymanager.KeyManager {
+	km := fakeagentkeymanager.New(t, "")
 	if key != nil {
 		storePrivateKey(t, km, key)
 	}
@@ -502,14 +500,8 @@ func createCertificate(t *testing.T, tmpl, parent *x509.Certificate) *x509.Certi
 	return cert
 }
 
-func storePrivateKey(t *testing.T, km keymanager.KeyManager, privateKey crypto.PrivateKey) {
-	ecKey, ok := privateKey.(*ecdsa.PrivateKey)
-	require.True(t, ok, "not an EC key")
-	keyBytes, err := x509.MarshalECPrivateKey(ecKey)
-	require.NoError(t, err)
-	_, err = km.StorePrivateKey(context.Background(), &keymanager.StorePrivateKeyRequest{
-		PrivateKey: keyBytes,
-	})
+func storePrivateKey(t *testing.T, km keymanager.KeyManager, privateKey crypto.Signer) {
+	err := km.SetKey(context.Background(), privateKey)
 	require.NoError(t, err)
 }
 
