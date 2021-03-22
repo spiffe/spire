@@ -33,7 +33,7 @@ func TestV0(t *testing.T) {
 		require.Empty(t, actual)
 	})
 
-	t.Run("no selectors for pid", func(t *testing.T) {
+	t.Run("with selectors for pid", func(t *testing.T) {
 		workloadAttestor := makeFakeV0Plugin(t, expected)
 		actual, err := workloadAttestor.Attest(context.Background(), 2)
 		require.NoError(t, err)
