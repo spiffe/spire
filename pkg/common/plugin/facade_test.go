@@ -17,6 +17,20 @@ var (
 	facade = plugin.FixedFacade("name", "type")
 )
 
+func TestPrefixMessage(t *testing.T) {
+	t.Run("without prefix", func(t *testing.T) {
+		assert.Equal(t, "type(name): ohno", plugin.PrefixMessage(facade, "ohno"))
+	})
+
+	t.Run("with old prefix", func(t *testing.T) {
+		assert.Equal(t, "type(name): ohno", plugin.PrefixMessage(facade, "name: ohno"))
+	})
+
+	t.Run("already prefixed", func(t *testing.T) {
+		assert.Equal(t, "type(name): ohno", plugin.PrefixMessage(facade, "type(name): ohno"))
+	})
+}
+
 func TestFacadeWrapErr(t *testing.T) {
 	t.Run("nil error", func(t *testing.T) {
 		assert.Nil(t, facade.WrapErr(nil))

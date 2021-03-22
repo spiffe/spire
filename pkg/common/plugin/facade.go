@@ -42,7 +42,7 @@ func (f Facade) WrapErr(err error) error {
 		return err
 	}
 
-	// Embellish the a gRPC status with the prefix, if necessary.
+	// Embellish the gRPC status with the prefix, if necessary.
 	if st, ok := status.FromError(err); ok {
 		// Care must be taken to preserve any status details. Therefore, the
 		// proto is embellished directly and a new status created from that
@@ -78,12 +78,12 @@ func (f Facade) Errorf(code codes.Code, format string, args ...interface{}) erro
 
 func prefixMessage(pluginInfo catalog.PluginInfo, message string) (string, bool) {
 	prefix := messagePrefix(pluginInfo)
-	oldPrefix := pluginInfo.Name() + ": "
 
 	if strings.HasPrefix(message, prefix) {
 		return message, false
 	}
 
+	oldPrefix := pluginInfo.Name() + ": "
 	return prefix + strings.TrimPrefix(message, oldPrefix), true
 }
 

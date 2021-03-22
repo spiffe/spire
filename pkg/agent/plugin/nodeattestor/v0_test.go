@@ -248,7 +248,7 @@ func challenges(ss ...string) []string {
 func challengeResponses(ss ...string) map[string]string {
 	set := make(map[string]string)
 	for i := 0; i < len(ss); i += 2 {
-		set[ss[i+0]] = ss[i+1]
+		set[ss[i]] = ss[i+1]
 	}
 	return set
 }

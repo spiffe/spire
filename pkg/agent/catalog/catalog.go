@@ -141,9 +141,9 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 }
 
 // versionedPlugins is a temporary struct with the v0 version shims as they are
-// introduced. The catalog will fill this struct, which is them converted to
+// introduced. The catalog will fill this struct, which is then converted to
 // the Plugins struct which contains the facade interfaces. It will be removed
-// when the catalog is refactored to the leverage the new common catalog with
+// when the catalog is refactored to leverage the new common catalog with
 // native versioning support (see issue #2153).
 type versionedPlugins struct {
 	KeyManager        KeyManager

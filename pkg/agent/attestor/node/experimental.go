@@ -74,8 +74,8 @@ type serverStream struct {
 	svid   []*x509.Certificate
 }
 
-func (b *serverStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
-	return b.sendRequest(ctx, &agentv1.AttestAgentRequest{
+func (ss *serverStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
+	return ss.sendRequest(ctx, &agentv1.AttestAgentRequest{
 		Step: &agentv1.AttestAgentRequest_Params_{
 			Params: &agentv1.AttestAgentRequest_Params{
 				Data: &types.AttestationData{
@@ -83,37 +83,37 @@ func (b *serverStream) SendAttestationData(ctx context.Context, attestationData 
 					Payload: attestationData.Payload,
 				},
 				Params: &agentv1.AgentX509SVIDParams{
-					Csr: b.csr,
+					Csr: ss.csr,
 				},
 			},
 		},
 	})
 }
 
-func (b *serverStream) SendChallengeResponse(ctx context.Context, response []byte) ([]byte, error) {
-	return b.sendRequest(ctx, &agentv1.AttestAgentRequest{
+func (ss *serverStream) SendChallengeResponse(ctx context.Context, response []byte) ([]byte, error) {
+	return ss.sendRequest(ctx, &agentv1.AttestAgentRequest{
 		Step: &agentv1.AttestAgentRequest_ChallengeResponse{
 			ChallengeResponse: response,
 		},
 	})
 }
 
-func (b *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgentRequest) ([]byte, error) {
-	if b.stream == nil {
-		stream, err := b.client.AttestAgent(ctx)
+func (ss *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgentRequest) ([]byte, error) {
+	if ss.stream == nil {
+		stream, err := ss.client.AttestAgent(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("could not open attestation stream to SPIRE server: %v", err)
 		}
-		b.stream = stream
+		ss.stream = stream
 	}
 
-	if err := b.stream.Send(req); err != nil {
-		return nil, fmt.Errorf("failed to send attestion request to SPIRE server: %v", err)
+	if err := ss.stream.Send(req); err != nil {
+		return nil, fmt.Errorf("failed to send attestation request to SPIRE server: %v", err)
 	}
 
-	resp, err := b.stream.Recv()
+	resp, err := ss.stream.Recv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive attestion response: %v", err)
+		return nil, fmt.Errorf("failed to receive attestation response: %v", err)
 	}
 
 	if challenge := resp.GetChallenge(); challenge != nil {
@@ -125,10 +125,10 @@ func (b *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgent
 		return nil, fmt.Errorf("failed to parse attestation response: %v", err)
 	}
 
-	if err := b.stream.CloseSend(); err != nil {
-		b.log.WithError(err).Warn("failed to close stream send side")
+	if err := ss.stream.CloseSend(); err != nil {
+		ss.log.WithError(err).Warn("failed to close stream send side")
 	}
 
-	b.svid = svid
+	ss.svid = svid
 	return nil, nil
 }
