@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
@@ -20,13 +21,14 @@ import (
 )
 
 type ControllerConfig struct {
-	Log                logrus.FieldLogger
-	E                  entryv1.EntryClient
-	TrustDomain        string
-	Cluster            string
-	PodLabel           string
-	PodAnnotation      string
-	DisabledNamespaces map[string]bool
+	Log                  logrus.FieldLogger
+	E                    entryv1.EntryClient
+	TrustDomain          string
+	Cluster              string
+	PodLabel             string
+	PodAnnotation        string
+	DisabledNamespaces   map[string]bool
+	FederationAnnotation string
 }
 
 type Controller struct {
@@ -137,6 +139,8 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		return nil
 	}
 
+	federationDomains := c.getFederationDomains(pod)
+
 	return c.createEntry(ctx, &types.Entry{
 		ParentId: c.nodeID(),
 		SpiffeId: spiffeID,
@@ -144,7 +148,15 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),
 		},
+		FederatesWith: federationDomains,
 	})
+}
+
+func (c *Controller) getFederationDomains(pod *corev1.Pod) []string {
+	if val, ok := pod.GetAnnotations()[c.c.FederationAnnotation]; ok {
+		return strings.Split(val, ",")
+	}
+	return []string{}
 }
 
 func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string) error {

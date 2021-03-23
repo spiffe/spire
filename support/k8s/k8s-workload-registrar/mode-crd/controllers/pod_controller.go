@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -32,15 +33,16 @@ import (
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
 type PodReconcilerConfig struct {
-	Client             client.Client
-	Cluster            string
-	Ctx                context.Context
-	DisabledNamespaces []string
-	Log                logrus.FieldLogger
-	PodLabel           string
-	PodAnnotation      string
-	Scheme             *runtime.Scheme
-	TrustDomain        string
+	Client               client.Client
+	Cluster              string
+	Ctx                  context.Context
+	DisabledNamespaces   []string
+	Log                  logrus.FieldLogger
+	PodLabel             string
+	PodAnnotation        string
+	Scheme               *runtime.Scheme
+	TrustDomain          string
+	FederationAnnotation string
 }
 
 // PodReconciler holds the runtime configuration and state of this controller
@@ -98,6 +100,8 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		return ctrl.Result{}, nil
 	}
 
+	federationDomains := r.getFederationDomains(pod)
+
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
 		ObjectMeta: metav1.ObjectMeta{
@@ -108,9 +112,10 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 			},
 		},
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
-			SpiffeId: spiffeIDURI,
-			ParentId: r.podParentID(pod.Spec.NodeName),
-			DnsNames: []string{pod.Name}, // Set pod name as first DNS name
+			SpiffeId:      spiffeIDURI,
+			ParentId:      r.podParentID(pod.Spec.NodeName),
+			DnsNames:      []string{pod.Name}, // Set pod name as first DNS name
+			FederatesWith: federationDomains,
 			Selector: spiffeidv1beta1.Selector{
 				PodUid:    pod.GetUID(),
 				Namespace: pod.Namespace,
@@ -154,6 +159,13 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 
 	// Nothing to do
 	return ctrl.Result{}, nil
+}
+
+func (r *PodReconciler) getFederationDomains(pod *corev1.Pod) []string {
+	if val, ok := pod.GetAnnotations()[r.c.FederationAnnotation]; ok {
+		return strings.Split(val, ",")
+	}
+	return []string{}
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored

@@ -61,13 +61,14 @@ func (c *WebhookMode) Run(ctx context.Context) error {
 		disabledNamespacesMap[ns] = true
 	}
 	controller := NewController(ControllerConfig{
-		Log:                log,
-		E:                  entryClient,
-		TrustDomain:        c.TrustDomain,
-		Cluster:            c.Cluster,
-		PodLabel:           c.PodLabel,
-		PodAnnotation:      c.PodAnnotation,
-		DisabledNamespaces: disabledNamespacesMap,
+		Log:                  log,
+		E:                    entryClient,
+		TrustDomain:          c.TrustDomain,
+		Cluster:              c.Cluster,
+		PodLabel:             c.PodLabel,
+		PodAnnotation:        c.PodAnnotation,
+		DisabledNamespaces:   disabledNamespacesMap,
+		FederationAnnotation: c.FederationAnnotation,
 	})
 
 	log.Info("Initializing registrar")

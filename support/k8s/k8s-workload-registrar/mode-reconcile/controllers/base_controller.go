@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
@@ -69,10 +70,11 @@ type ObjectReconciler interface {
 type BaseReconciler struct {
 	client.Client
 	ObjectReconciler
-	Scheme      *runtime.Scheme
-	RootID      *spiretypes.SPIFFEID
-	SpireClient entryv1.EntryClient
-	Log         logr.Logger
+	FederationAnnotation string
+	Scheme               *runtime.Scheme
+	RootID               *spiretypes.SPIFFEID
+	SpireClient          entryv1.EntryClient
+	Log                  logr.Logger
 }
 
 type RuntimeObject = runtime.Object
@@ -218,6 +220,7 @@ func (r *BaseReconciler) createEntry(ctx context.Context, entryToCreate *spirety
 func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithMetadata) (*spiretypes.Entry, error) {
 	spiffeID := r.makeSpiffeID(obj)
 	parentID := r.makeParentID(obj)
+	federationDomains := r.getFederationDomains(obj)
 
 	if spiffeID == nil || parentID == nil {
 		return nil, nil
@@ -228,10 +231,18 @@ func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithM
 			Namespace: obj.GetNamespace(),
 			Name:      obj.GetName(),
 		}),
-		ParentId: parentID,
-		SpiffeId: spiffeID,
+		ParentId:      parentID,
+		SpiffeId:      spiffeID,
+		FederatesWith: federationDomains,
 	}
 	return r.fillEntryForObject(ctx, &newEntry, obj)
+}
+
+func (r *BaseReconciler) getFederationDomains(obj ObjectWithMetadata) []string {
+	if val, ok := obj.GetAnnotations()[r.FederationAnnotation]; ok {
+		return strings.Split(val, ",")
+	}
+	return []string{}
 }
 
 func (r *BaseReconciler) entryEquals(myEntry *spiretypes.Entry, in *spiretypes.Entry) bool {

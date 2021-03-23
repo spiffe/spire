@@ -352,18 +352,19 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string, federationAnnotation string) *BaseReconciler {
 	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
 	for _, ns := range disabledNamespaces {
 		disabledNamespacesMap[ns] = true
 	}
 
 	return &BaseReconciler{
-		Client:      client,
-		Scheme:      scheme,
-		RootID:      rootID,
-		SpireClient: spireClient,
-		Log:         log,
+		Client:               client,
+		Scheme:               scheme,
+		RootID:               rootID,
+		SpireClient:          spireClient,
+		Log:                  log,
+		FederationAnnotation: federationAnnotation,
 		ObjectReconciler: &PodReconciler{
 			Client:             client,
 			RootID:             rootID,

@@ -31,6 +31,7 @@ The configuration file is a **required** by the registrar. It contains
 | `cluster`                  | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string   | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
+| `federation_annotation`    | string   | optional | The pod annotation used for [Federated Entry Registration](#federated-entry-registration) | |
 | `mode`                     | string   | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
 | `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
 
@@ -82,6 +83,28 @@ or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you us
 specify only `pod_annotation`.
 
 It may take several seconds for newly created SVIDs to become available to workloads.
+
+### Federated Entry Registration
+
+The pod annotatation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
+
+To specify multiple trust domains, separate them with commas.
+
+Example:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    spiffe.io/federatesWith: example.com,example.io,example.ai
+  name: test
+spec:
+  containers:
+  ...
+```
+
+The annotation can be changed by setting `federation_annotation` in the config.
 
 ### Service Account Based Workload Registration
 
@@ -261,6 +284,8 @@ metadata:
 spec:
   dnsNames:
   - my-dns-name
+  federatesWith:
+  - example-third-party.org
   selector:
     namespace: my-namespace
     podName: my-pod-name
@@ -279,6 +304,6 @@ The supported selectors are:
 - podUID --  Pod UID to match for this SPIFFE ID
 - serviceAccount -- ServiceAccount to match for this SPIFFE ID
 
-Note: Specifying DNS Names is optional.
+Note: Specifying DNS Names or Federation Domains is optional.
 
 Spire enforces that spiffeId+parentId+selectors are unique. The optional `"crd"` mode webhook
