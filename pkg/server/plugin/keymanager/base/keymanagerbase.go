@@ -290,7 +290,7 @@ func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanagerv0.KeyType, error) {
 }
 
 func generateRSA1024Key() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, 1024)
+	return rsa.GenerateKey(rand.Reader, 1024) //nolint: gosec
 }
 
 func generateRSA2048Key() (*rsa.PrivateKey, error) {
