@@ -25,12 +25,13 @@ import (
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 )
 
 type Catalog interface {
 	GetKeyManager() keymanager.KeyManager
 	GetNodeAttestor() nodeattestor.NodeAttestor
-	GetWorkloadAttestors() []WorkloadAttestor
+	GetWorkloadAttestors() []workloadattestor.WorkloadAttestor
 }
 
 type GlobalConfig = catalog.GlobalConfig
@@ -41,7 +42,7 @@ func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
 		keymanagerv0.PluginClient,
 		nodeattestorv0.PluginClient,
-		workloadattestor.PluginClient,
+		workloadattestorv0.PluginClient,
 	}
 }
 
@@ -75,7 +76,7 @@ type WorkloadAttestor struct {
 type Plugins struct {
 	KeyManager        keymanager.KeyManager
 	NodeAttestor      nodeattestor.NodeAttestor
-	WorkloadAttestors []WorkloadAttestor
+	WorkloadAttestors []workloadattestor.WorkloadAttestor
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -88,7 +89,7 @@ func (p *Plugins) GetNodeAttestor() nodeattestor.NodeAttestor {
 	return p.NodeAttestor
 }
 
-func (p *Plugins) GetWorkloadAttestors() []WorkloadAttestor {
+func (p *Plugins) GetWorkloadAttestors() []workloadattestor.WorkloadAttestor {
 	return p.WorkloadAttestors
 }
 
@@ -127,11 +128,16 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 
 	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
 
+	var workloadAttestors []workloadattestor.WorkloadAttestor
+	for _, workloadAttestorV0 := range p.WorkloadAttestors {
+		workloadAttestors = append(workloadAttestors, workloadAttestorV0)
+	}
+
 	return &Repository{
 		Catalog: &Plugins{
 			KeyManager:        p.KeyManager,
 			NodeAttestor:      p.NodeAttestor,
-			WorkloadAttestors: p.WorkloadAttestors,
+			WorkloadAttestors: workloadAttestors,
 		},
 		Closer: closer,
 	}, nil
@@ -145,5 +151,5 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 type versionedPlugins struct {
 	KeyManager        keymanager.V0
 	NodeAttestor      nodeattestor.V0
-	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
+	WorkloadAttestors []workloadattestor.V0 `catalog:"min=1"`
 }

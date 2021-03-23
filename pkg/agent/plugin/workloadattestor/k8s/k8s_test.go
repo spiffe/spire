@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
@@ -131,7 +131,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 )
 
 type attestResult struct {
-	resp *workloadattestor.AttestResponse
+	resp *workloadattestorv0.AttestResponse
 	err  error
 }
 
@@ -144,7 +144,7 @@ type Suite struct {
 
 	dir   string
 	clock *clock.Mock
-	p     workloadattestor.Plugin
+	p     workloadattestorv0.Plugin
 
 	podList [][]byte
 	env     map[string]string
@@ -234,7 +234,7 @@ func (s *Suite) TestAttestWithPidNotInPodCancelsEarly() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	resp, err := s.p.Attest(ctx, &workloadattestor.AttestRequest{
+	resp, err := s.p.Attest(ctx, &workloadattestorv0.AttestRequest{
 		Pid: int32(pid),
 	})
 	s.RequireGRPCStatus(err, codes.Canceled, "context canceled")
@@ -276,7 +276,7 @@ func (s *Suite) TestAttestWithPidNotInPod() {
 	s.configureInsecure()
 	s.addCgroupsResponse(cgPidNotInPodFilePath)
 
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
 		Pid: int32(pid),
 	})
 	s.Require().NoError(err)
@@ -347,7 +347,7 @@ func (s *Suite) TestAttestAgainstNodeOverride() {
 	s.configureInsecure()
 	s.addCgroupsResponse(cgPidNotInPodFilePath)
 
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
 		Pid: int32(pid),
 	})
 	s.Require().NoError(err)
@@ -626,7 +626,7 @@ func (s *Suite) TestGetPluginInfo() {
 	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
 }
 
-func (s *Suite) newPlugin() (*Plugin, workloadattestor.Plugin) {
+func (s *Suite) newPlugin() (*Plugin, workloadattestorv0.Plugin) {
 	p := New()
 	p.fs = testFS(s.dir)
 	p.clock = s.clock
@@ -634,7 +634,7 @@ func (s *Suite) newPlugin() (*Plugin, workloadattestor.Plugin) {
 		return s.env[key]
 	}
 
-	var wp workloadattestor.Plugin
+	var wp workloadattestorv0.Plugin
 	s.LoadPlugin(builtin(p), &wp)
 	return p, wp
 }
@@ -824,7 +824,7 @@ func (s *Suite) requireAttestSuccessWithInitPod() {
 }
 
 func (s *Suite) requireAttestSuccess(expectedSelectors []*common.Selector) {
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
 		Pid: int32(pid),
 	})
 	s.Require().NoError(err)
@@ -832,7 +832,7 @@ func (s *Suite) requireAttestSuccess(expectedSelectors []*common.Selector) {
 }
 
 func (s *Suite) requireAttestFailure(contains string) {
-	resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
 		Pid: int32(pid),
 	})
 	s.RequireGRPCStatusContains(err, codes.Unknown, contains)
@@ -848,7 +848,7 @@ func (s *Suite) requireSelectorsEqual(expected, actual []*common.Selector) {
 func (s *Suite) goAttest() <-chan attestResult {
 	resultCh := make(chan attestResult, 1)
 	go func() {
-		resp, err := s.p.Attest(context.Background(), &workloadattestor.AttestRequest{
+		resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
 			Pid: int32(pid),
 		})
 		resultCh <- attestResult{

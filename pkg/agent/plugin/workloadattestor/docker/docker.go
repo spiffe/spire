@@ -13,9 +13,9 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -32,7 +32,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, workloadattestorv0.PluginServer(p))
 }
 
 // Docker is a subset of the docker client functionality, useful for mocking.
@@ -41,7 +41,7 @@ type Docker interface {
 }
 
 type Plugin struct {
-	workloadattestor.UnsafeWorkloadAttestorServer
+	workloadattestorv0.UnsafeWorkloadAttestorServer
 
 	log     hclog.Logger
 	fs      cgroups.FileSystem
@@ -73,7 +73,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -88,7 +88,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		return nil, err
 	case containerID == "":
 		// Not a docker workload. Nothing more to do.
-		return &workloadattestor.AttestResponse{}, nil
+		return &workloadattestorv0.AttestResponse{}, nil
 	}
 
 	var container types.ContainerJSON
@@ -103,7 +103,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		return nil, err
 	}
 
-	return &workloadattestor.AttestResponse{
+	return &workloadattestorv0.AttestResponse{
 		Selectors: getSelectorsFromConfig(container.Config),
 	}, nil
 }

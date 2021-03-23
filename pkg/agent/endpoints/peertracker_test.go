@@ -37,8 +37,8 @@ func TestPeerTrackerAttestor(t *testing.T) {
 
 type FakeAttestor struct{}
 
-func (a FakeAttestor) Attest(ctx context.Context, pid int32) []*common.Selector {
-	if int(pid) == os.Getpid() {
+func (a FakeAttestor) Attest(ctx context.Context, pid int) []*common.Selector {
+	if pid == os.Getpid() {
 		return []*common.Selector{{Type: "Type", Value: "Value"}}
 	}
 	return nil

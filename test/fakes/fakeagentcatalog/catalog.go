@@ -23,30 +23,6 @@ func (c *Catalog) SetNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
 	c.NodeAttestor = nodeAttestor
 }
 
-func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...catalog.WorkloadAttestor) {
+func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...workloadattestor.WorkloadAttestor) {
 	c.WorkloadAttestors = workloadAttestors
-}
-
-func WorkloadAttestor(name string, workloadAttestor workloadattestor.WorkloadAttestor) catalog.WorkloadAttestor {
-	return catalog.WorkloadAttestor{
-		PluginInfo:       pluginInfo{name: name, typ: workloadattestor.Type},
-		WorkloadAttestor: workloadAttestor,
-	}
-}
-
-type pluginInfo struct {
-	name string
-	typ  string
-}
-
-func (pi pluginInfo) Name() string {
-	return pi.name
-}
-
-func (pi pluginInfo) Type() string {
-	return pi.typ
-}
-
-func (pi pluginInfo) BuiltIn() bool {
-	return true
 }

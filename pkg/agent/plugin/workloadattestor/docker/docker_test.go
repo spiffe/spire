@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	mock_docker "github.com/spiffe/spire/test/mock/agent/plugin/workloadattestor/docker"
@@ -35,13 +36,13 @@ func TestDockerSelectors(t *testing.T) {
 		mockContainerLabels map[string]string
 		mockEnv             []string
 		mockImageID         string
-		requireResult       func(*testing.T, *workloadattestor.AttestResponse)
+		requireResult       func(*testing.T, *workloadattestorv0.AttestResponse)
 	}{
 		{
 			desc:                "single label; single env",
 			mockContainerLabels: map[string]string{"this": "that"},
 			mockEnv:             []string{"VAR=val"},
-			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
+			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
 				require.Len(t, res.Selectors, 2)
 				require.Equal(t, "docker", res.Selectors[0].Type)
 				require.Equal(t, "label:this:that", res.Selectors[0].Value)
@@ -53,7 +54,7 @@ func TestDockerSelectors(t *testing.T) {
 			desc:                "many labels; many env",
 			mockContainerLabels: map[string]string{"this": "that", "here": "there", "up": "down"},
 			mockEnv:             []string{"VAR=val", "VAR2=val"},
-			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
+			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
 				require.Len(t, res.Selectors, 5)
 				expectedSelectors := map[string]struct{}{
 					"label:this:that":  {},
@@ -71,14 +72,14 @@ func TestDockerSelectors(t *testing.T) {
 		{
 			desc:                "no labels or env for container",
 			mockContainerLabels: map[string]string{},
-			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
+			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
 				require.Len(t, res.Selectors, 0)
 			},
 		},
 		{
 			desc:        "image id",
 			mockImageID: "my-docker-image",
-			requireResult: func(t *testing.T, res *workloadattestor.AttestResponse) {
+			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
 				require.Len(t, res.Selectors, 1)
 				require.Equal(t, "docker", res.Selectors[0].Type)
 				require.Equal(t, "image_id:my-docker-image", res.Selectors[0].Value)
@@ -108,7 +109,7 @@ func TestDockerSelectors(t *testing.T) {
 			}
 			mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
 
-			res, err := p.Attest(ctx, &workloadattestor.AttestRequest{Pid: 123})
+			res, err := p.Attest(ctx, &workloadattestorv0.AttestRequest{Pid: 123})
 			require.NoError(t, err)
 			require.NotNil(t, res)
 			tt.requireResult(t, res)
@@ -194,7 +195,7 @@ func TestContainerExtraction(t *testing.T) {
 				}
 				mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
 			}
-			res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
+			res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
@@ -217,7 +218,7 @@ func TestContainerExtraction(t *testing.T) {
 func TestCgroupFileNotFound(t *testing.T) {
 	p := newTestPlugin(t, withFileSystem(FakeFileSystem{}))
 
-	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "file does not exist")
 	require.Nil(t, res)
@@ -241,7 +242,7 @@ func TestDockerError(t *testing.T) {
 		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error"))
 
-	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "docker error")
 	require.Nil(t, res)
@@ -276,7 +277,7 @@ func TestDockerErrorRetries(t *testing.T) {
 		mockClock.Add(400 * time.Millisecond)
 	}()
 
-	res, err := doAttest(t, p, &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "docker error")
 	require.Nil(t, res)
@@ -309,7 +310,7 @@ func TestDockerErrorContextCancel(t *testing.T) {
 		cancel()
 	}()
 
-	res, err := doAttestWithContext(ctx, t, p, &workloadattestor.AttestRequest{Pid: 123})
+	res, err := doAttestWithContext(ctx, t, p, &workloadattestorv0.AttestRequest{Pid: 123})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
 	require.Nil(t, res)
@@ -368,20 +369,24 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.Equal(t, &defaultContainerIDFinder{}, p.containerIDFinder)
 }
 
-func doAttest(t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func doAttest(t *testing.T, p *Plugin, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
 	return doAttestWithContext(context.Background(), t, p, req)
 }
 
-func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
-	var wp workloadattestor.Plugin
+func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
+	var wp workloadattestor.V0
 	spiretest.LoadPlugin(t, builtin(p), &wp)
-	return wp.Attest(ctx, req)
+	return wp.Plugin.Attest(ctx, req)
 }
 
 func doConfigure(t *testing.T, p *Plugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	var wp workloadattestor.Plugin
-	spiretest.LoadPlugin(t, builtin(p), &wp)
-	return wp.Configure(context.Background(), req)
+	// This is temporary hack to get at the configuration interface. It will
+	// change with the catalog refactor and v1 version introduction.
+	var config interface {
+		Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
+	}
+	spiretest.LoadPlugin(t, builtin(p), &config)
+	return config.Configure(context.Background(), req)
 }
 
 type testPluginOpt func(*Plugin)
