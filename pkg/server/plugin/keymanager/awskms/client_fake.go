@@ -229,6 +229,10 @@ func (k *kmsClientFake) UpdateAlias(ctw context.Context, input *kms.UpdateAliasI
 	return &kms.UpdateAliasOutput{}, nil
 }
 
+func (k *kmsClientFake) ListKeys(ctw context.Context, input *kms.ListKeysInput, opts ...func(*kms.Options)) (*kms.ListKeysOutput, error) {
+	return nil, nil
+}
+
 func (k *kmsClientFake) setEntries(entries []fakeKeyEntry) {
 	k.mu.Lock()
 	defer k.mu.Unlock()

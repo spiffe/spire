@@ -4,28 +4,38 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/gofrs/uuid"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
-	pluginName   = "aws_kms"
-	aliasPrefix  = "alias/"
-	keyArnTag    = "key_arn"
-	aliasNameTag = "alias_name"
+	pluginName              = "aws_kms"
+	aliasPrefix             = "alias/"
+	refreshAliasesFrequency = time.Hour * 6
+	disposeAliasesFrequency = time.Hour * 24
+	aliasThreshold          = time.Hour * 48
+	disposeKeysFrequency    = time.Hour * 48
+	keyThreshold            = time.Hour * 48
+	keyArnTag               = "key_arn"
+	aliasNameTag            = "alias_name"
+	reasonTag               = "reason"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -51,14 +61,16 @@ type pluginHooks struct {
 // Plugin is the main representation of this keymanager plugin
 type Plugin struct {
 	keymanager.UnsafeKeyManagerServer
-	log                  hclog.Logger
-	mu                   sync.RWMutex
-	entries              map[string]keyEntry
-	kmsClient            kmsClient
-	keyPrefix            string
-	scheduleDelete       chan string
-	cancelScheduleDelete context.CancelFunc
-	hooks                pluginHooks
+	log            hclog.Logger
+	mu             sync.RWMutex
+	entries        map[string]keyEntry
+	kmsClient      kmsClient
+	trustDomain    string
+	serverID       string
+	scheduleDelete chan string
+	cancelTasks    context.CancelFunc
+	clk            clock.Clock
+	hooks          pluginHooks
 }
 
 // Config provides configuration context for the plugin
@@ -66,7 +78,7 @@ type Config struct {
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	Region          string `hcl:"region" json:"region"`
-	KeyPrefix       string `hcl:"key_prefix" json:"key_prefix"`
+	ServerIDPath    string `hcl:"server_id_path" json:"server_id_path"`
 }
 
 // New returns an instantiated plugin
@@ -81,6 +93,7 @@ func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, e
 			newClient: newClient,
 		},
 		scheduleDelete: make(chan string, 120),
+		clk:            clock.New(),
 	}
 }
 
@@ -96,16 +109,22 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		return nil, err
 	}
 
-	kp := config.KeyPrefix
+	serverID, err := loadServerID(config.ServerIDPath)
+	if err != nil {
+		return nil, err
+	}
+	p.log.Debug("Loaded server id", "server_id", serverID)
+
 	kc, err := p.hooks.newClient(ctx, config)
 	if err != nil {
 		return nil, newErrorf(codes.Internal, "failed to create KMS client: %v", err)
 	}
 
 	fetcher := &keyFetcher{
-		log:       p.log,
-		kmsClient: kc,
-		keyPrefix: kp,
+		log:         p.log,
+		kmsClient:   kc,
+		serverID:    serverID,
+		trustDomain: req.GlobalConfig.TrustDomain,
 	}
 	p.log.Debug("Fetching key aliases from KMS")
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -117,17 +136,21 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	defer p.mu.Unlock()
 
 	p.setCache(keyEntries)
-	p.keyPrefix = kp
 	p.kmsClient = kc
+	p.trustDomain = req.GlobalConfig.TrustDomain
+	p.serverID = serverID
 
-	// cancels previous schedule delete task in case of re configure
-	if p.cancelScheduleDelete != nil {
-		p.cancelScheduleDelete()
+	// cancels previous tasks in case of re configure
+	if p.cancelTasks != nil {
+		p.cancelTasks()
 	}
 
-	// schedule a new delete task
-	ctx, p.cancelScheduleDelete = context.WithCancel(context.Background())
+	// start tasks
+	ctx, p.cancelTasks = context.WithCancel(context.Background())
 	go p.scheduleDeleteTask(ctx)
+	go p.refreshAliasesTask(ctx)
+	go p.disposeAliasesTask(ctx)
+	go p.disposeKeysTask(ctx)
 
 	return &plugin.ConfigureResponse{}, nil
 }
@@ -302,7 +325,7 @@ func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
 		case p.scheduleDelete <- oldEntry.Arn:
 			p.log.Debug("Key enqueued for deletion", keyArnTag, oldEntry.Arn)
 		default:
-			p.log.Debug("Failed to enqueue key for deletion", keyArnTag, oldEntry.Arn)
+			p.log.Error("Failed to enqueue key for deletion", keyArnTag, oldEntry.Arn)
 		}
 	}
 	return nil
@@ -328,7 +351,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("Stopping schedule delete task", "reason", ctx.Err())
+			p.log.Debug("Stopping schedule delete task", reasonTag, ctx.Err())
 			p.notifyDelete()
 			return
 		case keyArn := <-p.scheduleDelete:
@@ -359,7 +382,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 				continue
 			}
 
-			log.Error("It was not possible to schedule key for deletion", "reason", err)
+			log.Error("It was not possible to schedule key for deletion", reasonTag, err)
 			select {
 			case p.scheduleDelete <- keyArn:
 				log.Debug("Key re-enqueued for deletion")
@@ -373,12 +396,221 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	}
 }
 
+func (p *Plugin) refreshAliasesTask(ctx context.Context) {
+	ticker := p.clk.Ticker(refreshAliasesFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("Stopping refresh keys task", reasonTag, ctx.Err())
+			return
+		case <-ticker.C:
+			p.refreshAliases(ctx)
+		}
+	}
+}
+
+func (p *Plugin) refreshAliases(ctx context.Context) {
+	p.log.Debug("Refreshing aliases")
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	for _, entry := range p.entries {
+		_, err := p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
+			AliasName:   &entry.AliasName,
+			TargetKeyId: &entry.Arn,
+		})
+		if err != nil {
+			p.log.Error("It was not possible to refresh alias",
+				aliasNameTag, entry.AliasName, keyArnTag, entry.Arn, reasonTag, err)
+		}
+	}
+}
+
+func (p *Plugin) disposeAliasesTask(ctx context.Context) {
+	ticker := p.clk.Ticker(disposeAliasesFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("Stopping dispose aliases task", reasonTag, ctx.Err())
+			return
+		case <-ticker.C:
+			p.disposeAliases(ctx)
+		}
+	}
+}
+
+func (p *Plugin) disposeAliases(ctx context.Context) {
+	p.log.Debug("Looking for aliases in trust domain to dispose")
+	paginator := kms.NewListAliasesPaginator(p.kmsClient, &kms.ListAliasesInput{Limit: aws.Int32(100)})
+
+	for {
+		aliasesResp, err := paginator.NextPage(ctx)
+		switch {
+		case err != nil:
+			p.log.Error("Failed to fetch aliases to dispose", reasonTag, err)
+			return
+		case aliasesResp == nil:
+			p.log.Error("Failed to fetch aliases to dispose: nil response")
+			return
+		}
+
+		for _, alias := range aliasesResp.Aliases {
+			switch {
+			case alias.AliasName == nil || alias.LastUpdatedDate == nil || alias.AliasArn == nil:
+				continue
+				// if alias does not belong to trust domain skip
+			case !strings.HasPrefix(*alias.AliasName, p.aliasPrefixForTrustDomain()):
+				continue
+			// if alias belongs to current server skip
+			case strings.HasPrefix(*alias.AliasName, p.aliasPrefixForServer()):
+				continue
+			}
+
+			now := time.Now()
+			diff := now.Sub(*alias.LastUpdatedDate)
+			// diff should never be negative, just being extra careful
+			if diff < 0 || diff < aliasThreshold {
+				continue
+			}
+			log := p.log.With(aliasNameTag, alias.AliasName)
+			log.Debug("Found alias in trust domain beyond threshold")
+
+			describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias.AliasArn})
+			switch {
+			case err != nil:
+				log.Error("Failed to describe key to dispose", reasonTag, err)
+				continue
+			case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
+				log.Error("Malformed describe key response while trying to dispose")
+				continue
+			}
+
+			log = log.With(keyArnTag, *describeResp.KeyMetadata.Arn)
+			select {
+			case p.scheduleDelete <- *describeResp.KeyMetadata.Arn:
+				log.Debug("Key enqueued for deletion")
+			default:
+				log.Error("Failed to enqueue key for deletion")
+			}
+		}
+
+		if !paginator.HasMorePages() {
+			break
+		}
+	}
+}
+
+func (p *Plugin) disposeKeysTask(ctx context.Context) {
+	ticker := p.clk.Ticker(disposeKeysFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("Stopping dispose keys task", reasonTag, ctx.Err())
+			return
+		case <-ticker.C:
+			p.disposeKeys(ctx)
+		}
+	}
+}
+
+func (p *Plugin) disposeKeys(ctx context.Context) {
+	p.log.Debug("Looking for keys in trust domain to dispose")
+	paginator := kms.NewListKeysPaginator(p.kmsClient, &kms.ListKeysInput{Limit: aws.Int32(1000)})
+
+	for {
+		keysResp, err := paginator.NextPage(ctx)
+		switch {
+		case err != nil:
+			p.log.Error("Failed to fetch keys to dispose", reasonTag, err)
+			return
+		case keysResp == nil:
+			p.log.Error("Failed to fetch keys to dispose: nil response")
+			return
+		}
+
+		for _, key := range keysResp.Keys {
+			if key.KeyArn == nil {
+				continue
+			}
+
+			log := p.log.With(keyArnTag, key.KeyArn)
+
+			describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: key.KeyArn})
+			switch {
+			case err != nil:
+				log.Error("Failed to describe key to dispose", reasonTag, err)
+				continue
+			case describeResp == nil ||
+				describeResp.KeyMetadata == nil ||
+				describeResp.KeyMetadata.Description == nil ||
+				describeResp.KeyMetadata.CreationDate == nil:
+				log.Error("Malformed describe key response while trying to dispose")
+				continue
+			}
+
+			// if key does not belong to trust domain skip
+			if !strings.HasPrefix(*describeResp.KeyMetadata.Description, p.descriptionPrefixForTrustDomain()) {
+				continue
+			}
+
+			// if key has alias skip
+			aliasesResp, err := p.kmsClient.ListAliases(ctx, &kms.ListAliasesInput{KeyId: key.KeyArn, Limit: aws.Int32(1)})
+			switch {
+			case err != nil:
+				log.Error("Failed to fetch alias for key", reasonTag, err)
+				continue
+			case aliasesResp == nil || len(aliasesResp.Aliases) > 0:
+				continue
+			}
+
+			now := time.Now()
+			diff := now.Sub(*describeResp.KeyMetadata.CreationDate)
+			// diff should never be negative, just being extra careful
+			if diff < 0 || diff < keyThreshold {
+				continue
+			}
+
+			log.Debug("Found key in trust domain beyond threshold")
+
+			select {
+			case p.scheduleDelete <- *describeResp.KeyMetadata.Arn:
+				log.Debug("Key enqueued for deletion")
+			default:
+				log.Error("Failed to enqueue key for deletion")
+			}
+		}
+
+		if !paginator.HasMorePages() {
+			break
+		}
+	}
+}
+
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
-	return aliasPrefix + p.keyPrefix + spireKeyID
+	return path.Join(p.aliasPrefixForServer(), spireKeyID)
 }
 
 func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
-	return p.keyPrefix + spireKeyID
+	return path.Join(p.descriptionPrefixForTrustDomain(), spireKeyID)
+}
+
+func (p *Plugin) descriptionPrefixForTrustDomain() string {
+	trustDomain := sanitizeTrustDomain(p.trustDomain)
+	return path.Join("SPIRE_SERVER_KEY/", trustDomain)
+}
+
+func (p *Plugin) aliasPrefixForServer() string {
+	return path.Join(p.aliasPrefixForTrustDomain(), p.serverID)
+}
+
+func (p *Plugin) aliasPrefixForTrustDomain() string {
+	trustDomain := sanitizeTrustDomain(p.trustDomain)
+	return path.Join(aliasPrefix, trustDomain)
 }
 
 func (p *Plugin) notifyDelete() {
@@ -387,117 +619,8 @@ func (p *Plugin) notifyDelete() {
 	}
 }
 
-type keyFetcher struct {
-	log       hclog.Logger
-	kmsClient kmsClient
-	keyPrefix string
-}
-
-func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
-	var keyEntries []*keyEntry
-	var keyEntriesMutex sync.Mutex
-	paginator := kms.NewListAliasesPaginator(kf.kmsClient, &kms.ListAliasesInput{Limit: aws.Int32(100)})
-	g, ctx := errgroup.WithContext(ctx)
-
-	for {
-		aliasesResp, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, newErrorf(codes.Internal, "failed to fetch aliases: %v", err)
-		}
-		kf.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
-
-		for _, alias := range aliasesResp.Aliases {
-			switch {
-			case alias.TargetKeyId == nil:
-				// this means something external to the plugin created the alias, without associating it to a key.
-				// it should never happen with CMKs.
-				return nil, newErrorf(codes.FailedPrecondition, "failed to fetch aliases: found SPIRE alias without key: %q", *alias.AliasArn)
-			case alias.AliasArn == nil:
-				return nil, newErrorf(codes.Internal, "failed to fetch aliases: found SPIRE alias without arn: %q", *alias.AliasArn)
-			case alias.AliasName == nil:
-				return nil, newError(codes.Internal, "failed to fetch aliases: found alias without a name")
-			}
-
-			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
-			// ignore aliases/keys not belonging to this server
-			if !ok {
-				continue
-			}
-
-			a := alias
-			// trigger a goroutine to get the details of the key
-			g.Go(func() error {
-				entry, err := kf.fetchKeyEntryDetails(ctx, a, spireKeyID)
-				if err != nil {
-					return err
-				}
-
-				keyEntriesMutex.Lock()
-				keyEntries = append(keyEntries, entry)
-				keyEntriesMutex.Unlock()
-				return nil
-			})
-		}
-
-		if !paginator.HasMorePages() {
-			break
-		}
-	}
-
-	// wait for all the detail gathering routines to finish
-	if err := g.Wait(); err != nil {
-		statusErr := status.Convert(err)
-		return nil, newErrorf(statusErr.Code(), "failed to fetch aliases: %v", statusErr.Message())
-	}
-
-	return keyEntries, nil
-}
-
-func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.AliasListEntry, spireKeyID string) (*keyEntry, error) {
-	describeResp, err := kf.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias.AliasArn})
-	switch {
-	case err != nil:
-		return nil, newErrorf(codes.Internal, "failed to describe key: %v", err)
-	case describeResp == nil || describeResp.KeyMetadata == nil:
-		return nil, newError(codes.Internal, "malformed describe key response")
-	case describeResp.KeyMetadata.Arn == nil:
-		return nil, newErrorf(codes.Internal, "found SPIRE alias without key arn: %q", *alias.AliasArn)
-	case !describeResp.KeyMetadata.Enabled:
-		// this means something external to the plugin, deleted or disabled the key without removing the alias
-		// returning an error provides the opportunity or reverting this in KMS
-		return nil, newErrorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.Arn, *alias.AliasArn)
-	}
-
-	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
-	if !ok {
-		return nil, newErrorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec)
-	}
-
-	publicKeyResp, err := kf.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: alias.AliasArn})
-	switch {
-	case err != nil:
-		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
-	case publicKeyResp == nil || publicKeyResp.PublicKey == nil || len(publicKeyResp.PublicKey) == 0:
-		return nil, newError(codes.Internal, "malformed get public key response")
-	}
-
-	return &keyEntry{
-		Arn:       *describeResp.KeyMetadata.Arn,
-		AliasName: *alias.AliasName,
-		PublicKey: &keymanager.PublicKey{
-			Id:       spireKeyID,
-			Type:     keyType,
-			PkixData: publicKeyResp.PublicKey,
-		},
-	}, nil
-}
-
-func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
-	prefix := aliasPrefix + kf.keyPrefix
-	if !strings.HasPrefix(aliasName, prefix) {
-		return "", false
-	}
-	return strings.TrimPrefix(aliasName, prefix), true
+func sanitizeTrustDomain(trustDomain string) string {
+	return strings.Replace(trustDomain, ".", "_", -1)
 }
 
 // parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
@@ -512,8 +635,8 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, newError(codes.InvalidArgument, "configuration is missing a region")
 	}
 
-	if config.KeyPrefix == "" {
-		return nil, newError(codes.InvalidArgument, "configuration is missing key prefix")
+	if config.ServerIDPath == "" {
+		return nil, newError(codes.InvalidArgument, "configuration is missing server id path")
 	}
 
 	return config, nil
@@ -609,4 +732,62 @@ func min(x, y time.Duration) time.Duration {
 		return x
 	}
 	return y
+}
+
+func loadServerID(idPath string) (string, error) {
+	ok, err := serverIDExists(idPath)
+	switch {
+	case err != nil:
+		return "", err
+	case !ok:
+		return createServerID(idPath)
+	default:
+		return serverIDFromPath(idPath)
+	}
+}
+
+func serverIDExists(idPath string) (bool, error) {
+	fileInfo, err := os.Stat(idPath)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, newErrorf(codes.Internal, "failed to read server id path: %v", err)
+	case fileInfo.IsDir():
+		return false, newErrorf(codes.InvalidArgument, "failed ot read server id path, not a file: %v", idPath)
+	default:
+		return true, nil
+	}
+}
+
+func createServerID(idPath string) (string, error) {
+	// generate id
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", newErrorf(codes.Internal, "failed to generate id for server: %v", err)
+	}
+	id := u.String()
+
+	// persist id
+	err = ioutil.WriteFile(idPath, []byte(id), 0600)
+	if err != nil {
+		return "", newErrorf(codes.Internal, "failed to persist server id on path: %v", err)
+	}
+
+	return id, nil
+}
+
+func serverIDFromPath(idPath string) (string, error) {
+	// get id from path
+	data, err := ioutil.ReadFile(idPath)
+	if err != nil {
+		return "", newErrorf(codes.Internal, "failed to read server id from path: %v", err)
+	}
+
+	// validate what we got is a uuid
+	serverID, err := uuid.FromString(string(data))
+	if err != nil {
+		return "", newErrorf(codes.Internal, "failed to parse server id from path: %v", err)
+	}
+	return serverID.String(), nil
 }

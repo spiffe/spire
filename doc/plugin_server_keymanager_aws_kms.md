@@ -25,6 +25,7 @@ The IAM role must have an attached policy with the following permissions:
 - `kms:CreateKey`
 - `kms:DescribeKey`
 - `kms:GetPublicKey`
+- `kms:ListKeys`
 - `kms:ListAliases`
 - `kms:ScheduleKeyDeletion`
 - `kms:Sign`
