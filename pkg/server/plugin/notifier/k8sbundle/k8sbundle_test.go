@@ -71,7 +71,7 @@ func (s *Suite) SetupTest() {
 	s.LoadPlugin(builtIn(s.raw), &s.p,
 		spiretest.HostService(identityproviderv0.HostServiceServer(s.r)))
 
-	s.withKubeClient(s.k, "")
+	s.withKubeClient([]kubeClient{s.k}, "")
 }
 
 func (s *Suite) TestNotifyFailsIfNotConfigured() {
@@ -216,7 +216,7 @@ func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 }
 
 func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
-	s.withKubeClient(s.k, "/some/file/path")
+	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
 
 	s.k.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -370,7 +370,7 @@ func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 }
 
 func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
-	s.withKubeClient(s.k, "/some/file/path")
+	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
 
 	s.k.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -432,13 +432,13 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 	}
 }
 
-func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
+func (s *Suite) withKubeClient(client []kubeClient, expectedConfigPath string) {
 	s.raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
 		s.Equal(expectedConfigPath, c.KubeConfigFilePath)
 		if client == nil {
 			return nil, errors.New("kube client not configured")
 		}
-		return []kubeClient{client}, nil
+		return client, nil
 	}
 }
 
