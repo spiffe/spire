@@ -77,6 +77,9 @@ type Config struct {
 
 	// RateLimit holds rate limiting configurations.
 	RateLimit endpoints.RateLimitConfig
+
+	// CacheReloadInterval controls how often the in-memory entry cache reloads
+	CacheReloadInterval time.Duration
 }
 
 type ExperimentalConfig struct {

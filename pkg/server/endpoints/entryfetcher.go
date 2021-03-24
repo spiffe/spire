@@ -13,23 +13,20 @@ import (
 	"github.com/spiffe/spire/proto/spire/types"
 )
 
-const (
-	cacheReloadInterval = 5 * time.Second
-)
-
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 
 type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	buildCache entryCacheBuilderFn
-	cache      entrycache.Cache
-	clk        clock.Clock
-	log        logrus.FieldLogger
-	mu         sync.RWMutex
+	buildCache          entryCacheBuilderFn
+	cache               entrycache.Cache
+	clk                 clock.Clock
+	log                 logrus.FieldLogger
+	mu                  sync.RWMutex
+	cacheReloadInterval time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock) (*AuthorizedEntryFetcherWithFullCache, error) {
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
 	log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
@@ -38,10 +35,11 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 
 	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		buildCache: buildCache,
-		cache:      cache,
-		clk:        clk,
-		log:        log,
+		buildCache:          buildCache,
+		cache:               cache,
+		clk:                 clk,
+		log:                 log,
+		cacheReloadInterval: cacheReloadInterval,
 	}, nil
 }
 
@@ -69,7 +67,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 		case <-ctx.Done():
 			a.log.Debug("Stopping in-memory entry cache hydrator")
 			return nil
-		case <-a.clk.After(cacheReloadInterval):
+		case <-a.clk.After(a.cacheReloadInterval):
 			rebuild()
 		}
 	}

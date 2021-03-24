@@ -57,6 +57,7 @@ This may be useful for templating configuration files, for example across differ
 | `ca_key_type`               | The key type used for the server CA, \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                    | ec-p256 (Both X509 and JWT)   |
 | `ca_subject`                | The Subject that CA certificates should use (see below)                                          |                               |
 | `ca_ttl`                    | The default CA/signing key TTL                                                                   | 24h                           |
+| `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache                               | 5s                                                             |
 | `data_dir`                  | A directory the server can use for its runtime                                                   |                               |
 | `default_svid_ttl`          | The default SVID TTL                                                                             | 1h                            |
 | `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)          |                               |

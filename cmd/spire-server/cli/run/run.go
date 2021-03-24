@@ -77,6 +77,7 @@ type serverConfig struct {
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
+	CacheReloadInterval string             `hcl:"cache_reload_interval"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -484,6 +485,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.AllowUnsafeIDs != nil {
 		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
 		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
+	}
+
+	if c.Server.CacheReloadInterval != "" {
+		interval, err := time.ParseDuration(c.Server.CacheReloadInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse cache reload interval: %v", err)
+		}
+		sc.CacheReloadInterval = interval
 	}
 
 	return sc, nil

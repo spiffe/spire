@@ -47,7 +47,7 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -61,7 +61,7 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 		return nil, errors.New("some cache build error")
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -81,7 +81,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -150,7 +150,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		}
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -160,7 +160,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 
 	waitForRequest := func() buildCacheRequest {
 		clk.WaitForAfter(time.Minute, "waiting for watch timer")
-		clk.Add(cacheReloadInterval)
+		clk.Add(defaultCacheReloadInterval)
 		select {
 		case request := <-buildCacheCh:
 			return request
