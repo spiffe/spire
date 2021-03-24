@@ -66,6 +66,7 @@ This may be useful for templating configuration files, for example across differ
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
 | `socketPath`                | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
+| `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache                               | 5s                                                             |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|

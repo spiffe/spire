@@ -62,23 +62,24 @@ type Config struct {
 }
 
 type serverConfig struct {
-	BindAddress    string             `hcl:"bind_address"`
-	BindPort       int                `hcl:"bind_port"`
-	CAKeyType      string             `hcl:"ca_key_type"`
-	CASubject      *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL          string             `hcl:"ca_ttl"`
-	DataDir        string             `hcl:"data_dir"`
-	DefaultSVIDTTL string             `hcl:"default_svid_ttl"`
-	Experimental   experimentalConfig `hcl:"experimental"`
-	Federation     *federationConfig  `hcl:"federation"`
-	JWTIssuer      string             `hcl:"jwt_issuer"`
-	JWTKeyType     string             `hcl:"jwt_key_type"`
-	LogFile        string             `hcl:"log_file"`
-	LogLevel       string             `hcl:"log_level"`
-	LogFormat      string             `hcl:"log_format"`
-	RateLimit      rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath     string             `hcl:"socket_path"`
-	TrustDomain    string             `hcl:"trust_domain"`
+	BindAddress         string             `hcl:"bind_address"`
+	BindPort            int                `hcl:"bind_port"`
+	CAKeyType           string             `hcl:"ca_key_type"`
+	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL               string             `hcl:"ca_ttl"`
+	DataDir             string             `hcl:"data_dir"`
+	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
+	Experimental        experimentalConfig `hcl:"experimental"`
+	Federation          *federationConfig  `hcl:"federation"`
+	JWTIssuer           string             `hcl:"jwt_issuer"`
+	JWTKeyType          string             `hcl:"jwt_key_type"`
+	LogFile             string             `hcl:"log_file"`
+	LogLevel            string             `hcl:"log_level"`
+	LogFormat           string             `hcl:"log_format"`
+	RateLimit           rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath          string             `hcl:"socket_path"`
+	TrustDomain         string             `hcl:"trust_domain"`
+	CacheReloadInterval string             `hcl:"cache_reload_interval"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -507,6 +508,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.AllowUnsafeIDs != nil {
 		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
 		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
+	}
+
+	if c.Server.CacheReloadInterval != "" {
+		interval, err := time.ParseDuration(c.Server.CacheReloadInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse cache reload interval: %v", err)
+		}
+		sc.CacheReloadInterval = interval
 	}
 
 	return sc, nil

@@ -1004,6 +1004,25 @@ func TestNewServerConfig(t *testing.T) {
 				assert.NotNil(t, c)
 			},
 		},
+		{
+			msg: "cache_reload_interval is correctly parsed",
+			input: func(c *Config) {
+				c.Server.CacheReloadInterval = "1m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Minute, c.CacheReloadInterval)
+			},
+		},
+		{
+			msg:         "invalid cache_reload_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.CacheReloadInterval = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {

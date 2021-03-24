@@ -51,7 +51,7 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		return newStaticEntryCache(entryMap), nil
 	}
 
-	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk)
+	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
 	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
