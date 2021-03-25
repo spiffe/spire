@@ -43,6 +43,7 @@ import (
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 )
 
 var (
@@ -95,7 +96,7 @@ func KnownPlugins() []catalog.PluginClient {
 		nodeattestor.PluginClient,
 		noderesolver.PluginClient,
 		upstreamauthority.PluginClient,
-		keymanager.PluginClient,
+		keymanagerv0.PluginClient,
 		notifier.PluginClient,
 	}
 }
@@ -106,11 +107,6 @@ func KnownServices() []catalog.ServiceClient {
 
 func BuiltIns() []catalog.Plugin {
 	return append([]catalog.Plugin(nil), builtIns...)
-}
-
-type DataStore struct {
-	catalog.PluginInfo
-	datastore.DataStore
 }
 
 type Notifier struct {
@@ -124,8 +120,8 @@ type UpstreamAuthority struct {
 }
 
 type Plugins struct {
-	// DataStore is not filled directly by the catalog plugins
-	DataStore DataStore `catalog:"-"`
+	// DataStore isn't actually a plugin.
+	DataStore datastore.DataStore
 
 	NodeAttestors     map[string]nodeattestor.NodeAttestor
 	NodeResolvers     map[string]noderesolver.NodeResolver
@@ -193,7 +189,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p := new(Plugins)
+	p := new(versionedPlugins)
 	closer, err := catalog.Fill(ctx, catalog.Config{
 		Log:           config.Log,
 		GlobalConfig:  config.GlobalConfig,
@@ -211,17 +207,38 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p.DataStore.DataStore = datastore_telemetry.WithMetrics(ds, config.Metrics)
-	p.DataStore.DataStore = dscache.New(p.DataStore.DataStore, clock.New())
-	p.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
+	ds = datastore_telemetry.WithMetrics(ds, config.Metrics)
+	ds = dscache.New(ds, clock.New())
+
+	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
 
 	return &Repository{
-		Catalog: p,
-		Closer:  closer,
+		Catalog: &Plugins{
+			DataStore:         ds,
+			NodeAttestors:     p.NodeAttestors,
+			NodeResolvers:     p.NodeResolvers,
+			UpstreamAuthority: p.UpstreamAuthority,
+			KeyManager:        p.KeyManager,
+			Notifiers:         p.Notifiers,
+		},
+		Closer: closer,
 	}, nil
 }
 
-func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (*ds_sql.Plugin, error) {
+// versionedPlugins is a temporary struct with the v0 version shims as they are
+// introduced. The catalog will fill this struct, which is then converted to
+// the Plugins struct which contains the facade interfaces. It will be removed
+// when the catalog is refactored to leverage the new common catalog with
+// native versioning support (see issue #2153).
+type versionedPlugins struct {
+	NodeAttestors     map[string]nodeattestor.NodeAttestor
+	NodeResolvers     map[string]noderesolver.NodeResolver
+	UpstreamAuthority *UpstreamAuthority
+	KeyManager        keymanager.V0
+	Notifiers         []Notifier
+}
+
+func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
 	switch {
 	case len(datastoreConfig) == 0:
 		return nil, errors.New("expecting a DataStore plugin")

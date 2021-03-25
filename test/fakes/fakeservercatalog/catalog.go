@@ -24,10 +24,7 @@ func New() *Catalog {
 }
 
 func (c *Catalog) SetDataStore(dataStore datastore.DataStore) {
-	c.DataStore = catalog.DataStore{
-		PluginInfo: pluginInfo{name: "fake", typ: datastore.Type},
-		DataStore:  dataStore,
-	}
+	c.DataStore = dataStore
 }
 
 func (c *Catalog) AddNodeAttestorNamed(name string, nodeAttestor nodeattestor.NodeAttestor) {

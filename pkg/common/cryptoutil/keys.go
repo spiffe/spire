@@ -1,15 +1,10 @@
 package cryptoutil
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"crypto/x509"
-	"errors"
 	"fmt"
-
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 func RSAPublicKeyEqual(a, b *rsa.PublicKey) bool {
@@ -26,26 +21,6 @@ func ECDSAKeyMatches(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) b
 
 func RSAKeyMatches(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
 	return RSAPublicKeyEqual(&privateKey.PublicKey, publicKey)
-}
-
-func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyID string) (crypto.PublicKey, error) {
-	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
-	defer cancel()
-
-	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: keyID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if resp.PublicKey == nil {
-		return nil, errors.New("response missing public key")
-	}
-	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse public key pkix data: %v", err)
-	}
-	return publicKey, nil
 }
 
 func PublicKeyEqual(a, b crypto.PublicKey) (bool, error) {
