@@ -36,17 +36,13 @@ type ChallengeResponse struct {
 	CredActivation []byte
 }
 
-func Error(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "devid: "+format, args...)
-}
-
 func ValidateGlobalConfig(c *plugin.ConfigureRequest_GlobalConfig) error {
 	if c == nil {
-		return Error(codes.InvalidArgument, "global configuration is required")
+		return status.Error(codes.InvalidArgument, "global configuration is required")
 	}
 
 	if c.TrustDomain == "" {
-		return Error(codes.InvalidArgument, "trust_domain is required")
+		return status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 	return nil
 }

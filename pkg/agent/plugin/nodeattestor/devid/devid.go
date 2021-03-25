@@ -10,10 +10,10 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/devid/tpm"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/devid"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	spc "github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
@@ -30,7 +30,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(common_devid.PluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(common_devid.PluginName, nodeattestorv0.PluginServer(p))
 }
 
 type Config struct {
@@ -58,7 +58,7 @@ type config struct {
 }
 
 type Plugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 	log hclog.Logger
 
 	m sync.Mutex
@@ -69,21 +69,21 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
+func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
 	conf := p.getConfig()
 	if conf == nil {
-		return common_devid.Error(codes.FailedPrecondition, "not configured")
+		return status.Error(codes.FailedPrecondition, "not configured")
 	}
 
 	// Open TPM connection and loads keys
 	tpm, err := loadTPMContext(conf, p.log)
 	if err != nil {
-		return common_devid.Error(codes.Internal, "unable to load context: %w", err)
+		return status.Errorf(codes.Internal, "unable to load context: %v", err)
 	}
 	defer tpm.Close()
 
 	// Marshal attestation data
-	marshalledAttData, err := json.Marshal(common_devid.AttestationRequest{
+	marshaledAttData, err := json.Marshal(common_devid.AttestationRequest{
 		DevIDCert: conf.devIDCert.Raw,
 		DevIDPub:  conf.devIDPub,
 
@@ -96,35 +96,37 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 		CertificationSignature: tpm.CertificationSignature,
 	})
 	if err != nil {
-		return common_devid.Error(codes.Internal, "unable to marshall attestation data: %w", err)
+		return status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
 	}
 
 	// Send attestation request
-	err = stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	err = stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &spc.AttestationData{
 			Type: common_devid.PluginName,
-			Data: marshalledAttData,
+			Data: marshaledAttData,
 		},
 	})
 	if err != nil {
-		return common_devid.Error(status.Code(err), "unable to send attestation data: %w", err)
+		st := status.Convert(err)
+		return status.Errorf(st.Code(), "unable to send attestation data: %s", st.Message())
 	}
 
 	// Receive challenges
 	marshalledChallenges, err := stream.Recv()
 	if err != nil {
-		return common_devid.Error(status.Code(err), "unable to receive challenges: %w", err)
+		st := status.Convert(err)
+		return status.Errorf(st.Code(), "unable to receive challenges: %s", st.Message())
 	}
 
 	challenges := &common_devid.ChallengeRequest{}
 	if err = json.Unmarshal(marshalledChallenges.Challenge, challenges); err != nil {
-		return common_devid.Error(codes.InvalidArgument, "unable to unmarshall challenges: %w", err)
+		return status.Errorf(codes.InvalidArgument, "unable to unmarshall challenges: %v", err)
 	}
 
 	// Solve DevID challenge (verify the possession of the DevID private key)
 	devIDChallengeResp, err := tpm.SolveDevIDChallenge(challenges.DevID)
 	if err != nil {
-		return common_devid.Error(codes.Internal, "unable to solve DevID challenge: %w", err)
+		return status.Errorf(codes.Internal, "unable to solve DevID challenge: %v", err)
 	}
 
 	// If DevID residency verification configured
@@ -135,7 +137,7 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 			challenges.CredActivation.Credential,
 			challenges.CredActivation.Secret)
 		if err != nil {
-			return common_devid.Error(codes.Internal, "unable to solve credential activation challenge: %w", err)
+			return status.Errorf(codes.Internal, "unable to solve credential activation challenge: %v", err)
 		}
 	}
 
@@ -145,15 +147,16 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 		CredActivation: credActChallengeResp,
 	})
 	if err != nil {
-		return common_devid.Error(codes.Internal, "unable to marshal challenge response: %w", err)
+		return status.Errorf(codes.Internal, "unable to marshal challenge response: %v", err)
 	}
 
 	// Send challenge response back to the server
-	err = stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	err = stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		Response: marshalledChallengeResp,
 	})
 	if err != nil {
-		return common_devid.Error(status.Code(err), "unable to send challenge response: %w", err)
+		st := status.Convert(err)
+		return status.Errorf(st.Code(), "unable to send challenge response: %s", st.Message())
 	}
 
 	return nil
@@ -167,14 +170,14 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 
 	extConf, err := decodePluginConfig(req.Configuration)
 	if err != nil {
-		return nil, common_devid.Error(codes.InvalidArgument, "unable to decode configuration: %w", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	p.setPluginConfigDefaults(extConf)
 
 	err = validatePluginConfig(extConf)
 	if err != nil {
-		return nil, common_devid.Error(codes.InvalidArgument, "missing configurable: %w", err)
+		return nil, status.Errorf(codes.InvalidArgument, "missing configurable: %v", err)
 	}
 
 	// Create initial internal configuration
@@ -189,14 +192,14 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	// Load DevID files
 	err = loadDevIDFiles(extConf, intConf)
 	if err != nil {
-		return nil, common_devid.Error(codes.Internal, "unable to load DevID files: %w", err)
+		return nil, status.Errorf(codes.Internal, "unable to load DevID files: %v", err)
 	}
 
 	// Load Attestation Key files (if configured)
 	if intConf.checkDevIDResidency {
 		err = loadAKFiles(extConf, intConf)
 		if err != nil {
-			return nil, common_devid.Error(codes.Internal, "unable to load attestation key files: %w", err)
+			return nil, status.Errorf(codes.Internal, "unable to load attestation key files: %v", err)
 		}
 	}
 
