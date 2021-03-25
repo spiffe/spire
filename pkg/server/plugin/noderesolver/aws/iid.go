@@ -6,8 +6,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -16,13 +16,13 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *IIDResolverPlugin) catalog.Plugin {
 	return catalog.MakePlugin(caws.PluginName,
-		noderesolver.PluginServer(p),
+		noderesolverv0.PluginServer(p),
 	)
 }
 
 // IIDResolverPlugin implements node resolution for agents running in aws.
 type IIDResolverPlugin struct {
-	noderesolver.UnsafeNodeResolverServer
+	noderesolverv0.UnsafeNodeResolverServer
 
 	log hclog.Logger
 }
@@ -49,6 +49,6 @@ func (p *IIDResolverPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoReq
 }
 
 // Resolve handles the given resolve request
-func (p *IIDResolverPlugin) Resolve(ctx context.Context, req *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
-	return &noderesolver.ResolveResponse{}, nil
+func (p *IIDResolverPlugin) Resolve(ctx context.Context, req *noderesolverv0.ResolveRequest) (*noderesolverv0.ResolveResponse, error) {
+	return &noderesolverv0.ResolveResponse{}, nil
 }

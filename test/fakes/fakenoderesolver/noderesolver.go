@@ -2,52 +2,41 @@ package fakenoderesolver
 
 import (
 	"context"
+	"testing"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
-const (
-	defaultTrustDomain = "example.org"
-)
+func New(t *testing.T, name string, selectors map[string][]string) noderesolver.NodeResolver {
+	server := noderesolverv0.PluginServer(&nodeResolver{
+		name:      name,
+		selectors: selectors,
+	})
 
-type Config struct {
-	// TrustDomain is the trust domain for SPIFFE IDs created by the attestor.
-	// Defaults to "example.org" if empty.
-	TrustDomain string
-
-	// Selectors is a map from ID to a list of selector values to return with that id.
-	Selectors map[string][]string
+	var v0 noderesolver.V0
+	spiretest.LoadPlugin(t, catalog.MakePlugin(name, server), &v0)
+	return v0
 }
 
-type NodeResolver struct {
-	noderesolver.UnsafeNodeResolverServer
+type nodeResolver struct {
+	noderesolverv0.UnimplementedNodeResolverServer
 
-	name   string
-	config Config
+	name      string
+	selectors map[string][]string
 }
 
-var _ noderesolver.Plugin = (*NodeResolver)(nil)
-
-func New(name string, config Config) *NodeResolver {
-	if config.TrustDomain == "" {
-		config.TrustDomain = defaultTrustDomain
-	}
-	return &NodeResolver{
-		name:   name,
-		config: config,
-	}
-}
-
-func (p *NodeResolver) Resolve(ctx context.Context, req *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
-	resp := &noderesolver.ResolveResponse{
+func (p *nodeResolver) Resolve(ctx context.Context, req *noderesolverv0.ResolveRequest) (*noderesolverv0.ResolveResponse, error) {
+	resp := &noderesolverv0.ResolveResponse{
 		Map: map[string]*common.Selectors{},
 	}
 
 	for _, spiffeID := range req.BaseSpiffeIdList {
 		var selectors []*common.Selector
-		for _, value := range p.config.Selectors[spiffeID] {
+		for _, value := range p.selectors[spiffeID] {
 			selectors = append(selectors, &common.Selector{
 				Type:  p.name,
 				Value: value,
@@ -60,12 +49,4 @@ func (p *NodeResolver) Resolve(ctx context.Context, req *noderesolver.ResolveReq
 	}
 
 	return resp, nil
-}
-
-func (p *NodeResolver) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (p *NodeResolver) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
 }

@@ -24,7 +24,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -300,15 +299,15 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// augment selectors with resolver
-	augmentedSels, err := s.augmentSelectors(ctx, agentID, attestResult.Selectors, params.Data.Type)
+	resolvedSelectors, err := s.resolveSelectors(ctx, agentID, params.Data.Type)
 	if err != nil {
-		return api.MakeErr(log, codes.Internal, "failed to augment selectors", err)
+		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
 	_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  agentID,
-			Selectors: augmentedSels,
+			Selectors: append(attestResult.Selectors, resolvedSelectors...),
 		},
 	})
 	if err != nil {
@@ -576,30 +575,11 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	return result, nil
 }
 
-func (s *Service) augmentSelectors(ctx context.Context, agentID string, selectors []*common.Selector, attestationType string) ([]*common.Selector, error) {
-	log := rpccontext.Logger(ctx).
-		WithField(telemetry.AgentID, agentID).
-		WithField(telemetry.NodeAttestorType, attestationType)
-
-	// Select node resolver based on request attestation type
-	nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType)
-	if !ok {
-		log.Debug("Could not find node resolver")
-		return selectors, nil
+func (s *Service) resolveSelectors(ctx context.Context, agentID string, attestationType string) ([]*common.Selector, error) {
+	if nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType); ok {
+		return nodeResolver.Resolve(ctx, agentID)
 	}
-
-	//Call node resolver plugin to get a map of spiffeID=>Selector
-	response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
-		BaseSpiffeIdList: []string{agentID},
-	})
-	if err != nil {
-		return nil, err
-	}
-	if resolved := response.Map[agentID]; resolved != nil {
-		selectors = append(selectors, resolved.Entries...)
-	}
-
-	return selectors, nil
+	return nil, nil
 }
 
 func applyMask(a *types.Agent, mask *types.AgentMask) {
