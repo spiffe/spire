@@ -19,8 +19,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -43,13 +43,13 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
+	return catalog.MakePlugin(pluginName, keymanagerv0.PluginServer(p))
 }
 
 type keyEntry struct {
 	Arn       string
 	AliasName string
-	PublicKey *keymanager.PublicKey
+	PublicKey *keymanagerv0.PublicKey
 }
 
 type pluginHooks struct {
@@ -60,7 +60,7 @@ type pluginHooks struct {
 
 // Plugin is the main representation of this keymanager plugin
 type Plugin struct {
-	keymanager.UnsafeKeyManagerServer
+	keymanagerv0.UnsafeKeyManagerServer
 	log            hclog.Logger
 	mu             sync.RWMutex
 	entries        map[string]keyEntry
@@ -117,7 +117,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 
 	kc, err := p.hooks.newClient(ctx, config)
 	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to create KMS client: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create KMS client: %v", err)
 	}
 
 	fetcher := &keyFetcher{
@@ -156,12 +156,12 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 }
 
 // GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
-func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
+func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv0.GenerateKeyRequest) (*keymanagerv0.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
-		return nil, newError(codes.InvalidArgument, "key id is required")
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
-	if req.KeyType == keymanager.KeyType_UNSPECIFIED_KEY_TYPE {
-		return nil, newError(codes.InvalidArgument, "key type is required")
+	if req.KeyType == keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE {
+		return nil, status.Error(codes.InvalidArgument, "key type is required")
 	}
 
 	p.mu.Lock()
@@ -180,18 +180,18 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyReq
 
 	p.entries[spireKeyID] = *newKeyEntry
 
-	return &keymanager.GenerateKeyResponse{
+	return &keymanagerv0.GenerateKeyResponse{
 		PublicKey: newKeyEntry.PublicKey,
 	}, nil
 }
 
 // SignData creates a digital signature for the data to be signed
-func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*keymanager.SignDataResponse, error) {
+func (p *Plugin) SignData(ctx context.Context, req *keymanagerv0.SignDataRequest) (*keymanagerv0.SignDataResponse, error) {
 	if req.KeyId == "" {
-		return nil, newError(codes.InvalidArgument, "key id is required")
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 	if req.SignerOpts == nil {
-		return nil, newError(codes.InvalidArgument, "signer opts is required")
+		return nil, status.Error(codes.InvalidArgument, "signer opts is required")
 	}
 
 	p.mu.RLock()
@@ -199,12 +199,12 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 
 	keyEntry, hasKey := p.entries[req.KeyId]
 	if !hasKey {
-		return nil, newErrorf(codes.NotFound, "no such key %q", req.KeyId)
+		return nil, status.Errorf(codes.NotFound, "no such key %q", req.KeyId)
 	}
 
 	signingAlgo, err := signingAlgorithmForKMS(keyEntry.PublicKey.Type, req.SignerOpts)
 	if err != nil {
-		return nil, newError(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	signResp, err := p.kmsClient.Sign(ctx, &kms.SignInput{
@@ -214,16 +214,16 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanager.SignDataRequest) 
 		SigningAlgorithm: signingAlgo,
 	})
 	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to sign: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
 	}
 
-	return &keymanager.SignDataResponse{Signature: signResp.Signature}, nil
+	return &keymanagerv0.SignDataResponse{Signature: signResp.Signature}, nil
 }
 
 // GetPublicKey returns the public key for a given key
-func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyRequest) (*keymanager.GetPublicKeyResponse, error) {
+func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv0.GetPublicKeyRequest) (*keymanagerv0.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
-		return nil, newError(codes.InvalidArgument, "key id is required")
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 
 	p.mu.RLock()
@@ -231,24 +231,24 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyR
 
 	entry, ok := p.entries[req.KeyId]
 	if !ok {
-		return nil, newErrorf(codes.NotFound, "no such key %q", req.KeyId)
+		return nil, status.Errorf(codes.NotFound, "no such key %q", req.KeyId)
 	}
 
-	return &keymanager.GetPublicKeyResponse{
+	return &keymanagerv0.GetPublicKeyResponse{
 		PublicKey: entry.PublicKey,
 	}, nil
 }
 
 // GetPublicKeys return the publicKey for all the keys
-func (p *Plugin) GetPublicKeys(context.Context, *keymanager.GetPublicKeysRequest) (*keymanager.GetPublicKeysResponse, error) {
-	var keys []*keymanager.PublicKey
+func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv0.GetPublicKeysRequest) (*keymanagerv0.GetPublicKeysResponse, error) {
+	var keys []*keymanagerv0.PublicKey
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	for _, key := range p.entries {
 		keys = append(keys, key.PublicKey)
 	}
 
-	return &keymanager.GetPublicKeysResponse{PublicKeys: keys}, nil
+	return &keymanagerv0.GetPublicKeysResponse{PublicKeys: keys}, nil
 }
 
 // GetPluginInfo returns information about this plugin
@@ -256,11 +256,11 @@ func (p *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanager.KeyType) (*keyEntry, error) {
+func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv0.KeyType) (*keyEntry, error) {
 	description := p.descriptionFromSpireKeyID(spireKeyID)
 	keySpec, ok := keySpecFromKeyType(keyType)
 	if !ok {
-		return nil, newErrorf(codes.Internal, "unsupported key type: %v", keyType)
+		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 
 	createKeyInput := &kms.CreateKeyInput{
@@ -271,25 +271,25 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
 	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to create key: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create key: %v", err)
 	}
 	if key == nil || key.KeyMetadata == nil || key.KeyMetadata.Arn == nil {
-		return nil, newError(codes.Internal, "malformed create key response")
+		return nil, status.Error(codes.Internal, "malformed create key response")
 	}
 	p.log.Debug("Key created", keyArnTag, *key.KeyMetadata.Arn)
 
 	pub, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: key.KeyMetadata.Arn})
 	if err != nil {
-		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
 	if pub == nil || pub.KeyId == nil || pub.PublicKey == nil || len(pub.PublicKey) == 0 {
-		return nil, newError(codes.Internal, "malformed get public key response")
+		return nil, status.Error(codes.Internal, "malformed get public key response")
 	}
 
 	return &keyEntry{
 		Arn:       *key.KeyMetadata.Arn,
 		AliasName: p.aliasFromSpireKeyID(spireKeyID),
-		PublicKey: &keymanager.PublicKey{
+		PublicKey: &keymanagerv0.PublicKey{
 			Id:       spireKeyID,
 			Type:     keyType,
 			PkixData: pub.PublicKey,
@@ -307,7 +307,7 @@ func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
 			TargetKeyId: &entry.Arn,
 		})
 		if err != nil {
-			return newErrorf(codes.Internal, "failed to create alias: %v", err)
+			return status.Errorf(codes.Internal, "failed to create alias: %v", err)
 		}
 		p.log.Debug("Alias created", aliasNameTag, entry.AliasName, keyArnTag, entry.Arn)
 	} else {
@@ -317,7 +317,7 @@ func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
 			TargetKeyId: &entry.Arn,
 		})
 		if err != nil {
-			return newErrorf(codes.Internal, "failed to update alias: %v", err)
+			return status.Errorf(codes.Internal, "failed to update alias: %v", err)
 		}
 		p.log.Debug("Alias updated", aliasNameTag, entry.AliasName, keyArnTag, entry.Arn)
 
@@ -628,31 +628,31 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	config := new(Config)
 
 	if err := hcl.Decode(config, c); err != nil {
-		return nil, newErrorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	if config.Region == "" {
-		return nil, newError(codes.InvalidArgument, "configuration is missing a region")
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
 	}
 
 	if config.ServerIDPath == "" {
-		return nil, newError(codes.InvalidArgument, "configuration is missing server id path")
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id path")
 	}
 
 	return config, nil
 }
 
-func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) (types.SigningAlgorithmSpec, error) {
+func signingAlgorithmForKMS(keyType keymanagerv0.KeyType, signerOpts interface{}) (types.SigningAlgorithmSpec, error) {
 	var (
-		hashAlgo keymanager.HashAlgorithm
+		hashAlgo keymanagerv0.HashAlgorithm
 		isPSS    bool
 	)
 
 	switch opts := signerOpts.(type) {
-	case *keymanager.SignDataRequest_HashAlgorithm:
+	case *keymanagerv0.SignDataRequest_HashAlgorithm:
 		hashAlgo = opts.HashAlgorithm
 		isPSS = false
-	case *keymanager.SignDataRequest_PssOptions:
+	case *keymanagerv0.SignDataRequest_PssOptions:
 		if opts.PssOptions == nil {
 			return "", errors.New("PSS options are required")
 		}
@@ -663,68 +663,60 @@ func signingAlgorithmForKMS(keyType keymanager.KeyType, signerOpts interface{}) 
 		return "", fmt.Errorf("unsupported signer opts type %T", opts)
 	}
 
-	isRSA := keyType == keymanager.KeyType_RSA_2048 || keyType == keymanager.KeyType_RSA_4096
+	isRSA := keyType == keymanagerv0.KeyType_RSA_2048 || keyType == keymanagerv0.KeyType_RSA_4096
 
 	switch {
-	case hashAlgo == keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
+	case hashAlgo == keymanagerv0.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", errors.New("hash algorithm is required")
-	case keyType == keymanager.KeyType_EC_P256 && hashAlgo == keymanager.HashAlgorithm_SHA256:
+	case keyType == keymanagerv0.KeyType_EC_P256 && hashAlgo == keymanagerv0.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecEcdsaSha256, nil
-	case keyType == keymanager.KeyType_EC_P384 && hashAlgo == keymanager.HashAlgorithm_SHA384:
+	case keyType == keymanagerv0.KeyType_EC_P384 && hashAlgo == keymanagerv0.HashAlgorithm_SHA384:
 		return types.SigningAlgorithmSpecEcdsaSha384, nil
-	case isRSA && !isPSS && hashAlgo == keymanager.HashAlgorithm_SHA256:
+	case isRSA && !isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha256, nil
-	case isRSA && !isPSS && hashAlgo == keymanager.HashAlgorithm_SHA384:
+	case isRSA && !isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA384:
 		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha384, nil
-	case isRSA && !isPSS && hashAlgo == keymanager.HashAlgorithm_SHA512:
+	case isRSA && !isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA512:
 		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha512, nil
-	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA256:
+	case isRSA && isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecRsassaPssSha256, nil
-	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA384:
+	case isRSA && isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA384:
 		return types.SigningAlgorithmSpecRsassaPssSha384, nil
-	case isRSA && isPSS && hashAlgo == keymanager.HashAlgorithm_SHA512:
+	case isRSA && isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA512:
 		return types.SigningAlgorithmSpecRsassaPssSha512, nil
 	default:
 		return "", fmt.Errorf("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}
 }
 
-func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanager.KeyType, bool) {
+func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanagerv0.KeyType, bool) {
 	switch keySpec {
 	case types.CustomerMasterKeySpecRsa2048:
-		return keymanager.KeyType_RSA_2048, true
+		return keymanagerv0.KeyType_RSA_2048, true
 	case types.CustomerMasterKeySpecRsa4096:
-		return keymanager.KeyType_RSA_4096, true
+		return keymanagerv0.KeyType_RSA_4096, true
 	case types.CustomerMasterKeySpecEccNistP256:
-		return keymanager.KeyType_EC_P256, true
+		return keymanagerv0.KeyType_EC_P256, true
 	case types.CustomerMasterKeySpecEccNistP384:
-		return keymanager.KeyType_EC_P384, true
+		return keymanagerv0.KeyType_EC_P384, true
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, false
+		return keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE, false
 	}
 }
 
-func keySpecFromKeyType(keyType keymanager.KeyType) (types.CustomerMasterKeySpec, bool) {
+func keySpecFromKeyType(keyType keymanagerv0.KeyType) (types.CustomerMasterKeySpec, bool) {
 	switch keyType {
-	case keymanager.KeyType_RSA_2048:
+	case keymanagerv0.KeyType_RSA_2048:
 		return types.CustomerMasterKeySpecRsa2048, true
-	case keymanager.KeyType_RSA_4096:
+	case keymanagerv0.KeyType_RSA_4096:
 		return types.CustomerMasterKeySpecRsa4096, true
-	case keymanager.KeyType_EC_P256:
+	case keymanagerv0.KeyType_EC_P256:
 		return types.CustomerMasterKeySpecEccNistP256, true
-	case keymanager.KeyType_EC_P384:
+	case keymanagerv0.KeyType_EC_P384:
 		return types.CustomerMasterKeySpecEccNistP384, true
 	default:
 		return "", false
 	}
-}
-
-func newError(code codes.Code, msg string) error {
-	return status.Error(code, pluginName+": "+msg)
-}
-
-func newErrorf(code codes.Code, format string, args ...interface{}) error {
-	return status.Error(code, pluginName+": "+fmt.Sprintf(format, args...))
 }
 
 func min(x, y time.Duration) time.Duration {
@@ -752,9 +744,9 @@ func serverIDExists(idPath string) (bool, error) {
 	case errors.Is(err, os.ErrNotExist):
 		return false, nil
 	case err != nil:
-		return false, newErrorf(codes.Internal, "failed to read server id path: %v", err)
+		return false, status.Errorf(codes.Internal, "failed to read server id path: %v", err)
 	case fileInfo.IsDir():
-		return false, newErrorf(codes.InvalidArgument, "failed ot read server id path, not a file: %v", idPath)
+		return false, status.Errorf(codes.InvalidArgument, "failed ot read server id path, not a file: %v", idPath)
 	default:
 		return true, nil
 	}
@@ -764,14 +756,14 @@ func createServerID(idPath string) (string, error) {
 	// generate id
 	u, err := uuid.NewV4()
 	if err != nil {
-		return "", newErrorf(codes.Internal, "failed to generate id for server: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to generate id for server: %v", err)
 	}
 	id := u.String()
 
 	// persist id
 	err = ioutil.WriteFile(idPath, []byte(id), 0600)
 	if err != nil {
-		return "", newErrorf(codes.Internal, "failed to persist server id on path: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
 	}
 
 	return id, nil
@@ -781,13 +773,13 @@ func serverIDFromPath(idPath string) (string, error) {
 	// get id from path
 	data, err := ioutil.ReadFile(idPath)
 	if err != nil {
-		return "", newErrorf(codes.Internal, "failed to read server id from path: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to read server id from path: %v", err)
 	}
 
 	// validate what we got is a uuid
 	serverID, err := uuid.FromString(string(data))
 	if err != nil {
-		return "", newErrorf(codes.Internal, "failed to parse server id from path: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to parse server id from path: %v", err)
 	}
 	return serverID.String(), nil
 }

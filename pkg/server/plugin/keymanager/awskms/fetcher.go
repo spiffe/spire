@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,7 +32,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	for {
 		aliasesResp, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, newErrorf(codes.Internal, "failed to fetch aliases: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to fetch aliases: %v", err)
 		}
 		kf.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
@@ -41,11 +41,11 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 			case alias.TargetKeyId == nil:
 				// this means something external to the plugin created the alias, without associating it to a key.
 				// it should never happen with CMKs.
-				return nil, newErrorf(codes.FailedPrecondition, "failed to fetch aliases: found SPIRE alias without key: %q", *alias.AliasArn)
+				return nil, status.Errorf(codes.FailedPrecondition, "failed to fetch aliases: found SPIRE alias without key: %q", *alias.AliasArn)
 			case alias.AliasArn == nil:
-				return nil, newErrorf(codes.Internal, "failed to fetch aliases: found SPIRE alias without arn: %q", *alias.AliasArn)
+				return nil, status.Errorf(codes.Internal, "failed to fetch aliases: found SPIRE alias without arn: %q", *alias.AliasArn)
 			case alias.AliasName == nil:
-				return nil, newError(codes.Internal, "failed to fetch aliases: found alias without a name")
+				return nil, status.Error(codes.Internal, "failed to fetch aliases: found alias without a name")
 			}
 
 			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
@@ -77,7 +77,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	// wait for all the detail gathering routines to finish
 	if err := g.Wait(); err != nil {
 		statusErr := status.Convert(err)
-		return nil, newErrorf(statusErr.Code(), "failed to fetch aliases: %v", statusErr.Message())
+		return nil, status.Errorf(statusErr.Code(), "failed to fetch aliases: %v", statusErr.Message())
 	}
 
 	return keyEntries, nil
@@ -87,34 +87,34 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 	describeResp, err := kf.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias.AliasArn})
 	switch {
 	case err != nil:
-		return nil, newErrorf(codes.Internal, "failed to describe key: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to describe key: %v", err)
 	case describeResp == nil || describeResp.KeyMetadata == nil:
-		return nil, newError(codes.Internal, "malformed describe key response")
+		return nil, status.Error(codes.Internal, "malformed describe key response")
 	case describeResp.KeyMetadata.Arn == nil:
-		return nil, newErrorf(codes.Internal, "found SPIRE alias without key arn: %q", *alias.AliasArn)
+		return nil, status.Errorf(codes.Internal, "found SPIRE alias without key arn: %q", *alias.AliasArn)
 	case !describeResp.KeyMetadata.Enabled:
 		// this means something external to the plugin, deleted or disabled the key without removing the alias
 		// returning an error provides the opportunity or reverting this in KMS
-		return nil, newErrorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.Arn, *alias.AliasArn)
+		return nil, status.Errorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.Arn, *alias.AliasArn)
 	}
 
 	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec)
 	if !ok {
-		return nil, newErrorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec)
+		return nil, status.Errorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec)
 	}
 
 	publicKeyResp, err := kf.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: alias.AliasArn})
 	switch {
 	case err != nil:
-		return nil, newErrorf(codes.Internal, "failed to get public key: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	case publicKeyResp == nil || publicKeyResp.PublicKey == nil || len(publicKeyResp.PublicKey) == 0:
-		return nil, newError(codes.Internal, "malformed get public key response")
+		return nil, status.Error(codes.Internal, "malformed get public key response")
 	}
 
 	return &keyEntry{
 		Arn:       *describeResp.KeyMetadata.Arn,
 		AliasName: *alias.AliasName,
-		PublicKey: &keymanager.PublicKey{
+		PublicKey: &keymanagerv0.PublicKey{
 			Id:       spireKeyID,
 			Type:     keyType,
 			PkixData: publicKeyResp.PublicKey,

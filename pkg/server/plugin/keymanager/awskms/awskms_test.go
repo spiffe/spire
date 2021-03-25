@@ -11,8 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -48,8 +48,8 @@ func setupTest(t *testing.T) *pluginTest {
 	kmsPlugin := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
 		return fakeClient, nil
 	})
-	kmsCatalog := catalog.MakePlugin(pluginName, keymanager.PluginServer(kmsPlugin))
-	var km keymanager.KeyManager
+	kmsCatalog := catalog.MakePlugin(pluginName, keymanagerv0.PluginServer(kmsPlugin))
+	var km keymanagerv0.KeyManager
 	spiretest.LoadPlugin(t, kmsCatalog, &km, spiretest.Logger(log))
 
 	return &pluginTest{
@@ -146,7 +146,7 @@ func TestConfigure(t *testing.T) {
 				 		"secret_access_key":"secret_access_key",
 						"key_prefix":"prefix"
 				 	}`),
-			err:  "aws_kms: configuration is missing a region",
+			err:  "configuration is missing a region",
 			code: codes.InvalidArgument,
 		},
 		{
@@ -156,25 +156,25 @@ func TestConfigure(t *testing.T) {
 				 		"secret_access_key":"secret_access_key",
 						"region":"region",
 				 	}`),
-			err:  "aws_kms: configuration is missing key prefix",
+			err:  "configuration is missing key prefix",
 			code: codes.InvalidArgument,
 		},
 		{
 			name:             "decode error",
 			configureRequest: configureRequestWith("{ malformed json }"),
-			err:              "aws_kms: unable to decode configuration: 1:11: illegal char",
+			err:              "unable to decode configuration: 1:11: illegal char",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "list aliases error",
-			err:              "aws_kms: failed to fetch aliases: fake list aliases error",
+			err:              "failed to fetch aliases: fake list aliases error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			listAliasesErr:   "fake list aliases error",
 		},
 		{
 			name:             "describe key error",
-			err:              "aws_kms: failed to describe key: describe key error",
+			err:              "failed to describe key: describe key error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -190,7 +190,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "unsupported key error",
-			err:              "aws_kms: unsupported key spec: unsupported key spec",
+			err:              "unsupported key spec: unsupported key spec",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -205,7 +205,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "get public key error",
-			err:              "aws_kms: failed to fetch aliases: aws_kms: failed to get public key: get public key error",
+			err:              "failed to fetch aliases: failed to get public key: get public key error",
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -221,7 +221,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "alias without a key",
-			err:              "aws_kms: failed to fetch aliases: found SPIRE alias without key: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER_KEY/no_key\"",
+			err:              "failed to fetch aliases: found SPIRE alias without key: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER_KEY/no_key\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -243,7 +243,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "disabled key",
-			err:              "aws_kms: failed to fetch aliases: aws_kms: found disabled SPIRE key: \"arn:aws:kms:region:1234:key/abcd-fghi\", alias: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER_KEY/spireKeyID\"",
+			err:              "failed to fetch aliases: found disabled SPIRE key: \"arn:aws:kms:region:1234:key/abcd-fghi\", alias: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER_KEY/spireKeyID\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(),
 			fakeEntries: []fakeKeyEntry{
@@ -287,7 +287,7 @@ func TestGenerateKey(t *testing.T) {
 		logs                   []spiretest.LogEntry
 		waitForDelete          bool
 		fakeEntries            []fakeKeyEntry
-		request                *keymanager.GenerateKeyRequest
+		request                *keymanagerv0.GenerateKeyRequest
 		createKeyErr           string
 		getPublicKeyErr        string
 		scheduleKeyDeletionErr error
@@ -296,16 +296,16 @@ func TestGenerateKey(t *testing.T) {
 	}{
 		{
 			name: "success: non existing key",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "success: replace old key",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 			fakeEntries: []fakeKeyEntry{
 				{
@@ -330,80 +330,80 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "success: EC 384",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P384,
+				KeyType: keymanagerv0.KeyType_EC_P384,
 			},
 		},
 		{
 			name: "failure unsupported key spec",
-			err:  "aws_kms: unsupported key type: RSA_1024",
+			err:  "unsupported key type: RSA_1024",
 			code: codes.Internal,
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_1024,
+				KeyType: keymanagerv0.KeyType_RSA_1024,
 			},
 		},
 		{
 			name: "success: RSA 2048",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "success: RSA 4096",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_4096,
+				KeyType: keymanagerv0.KeyType_RSA_4096,
 			},
 		},
 		{
 			name: "missing key id",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   "",
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
-			err:  "aws_kms: key id is required",
+			err:  "key id is required",
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "missing key type",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_UNSPECIFIED_KEY_TYPE,
+				KeyType: keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE,
 			},
-			err:  "aws_kms: key type is required",
+			err:  "key type is required",
 			code: codes.InvalidArgument,
 		},
 		{
 			name:         "create key error",
-			err:          "aws_kms: failed to create key: something went wrong",
+			err:          "failed to create key: something went wrong",
 			code:         codes.Internal,
 			createKeyErr: "something went wrong",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name:           "create alias error",
-			err:            "aws_kms: failed to create alias: something went wrong",
+			err:            "failed to create alias: something went wrong",
 			code:           codes.Internal,
 			createAliasErr: "something went wrong",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name:           "update alias error",
-			err:            "aws_kms: failed to update alias: something went wrong",
+			err:            "failed to update alias: something went wrong",
 			code:           codes.Internal,
 			updateAliasErr: "something went wrong",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 			fakeEntries: []fakeKeyEntry{
 				{
@@ -417,19 +417,19 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:            "get public key error",
-			err:             "aws_kms: failed to get public key: public key error",
+			err:             "failed to get public key: public key error",
 			code:            codes.Internal,
 			getPublicKeyErr: "public key error",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "schedule delete not found error",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 			scheduleKeyDeletionErr: &types.NotFoundException{Message: aws.String("not found")},
 			fakeEntries: []fakeKeyEntry{
@@ -455,9 +455,9 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "invalid arn error",
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 			scheduleKeyDeletionErr: &types.InvalidArnException{Message: aws.String("invalid arn")},
 			fakeEntries: []fakeKeyEntry{
@@ -484,9 +484,9 @@ func TestGenerateKey(t *testing.T) {
 		{
 			name:                   "schedule key deletion error",
 			scheduleKeyDeletionErr: errors.New("schedule key deletion error"),
-			request: &keymanager.GenerateKeyRequest{
+			request: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 			fakeEntries: []fakeKeyEntry{
 				{
@@ -556,260 +556,260 @@ func TestGenerateKey(t *testing.T) {
 func TestSignData(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
-		request            *keymanager.SignDataRequest
-		generateKeyRequest *keymanager.GenerateKeyRequest
+		request            *keymanagerv0.SignDataRequest
+		generateKeyRequest *keymanagerv0.GenerateKeyRequest
 		err                string
 		code               codes.Code
 		signDataError      string
 	}{
 		{
 			name: "pass EC SHA256",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "pass EC SHA384",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA384,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA384,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P384,
+				KeyType: keymanagerv0.KeyType_EC_P384,
 			},
 		},
 		{
 			name: "pass RSA 2048 SHA 256",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "pass RSA 2048 SHA 384",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA384,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA384,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "pass RSA 2048 SHA 512",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA512,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA512,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "pass RSA PSS 2048 SHA 256",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_PssOptions{
-					PssOptions: &keymanager.PSSOptions{
-						HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_PssOptions{
+					PssOptions: &keymanagerv0.PSSOptions{
+						HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 						SaltLength:    256,
 					},
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "pass RSA PSS 2048 SHA 384",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_PssOptions{
-					PssOptions: &keymanager.PSSOptions{
-						HashAlgorithm: keymanager.HashAlgorithm_SHA384,
+				SignerOpts: &keymanagerv0.SignDataRequest_PssOptions{
+					PssOptions: &keymanagerv0.PSSOptions{
+						HashAlgorithm: keymanagerv0.HashAlgorithm_SHA384,
 						SaltLength:    384,
 					},
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "pass RSA PSS 2048 SHA 512",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_PssOptions{
-					PssOptions: &keymanager.PSSOptions{
-						HashAlgorithm: keymanager.HashAlgorithm_SHA512,
+				SignerOpts: &keymanagerv0.SignDataRequest_PssOptions{
+					PssOptions: &keymanagerv0.PSSOptions{
+						HashAlgorithm: keymanagerv0.HashAlgorithm_SHA512,
 						SaltLength:    512,
 					},
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "pass RSA 4096 SHA 256",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_4096,
+				KeyType: keymanagerv0.KeyType_RSA_4096,
 			},
 		},
 		{
 			name: "pass RSA PSS 4096 SHA 256",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_PssOptions{
-					PssOptions: &keymanager.PSSOptions{
-						HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_PssOptions{
+					PssOptions: &keymanagerv0.PSSOptions{
+						HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 						SaltLength:    256,
 					},
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_4096,
+				KeyType: keymanagerv0.KeyType_RSA_4096,
 			},
 		},
 		{
 			name: "missing key id",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: "",
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 				},
 			},
-			err:  "aws_kms: key id is required",
+			err:  "key id is required",
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "missing key signer opts",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
 			},
-			err:  "aws_kms: signer opts is required",
+			err:  "signer opts is required",
 			code: codes.InvalidArgument,
 		},
 		{
 			name: "missing hash algorithm",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM,
 				},
 			},
-			err:  "aws_kms: hash algorithm is required",
+			err:  "hash algorithm is required",
 			code: codes.InvalidArgument,
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "unsupported combination",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA512,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA512,
 				},
 			},
-			err:  "aws_kms: unsupported combination of keytype: EC_P256 and hashing algorithm: SHA512",
+			err:  "unsupported combination of keytype: EC_P256 and hashing algorithm: SHA512",
 			code: codes.InvalidArgument,
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "non existing key",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: "does_not_exists",
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 				},
 			},
-			err:  "aws_kms: no such key \"does_not_exists\"",
+			err:  "no such key \"does_not_exists\"",
 			code: codes.NotFound,
 		},
 		{
 			name: "pss options nil",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_PssOptions{
+				SignerOpts: &keymanagerv0.SignDataRequest_PssOptions{
 					PssOptions: nil,
 				},
 			},
-			err:  "aws_kms: PSS options are required",
+			err:  "PSS options are required",
 			code: codes.InvalidArgument,
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_RSA_2048,
+				KeyType: keymanagerv0.KeyType_RSA_2048,
 			},
 		},
 		{
 			name:          "sign error",
-			err:           "aws_kms: failed to sign: sign error",
+			err:           "failed to sign: sign error",
 			code:          codes.Internal,
 			signDataError: "sign error",
-			request: &keymanager.SignDataRequest{
+			request: &keymanagerv0.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  []byte("data"),
-				SignerOpts: &keymanager.SignDataRequest_HashAlgorithm{
-					HashAlgorithm: keymanager.HashAlgorithm_SHA256,
+				SignerOpts: &keymanagerv0.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv0.HashAlgorithm_SHA256,
 				},
 			},
-			generateKeyRequest: &keymanager.GenerateKeyRequest{
+			generateKeyRequest: &keymanagerv0.GenerateKeyRequest{
 				KeyId:   spireKeyID,
-				KeyType: keymanager.KeyType_EC_P256,
+				KeyType: keymanagerv0.KeyType_EC_P256,
 			},
 		},
 	} {
@@ -863,13 +863,13 @@ func TestGetPublicKey(t *testing.T) {
 		},
 		{
 			name:  "non existing key",
-			err:   "aws_kms: no such key \"spireKeyID\"",
+			err:   "no such key \"spireKeyID\"",
 			code:  codes.NotFound,
 			keyID: spireKeyID,
 		},
 		{
 			name: "missing key id",
-			err:  "aws_kms: key id is required",
+			err:  "key id is required",
 			code: codes.InvalidArgument,
 		},
 	} {
@@ -883,7 +883,7 @@ func TestGetPublicKey(t *testing.T) {
 			require.NoError(t, err)
 
 			// exercise
-			resp, err := ts.plugin.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
+			resp, err := ts.plugin.GetPublicKey(ctx, &keymanagerv0.GetPublicKeyRequest{
 				KeyId: tt.keyID,
 			})
 			if tt.err != "" {
@@ -928,7 +928,7 @@ func TestGetPublicKeys(t *testing.T) {
 			require.NoError(t, err)
 
 			// exercise
-			resp, err := ts.plugin.GetPublicKeys(ctx, &keymanager.GetPublicKeysRequest{})
+			resp, err := ts.plugin.GetPublicKeys(ctx, &keymanagerv0.GetPublicKeysRequest{})
 
 			if tt.err != "" {
 				require.Error(t, err)
