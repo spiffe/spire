@@ -26,16 +26,19 @@ import (
 )
 
 const (
-	pluginName              = "aws_kms"
-	aliasPrefix             = "alias/"
+	pluginName  = "aws_kms"
+	aliasPrefix = "alias/"
+
+	keyArnTag    = "key_arn"
+	aliasNameTag = "alias_name"
+	reasonTag    = "reason"
+
 	refreshAliasesFrequency = time.Hour * 6
 	disposeAliasesFrequency = time.Hour * 24
 	aliasThreshold          = time.Hour * 48
-	disposeKeysFrequency    = time.Hour * 48
-	keyThreshold            = time.Hour * 48
-	keyArnTag               = "key_arn"
-	aliasNameTag            = "alias_name"
-	reasonTag               = "reason"
+
+	disposeKeysFrequency = time.Hour * 48
+	keyThreshold         = time.Hour * 48
 )
 
 func BuiltIn() catalog.Plugin {
@@ -54,8 +57,10 @@ type keyEntry struct {
 
 type pluginHooks struct {
 	newClient func(ctx context.Context, config *Config) (kmsClient, error)
-	// just for testing scheduleDeleteTask
-	deleteSignal chan struct{}
+	clk       clock.Clock
+	// just for testing
+	deleteDone chan struct{}
+	taskDone   chan struct{}
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -69,16 +74,15 @@ type Plugin struct {
 	serverID       string
 	scheduleDelete chan string
 	cancelTasks    context.CancelFunc
-	clk            clock.Clock
 	hooks          pluginHooks
 }
 
 // Config provides configuration context for the plugin
 type Config struct {
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
-	Region          string `hcl:"region" json:"region"`
-	ServerIDPath    string `hcl:"server_id_path" json:"server_id_path"`
+	AccessKeyID      string `hcl:"access_key_id" json:"access_key_id"`
+	SecretAccessKey  string `hcl:"secret_access_key" json:"secret_access_key"`
+	Region           string `hcl:"region" json:"region"`
+	ServerIDFilePath string `hcl:"server_id_file_path" json:"server_id_file_path"`
 }
 
 // New returns an instantiated plugin
@@ -91,9 +95,9 @@ func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, e
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
 			newClient: newClient,
+			clk:       clock.New(),
 		},
 		scheduleDelete: make(chan string, 120),
-		clk:            clock.New(),
 	}
 }
 
@@ -109,7 +113,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		return nil, err
 	}
 
-	serverID, err := loadServerID(config.ServerIDPath)
+	serverID, err := loadServerID(config.ServerIDFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +356,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			p.log.Debug("Stopping schedule delete task", reasonTag, ctx.Err())
-			p.notifyDelete()
+			p.notifyDeleteDone()
 			return
 		case keyArn := <-p.scheduleDelete:
 			log := p.log.With(keyArnTag, keyArn)
@@ -364,21 +368,28 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			if err == nil {
 				log.Debug("Key deleted")
 				backoff = backoffMin
-				p.notifyDelete()
+				p.notifyDeleteDone()
 				continue
 			}
 
 			var notFoundErr *types.NotFoundException
 			if errors.As(err, &notFoundErr) {
 				log.Error("No such key, dropping from delete schedule")
-				p.notifyDelete()
+				p.notifyDeleteDone()
 				continue
 			}
 
 			var invalidArnErr *types.InvalidArnException
 			if errors.As(err, &invalidArnErr) {
 				log.Error("Invalid ARN, dropping from delete schedule")
-				p.notifyDelete()
+				p.notifyDeleteDone()
+				continue
+			}
+
+			var invalidState *types.KMSInvalidStateException
+			if errors.As(err, &invalidState) {
+				log.Error("Key was on invalid state for deletion, dropping from delete schedule")
+				p.notifyDeleteDone()
 				continue
 			}
 
@@ -389,7 +400,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			default:
 				log.Error("Failed to re-enqueue key for deletion")
 			}
-			p.notifyDelete()
+			p.notifyDeleteDone()
 			backoff = min(backoff*2, backoffMax)
 			time.Sleep(backoff)
 		}
@@ -397,7 +408,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 }
 
 func (p *Plugin) refreshAliasesTask(ctx context.Context) {
-	ticker := p.clk.Ticker(refreshAliasesFrequency)
+	ticker := p.hooks.clk.Ticker(refreshAliasesFrequency)
 	defer ticker.Stop()
 
 	for {
@@ -407,6 +418,7 @@ func (p *Plugin) refreshAliasesTask(ctx context.Context) {
 			return
 		case <-ticker.C:
 			p.refreshAliases(ctx)
+			p.notifyTaskDone()
 		}
 	}
 }
@@ -421,14 +433,14 @@ func (p *Plugin) refreshAliases(ctx context.Context) {
 			TargetKeyId: &entry.Arn,
 		})
 		if err != nil {
-			p.log.Error("It was not possible to refresh alias",
+			p.log.Error("Failed to refresh alias",
 				aliasNameTag, entry.AliasName, keyArnTag, entry.Arn, reasonTag, err)
 		}
 	}
 }
 
 func (p *Plugin) disposeAliasesTask(ctx context.Context) {
-	ticker := p.clk.Ticker(disposeAliasesFrequency)
+	ticker := p.hooks.clk.Ticker(disposeAliasesFrequency)
 	defer ticker.Stop()
 
 	for {
@@ -438,6 +450,7 @@ func (p *Plugin) disposeAliasesTask(ctx context.Context) {
 			return
 		case <-ticker.C:
 			p.disposeAliases(ctx)
+			p.notifyTaskDone()
 		}
 	}
 }
@@ -469,10 +482,9 @@ func (p *Plugin) disposeAliases(ctx context.Context) {
 				continue
 			}
 
-			now := time.Now()
+			now := p.hooks.clk.Now()
 			diff := now.Sub(*alias.LastUpdatedDate)
-			// diff should never be negative, just being extra careful
-			if diff < 0 || diff < aliasThreshold {
+			if diff < aliasThreshold {
 				continue
 			}
 			log := p.log.With(aliasNameTag, alias.AliasName)
@@ -486,9 +498,17 @@ func (p *Plugin) disposeAliases(ctx context.Context) {
 			case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
 				log.Error("Malformed describe key response while trying to dispose")
 				continue
+			case !describeResp.KeyMetadata.Enabled:
+				continue
+			}
+			log = log.With(keyArnTag, *describeResp.KeyMetadata.Arn)
+
+			_, err = p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: alias.AliasName})
+			if err != nil {
+				p.log.Error("Failed to delete alias to dispose", reasonTag, err)
+				continue
 			}
 
-			log = log.With(keyArnTag, *describeResp.KeyMetadata.Arn)
 			select {
 			case p.scheduleDelete <- *describeResp.KeyMetadata.Arn:
 				log.Debug("Key enqueued for deletion")
@@ -504,7 +524,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) {
 }
 
 func (p *Plugin) disposeKeysTask(ctx context.Context) {
-	ticker := p.clk.Ticker(disposeKeysFrequency)
+	ticker := p.hooks.clk.Ticker(disposeKeysFrequency)
 	defer ticker.Stop()
 
 	for {
@@ -514,6 +534,7 @@ func (p *Plugin) disposeKeysTask(ctx context.Context) {
 			return
 		case <-ticker.C:
 			p.disposeKeys(ctx)
+			p.notifyTaskDone()
 		}
 	}
 }
@@ -551,6 +572,8 @@ func (p *Plugin) disposeKeys(ctx context.Context) {
 				describeResp.KeyMetadata.CreationDate == nil:
 				log.Error("Malformed describe key response while trying to dispose")
 				continue
+			case !describeResp.KeyMetadata.Enabled:
+				continue
 			}
 
 			// if key does not belong to trust domain skip
@@ -568,10 +591,9 @@ func (p *Plugin) disposeKeys(ctx context.Context) {
 				continue
 			}
 
-			now := time.Now()
+			now := p.hooks.clk.Now()
 			diff := now.Sub(*describeResp.KeyMetadata.CreationDate)
-			// diff should never be negative, just being extra careful
-			if diff < 0 || diff < keyThreshold {
+			if diff < keyThreshold {
 				continue
 			}
 
@@ -613,9 +635,15 @@ func (p *Plugin) aliasPrefixForTrustDomain() string {
 	return path.Join(aliasPrefix, trustDomain)
 }
 
-func (p *Plugin) notifyDelete() {
-	if p.hooks.deleteSignal != nil {
-		p.hooks.deleteSignal <- struct{}{}
+func (p *Plugin) notifyDeleteDone() {
+	if p.hooks.deleteDone != nil {
+		p.hooks.deleteDone <- struct{}{}
+	}
+}
+
+func (p *Plugin) notifyTaskDone() {
+	if p.hooks.taskDone != nil {
+		p.hooks.taskDone <- struct{}{}
 	}
 }
 
@@ -635,8 +663,8 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
 	}
 
-	if config.ServerIDPath == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id path")
+	if config.ServerIDFilePath == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id file path")
 	}
 
 	return config, nil
@@ -727,29 +755,21 @@ func min(x, y time.Duration) time.Duration {
 }
 
 func loadServerID(idPath string) (string, error) {
-	ok, err := serverIDExists(idPath)
-	switch {
-	case err != nil:
-		return "", err
-	case !ok:
-		return createServerID(idPath)
-	default:
-		return serverIDFromPath(idPath)
-	}
-}
-
-func serverIDExists(idPath string) (bool, error) {
-	fileInfo, err := os.Stat(idPath)
+	// get id from path
+	data, err := ioutil.ReadFile(idPath)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		return false, nil
+		return createServerID(idPath)
 	case err != nil:
-		return false, status.Errorf(codes.Internal, "failed to read server id path: %v", err)
-	case fileInfo.IsDir():
-		return false, status.Errorf(codes.InvalidArgument, "failed ot read server id path, not a file: %v", idPath)
-	default:
-		return true, nil
+		return "", status.Errorf(codes.Internal, "failed to read server id from path: %v", err)
 	}
+
+	// validate what we got is a uuid
+	serverID, err := uuid.FromString(string(data))
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to parse server id from path: %v", err)
+	}
+	return serverID.String(), nil
 }
 
 func createServerID(idPath string) (string, error) {
@@ -765,21 +785,5 @@ func createServerID(idPath string) (string, error) {
 	if err != nil {
 		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
 	}
-
 	return id, nil
-}
-
-func serverIDFromPath(idPath string) (string, error) {
-	// get id from path
-	data, err := ioutil.ReadFile(idPath)
-	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to read server id from path: %v", err)
-	}
-
-	// validate what we got is a uuid
-	serverID, err := uuid.FromString(string(data))
-	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to parse server id from path: %v", err)
-	}
-	return serverID.String(), nil
 }

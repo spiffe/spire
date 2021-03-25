@@ -6,14 +6,12 @@ The `aws_kms` key manager plugin leverages the AWS Key Management Service (KMS) 
 
 The plugin accepts the following configuration options:
 
-| Key               | Type   | Required                              | Description                                          | Default                                              |
-| ----------------- | ------ | ------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- |
-| access_key_id     | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS        | Value of AWS_ACCESS_KEY_ID environment variable      |
-| secret_access_key | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS    | Value of AWS_SECRET_ACCESS_KEY environment variable  |
-| region            | string | yes                                   | The region where the keys will be stored             |                                                      |
-| key_prefix        | string | yes, see below [1]                    | A unique prefix per server                           |                                                      |   
-
-[1] It uniquely identifies a server instance, like `SERVER_A/` or `prod-server-1/`. When running more than one server on the same region, `key_prefix` **must be different** on each one. This is a common scenario when running in HA mode. A valid key prefix can only contain alphanumeric characters, forward slashes (/), underscores (_), and dashes (-). It cannot begin with `aws/`.
+| Key                 | Type   | Required                              | Description                                             | Default                                              |
+| ------------------- | ------ | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------- |
+| access_key_id       | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS           | Value of AWS_ACCESS_KEY_ID environment variable      |
+| secret_access_key   | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS       | Value of AWS_SECRET_ACCESS_KEY environment variable  |
+| region              | string | yes                                   | The region where the keys will be stored                |                                                      |
+| server_id_file_path | string | yes                                   | A file path location where the server id will be persisted |                                                      |   
 
 ### AWS KMS Access
 
@@ -30,6 +28,7 @@ The IAM role must have an attached policy with the following permissions:
 - `kms:ScheduleKeyDeletion`
 - `kms:Sign`
 - `kms:UpdateAlias`
+- `kms:DeleteAlias`
 
 ## Sample plugin configuration
 
@@ -37,7 +36,7 @@ The IAM role must have an attached policy with the following permissions:
 KeyManager "aws_kms" {
     plugin_data {        
         region = "us-east-2"
-        key_prefix = "SPIRE_SERVER_A/"
+        server_id_file_path = "./server_id"
     }
 }
 ```

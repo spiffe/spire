@@ -31,9 +31,13 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 
 	for {
 		aliasesResp, err := paginator.NextPage(ctx)
-		if err != nil {
+		switch {
+		case err != nil:
 			return nil, status.Errorf(codes.Internal, "failed to fetch aliases: %v", err)
+		case aliasesResp == nil:
+			return nil, status.Errorf(codes.Internal, "failed to fetch aliases: nil response")
 		}
+
 		kf.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
 		for _, alias := range aliasesResp.Aliases {
@@ -125,8 +129,9 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
 	trustDomain := sanitizeTrustDomain(kf.trustDomain)
 	prefix := path.Join(aliasPrefix, trustDomain, kf.serverID) + "/"
-	if !strings.HasPrefix(aliasName, prefix) {
+	trimmed := strings.TrimPrefix(aliasName, prefix)
+	if trimmed == aliasName {
 		return "", false
 	}
-	return strings.TrimPrefix(aliasName, prefix), true
+	return trimmed, true
 }
