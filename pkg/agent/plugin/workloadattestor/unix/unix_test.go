@@ -11,8 +11,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -31,7 +31,7 @@ type Suite struct {
 	spiretest.Suite
 
 	dir     string
-	p       workloadattestor.Plugin
+	p       workloadattestorv0.Plugin
 	logHook *test.Hook
 }
 
@@ -229,7 +229,7 @@ func (s *Suite) TestAttest() {
 		s.T().Run(testCase.name, func(t *testing.T) {
 			defer s.logHook.Reset()
 			s.configure(testCase.config)
-			resp, err := s.p.Attest(ctx, &workloadattestor.AttestRequest{
+			resp, err := s.p.Attest(ctx, &workloadattestorv0.AttestRequest{
 				Pid: testCase.pid,
 			})
 

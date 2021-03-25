@@ -18,11 +18,10 @@ package controllers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
-	"path"
 
-	entryv1 "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -100,7 +99,7 @@ func makeID(trustDomain, pathFmt string, pathArgs ...interface{}) string {
 	id := url.URL{
 		Scheme: "spiffe",
 		Host:   trustDomain,
-		Path:   path.Clean(fmt.Sprintf(pathFmt, pathArgs...)),
+		Path:   idutil.FormatPath(pathFmt, pathArgs...),
 	}
 	return id.String()
 }

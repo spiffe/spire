@@ -10,7 +10,6 @@
 /test_results
 /artifacts
 /releases
-/bin
 bundle.*.pem
 svid.*.key
 svid.*.pem

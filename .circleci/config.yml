@@ -131,9 +131,12 @@ jobs:
       - checkout
       - run:
           name: Execute integration test suites
-          working_directory: test/integration/
           command: |
-            circleci tests glob "suites/*" | circleci tests split | xargs ./test.sh
+            # CircleCI is silly and doesn't provide this incredibly helpful
+            # environment variable. Requests for it go back years. For shame.
+            CIRCLE_TARGET_BRANCH=$(.circleci/determine-target-branch.sh)
+            cd test/integration
+            circleci tests glob "suites/*" | circleci tests split | CICD_TARGET_BRANCH="${CIRCLE_TARGET_BRANCH}" xargs ./test.sh
 
   # Publish "unstable" docker images
   publish-unstable-images:

@@ -7,10 +7,10 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 
 	"golang.org/x/net/context"
 )
@@ -51,7 +51,7 @@ func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, serverClien
 	}
 
 	agentClient := serverClient.NewAgentClient()
-	_, err = agentClient.DeleteAgent(ctx, &agent.DeleteAgentRequest{Id: api.ProtoFromID(id)})
+	_, err = agentClient.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{Id: api.ProtoFromID(id)})
 	if err != nil {
 		return err
 	}

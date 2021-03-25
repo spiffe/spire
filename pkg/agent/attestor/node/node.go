@@ -2,12 +2,11 @@ package attestor
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -15,7 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -23,22 +21,17 @@ import (
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-)
-
-const (
-	joinTokenType = "join_token"
+	"google.golang.org/grpc/status"
 )
 
 type AttestationResult struct {
 	SVID   []*x509.Certificate
-	Key    *ecdsa.PrivateKey
+	Key    crypto.Signer
 	Bundle *bundleutil.Bundle
 }
 
@@ -47,38 +40,23 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog               catalog.Catalog
-	Metrics               telemetry.Metrics
-	JoinToken             string
-	TrustDomain           url.URL
-	TrustBundle           []*x509.Certificate
-	InsecureBootstrap     bool
-	BundleCachePath       string
-	SVIDCachePath         string
-	Log                   logrus.FieldLogger
-	ServerAddress         string
-	CreateNewAgentClient  func(grpc.ClientConnInterface) agent.AgentClient
-	CreateNewBundleClient func(grpc.ClientConnInterface) bundle.BundleClient
+	Catalog           catalog.Catalog
+	Metrics           telemetry.Metrics
+	JoinToken         string
+	TrustDomain       spiffeid.TrustDomain
+	TrustBundle       []*x509.Certificate
+	InsecureBootstrap bool
+	BundleCachePath   string
+	SVIDCachePath     string
+	Log               logrus.FieldLogger
+	ServerAddress     string
 }
 
 type attestor struct {
 	c *Config
-
-	// Used for testing purposes.
-
 }
 
 func New(config *Config) Attestor {
-	// Defaults for CreateNewAgentClient and CreateNewBundleClient functions
-	if config != nil {
-		if config.CreateNewAgentClient == nil {
-			config.CreateNewAgentClient = agent.NewAgentClient
-		}
-		if config.CreateNewBundleClient == nil {
-			config.CreateNewBundleClient = bundle.NewBundleClient
-		}
-	}
-
 	return &attestor{c: config}
 }
 
@@ -122,24 +100,24 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 }
 
 // Load the current SVID and key. The returned SVID is nil to indicate a new SVID should be created.
-func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.PrivateKey, error) {
+func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, crypto.Signer, error) {
 	km := a.c.Catalog.GetKeyManager()
-	fetchRes, err := km.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("load private key: %v", err)
+	key, err := km.GetKey(ctx)
+	switch status.Code(err) {
+	case codes.OK:
+	case codes.NotFound:
+	default:
+		return nil, nil, fmt.Errorf("unable to load private key: %v", err)
 	}
+
 	svid := a.readSVIDFromDisk()
 
-	privateKeyExists := len(fetchRes.PrivateKey) > 0
+	privateKeyExists := key != nil
 	svidExists := svid != nil
 	svidIsExpired := IsSVIDExpired(svid, time.Now)
 
 	switch {
 	case privateKeyExists && svidExists && !svidIsExpired:
-		key, err := x509.ParseECPrivateKey(fetchRes.PrivateKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse key from keymanager: %v", key)
-		}
 		return svid, key, nil
 	case privateKeyExists && svidExists && svidIsExpired:
 		a.c.Log.WithField("expiry", svid[0].NotAfter).Warn("Private key recovered, but SVID is expired. Generating new keypair")
@@ -151,13 +129,9 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, *ecdsa.Pr
 		// Neither private key nor SVID were found.
 	}
 
-	generateRes, err := km.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	key, err = km.GenerateKey(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate key pair: %s", err)
-	}
-	key, err := x509.ParseECPrivateKey(generateRes.PrivateKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse key from keymanager: %v", key)
+		return nil, nil, fmt.Errorf("unable to generate private key: %v", err)
 	}
 	return nil, key, nil
 }
@@ -194,38 +168,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundleutil.BundleFromRootCAs(a.c.TrustDomain.String(), bundle), nil
-}
-
-func (a *attestor) fetchAttestationData(fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient, challenge []byte) (*nodeattestor.FetchAttestationDataResponse, error) {
-	// the stream should only be nil if this node attestation is via a join
-	// token.
-	if fetchStream == nil {
-		data := &common.AttestationData{
-			Type: "join_token",
-			Data: []byte(a.c.JoinToken),
-		}
-
-		return &nodeattestor.FetchAttestationDataResponse{
-			AttestationData: data,
-		}, nil
-	}
-
-	if challenge != nil {
-		fetchReq := &nodeattestor.FetchAttestationDataRequest{
-			Challenge: challenge,
-		}
-		if err := fetchStream.Send(fetchReq); err != nil {
-			return nil, fmt.Errorf("requesting attestation data: %v", err)
-		}
-	}
-
-	fetchResp, err := fetchStream.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("receiving attestation data: %v", err)
-	}
-
-	return fetchResp, nil
+	return bundleutil.BundleFromRootCAs(a.c.TrustDomain, bundle), nil
 }
 
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
@@ -245,29 +188,15 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
+func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
-	attestorName := ""
-	defer func() {
-		telemetry_common.AddAttestorType(counter, attestorName)
-		counter.Done(&err)
-	}()
+	defer counter.Done(&err)
 
-	// make sure all of the streams are cancelled if something goes awry
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	attestorName = joinTokenType
-	var fetchStream nodeattestor.NodeAttestor_FetchAttestationDataClient
+	attestor := nodeattestor.JoinToken(a.c.JoinToken)
 	if a.c.JoinToken == "" {
-		attestor := a.c.Catalog.GetNodeAttestor()
-		attestorName = attestor.Name()
-		var err error
-		fetchStream, err = attestor.FetchAttestationData(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("opening stream for fetching attestation: %v", err)
-		}
+		attestor = a.c.Catalog.GetNodeAttestor()
 	}
+	telemetry_common.AddAttestorType(counter, attestor.Name())
 
 	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
@@ -280,9 +209,9 @@ func (a *attestor) newSVID(ctx context.Context, key *ecdsa.PrivateKey, bundle *b
 		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %v", err)
 	}
 
-	newSVID, err := a.getSVID(ctx, conn, csr, fetchStream)
+	newSVID, err := a.getSVID(ctx, conn, csr, attestor)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get SVID: %v", err)
+		return nil, nil, err
 	}
 	newBundle, err := a.getBundle(ctx, conn)
 	if err != nil {
@@ -295,7 +224,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	if bundle != nil {
 		return client.DialServer(ctx, client.DialServerConfig{
 			Address:     a.c.ServerAddress,
-			TrustDomain: a.c.TrustDomain.Host,
+			TrustDomain: a.c.TrustDomain,
 			GetBundle:   bundle.RootCAs,
 		})
 	}
@@ -320,11 +249,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 				return errs.New("server chain is unexpectedly empty")
 			}
 
-			trustDomain, err := spiffeid.TrustDomainFromString(a.c.TrustDomain.Host)
-			if err != nil {
-				return err
-			}
-			expectedServerID := idutil.ServerID(trustDomain)
+			expectedServerID := idutil.ServerID(a.c.TrustDomain)
 			serverCert, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
 				return err

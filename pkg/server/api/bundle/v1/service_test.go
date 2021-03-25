@@ -15,14 +15,14 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -179,7 +179,7 @@ func TestGetFederatedBundle(t *testing.T) {
 				test.setBundle(t, bundle)
 			}
 
-			b, err := test.client.GetFederatedBundle(context.Background(), &bundlepb.GetFederatedBundleRequest{
+			b, err := test.client.GetFederatedBundle(context.Background(), &bundlev1.GetFederatedBundleRequest{
 				TrustDomain: tt.trustDomain,
 				OutputMask:  tt.outputMask,
 			})
@@ -239,7 +239,7 @@ func TestGetBundle(t *testing.T) {
 				test.setBundle(t, bundle)
 			}
 
-			b, err := test.client.GetBundle(context.Background(), &bundlepb.GetBundleRequest{
+			b, err := test.client.GetBundle(context.Background(), &bundlev1.GetBundleRequest{
 				OutputMask: tt.outputMask,
 			})
 
@@ -490,7 +490,7 @@ func TestAppendBundle(t *testing.T) {
 				})
 				require.NoError(t, err)
 			}
-			resp, err := test.client.AppendBundle(context.Background(), &bundlepb.AppendBundleRequest{
+			resp, err := test.client.AppendBundle(context.Background(), &bundlev1.AppendBundleRequest{
 				X509Authorities: tt.x509Authorities,
 				JwtAuthorities:  tt.jwtAuthorities,
 				OutputMask:      tt.outputMask,
@@ -544,14 +544,14 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		dsError         error
 		err             string
 		expectLogs      []spiretest.LogEntry
-		expectResults   []*bundlepb.BatchDeleteFederatedBundleResponse_Result
+		expectResults   []*bundlev1.BatchDeleteFederatedBundleResponse_Result
 		expectDSBundles []string
-		mode            bundlepb.BatchDeleteFederatedBundleRequest_Mode
+		mode            bundlev1.BatchDeleteFederatedBundleRequest_Mode
 		trustDomains    []string
 	}{
 		{
 			name: "remove multiple bundles",
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td1.String()},
 				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td2.String()},
 			},
@@ -560,7 +560,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		},
 		{
 			name:            "empty trust domains",
-			expectResults:   []*bundlepb.BatchDeleteFederatedBundleResponse_Result{},
+			expectResults:   []*bundlev1.BatchDeleteFederatedBundleResponse_Result{},
 			expectDSBundles: dsBundles,
 		},
 		{
@@ -577,7 +577,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.FailedPrecondition),
@@ -586,14 +586,14 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					TrustDomain: "td1.org",
 				},
 			},
-			mode:            bundlepb.BatchDeleteFederatedBundleRequest_RESTRICT,
+			mode:            bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT,
 			trustDomains:    []string{td1.String()},
 			expectDSBundles: dsBundles,
 		},
 		{
 			name:  "delete with DISSOCIATE mode",
 			entry: newEntry,
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.OK),
@@ -602,7 +602,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					TrustDomain: "td1.org",
 				},
 			},
-			mode:         bundlepb.BatchDeleteFederatedBundleRequest_DISSOCIATE,
+			mode:         bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE,
 			trustDomains: []string{td1.String()},
 			expectDSBundles: []string{
 				serverTrustDomain.IDString(),
@@ -613,7 +613,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		{
 			name:  "delete with DELETE mode",
 			entry: newEntry,
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.OK),
@@ -622,7 +622,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					TrustDomain: "td1.org",
 				},
 			},
-			mode:         bundlepb.BatchDeleteFederatedBundleRequest_DELETE,
+			mode:         bundlev1.BatchDeleteFederatedBundleRequest_DELETE,
 			trustDomains: []string{td1.String()},
 			expectDSBundles: []string{
 				serverTrustDomain.IDString(),
@@ -643,7 +643,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
@@ -667,7 +667,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
@@ -681,7 +681,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		},
 		{
 			name: "bundle not found",
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.NotFound),
@@ -716,7 +716,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectResults: []*bundlepb.BatchDeleteFederatedBundleResponse_Result{
+			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
@@ -750,7 +750,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 
 			// Set datastore error after creating the test bundles
 			test.ds.SetNextError(tt.dsError)
-			resp, err := test.client.BatchDeleteFederatedBundle(ctx, &bundlepb.BatchDeleteFederatedBundleRequest{
+			resp, err := test.client.BatchDeleteFederatedBundle(ctx, &bundlev1.BatchDeleteFederatedBundleRequest{
 				TrustDomains: tt.trustDomains,
 				Mode:         tt.mode,
 			})
@@ -766,7 +766,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			// Validate response
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			expectResponse := &bundlepb.BatchDeleteFederatedBundleResponse{
+			expectResponse := &bundlev1.BatchDeleteFederatedBundleResponse{
 				Results: tt.expectResults,
 			}
 
@@ -790,11 +790,11 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				entry := fetchEntryResp.Entry
 
 				switch tt.mode {
-				case bundlepb.BatchDeleteFederatedBundleRequest_RESTRICT:
+				case bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT:
 					require.Equal(t, []string{td1.IDString()}, entry.FederatesWith)
-				case bundlepb.BatchDeleteFederatedBundleRequest_DISSOCIATE:
+				case bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE:
 					require.Empty(t, entry.FederatesWith)
-				case bundlepb.BatchDeleteFederatedBundleRequest_DELETE:
+				case bundlev1.BatchDeleteFederatedBundleRequest_DELETE:
 					require.Nil(t, fetchEntryResp.Entry)
 				}
 			}
@@ -940,7 +940,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			test.rateLimiter.count = 1
 			test.rateLimiter.err = tt.rateLimiterErr
 
-			resp, err := test.client.PublishJWTAuthority(ctx, &bundlepb.PublishJWTAuthorityRequest{
+			resp, err := test.client.PublishJWTAuthority(ctx, &bundlev1.PublishJWTAuthorityRequest{
 				JwtAuthority: tt.jwtKey,
 			})
 
@@ -955,7 +955,7 @@ func TestPublishJWTAuthority(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			spiretest.RequireProtoEqual(t, &bundlepb.PublishJWTAuthorityResponse{
+			spiretest.RequireProtoEqual(t, &bundlev1.PublishJWTAuthorityResponse{
 				JwtAuthorities: tt.resultKeys,
 			}, resp)
 		})
@@ -1034,7 +1034,7 @@ func TestListFederatedBundles(t *testing.T) {
 			var pageToken string
 			var actualBundlePages [][]*types.Bundle
 			for {
-				resp, err := test.client.ListFederatedBundles(ctx, &bundlepb.ListFederatedBundlesRequest{
+				resp, err := test.client.ListFederatedBundles(ctx, &bundlev1.ListFederatedBundlesRequest{
 					OutputMask: tt.outputMask,
 					PageSize:   tt.pageSize,
 					PageToken:  pageToken,
@@ -1072,6 +1072,86 @@ func TestListFederatedBundles(t *testing.T) {
 	}
 }
 
+func TestCountBundles(t *testing.T) {
+	tds := []spiffeid.TrustDomain{
+		serverTrustDomain,
+		spiffeid.RequireTrustDomainFromString("td1.org"),
+		spiffeid.RequireTrustDomainFromString("td2.org"),
+		spiffeid.RequireTrustDomainFromString("td3.org"),
+	}
+
+	for _, tt := range []struct {
+		name       string
+		count      int32
+		resp       *bundlev1.CountBundlesResponse
+		code       codes.Code
+		dsError    error
+		err        string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:  "0 bundles",
+			count: 0,
+			resp:  &bundlev1.CountBundlesResponse{Count: 0},
+		},
+		{
+			name:  "1 bundle",
+			count: 1,
+			resp:  &bundlev1.CountBundlesResponse{Count: 1},
+		},
+		{
+			name:  "2 bundles",
+			count: 2,
+			resp:  &bundlev1.CountBundlesResponse{Count: 2},
+		},
+		{
+			name:  "3 bundles",
+			count: 3,
+			resp:  &bundlev1.CountBundlesResponse{Count: 3},
+		},
+		{
+			name:    "ds error",
+			err:     "failed to count bundles: ds error",
+			code:    codes.Internal,
+			dsError: status.Error(codes.Internal, "ds error"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to count bundles",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = ds error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			for i := 0; i < int(tt.count); i++ {
+				createBundle(t, test, tds[i].IDString())
+			}
+
+			test.ds.SetNextError(tt.dsError)
+			resp, err := test.client.CountBundles(context.Background(), &bundlev1.CountBundlesRequest{})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.count, resp.Count)
+			spiretest.AssertProtoEqual(t, tt.resp, resp)
+		})
+	}
+}
+
 func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
 	b := &common.Bundle{
 		TrustDomainId: td,
@@ -1101,7 +1181,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 		name            string
 		bundlesToCreate []*types.Bundle
 		outputMask      *types.BundleMask
-		expectedResults []*bundlepb.BatchCreateFederatedBundleResponse_Result
+		expectedResults []*bundlev1.BatchCreateFederatedBundleResponse_Result
 		expectedLogMsgs []spiretest.LogEntry
 		dsError         error
 	}{
@@ -1111,7 +1191,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			outputMask: &types.BundleMask{
 				RefreshHint: true,
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: &types.Bundle{
@@ -1134,7 +1214,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			name:            "Create succeeds with all-false mask",
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			outputMask:      &types.BundleMask{},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.String()},
@@ -1153,7 +1233,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 		{
 			name:            "Create succeeds with nil mask",
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1182,7 +1262,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					return b
 				}(),
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1205,7 +1285,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					return b
 				}(),
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `creating a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1221,7 +1301,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 		{
 			name:            "Create fails if bundle already exists",
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), makeValidBundle(t, federatedTrustDomain)},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1251,7 +1331,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			name:            "Create datastore query fails",
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:         errors.New("datastore error"),
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.Internal, `unable to create bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1277,7 +1357,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1298,7 +1378,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			clearDSBundles(t, test.ds)
 			test.ds.SetNextError(tt.dsError)
 
-			resp, err := test.client.BatchCreateFederatedBundle(context.Background(), &bundlepb.BatchCreateFederatedBundleRequest{
+			resp, err := test.client.BatchCreateFederatedBundle(context.Background(), &bundlev1.BatchCreateFederatedBundleRequest{
 				Bundle:     tt.bundlesToCreate,
 				OutputMask: tt.outputMask,
 			})
@@ -1325,7 +1405,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 		preExistentBundle *common.Bundle
 		inputMask         *types.BundleMask
 		outputMask        *types.BundleMask
-		expectedResults   []*bundlepb.BatchCreateFederatedBundleResponse_Result
+		expectedResults   []*bundlev1.BatchCreateFederatedBundleResponse_Result
 		expectedLogMsgs   []spiretest.LogEntry
 		dsError           error
 	}{
@@ -1335,7 +1415,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate: []*types.Bundle{
 				makeValidBundle(t, federatedTrustDomain),
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1360,7 +1440,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				JwtAuthorities:  true,
 				X509Authorities: true,
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1383,7 +1463,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			outputMask: &types.BundleMask{
 				RefreshHint: true,
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: &types.Bundle{
@@ -1415,7 +1495,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					return b
 				}(),
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1438,7 +1518,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					return b
 				}(),
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `updating a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1454,7 +1534,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 		{
 			name:            "Update fails if bundle does not exists",
 			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
 				},
@@ -1473,7 +1553,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			name:            "Update datastore query fails",
 			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:         errors.New("datastore error"),
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.Internal, `failed to update bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1499,7 +1579,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, fmt.Sprintf("failed to convert bundle: unable to parse X.509 authority: %v", expectedX509Err))},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1517,7 +1597,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			name:              "Multiple updates",
 			preExistentBundle: &common.Bundle{TrustDomainId: federatedTrustDomain.IDString()},
 			bundlesToUpdate:   []*types.Bundle{makeValidBundle(t, spiffeid.RequireTrustDomainFromString("non-existent-td")), makeValidBundle(t, federatedTrustDomain)},
-			expectedResults: []*bundlepb.BatchCreateFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
 				},
@@ -1557,7 +1637,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			}
 
 			test.ds.SetNextError(tt.dsError)
-			resp, err := test.client.BatchUpdateFederatedBundle(context.Background(), &bundlepb.BatchUpdateFederatedBundleRequest{
+			resp, err := test.client.BatchUpdateFederatedBundle(context.Background(), &bundlev1.BatchUpdateFederatedBundleRequest{
 				Bundle:     tt.bundlesToUpdate,
 				InputMask:  tt.inputMask,
 				OutputMask: tt.outputMask,
@@ -1601,7 +1681,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 		name            string
 		bundlesToSet    []*types.Bundle
 		outputMask      *types.BundleMask
-		expectedResults []*bundlepb.BatchSetFederatedBundleResponse_Result
+		expectedResults []*bundlev1.BatchSetFederatedBundleResponse_Result
 		expectedLogMsgs []spiretest.LogEntry
 		dsError         error
 	}{
@@ -1611,7 +1691,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			outputMask: &types.BundleMask{
 				RefreshHint: true,
 			},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: &types.Bundle{
@@ -1634,7 +1714,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			name:         "Succeeds with all-false mask",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			outputMask:   &types.BundleMask{},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.String()},
@@ -1653,7 +1733,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 		{
 			name:         "Succeeds with nil mask",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1676,7 +1756,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 		{
 			name:         "Updates if bundle already exists",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), updatedBundle},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
@@ -1712,7 +1792,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 					return b
 				}(),
 			},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: trust domain is empty`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1735,7 +1815,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 					return b
 				}(),
 			},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `setting a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1752,7 +1832,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			name:         "Datastore error",
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:      errors.New("datastore error"),
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.Internal, `failed to set bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1778,7 +1858,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 					},
 				},
 			},
-			expectedResults: []*bundlepb.BatchSetFederatedBundleResponse_Result{
+			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{Status: api.CreateStatus(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -1801,7 +1881,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			clearDSBundles(t, test.ds)
 			test.ds.SetNextError(tt.dsError)
 
-			resp, err := test.client.BatchSetFederatedBundle(context.Background(), &bundlepb.BatchSetFederatedBundleRequest{
+			resp, err := test.client.BatchSetFederatedBundle(context.Background(), &bundlev1.BatchSetFederatedBundleRequest{
 				Bundle:     tt.bundlesToSet,
 				OutputMask: tt.outputMask,
 			})
@@ -1861,7 +1941,7 @@ func (c *serviceTest) setBundle(t *testing.T, b *common.Bundle) {
 }
 
 type serviceTest struct {
-	client      bundlepb.BundleClient
+	client      bundlev1.BundleClient
 	ds          *fakedatastore.DataStore
 	logHook     *test.Hook
 	up          *fakeUpstreamPublisher
@@ -1920,7 +2000,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
 	test.done = done
-	test.client = bundlepb.NewBundleClient(conn)
+	test.client = bundlev1.NewBundleClient(conn)
 
 	return test
 }

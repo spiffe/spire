@@ -1,14 +1,14 @@
 package manager
 
 import (
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
@@ -19,10 +19,10 @@ import (
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
 	SVID             []*x509.Certificate
-	SVIDKey          *ecdsa.PrivateKey
+	SVIDKey          crypto.Signer
 	Bundle           *cache.Bundle
 	Catalog          catalog.Catalog
-	TrustDomain      url.URL
+	TrustDomain      spiffeid.TrustDomain
 	Log              logrus.FieldLogger
 	Metrics          telemetry.Metrics
 	ServerAddr       string
@@ -53,7 +53,7 @@ func newManager(c *Config) *manager {
 		c.Clk = clock.New()
 	}
 
-	cache := cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain.String(), c.Bundle, c.Metrics)
+	cache := cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle, c.Metrics)
 
 	rotCfg := &svid.RotatorConfig{
 		Catalog:      c.Catalog,

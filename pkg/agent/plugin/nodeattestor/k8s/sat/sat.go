@@ -7,9 +7,10 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -30,7 +31,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *AttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
 }
 
 type AttestorConfig struct {
@@ -39,13 +40,13 @@ type AttestorConfig struct {
 }
 
 type attestorConfig struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 	cluster     string
 	tokenPath   string
 }
 
 type AttestorPlugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mu     sync.RWMutex
 	config *attestorConfig
@@ -55,7 +56,7 @@ func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
 
-func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
+func (p *AttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -74,7 +75,7 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_F
 		return satError.Wrap(err)
 	}
 
-	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: pluginName,
 			Data: data,
@@ -98,8 +99,13 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		return nil, satError.New("configuration missing cluster")
 	}
 
+	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
+
 	config := &attestorConfig{
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: td,
 		cluster:     hclConfig.Cluster,
 		tokenPath:   hclConfig.TokenPath,
 	}

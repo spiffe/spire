@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -24,7 +24,9 @@ func TestShowHelp(t *testing.T) {
   -format string
     	The format to show the bundle. Either "pem" or "spiffe". (default "pem")
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -99,7 +101,9 @@ func TestSetHelp(t *testing.T) {
   -path string
     	Path to the bundle data
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -123,7 +127,7 @@ func TestSet(t *testing.T) {
 		fileData       string
 		serverErr      error
 		toSet          *types.Bundle
-		setResponse    *bundle.BatchSetFederatedBundleResponse
+		setResponse    *bundlev1.BatchSetFederatedBundleResponse
 	}{
 		{
 			name:           "no id",
@@ -183,8 +187,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.Internal), Message: "failed to set"},
 					},
@@ -203,8 +207,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -226,8 +230,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -255,8 +259,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -283,8 +287,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -306,8 +310,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -335,8 +339,8 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			setResponse: &bundle.BatchSetFederatedBundleResponse{
-				Results: []*bundle.BatchSetFederatedBundleResponse_Result{
+			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
+				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 					{
 						Status: &types.Status{Code: int32(codes.OK)},
 						Bundle: &types.Bundle{
@@ -378,6 +382,98 @@ func TestSet(t *testing.T) {
 	}
 }
 
+func TestCountHelp(t *testing.T) {
+	test := setupTest(t, NewCountCommandWithEnv)
+	test.client.Help()
+
+	require.Equal(t, `Usage of bundle count:
+  -registrationUDSPath string
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
+`, test.stderr.String())
+}
+
+func TestCountSynopsis(t *testing.T) {
+	test := setupTest(t, NewCountCommandWithEnv)
+	require.Equal(t, "Count bundles", test.client.Synopsis())
+}
+
+func TestCount(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		args           []string
+		count          int
+		expectedStdout string
+		expectedStderr string
+		serverErr      error
+	}{
+		{
+			name:           "all bundles",
+			count:          2,
+			expectedStdout: "2 bundles\n",
+		},
+		{
+			name:           "all bundles server fails",
+			count:          2,
+			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
+			serverErr:      status.Error(codes.Internal, "some error"),
+		},
+		{
+			name:           "one bundle",
+			count:          1,
+			expectedStdout: "1 bundle\n",
+		},
+		{
+			name:           "one bundle server fails",
+			count:          1,
+			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
+			serverErr:      status.Error(codes.Internal, "some error"),
+		},
+		{
+			name:           "no bundles",
+			count:          0,
+			expectedStdout: "0 bundles\n",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t, NewCountCommandWithEnv)
+			test.server.err = tt.serverErr
+			bundles := []*types.Bundle{
+				{
+					TrustDomain: "spiffe://domain1.test",
+					X509Authorities: []*types.X509Certificate{
+						{Asn1: test.cert1.Raw},
+					},
+					JwtAuthorities: []*types.JWTKey{
+						{KeyId: "KID", PublicKey: test.key1Pkix},
+					},
+				},
+				{
+					TrustDomain: "spiffe://domain2.test",
+					X509Authorities: []*types.X509Certificate{
+						{Asn1: test.cert2.Raw},
+					},
+				},
+			}
+
+			test.server.bundles = bundles[0:tt.count]
+			args := append(test.args, tt.args...)
+			rc := test.client.Run(args)
+			if tt.expectedStderr != "" {
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, 1, rc)
+				return
+			}
+
+			require.Equal(t, 0, rc)
+			require.Empty(t, test.stderr.String())
+			require.Equal(t, tt.expectedStdout, test.stdout.String())
+		})
+	}
+}
+
 func TestListHelp(t *testing.T) {
 	test := setupTest(t, newListCommand)
 	test.client.Help()
@@ -388,7 +484,9 @@ func TestListHelp(t *testing.T) {
   -id string
     	SPIFFE ID of the trust domain
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -507,7 +605,9 @@ func TestDeleteHelp(t *testing.T) {
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -registrationUDSPath string
-    	Registration API UDS path (default "/tmp/spire-registration.sock")
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
 }
 
@@ -522,8 +622,8 @@ func TestDelete(t *testing.T) {
 		args           []string
 		expectedStderr string
 		expectedStdout string
-		deleteResults  []*bundle.BatchDeleteFederatedBundleResponse_Result
-		mode           bundle.BatchDeleteFederatedBundleRequest_Mode
+		deleteResults  []*bundlev1.BatchDeleteFederatedBundleResponse_Result
+		mode           bundlev1.BatchDeleteFederatedBundleRequest_Mode
 		toDelete       []string
 		serverErr      error
 	}{
@@ -532,7 +632,7 @@ func TestDelete(t *testing.T) {
 			args:           []string{"-id", "spiffe://domain1.test"},
 			expectedStdout: "bundle deleted.\n",
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -551,9 +651,9 @@ func TestDelete(t *testing.T) {
 			name:           "success RESTRICT mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "restrict"},
 			expectedStdout: "bundle deleted.\n",
-			mode:           bundle.BatchDeleteFederatedBundleRequest_RESTRICT,
+			mode:           bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT,
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -568,9 +668,9 @@ func TestDelete(t *testing.T) {
 			name:           "success DISSOCIATE mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "dissociate"},
 			expectedStdout: "bundle deleted.\n",
-			mode:           bundle.BatchDeleteFederatedBundleRequest_DISSOCIATE,
+			mode:           bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE,
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -585,9 +685,9 @@ func TestDelete(t *testing.T) {
 			name:           "success DELETE mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "delete"},
 			expectedStdout: "bundle deleted.\n",
-			mode:           bundle.BatchDeleteFederatedBundleRequest_DELETE,
+			mode:           bundlev1.BatchDeleteFederatedBundleRequest_DELETE,
 			toDelete:       []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 
@@ -618,7 +718,7 @@ func TestDelete(t *testing.T) {
 			name:     "fails to delete",
 			args:     []string{"-id", "spiffe://domain1.test"},
 			toDelete: []string{"spiffe://domain1.test"},
-			deleteResults: []*bundle.BatchDeleteFederatedBundleResponse_Result{
+			deleteResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
 				{
 					Status: &types.Status{
 

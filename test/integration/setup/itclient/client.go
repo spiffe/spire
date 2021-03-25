@@ -11,20 +11,20 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	agent "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundle "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	debug "github.com/spiffe/spire/proto/spire/api/server/debug/v1"
-	entry "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	svid "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundle "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	debug "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
+	entry "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svid "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 var (
 	tdFlag               = flag.String("trustDomain", "domain.test", "server trust domain")
-	socketPathFlag       = flag.String("socketPath", "unix:///tmp/agent.sock", "agent socket path")
+	socketPathFlag       = flag.String("socketPath", "unix:///tmp/spire-agent/public/api.sock", "agent socket path")
 	serverAddrFlag       = flag.String("serverAddr", "spire-server:8081", "server addr")
-	serverSocketPathFlag = flag.String("serverSocketPath", "unix:///tmp/spire-registration.sock", "server socket path")
+	serverSocketPathFlag = flag.String("serverSocketPath", "unix:///tmp/spire-server/private/api.sock", "server socket path")
 	expectErrorsFlag     = flag.Bool("expectErrors", false, "client is used to validate permission errors")
 )
 

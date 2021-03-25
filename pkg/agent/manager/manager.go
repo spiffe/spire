@@ -2,7 +2,7 @@ package manager
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -11,17 +11,16 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -69,7 +68,7 @@ type Manager interface {
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
-	FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 
 	// CountSVIDs returns the amount of X509 SVIDs on memory
 	CountSVIDs() int
@@ -184,7 +183,7 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 	return m.cache.FetchWorkloadUpdate(selectors)
 }
 
-func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []string) (*client.JWTSVID, error) {
+func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
@@ -192,15 +191,12 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID string, audience []
 		return cachedSVID, nil
 	}
 
-	entryID := m.getEntryID(spiffeID)
+	entryID := m.getEntryID(spiffeID.String())
 	if entryID == "" {
 		return nil, errors.New("no entry found")
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, &node.JSR{
-		SpiffeId: spiffeID,
-		Audience: audience,
-	}, entryID)
+	newSVID, err := m.client.NewJWTSVID(ctx, entryID, audience)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -296,7 +292,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 			return nil
 		case <-bundleStream.Changes():
 			b := bundleStream.Next()
-			m.storeBundle(b[m.c.TrustDomain.String()])
+			m.storeBundle(b[m.c.TrustDomain])
 		}
 	}
 }
@@ -319,18 +315,9 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	}
 }
 
-func (m *manager) storePrivateKey(ctx context.Context, key *ecdsa.PrivateKey) error {
+func (m *manager) storePrivateKey(ctx context.Context, key crypto.Signer) error {
 	km := m.c.Catalog.GetKeyManager()
-	keyBytes, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return err
-	}
-
-	if _, err = km.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: keyBytes}); err != nil {
-		return err
-	}
-
-	return nil
+	return km.SetKey(ctx, key)
 }
 
 func (m *manager) deleteSVID() {

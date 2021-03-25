@@ -3,52 +3,37 @@ package fakeworkloadattestor
 import (
 	"context"
 	"fmt"
-	"sync"
+	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
-type WorkloadAttestor struct {
-	workloadattestor.UnsafeWorkloadAttestorServer
+func New(t *testing.T, name string, pids map[int32][]*common.Selector) workloadattestor.WorkloadAttestor {
+	plugin := &workloadAttestor{
+		pids: pids,
+	}
+	var wa workloadattestor.V0
+	spiretest.LoadPlugin(t, catalog.MakePlugin(name, workloadattestorv0.PluginServer(plugin)), &wa)
+	return wa
+}
 
-	mu   sync.RWMutex
+type workloadAttestor struct {
+	workloadattestorv0.UnimplementedWorkloadAttestorServer
+
 	pids map[int32][]*common.Selector
 }
 
-var _ workloadattestor.Plugin = (*WorkloadAttestor)(nil)
-
-func New() *WorkloadAttestor {
-	return &WorkloadAttestor{
-		pids: make(map[int32][]*common.Selector),
-	}
-}
-
-func (p *WorkloadAttestor) SetSelectors(pid int32, sels []*common.Selector) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.pids[pid] = sels
-}
-
-func (p *WorkloadAttestor) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
+func (p *workloadAttestor) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
 	s, ok := p.pids[req.Pid]
 	if !ok {
 		return nil, fmt.Errorf("cannot attest pid %d", req.Pid)
 	}
 
-	return &workloadattestor.AttestResponse{
+	return &workloadattestorv0.AttestResponse{
 		Selectors: s,
 	}, nil
-}
-
-func (p *WorkloadAttestor) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (p *WorkloadAttestor) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
 }

@@ -91,11 +91,11 @@ func NewManager(c ManagerConfig) *Manager {
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
-	if c.X509CAKeyType == 0 {
-		c.X509CAKeyType = keymanager.KeyType_EC_P256
+	if c.X509CAKeyType == keymanager.KeyTypeUnset {
+		c.X509CAKeyType = keymanager.ECP256
 	}
-	if c.JWTKeyType == 0 {
-		c.JWTKeyType = keymanager.KeyType_EC_P256
+	if c.JWTKeyType == keymanager.KeyTypeUnset {
+		c.JWTKeyType = keymanager.ECP256
 	}
 
 	m := &Manager{
@@ -230,7 +230,7 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 
 	now := m.c.Clock.Now()
 	km := m.c.Catalog.GetKeyManager()
-	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), m.c.X509CAKeyType)
+	signer, err := km.GenerateKey(ctx, slot.KmKeyID(), m.c.X509CAKeyType)
 	if err != nil {
 		return err
 	}
@@ -329,7 +329,7 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 	notAfter := now.Add(m.c.CATTL)
 
 	km := m.c.Catalog.GetKeyManager()
-	signer, err := cryptoutil.GenerateKeyAndSigner(ctx, km, slot.KmKeyID(), m.c.JWTKeyType)
+	signer, err := km.GenerateKey(ctx, slot.KmKeyID(), m.c.JWTKeyType)
 	if err != nil {
 		return err
 	}
@@ -691,26 +691,15 @@ func (m *Manager) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntr
 func (m *Manager) makeSigner(ctx context.Context, keyID string) (crypto.Signer, error) {
 	km := m.c.Catalog.GetKeyManager()
 
-	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
-	defer cancel()
-
-	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: keyID,
-	})
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-
-	if resp.PublicKey == nil {
+	key, err := km.GetKey(ctx, keyID)
+	switch status.Code(err) {
+	case codes.OK:
+		return key, nil
+	case codes.NotFound:
 		return nil, nil
-	}
-
-	publicKey, err := x509.ParsePKIXPublicKey(resp.PublicKey.PkixData)
-	if err != nil {
+	default:
 		return nil, errs.Wrap(err)
 	}
-
-	return cryptoutil.NewKeyManagerSigner(km, keyID, publicKey), nil
 }
 
 func (m *Manager) bundleUpdated() {

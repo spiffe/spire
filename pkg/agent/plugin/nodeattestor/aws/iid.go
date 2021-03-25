@@ -10,9 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
@@ -33,7 +33,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *IIDAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(caws.PluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(caws.PluginName, nodeattestorv0.PluginServer(p))
 }
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
@@ -43,7 +43,7 @@ type IIDAttestorConfig struct {
 
 // IIDAttestorPlugin implements aws nodeattestation in the agent.
 type IIDAttestorPlugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	log    hclog.Logger
 	config *IIDAttestorConfig
@@ -61,7 +61,7 @@ func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 
 // FetchAttestationData fetches attestation data from the aws metadata server and sends an attestation response
 // on given stream.
-func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
+func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return caws.AttestationStepError("marshaling the attested data", err)
 	}
 
-	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: caws.PluginName,
 			Data: respData,

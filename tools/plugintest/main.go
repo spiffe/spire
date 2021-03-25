@@ -13,8 +13,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	agent_catalog "github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/zeebo/errs"
 )
 
@@ -72,13 +72,13 @@ func run(ctx context.Context) error {
 	pluginConfig := []catalog.PluginConfig{
 		{
 			Name: pluginName,
-			Type: workloadattestor.Type,
+			Type: workloadattestorv0.Type,
 			Path: pluginPath,
 			Data: config,
 		},
 	}
 
-	var plugin workloadattestor.WorkloadAttestor
+	var plugin workloadattestorv0.WorkloadAttestor
 	closer, err := catalog.Fill(ctx, catalog.Config{
 		Log:           log,
 		KnownPlugins:  agent_catalog.KnownPlugins(),
@@ -94,7 +94,7 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	res, err := plugin.Attest(ctx, &workloadattestor.AttestRequest{Pid: int32(pid)})
+	res, err := plugin.Attest(ctx, &workloadattestorv0.AttestRequest{Pid: int32(pid)})
 	if err != nil {
 		return fmt.Errorf("failed to attest pid %d: %v", pid, err)
 	}

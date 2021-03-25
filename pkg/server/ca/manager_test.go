@@ -24,7 +24,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -33,6 +32,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	testTrustDomain = spiffeid.RequireTrustDomainFromString("spiffe://domain.test")
+	testTrustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
 )
 
 func TestManager(t *testing.T) {
@@ -60,7 +60,7 @@ type ManagerSuite struct {
 	log     logrus.FieldLogger
 	logHook *test.Hook
 	dir     string
-	km      *memory.KeyManager
+	km      keymanager.KeyManager
 	ds      *fakedatastore.DataStore
 	cat     *fakeservercatalog.Catalog
 
@@ -71,7 +71,7 @@ func (s *ManagerSuite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.ca = new(fakeCA)
 	s.log, s.logHook = test.NewNullLogger()
-	s.km = memory.New()
+	s.km = fakeserverkeymanager.New(s.T())
 	s.ds = fakedatastore.New(s.T())
 
 	s.cat = fakeservercatalog.New()
@@ -115,7 +115,7 @@ func (s *ManagerSuite) TestPersistenceFailsIfKeyManagerLosesKeys() {
 
 	// reset the key manager, reinitialize, and make sure the keys differ. this
 	// simulates the key manager not having keys for the persisted pairs.
-	s.cat.SetKeyManager(memory.New())
+	s.cat.SetKeyManager(fakeserverkeymanager.New(s.T()))
 	s.initSelfSignedManager()
 	s.requireX509CANotEqual(x509CA, s.currentX509CA())
 	s.requireJWTKeyNotEqual(jwtKey, s.currentJWTKey())
@@ -579,31 +579,38 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		},
 		{
 			name:          "self-signed with RSA 2048",
-			x509CAKeyType: keymanager.KeyType_RSA_2048,
-			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			x509CAKeyType: keymanager.RSA2048,
+			jwtKeyType:    keymanager.RSA2048,
 			checkX509CA:   expectRSA2048,
 			checkJWTKey:   expectRSA2048,
 		},
 		{
 			name:          "self-signed with RSA 4096",
-			x509CAKeyType: keymanager.KeyType_RSA_4096,
-			jwtKeyType:    keymanager.KeyType_RSA_4096,
+			x509CAKeyType: keymanager.RSA4096,
+			jwtKeyType:    keymanager.RSA4096,
 			checkX509CA:   expectRSA4096,
 			checkJWTKey:   expectRSA4096,
 		},
 		{
 			name:          "self-signed with EC P256",
-			x509CAKeyType: keymanager.KeyType_EC_P256,
-			jwtKeyType:    keymanager.KeyType_EC_P256,
+			x509CAKeyType: keymanager.ECP256,
+			jwtKeyType:    keymanager.ECP256,
 			checkX509CA:   expectEC256,
 			checkJWTKey:   expectEC256,
 		},
 		{
 			name:          "self-signed with EC P384",
-			x509CAKeyType: keymanager.KeyType_EC_P384,
-			jwtKeyType:    keymanager.KeyType_EC_P384,
+			x509CAKeyType: keymanager.ECP384,
+			jwtKeyType:    keymanager.ECP384,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectEC384,
+		},
+		{
+			name:          "self-signed JWT with RSA 2048 and X509 with EC P384",
+			x509CAKeyType: keymanager.ECP384,
+			jwtKeyType:    keymanager.RSA2048,
+			checkX509CA:   expectEC384,
+			checkJWTKey:   expectRSA2048,
 		},
 		{
 			name:              "upstream-signed with defaults",
@@ -614,32 +621,32 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		{
 			name:              "upstream-signed with RSA 2048",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_RSA_2048,
-			jwtKeyType:        keymanager.KeyType_RSA_2048,
+			x509CAKeyType:     keymanager.RSA2048,
+			jwtKeyType:        keymanager.RSA2048,
 			checkX509CA:       expectRSA2048,
 			checkJWTKey:       expectRSA2048,
 		},
 		{
 			name:              "upstream-signed with RSA 4096",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_RSA_4096,
-			jwtKeyType:        keymanager.KeyType_RSA_4096,
+			x509CAKeyType:     keymanager.RSA4096,
+			jwtKeyType:        keymanager.RSA4096,
 			checkX509CA:       expectRSA4096,
 			checkJWTKey:       expectRSA4096,
 		},
 		{
 			name:              "upstream-signed with EC P256",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_EC_P256,
-			jwtKeyType:        keymanager.KeyType_EC_P256,
+			x509CAKeyType:     keymanager.ECP256,
+			jwtKeyType:        keymanager.ECP256,
 			checkX509CA:       expectEC256,
 			checkJWTKey:       expectEC256,
 		},
 		{
 			name:              "upstream-signed with EC P384",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_EC_P384,
-			jwtKeyType:        keymanager.KeyType_EC_P384,
+			x509CAKeyType:     keymanager.ECP384,
+			jwtKeyType:        keymanager.ECP384,
 			checkX509CA:       expectEC384,
 			checkJWTKey:       expectEC384,
 		},
@@ -654,7 +661,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 
 			// Reset the key manager for each test case to ensure a fresh
 			// rotation.
-			s.cat.SetKeyManager(memory.New())
+			s.cat.SetKeyManager(fakeserverkeymanager.New(s.T()))
 
 			// Optionally provide an upstream authority
 			s.cat.SetUpstreamAuthority(testCase.upstreamAuthority)
@@ -758,13 +765,13 @@ func (s *ManagerSuite) getJWTKeyInfo(jwtKey *JWTKey) jwtKeyInfo {
 }
 
 func (s *ManagerSuite) getSignerInfo(signer crypto.Signer) signerInfo {
-	ks, ok := signer.(interface{ KeyID() string })
+	ks, ok := signer.(interface{ ID() string })
 	s.Require().True(ok, "signer is not a Key Manager")
 
 	publicKey, err := x509.MarshalPKIXPublicKey(signer.Public())
 	s.Require().NoError(err)
 	return signerInfo{
-		KeyID:     ks.KeyID(),
+		KeyID:     ks.ID(),
 		PublicKey: publicKey,
 	}
 }

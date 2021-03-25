@@ -2890,6 +2890,8 @@ func (s *PluginSuite) TestMigration() {
 			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
+		case 15:
+			s.Require().True(s.sqlPlugin.db.Dialect().HasColumn("registered_entries", "store_svid"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

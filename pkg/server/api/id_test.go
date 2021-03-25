@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestIDFromProto(t *testing.T) {
 		{
 			name:        "missing trust domain",
 			spiffeID:    &types.SPIFFEID{Path: "/workload"},
-			expectedErr: "spiffeid: trust domain is empty",
+			expectedErr: "trust domain is empty",
 		},
 		{
 			name:        "wrong trust domain",

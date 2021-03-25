@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -37,7 +38,7 @@ const (
 	commandName = "run"
 
 	defaultConfigPath         = "conf/server/server.conf"
-	defaultSocketPath         = "/tmp/spire-registration.sock"
+	defaultSocketPath         = "/tmp/spire-server/private/api.sock"
 	defaultLogLevel           = "INFO"
 	defaultBundleEndpointPort = 443
 )
@@ -48,7 +49,7 @@ var (
 		Organization: []string{"SPIFFE"},
 	}
 
-	defaultRateLimitAttestation = true
+	defaultRateLimit = true
 )
 
 // Config contains all available configurables, arranged by section
@@ -61,22 +62,23 @@ type Config struct {
 }
 
 type serverConfig struct {
-	BindAddress         string             `hcl:"bind_address"`
-	BindPort            int                `hcl:"bind_port"`
-	CAKeyType           string             `hcl:"ca_key_type"`
-	CASubject           *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL               string             `hcl:"ca_ttl"`
-	DataDir             string             `hcl:"data_dir"`
-	Experimental        experimentalConfig `hcl:"experimental"`
-	Federation          *federationConfig  `hcl:"federation"`
-	JWTIssuer           string             `hcl:"jwt_issuer"`
-	LogFile             string             `hcl:"log_file"`
-	LogLevel            string             `hcl:"log_level"`
-	LogFormat           string             `hcl:"log_format"`
-	RateLimit           rateLimitConfig    `hcl:"ratelimit"`
-	RegistrationUDSPath string             `hcl:"registration_uds_path"`
-	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
-	TrustDomain         string             `hcl:"trust_domain"`
+	BindAddress    string             `hcl:"bind_address"`
+	BindPort       int                `hcl:"bind_port"`
+	CAKeyType      string             `hcl:"ca_key_type"`
+	CASubject      *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL          string             `hcl:"ca_ttl"`
+	DataDir        string             `hcl:"data_dir"`
+	DefaultSVIDTTL string             `hcl:"default_svid_ttl"`
+	Experimental   experimentalConfig `hcl:"experimental"`
+	Federation     *federationConfig  `hcl:"federation"`
+	JWTIssuer      string             `hcl:"jwt_issuer"`
+	JWTKeyType     string             `hcl:"jwt_key_type"`
+	LogFile        string             `hcl:"log_file"`
+	LogLevel       string             `hcl:"log_level"`
+	LogFormat      string             `hcl:"log_format"`
+	RateLimit      rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath     string             `hcl:"socket_path"`
+	TrustDomain    string             `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -87,18 +89,15 @@ type serverConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 
+	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
+	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
+
+	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
+
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type experimentalConfig struct {
-	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
-
-	DeprecatedBundleEndpointEnabled bool                                     `hcl:"bundle_endpoint_enabled"`
-	DeprecatedBundleEndpointAddress string                                   `hcl:"bundle_endpoint_address"`
-	DeprecatedBundleEndpointPort    int                                      `hcl:"bundle_endpoint_port"`
-	DeprecatedBundleEndpointACME    *bundleEndpointACMEConfig                `hcl:"bundle_endpoint_acme"`
-	DeprecatedFederatesWith         map[string]deprecatedFederatesWithConfig `hcl:"federates_with"`
-
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -130,14 +129,6 @@ type bundleEndpointACMEConfig struct {
 	UnusedKeys   []string `hcl:",unusedKeys"`
 }
 
-type deprecatedFederatesWithConfig struct {
-	BundleEndpointAddress  string   `hcl:"bundle_endpoint_address"`
-	BundleEndpointPort     int      `hcl:"bundle_endpoint_port"`
-	BundleEndpointSpiffeID string   `hcl:"bundle_endpoint_spiffe_id"`
-	UseWebPKI              bool     `hcl:"use_web_pki"`
-	UnusedKeys             []string `hcl:",unusedKeys"`
-}
-
 type federatesWithConfig struct {
 	BundleEndpoint federatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
 	UnusedKeys     []string                          `hcl:",unusedKeys"`
@@ -153,6 +144,7 @@ type federatesWithBundleEndpointConfig struct {
 
 type rateLimitConfig struct {
 	Attestation *bool    `hcl:"attestation"`
+	Signing     *bool    `hcl:"signing"`
 	UnusedKeys  []string `hcl:",unusedKeys"`
 }
 
@@ -291,7 +283,12 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.RegistrationUDSPath, "registrationUDSPath", "", "UDS Path to bind registration API")
+	flags.StringVar(&c.DeprecatedRegistrationUDSPath, "registrationUDSPath", "", "Path to bind the SPIRE Server API socket to (deprecated; use -socketPath)")
+	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
+	// default flag value on socketPath like it was previously, since we'll no
+	// longer need to detect an unset flag from the default for deprecation
+	// logging/error handling purposes.
+	flags.StringVar(&c.SocketPath, "socketPath", "", `Path to bind the SPIRE Server API socket to (default "`+defaultSocketPath+`")`)
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -332,28 +329,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, err
 	}
 
-	ip := net.ParseIP(c.Server.BindAddress)
-	if ip == nil {
-		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
-	}
-	sc.BindAddress = &net.TCPAddr{
-		IP:   ip,
-		Port: c.Server.BindPort,
-	}
-
-	sc.BindUDSAddress = &net.UnixAddr{
-		Name: c.Server.RegistrationUDSPath,
-		Net:  "unix",
-	}
-
-	sc.DataDir = c.Server.DataDir
-
-	trustDomain, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse trust_domain %q: %v", c.Server.TrustDomain, err)
-	}
-	sc.TrustDomain = trustDomain
-
 	logOptions = append(logOptions,
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
@@ -365,12 +340,49 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.Log = logger
 
+	ip := net.ParseIP(c.Server.BindAddress)
+	if ip == nil {
+		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
+	}
+	sc.BindAddress = &net.TCPAddr{
+		IP:   ip,
+		Port: c.Server.BindPort,
+	}
+
+	var socketPath string
+	switch {
+	case c.Server.SocketPath != "":
+		socketPath = c.Server.SocketPath
+	case c.Server.DeprecatedRegistrationUDSPath != "":
+		logger.Warn("The registration_uds_path configurable is deprecated; use socket_path instead.")
+		socketPath = c.Server.DeprecatedRegistrationUDSPath
+	default:
+		socketPath = defaultSocketPath
+	}
+
+	sc.BindUDSAddress = &net.UnixAddr{
+		Name: socketPath,
+		Net:  "unix",
+	}
+
+	sc.DataDir = c.Server.DataDir
+
+	td, err := common_cli.ParseTrustDomain(c.Server.TrustDomain, logger)
+	if err != nil {
+		return nil, err
+	}
+	sc.TrustDomain = td
+
 	if c.Server.RateLimit.Attestation == nil {
-		c.Server.RateLimit.Attestation = &defaultRateLimitAttestation
+		c.Server.RateLimit.Attestation = &defaultRateLimit
 	}
 	sc.RateLimit.Attestation = *c.Server.RateLimit.Attestation
 
-	sc.Experimental.AllowAgentlessNodeAttestors = c.Server.Experimental.AllowAgentlessNodeAttestors
+	if c.Server.RateLimit.Signing == nil {
+		c.Server.RateLimit.Signing = &defaultRateLimit
+	}
+	sc.RateLimit.Signing = *c.Server.RateLimit.Signing
+
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil {
 			sc.Federation.BundleEndpoint = &bundle.EndpointConfig{
@@ -449,9 +461,18 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.CAKeyType != "" {
-		sc.CAKeyType, err = caKeyTypeFromString(c.Server.CAKeyType)
+		keyType, err := keyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error parsing ca_key_type: %v", err)
+		}
+		sc.CAKeyType = keyType
+		sc.JWTKeyType = keyType
+	}
+
+	if c.Server.JWTKeyType != "" {
+		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing jwt_key_type: %v", err)
 		}
 	}
 
@@ -476,13 +497,16 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.Telemetry = c.Telemetry
 	sc.HealthChecks = c.HealthChecks
 
-	// Write out deprecation warnings
-	warnOnDeprecatedConfig(c, sc.Log)
-
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
 		}
+	}
+
+	// This is a terrible hack but is just a short-term band-aid.
+	if c.Server.AllowUnsafeIDs != nil {
+		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
+		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
 	}
 
 	return sc, nil
@@ -497,8 +521,8 @@ func validateConfig(c *Config) error {
 		return errors.New("bind_address and bind_port must be configured")
 	}
 
-	if c.Server.RegistrationUDSPath == "" {
-		return errors.New("registration_uds_path must be configured")
+	if c.Server.SocketPath != "" && c.Server.DeprecatedRegistrationUDSPath != "" {
+		return errors.New("socket_path and the deprecated registration_uds_path are mutually exclusive")
 	}
 
 	if c.Server.TrustDomain == "" {
@@ -514,14 +538,6 @@ func validateConfig(c *Config) error {
 	}
 
 	if c.Server.Federation != nil {
-		// TODO: Remove this check once the deprecated experimental federation options are removed.
-		if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
-			return errors.New("cannot configure federation section along with any of " +
-				"the following deprecated experimental options: bundle_endpoint_acme, " +
-				"bundle_endpoint_enabled, bundle_endpoint_address, bundle_endpoint_port, " +
-				"federates_with")
-		}
-
 		if c.Server.Federation.BundleEndpoint != nil &&
 			c.Server.Federation.BundleEndpoint.ACME != nil {
 			acme := c.Server.Federation.BundleEndpoint.ACME
@@ -540,72 +556,9 @@ func validateConfig(c *Config) error {
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
 			}
 		}
-	} else { // TODO: Remove this else block once the deprecated experimental federation options are removed.
-		if acme := c.Server.Experimental.DeprecatedBundleEndpointACME; acme != nil {
-			if acme.DomainName == "" {
-				return errors.New("bundle_endpoint_acme domain_name must be configured")
-			}
-
-			if acme.Email == "" {
-				return errors.New("bundle_endpoint_acme email must be configured")
-			}
-		}
-
-		for td, tdConfig := range c.Server.Experimental.DeprecatedFederatesWith {
-			if tdConfig.BundleEndpointAddress == "" {
-				return fmt.Errorf("%s bundle_endpoint_address must be configured", td)
-			}
-		}
-
-		c.Server.Federation = federationConfigFromExperimentalConfig(c.Server.Experimental)
 	}
 
 	return nil
-}
-
-// TODO: Remove this function once the deprecated experimental federation options are removed.
-func isDeprecatedFederationConfigUsed(ec experimentalConfig) bool {
-	return ec.DeprecatedBundleEndpointACME != nil ||
-		ec.DeprecatedBundleEndpointEnabled ||
-		ec.DeprecatedBundleEndpointAddress != "" ||
-		ec.DeprecatedBundleEndpointPort != 0 ||
-		len(ec.DeprecatedFederatesWith) > 0
-}
-
-// TODO: Remove this function once the deprecated experimental federation options are removed.
-func federationConfigFromExperimentalConfig(ec experimentalConfig) *federationConfig {
-	if isDeprecatedFederationConfigUsed(ec) {
-		fc := &federationConfig{}
-		if ec.DeprecatedBundleEndpointEnabled {
-			fc.BundleEndpoint = &bundleEndpointConfig{
-				ACME:    ec.DeprecatedBundleEndpointACME,
-				Address: ec.DeprecatedBundleEndpointAddress,
-				Port:    ec.DeprecatedBundleEndpointPort,
-			}
-		}
-		if len(ec.DeprecatedFederatesWith) > 0 {
-			fc.FederatesWith = make(map[string]federatesWithConfig)
-			for td, cfg := range ec.DeprecatedFederatesWith {
-				fc.FederatesWith[td] = federatesWithConfig{
-					BundleEndpoint: federatesWithBundleEndpointConfig{
-						Address:   cfg.BundleEndpointAddress,
-						Port:      cfg.BundleEndpointPort,
-						SpiffeID:  cfg.BundleEndpointSpiffeID,
-						UseWebPKI: cfg.UseWebPKI,
-					},
-				}
-			}
-		}
-		return fc
-	}
-
-	return nil
-}
-
-func warnOnDeprecatedConfig(c *Config, l logrus.FieldLogger) {
-	if isDeprecatedFederationConfigUsed(c.Server.Experimental) {
-		l.Warn("The experimental federation configurables will be deprecated in a future release. Please see issue #1619 and the configuration documentation for more information.")
-	}
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
@@ -710,28 +663,27 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:         "0.0.0.0",
-			BindPort:            8081,
-			LogLevel:            defaultLogLevel,
-			LogFormat:           log.DefaultFormat,
-			RegistrationUDSPath: defaultSocketPath,
-			Experimental:        experimentalConfig{},
+			BindAddress:  "0.0.0.0",
+			BindPort:     8081,
+			LogLevel:     defaultLogLevel,
+			LogFormat:    log.DefaultFormat,
+			Experimental: experimentalConfig{},
 		},
 	}
 }
 
-func caKeyTypeFromString(s string) (keymanager.KeyType, error) {
+func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	switch strings.ToLower(s) {
 	case "rsa-2048":
-		return keymanager.KeyType_RSA_2048, nil
+		return keymanager.RSA2048, nil
 	case "rsa-4096":
-		return keymanager.KeyType_RSA_4096, nil
+		return keymanager.RSA4096, nil
 	case "ec-p256":
-		return keymanager.KeyType_EC_P256, nil
+		return keymanager.ECP256, nil
 	case "ec-p384":
-		return keymanager.KeyType_EC_P384, nil
+		return keymanager.ECP384, nil
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("CA key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 

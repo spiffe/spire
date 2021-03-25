@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,10 +31,10 @@ func TestParseConfigGood(t *testing.T) {
 	// Check for server configurations
 	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.Server.BindPort, 8081)
-	assert.Equal(t, c.Server.RegistrationUDSPath, "/tmp/server.sock")
+	assert.Empty(t, c.Server.DeprecatedRegistrationUDSPath)
+	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
-	assert.Equal(t, c.Server.Experimental.AllowAgentlessNodeAttestors, true)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Address, "0.0.0.0")
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
@@ -81,13 +82,13 @@ func TestParseConfigGood(t *testing.T) {
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
 		"-bindAddress=127.0.0.1",
-		"-registrationUDSPath=/tmp/flag.sock",
+		"-socketPath=/tmp/flag.sock",
 		"-trustDomain=example.org",
 		"-logLevel=INFO",
 	}, os.Stderr)
 	require.NoError(t, err)
 	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.RegistrationUDSPath, "/tmp/flag.sock")
+	assert.Equal(t, c.SocketPath, "/tmp/flag.sock")
 	assert.Equal(t, c.TrustDomain, "example.org")
 	assert.Equal(t, c.LogLevel, "INFO")
 }
@@ -374,43 +375,75 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "registration_uds_path should default to /tmp/spire-registration.sock if not set",
-			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/spire-registration.sock", c.Server.RegistrationUDSPath)
-			},
-		},
-		{
-			msg: "registration_uds_path should be configurable by file",
+			msg: "socket_path should be configurable by file",
 			fileInput: func(c *Config) {
-				c.Server.RegistrationUDSPath = "foo"
+				c.Server.SocketPath = "foo"
 			},
 			cliInput: func(c *serverConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.RegistrationUDSPath)
+				require.Equal(t, "foo", c.Server.SocketPath)
 			},
 		},
 		{
-			msg:       "registration_uds_path should be configuable by CLI flag",
+			msg:       "socket_path should be configuable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliInput: func(c *serverConfig) {
-				c.RegistrationUDSPath = "foo"
+				c.SocketPath = "foo"
 			},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.RegistrationUDSPath)
+				require.Equal(t, "foo", c.Server.SocketPath)
 			},
 		},
 		{
-			msg: "registration_uds_path specified by CLI flag should take precedence over file",
+			msg: "socket_path specified by CLI flag should take precedence over file",
 			fileInput: func(c *Config) {
-				c.Server.RegistrationUDSPath = "foo"
+				c.Server.SocketPath = "foo"
 			},
 			cliInput: func(c *serverConfig) {
-				c.RegistrationUDSPath = "bar"
+				c.SocketPath = "bar"
 			},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "bar", c.Server.RegistrationUDSPath)
+				require.Equal(t, "bar", c.Server.SocketPath)
+			},
+		},
+		{
+			msg:       "deprecated registration_uds_path should default to empty if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Empty(t, c.Server.DeprecatedRegistrationUDSPath)
+			},
+		},
+		{
+			msg: "deprecated registration_uds_path should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.DeprecatedRegistrationUDSPath = "foo"
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Server.DeprecatedRegistrationUDSPath)
+			},
+		},
+		{
+			msg:       "deprecated registration_uds_path should be configuable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *serverConfig) {
+				c.DeprecatedRegistrationUDSPath = "foo"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Server.DeprecatedRegistrationUDSPath)
+			},
+		},
+		{
+			msg: "deprecated registration_uds_path specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Server.DeprecatedRegistrationUDSPath = "foo"
+			},
+			cliInput: func(c *serverConfig) {
+				c.DeprecatedRegistrationUDSPath = "bar"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "bar", c.Server.DeprecatedRegistrationUDSPath)
 			},
 		},
 		{
@@ -489,6 +522,7 @@ func TestNewServerConfig(t *testing.T) {
 		msg         string
 		expectError bool
 		input       func(*Config)
+		logOptions  func(t *testing.T) []log.Option
 		test        func(*testing.T, *server.Config)
 	}{
 		{
@@ -513,15 +547,37 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "registration_uds_path should be correctly configured",
+			msg: "deprecated registration_uds_path should be correctly configured",
 			input: func(c *Config) {
-				c.Server.RegistrationUDSPath = "foo"
+				c.Server.DeprecatedRegistrationUDSPath = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "foo", c.BindUDSAddress.Name)
 				require.Equal(t, "unix", c.BindUDSAddress.Net)
 			},
 		},
+		{
+			msg: "socket_path should be correctly configured",
+			input: func(c *Config) {
+				c.Server.SocketPath = "foo"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "foo", c.BindUDSAddress.Name)
+				require.Equal(t, "unix", c.BindUDSAddress.Net)
+			},
+		},
+		{
+			msg: "default socket_path should be used if neither socket_path or the deprecated registration_uds_path is set",
+			input: func(c *Config) {
+				c.Server.DeprecatedRegistrationUDSPath = ""
+				c.Server.SocketPath = ""
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, defaultSocketPath, c.BindUDSAddress.Name)
+				require.Equal(t, "unix", c.BindUDSAddress.Net)
+			},
+		},
+
 		{
 			msg: "data_dir should be correctly configured",
 			input: func(c *Config) {
@@ -605,15 +661,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "allow_agentless_node_attestors is configured correctly",
-			input: func(c *Config) {
-				c.Server.Experimental.AllowAgentlessNodeAttestors = true
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.Experimental.AllowAgentlessNodeAttestors)
 			},
 		},
 		{
@@ -709,39 +756,43 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "rsa-2048 ca_key_type is correctly parsed",
+			msg: "rsa-2048 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
+				require.Equal(t, keymanager.RSA2048, c.CAKeyType)
+				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "rsa-4096 ca_key_type is correctly parsed",
+			msg: "rsa-4096 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_RSA_4096, c.CAKeyType)
+				require.Equal(t, keymanager.RSA4096, c.CAKeyType)
+				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "ec-p256 ca_key_type is correctly parsed",
+			msg: "ec-p256 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_EC_P256, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
 		{
-			msg: "ec-p384 ca_key_type is correctly parsed",
+			msg: "ec-p384 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_EC_P384, c.CAKeyType)
+				require.Equal(t, keymanager.ECP384, c.CAKeyType)
+				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
 			},
 		},
 		{
@@ -752,6 +803,67 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "rsa-2048 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "rsa-4096 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-4096"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p256 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ec-p384 jwt_key_type is correctly parsed and ca_key_type is unspecified",
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "ec-p384"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
+			},
+		},
+		{
+			msg:         "unsupported jwt_key_type is rejected",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.JWTKeyType = "rsa-1024"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "override jwt_key_type from the default ca_key_type",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "rsa-2048"
+				c.Server.JWTKeyType = "ec-p256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.RSA2048, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
 		{
@@ -836,6 +948,62 @@ func TestNewServerConfig(t *testing.T) {
 				require.True(t, c.RateLimit.Attestation)
 			},
 		},
+		{
+			msg: "signing rate limit is on by default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.Signing)
+			},
+		},
+		{
+			msg: "signing rate limit can be explicitly disabled",
+			input: func(c *Config) {
+				value := false
+				c.Server.RateLimit.Signing = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.RateLimit.Signing)
+			},
+		},
+		{
+			msg: "signing rate limit can be explicitly enabled",
+			input: func(c *Config) {
+				value := true
+				c.Server.RateLimit.Signing = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.Signing)
+			},
+		},
+		{
+			msg: "warn_on_long_trust_domain",
+			input: func(c *Config) {
+				c.Server.TrustDomain = strings.Repeat("a", 256)
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(ioutil.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Level: logrus.WarnLevel,
+									Message: "Configured trust domain name should be less than 255 characters to be " +
+										"SPIFFE compliant; a longer trust domain name may impact interoperability",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				assert.NotNil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -846,7 +1014,12 @@ func TestNewServerConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			sc, err := NewServerConfig(input, []log.Option{}, false)
+			var logOpts []log.Option
+			if testCase.logOptions != nil {
+				logOpts = testCase.logOptions(t)
+			}
+
+			sc, err := NewServerConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
 			} else {
@@ -893,9 +1066,12 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "bind_address and bind_port must be configured",
 		},
 		{
-			name:        "registration_uds_path must be configured",
-			applyConf:   func(c *Config) { c.Server.RegistrationUDSPath = "" },
-			expectedErr: "registration_uds_path must be configured",
+			name: "both socket_path and registration_uds_path cannot be configured",
+			applyConf: func(c *Config) {
+				c.Server.SocketPath = "foo"
+				c.Server.DeprecatedRegistrationUDSPath = "bar"
+			},
+			expectedErr: "socket_path and the deprecated registration_uds_path are mutually exclusive",
 		},
 		{
 			name:        "trust_domain must be configured",

@@ -519,6 +519,37 @@ COMMIT;
 		COMMIT;
 		`,
 		// future v15 database entry, in which an index was to the attested_nodes_entries expires_at column
+		`
+		PRAGMA foreign_keys=OFF;
+		BEGIN TRANSACTION;
+		CREATE TABLE IF NOT EXISTS "federated_registration_entries" ("bundle_id" integer,"registered_entry_id" integer, PRIMARY KEY ("bundle_id","registered_entry_id"));
+		CREATE TABLE IF NOT EXISTS "bundles" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"trust_domain" varchar(255) NOT NULL,"data" blob );
+		CREATE TABLE IF NOT EXISTS "attested_node_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"data_type" varchar(255),"serial_number" varchar(255),"expires_at" datetime,"new_serial_number" varchar(255),"new_expires_at" datetime );
+		CREATE TABLE IF NOT EXISTS "node_resolver_map_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"spiffe_id" varchar(255),"type" varchar(255),"value" varchar(255) );
+		CREATE TABLE IF NOT EXISTS "registered_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"entry_id" varchar(255),"spiffe_id" varchar(255),"parent_id" varchar(255),"ttl" integer,"admin" bool,"downstream" bool,"expiry" bigint,"revision_number" bigint);
+		CREATE TABLE IF NOT EXISTS "join_tokens" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"token" varchar(255),"expiry" bigint );
+		CREATE TABLE IF NOT EXISTS "selectors" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"type" varchar(255),"value" varchar(255) );
+		CREATE TABLE IF NOT EXISTS "migrations" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"version" integer,"code_version" varchar(255) );
+		INSERT INTO migrations VALUES(1,'2020-10-13 16:29:43.132953291-06:00','2020-10-13 16:29:43.132953291-06:00',14,'0.12.0-dev-19b86b5');
+		CREATE TABLE IF NOT EXISTS "dns_names" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"registered_entry_id" integer,"value" varchar(255) );
+		DELETE FROM sqlite_sequence;
+		INSERT INTO sqlite_sequence VALUES('migrations',1);
+		INSERT INTO sqlite_sequence VALUES('bundles',1);
+		CREATE UNIQUE INDEX uix_bundles_trust_domain ON "bundles"(trust_domain) ;
+		CREATE UNIQUE INDEX uix_attested_node_entries_spiffe_id ON "attested_node_entries"(spiffe_id) ;
+		CREATE UNIQUE INDEX idx_node_resolver_map ON "node_resolver_map_entries"(spiffe_id, "type", "value") ;
+		CREATE INDEX idx_registered_entries_spiffe_id ON "registered_entries"(spiffe_id) ;
+		CREATE INDEX idx_registered_entries_parent_id ON "registered_entries"(parent_id) ;
+		CREATE INDEX idx_registered_entries_expiry ON "registered_entries"("expiry") ;
+		CREATE UNIQUE INDEX uix_registered_entries_entry_id ON "registered_entries"(entry_id) ;
+		CREATE UNIQUE INDEX uix_join_tokens_token ON "join_tokens"("token") ;
+		CREATE INDEX idx_selectors_type_value ON "selectors"("type", "value") ;
+		CREATE UNIQUE INDEX idx_selector_entry ON "selectors"(registered_entry_id, "type", "value") ;
+		CREATE UNIQUE INDEX idx_dns_entry ON "dns_names"(registered_entry_id, "value") ;
+		CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
+		COMMIT;
+		`,
+		// v16 database entry, in which the table 'registered_entries' gained an `store_svid` column
 	}
 )
 

@@ -8,8 +8,8 @@ import (
 	"crypto/x509"
 	"sync"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
@@ -22,11 +22,11 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, keymanager.PluginServer(p))
+	return catalog.MakePlugin(pluginName, keymanagerv0.PluginServer(p))
 }
 
 type Plugin struct {
-	keymanager.UnsafeKeyManagerServer
+	keymanagerv0.UnsafeKeyManagerServer
 
 	key *ecdsa.PrivateKey
 	mtx sync.RWMutex
@@ -36,7 +36,7 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (m *Plugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func (m *Plugin) GenerateKeyPair(context.Context, *keymanagerv0.GenerateKeyPairRequest) (*keymanagerv0.GenerateKeyPairResponse, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
@@ -49,13 +49,13 @@ func (m *Plugin) GenerateKeyPair(context.Context, *keymanager.GenerateKeyPairReq
 	if err != nil {
 		return nil, err
 	}
-	return &keymanager.GenerateKeyPairResponse{
+	return &keymanagerv0.GenerateKeyPairResponse{
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
 	}, nil
 }
 
-func (m *Plugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+func (m *Plugin) StorePrivateKey(ctx context.Context, req *keymanagerv0.StorePrivateKeyRequest) (*keymanagerv0.StorePrivateKeyResponse, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -65,24 +65,24 @@ func (m *Plugin) StorePrivateKey(ctx context.Context, req *keymanager.StorePriva
 	}
 	m.key = key
 
-	return &keymanager.StorePrivateKeyResponse{}, nil
+	return &keymanagerv0.StorePrivateKeyResponse{}, nil
 }
 
-func (m *Plugin) FetchPrivateKey(context.Context, *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (m *Plugin) FetchPrivateKey(context.Context, *keymanagerv0.FetchPrivateKeyRequest) (*keymanagerv0.FetchPrivateKeyResponse, error) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	if m.key == nil {
 		// No key set yet
-		return &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}, nil
+		return &keymanagerv0.FetchPrivateKeyResponse{PrivateKey: []byte{}}, nil
 	}
 
 	privateKey, err := x509.MarshalECPrivateKey(m.key)
 	if err != nil {
-		return &keymanager.FetchPrivateKeyResponse{PrivateKey: []byte{}}, err
+		return &keymanagerv0.FetchPrivateKeyResponse{PrivateKey: []byte{}}, err
 	}
 
-	return &keymanager.FetchPrivateKeyResponse{PrivateKey: privateKey}, nil
+	return &keymanagerv0.FetchPrivateKeyResponse{PrivateKey: privateKey}, nil
 }
 
 func (m *Plugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {

@@ -23,7 +23,7 @@ const (
 
 type FakeMetrics struct {
 	metrics []MetricItem
-	mu      *sync.Mutex
+	mu      sync.Mutex
 }
 
 type MetricItem struct {
@@ -35,9 +35,7 @@ type MetricItem struct {
 }
 
 func New() *FakeMetrics {
-	return &FakeMetrics{
-		mu: &sync.Mutex{},
-	}
+	return &FakeMetrics{}
 }
 
 func (m *FakeMetrics) Reset() {

@@ -72,7 +72,7 @@ message RegistrationEntry {
     /** Entry ID */
     string entry_id = 6;
     /** Whether or not the workload is an admin workload. Admin workloads
-    can use their SVID's to authenticate with the Registration API, for
+    can use their SVID's to authenticate with the Server APIs, for
     example. */
     bool admin = 7;
     /** To enable signing CA CSR in upstream spire server  */

@@ -19,8 +19,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	spiretypes "github.com/spiffe/spire/proto/spire/types"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/zeebo/errs"
 
 	"github.com/go-logr/logr"
@@ -71,7 +71,7 @@ type BaseReconciler struct {
 	ObjectReconciler
 	Scheme      *runtime.Scheme
 	RootID      *spiretypes.SPIFFEID
-	SpireClient entry.EntryClient
+	SpireClient entryv1.EntryClient
 	Log         logr.Logger
 }
 
@@ -188,7 +188,7 @@ func (r *BaseReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 func (r *BaseReconciler) updateEntry(ctx context.Context, updatedEntry *spiretypes.Entry) error {
-	batchUpdateResponse, err := r.SpireClient.BatchUpdateEntry(ctx, &entry.BatchUpdateEntryRequest{
+	batchUpdateResponse, err := r.SpireClient.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 		Entries: []*spiretypes.Entry{updatedEntry},
 	})
 	if err == nil {
@@ -198,7 +198,7 @@ func (r *BaseReconciler) updateEntry(ctx context.Context, updatedEntry *spiretyp
 }
 
 func (r *BaseReconciler) createEntry(ctx context.Context, entryToCreate *spiretypes.Entry) (*spiretypes.Entry, bool, error) {
-	createEntryResponse, err := r.SpireClient.BatchCreateEntry(ctx, &entry.BatchCreateEntryRequest{Entries: []*spiretypes.Entry{entryToCreate}})
+	createEntryResponse, err := r.SpireClient.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: []*spiretypes.Entry{entryToCreate}})
 	if err != nil {
 		return nil, false, err
 	}
@@ -282,7 +282,7 @@ func (r *BaseReconciler) deleteAllEntriesExcept(ctx context.Context, reqLogger l
 func (r *BaseReconciler) deleteEntriesByID(ctx context.Context, reqLogger logr.Logger, entryIDs []string) error {
 	errorGroup := errs.Group{}
 
-	batchDeleteEntryRequest := &entry.BatchDeleteEntryRequest{Ids: entryIDs}
+	batchDeleteEntryRequest := &entryv1.BatchDeleteEntryRequest{Ids: entryIDs}
 
 	results, err := r.SpireClient.BatchDeleteEntry(ctx, batchDeleteEntryRequest)
 	if err != nil {
@@ -305,7 +305,7 @@ func (r *BaseReconciler) deleteEntriesByID(ctx context.Context, reqLogger logr.L
 }
 
 func (r *BaseReconciler) getMatchingEntries(ctx context.Context, reqLogger logr.Logger, namespacedName types.NamespacedName) ([]*spiretypes.Entry, error) {
-	entries, err := listEntries(ctx, r.SpireClient, &entry.ListEntriesRequest_Filter{
+	entries, err := listEntries(ctx, r.SpireClient, &entryv1.ListEntriesRequest_Filter{
 		BySelectors: &spiretypes.SelectorMatch{
 			Selectors: r.getSelectors(namespacedName),
 			Match:     spiretypes.SelectorMatch_MATCH_EXACT,

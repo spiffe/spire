@@ -3,7 +3,6 @@ ARG goversion
 FROM golang:${goversion}-alpine as builder
 RUN apk add build-base git mercurial
 ADD go.mod /spire/go.mod
-ADD proto/spire/go.mod /spire/proto/spire/go.mod
 RUN cd /spire && go mod download
 ADD . /spire
 WORKDIR /spire

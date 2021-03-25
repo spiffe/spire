@@ -2,22 +2,21 @@ package client
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/x509"
 	"errors"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/proto/spire/api/node"
-	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
-	entrypb "github.com/spiffe/spire/proto/spire/api/server/entry/v1"
-	svidpb "github.com/spiffe/spire/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -27,13 +26,68 @@ import (
 var (
 	log, _ = test.NewNullLogger()
 
-	trustDomainURL = url.URL{Scheme: "spiffe", Host: "example.org"}
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+
+	testEntries = []*common.RegistrationEntry{
+		{
+			EntryId:  "ENTRYID1",
+			SpiffeId: "spiffe://example.org/id1",
+			Selectors: []*common.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith: []string{
+				"spiffe://domain1.com",
+			},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			SpiffeId: "spiffe://example.org/id2",
+			Selectors: []*common.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{
+				"spiffe://domain2.com",
+			},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			EntryId: "ENTRYID3",
+			Selectors: []*common.Selector{
+				{Type: "S", Value: "3"},
+			},
+		},
+		// This entry should be ignored since it is missing selectors
+		{
+			EntryId:  "ENTRYID4",
+			SpiffeId: "spiffe://example.org/id4",
+		},
+	}
+
+	testSvids = map[string]*X509SVID{
+		"entry-id": {
+			CertChain: []byte{11, 22, 33},
+		},
+	}
+
+	testBundles = map[string]*common.Bundle{
+		"spiffe://example.org": {
+			TrustDomainId: "spiffe://example.org",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte{10, 20, 30, 40}},
+			},
+		},
+		"spiffe://domain1.com": {
+			TrustDomainId: "spiffe://domain1.com",
+			RootCas: []*common.Certificate{
+				{DerBytes: []byte{10, 20, 30, 40}},
+			},
+		},
+	}
 )
 
 func TestFetchUpdates(t *testing.T) {
 	client, tc := createClient()
-
-	res := newTestFetchX509SVIDResponse()
 
 	tc.entryClient.entries = []*types.Entry{
 		{
@@ -125,11 +179,11 @@ func TestFetchUpdates(t *testing.T) {
 
 	// Assert results
 	require.Nil(t, err)
-	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
+	assert.Equal(t, testBundles, update.Bundles)
 	// Only the first registration entry should be returned since the rest are
 	// invalid for one reason or another
 	if assert.Len(t, update.Entries, 1) {
-		entry := res.SvidUpdate.RegistrationEntries[0]
+		entry := testEntries[0]
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	assertConnectionIsNotNil(t, client)
@@ -142,7 +196,7 @@ func TestRenewSVID(t *testing.T) {
 		name       string
 		agentErr   error
 		err        string
-		expectSVID *node.X509SVID
+		expectSVID *X509SVID
 		csr        []byte
 		agentSVID  *types.X509SVID
 	}{
@@ -157,7 +211,7 @@ func TestRenewSVID(t *testing.T) {
 				CertChain: [][]byte{{1, 2, 3}},
 				ExpiresAt: 12345,
 			},
-			expectSVID: &node.X509SVID{
+			expectSVID: &X509SVID{
 				CertChain: []byte{1, 2, 3},
 				ExpiresAt: 12345,
 			},
@@ -204,8 +258,6 @@ func TestRenewSVID(t *testing.T) {
 
 func TestNewX509SVIDs(t *testing.T) {
 	client, tc := createClient()
-
-	res := newTestFetchX509SVIDResponse()
 
 	tc.entryClient.entries = []*types.Entry{
 		{
@@ -264,7 +316,7 @@ func TestNewX509SVIDs(t *testing.T) {
 
 	// Do the request in a different go routine
 	var wg sync.WaitGroup
-	var svids map[string]*node.X509SVID
+	var svids map[string]*X509SVID
 	err := errors.New("a not nil error")
 	wg.Add(1)
 	go func() {
@@ -282,7 +334,7 @@ func TestNewX509SVIDs(t *testing.T) {
 
 	// Assert results
 	require.Nil(t, err)
-	assert.Equal(t, res.SvidUpdate.Svids, svids)
+	assert.Equal(t, testSvids, svids)
 	assertConnectionIsNotNil(t, client)
 }
 
@@ -292,71 +344,8 @@ func newTestCSRs() map[string][]byte {
 	}
 }
 
-func newTestFetchX509SVIDResponse() *node.FetchX509SVIDResponse {
-	return &node.FetchX509SVIDResponse{
-		SvidUpdate: &node.X509SVIDUpdate{
-			RegistrationEntries: []*common.RegistrationEntry{
-				{
-					EntryId:  "ENTRYID1",
-					SpiffeId: "spiffe://example.org/id1",
-					Selectors: []*common.Selector{
-						{Type: "S", Value: "1"},
-					},
-					FederatesWith: []string{
-						"spiffe://domain1.com",
-					},
-					RevisionNumber: 1234,
-				},
-				// This entry should be ignored since it is missing an entry ID
-				{
-					SpiffeId: "spiffe://example.org/id2",
-					Selectors: []*common.Selector{
-						{Type: "S", Value: "2"},
-					},
-					FederatesWith: []string{
-						"spiffe://domain2.com",
-					},
-				},
-				// This entry should be ignored since it is missing a SPIFFE ID
-				{
-					EntryId: "ENTRYID3",
-					Selectors: []*common.Selector{
-						{Type: "S", Value: "3"},
-					},
-				},
-				// This entry should be ignored since it is missing selectors
-				{
-					EntryId:  "ENTRYID4",
-					SpiffeId: "spiffe://example.org/id4",
-				},
-			},
-			Svids: map[string]*node.X509SVID{
-				"entry-id": {
-					CertChain: []byte{11, 22, 33},
-				},
-			},
-			Bundles: map[string]*common.Bundle{
-				"spiffe://example.org": {
-					TrustDomainId: "spiffe://example.org",
-					RootCas: []*common.Certificate{
-						{DerBytes: []byte{10, 20, 30, 40}},
-					},
-				},
-				"spiffe://domain1.com": {
-					TrustDomainId: "spiffe://domain1.com",
-					RootCas: []*common.Certificate{
-						{DerBytes: []byte{10, 20, 30, 40}},
-					},
-				},
-			},
-		},
-	}
-}
-
 func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 	client, tc := createClient()
-
-	res := newTestFetchX509SVIDResponse()
 
 	tc.entryClient.entries = []*types.Entry{
 		{
@@ -434,11 +423,11 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 	update, err := client.FetchUpdates(context.Background())
 	require.NoError(t, err)
 
-	assert.Equal(t, res.SvidUpdate.Bundles, update.Bundles)
+	assert.Equal(t, testBundles, update.Bundles)
 	// Only the first registration entry should be returned since the rest are
 	// invalid for one reason or another
 	if assert.Len(t, update.Entries, 1) {
-		entry := res.SvidUpdate.RegistrationEntries[0]
+		entry := testEntries[0]
 		assert.Equal(t, entry, update.Entries[entry.EntryId])
 	}
 	select {
@@ -576,7 +565,7 @@ func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
 func TestNewAgentClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newAgentClient(context.Background())
 	require.Error(t, err)
@@ -588,7 +577,7 @@ func TestNewAgentClientFailsDial(t *testing.T) {
 func TestNewBundleClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newBundleClient(context.Background())
 	require.Error(t, err)
@@ -600,7 +589,7 @@ func TestNewBundleClientFailsDial(t *testing.T) {
 func TestNewEntryClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newEntryClient(context.Background())
 	require.Error(t, err)
@@ -612,7 +601,7 @@ func TestNewEntryClientFailsDial(t *testing.T) {
 func TestNewSVIDClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
 	agentClient, conn, err := client.newSVIDClient(context.Background())
 	require.Error(t, err)
@@ -704,10 +693,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
-			resp, err := client.NewJWTSVID(ctx, &node.JSR{
-				SpiffeId: "spiffe://example.org/host",
-				Audience: []string{"myAud"},
-			}, "entry-id")
+			resp, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
 			if tt.err != "" {
 				require.Nil(t, resp)
 				require.EqualError(t, err, tt.err)
@@ -734,18 +720,18 @@ func createClient() (*client, *testClient) {
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),
-		TrustDomain:   trustDomainURL,
+		TrustDomain:   trustDomain,
 	})
-	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentpb.AgentClient {
+	client.createNewAgentClient = func(conn grpc.ClientConnInterface) agentv1.AgentClient {
 		return tc.agentClient
 	}
-	client.createNewBundleClient = func(conn grpc.ClientConnInterface) bundlepb.BundleClient {
+	client.createNewBundleClient = func(conn grpc.ClientConnInterface) bundlev1.BundleClient {
 		return tc.bundleClient
 	}
-	client.createNewEntryClient = func(conn grpc.ClientConnInterface) entrypb.EntryClient {
+	client.createNewEntryClient = func(conn grpc.ClientConnInterface) entryv1.EntryClient {
 		return tc.entryClient
 	}
-	client.createNewSVIDClient = func(conn grpc.ClientConnInterface) svidpb.SVIDClient {
+	client.createNewSVIDClient = func(conn grpc.ClientConnInterface) svidv1.SVIDClient {
 		return tc.svidClient
 	}
 
@@ -756,7 +742,7 @@ func createClient() (*client, *testClient) {
 	return client, tc
 }
 
-func keysAndBundle() ([]*x509.Certificate, *ecdsa.PrivateKey, []*x509.Certificate) {
+func keysAndBundle() ([]*x509.Certificate, crypto.Signer, []*x509.Certificate) {
 	return nil, nil, nil
 }
 
@@ -773,22 +759,22 @@ func assertConnectionIsNotNil(t *testing.T, client *client) {
 }
 
 type fakeEntryClient struct {
-	entrypb.EntryClient
+	entryv1.EntryClient
 	entries []*types.Entry
 	err     error
 }
 
-func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entrypb.GetAuthorizedEntriesRequest, opts ...grpc.CallOption) (*entrypb.GetAuthorizedEntriesResponse, error) {
+func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.GetAuthorizedEntriesRequest, opts ...grpc.CallOption) (*entryv1.GetAuthorizedEntriesResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
-	return &entrypb.GetAuthorizedEntriesResponse{
+	return &entryv1.GetAuthorizedEntriesResponse{
 		Entries: c.entries,
 	}, nil
 }
 
 type fakeBundleClient struct {
-	bundlepb.BundleClient
+	bundlev1.BundleClient
 
 	agentBundle        *types.Bundle
 	federatedBundles   map[string]*types.Bundle
@@ -798,7 +784,7 @@ type fakeBundleClient struct {
 	simulateRelease func()
 }
 
-func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlepb.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlev1.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
 	if c.bundleErr != nil {
 		return nil, c.bundleErr
 	}
@@ -810,7 +796,7 @@ func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlepb.GetBundle
 	return c.agentBundle, nil
 }
 
-func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlepb.GetFederatedBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlev1.GetFederatedBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
 	if c.federatedBundleErr != nil {
 		return nil, c.federatedBundleErr
 	}
@@ -823,7 +809,7 @@ func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlepb.
 }
 
 type fakeSVIDClient struct {
-	svidpb.SVIDClient
+	svidv1.SVIDClient
 	batchSVIDErr    error
 	newJWTSVID      error
 	x509SVIDs       map[string]*types.X509SVID
@@ -831,7 +817,7 @@ type fakeSVIDClient struct {
 	simulateRelease func()
 }
 
-func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidpb.BatchNewX509SVIDResponse, error) {
+func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidv1.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidv1.BatchNewX509SVIDResponse, error) {
 	if c.batchSVIDErr != nil {
 		return nil, c.batchSVIDErr
 	}
@@ -841,19 +827,19 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 		go c.simulateRelease()
 	}
 
-	var results []*svidpb.BatchNewX509SVIDResponse_Result
+	var results []*svidv1.BatchNewX509SVIDResponse_Result
 	for _, param := range in.Params {
 		svid, ok := c.x509SVIDs[param.EntryId]
 		switch {
 		case ok:
-			results = append(results, &svidpb.BatchNewX509SVIDResponse_Result{
+			results = append(results, &svidv1.BatchNewX509SVIDResponse_Result{
 				Status: &types.Status{
 					Code: int32(codes.OK),
 				},
 				Svid: svid,
 			})
 		default:
-			results = append(results, &svidpb.BatchNewX509SVIDResponse_Result{
+			results = append(results, &svidv1.BatchNewX509SVIDResponse_Result{
 				Status: &types.Status{
 					Code:    int32(codes.NotFound),
 					Message: "svid not found",
@@ -862,27 +848,27 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidpb.BatchN
 		}
 	}
 
-	return &svidpb.BatchNewX509SVIDResponse{
+	return &svidv1.BatchNewX509SVIDResponse{
 		Results: results,
 	}, nil
 }
 
-func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidpb.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidpb.NewJWTSVIDResponse, error) {
+func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidv1.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidv1.NewJWTSVIDResponse, error) {
 	if c.newJWTSVID != nil {
 		return nil, c.newJWTSVID
 	}
-	return &svidpb.NewJWTSVIDResponse{
+	return &svidv1.NewJWTSVIDResponse{
 		Svid: c.jwtSVID,
 	}, nil
 }
 
 type fakeAgentClient struct {
-	agentpb.AgentClient
+	agentv1.AgentClient
 	err  error
 	svid *types.X509SVID
 }
 
-func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentpb.RenewAgentRequest, opts ...grpc.CallOption) (*agentpb.RenewAgentResponse, error) {
+func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentv1.RenewAgentRequest, opts ...grpc.CallOption) (*agentv1.RenewAgentResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -891,7 +877,7 @@ func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentpb.RenewAgent
 		return nil, errors.New("malformed param")
 	}
 
-	return &agentpb.RenewAgentResponse{
+	return &agentv1.RenewAgentResponse{
 		Svid: c.svid,
 	}, nil
 }

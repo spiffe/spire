@@ -71,6 +71,9 @@ type Config struct {
 	// CAKeyType is the key type used for the X509 and JWT signing keys
 	CAKeyType keymanager.KeyType
 
+	// JWTKeyType is the key type used for JWT signing keys
+	JWTKeyType keymanager.KeyType
+
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
@@ -80,8 +83,6 @@ type Config struct {
 }
 
 type ExperimentalConfig struct {
-	// Skip agent id validation in node attestation
-	AllowAgentlessNodeAttestors bool
 }
 
 type FederationConfig struct {

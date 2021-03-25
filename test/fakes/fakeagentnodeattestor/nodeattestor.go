@@ -1,14 +1,16 @@
 package fakeagentnodeattestor
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
+	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 type Config struct {
@@ -20,21 +22,25 @@ type Config struct {
 	Responses []string
 }
 
-type NodeAttestor struct {
-	nodeattestor.UnsafeNodeAttestorServer
+func New(t *testing.T, config Config) nodeattestor.V0 {
+	plugin := &nodeAttestor{
+		config: config,
+	}
+
+	var na nodeattestor.V0
+	spiretest.LoadPlugin(t, catalog.MakePlugin("fake", nodeattestorv0.PluginServer(plugin)), &na)
+	return na
+}
+
+type nodeAttestor struct {
+	nodeattestorv0.UnimplementedNodeAttestorServer
 
 	config Config
 }
 
-func New(config Config) *NodeAttestor {
-	return &NodeAttestor{
-		config: config,
-	}
-}
-
-func (p *NodeAttestor) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
+func (p *nodeAttestor) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) (err error) {
 	if p.config.Fail {
-		return errors.New("fetching attestation data purposefully failed")
+		return errors.New("fetching attestation data failed by test")
 	}
 
 	if err := stream.Send(p.makeResponse(nil)); err != nil {
@@ -69,22 +75,14 @@ func (p *NodeAttestor) FetchAttestationData(stream nodeattestor.NodeAttestor_Fet
 	}
 }
 
-func (p *NodeAttestor) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (p *NodeAttestor) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
-}
-
-func (p *NodeAttestor) makeResponse(challengeResponse []byte) *nodeattestor.FetchAttestationDataResponse {
+func (p *nodeAttestor) makeResponse(challengeResponse []byte) *nodeattestorv0.FetchAttestationDataResponse {
 	if challengeResponse != nil {
-		return &nodeattestor.FetchAttestationDataResponse{
+		return &nodeattestorv0.FetchAttestationDataResponse{
 			Response: challengeResponse,
 		}
 	}
 
-	return &nodeattestor.FetchAttestationDataResponse{
+	return &nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: "test",
 			Data: []byte("TEST"),

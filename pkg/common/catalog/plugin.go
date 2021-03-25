@@ -10,7 +10,7 @@ import (
 
 type LoadedPlugin struct {
 	name         string
-	builtIn      bool
+	pluginType   string
 	plugin       interface{}
 	all          []interface{}
 	serviceNames []string
@@ -23,8 +23,8 @@ func (p *LoadedPlugin) Name() string {
 	return p.name
 }
 
-func (p *LoadedPlugin) BuiltIn() bool {
-	return p.builtIn
+func (p *LoadedPlugin) Type() string {
+	return p.pluginType
 }
 
 func (p *LoadedPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) error {

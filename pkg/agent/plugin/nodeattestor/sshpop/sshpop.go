@@ -4,15 +4,15 @@ import (
 	"context"
 	"sync"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
 type Plugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mu        sync.RWMutex
 	sshclient *sshpop.Client
@@ -23,14 +23,14 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(sshpop.PluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(sshpop.PluginName, nodeattestorv0.PluginServer(p))
 }
 
 func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) (err error) {
+func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) (err error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -43,7 +43,7 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 	if err != nil {
 		return err
 	}
-	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: sshpop.PluginName,
 			Data: attestationData,
@@ -61,7 +61,7 @@ func (p *Plugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAtte
 		return err
 	}
 
-	if err := stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		Response: challengeRes,
 	}); err != nil {
 		return err

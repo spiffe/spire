@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/types"
 )
 
 func TrustDomainMemberIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
@@ -91,5 +91,5 @@ func idFromProto(protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	if protoID == nil {
 		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
 	}
-	return spiffeid.New(protoID.TrustDomain, protoID.Path)
+	return idutil.IDFromProto(protoID)
 }

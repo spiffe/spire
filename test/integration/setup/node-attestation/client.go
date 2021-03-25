@@ -14,9 +14,9 @@ import (
 	mathrand "math/rand"
 	"time"
 
+	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
-	agent "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
-	types "github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"

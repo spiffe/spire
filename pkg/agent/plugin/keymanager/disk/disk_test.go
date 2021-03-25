@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 )
@@ -29,9 +29,9 @@ func TestDisk_GenerateKeyPair(t *testing.T) {
 	plugin := New()
 	plugin.dir = tempDir
 
-	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	genResp, err := plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
 	require.NoError(t, err)
-	_, err = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: genResp.PrivateKey})
+	_, err = plugin.StorePrivateKey(ctx, &keymanagerv0.StorePrivateKeyRequest{PrivateKey: genResp.PrivateKey})
 	require.NoError(t, err)
 	_, err = os.Stat(path.Join(tempDir, keyFileName))
 	assert.False(t, os.IsNotExist(err))
@@ -51,12 +51,12 @@ func TestDisk_FetchPrivateKey(t *testing.T) {
 	plugin := New()
 	plugin.dir = tempDir
 
-	genResp, err := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	genResp, err := plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
 	require.NoError(t, err)
-	_, err = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: genResp.PrivateKey})
+	_, err = plugin.StorePrivateKey(ctx, &keymanagerv0.StorePrivateKeyRequest{PrivateKey: genResp.PrivateKey})
 	require.NoError(t, err)
 
-	fetchResp, err := plugin.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
+	fetchResp, err := plugin.FetchPrivateKey(ctx, &keymanagerv0.FetchPrivateKeyRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, genResp.PrivateKey, fetchResp.PrivateKey)
 }

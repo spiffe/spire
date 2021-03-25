@@ -23,10 +23,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -58,7 +58,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, workloadattestorv0.PluginServer(p))
 }
 
 // HCLConfig holds the configuration parsed from HCL
@@ -135,7 +135,7 @@ type k8sConfig struct {
 }
 
 type Plugin struct {
-	workloadattestor.UnsafeWorkloadAttestorServer
+	workloadattestorv0.UnsafeWorkloadAttestorServer
 
 	log    hclog.Logger
 	fs     cgroups.FileSystem
@@ -158,7 +158,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &workloadattestor.AttestResponse{}, nil
+		return &workloadattestorv0.AttestResponse{}, nil
 	}
 
 	log := p.log.With(telemetry.ContainerID, containerID)
@@ -191,7 +191,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
-				return &workloadattestor.AttestResponse{
+				return &workloadattestorv0.AttestResponse{
 					Selectors: getSelectorsFromPodInfo(&item, status),
 				}, nil
 			case containerNotInPod:
@@ -628,19 +628,28 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 	return nil, containerNotInPod
 }
 
-func getPodImages(containerStatusArray []corev1.ContainerStatus) map[string]bool {
+func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[string]bool {
+	// Map is used purely to exclude duplicate selectors, value is unused.
 	podImages := make(map[string]bool)
-
-	// collect container images
+	// Note that for each pod image we generate *2* matching selectors.
+	// This is to support matching against ImageID, which has a SHA
+	// docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb
+	// as well as
+	// docker.io/envoyproxy/envoy-alpine:v1.16.0, which does not,
+	// while also maintaining backwards compatibility and allowing for dynamic workload registration (k8s operator)
+	// when the SHA is not yet known (e.g. before the image pull is initiated at workload creation time)
+	// More info here: https://github.com/spiffe/spire/issues/2026
 	for _, status := range containerStatusArray {
 		podImages[status.ImageID] = true
+		podImages[status.Image] = true
 	}
 	return podImages
 }
 
 func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
-	podImages := getPodImages(pod.Status.ContainerStatuses)
-	podInitImages := getPodImages(pod.Status.InitContainerStatuses)
+	podImageIdentifiers := getPodImageIdentifiers(pod.Status.ContainerStatuses)
+	podInitImageIdentifiers := getPodImageIdentifiers(pod.Status.InitContainerStatuses)
+	containerImageIdentifiers := getPodImageIdentifiers([]corev1.ContainerStatus{*status})
 
 	selectors := []*common.Selector{
 		makeSelector("sa:%s", pod.Spec.ServiceAccountName),
@@ -649,14 +658,17 @@ func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []
 		makeSelector("pod-uid:%s", pod.UID),
 		makeSelector("pod-name:%s", pod.Name),
 		makeSelector("container-name:%s", status.Name),
-		makeSelector("container-image:%s", status.Image),
-		makeSelector("pod-image-count:%s", strconv.Itoa(len(podImages))),
-		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(podInitImages))),
+		makeSelector("pod-image-count:%s", strconv.Itoa(len(pod.Status.ContainerStatuses))),
+		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
 	}
-	for podImage := range podImages {
+
+	for containerImage := range containerImageIdentifiers {
+		selectors = append(selectors, makeSelector("container-image:%s", containerImage))
+	}
+	for podImage := range podImageIdentifiers {
 		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
 	}
-	for podInitImage := range podInitImages {
+	for podInitImage := range podInitImageIdentifiers {
 		selectors = append(selectors, makeSelector("pod-init-image:%s", podInitImage))
 	}
 

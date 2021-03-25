@@ -6,13 +6,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/spiffe/spire/proto/spire/api/server/debug/v1"
+	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var (
-	socketPathFlag = flag.String("socket", "unix:///tmp/spire-registration.sock", "server socket path")
+	socketPathFlag = flag.String("socket", "unix:///tmp/spire-server/private/api.sock", "server socket path")
 )
 
 func main() {
@@ -25,8 +25,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	client := debug.NewDebugClient(conn)
-	resp, err := client.GetInfo(ctx, &debug.GetInfoRequest{})
+	client := debugv1.NewDebugClient(conn)
+	resp, err := client.GetInfo(ctx, &debugv1.GetInfoRequest{})
 	if err != nil {
 		log.Fatalf("Failed to get info: %v", err)
 	}

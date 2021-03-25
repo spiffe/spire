@@ -18,8 +18,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/shirou/gopsutil/process"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
@@ -38,7 +38,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, workloadattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, workloadattestorv0.PluginServer(p))
 }
 
 type processInfo interface {
@@ -101,7 +101,7 @@ type Configuration struct {
 }
 
 type Plugin struct {
-	workloadattestor.UnsafeWorkloadAttestorServer
+	workloadattestorv0.UnsafeWorkloadAttestorServer
 
 	mu     sync.Mutex
 	config *Configuration
@@ -127,7 +127,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest) (*workloadattestor.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -194,7 +194,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestor.AttestRequest
 		}
 	}
 
-	return &workloadattestor.AttestResponse{
+	return &workloadattestorv0.AttestResponse{
 		Selectors: selectors,
 	}, nil
 }

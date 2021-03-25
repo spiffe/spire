@@ -10,12 +10,12 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/spire/api/server/debug/v1"
-	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,7 +27,7 @@ const (
 
 // RegisterService registers debug service on provided server
 func RegisterService(s *grpc.Server, service *Service) {
-	debug.RegisterDebugServer(s, service)
+	debugv1.RegisterDebugServer(s, service)
 }
 
 // Config configurations for debug service
@@ -52,7 +52,7 @@ func New(config Config) *Service {
 
 // Service implements debug server
 type Service struct {
-	debug.UnsafeDebugServer
+	debugv1.UnsafeDebugServer
 
 	clock  clock.Clock
 	ds     datastore.DataStore
@@ -65,12 +65,12 @@ type Service struct {
 
 type getInfoResp struct {
 	mtx  sync.Mutex
-	resp *debug.GetInfoResponse
+	resp *debugv1.GetInfoResponse
 	ts   time.Time
 }
 
 // GetInfo gets SPIRE Server debug information
-func (s *Service) GetInfo(ctx context.Context, req *debug.GetInfoRequest) (*debug.GetInfoResponse, error) {
+func (s *Service) GetInfo(ctx context.Context, req *debugv1.GetInfoRequest) (*debugv1.GetInfoResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	s.getInfoResp.mtx.Lock()
@@ -100,7 +100,7 @@ func (s *Service) GetInfo(ctx context.Context, req *debug.GetInfoRequest) (*debu
 
 		// Reset clock and set current response
 		s.getInfoResp.ts = s.clock.Now()
-		s.getInfoResp.resp = &debug.GetInfoResponse{
+		s.getInfoResp.resp = &debugv1.GetInfoResponse{
 			AgentsCount:           nodes.Nodes,
 			EntriesCount:          entries.Entries,
 			FederatedBundlesCount: bundles.Bundles,
@@ -112,7 +112,7 @@ func (s *Service) GetInfo(ctx context.Context, req *debug.GetInfoRequest) (*debu
 	return s.getInfoResp.resp, nil
 }
 
-func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogger) ([]*debug.GetInfoResponse_Cert, error) {
+func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogger) ([]*debugv1.GetInfoResponse_Cert, error) {
 	trustDomainID := s.td.IDString()
 
 	// Extract trustdomains bundle and append federated bundles
@@ -145,9 +145,9 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	}
 
 	// Create SVID chain for response
-	var svidChain []*debug.GetInfoResponse_Cert
+	var svidChain []*debugv1.GetInfoResponse_Cert
 	for _, cert := range chains[0] {
-		svidChain = append(svidChain, &debug.GetInfoResponse_Cert{
+		svidChain = append(svidChain, &debugv1.GetInfoResponse_Cert{
 			Id:        spiffeIDFromCert(cert),
 			ExpiresAt: cert.NotAfter.Unix(),
 			Subject:   cert.Subject.String(),

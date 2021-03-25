@@ -141,24 +141,13 @@ git_dirty := $(shell git status -s)
 protos := \
 	proto/private/server/journal/journal.proto \
 	proto/spire/common/common.proto \
-	proto/spire/types/agent.proto \
-	proto/spire/types/attestation.proto \
-	proto/spire/types/bundle.proto \
-	proto/spire/types/entry.proto \
-	proto/spire/types/federateswith.proto \
-	proto/spire/types/jointoken.proto \
-	proto/spire/types/jwtsvid.proto \
-	proto/spire/types/selector.proto \
-	proto/spire/types/spiffeid.proto \
-	proto/spire/types/status.proto \
-	proto/spire/types/x509svid.proto \
 
 serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
 	proto/spire/agent/keymanager/keymanager.proto \
 	proto/spire/agent/nodeattestor/nodeattestor.proto \
+	proto/spire/agent/svidstore/svidstore.proto \
 	proto/spire/agent/workloadattestor/workloadattestor.proto \
-	proto/spire/api/node/node.proto \
 	proto/spire/api/registration/registration.proto \
 	proto/spire/common/hostservices/metricsservice.proto \
 	proto/spire/common/plugin/plugin.proto \
@@ -170,13 +159,6 @@ serviceprotos := \
 	proto/spire/server/noderesolver/noderesolver.proto \
 	proto/spire/server/notifier/notifier.proto \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto \
-	proto/spire/api/agent/debug/v1/debug.proto \
-	proto/spire/api/server/agent/v1/agent.proto \
-	proto/spire/api/server/bundle/v1/bundle.proto \
-	proto/spire/api/server/debug/v1/debug.proto \
-	proto/spire/api/server/entry/v1/entry.proto \
-	proto/spire/api/server/svid/v1/svid.proto \
-
 
 
 # The following three variables define the plugin, service, and hostservice
@@ -192,10 +174,11 @@ plugingen_plugins = \
 	proto/spire/server/datastore/datastore.proto,pkg/server/plugin/datastore,DataStore \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto,pkg/server/plugin/upstreamauthority,UpstreamAuthority \
 	proto/spire/server/noderesolver/noderesolver.proto,pkg/server/plugin/noderesolver,NodeResolver \
-	proto/spire/server/keymanager/keymanager.proto,pkg/server/plugin/keymanager,KeyManager \
-	proto/spire/agent/nodeattestor/nodeattestor.proto,pkg/agent/plugin/nodeattestor,NodeAttestor \
-	proto/spire/agent/workloadattestor/workloadattestor.proto,pkg/agent/plugin/workloadattestor,WorkloadAttestor \
-	proto/spire/agent/keymanager/keymanager.proto,pkg/agent/plugin/keymanager,KeyManager \
+	proto/spire/server/keymanager/keymanager.proto,proto/spire/server/keymanager/v0,KeyManager \
+	proto/spire/agent/nodeattestor/nodeattestor.proto,proto/spire/agent/nodeattestor/v0,NodeAttestor \
+	proto/spire/agent/workloadattestor/workloadattestor.proto,proto/spire/agent/workloadattestor/v0,WorkloadAttestor \
+	proto/spire/agent/keymanager/keymanager.proto,proto/spire/agent/keymanager/v0,KeyManager \
+	proto/spire/agent/svidstore/svidstore.proto,pkg/agent/plugin/svidstore,SVIDStore \
 	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Plugin,shared \
 
 plugingen_services = \
@@ -249,6 +232,9 @@ endif
 ############################################################################
 # Determine go flags
 ############################################################################
+
+# Flags passed to all invocations of go test
+go_test_flags := -timeout=60s
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
@@ -344,16 +330,16 @@ $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oi
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -covermode=atomic -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) ./...
 endif
 
 race-test: | go-check
 ifneq ($(COVERPROFILE),)
-	$(E)$(go_path) go test $(go_flags) -race -coverprofile="$(COVERPROFILE)" ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
-	$(E)$(go_path) go test $(go_flags) -race ./...
+	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
 endif
 
 integration:
