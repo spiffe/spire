@@ -3,10 +3,14 @@ package fakeservernodeattestor
 import (
 	"context"
 	"fmt"
+	"testing"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/zeebo/errs"
 )
 
@@ -44,24 +48,28 @@ type Config struct {
 	ReturnLiteral bool
 }
 
-type NodeAttestor struct {
-	nodeattestor.UnsafeNodeAttestorServer
+func New(t *testing.T, name string, config Config) nodeattestor.NodeAttestor {
+	if config.TrustDomain == "" {
+		config.TrustDomain = defaultTrustDomain
+	}
+	plugin := &nodeAttestor{
+		name:   name,
+		config: config,
+	}
+
+	var na nodeattestor.V0
+	spiretest.LoadPlugin(t, catalog.MakePlugin(name, nodeattestorv0.PluginServer(plugin)), &na)
+	return na
+}
+
+type nodeAttestor struct {
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	name   string
 	config Config
 }
 
-func New(name string, config Config) *NodeAttestor {
-	if config.TrustDomain == "" {
-		config.TrustDomain = defaultTrustDomain
-	}
-	return &NodeAttestor{
-		name:   name,
-		config: config,
-	}
-}
-
-func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (err error) {
+func (p *nodeAttestor) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) (err error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return errs.Wrap(err)
@@ -82,7 +90,7 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 
 	// challenge/response loop
 	for _, challenge := range p.config.Challenges[id] {
-		if err := stream.Send(&nodeattestor.AttestResponse{
+		if err := stream.Send(&nodeattestorv0.AttestResponse{
 			Challenge: []byte(challenge),
 		}); err != nil {
 			return errs.Wrap(err)
@@ -98,7 +106,7 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 		}
 	}
 
-	resp := &nodeattestor.AttestResponse{
+	resp := &nodeattestorv0.AttestResponse{
 		AgentId: p.getAgentID(id),
 	}
 
@@ -116,7 +124,7 @@ func (p *NodeAttestor) Attest(stream nodeattestor.NodeAttestor_AttestServer) (er
 	return nil
 }
 
-func (p *NodeAttestor) getAgentID(id string) string {
+func (p *nodeAttestor) getAgentID(id string) string {
 	if p.config.ReturnLiteral {
 		return id
 	}
@@ -124,10 +132,10 @@ func (p *NodeAttestor) getAgentID(id string) string {
 	return fmt.Sprintf("spiffe://%s/spire/agent/%s/%s", p.config.TrustDomain, p.name, id)
 }
 
-func (p *NodeAttestor) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (p *nodeAttestor) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	return &plugin.ConfigureResponse{}, nil
 }
 
-func (p *NodeAttestor) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
+func (p *nodeAttestor) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return &plugin.GetPluginInfoResponse{}, nil
 }

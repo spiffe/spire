@@ -44,6 +44,7 @@ import (
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 )
 
 var (
@@ -93,7 +94,7 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
-		nodeattestor.PluginClient,
+		nodeattestorv0.PluginClient,
 		noderesolver.PluginClient,
 		upstreamauthority.PluginClient,
 		keymanagerv0.PluginClient,
@@ -212,10 +213,15 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 
 	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
 
+	nodeAttestors := make(map[string]nodeattestor.NodeAttestor)
+	for _, na := range p.NodeAttestors {
+		nodeAttestors[na.Name()] = na
+	}
+
 	return &Repository{
 		Catalog: &Plugins{
 			DataStore:         ds,
-			NodeAttestors:     p.NodeAttestors,
+			NodeAttestors:     nodeAttestors,
 			NodeResolvers:     p.NodeResolvers,
 			UpstreamAuthority: p.UpstreamAuthority,
 			KeyManager:        p.KeyManager,
@@ -231,7 +237,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 // when the catalog is refactored to leverage the new common catalog with
 // native versioning support (see issue #2153).
 type versionedPlugins struct {
-	NodeAttestors     map[string]nodeattestor.NodeAttestor
+	NodeAttestors     map[string]nodeattestor.V0
 	NodeResolvers     map[string]noderesolver.NodeResolver
 	UpstreamAuthority *UpstreamAuthority
 	KeyManager        keymanager.V0

@@ -12,9 +12,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 )
 
 const (
@@ -27,7 +27,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		nodeattestor.PluginServer(p),
+		nodeattestorv0.PluginServer(p),
 	)
 }
 
@@ -44,7 +44,7 @@ type Config struct {
 }
 
 type Plugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	m sync.Mutex
 	c *configuration
@@ -54,7 +54,7 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 		return fmt.Errorf("unable to marshal challenge: %v", err)
 	}
 
-	if err := stream.Send(&nodeattestor.AttestResponse{
+	if err := stream.Send(&nodeattestorv0.AttestResponse{
 		Challenge: challengeBytes,
 	}); err != nil {
 		return err
@@ -139,7 +139,7 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
 		return newError("failed to make spiffe id: %v", err)
 	}
 
-	return stream.Send(&nodeattestor.AttestResponse{
+	return stream.Send(&nodeattestorv0.AttestResponse{
 		AgentId:   spiffeid,
 		Selectors: buildSelectors(leaf, chains),
 	})

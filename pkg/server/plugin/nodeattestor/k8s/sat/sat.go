@@ -18,10 +18,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -40,7 +40,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *AttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin("k8s_sat",
-		nodeattestor.PluginServer(p),
+		nodeattestorv0.PluginServer(p),
 	)
 }
 
@@ -90,7 +90,7 @@ type AttestorPlugin struct {
 	}
 }
 
-var _ nodeattestor.NodeAttestorServer = (*AttestorPlugin)(nil)
+var _ nodeattestorv0.NodeAttestorServer = (*AttestorPlugin)(nil)
 
 func New() *AttestorPlugin {
 	p := &AttestorPlugin{}
@@ -104,7 +104,7 @@ func New() *AttestorPlugin {
 	return p
 }
 
-func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return satError.Wrap(err)
@@ -213,7 +213,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		return satError.New("%q is not a whitelisted service account", fullServiceAccountName)
 	}
 
-	return stream.Send(&nodeattestor.AttestResponse{
+	return stream.Send(&nodeattestorv0.AttestResponse{
 		AgentId: agentID,
 		Selectors: []*common.Selector{
 			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),

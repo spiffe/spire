@@ -22,7 +22,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/agent/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -1943,25 +1942,8 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 
 	attestorConfig.Challenges = map[string][]string{"id_with_challenge": {"challenge_response"}}
 
-	fakeServerAttestor := fakeservernodeattestor.New("test_type", attestorConfig)
-	fakeServerPlugin := nodeattestor.PluginServer(fakeServerAttestor)
-	fakeCatalogPlugin := catalog.MakePlugin("test_type", fakeServerPlugin)
-
-	loadedPlugin, err := catalog.LoadBuiltInPlugin(context.Background(), catalog.BuiltInPlugin{
-		Log:          nil,
-		Plugin:       fakeCatalogPlugin,
-		HostServices: nil,
-	})
-	require.NoError(t, err, "unable to load plugin")
-
-	var fakeNodeAttestorClient nodeattestor.NodeAttestor
-	if err := loadedPlugin.Fill(&fakeNodeAttestorClient); err != nil {
-		loadedPlugin.Close()
-		require.NoError(t, err, "unable to satisfy plugin client")
-	}
-
-	s.pluginCloser = loadedPlugin.Close
-	s.cat.AddNodeAttestorNamed("test_type", fakeNodeAttestorClient)
+	fakeNodeAttestor := fakeservernodeattestor.New(t, "test_type", attestorConfig)
+	s.cat.AddNodeAttestor(fakeNodeAttestor)
 }
 
 func (s *serviceTest) setupResolver(t *testing.T) {
