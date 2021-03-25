@@ -74,11 +74,11 @@ func (plugin *v0Plugin) Resolve(ctx context.Context, req *noderesolverv0.Resolve
 	switch agentID := req.BaseSpiffeIdList[0]; agentID {
 	case "with-selectors":
 		resp.Map = map[string]*common.Selectors{
-			agentID: &common.Selectors{Entries: expectedSelectors},
+			agentID: {Entries: expectedSelectors},
 		}
 	case "without-selectors":
 		resp.Map = map[string]*common.Selectors{
-			agentID: &common.Selectors{},
+			agentID: {},
 		}
 	case "nil-map":
 	case "nil-selectors-in-map":
