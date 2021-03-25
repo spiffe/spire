@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
 
@@ -18,9 +18,9 @@ var (
 
 func TestMemory_GenerateKeyPair(t *testing.T) {
 	plugin := New()
-	data, e := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	data, e := plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
 	require.NoError(t, e)
-	_, e = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
+	_, e = plugin.StorePrivateKey(ctx, &keymanagerv0.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
 	require.NoError(t, e)
 	priv, err := x509.ParseECPrivateKey(data.PrivateKey)
 	require.NoError(t, err)
@@ -29,12 +29,12 @@ func TestMemory_GenerateKeyPair(t *testing.T) {
 
 func TestMemory_FetchPrivateKey(t *testing.T) {
 	plugin := New()
-	data, e := plugin.GenerateKeyPair(ctx, &keymanager.GenerateKeyPairRequest{})
+	data, e := plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
 	require.NoError(t, e)
-	_, e = plugin.StorePrivateKey(ctx, &keymanager.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
+	_, e = plugin.StorePrivateKey(ctx, &keymanagerv0.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
 	require.NoError(t, e)
 
-	priv, e := plugin.FetchPrivateKey(ctx, &keymanager.FetchPrivateKeyRequest{})
+	priv, e := plugin.FetchPrivateKey(ctx, &keymanagerv0.FetchPrivateKeyRequest{})
 	require.NoError(t, e)
 	assert.Equal(t, priv.PrivateKey, data.PrivateKey)
 }

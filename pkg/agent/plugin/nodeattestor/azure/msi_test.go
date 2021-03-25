@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -24,7 +24,7 @@ func TestMSIAttestorPlugin(t *testing.T) {
 type MSIAttestorSuite struct {
 	spiretest.Suite
 
-	attestor nodeattestor.Plugin
+	attestor nodeattestorv0.Plugin
 
 	expectedResource string
 	token            string

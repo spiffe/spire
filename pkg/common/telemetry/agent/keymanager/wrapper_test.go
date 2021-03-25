@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,15 +14,15 @@ import (
 
 type mockKeyManager struct{}
 
-func (mockKeyManager) GenerateKeyPair(ctx context.Context, req *keymanager.GenerateKeyPairRequest) (*keymanager.GenerateKeyPairResponse, error) {
+func (mockKeyManager) GenerateKeyPair(ctx context.Context, req *keymanagerv0.GenerateKeyPairRequest) (*keymanagerv0.GenerateKeyPairResponse, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) FetchPrivateKey(ctx context.Context, req *keymanager.FetchPrivateKeyRequest) (*keymanager.FetchPrivateKeyResponse, error) {
+func (mockKeyManager) FetchPrivateKey(ctx context.Context, req *keymanagerv0.FetchPrivateKeyRequest) (*keymanagerv0.FetchPrivateKeyResponse, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) StorePrivateKey(ctx context.Context, req *keymanager.StorePrivateKeyRequest) (*keymanager.StorePrivateKeyResponse, error) {
+func (mockKeyManager) StorePrivateKey(ctx context.Context, req *keymanagerv0.StorePrivateKeyRequest) (*keymanagerv0.StorePrivateKeyResponse, error) {
 	return nil, nil
 }
 

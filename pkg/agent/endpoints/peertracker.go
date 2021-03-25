@@ -20,7 +20,7 @@ func (a peerTrackerAttestor) Attest(ctx context.Context) ([]*common.Selector, er
 		return nil, status.Error(codes.Internal, "peer tracker watcher missing from context")
 	}
 
-	selectors := a.Attestor.Attest(ctx, watcher.PID())
+	selectors := a.Attestor.Attest(ctx, int(watcher.PID()))
 
 	// Ensure that the original caller is still alive so that we know we didn't
 	// attest some other process that happened to be assigned the original PID

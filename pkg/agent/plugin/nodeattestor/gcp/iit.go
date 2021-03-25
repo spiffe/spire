@@ -12,9 +12,9 @@ import (
 	"github.com/hashicorp/hcl"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )
@@ -31,12 +31,12 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *IITAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(gcp.PluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(gcp.PluginName, nodeattestorv0.PluginServer(p))
 }
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mtx    sync.RWMutex
 	config *IITAttestorConfig
@@ -56,7 +56,7 @@ func New() *IITAttestorPlugin {
 
 // FetchAttestationData fetches attestation data from the GCP metadata server and sends an attestation response
 // on given stream.
-func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttestor_FetchAttestationDataServer) error {
+func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestor.NodeAttesto
 		return newErrorf("unable to retrieve valid identity token: %v", err)
 	}
 
-	return stream.Send(&nodeattestor.FetchAttestationDataResponse{
+	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
 		AttestationData: &common.AttestationData{
 			Type: gcp.PluginName,
 			Data: identityToken,

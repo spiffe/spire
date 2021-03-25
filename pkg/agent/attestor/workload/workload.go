@@ -18,7 +18,7 @@ type attestor struct {
 }
 
 type Attestor interface {
-	Attest(ctx context.Context, pid int32) []*common.Selector
+	Attest(ctx context.Context, pid int) []*common.Selector
 }
 
 func New(config *Config) Attestor {
@@ -37,7 +37,7 @@ type Config struct {
 
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
-func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
+func (wla *attestor) Attest(ctx context.Context, pid int) []*common.Selector {
 	counter := telemetry_workload.StartAttestationCall(wla.c.Metrics)
 	defer counter.Done(nil)
 
@@ -48,7 +48,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 	errChan := make(chan error)
 
 	for _, p := range plugins {
-		go func(p catalog.WorkloadAttestor) {
+		go func(p workloadattestor.WorkloadAttestor) {
 			if selectors, err := wla.invokeAttestor(ctx, p, pid); err == nil {
 				sChan <- selectors
 			} else {
@@ -73,25 +73,20 @@ func (wla *attestor) Attest(ctx context.Context, pid int32) []*common.Selector {
 	// can happen with some frequency, it has a tendency to fill up logs with
 	// hard-to-filter details if we're not careful (e.g. issue #1537). Only log
 	// if it is not the agent itself.
-	if int(pid) != os.Getpid() {
+	if pid != os.Getpid() {
 		log.WithField(telemetry.Selectors, selectors).Debug("PID attested to have selectors")
 	}
 	return selectors
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
-func (wla *attestor) invokeAttestor(ctx context.Context, a catalog.WorkloadAttestor, pid int32) (selectors []*common.Selector, err error) {
-	req := &workloadattestor.AttestRequest{
-		Pid: pid,
-	}
-
+func (wla *attestor) invokeAttestor(ctx context.Context, a workloadattestor.WorkloadAttestor, pid int) (_ []*common.Selector, err error) {
 	counter := telemetry_workload.StartAttestorCall(wla.c.Metrics, a.Name())
 	defer counter.Done(&err)
 
-	resp, err := a.Attest(ctx, req)
+	selectors, err := a.Attest(ctx, pid)
 	if err != nil {
 		return nil, fmt.Errorf("workload attestor %q failed: %v", a.Name(), err)
 	}
-
-	return resp.Selectors, nil
+	return selectors, nil
 }

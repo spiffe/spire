@@ -46,7 +46,7 @@ func AssertGRPCStatus(tb testing.TB, err error, code codes.Code, message string)
 	st := status.Convert(err)
 
 	ok := true
-	if !assert.Equal(tb, code, st.Code(), "GRPC status code does not match") {
+	if !assert.Equal(tb, code.String(), st.Code().String(), "GRPC status code does not match") {
 		ok = false
 	}
 	if !assert.Equal(tb, message, st.Message(), "GRPC status message does not match") {

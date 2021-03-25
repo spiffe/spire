@@ -2,12 +2,11 @@ package memory
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
+	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -15,18 +14,16 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *KeyManager) catalog.Plugin {
-	return catalog.MakePlugin("memory", keymanager.PluginServer(p))
+	return catalog.MakePlugin("memory", keymanagerv0.PluginServer(p))
 }
 
 type KeyManager struct {
-	*base.Base
+	*keymanagerbase.Base
 }
 
 func New() *KeyManager {
 	return &KeyManager{
-		Base: base.New(base.Impl{
-			ErrorFn: newError,
-		}),
+		Base: keymanagerbase.New(keymanagerbase.Funcs{}),
 	}
 }
 
@@ -36,8 +33,4 @@ func (m *KeyManager) Configure(ctx context.Context, req *plugin.ConfigureRequest
 
 func (m *KeyManager) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
 	return &plugin.GetPluginInfoResponse{}, nil
-}
-
-func newError(format string, args ...interface{}) error {
-	return fmt.Errorf("keymanager(memory): "+format, args...)
 }

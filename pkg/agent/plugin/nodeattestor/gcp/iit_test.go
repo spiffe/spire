@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestIITAttestorPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p      nodeattestor.Plugin
+	p      nodeattestorv0.Plugin
 	server *httptest.Server
 	status int
 	body   string
@@ -166,10 +166,10 @@ func (s *Suite) TestGetPluginInfo() {
 	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) newPlugin() nodeattestor.Plugin {
+func (s *Suite) newPlugin() nodeattestorv0.Plugin {
 	p := New()
 
-	var plugin nodeattestor.Plugin
+	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(p), &plugin)
 	return plugin
 }
@@ -188,7 +188,7 @@ identity_token_host = "%s"
 	s.status = http.StatusOK
 }
 
-func (s *Suite) fetchAttestationData() (*nodeattestor.FetchAttestationDataResponse, error) {
+func (s *Suite) fetchAttestationData() (*nodeattestorv0.FetchAttestationDataResponse, error) {
 	stream, err := s.p.FetchAttestationData(context.Background())
 	s.NoError(err)
 	s.NoError(stream.CloseSend())
@@ -252,9 +252,9 @@ func TestRetrieveIdentity(t *testing.T) {
 }
 
 type failSendStream struct {
-	nodeattestor.NodeAttestor_FetchAttestationDataServer
+	nodeattestorv0.NodeAttestor_FetchAttestationDataServer
 }
 
-func (s *failSendStream) Send(*nodeattestor.FetchAttestationDataResponse) error {
+func (s *failSendStream) Send(*nodeattestorv0.FetchAttestationDataResponse) error {
 	return errors.New("failed to send to stream")
 }

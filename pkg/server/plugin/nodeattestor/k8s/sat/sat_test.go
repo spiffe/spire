@@ -21,9 +21,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
@@ -73,7 +73,7 @@ type AttestorSuite struct {
 	barKey     *ecdsa.PrivateKey
 	barSigner  jose.Signer
 	bazSigner  jose.Signer
-	attestor   nodeattestor.Plugin
+	attestor   nodeattestorv0.Plugin
 	agentStore *fakeagentstore.AgentStore
 	mockCtrl   *gomock.Controller
 	mockClient *k8s_apiserver_mock.MockClient
@@ -123,7 +123,7 @@ func (s *AttestorSuite) TearDownTest() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
-	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestor.AttestRequest{})
+	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestorv0.AttestRequest{})
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: not configured")
 	s.Require().Nil(resp)
 }
@@ -140,12 +140,12 @@ func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWithNoAttestationData() {
-	s.requireAttestError(&nodeattestor.AttestRequest{},
+	s.requireAttestError(&nodeattestorv0.AttestRequest{},
 		"k8s-sat: missing attestation data")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
-	s.requireAttestError(&nodeattestor.AttestRequest{
+	s.requireAttestError(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "blah",
 		},
@@ -153,7 +153,7 @@ func (s *AttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
-	s.requireAttestError(&nodeattestor.AttestRequest{
+	s.requireAttestError(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "k8s_sat",
 		},
@@ -161,7 +161,7 @@ func (s *AttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
-	s.requireAttestError(&nodeattestor.AttestRequest{
+	s.requireAttestError(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "k8s_sat",
 			Data: []byte("{"),
@@ -452,19 +452,19 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 	return token
 }
 
-func (s *AttestorSuite) newAttestor() nodeattestor.Plugin {
+func (s *AttestorSuite) newAttestor() nodeattestorv0.Plugin {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
-	var plugin nodeattestor.Plugin
+	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin,
 		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
 	)
 	return plugin
 }
 
-func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
+func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
@@ -491,18 +491,18 @@ func (s *AttestorSuite) configureAttestor() nodeattestor.Plugin {
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
 	attestor.config.clusters["BAR"].client = s.mockClient
 
-	var plugin nodeattestor.Plugin
+	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin,
 		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
 	)
 	return plugin
 }
 
-func (s *AttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *AttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestor.Plugin, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.Plugin, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 
@@ -515,14 +515,14 @@ func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestor.Plugin, req *no
 	return stream.Recv()
 }
 
-func (s *AttestorSuite) requireAttestError(req *nodeattestor.AttestRequest, contains string) {
+func (s *AttestorSuite) requireAttestError(req *nodeattestorv0.AttestRequest, contains string) {
 	resp, err := s.doAttest(req)
 	s.RequireErrorContains(err, contains)
 	s.Require().Nil(resp)
 }
 
-func makeAttestRequest(cluster, token string) *nodeattestor.AttestRequest {
-	return &nodeattestor.AttestRequest{
+func makeAttestRequest(cluster, token string) *nodeattestorv0.AttestRequest {
+	return &nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "k8s_sat",
 			Data: []byte(fmt.Sprintf(`{"cluster": %q, "token": %q}`, cluster, token)),

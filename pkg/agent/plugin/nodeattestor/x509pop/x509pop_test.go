@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
@@ -24,7 +24,7 @@ func TestX509PoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p          nodeattestor.Plugin
+	p          nodeattestorv0.Plugin
 	leafBundle [][]byte
 	leafCert   *x509.Certificate
 }
@@ -36,8 +36,8 @@ func (s *Suite) SetupTest() {
 	s.configure(leafKeyPath, leafCertPath, "")
 }
 
-func (s *Suite) newPlugin() nodeattestor.Plugin {
-	var p nodeattestor.Plugin
+func (s *Suite) newPlugin() nodeattestorv0.Plugin {
+	var p nodeattestorv0.Plugin
 	s.LoadPlugin(BuiltIn(), &p)
 	return p
 }
@@ -98,7 +98,7 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	require.NoError(err)
 	challengeBytes, err := json.Marshal(challenge)
 	require.NoError(err)
-	err = stream.Send(&nodeattestor.FetchAttestationDataRequest{
+	err = stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
 		Challenge: challengeBytes,
 	})
 	require.NoError(err)
@@ -135,7 +135,7 @@ func (s *Suite) TestFetchAttestationDataFailure() {
 		require.NoError(err)
 		require.NotNil(resp)
 
-		require.NoError(stream.Send(&nodeattestor.FetchAttestationDataRequest{
+		require.NoError(stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
 			Challenge: challenge,
 		}))
 
@@ -245,7 +245,7 @@ func (s *Suite) TestGetPluginInfo() {
 	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) fetchAttestationData() (nodeattestor.NodeAttestor_FetchAttestationDataClient, func()) {
+func (s *Suite) fetchAttestationData() (nodeattestorv0.NodeAttestor_FetchAttestationDataClient, func()) {
 	stream, err := s.p.FetchAttestationData(context.Background())
 	s.Require().NoError(err)
 	return stream, func() {

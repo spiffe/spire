@@ -21,9 +21,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 	"github.com/spiffe/spire/test/spiretest"
@@ -68,7 +68,7 @@ type IIDAttestorSuite struct {
 	// original plugin, for modifications on mock
 	plugin *IIDAttestorPlugin
 	// built-in for full callstack
-	p          nodeattestor.Plugin
+	p          nodeattestorv0.Plugin
 	rsaKey     *rsa.PrivateKey
 	env        map[string]string
 	agentStore *fakeagentstore.AgentStore
@@ -102,7 +102,7 @@ func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 
 	// Send() will either succeed or return EOF if the gRPC stream has already
 	// been torn down due to the plugin-side failure.
-	err = stream.Send(&nodeattestor.AttestRequest{})
+	err = stream.Send(&nodeattestorv0.AttestRequest{})
 	if err != nil && err != io.EOF {
 		s.Require().NoError(err)
 	}
@@ -115,14 +115,14 @@ func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 func (s *IIDAttestorSuite) TestErrorOnEmptyRequest() {
 	s.configure()
 
-	_, err := s.attest(&nodeattestor.AttestRequest{})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{})
 	s.RequireErrorContains(err, "request missing attestation data")
 }
 
 func (s *IIDAttestorSuite) TestErrorOnInvalidType() {
 	s.configure()
 
-	_, err := s.attest(&nodeattestor.AttestRequest{
+	_, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "foo",
 		},
@@ -137,7 +137,7 @@ func (s *IIDAttestorSuite) TestErrorOnMissingData() {
 		Type: caws.PluginName,
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, "unexpected end of JSON input")
 }
 
@@ -149,7 +149,7 @@ func (s *IIDAttestorSuite) TestErrorOnBadData() {
 		Data: make([]byte, 0),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, "unexpected end of JSON input")
 }
 
@@ -185,7 +185,7 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 		AgentId: agentID,
 	})
 
-	_, err := s.attest(&nodeattestor.AttestRequest{
+	_, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: data,
 	})
 	s.RequireErrorContains(err, "IID has already been used to attest an agent")
@@ -201,7 +201,7 @@ func (s *IIDAttestorSuite) TestErrorOnBadSignature() {
 		Data: s.iidAttestationDataToBytes(*iid),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{
+	_, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: data,
 	})
 	s.RequireErrorContains(err, "illegal base64 data at input byte")
@@ -217,7 +217,7 @@ func (s *IIDAttestorSuite) TestErrorOnNoSignature() {
 		Data: s.iidAttestationDataToBytes(*iid),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{
+	_, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: data,
 	})
 	s.RequireErrorContains(err, "verifying the cryptographic signature")
@@ -510,7 +510,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			}()
 			s.plugin.config.awsCaCertPublicKey = &s.rsaKey.PublicKey
 
-			resp, err := s.attest(&nodeattestor.AttestRequest{
+			resp, err := s.attest(&nodeattestorv0.AttestRequest{
 				AttestationData: data,
 			})
 
@@ -653,7 +653,7 @@ func getDefaultDescribeInstancesOutput() *ec2.DescribeInstancesOutput {
 	}
 }
 
-func (s *IIDAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *IIDAttestorSuite) attest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
 	defer func() {

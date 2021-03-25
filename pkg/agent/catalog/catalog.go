@@ -24,12 +24,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 )
 
 type Catalog interface {
-	GetKeyManager() KeyManager
-	GetNodeAttestor() NodeAttestor
-	GetWorkloadAttestors() []WorkloadAttestor
+	GetKeyManager() keymanager.KeyManager
+	GetNodeAttestor() nodeattestor.NodeAttestor
+	GetWorkloadAttestors() []workloadattestor.WorkloadAttestor
 }
 
 type GlobalConfig = catalog.GlobalConfig
@@ -38,9 +41,9 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
-		keymanager.PluginClient,
-		nodeattestor.PluginClient,
-		workloadattestor.PluginClient,
+		keymanagerv0.PluginClient,
+		nodeattestorv0.PluginClient,
+		workloadattestorv0.PluginClient,
 	}
 }
 
@@ -67,37 +70,28 @@ func BuiltIns() []catalog.Plugin {
 	}
 }
 
-type KeyManager struct {
-	keymanager.KeyManager
-}
-
-type NodeAttestor struct {
-	catalog.PluginInfo
-	nodeattestor.NodeAttestor
-}
-
 type WorkloadAttestor struct {
 	catalog.PluginInfo
 	workloadattestor.WorkloadAttestor
 }
 
 type Plugins struct {
-	KeyManager        KeyManager
-	NodeAttestor      NodeAttestor
-	WorkloadAttestors []WorkloadAttestor `catalog:"min=1"`
+	KeyManager        keymanager.KeyManager
+	NodeAttestor      nodeattestor.NodeAttestor
+	WorkloadAttestors []workloadattestor.WorkloadAttestor
 }
 
 var _ Catalog = (*Plugins)(nil)
 
-func (p *Plugins) GetKeyManager() KeyManager {
+func (p *Plugins) GetKeyManager() keymanager.KeyManager {
 	return p.KeyManager
 }
 
-func (p *Plugins) GetNodeAttestor() NodeAttestor {
+func (p *Plugins) GetNodeAttestor() nodeattestor.NodeAttestor {
 	return p.NodeAttestor
 }
 
-func (p *Plugins) GetWorkloadAttestors() []WorkloadAttestor {
+func (p *Plugins) GetWorkloadAttestors() []workloadattestor.WorkloadAttestor {
 	return p.WorkloadAttestors
 }
 
@@ -120,7 +114,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p := new(Plugins)
+	p := new(versionedPlugins)
 	closer, err := catalog.Fill(ctx, catalog.Config{
 		Log:           config.Log,
 		GlobalConfig:  config.GlobalConfig,
@@ -134,10 +128,30 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p.KeyManager.KeyManager = keymanager_telemetry.WithMetrics(p.KeyManager.KeyManager, config.Metrics)
+	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
+
+	var workloadAttestors []workloadattestor.WorkloadAttestor
+	for _, workloadAttestorV0 := range p.WorkloadAttestors {
+		workloadAttestors = append(workloadAttestors, workloadAttestorV0)
+	}
 
 	return &Repository{
-		Catalog: p,
-		Closer:  closer,
+		Catalog: &Plugins{
+			KeyManager:        p.KeyManager,
+			NodeAttestor:      p.NodeAttestor,
+			WorkloadAttestors: workloadAttestors,
+		},
+		Closer: closer,
 	}, nil
+}
+
+// versionedPlugins is a temporary struct with the v0 version shims as they are
+// introduced. The catalog will fill this struct, which is then converted to
+// the Plugins struct which contains the facade interfaces. It will be removed
+// when the catalog is refactored to leverage the new common catalog with
+// native versioning support (see issue #2153).
+type versionedPlugins struct {
+	KeyManager        keymanager.V0
+	NodeAttestor      nodeattestor.V0
+	WorkloadAttestors []workloadattestor.V0 `catalog:"min=1"`
 }

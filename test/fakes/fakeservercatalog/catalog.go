@@ -1,7 +1,6 @@
 package fakeservercatalog
 
 import (
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -25,14 +24,11 @@ func New() *Catalog {
 }
 
 func (c *Catalog) SetDataStore(dataStore datastore.DataStore) {
-	c.DataStore = catalog.DataStore{
-		PluginInfo: pluginInfo{name: "fake", typ: datastore.Type},
-		DataStore:  dataStore,
-	}
+	c.DataStore = dataStore
 }
 
-func (c *Catalog) AddNodeAttestorNamed(name string, nodeAttestor nodeattestor.NodeAttestor) {
-	c.NodeAttestors[name] = nodeAttestor
+func (c *Catalog) AddNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
+	c.NodeAttestors[nodeAttestor.Name()] = nodeAttestor
 }
 
 func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.NodeResolver) {
@@ -51,10 +47,10 @@ func (c *Catalog) AddNotifier(notifier catalog.Notifier) {
 	c.Notifiers = append(c.Notifiers, notifier)
 }
 
-func Notifier(name string, notifier notifier.Notifier) catalog.Notifier {
+func Notifier(name string, n notifier.Notifier) catalog.Notifier {
 	return catalog.Notifier{
-		PluginInfo: pluginInfo{name: name, typ: workloadattestor.Type},
-		Notifier:   notifier,
+		PluginInfo: pluginInfo{name: name, typ: notifier.Type},
+		Notifier:   n,
 	}
 }
 

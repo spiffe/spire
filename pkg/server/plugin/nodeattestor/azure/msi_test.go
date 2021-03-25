@@ -12,9 +12,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 	jose "gopkg.in/square/go-jose.v2"
@@ -50,7 +50,7 @@ func TestMSIAttestorPlugin(t *testing.T) {
 type MSIAttestorSuite struct {
 	spiretest.Suite
 
-	attestor   nodeattestor.Plugin
+	attestor   nodeattestorv0.Plugin
 	key        *rsa.PrivateKey
 	jwks       *jose.JSONWebKeySet
 	now        time.Time
@@ -72,18 +72,18 @@ func (s *MSIAttestorSuite) SetupTest() {
 
 func (s *MSIAttestorSuite) TestAttestFailsWhenNotConfigured() {
 	attestor := s.newAttestor()
-	resp, err := s.doAttestOnAttestor(attestor, &nodeattestor.AttestRequest{})
+	resp, err := s.doAttestOnAttestor(attestor, &nodeattestorv0.AttestRequest{})
 	s.requireErrorContains(err, "azure-msi: not configured")
 	s.Require().Nil(resp)
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithNoAttestationData() {
-	s.requireAttestError(&nodeattestor.AttestRequest{},
+	s.requireAttestError(&nodeattestorv0.AttestRequest{},
 		"azure-msi: missing attestation data")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
-	s.requireAttestError(&nodeattestor.AttestRequest{
+	s.requireAttestError(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "blah",
 		},
@@ -91,7 +91,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
-	s.requireAttestError(&nodeattestor.AttestRequest{
+	s.requireAttestError(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "azure_msi",
 		},
@@ -99,7 +99,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
-	s.requireAttestError(&nodeattestor.AttestRequest{
+	s.requireAttestError(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "azure_msi",
 			Data: []byte("{"),
@@ -308,7 +308,7 @@ func (s *MSIAttestorSuite) signToken(keyID, audience, tenantID, principalID stri
 	return token
 }
 
-func (s *MSIAttestorSuite) signAttestRequest(keyID, audience, tenantID, principalID string) *nodeattestor.AttestRequest {
+func (s *MSIAttestorSuite) signAttestRequest(keyID, audience, tenantID, principalID string) *nodeattestorv0.AttestRequest {
 	return makeAttestRequest(s.signToken(keyID, audience, tenantID, principalID))
 }
 
@@ -319,7 +319,7 @@ func (s *MSIAttestorSuite) addKey() {
 	})
 }
 
-func (s *MSIAttestorSuite) newAttestor() nodeattestor.Plugin {
+func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.Plugin {
 	attestor := New()
 	attestor.hooks.now = func() time.Time {
 		return s.now
@@ -327,7 +327,7 @@ func (s *MSIAttestorSuite) newAttestor() nodeattestor.Plugin {
 	attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) {
 		return s.jwks, nil
 	})
-	var plugin nodeattestor.Plugin
+	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin,
 		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
 	)
@@ -350,11 +350,11 @@ func (s *MSIAttestorSuite) configureAttestor() {
 	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
-func (s *MSIAttestorSuite) doAttest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *MSIAttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestor.NodeAttestor, req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestor, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 
@@ -367,7 +367,7 @@ func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestor.NodeAttestor
 	return stream.Recv()
 }
 
-func (s *MSIAttestorSuite) requireAttestError(req *nodeattestor.AttestRequest, contains string) {
+func (s *MSIAttestorSuite) requireAttestError(req *nodeattestorv0.AttestRequest, contains string) {
 	resp, err := s.doAttest(req)
 	s.requireErrorContains(err, contains)
 	s.Require().Nil(resp)
@@ -378,8 +378,8 @@ func (s *MSIAttestorSuite) requireErrorContains(err error, contains string) {
 	s.Require().Contains(err.Error(), contains)
 }
 
-func makeAttestRequest(token string) *nodeattestor.AttestRequest {
-	return &nodeattestor.AttestRequest{
+func makeAttestRequest(token string) *nodeattestorv0.AttestRequest {
+	return &nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "azure_msi",
 			Data: []byte(fmt.Sprintf(`{"token": %q}`, token)),
