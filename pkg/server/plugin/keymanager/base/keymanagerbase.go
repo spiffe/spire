@@ -24,7 +24,7 @@ type KeyEntry struct {
 	*keymanagerv0.PublicKey
 }
 
-// Funcs is a collection optional callbacks. Default implementations will be
+// Funcs is a collection of optional callbacks. Default implementations will be
 // used when not provided.
 type Funcs struct {
 	WriteEntries       func(ctx context.Context, entries []*KeyEntry) error

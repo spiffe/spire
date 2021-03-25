@@ -82,7 +82,7 @@ func (v0 V0) makeKey(id string, pb *keymanagerv0.PublicKey) (Key, error) {
 
 	publicKey, err := x509.ParsePKIXPublicKey(pb.PkixData)
 	if err != nil {
-		return nil, v0.Errorf(codes.Internal, "unable to parse public key pkix data for public key %q: %v", id, err)
+		return nil, v0.Errorf(codes.Internal, "unable to parse public key PKIX data for public key %q: %v", id, err)
 	}
 
 	return &v0Key{
