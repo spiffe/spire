@@ -9,12 +9,12 @@ import (
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *KeyManager) catalog.Plugin {
-	return catalog.MakePlugin("memory", keymanagerv0.PluginServer(p))
+func builtin(p *KeyManager) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("memory", keymanagerv0.KeyManagerPluginServer(p))
 }
 
 type KeyManager struct {

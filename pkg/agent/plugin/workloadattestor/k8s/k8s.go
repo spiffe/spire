@@ -53,12 +53,12 @@ const (
 
 var k8sErr = errs.Class("k8s")
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, workloadattestorv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName, workloadattestorv0.WorkloadAttestorPluginServer(p))
 }
 
 // HCLConfig holds the configuration parsed from HCL

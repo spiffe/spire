@@ -24,13 +24,13 @@ const (
 	pluginName = "vault"
 )
 
-// BuiltIn constructs a catalog Plugin using a new instance of this plugin.
-func BuiltIn() catalog.Plugin {
+// BuiltIn constructs a catalog.BuiltIn using a new instance of this plugin.
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName, upstreamauthorityv0.UpstreamAuthorityPluginServer(p))
 }
 
 type PluginConfig struct {

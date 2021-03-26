@@ -10,7 +10,7 @@ import (
 )
 
 type pluginMetrics struct {
-	m           metricsv0.MetricsService
+	m           metricsv0.MetricsServiceClient
 	log         hclog.Logger
 	fixedLabels []*metricsv0.Label
 }
@@ -20,7 +20,7 @@ type pluginMetrics struct {
 // resulting metrics calls.
 // This enables usage of common functionality related to the Metrics interface from a plugin.
 // Any errors are logged, but not returned.
-func WrapPluginMetrics(m metricsv0.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
+func WrapPluginMetrics(m metricsv0.MetricsServiceClient, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
 	return pluginMetrics{
 		m:           m,
 		log:         log,

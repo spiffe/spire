@@ -40,13 +40,13 @@ var (
 	reVirtualNetworkSubnetID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/virtualNetworks/([^/]+)/subnets/([^/]+)$`)
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *MSIResolverPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		noderesolverv0.PluginServer(p),
+func builtin(p *MSIResolverPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		noderesolverv0.NodeResolverPluginServer(p),
 	)
 }
 

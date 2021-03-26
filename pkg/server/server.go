@@ -110,8 +110,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	healthChecks := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
-	s.config.Log.Info("Plugins started")
-
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
 		return err
@@ -241,12 +239,10 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider identityproviderv0.IdentityProviderServer, agentStore agentstorev0.AgentStoreServer,
 	metricsService metricsv0.MetricsServiceServer) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
-		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: s.config.TrustDomain.String(),
-		},
-		PluginConfig:     s.config.PluginConfigs,
+		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
+		TrustDomain:      s.config.TrustDomain,
+		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		MetricsService:   metricsService,

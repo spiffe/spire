@@ -15,8 +15,10 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/consts"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -38,7 +40,7 @@ type VaultPluginSuite struct {
 	spiretest.Suite
 
 	fakeVaultServer *FakeVaultServerConfig
-	plugin          upstreamauthorityv0.Plugin
+	plugin          upstreamauthorityv0.UpstreamAuthorityClient
 }
 
 func (vps *VaultPluginSuite) SetupTest() {
@@ -363,7 +365,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA() {
 			p.cc = cc
 			p.authMethod = c.authMethod
 
-			vps.LoadPlugin(builtin(p), &vps.plugin)
+			v0 := new(upstreamauthority.V0)
+			plugintest.Load(vps.T(), builtin(p), v0)
+			vps.plugin = v0.UpstreamAuthorityClient
 
 			req := vps.loadMintX509CARequestFromTestFile()
 			res, err := vps.mintX509CA(req)
@@ -406,7 +410,10 @@ func (vps *VaultPluginSuite) Test_MintX509CA_ErrorFromVault() {
 	p := vps.newPlugin()
 	p.cc = vps.getFakeClientConfig(addr)
 
-	vps.LoadPlugin(builtin(p), &vps.plugin)
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(vps.T(), builtin(p), v0)
+	vps.plugin = v0.UpstreamAuthorityClient
+
 	req := vps.loadMintX509CARequestFromTestFile()
 
 	_, err = vps.mintX509CA(req)
@@ -430,7 +437,9 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidVaultResponse() {
 	p.cc = vps.getFakeClientConfig(addr)
 	p.authMethod = TOKEN
 
-	vps.LoadPlugin(builtin(p), &vps.plugin)
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(vps.T(), builtin(p), v0)
+	vps.plugin = v0.UpstreamAuthorityClient
 	req := vps.loadMintX509CARequestFromTestFile()
 
 	_, err = vps.mintX509CA(req)
@@ -452,7 +461,10 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
 	p.cc = vps.getFakeClientConfig(addr)
 	p.authMethod = TOKEN
 
-	vps.LoadPlugin(builtin(p), &vps.plugin)
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(vps.T(), builtin(p), v0)
+	vps.plugin = v0.UpstreamAuthorityClient
+
 	req := vps.loadMintX509CARequestFromTestFile()
 	req.Csr = []byte("invalid-csr") // overwrite the CSR value
 

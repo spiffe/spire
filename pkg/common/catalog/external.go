@@ -6,184 +6,138 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 
-	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 )
 
-const (
-	// the ID used to dial host services
-	hostServicesID = 1
-)
+type externalConfig struct {
+	// Name of the plugin
+	Name string
 
-func PluginMain(plugin Plugin) {
-	logger := hclog.New(&hclog.LoggerOptions{
-		Level:      hclog.Trace,
-		Output:     os.Stderr,
-		JSONFormat: true,
-	})
-	goplugin.Serve(&goplugin.ServeConfig{
-		HandshakeConfig: goplugin.HandshakeConfig{
-			ProtocolVersion:  1,
-			MagicCookieKey:   plugin.Plugin.PluginType(),
-			MagicCookieValue: plugin.Plugin.PluginType(),
-		},
-		Plugins: map[string]goplugin.Plugin{
-			plugin.Name: &hcServerPlugin{
-				logger: logger,
-				plugin: plugin,
-			},
-		},
-		Logger:     logger,
-		GRPCServer: goplugin.DefaultGRPCServer,
-	})
+	// Type is the plugin type (e.g. KeyManager)
+	Type string
+
+	// Path is the path on disk to the plugin.
+	Path string
+
+	// Args are the command line arguments to supply to the plugin
+	Args []string
+
+	// Checksum is the hex-encoded SHA256 hash of the plugin binary.
+	Checksum string
+
+	// Log is the logger to be wired to the external plugin.
+	Log logrus.FieldLogger
+
+	// HostServices are the host service servers provided to the plugin.
+	HostServices []HostServiceServer
 }
 
-type hcServerPlugin struct {
-	goplugin.NetRPCUnsupportedPlugin
-	logger hclog.Logger
-	plugin Plugin
-}
+func loadExternal(ctx context.Context, config externalConfig) (*pluginImpl, error) {
+	// TODO: honor context cancellation... unfortunately go-plugin doesn't seem
+	// to give us a mechanism for this, so we'd have to spin up some goroutine
+	// to watch for cancelation and start killing clients and closing
+	// connections and the like.
 
-var _ goplugin.GRPCPlugin = (*hcServerPlugin)(nil)
-
-func (p *hcServerPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) error {
-	initPluginServer(
-		s,
-		grpcBrokerDialer{b: b},
-		p.logger,
-		p.plugin.Plugin,
-		p.plugin.Services,
-	)
-	return nil
-}
-
-func (p *hcServerPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
-	return nil, errors.New("unimplemented")
-}
-
-type grpcBrokerDialer struct {
-	b *goplugin.GRPCBroker
-}
-
-func (d grpcBrokerDialer) DialHost() (*grpc.ClientConn, error) {
-	return d.b.Dial(hostServicesID)
-}
-
-type ExternalPlugin struct {
-	Log           logrus.FieldLogger
-	Name          string
-	Path          string
-	Checksum      string
-	Data          string
-	Plugin        PluginClient
-	KnownServices []ServiceClient
-	HostServices  []HostServiceServer
-}
-
-func LoadExternalPlugin(ctx context.Context, ext ExternalPlugin) (plugin *LoadedPlugin, err error) {
-	// Resolve to an absolute path. We don't to use path environment lookups.
-	ext.Path, err = filepath.Abs(ext.Path)
+	// Resolve path to an absolute path. We don't want to rely on PATH
+	// environment lookups for security reasons.
+	path, err := filepath.Abs(config.Path)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, fmt.Errorf("failed to resolve plugin path: %w", err)
 	}
 
-	cmd := pluginCmd(ext.Path)
+	cmd := pluginCmd(path, config.Args...)
 
 	var secureConfig *goplugin.SecureConfig
-	if ext.Checksum != "" {
-		secureConfig, err = buildSecureConfig(ext.Checksum)
+	if config.Checksum != "" {
+		secureConfig, err = buildSecureConfig(config.Checksum)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		ext.Log.Warn("Plugin checksum not configured")
+		config.Log.Warn("Plugin checksum not configured")
 	}
 
 	logger := log.NewHCLogAdapter(
-		ext.Log,
-		telemetry.PluginExternal,
+		config.Log,
+		config.Name,
 	)
 
-	hcPlugin := &hcClientPlugin{
-		ext: ext,
-	}
-
-	// start the external plugin. ensure it is killed if there is an error.
+	// Start the external plugin.
 	pluginClient := goplugin.NewClient(&goplugin.ClientConfig{
 		HandshakeConfig: goplugin.HandshakeConfig{
 			ProtocolVersion:  1,
-			MagicCookieKey:   ext.Plugin.PluginType(),
-			MagicCookieValue: ext.Plugin.PluginType(),
+			MagicCookieKey:   config.Type,
+			MagicCookieValue: config.Type,
 		},
 		Cmd: cmd,
-		// TODO: enable AutoMTLS if it is fixed to work with brokering.
+		// TODO: Enable AutoMTLS if it is fixed to work with brokering.
 		// See https://github.com/hashicorp/go-plugin/issues/109
 		AutoMTLS:         false,
 		AllowedProtocols: []goplugin.Protocol{goplugin.ProtocolGRPC},
 		Plugins: map[string]goplugin.Plugin{
-			"external": hcPlugin,
+			config.Name: &hcClientPlugin{config: config},
 		},
-		Logger:       logger.Named(ext.Name),
+		Logger:       logger,
 		SecureConfig: secureConfig,
 	})
+
+	// Ensure the loaded plugin is killed if there is a failure.
 	defer func() {
 		if err != nil {
 			pluginClient.Kill()
 		}
 	}()
 
-	// create the GRPC client and ensure it is closed on error
+	// Create the GRPC client and ensure it is closed on error.
 	grpcClient, err := pluginClient.Client()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to launch plugin: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			grpcClient.Close()
+		}
+	}()
 
-	// the primary interface is dispensed via the plugin name
-	pluginRaw, err := grpcClient.Dispense("external")
+	// Dispense the client, which invokes the GRPCClient method in the
+	// hcClientPlugin. The result of that method call is returned here, which
+	// is coerced back into the correct type.
+	rawPlugin, err := grpcClient.Dispense(config.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	plugin, ok := pluginRaw.(*LoadedPlugin)
+	plugin, ok := rawPlugin.(*hcPlugin)
 	if !ok {
-		// shouldn't happen.
-		return nil, errs.New("expected %T, got %T", plugin, pluginRaw)
+		// Purely defensive. This should never happen since we control what
+		// gets returned from hcClientPlugin.
+		return nil, fmt.Errorf("expected %T, got %T", plugin, rawPlugin)
 	}
 
-	// Kill also closes the gRPC client
-	plugin.closer = func() {
-		pluginClient.Kill()
-		hcPlugin.WaitUntilBrokerDone()
+	// Plugin has been loaded and initialized. Ensure the plugin client is
+	// killed when the plugin is closed.
+	plugin.closers = append(plugin.closers, closerFunc(pluginClient.Kill))
+
+	info := pluginInfo{
+		name: config.Name,
+		typ:  config.Type,
 	}
 
-	return plugin, nil
-}
-
-func buildSecureConfig(checksum string) (*goplugin.SecureConfig, error) {
-	sum, err := hex.DecodeString(checksum)
-	if err != nil {
-		return nil, fmt.Errorf("unable to decode checksum: %v", err)
-	}
-
-	return &goplugin.SecureConfig{
-		Checksum: sum,
-		Hash:     sha256.New(),
-	}, nil
+	return newPlugin(ctx, plugin.conn, info, config.Log, plugin.closers, config.HostServices)
 }
 
 type hcClientPlugin struct {
 	goplugin.NetRPCUnsupportedPlugin
-	ext ExternalPlugin
-	wg  sync.WaitGroup
+
+	config externalConfig
 }
 
 var _ goplugin.GRPCPlugin = (*hcClientPlugin)(nil)
@@ -197,40 +151,55 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	// some logging we don't care for. Although b.AcceptAndServe is currently
 	// the only way to feed the TLS config to the brokered connection, AutoMTLS
 	// does not work yet anyway, so it is a moot point.
-	listener, err := b.Accept(hostServicesID)
+	listener, err := b.Accept(private.HostServiceProviderID)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	server := NewHostServer(p.ext.Name, nil, p.ext.HostServices)
-	p.wg.Add(1)
+
+	server := newHostServer(p.config.Name, p.config.HostServices)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		defer p.wg.Done()
-		if err := server.Serve(listener); err != nil {
-			p.ext.Log.WithError(err).Error("Host services server failed")
+		defer wg.Done()
+		if err := server.Serve(listener); err != nil && err != grpc.ErrServerStopped {
+			p.config.Log.WithError(err).Error("Host services server failed")
 			c.Close()
 		}
 	}()
-	p.wg.Add(1)
+
+	ctx, cancel := context.WithCancel(ctx)
+	wg.Add(1)
 	go func() {
-		defer p.wg.Done()
+		defer wg.Done()
 		<-ctx.Done()
 		server.Stop()
 	}()
 
-	plugin, err := newCatalogPlugin(ctx, c, catalogPluginConfig{
-		Log:           p.ext.Log,
-		Name:          p.ext.Name,
-		BuiltIn:       false,
-		Plugin:        p.ext.Plugin,
-		KnownServices: p.ext.KnownServices,
-		HostServices:  p.ext.HostServices,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return plugin, nil
+	return &hcPlugin{
+		conn:    c,
+		closers: closerFuncs(cancel, wg.Wait),
+	}, nil
 }
 
-func (p *hcClientPlugin) WaitUntilBrokerDone() {
-	p.wg.Wait()
+type hcPlugin struct {
+	conn    grpc.ClientConnInterface
+	closers closerGroup
+}
+
+func buildSecureConfig(checksum string) (*goplugin.SecureConfig, error) {
+	sum, err := hex.DecodeString(checksum)
+	if err != nil {
+		return nil, errors.New("checksum is not a valid hex string")
+	}
+
+	hash := sha256.New()
+	if len(sum) != hash.Size() {
+		return nil, fmt.Errorf("expected checksum of length %d; got %d", hash.Size()*2, len(sum)*2)
+	}
+
+	return &goplugin.SecureConfig{
+		Checksum: sum,
+		Hash:     sha256.New(),
+	}, nil
 }

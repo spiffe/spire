@@ -8,821 +8,600 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/sirupsen/logrus"
-	logtest "github.com/sirupsen/logrus/hooks/test"
+	log_test "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/private/proto/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/catalog/test"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/private/test/catalogtest"
+	"github.com/spiffe/spire/pkg/common/catalog/testplugin"
+	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/proto/private/test/legacyplugin"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc"
 )
 
-type testCatalog struct {
-	Plugin  catalogtest.Plugin
-	Service *catalogtest.Service
-}
-
-type testLogEntry struct {
-	Level   logrus.Level
-	Message string
-	Data    logrus.Fields
-}
-
-func TestCatalog(t *testing.T) {
-	suite.Run(t, new(CatalogSuite))
-}
-
-type CatalogSuite struct {
-	suite.Suite
-
-	// temporary directory used to build the external plugin
-	dir string
-
-	// path to the external plugin
-	path string
-
-	// checksum of the external plugin
-	checksum string
-
-	// logging test hooks
-	log     logrus.FieldLogger
-	logHook *logtest.Hook
-
-	// config
-	pluginConfig  []catalog.PluginConfig
-	knownPlugins  []catalog.PluginClient
-	knownServices []catalog.ServiceClient
-	builtins      []catalog.Plugin
-	hostServices  []catalog.HostServiceServer
-}
-
-// SetupSuite builds the test plugin binary
-func (s *CatalogSuite) SetupSuite() {
-	require := s.Require()
-
-	s.dir = spiretest.TempDir(s.T())
-
-	s.path = filepath.Join(s.dir, "pluginbin")
-	buildOutput, err := exec.Command("go", "build", "-o", s.path, "catalog_test_plugin.go").CombinedOutput() //nolint: gosec // false positive
-	if err != nil {
-		s.T().Logf("build output:\n%s\n", string(buildOutput))
-		s.FailNow("failed to build test plugin")
+var (
+	coreConfig = catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
+)
 
-	// calculate the checksum used in loading
-	s.checksum, err = calculateChecksum(s.path)
-	require.NoError(err, "unable to calculate plugin checksum")
-}
+func TestBuiltInPlugin(t *testing.T) {
+	testPlugin(t, "")
 
-func (s *CatalogSuite) SetupTest() {
-	// reset the logger and configuration for each test
-	s.log, s.logHook = logtest.NewNullLogger()
-	s.knownPlugins = []catalog.PluginClient{
-		catalogtest.PluginPluginClient,
-	}
-	s.knownServices = []catalog.ServiceClient{
-		catalogtest.ServiceServiceClient,
-	}
-	s.hostServices = []catalog.HostServiceServer{
-		catalogtest.HostServiceHostServiceServer(test.NewHostService()),
-	}
-	s.builtins = nil
-	s.pluginConfig = nil
-}
-
-func (s *CatalogSuite) AfterTest(suiteName, testName string) {
-	if !s.T().Failed() {
-		return
-	}
-	s.T().Logf("Dumping logs for failed test %s/%s:", suiteName, testName)
-	for _, entry := range s.logHook.AllEntries() {
-		s.T().Logf("[%s] %s %v", entry.Level, entry.Message, entry.Data)
-	}
-}
-
-func (s *CatalogSuite) TestOldPlugin() {
-	require := s.Require()
-
-	path := filepath.Join(s.dir, "oldpluginbin")
-	buildOutput, err := exec.Command("go", "build", "-o", path, "catalog_test_oldplugin.go").CombinedOutput()
-	if err != nil {
-		s.T().Logf("build output:\n%s\n", string(buildOutput))
-		s.FailNow("failed to build old test plugin")
-	}
-	checksum, err := calculateChecksum(path)
-	require.NoError(err, "unable to calculate old plugin checksum")
-
-	plugin, err := catalog.LoadExternalPlugin(context.Background(), catalog.ExternalPlugin{
-		Log:      s.log,
-		Name:     "oldpluginbin",
-		Path:     path,
-		Checksum: checksum,
-		Plugin:   catalogtest.PluginPluginClient,
-	})
-	require.NoError(err, "unable to load old plugin")
-	defer plugin.Close()
-
-	var v catalogtest.Plugin
-	err = plugin.Fill(&v)
-	require.NoError(err, "unable to get old plugin client")
-
-	resp, err := v.CallPlugin(context.Background(), &catalogtest.Request{
-		In: "OLD",
-	})
-	require.NoError(err, "unable to call old plugin")
-	s.Require().Equal("plugin(OLD)", resp.Out)
-}
-
-func (s *CatalogSuite) TestNoKnownPlugin() {
-	s.knownPlugins = nil
-	s.pluginConfig = s.extPluginConfig()
-
-	s.assertFillCatalogFails(`unknown plugin type "Plugin"`)
-}
-
-func (s *CatalogSuite) TestNoKnownService() {
-	s.knownServices = nil
-
-	// plugins are still loaded even if they offer unknown services
-	s.assertExternalPluginCalls(
-		"plugin(hostservice[plugin=testext](hello-to-plugin))",
-		"",
-	)
-
-	// assert we logged a message about the unknown service
-	s.assertHasLogEntry(testLogEntry{
-		Level:   logrus.WarnLevel,
-		Message: "Unknown service type",
-		Data: logrus.Fields{
-			telemetry.PluginService: "Service",
-		},
-	})
-}
-
-func (s *CatalogSuite) TestHostServiceNotAvailable() {
-	s.hostServices = nil
-
-	s.assertExternalPluginCalls(
-		"plugin(hello-to-plugin)",
-		"service(hello-to-service)",
-	)
-
-	// assert we logged the message from the plugin and service about
-	// the missing host service.
-	s.assertHasLogEntries([]testLogEntry{
-		{
-			Level:   logrus.WarnLevel,
-			Message: "Host service not available",
-			Data: logrus.Fields{
-				"@module":        "pluginimpl",
-				"hostservice":    "HostService",
-				"subsystem_name": "external_plugin.testext.pluginbin",
+	t.Run("no builtin", func(t *testing.T) {
+		testLoad(t, "", loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Name = "quz"
 			},
-		},
-		{
-			Level:   logrus.WarnLevel,
-			Message: "Host service not available",
-			Data: logrus.Fields{
-				"@module":        "serviceimpl",
-				"hostservice":    "HostService",
-				"subsystem_name": "external_plugin.testext.pluginbin",
-			},
-		},
-	})
-}
-
-func (s *CatalogSuite) TestHostServiceAvailable() {
-	s.assertExternalPluginCalls(
-		"plugin(hostservice[plugin=testext](hello-to-plugin))",
-		"service(hostservice[plugin=testext](hello-to-service))",
-	)
-
-	s.assertHasLogEntries(extInitLogs("pluginimpl"))
-}
-
-func (s *CatalogSuite) TestDisabledPlugin() {
-	s.pluginConfig = s.extPluginConfig()
-	s.pluginConfig[0].Disabled = true
-
-	s.assertFillCatalogFails(`unable to set catalog field "Plugin": requires at least 1 Plugin(s); got 0`)
-}
-
-func (s *CatalogSuite) TestUnknownBuiltIn() {
-	s.pluginConfig = s.builtinConfig()
-
-	s.assertFillCatalogFails(`no such Plugin builtin "testbuiltin"`)
-}
-
-func (s *CatalogSuite) TestConfigureFailure() {
-	s.pluginConfig = s.extPluginConfig()
-	s.pluginConfig[0].Data = "BAD"
-
-	s.assertFillCatalogFails(`unable to configure plugin "testext": rpc error: code = InvalidArgument desc = BAD configuration`)
-}
-
-func (s *CatalogSuite) TestDuplicateKnownPlugins() {
-	s.knownPlugins = []catalog.PluginClient{
-		catalogtest.PluginPluginClient,
-		catalogtest.PluginPluginClient,
-	}
-	s.assertFillCatalogFails(`duplicate plugin type "Plugin"`)
-}
-
-func (s *CatalogSuite) TestDuplicateKnownServices() {
-	s.pluginConfig = s.extPluginConfig()
-	s.knownServices = []catalog.ServiceClient{
-		catalogtest.ServiceServiceClient,
-		catalogtest.ServiceServiceClient,
-	}
-	s.assertFillCatalogFails(`duplicate service type "Service"`)
-}
-
-func (s *CatalogSuite) TestDuplicateBuiltIns() {
-	s.builtins = []catalog.Plugin{
-		testBuiltIn(),
-		testBuiltIn(),
-	}
-	s.assertFillCatalogFails(`duplicate Plugin builtin "testbuiltin"`)
-}
-
-func (s *CatalogSuite) TestPluginsFill() {
-	// use a builtin w/o a service
-	s.builtins = []catalog.Plugin{testBuiltInNoService()}
-	// ask for the external and built in service
-	s.pluginConfig = append(s.extPluginConfig(), s.builtinConfig()...)
-	ps := s.loadCatalog()
-	defer ps.Close()
-
-	testCases := []struct {
-		name string
-		fn   func(*require.Assertions)
-	}{
-		{
-			"nil",
-			func(r *require.Assertions) {
-				r.EqualError(ps.Fill(nil), "expected pointer to interface or struct (got <nil>)")
-			},
-		},
-		{
-			"empty struct",
-			func(r *require.Assertions) {
-				r.NoError(ps.Fill(&struct{}{}))
-			},
-		},
-		{
-			"unexported field",
-			func(r *require.Assertions) {
-				r.NoError(ps.Fill(&struct {
-					plugins []catalogtest.Plugin
-				}{}))
-			},
-		},
-		{
-			"single plugin constraint failure",
-			func(r *require.Assertions) {
-				r.EqualError(ps.Fill(&struct {
-					Plugin catalogtest.Plugin
-				}{}), `unable to set catalog field "Plugin": requires at most 1 Plugin(s); got 2`)
-			},
-		},
-		{
-			"optional plugin constraint failure",
-			func(r *require.Assertions) {
-				r.EqualError(ps.Fill(&struct {
-					Plugin *catalogtest.Plugin
-				}{}), `unable to set catalog field "Plugin": requires at most 1 Plugin(s); got 2`)
-			},
-		},
-		{
-			"slice of plugins",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin
-				}{}
-				r.NoError(ps.Fill(c))
-				r.Len(c.Plugins, 2)
-				r.NotNil(c.Plugins[0])
-				r.NotNil(c.Plugins[1])
-			},
-		},
-		{
-			"ignores other struct tags",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `json:"plugins"`
-				}{}
-				r.NoError(ps.Fill(c))
-			},
-		},
-		{
-			"ignore struct tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					IgnoreMe struct{} `catalog:"-"`
-				}{}
-				r.NoError(ps.Fill(c))
-			},
-		},
-		{
-			"unexpected value on ignore tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					IgnoreMe struct{} `catalog:"-=bad"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "IgnoreMe": not expecting key=value for catalog tag value "-=bad"`)
-			},
-		},
-		{
-			"bad struct tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"BAD"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": unrecognized catalog tag key "BAD"`)
-			},
-		},
-		{
-			"invalid min struct tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"min=BAD"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag min value "BAD"`)
-			},
-		},
-		{
-			"min struct tag without value",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"min"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "min"`)
-			},
-		},
-		{
-			"negative min struct tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"min=-1"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": catalog tag min value must be >= 0`)
-			},
-		},
-		{
-			"invalid max struct tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"max=BAD"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": invalid catalog tag max value "BAD"`)
-			},
-		},
-		{
-			"max struct tag without value",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"max"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": expected key=value for catalog tag value "max"`)
-			},
-		},
-		{
-			"negative max struct tag",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"max=-1"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": catalog tag max value must be > 0`)
-			},
-		},
-		{
-			"max struct tag lower than min",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"min=2,max=1"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": catalog tag max value must be >= min`)
-			},
-		},
-		{
-			"slice of plugins with min constraint met",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"min=2"`
-				}{}
-				r.NoError(ps.Fill(c))
-			},
-		},
-		{
-			"slice of plugins with min constraint failure",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"min=3"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": requires at least 3 Plugin(s); got 2`)
-			},
-		},
-		{
-			"slice of plugins with max constraint met",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"max=2"`
-				}{}
-				r.NoError(ps.Fill(c))
-			},
-		},
-		{
-			"slice of plugins with max constraint failure",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin `catalog:"max=1"`
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Plugins": requires at most 1 Plugin(s); got 2`)
-			},
-		},
-		{
-			"single service",
-			func(r *require.Assertions) {
-				c := &struct {
-					Service catalogtest.Service
-				}{}
-				r.NoError(ps.Fill(c))
-				r.NotNil(c.Service)
-			},
-		},
-		{
-			"optional service",
-			func(r *require.Assertions) {
-				c := &struct {
-					Service *catalogtest.Service
-				}{}
-				r.NoError(ps.Fill(c))
-				r.NotNil(c.Service)
-				r.NotNil(*c.Service)
-			},
-		},
-		{
-			"slice of services",
-			func(r *require.Assertions) {
-				c := &struct {
-					Services []catalogtest.Service
-				}{}
-				r.NoError(ps.Fill(c))
-				r.Len(c.Services, 1)
-				r.NotNil(c.Services[0])
-			},
-		},
-		{
-			"map of string to plugin",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins map[string]catalogtest.Plugin
-				}{}
-				r.NoError(ps.Fill(c))
-				r.Len(c.Plugins, 2)
-				r.NotNil(c.Plugins["testbuiltin"])
-				r.NotNil(c.Plugins["testext"])
-			},
-		},
-		{
-			"aggregated struct field",
-			func(r *require.Assertions) {
-				c := &struct {
-					Things []struct {
-						catalogtest.Plugin
-						catalogtest.Service
-					}
-				}{}
-				r.NoError(ps.Fill(c))
-				// an aggregated struct is only filled if a plugin implements
-				// all interfaces inside the struct. since our "builtin"
-				// doesn't implement catalogtest.Service for this test, we only expect
-				// a single "thing".
-				r.Len(c.Things, 1)
-				r.NotNil(c.Things[0])
-				r.NotNil(c.Things[0].Plugin)
-				r.NotNil(c.Things[0].Service)
-			},
-		},
-		{
-			"single plugin interface constraint fails",
-			func(r *require.Assertions) {
-				var plugin catalogtest.Plugin
-				r.EqualError(ps.Fill(&plugin),
-					`requires at most 1 Plugin(s); got 2`)
-			},
-		},
-		{
-			"single service interface ok",
-			func(r *require.Assertions) {
-				var service catalogtest.Service
-				r.NoError(ps.Fill(&service))
-				r.NotNil(service)
-			},
-		},
-		{
-			"embedded struct ok",
-			func(r *require.Assertions) {
-				type Embedded struct {
-					Service catalogtest.Service
-				}
-
-				c := &struct {
-					Plugins []catalogtest.Plugin
-					Embedded
-				}{}
-
-				r.NoError(ps.Fill(c))
-				r.Len(c.Plugins, 2)
-				r.NotNil(c.Service)
-			},
-		},
-		{
-			"embedded interface ok",
-			func(r *require.Assertions) {
-				c := &struct {
-					Plugins []catalogtest.Plugin
-					catalogtest.Service
-				}{}
-
-				r.NoError(ps.Fill(c))
-				r.Len(c.Plugins, 2)
-				r.NotNil(c.Service)
-			},
-		},
-		{
-			"embedded invalid type",
-			func(r *require.Assertions) {
-				type I int
-				c := &struct {
-					Plugins []catalogtest.Plugin
-					I
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "I": unsupported embedded field type "catalog_test.I"`)
-			},
-		},
-		{
-			"embedded struct with invalid field type",
-			func(r *require.Assertions) {
-				type Embedded struct {
-					Field int
-				}
-
-				c := &struct {
-					Embedded
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Embedded": unable to set catalog field "Field": unsupported field type "int"`)
-			},
-		},
-		{
-			"invalid type",
-			func(r *require.Assertions) {
-				c := new(int)
-				r.EqualError(ps.Fill(c), `unsupported type "int"`)
-			},
-		},
-		{
-			"invalid field type",
-			func(r *require.Assertions) {
-				c := &struct {
-					Field int
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Field": unsupported field type "int"`)
-			},
-		},
-		{
-			"invalid field pointer type",
-			func(r *require.Assertions) {
-				c := &struct {
-					Field *int
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Field": pointers must be to an interface or struct (of interfaces)`)
-			},
-		},
-		{
-			"invalid field slice type",
-			func(r *require.Assertions) {
-				c := &struct {
-					Field []int
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Field": slices must be to an interface or struct (of interfaces)`)
-			},
-		},
-		{
-			"invalid field map key",
-			func(r *require.Assertions) {
-				c := &struct {
-					Field map[int]catalogtest.Plugin
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Field": map key type must be a string`)
-			},
-		},
-		{
-			"invalid field map value",
-			func(r *require.Assertions) {
-				c := &struct {
-					Field map[string]int
-				}{}
-				r.EqualError(ps.Fill(c), `unable to set catalog field "Field": map value type must be to an interface or struct (of interfaces)`)
-			},
-		},
-		{
-			"can get plugin info",
-			func(r *require.Assertions) {
-				c := &struct {
-					JustPluginInfos     []catalog.PluginInfo
-					PluginInfosInStruct []struct {
-						catalog.PluginInfo
-						catalogtest.Plugin
-					}
-				}{}
-				r.NoError(ps.Fill(c))
-				// an aggregated struct is only filled if a plugin implements
-				// all interfaces inside the struct. since our "builtin"
-				// doesn't implement catalogtest.Service for this test, we only expect
-				// a single "thing".
-				r.Len(c.JustPluginInfos, 2)
-				r.Equal("testext", c.JustPluginInfos[0].Name())
-				r.Equal("testbuiltin", c.JustPluginInfos[1].Name())
-				r.Len(c.PluginInfosInStruct, 2)
-				r.Equal("testext", c.PluginInfosInStruct[0].Name())
-				r.Equal("testbuiltin", c.PluginInfosInStruct[1].Name())
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		testCase := testCase
-		s.T().Run(testCase.name, func(t *testing.T) {
-			testCase.fn(require.New(t))
+			expectErr: `failed to load plugin "quz": no built-in plugin "quz" for type "SomePlugin"`,
 		})
-	}
-}
-
-func (s *CatalogSuite) assertFillCatalogFails(expectedErr string) {
-	c := new(testCatalog)
-	closer, err := s.fillCatalog(c)
-	if !s.EqualError(err, expectedErr) {
-		closer.Close()
-	}
-}
-
-func (s *CatalogSuite) assertExternalPluginCalls(pluginOut, serviceOut string) {
-	s.pluginConfig = s.extPluginConfig()
-
-	assert := s.Assert()
-	require := s.Require()
-
-	c := new(testCatalog)
-	closer, err := s.fillCatalog(c)
-	require.NoError(err)
-	defer closer.Close()
-
-	resp, err := c.Plugin.CallPlugin(context.Background(), &catalogtest.Request{
-		In: "hello-to-plugin",
 	})
-	require.NoError(err)
-	assert.Equal(pluginOut, resp.Out)
+}
 
-	if c.Service != nil {
-		resp, err = (*c.Service).CallService(context.Background(), &catalogtest.Request{
-			In: "hello-to-service",
+func TestExternalPlugin(t *testing.T) {
+	pluginPath := buildTestPlugin(t, "./testplugin/good.go")
+
+	testPlugin(t, pluginPath)
+
+	t.Run("without checksum", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Checksum = ""
+			},
+			expectPluginClient:  true,
+			expectServiceClient: true,
 		})
-		require.NoError(err)
-		assert.Equal(serviceOut, resp.Out)
-	} else if serviceOut != "" {
-		assert.Fail("service was not available")
-	}
-}
-
-func (s *CatalogSuite) fillCatalog(c interface{}) (catalog.Closer, error) {
-	return catalog.Fill(context.Background(), catalog.Config{
-		Log: s.log,
-		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: "domain.test",
-		},
-		PluginConfig:  s.pluginConfig,
-		KnownPlugins:  s.knownPlugins,
-		KnownServices: s.knownServices,
-		BuiltIns:      s.builtins,
-		HostServices:  s.hostServices,
-	}, c)
-}
-
-func (s *CatalogSuite) loadCatalog() catalog.Catalog {
-	cat, err := catalog.Load(context.Background(), catalog.Config{
-		Log: s.log,
-		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: "domain.test",
-		},
-		PluginConfig:  s.pluginConfig,
-		KnownPlugins:  s.knownPlugins,
-		KnownServices: s.knownServices,
-		HostServices:  s.hostServices,
-		BuiltIns:      s.builtins,
 	})
-	s.Require().NoError(err)
-	return cat
+
+	t.Run("bad checksum", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Checksum = "NOT_A_CHECKSUM"
+			},
+			expectErr: `failed to load plugin "test": checksum is not a valid hex string`,
+		})
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Checksum = "DEADBEEF"
+			},
+			expectErr: `failed to load plugin "test": expected checksum of length 64; got 8`,
+		})
+	})
+
+	t.Run("not a plugin", func(t *testing.T) {
+		badPluginPath := buildTestPlugin(t, "./testplugin/bad.go")
+		testLoad(t, badPluginPath, loadTest{
+			expectErr: `failed to load plugin "test": failed to launch plugin: Unrecognized remote plugin message: 
+
+This usually means that the plugin is either invalid or simply
+needs to be recompiled to support the latest protocol.`,
+		})
+	})
+
+	t.Run("legacy", func(t *testing.T) {
+		legacyPluginPath := buildTestPlugin(t, "./testplugin/legacy.go")
+
+		t.Run("success with configure", func(t *testing.T) {
+			testLoad(t, legacyPluginPath, loadTest{
+				mutateConfig: func(config *catalog.Config) {
+					config.PluginConfigs[0].Data = `GOOD`
+				},
+				expectPluginClient:  true,
+				expectServiceClient: false, // legacy plugins don't support services
+			})
+		})
+		t.Run("configures even without configuration", func(t *testing.T) {
+			testLoad(t, legacyPluginPath, loadTest{
+				expectErr: `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
+			})
+		})
+		t.Run("failure to configure", func(t *testing.T) {
+			testLoad(t, legacyPluginPath, loadTest{
+				mutateConfig: func(config *catalog.Config) {
+					config.PluginConfigs[0].Data = `BAD`
+				},
+				expectErr: `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
+			})
+		})
+		t.Run("no legacy version", func(t *testing.T) {
+			testLoad(t, legacyPluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.legacyVersion = nil
+				},
+				expectErr: `failed to bind plugin "test": no legacy version available for plugin type "SomePlugin"`,
+			})
+		})
+	})
 }
 
-func (s *CatalogSuite) extPluginConfig() []catalog.PluginConfig {
-	return []catalog.PluginConfig{
-		{
-			Name:     "testext",
-			Type:     catalogtest.PluginType,
-			Path:     s.path,
-			Checksum: s.checksum,
-			Data:     "CONFIG",
+type loadTest struct {
+	registerConfigService bool
+	mutateConfig          func(*catalog.Config)
+	mutateRepo            func(*Repo)
+	mutatePluginRepo      func(*PluginRepo)
+	mutateServiceRepo     func(*ServiceRepo)
+	expectErr             string
+	expectPluginClient    bool
+	expectServiceClient   bool
+}
+
+func testPlugin(t *testing.T, pluginPath string) {
+	t.Run("binders", func(t *testing.T) {
+		t.Run("plugin repo binder cannot be nil", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.binder = nil
+				},
+				expectErr: "*catalog_test.PluginRepo has an invalid binder: binder cannot be nil",
+			})
+		})
+		t.Run("plugin repo binder is not a function", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.binder = 3
+				},
+				expectErr: "*catalog_test.PluginRepo has an invalid binder: binder is not a function",
+			})
+		})
+		t.Run("plugin repo binder does not accept an argument", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.binder = func() {}
+				},
+				expectErr: "*catalog_test.PluginRepo has an invalid binder: binder must accept one argument",
+			})
+		})
+		t.Run("plugin repo binder accepts too many arguments", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.binder = func(a, b int) {}
+				},
+				expectErr: "*catalog_test.PluginRepo has an invalid binder: binder must accept one argument",
+			})
+		})
+		t.Run("plugin repo facade is not assignable to binder argument", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.versions[0] = badVersion{}
+				},
+				expectErr: "*catalog_test.PluginRepo has an invalid binder: facade catalog_test.badFacade is not assignable to argument catalog_test.SomePlugin",
+			})
+		})
+		t.Run("plugin repo legacy version facade is not assignable to binder argument", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.legacyVersion = badVersion{}
+				},
+				expectErr: "*catalog_test.PluginRepo has an invalid binder: facade catalog_test.badFacade is not assignable to argument catalog_test.SomePlugin",
+			})
+		})
+		t.Run("service repo binder cannot be nil", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+					serviceRepo.binder = nil
+				},
+				expectErr: "*catalog_test.ServiceRepo has an invalid binder: binder cannot be nil",
+			})
+		})
+		t.Run("service repo binder is not a function", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+					serviceRepo.binder = 3
+				},
+				expectErr: "*catalog_test.ServiceRepo has an invalid binder: binder is not a function",
+			})
+		})
+		t.Run("service repo binder does not accept an argument", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+					serviceRepo.binder = func() {}
+				},
+				expectErr: "*catalog_test.ServiceRepo has an invalid binder: binder must accept one argument",
+			})
+		})
+		t.Run("service repo binder accepts too many arguments", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+					serviceRepo.binder = func(a, b int) {}
+				},
+				expectErr: "*catalog_test.ServiceRepo has an invalid binder: binder must accept one argument",
+			})
+		})
+		t.Run("service repo facade is not assignable to binder argument", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+					serviceRepo.versions[0] = badVersion{}
+				},
+				expectErr: "*catalog_test.ServiceRepo has an invalid binder: facade catalog_test.badFacade is not assignable to argument catalog_test.SomeService",
+			})
+		})
+	})
+	t.Run("load successful", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			expectPluginClient:  true,
+			expectServiceClient: true,
+		})
+	})
+	t.Run("unknown type", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Type = "Quz"
+			},
+			expectErr: `unsupported plugin type "Quz"`,
+		})
+	})
+	t.Run("plugin disabled", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Disabled = true
+			},
+			mutatePluginRepo: func(pluginRepo *PluginRepo) {
+				pluginRepo.constraints = catalog.Constraints{}
+			},
+		})
+	})
+	t.Run("configure success", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			registerConfigService: true,
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Data = "GOOD"
+			},
+			expectPluginClient:  true,
+			expectServiceClient: true,
+		})
+	})
+	t.Run("configure failure", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			registerConfigService: true,
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Data = "BAD"
+			},
+			expectErr: `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
+		})
+	})
+	t.Run("configure interface not registered but data supplied", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Data = "GOOD"
+			},
+			expectErr: `failed to configure plugin "test": no supported configuration interface found`,
+		})
+	})
+	t.Run("constraints", func(t *testing.T) {
+		t.Run("does not meet minimum", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.constraints = catalog.Constraints{Min: 2}
+				},
+				expectErr: `plugin type "SomePlugin" constraint not satisfied: expected at least 2 but got 1`,
+			})
+		})
+		t.Run("does not meet exact", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.constraints = catalog.Constraints{Min: 2, Max: 2}
+				},
+				expectErr: `plugin type "SomePlugin" constraint not satisfied: expected exactly 2 but got 1`,
+			})
+		})
+		t.Run("exceeds maximum", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateConfig: func(config *catalog.Config) {
+					config.PluginConfigs = append(config.PluginConfigs, config.PluginConfigs[0])
+				},
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.constraints = catalog.Constraints{Max: 1}
+				},
+				expectErr: `plugin type "SomePlugin" constraint not satisfied: expected at most 1 but got 2`,
+			})
+		})
+		t.Run("no minimum", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateConfig: func(config *catalog.Config) {
+					config.PluginConfigs = nil
+				},
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.constraints = catalog.Constraints{Min: 0, Max: 1}
+				},
+			})
+		})
+		t.Run("no maximum", func(t *testing.T) {
+			testLoad(t, pluginPath, loadTest{
+				mutateConfig: func(config *catalog.Config) {
+					for i := 0; i < 10; i++ {
+						config.PluginConfigs = append(config.PluginConfigs, config.PluginConfigs[0])
+					}
+				},
+				mutatePluginRepo: func(pluginRepo *PluginRepo) {
+					pluginRepo.constraints = catalog.Constraints{Min: 1, Max: 0}
+				},
+				expectPluginClient:  true,
+				expectServiceClient: true,
+			})
+		})
+	})
+}
+
+func testLoad(t *testing.T, pluginPath string, tt loadTest) {
+	log, _ := log_test.NewNullLogger()
+	config := catalog.Config{
+		Log:        log,
+		CoreConfig: coreConfig,
+		PluginConfigs: []catalog.PluginConfig{
+			{Name: "test", Type: "SomePlugin", Path: pluginPath},
+		},
+		HostServices: []catalog.HostServiceServer{
+			{ServiceServer: test.SomeHostServiceServiceServer(testplugin.SomeHostService{}), LegacyType: "SomeHostService"},
 		},
 	}
-}
 
-func (s *CatalogSuite) builtinConfig() []catalog.PluginConfig {
-	return []catalog.PluginConfig{
-		{
-			Name: "testbuiltin",
-			Type: catalogtest.PluginType,
-			Data: "CONFIG",
-		},
+	var builtIns []catalog.BuiltIn
+	if pluginPath == "" {
+		builtIns = append(builtIns, testplugin.BuiltIn(tt.registerConfigService))
+	} else if tt.registerConfigService {
+		config.PluginConfigs[0].Args = []string{"--registerConfig=true"}
+		config.PluginConfigs[0].Checksum = calculateChecksum(t, pluginPath)
 	}
-}
 
-func (s *CatalogSuite) assertHasLogEntries(entries []testLogEntry) {
-	for _, e := range entries {
-		s.assertHasLogEntry(e)
+	var somePlugin SomePlugin
+	pluginRepo := &PluginRepo{
+		binder:        func(f SomePlugin) { somePlugin = f },
+		clear:         func() { somePlugin = nil },
+		versions:      []catalog.Version{SomePluginVersion{}},
+		legacyVersion: LegacyPluginVersion{},
+		constraints:   catalog.Constraints{Min: 1, Max: 1},
+		builtIns:      builtIns,
 	}
-}
 
-func (s *CatalogSuite) assertHasLogEntry(e testLogEntry) {
-	for _, a := range s.logHook.AllEntries() {
-		if reflect.DeepEqual(testLogEntryFromEntry(a), e) {
-			return
+	var someService SomeService
+	serviceRepo := &ServiceRepo{
+		binder:   func(b SomeService) { someService = b },
+		versions: []catalog.Version{SomeServiceVersion{}},
+		clear:    func() { someService = nil },
+	}
+
+	repo := &Repo{
+		plugins:  map[string]catalog.PluginRepo{"SomePlugin": pluginRepo},
+		services: []catalog.ServiceRepo{serviceRepo},
+	}
+
+	if tt.mutateConfig != nil {
+		tt.mutateConfig(&config)
+	}
+	if tt.mutateRepo != nil {
+		tt.mutateRepo(repo)
+	}
+	if tt.mutatePluginRepo != nil {
+		tt.mutatePluginRepo(pluginRepo)
+	}
+	if tt.mutateServiceRepo != nil {
+		tt.mutateServiceRepo(serviceRepo)
+	}
+
+	closer, err := catalog.Load(context.Background(), config, repo)
+	if closer != nil {
+		defer closer.Close()
+	}
+
+	if tt.expectErr != "" {
+		require.EqualError(t, err, tt.expectErr, "load should have failed")
+		assert.Nil(t, closer, "closer should have been nil")
+	} else {
+		require.NoError(t, err, "load should not have failed")
+		assert.NotNil(t, closer, "closer should not have been nil")
+	}
+
+	if tt.expectPluginClient {
+		if assert.NotNil(t, somePlugin, "plugin client should have been initialized") {
+			assert.Equal(t, "test", somePlugin.Name())
+			assert.Equal(t, "SomePlugin", somePlugin.Type())
+			out, err := somePlugin.PluginEcho(context.Background(), "howdy")
+			if assert.NoError(t, err, "call to PluginEcho should have succeeded") {
+				// Assert that the echo response has:
+				// - initial message wrapped by the plugin, then
+				// - wrapped by the name of the plugin as obtained from the host service context, then
+				// - wrapped by the host service
+				assert.Equal(t, "hostService(test(plugin(howdy)))", out)
+			}
 		}
+	} else {
+		assert.Nil(t, somePlugin, "plugin client should not have been initialized")
 	}
-	s.Failf("no such log entry", "level=%q message=%q data=%q", e.Level, e.Message, e.Data)
-}
 
-func testLogEntryFromEntry(entry *logrus.Entry) testLogEntry {
-	// drop timestamp, since it is problematic to compare
-	delete(entry.Data, "timestamp")
-	return testLogEntry{
-		Level:   entry.Level,
-		Message: entry.Message,
-		Data:    entry.Data,
+	if tt.expectServiceClient {
+		if assert.NotNil(t, someService, "service client should have been initialized") {
+			assert.Equal(t, "test", someService.Name())
+			assert.Equal(t, "SomePlugin", someService.Type())
+			out, err := someService.ServiceEcho(context.Background(), "howdy")
+			if assert.NoError(t, err, "call to ServiceEcho should have succeeded") {
+				// Assert that the echo response has:
+				// - initial message wrapped by the service, then
+				// - wrapped by the name of the plugin as obtained from the host service context, then
+				// - wrapped by the host service
+				assert.Equal(t, "hostService(test(service(howdy)))", out)
+			}
+		}
+	} else {
+		assert.Nil(t, someService, "service client should not have been initialized")
 	}
 }
 
-func testBuiltIn() catalog.Plugin {
-	builtin := testBuiltInNoService()
-	builtin.Services = append(builtin.Services, catalogtest.ServiceServiceServer(test.NewService()))
-	return builtin
+func buildTestPlugin(t *testing.T, srcPath string) string {
+	dir := spiretest.TempDir(t)
+
+	pluginPath := filepath.Join(dir, "test")
+
+	buildOutput, err := exec.Command("go", "build", "-o", pluginPath, srcPath).CombinedOutput() //nolint: gosec // false positive
+	if err != nil {
+		t.Logf("build output:\n%s\n", string(buildOutput))
+		t.Fatal("failed to build test plugin")
+	}
+
+	return pluginPath
 }
 
-func testBuiltInNoService() catalog.Plugin {
-	return catalog.MakePlugin("testbuiltin",
-		catalogtest.PluginPluginServer(test.NewPlugin()),
-	)
-}
-
-func calculateChecksum(path string) (string, error) {
+func calculateChecksum(t *testing.T, path string) string {
 	f, err := os.Open(path)
+	require.NoError(t, err)
+	defer f.Close()
+
+	h := sha256.New()
+	_, err = io.Copy(h, f)
+	require.NoError(t, err)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+type Repo struct {
+	plugins  map[string]catalog.PluginRepo
+	services []catalog.ServiceRepo
+}
+
+func (r *Repo) Plugins() map[string]catalog.PluginRepo {
+	return r.plugins
+}
+
+func (r *Repo) Services() []catalog.ServiceRepo {
+	return r.services
+}
+
+type PluginRepo struct {
+	binder        interface{}
+	versions      []catalog.Version
+	clear         func()
+	constraints   catalog.Constraints
+	builtIns      []catalog.BuiltIn
+	legacyVersion catalog.Version
+}
+
+func (r *PluginRepo) Binder() interface{} {
+	return r.binder
+}
+
+func (r *PluginRepo) Versions() []catalog.Version {
+	return r.versions
+}
+
+func (r *PluginRepo) Clear() {
+	r.clear()
+}
+
+func (r *PluginRepo) LegacyVersion() (catalog.Version, bool) {
+	return r.legacyVersion, r.legacyVersion != nil
+}
+
+func (r *PluginRepo) Constraints() catalog.Constraints {
+	return r.constraints
+}
+
+func (r *PluginRepo) BuiltIns() []catalog.BuiltIn {
+	return r.builtIns
+}
+
+type ServiceRepo struct {
+	binder   interface{}
+	versions []catalog.Version
+	clear    func()
+}
+
+func (r *ServiceRepo) Binder() interface{} {
+	return r.binder
+}
+
+func (r *ServiceRepo) Versions() []catalog.Version {
+	return r.versions
+}
+
+func (r *ServiceRepo) Clear() {
+	r.clear()
+}
+
+type SomePlugin interface {
+	catalog.PluginInfo
+	PluginEcho(ctx context.Context, in string) (string, error)
+}
+
+type SomePluginFacade struct {
+	plugin.Facade
+	test.SomePluginPluginClient
+}
+
+func (f *SomePluginFacade) PluginEcho(ctx context.Context, in string) (string, error) {
+	resp, err := f.SomePluginPluginClient.PluginEcho(context.Background(), &test.EchoRequest{In: in})
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err = io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return resp.Out, nil
 }
 
-func extInitLogs(module string) []testLogEntry {
-	return []testLogEntry{
-		{
-			Level:   logrus.InfoLevel,
-			Message: "Configure called",
-			Data: logrus.Fields{
-				"@module":               module,
-				"config":                "CONFIG",
-				telemetry.SubsystemName: "external_plugin.testext.pluginbin",
-				"trustdomain":           "domain.test",
-			},
-		},
-		{
-			Level:   logrus.InfoLevel,
-			Message: "Plugin loaded",
-			Data: logrus.Fields{
-				telemetry.PluginBuiltIn:  false,
-				telemetry.PluginName:     "testext",
-				telemetry.PluginServices: []string{"Service"},
-				telemetry.PluginType:     "Plugin",
-			},
-		},
-	}
+type SomePluginVersion struct {
+	deprecated bool
 }
+
+func (v SomePluginVersion) New() catalog.Facade { return new(SomePluginFacade) }
+
+func (v SomePluginVersion) Deprecated() bool { return v.deprecated }
+
+type LegacyPluginFacade struct {
+	plugin.Facade
+	legacyplugin.SomePluginPluginClient
+}
+
+func (f *LegacyPluginFacade) PluginEcho(ctx context.Context, in string) (string, error) {
+	resp, err := f.SomePluginPluginClient.PluginEcho(context.Background(), &legacyplugin.EchoRequest{In: in})
+	if err != nil {
+		return "", err
+	}
+	return resp.Out, nil
+}
+
+type LegacyPluginVersion struct {
+	deprecated bool
+}
+
+func (v LegacyPluginVersion) New() catalog.Facade { return new(LegacyPluginFacade) }
+
+func (v LegacyPluginVersion) Deprecated() bool { return v.deprecated }
+
+type SomeService interface {
+	catalog.PluginInfo
+	ServiceEcho(ctx context.Context, in string) (string, error)
+}
+
+type SomeServiceFacade struct {
+	test.SomeServiceServiceClient
+	plugin.Facade
+}
+
+func (f *SomeServiceFacade) ServiceEcho(ctx context.Context, in string) (string, error) {
+	resp, err := f.SomeServiceServiceClient.ServiceEcho(context.Background(), &test.EchoRequest{In: in})
+	if err != nil {
+		return "", err
+	}
+	return resp.Out, nil
+}
+
+type SomeServiceVersion struct {
+	deprecated bool
+}
+
+func (v SomeServiceVersion) New() catalog.Facade { return new(SomeServiceFacade) }
+
+func (v SomeServiceVersion) Deprecated() bool { return v.deprecated }
+
+type badVersion struct{}
+
+func (v badVersion) New() catalog.Facade { return badFacade{} }
+
+func (v badVersion) Deprecated() bool { return false }
+
+type badFacade struct{}
+
+func (badFacade) GRPCServiceName() string                              { return "bad" }
+func (badFacade) InitClient(conn grpc.ClientConnInterface) interface{} { return nil }
+func (badFacade) InitInfo(info catalog.PluginInfo)                     {}
+func (badFacade) InitLog(log logrus.FieldLogger)                       {}

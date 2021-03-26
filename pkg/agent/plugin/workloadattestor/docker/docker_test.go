@@ -17,11 +17,10 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/test/clock"
 	mock_docker "github.com/spiffe/spire/test/mock/agent/plugin/workloadattestor/docker"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -335,26 +334,21 @@ container_id_cgroup_matchers = [
 	})
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
-		cfg := &spi.ConfigureRequest{
-			Configuration: `
+		cfg := `
 container_id_cgroup_matchers = [
 	"/docker/",
-]`,
-		}
-
-		_, err := doConfigure(t, p, cfg)
+]`
+		err := doConfigure(t, p, cfg)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `must contain the container id token "<id>" exactly once`)
 	})
 	t.Run("bad hcl", func(t *testing.T) {
 		p := New()
-		cfg := &spi.ConfigureRequest{
-			Configuration: `
+		cfg := `
 container_id_cgroup_matchers = [
-	"/docker/"`,
-		}
+	"/docker/"`
 
-		_, err := doConfigure(t, p, cfg)
+		err := doConfigure(t, p, cfg)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "error parsing list, expected comma or list end")
 	})
@@ -374,19 +368,17 @@ func doAttest(t *testing.T, p *Plugin, req *workloadattestorv0.AttestRequest) (*
 }
 
 func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
-	var wp workloadattestor.V0
-	spiretest.LoadPlugin(t, builtin(p), &wp)
-	return wp.Plugin.Attest(ctx, req)
+	wp := new(workloadattestor.V0)
+	plugintest.Load(t, builtin(p), wp)
+	return wp.WorkloadAttestorPluginClient.Attest(ctx, req)
 }
 
-func doConfigure(t *testing.T, p *Plugin, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	// This is temporary hack to get at the configuration interface. It will
-	// change with the catalog refactor and v1 version introduction.
-	var config interface {
-		Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	}
-	spiretest.LoadPlugin(t, builtin(p), &config)
-	return config.Configure(context.Background(), req)
+func doConfigure(t *testing.T, p *Plugin, cfg string) error {
+	var err error
+	plugintest.Load(t, builtin(p), new(workloadattestor.V0),
+		plugintest.Configure(cfg),
+		plugintest.CaptureConfigureError(&err))
+	return err
 }
 
 type testPluginOpt func(*Plugin)
@@ -418,20 +410,15 @@ func withDisabledRetryer() testPluginOpt {
 // this must be the first plugin opt
 func withConfig(t *testing.T, cfg string) testPluginOpt {
 	return func(p *Plugin) {
-		cfgReq := &spi.ConfigureRequest{
-			Configuration: cfg,
-		}
-		resp, err := doConfigure(t, p, cfgReq)
+		err := doConfigure(t, p, cfg)
 		require.NoError(t, err)
-		require.NotNil(t, resp)
 	}
 }
 
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
-	resp, err := doConfigure(t, p, &spi.ConfigureRequest{})
+	err := doConfigure(t, p, "")
 	require.NoError(t, err)
-	require.NotNil(t, resp)
 
 	for _, o := range opts {
 		o(p)

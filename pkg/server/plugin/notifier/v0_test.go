@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -63,13 +64,13 @@ func TestV0(t *testing.T) {
 }
 
 func loadV0Plugin(t *testing.T, expectedReq proto.Message, err error) notifier.Notifier {
-	server := notifierv0.PluginServer(&v0Plugin{
+	server := notifierv0.NotifierPluginServer(&v0Plugin{
 		expectedReq: expectedReq,
 		err:         err,
 	})
 
-	var v0 notifier.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test", server), &v0)
+	v0 := new(notifier.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), v0)
 	return v0
 }
 

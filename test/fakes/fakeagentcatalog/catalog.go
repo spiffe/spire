@@ -1,28 +1,23 @@
 package fakeagentcatalog
 
 import (
-	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 )
 
-type Catalog struct {
-	catalog.Plugins
-}
-
 func New() *Catalog {
-	return &Catalog{}
+	return new(Catalog)
 }
 
-func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
-	c.KeyManager = keyManager
+type Catalog struct {
+	keyManagerRepository
+	nodeAttestorRepository
+	workloadAttestorRepository
 }
 
-func (c *Catalog) SetNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
-	c.NodeAttestor = nodeAttestor
-}
-
-func (c *Catalog) SetWorkloadAttestors(workloadAttestors ...workloadattestor.WorkloadAttestor) {
-	c.WorkloadAttestors = workloadAttestors
-}
+// We need distinct type names to embed in the Catalog above, since they types
+// we want to actually embed are all named the same.
+type keyManagerRepository struct{ keymanager.Repository }
+type nodeAttestorRepository struct{ nodeattestor.Repository }
+type workloadAttestorRepository struct{ workloadattestor.Repository }

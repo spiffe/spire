@@ -8,17 +8,17 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 )
 
 func New(t *testing.T, name string, selectors map[string][]string) noderesolver.NodeResolver {
-	server := noderesolverv0.PluginServer(&nodeResolver{
+	server := noderesolverv0.NodeResolverPluginServer(&nodeResolver{
 		name:      name,
 		selectors: selectors,
 	})
 
-	var v0 noderesolver.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin(name, server), &v0)
+	v0 := new(noderesolver.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn(name, server), v0)
 	return v0
 }
 

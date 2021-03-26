@@ -18,12 +18,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *KeyManager) catalog.Plugin {
-	return catalog.MakePlugin("disk", keymanagerv0.PluginServer(p))
+func builtin(p *KeyManager) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("disk", keymanagerv0.KeyManagerPluginServer(p))
 }
 
 type configuration struct {

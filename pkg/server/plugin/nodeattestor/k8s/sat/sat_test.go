@@ -20,12 +20,14 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -73,7 +75,7 @@ type AttestorSuite struct {
 	barKey     *ecdsa.PrivateKey
 	barSigner  jose.Signer
 	bazSigner  jose.Signer
-	attestor   nodeattestorv0.Plugin
+	attestor   nodeattestorv0.NodeAttestorClient
 	agentStore *fakeagentstore.AgentStore
 	mockCtrl   *gomock.Controller
 	mockClient *k8s_apiserver_mock.MockClient
@@ -452,19 +454,19 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 	return token
 }
 
-func (s *AttestorSuite) newAttestor() nodeattestorv0.Plugin {
+func (s *AttestorSuite) newAttestor() nodeattestorv0.NodeAttestorClient {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(attestor), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
-func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
+func (s *AttestorSuite) configureAttestor() nodeattestorv0.NodeAttestorClient {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
@@ -491,18 +493,18 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
 	attestor.config.clusters["BAR"].client = s.mockClient
 
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(attestor), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
 func (s *AttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.Plugin, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
+func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestorClient, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 

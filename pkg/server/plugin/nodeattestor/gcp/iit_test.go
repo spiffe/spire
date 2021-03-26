@@ -11,11 +11,13 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
@@ -53,7 +55,7 @@ type IITAttestorSuite struct {
 	spiretest.Suite
 
 	agentStore *fakeagentstore.AgentStore
-	p          nodeattestorv0.Plugin
+	p          nodeattestorv0.NodeAttestorClient
 
 	client *fakeComputeEngineClient
 }
@@ -420,16 +422,16 @@ func (s *IITAttestorSuite) TestFailToRecvStream() {
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
-func (s *IITAttestorSuite) newPlugin() nodeattestorv0.Plugin {
+func (s *IITAttestorSuite) newPlugin() nodeattestorv0.NodeAttestorClient {
 	p := New()
 	p.tokenKeyRetriever = testKeyRetriever{}
 	p.client = s.client
 
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(p), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(p), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
 func (s *IITAttestorSuite) configure() {

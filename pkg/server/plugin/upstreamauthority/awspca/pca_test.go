@@ -15,9 +15,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/acmpca"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"google.golang.org/grpc/codes"
@@ -55,7 +57,7 @@ type PCAPluginSuite struct {
 	pcaClientFake *pcaClientFake
 	rawPlugin     *PCAPlugin
 	// The plugin under test
-	plugin upstreamauthorityv0.Plugin
+	plugin upstreamauthorityv0.UpstreamAuthorityClient
 }
 
 func (as *PCAPluginSuite) SetupTest() {
@@ -71,7 +73,10 @@ func (as *PCAPluginSuite) SetupTest() {
 	plugin.hooks.clock = as.clock
 	plugin.SetLogger(hclog.Default())
 	as.rawPlugin = plugin
-	as.LoadPlugin(builtin(plugin), &as.plugin)
+
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(as.T(), builtin(plugin), v0)
+	as.plugin = v0.UpstreamAuthorityClient
 }
 
 func (as *PCAPluginSuite) Test_GetPluginInfo() {

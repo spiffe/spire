@@ -152,6 +152,9 @@ const (
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
 
+	// DeprecatedServiceName tags the deprecated service name
+	DeprecatedServiceName = "deprecated_service_name"
+
 	// DiscoveredSelectors tags selectors for some registration
 	DiscoveredSelectors = "discovered_selectors"
 
@@ -175,6 +178,9 @@ const (
 	// ExpiryCheckDuration tags duration for an expiry check; should be used with other tags
 	// to add clarity
 	ExpiryCheckDuration = "expiry_check_duration"
+
+	// External tag something as external (e.g. external plugin)
+	External = "external"
 
 	// FederatedAdded labels some count of federated bundles that have been added to an entity
 	FederatedAdded = "fed_add"
@@ -222,14 +228,6 @@ const (
 	// PID declares some process ID
 	PID = "pid"
 
-	// PluginBuiltIn flags whether or not a plugin is built-in, or tags part of
-	// the loading of built-in plugins
-	PluginBuiltIn = "built-in_plugin"
-
-	// PluginExternal flags whether or not a plugin is external, or tags part of
-	// the loading of external plugins
-	PluginExternal = "external_plugin"
-
 	// PluginName tags name of some plugin
 	PluginName = "plugin_name"
 
@@ -241,6 +239,9 @@ const (
 
 	// PluginType tags type of some plugin
 	PluginType = "plugin_type"
+
+	// PreferredServiceName tags the preferred service name
+	PreferredServiceName = "preferred_service_name"
 
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"

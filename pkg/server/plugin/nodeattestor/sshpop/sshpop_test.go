@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )
@@ -22,7 +24,7 @@ func TestSSHPoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p         nodeattestorv0.Plugin
+	p         nodeattestorv0.NodeAttestorClient
 	sshclient *sshpop.Client
 	sshserver *sshpop.Server
 }
@@ -32,10 +34,10 @@ func (s *Suite) SetupTest() {
 	s.configure()
 }
 
-func (s *Suite) newPlugin() nodeattestorv0.Plugin {
-	var p nodeattestorv0.Plugin
-	s.LoadPlugin(BuiltIn(), &p)
-	return p
+func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), BuiltIn(), v0)
+	return v0.NodeAttestorClient
 }
 
 func (s *Suite) configure() {

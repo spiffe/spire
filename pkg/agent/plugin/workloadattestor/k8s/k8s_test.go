@@ -20,12 +20,14 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,7 +146,7 @@ type Suite struct {
 
 	dir   string
 	clock *clock.Mock
-	p     workloadattestorv0.Plugin
+	p     workloadattestorv0.WorkloadAttestorClient
 
 	podList [][]byte
 	env     map[string]string
@@ -626,7 +628,7 @@ func (s *Suite) TestGetPluginInfo() {
 	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
 }
 
-func (s *Suite) newPlugin() (*Plugin, workloadattestorv0.Plugin) {
+func (s *Suite) newPlugin() (*Plugin, workloadattestorv0.WorkloadAttestorClient) {
 	p := New()
 	p.fs = testFS(s.dir)
 	p.clock = s.clock
@@ -634,9 +636,9 @@ func (s *Suite) newPlugin() (*Plugin, workloadattestorv0.Plugin) {
 		return s.env[key]
 	}
 
-	var wp workloadattestorv0.Plugin
-	s.LoadPlugin(builtin(p), &wp)
-	return p, wp
+	v0 := new(workloadattestor.V0)
+	plugintest.Load(s.T(), builtin(p), v0)
+	return p, v0.WorkloadAttestorPluginClient
 }
 
 func (s *Suite) setServer(server *httptest.Server) {

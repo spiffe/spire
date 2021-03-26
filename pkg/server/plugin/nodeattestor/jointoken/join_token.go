@@ -9,13 +9,13 @@ import (
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("join_token",
-		nodeattestorv0.PluginServer(p),
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("join_token",
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 

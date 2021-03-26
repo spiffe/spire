@@ -6,119 +6,83 @@ import (
 	"sync"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 )
 
-type BuiltInPlugin struct {
-	Log          logrus.FieldLogger
-	Plugin       Plugin
-	HostServices []HostServiceServer
+type BuiltIn struct {
+	Name     string
+	Plugin   pluginsdk.PluginServer
+	Services []pluginsdk.ServiceServer
 }
 
-// LoadBuiltIn loads a builtin plugin.
-func LoadBuiltInPlugin(ctx context.Context, builtin BuiltInPlugin) (plugin *LoadedPlugin, err error) {
-	if builtin.Log == nil {
-		builtin.Log = newDiscardingLogger()
+func MakeBuiltIn(name string, pluginServer pluginsdk.PluginServer, serviceServers ...pluginsdk.ServiceServer) BuiltIn {
+	return BuiltIn{
+		Name:     name,
+		Plugin:   pluginServer,
+		Services: serviceServers,
+	}
+}
+
+type BuiltInConfig struct {
+	// Log is the logger to be wired to the external plugin.
+	Log logrus.FieldLogger
+
+	// HostServices are the host service servers provided to the plugin.
+	HostServices []pluginsdk.ServiceServer
+}
+
+func LoadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ Plugin, err error) {
+	return loadBuiltIn(ctx, builtIn, config)
+}
+
+func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ *pluginImpl, err error) {
+	builtinServer := newBuiltInServer()
+
+	// TODO: this won't be necessary once legacy plugins are no longer supported
+	hostServices := make([]HostServiceServer, 0, len(config.HostServices))
+	for _, hostService := range config.HostServices {
+		hostServices = append(hostServices, HostServiceServer{ServiceServer: hostService})
 	}
 
-	// The stutter on this statement is unforgivable but it is the only
-	// statement where this happens and renaming the fields would break
-	// consistency with other field names.
-	pluginClient := builtin.Plugin.Plugin.PluginClient()
+	logger := log.NewHCLogAdapter(
+		config.Log,
+		builtIn.Name,
+	)
 
-	knownServices := make([]ServiceClient, 0, len(builtin.Plugin.Services))
-	for _, service := range builtin.Plugin.Services {
-		knownServices = append(knownServices, service.ServiceClient())
+	dialer := &builtinDialer{
+		pluginName:   builtIn.Name,
+		log:          config.Log,
+		hostServices: hostServices,
 	}
 
-	// set up a group of closers we'll build as we go. if there is an error
-	// we'll close everything so far, otherwise it will be used as the
-	// closer for the catalog plugin.
-	var wg sync.WaitGroup
-	closers := newCloserGroup(wg.Wait)
+	var closers closerGroup
 	defer func() {
 		if err != nil {
 			closers.Close()
 		}
 	}()
+	closers = append(closers, dialer)
 
-	// create a pipe from the builtin to the host
-	hostNet := NewPipeNet()
-	closers.AddCloser(hostNet)
+	pluginServers := append([]pluginsdk.ServiceServer{builtIn.Plugin}, builtIn.Services...)
 
-	// create a host server to serve host services.
-	hostServer := NewHostServer(builtin.Plugin.Name, nil, builtin.HostServices)
-	closers.AddFunc(hostServer.Stop)
+	private.Register(builtinServer, pluginServers, logger, dialer)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := hostServer.Serve(hostNet); err != nil {
-			builtin.Log.WithError(err).Warn("Host server failed to serve")
-		}
-	}()
-
-	// dial the host. the address is ignored.
-	hostConn, err := grpc.Dial("host", grpc.WithInsecure(), grpc.WithContextDialer(hostNet.DialContext))
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	closers.AddCloser(hostConn)
-
-	// create a pipe from the host to the builtin
-	builtinNet := NewPipeNet()
-	closers.AddCloser(builtinNet)
-
-	// create a gRPC server to serve the plugin and services over
-	builtinServer := newBuiltInServer()
-	closers.AddFunc(builtinServer.Stop)
-
-	logger := log.NewHCLogAdapter(
-		builtin.Log,
-		telemetry.PluginBuiltIn,
-	).Named(builtin.Plugin.Name)
-
-	initPluginServer(
-		builtinServer,
-		&builtinDialer{hostConn: hostConn},
-		logger,
-		builtin.Plugin.Plugin,
-		builtin.Plugin.Services,
-	)
-
-	// now start the built in server
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := builtinServer.Serve(builtinNet); err != nil {
-			builtin.Log.WithError(err).Warn("Builtin server failed to serve")
-		}
-	}()
-
-	// dial the builtin. the address is ignored.
-	builtinConn, err := grpc.Dial("builtin", grpc.WithInsecure(), grpc.WithContextDialer(builtinNet.DialContext))
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	closers.AddCloser(builtinConn)
-
-	plugin, err = newCatalogPlugin(ctx, builtinConn, catalogPluginConfig{
-		Log:           builtin.Log,
-		Name:          builtin.Plugin.Name,
-		BuiltIn:       true,
-		Plugin:        pluginClient,
-		KnownServices: knownServices,
-		HostServices:  builtin.HostServices,
-	})
+	builtinConn, err := startPipeServer(builtinServer, config.Log)
 	if err != nil {
 		return nil, err
 	}
+	closers = append(closers, builtinConn)
 
-	plugin.closer = closers.Close
-	return plugin, nil
+	info := pluginInfo{
+		name: builtIn.Name,
+		typ:  builtIn.Plugin.Type(),
+	}
+
+	return newPlugin(ctx, builtinConn, info, config.Log, closers, hostServices)
 }
 
 func newBuiltInServer() *grpc.Server {
@@ -129,37 +93,63 @@ func newBuiltInServer() *grpc.Server {
 }
 
 type builtinDialer struct {
-	hostConn *grpc.ClientConn
+	pluginName   string
+	log          logrus.FieldLogger
+	hostServices []HostServiceServer
+	conn         *pipeConn
 }
 
-func (d *builtinDialer) DialHost() (*grpc.ClientConn, error) {
-	return d.hostConn, nil
-}
-
-type closerGroup struct {
-	closers []func()
-}
-
-func newCloserGroup(closers ...func()) *closerGroup {
-	return &closerGroup{
-		closers: closers,
+func (d *builtinDialer) DialHost(ctx context.Context) (grpc.ClientConnInterface, error) {
+	if d.conn != nil {
+		return d.conn, nil
 	}
-}
-
-func (cg *closerGroup) AddFunc(closer func()) {
-	cg.closers = append(cg.closers, closer)
-}
-
-func (cg *closerGroup) AddCloser(closer io.Closer) {
-	cg.AddFunc(func() {
-		// purposefully discard the error
-		closer.Close()
-	})
-}
-
-func (cg *closerGroup) Close() {
-	// close in reverse order
-	for i := len(cg.closers) - 1; i >= 0; i-- {
-		cg.closers[i]()
+	server := newHostServer(d.pluginName, d.hostServices)
+	conn, err := startPipeServer(server, d.log)
+	if err != nil {
+		return nil, err
 	}
+	d.conn = conn
+	return d.conn, nil
+}
+
+func (d *builtinDialer) Close() error {
+	if d.conn != nil {
+		return d.conn.Close()
+	}
+	return nil
+}
+
+type pipeConn struct {
+	grpc.ClientConnInterface
+	io.Closer
+}
+
+func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, err error) {
+	var closers closerGroup
+
+	pipeNet := newPipeNet()
+	closers = append(closers, pipeNet)
+
+	var wg sync.WaitGroup
+	closers = append(closers, closerFunc(wg.Wait), closerFunc(server.Stop))
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := server.Serve(pipeNet); err != nil && err != grpc.ErrServerStopped {
+			log.WithError(err).Warn("Pipe server unexpectedly failed to serve")
+		}
+	}()
+
+	// Dial the server
+	conn, err := grpc.Dial("IGNORED", grpc.WithBlock(), grpc.WithInsecure(), grpc.WithContextDialer(pipeNet.DialContext))
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+	closers = append(closers, conn)
+
+	return &pipeConn{
+		ClientConnInterface: conn,
+		Closer:              closers,
+	}, nil
 }

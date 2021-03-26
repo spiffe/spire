@@ -26,12 +26,12 @@ const (
 	defaultServiceAccount        = "default"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *IITAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(gcp.PluginName, nodeattestorv0.PluginServer(p))
+func builtin(p *IITAttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(gcp.PluginName, nodeattestorv0.NodeAttestorPluginServer(p))
 }
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.

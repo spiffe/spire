@@ -28,13 +28,13 @@ const (
 	pluginName = "awssecret"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		upstreamauthorityv0.PluginServer(p),
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		upstreamauthorityv0.UpstreamAuthorityPluginServer(p),
 	)
 }
 

@@ -14,9 +14,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -55,17 +56,16 @@ func setupTest(t *testing.T) *pluginTest {
 
 	c := clock.NewMock()
 	fakeClient := newKMSClientFake(t, c)
-	kmsPlugin := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
+	p := newPlugin(func(ctx context.Context, c *Config) (kmsClient, error) {
 		return fakeClient, nil
 	})
-	kmsCatalog := catalog.MakePlugin(pluginName, keymanagerv0.PluginServer(kmsPlugin))
-	var km keymanagerv0.KeyManager
-	spiretest.LoadPlugin(t, kmsCatalog, &km, spiretest.Logger(log))
+	km := new(keymanager.V0)
+	plugintest.Load(t, builtin(p), km, plugintest.Log(log))
 
-	kmsPlugin.hooks.clk = c
+	p.hooks.clk = c
 
 	return &pluginTest{
-		plugin:     kmsPlugin,
+		plugin:     p,
 		fakeClient: fakeClient,
 		logHook:    logHook,
 		clockHook:  c,
@@ -303,8 +303,7 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.DebugLevel,
 					Message: "Key deleted",
 					Data: logrus.Fields{
-						keyArnTag:        KeyArn,
-						"subsystem_name": "built-in_plugin.aws_kms",
+						keyArnTag: KeyArn,
 					},
 				},
 			},
@@ -428,9 +427,8 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to schedule key deletion",
 					Data: logrus.Fields{
-						reasonTag:        "No such key",
-						keyArnTag:        KeyArn,
-						"subsystem_name": "built-in_plugin.aws_kms",
+						reasonTag: "No such key",
+						keyArnTag: KeyArn,
 					},
 				},
 			},
@@ -457,9 +455,8 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to schedule key deletion",
 					Data: logrus.Fields{
-						reasonTag:        "Invalid ARN",
-						keyArnTag:        KeyArn,
-						"subsystem_name": "built-in_plugin.aws_kms",
+						reasonTag: "Invalid ARN",
+						keyArnTag: KeyArn,
 					},
 				},
 			},
@@ -487,9 +484,8 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to schedule key deletion",
 					Data: logrus.Fields{
-						reasonTag:        "Key was on invalid state for deletion",
-						keyArnTag:        KeyArn,
-						"subsystem_name": "built-in_plugin.aws_kms",
+						reasonTag: "Key was on invalid state for deletion",
+						keyArnTag: KeyArn,
 					},
 				},
 			},
@@ -517,17 +513,15 @@ func TestGenerateKey(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "It was not possible to schedule key for deletion",
 					Data: logrus.Fields{
-						keyArnTag:        KeyArn,
-						"reason":         "schedule key deletion error",
-						"subsystem_name": "built-in_plugin.aws_kms",
+						keyArnTag: KeyArn,
+						"reason":  "schedule key deletion error",
 					},
 				},
 				{
 					Level:   logrus.DebugLevel,
 					Message: "Key re-enqueued for deletion",
 					Data: logrus.Fields{
-						keyArnTag:        KeyArn,
-						"subsystem_name": "built-in_plugin.aws_kms",
+						keyArnTag: KeyArn,
 					},
 				},
 			},

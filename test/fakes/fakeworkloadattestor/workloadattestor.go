@@ -9,15 +9,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 )
 
 func New(t *testing.T, name string, pids map[int32][]*common.Selector) workloadattestor.WorkloadAttestor {
-	plugin := &workloadAttestor{
+	server := workloadattestorv0.WorkloadAttestorPluginServer(&workloadAttestor{
 		pids: pids,
-	}
-	var wa workloadattestor.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin(name, workloadattestorv0.PluginServer(plugin)), &wa)
+	})
+	wa := new(workloadattestor.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn(name, server), wa)
 	return wa
 }
 

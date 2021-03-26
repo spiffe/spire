@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupMetricsService() (metricsv0.MetricsService, *fakemetrics.FakeMetrics) {
+func setupMetricsService() (metricsv0.MetricsServiceServer, *fakemetrics.FakeMetrics) {
 	metrics := fakemetrics.New()
 	return New(Config{
 		Metrics: metrics,

@@ -1928,7 +1928,7 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 	attestorConfig.Challenges = map[string][]string{"id_with_challenge": {"challenge_response"}}
 
 	fakeNodeAttestor := fakeservernodeattestor.New(t, "test_type", attestorConfig)
-	s.cat.AddNodeAttestor(fakeNodeAttestor)
+	s.cat.SetNodeAttestor(fakeNodeAttestor)
 }
 
 func (s *serviceTest) setupResolver(t *testing.T) {
@@ -1938,7 +1938,7 @@ func (s *serviceTest) setupResolver(t *testing.T) {
 	}
 
 	fakeNodeResolver := fakenoderesolver.New(t, "test_type", selectors)
-	s.cat.AddNodeResolverNamed(fakeNodeResolver)
+	s.cat.SetNodeResolver(fakeNodeResolver)
 }
 
 func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {

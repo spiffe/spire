@@ -14,15 +14,14 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin keymanagerv0.KeyManager
+	keymanagerv0.KeyManagerPluginClient
 }
 
-func (v0 V0) GenerateKey(ctx context.Context, id string, keyType KeyType) (Key, error) {
+func (v0 *V0) GenerateKey(ctx context.Context, id string, keyType KeyType) (Key, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
-	resp, err := v0.Plugin.GenerateKey(ctx, &keymanagerv0.GenerateKeyRequest{
+	resp, err := v0.KeyManagerPluginClient.GenerateKey(ctx, &keymanagerv0.GenerateKeyRequest{
 		KeyId:   id,
 		KeyType: v0KeyType(keyType),
 	})
@@ -33,11 +32,11 @@ func (v0 V0) GenerateKey(ctx context.Context, id string, keyType KeyType) (Key, 
 	return v0.makeKey(id, resp.PublicKey)
 }
 
-func (v0 V0) GetKey(ctx context.Context, id string) (Key, error) {
+func (v0 *V0) GetKey(ctx context.Context, id string) (Key, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
-	resp, err := v0.Plugin.GetPublicKey(ctx, &keymanagerv0.GetPublicKeyRequest{
+	resp, err := v0.KeyManagerPluginClient.GetPublicKey(ctx, &keymanagerv0.GetPublicKeyRequest{
 		KeyId: id,
 	})
 	switch {
@@ -50,11 +49,11 @@ func (v0 V0) GetKey(ctx context.Context, id string) (Key, error) {
 	}
 }
 
-func (v0 V0) GetKeys(ctx context.Context) ([]Key, error) {
+func (v0 *V0) GetKeys(ctx context.Context) ([]Key, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
-	resp, err := v0.Plugin.GetPublicKeys(ctx, &keymanagerv0.GetPublicKeysRequest{})
+	resp, err := v0.KeyManagerPluginClient.GetPublicKeys(ctx, &keymanagerv0.GetPublicKeysRequest{})
 	if err != nil {
 		return nil, v0.WrapErr(err)
 	}
@@ -70,7 +69,7 @@ func (v0 V0) GetKeys(ctx context.Context) ([]Key, error) {
 	return keys, nil
 }
 
-func (v0 V0) makeKey(id string, pb *keymanagerv0.PublicKey) (Key, error) {
+func (v0 *V0) makeKey(id string, pb *keymanagerv0.PublicKey) (Key, error) {
 	switch {
 	case pb == nil:
 		return nil, v0.Errorf(codes.Internal, "plugin response missing public key for public key %q", id)
@@ -93,7 +92,7 @@ func (v0 V0) makeKey(id string, pb *keymanagerv0.PublicKey) (Key, error) {
 }
 
 type v0Key struct {
-	v0        V0
+	v0        *V0
 	id        string
 	publicKey crypto.PublicKey
 }
@@ -135,7 +134,7 @@ func (s *v0Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 		}
 	}
 
-	resp, err := s.v0.Plugin.SignData(ctx, req)
+	resp, err := s.v0.KeyManagerPluginClient.SignData(ctx, req)
 	if err != nil {
 		return nil, s.v0.WrapErr(err)
 	}
