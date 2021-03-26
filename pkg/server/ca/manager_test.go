@@ -226,7 +226,7 @@ func (s *ManagerSuite) TestUpstreamAuthorityWithPublishJWTKeyImplemented() {
 }
 
 func (s *ManagerSuite) TestX509CARotation() {
-	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(s.T())
 	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
@@ -324,7 +324,7 @@ func (s *ManagerSuite) TestX509CARotationMetric() {
 }
 
 func (s *ManagerSuite) TestJWTKeyRotation() {
-	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(s.T())
 	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
@@ -397,7 +397,7 @@ func (s *ManagerSuite) TestJWTKeyRotation() {
 }
 
 func (s *ManagerSuite) TestPrune() {
-	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(s.T())
 	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
@@ -463,18 +463,15 @@ func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
 	defer cancel()
 
 	var actual *common.Bundle
-	s.setNotifier(fakenotifier.New(fakenotifier.Config{
-		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
-			if event, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
-				actual = event.BundleLoaded.Bundle
-			}
-			// cancel immediately
+	s.setNotifier(fakenotifier.New(s.T(), fakenotifier.Config{
+		OnNotifyAndAdviseBundleLoaded: func(bundle *common.Bundle) error {
+			actual = bundle
 			cancel()
-			return &notifier.NotifyAndAdviseResponse{}, nil
+			return nil
 		},
 	}))
 
-	s.Require().NoError(s.m.Run(ctx))
+	s.Require().EqualError(s.m.Run(ctx), "one or more notifiers returned an error: rpc error: code = Canceled desc = notifier(fake): context canceled")
 
 	// make sure the event contained the bundle
 	expected := s.fetchBundle()
@@ -483,9 +480,9 @@ func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
 
 func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	s.m = NewManager(s.selfSignedConfig())
-	s.setNotifier(fakenotifier.New(fakenotifier.Config{
-		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
-			return nil, errors.New("ohno")
+	s.setNotifier(fakenotifier.New(s.T(), fakenotifier.Config{
+		OnNotifyAndAdviseBundleLoaded: func(bundle *common.Bundle) error {
+			return errors.New("ohno")
 		},
 	}))
 
@@ -495,12 +492,12 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	err = s.m.Run(ctx)
-	s.Require().EqualError(err, "one or more notifiers returned an error: ohno")
+	s.Require().EqualError(err, "one or more notifiers returned an error: rpc error: code = Unknown desc = notifier(fake): ohno")
 
 	entry := s.logHook.LastEntry()
 	s.Equal("fake", entry.Data["notifier"])
 	s.Equal("bundle loaded", entry.Data["event"])
-	s.Equal("ohno", fmt.Sprintf("%v", entry.Data["error"]))
+	s.Equal("rpc error: code = Unknown desc = notifier(fake): ohno", fmt.Sprintf("%v", entry.Data["error"]))
 	s.Equal("Notifier failed to handle event", entry.Message)
 }
 
@@ -690,7 +687,7 @@ func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamautho
 }
 
 func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
-	s.cat.AddNotifier(fakeservercatalog.Notifier("fake", notifier))
+	s.cat.AddNotifier(notifier)
 }
 
 func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
@@ -890,14 +887,11 @@ func (s *ManagerSuite) wipeJournal() {
 	s.Require().NoError(os.Remove(s.m.journalPath()))
 }
 
-func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *notifier.NotifyRequest) {
+func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *common.Bundle) {
 	select {
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for bundle update notification")
-	case req := <-ch:
-		event, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated)
-		s.Require().True(ok, "expected a bundle updated notification")
-		actual := event.BundleUpdated.Bundle
+	case actual := <-ch:
 		expected := s.fetchBundle()
 		s.RequireProtoEqual(expected, actual)
 	}

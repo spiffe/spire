@@ -169,7 +169,7 @@ serviceprotos := \
 # "shared" means that the interface shares a package with other interfaces, which
 # impacts the code generation (adds stutter to disambiguate names)
 plugingen_plugins = \
-	proto/spire/server/notifier/notifier.proto,pkg/server/plugin/notifier,Notifier \
+	proto/spire/server/notifier/notifier.proto,proto/spire/server/notifier/v0,Notifier \
 	proto/spire/server/nodeattestor/nodeattestor.proto,proto/spire/server/nodeattestor/v0,NodeAttestor \
 	proto/spire/server/datastore/datastore.proto,pkg/server/plugin/datastore,DataStore \
 	proto/spire/server/upstreamauthority/upstreamauthority.proto,pkg/server/plugin/upstreamauthority,UpstreamAuthority \

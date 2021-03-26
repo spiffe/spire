@@ -46,6 +46,7 @@ import (
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/server/notifier/v0"
 )
 
 var (
@@ -85,7 +86,7 @@ type Catalog interface {
 	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
 	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
 	GetKeyManager() keymanager.KeyManager
-	GetNotifiers() []Notifier
+	GetNotifiers() []notifier.Notifier
 	GetUpstreamAuthority() (*UpstreamAuthority, bool)
 }
 
@@ -99,7 +100,7 @@ func KnownPlugins() []catalog.PluginClient {
 		noderesolverv0.PluginClient,
 		upstreamauthority.PluginClient,
 		keymanagerv0.PluginClient,
-		notifier.PluginClient,
+		notifierv0.PluginClient,
 	}
 }
 
@@ -109,11 +110,6 @@ func KnownServices() []catalog.ServiceClient {
 
 func BuiltIns() []catalog.Plugin {
 	return append([]catalog.Plugin(nil), builtIns...)
-}
-
-type Notifier struct {
-	catalog.PluginInfo
-	notifier.Notifier
 }
 
 type UpstreamAuthority struct {
@@ -129,7 +125,7 @@ type Plugins struct {
 	NodeResolvers     map[string]noderesolver.NodeResolver
 	UpstreamAuthority *UpstreamAuthority
 	KeyManager        keymanager.KeyManager
-	Notifiers         []Notifier
+	Notifiers         []notifier.Notifier
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -152,7 +148,7 @@ func (p *Plugins) GetKeyManager() keymanager.KeyManager {
 	return p.KeyManager
 }
 
-func (p *Plugins) GetNotifiers() []Notifier {
+func (p *Plugins) GetNotifiers() []notifier.Notifier {
 	return p.Notifiers
 }
 
@@ -224,6 +220,11 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		nodeResolvers[nr.Name()] = nr
 	}
 
+	var notifiers []notifier.Notifier
+	for _, n := range p.Notifiers {
+		notifiers = append(notifiers, n)
+	}
+
 	return &Repository{
 		Catalog: &Plugins{
 			DataStore:         ds,
@@ -231,7 +232,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 			NodeResolvers:     nodeResolvers,
 			UpstreamAuthority: p.UpstreamAuthority,
 			KeyManager:        p.KeyManager,
-			Notifiers:         p.Notifiers,
+			Notifiers:         notifiers,
 		},
 		Closer: closer,
 	}, nil
@@ -247,7 +248,7 @@ type versionedPlugins struct {
 	NodeResolvers     map[string]noderesolver.V0
 	UpstreamAuthority *UpstreamAuthority
 	KeyManager        keymanager.V0
-	Notifiers         []Notifier
+	Notifiers         []notifier.V0
 }
 
 func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
