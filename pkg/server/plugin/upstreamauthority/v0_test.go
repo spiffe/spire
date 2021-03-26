@@ -341,10 +341,6 @@ func TestV0PublishJWTKey(t *testing.T) {
 	}
 }
 
-type Builder interface {
-	Load(t *testing.T) upstreamauthority.UpstreamAuthority
-}
-
 type V0Builder struct {
 	p   *v0Plugin
 	log logrus.FieldLogger
