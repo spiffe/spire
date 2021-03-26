@@ -16,11 +16,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"golang.org/x/oauth2/google"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,17 +31,9 @@ const (
 	publicKeyType = "PUBLIC KEY"
 )
 
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "GCPCAS: "+format, args...)
-}
-
 // BuiltIn constructs a catalog Plugin using a new instance of this plugin.
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
-}
-
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(p))
 }
 
 type CertificateAuthoritySpec struct {
@@ -67,62 +57,10 @@ type CAClient interface {
 	LoadCertificateAuthorities(ctx context.Context, spec CertificateAuthoritySpec) ([]*privatecapb.CertificateAuthority, error)
 }
 
-type gcpCAClient struct {
-	pcaClient *pcaapi.CertificateAuthorityClient
-}
-
-func (client *gcpCAClient) CreateCertificate(ctx context.Context, req *privatecapb.CreateCertificateRequest) (*privatecapb.Certificate, error) {
-	return client.pcaClient.CreateCertificate(ctx, req)
-}
-func (client *gcpCAClient) LoadCertificateAuthorities(ctx context.Context, spec CertificateAuthoritySpec) ([]*privatecapb.CertificateAuthority, error) {
-	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1beta1#CertificateAuthorityClient.ListCertificateAuthorities
-	allCerts := make([]*privatecapb.CertificateAuthority, 0)
-	certIt := client.pcaClient.ListCertificateAuthorities(ctx, &privatecapb.ListCertificateAuthoritiesRequest{
-		Parent: spec.caParentPath(),
-		Filter: fmt.Sprintf("labels.%s:%s", spec.LabelKey, spec.LabelValue),
-		// There is "OrderBy" option but it seems to work only for the name field
-		// So we will have to sort it by expiry timestamp at our end
-	})
-
-	p := iterator.NewPager(certIt, 20, "")
-	for {
-		var page []*privatecapb.CertificateAuthority
-
-		nextPageToken, err := p.NextPage(&page)
-		if err != nil {
-			return nil, err
-		}
-
-		allCerts = append(allCerts, page...)
-		if nextPageToken == "" {
-			break
-		}
-	}
-
-	filteredCAs := make([]*privatecapb.CertificateAuthority, 0, len(allCerts))
-	for _, ca := range allCerts {
-		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#CertificateAuthority_State
-		// Only CA in enabled state can issue certificates
-		if ca.State == privatecapb.CertificateAuthority_ENABLED {
-			filteredCAs = append(filteredCAs, ca)
-		}
-	}
-
-	// Let us return the CAs sorted by expiry time with the earliest expiry at the front
-	getExpiryTime := func(ca *privatecapb.CertificateAuthority) time.Time {
-		return ca.GetCreateTime().AsTime().Add(ca.GetLifetime().AsDuration())
-	}
-	sort.Slice(filteredCAs, func(i, j int) bool {
-		return getExpiryTime(filteredCAs[i]).Before(getExpiryTime(filteredCAs[j]))
-	})
-
-	return filteredCAs, nil
-}
-
 type Plugin struct {
 	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
 	// a way of opting in or out of forward build compatibility.
-	upstreamauthority.UnimplementedUpstreamAuthorityServer
+	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
 
 	// mu is a mutex that protects the configuration. Plugins may at some point
 	// need to support hot-reloading of configuration (by receiving another
@@ -142,7 +80,7 @@ type Plugin struct {
 // catalog requires to provide the plugin with a logger and host service
 // broker as well as the UpstreamAuthority itself.
 var _ catalog.NeedsLogger = (*Plugin)(nil)
-var _ upstreamauthority.UpstreamAuthorityServer = (*Plugin)(nil)
+var _ upstreamauthorityv0.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
 	p := &Plugin{}
@@ -166,7 +104,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 // The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream X.509 roots as SPIRE
 // core will not reopen a closed stream until the next X.509 CA rotation.
-func (p *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	ctx := stream.Context()
 
 	minted, err := p.mintX509CA(ctx, request.Csr, request.PreferredTtl)
@@ -178,15 +116,45 @@ func (p *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream
 }
 
 // PublishJWTKey is not yet supported. It will return with GRPC Unimplemented error
-func (p *Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
-	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
+func (p *Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
+	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+	p.log.Warn("This plugin relies on GCP Certificate Authority Service which is currently in Beta")
 	// Parse HCL config payload into config struct
 	config := new(Config)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, makeError(codes.InvalidArgument, "unable to decode configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	}
+	// Without a project and location, we can never locate CAs
+	if config.RootSpec.Project == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.Project property")
+	}
+	if config.RootSpec.Location == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.Location property")
+	}
+	// Even LabelKey/Value pair is necessary
+	if config.RootSpec.LabelKey == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.LabelKey property")
+	}
+	if config.RootSpec.LabelValue == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.LabelValue property")
+	}
+	for _, trustSpec := range config.TrustBundleSpecs {
+		if trustSpec.Project == "" {
+			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].Project property")
+		}
+		if trustSpec.Location == "" {
+			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].Location property")
+		}
+		// Even LabelKey/Value pair is necessary
+		if trustSpec.LabelKey == "" {
+			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].LabelKey property")
+		}
+		if trustSpec.LabelValue == "" {
+			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].LabelValue property")
+		}
 	}
 
 	// Swap out the current configuration with the new configuration
@@ -204,7 +172,7 @@ func (p *Plugin) getConfig() (*Config, error) {
 	defer p.mu.Unlock()
 
 	if p.c == nil {
-		return nil, makeError(codes.Internal, "not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
 	return p.c, nil
@@ -216,25 +184,11 @@ func (p *Plugin) setConfig(c *Config) {
 	p.c = c
 }
 
-func getClient(ctx context.Context) (CAClient, error) {
-	creds, err := google.FindDefaultCredentials(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	pcaClient, err := pcaapi.NewCertificateAuthorityClient(ctx, option.WithCredentials(creds))
-	if err != nil {
-		return nil, err
-	}
-
-	return &gcpCAClient{pcaClient}, nil
-}
-
-func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthority.MintX509CAResponse, error) {
+func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	p.log.Debug("Request to GCP_CAS to mint new X509")
 	csrParsed, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
-		return nil, makeError(codes.Internal, "unable to parse CSR: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to parse CSR: %v", err)
 	}
 
 	validity := time.Second * time.Duration(preferredTTL)
@@ -250,32 +204,39 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	}
 	allCertRoots, err := pcaClient.LoadCertificateAuthorities(ctx, config.RootSpec)
 	if err != nil {
-		return nil, makeError(codes.Internal, "failed to load root CAs: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to load root CAs: %v", err)
 	}
 	if len(allCertRoots) == 0 {
 		rootSpec := config.RootSpec
-		return nil, makeError(codes.Internal, "no certificate authorities found with label pair %q:%q", rootSpec.LabelKey, rootSpec.LabelValue)
+		return nil, status.Errorf(codes.InvalidArgument, "no certificate authorities found with label pair %q:%q", rootSpec.LabelKey, rootSpec.LabelValue)
 	}
 
-	// The certs get returned in expiry order, and we want the one that is expiring the earliest
-	// so just grab the first one and use that.
+	// We dont want to use revoked, disabled or pending deletion CAs
+	// In short, we only need CAs that are in enabled state
+	allCertRoots = filterOutNonEnabledCAs(allCertRoots)
+	// we want the CA that is expiring the earliest
+	// so sort and grab the first one
+	sortCAsByExpiryTime(allCertRoots)
 	chosenCA := allCertRoots[0]
 
 	// All of the CAs that are eligible for signing are still trusted
-	trustBundle := make([]*privatecapb.CertificateAuthority, 0, len(allCertRoots))
-	trustBundle = append(trustBundle, allCertRoots...)
+	var trustBundle []*privatecapb.CertificateAuthority
+	if len(allCertRoots) > 1 {
+		trustBundle = append(trustBundle, allCertRoots[1:]...)
+	}
 
-	// Also pick up if there any additional trust CAs ( as per label in plugin config )
+	// Also pick up if there any additional trust CAs (as per label in plugin config)
 	for _, spec := range config.TrustBundleSpecs {
 		trustBundleCerts, err := pcaClient.LoadCertificateAuthorities(ctx, spec)
+		trustBundleCerts = filterOutNonEnabledCAs(trustBundleCerts)
 		if err != nil {
-			return nil, makeError(codes.Internal, "failed to load trust bundle CAs: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to load trust bundle CAs: %v", err)
 		}
 		trustBundle = append(trustBundle, trustBundleCerts...)
 	}
 
 	parentPath := chosenCA.Name
-	p.log.Info("Minting X509 intermediate CA ", "ca-certificate", parentPath, "ttl ", validity)
+	p.log.Info("Minting X509 intermediate CA", "ca-certificate", parentPath, "ttl", validity)
 
 	subject := privatecapb.Subject{}
 	extractFirst := func(strings []string, into *string) {
@@ -291,7 +252,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#SubjectAltNames
 	san := privatecapb.SubjectAltNames{}
-	uris := make([]string, 0)
+	var uris []string
 	for _, uri := range csrParsed.URIs {
 		uris = append(uris, uri.String())
 	}
@@ -339,7 +300,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 		return nil, err
 	}
 	if len(cresp.PemCertificateChain) == 0 {
-		return nil, makeError(codes.Internal, "got no certificates in the chain")
+		return nil, status.Errorf(codes.Internal, "got no certificates in the chain")
 	}
 
 	cert, err := pemutil.ParseCertificate([]byte(cresp.GetPemCertificate()))
@@ -362,17 +323,18 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	derChain := x509util.RawCertsFromCertificates(fullChain)
 
+	// The last certificate returned from the chain is the root, so we seed the trust bundle with that.
+	rootBundle := []*x509.Certificate{certChain[len(certChain)-1]}
 	// Then we append all the extra cert roots we loaded, plus anything we loaded from the
 	// trust bundle spec
-	rootBundle := make([]*x509.Certificate, 0, len(trustBundle))
 	for _, c := range trustBundle {
-		// Note. We are intentionally retrieving the immediate CAs from the GCP CAS that
-		// matched the specified label key/value pair. If that CA itself is not a root CA
-		// private root CA then we are not going to retrieve its root
-		// ( i.e. c.PemCaCertificates[ len(c.PemCaCertificates) - 1 ] )
-		// This is to avoid the possibility of the root being an external ceritificate which
-		// might also be used to issue CAs to multiple firms / teams / applications
-		pem := c.PemCaCertificates[0]
+		// The last element in the PemCaCertificates is the root of this particular chain
+		// Note. We don't just use the CAs matched by labels from GCP because they could be
+		// intermediate CAs. If so, some of the libraries including OpenSSL will fail to
+		// validate them by default.
+		// Please refer to "X509_V_FLAG_PARTIAL_CHAIN" in
+		//    https://www.openssl.org/docs/man1.1.1/man3/X509_VERIFY_PARAM_set_flags.html
+		pem := c.PemCaCertificates[len(c.PemCaCertificates)-1]
 		parsed, err := pemutil.ParseCertificate([]byte(pem))
 		if err != nil {
 			return nil, err
@@ -382,12 +344,83 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	// We may well have specified multiple paths to the same root.
 	rootBundle = x509util.DedupeCertificates(rootBundle)
-
 	derBundle := x509util.RawCertsFromCertificates(rootBundle)
 
 	p.log.Info("Successfully minted new X509")
-	return &upstreamauthority.MintX509CAResponse{
+	return &upstreamauthorityv0.MintX509CAResponse{
 		X509CaChain:       derChain,
 		UpstreamX509Roots: derBundle,
 	}, nil
+}
+
+func builtin(p *Plugin) catalog.Plugin {
+	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(p))
+}
+
+func getClient(ctx context.Context) (CAClient, error) {
+	// https://cloud.google.com/docs/authentication/production#go
+	// The client creation implicitly uses Application Default Credentials (ADC) for authentication
+	pcaClient, err := pcaapi.NewCertificateAuthorityClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gcpCAClient{pcaClient}, nil
+}
+
+type gcpCAClient struct {
+	pcaClient *pcaapi.CertificateAuthorityClient
+}
+
+func (client *gcpCAClient) CreateCertificate(ctx context.Context, req *privatecapb.CreateCertificateRequest) (*privatecapb.Certificate, error) {
+	return client.pcaClient.CreateCertificate(ctx, req)
+}
+func (client *gcpCAClient) LoadCertificateAuthorities(ctx context.Context, spec CertificateAuthoritySpec) ([]*privatecapb.CertificateAuthority, error) {
+	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1beta1#CertificateAuthorityClient.ListCertificateAuthorities
+	var allCerts []*privatecapb.CertificateAuthority
+	certIt := client.pcaClient.ListCertificateAuthorities(ctx, &privatecapb.ListCertificateAuthoritiesRequest{
+		Parent: spec.caParentPath(),
+		Filter: fmt.Sprintf("labels.%s:%s", spec.LabelKey, spec.LabelValue),
+		// There is "OrderBy" option but it seems to work only for the name field
+		// So we will have to sort it by expiry timestamp at our end
+	})
+
+	p := iterator.NewPager(certIt, 20, "")
+	for {
+		var page []*privatecapb.CertificateAuthority
+
+		nextPageToken, err := p.NextPage(&page)
+		if err != nil {
+			return nil, err
+		}
+
+		allCerts = append(allCerts, page...)
+		if nextPageToken == "" {
+			break
+		}
+	}
+
+	return allCerts, nil
+}
+
+func filterOutNonEnabledCAs(cas []*privatecapb.CertificateAuthority) []*privatecapb.CertificateAuthority {
+	var filteredCAs []*privatecapb.CertificateAuthority
+	for _, ca := range cas {
+		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#CertificateAuthority_State
+		// Only CA in enabled state can issue certificates
+		if ca.State == privatecapb.CertificateAuthority_ENABLED {
+			filteredCAs = append(filteredCAs, ca)
+		}
+	}
+	return filteredCAs
+}
+
+// Sort in-place by ascending order of expiry time of CAs
+func sortCAsByExpiryTime(cas []*privatecapb.CertificateAuthority) {
+	getExpiryTime := func(ca *privatecapb.CertificateAuthority) time.Time {
+		return ca.GetCreateTime().AsTime().Add(ca.GetLifetime().AsDuration())
+	}
+	sort.Slice(cas, func(i, j int) bool {
+		return getExpiryTime(cas[i]).Before(getExpiryTime(cas[j]))
+	})
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -15,19 +14,251 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-func generateCert(cn string, issuer *x509.Certificate, issuerKey crypto.PrivateKey) (*x509.Certificate, crypto.PrivateKey, error) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
+func TestInvalidConfigs(t *testing.T) {
+	p := New()
+	var upplugin upstreamauthorityv0.Plugin
+	spiretest.LoadPlugin(t, builtin(p), &upplugin)
+	// ctx := context.Background()
+	for i, config := range []string{
+		// Missing project_name
+		`root_cert_spec {
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }`,
+		// Empty project_name
+		`root_cert_spec {
+			project_name = ""
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }`,
+		// Missing region name
+		`root_cert_spec {
+			project_name = "proj1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }`,
+		// Empty region name
+		`root_cert_spec {
+			project_name = "proj1"
+			region_name = ""
+			label_key = "proj-signer"
+			label_value = "true"
+		    }`,
+		// Missing label key
+		`root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_value = "true"
+		    }`,
+		// Empty label key
+		`root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = ""
+			label_value = "true"
+		    }`,
+		// Missing label value
+		`root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+		    }`,
+		// Empty label value
+		`root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = ""
+		    }`,
+		// Trust bundle cert spec is supplied as a block rather than an array of blocks
+		// This gets parsed into [ { project_name=myproj2 }, { region_name=us-central2 },
+		// { label_key=mylabel } & { label_value=myvalue } ]
+		`   root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }
+		    trust_bundle_cert_spec =
+		        {
+		            project_name = "myproj2"
+		            region_name = "us-central2"
+		            label_key = "mylabel"
+		            label_value = "myvalue"
+		        }`,
+		// Trust bundle cert spec is a string rather than an array
+		`   root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }
+		    trust_bundle_cert_spec = "blah"`,
+		// Empty proj name in Trust bundle cert spec
+		`   root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }
+		    trust_bundle_cert_spec = [
+			{
+			    project_name = ""
+			    region_name = "us-central1"
+			    label_key = "somelabel"
+			    label_value = "somevalue"
+			} ]`,
+		// Empty region name in Trust bundle cert spec
+		`   root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }
+		    trust_bundle_cert_spec = [
+		        {
+		            project_name = "proj2"
+		            region_name = ""
+		            label_key = "somelabel"
+		            label_value = "somevalue"
+		        } ]`,
+		// Empty label key in Trust bundle cert spec
+		`   root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }
+		    trust_bundle_cert_spec = [
+		        {
+		            project_name = "proj2"
+		            region_name = "us-central1"
+		            label_key = ""
+		            label_value = "somevalue"
+		        } ]`,
+		// Empty label value in Trust bundle cert spec
+		`   root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		    }
+		    trust_bundle_cert_spec = [
+		        {
+		            project_name = "proj2"
+		            region_name = "us-central1"
+		            label_key = "somelabel"
+		            label_value = ""
+		        } ]`,
+	} {
+		_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: config})
+		t.Logf("\ntestcase[%d] and err:%+v\n", i, err)
+		require.NotNil(t, err)
+		require.Equal(t, codes.InvalidArgument, status.Code(err))
 	}
+}
 
+func TestGcpCAS(t *testing.T) {
+	p := New()
+	p.hook.getClient = func(ctxt context.Context) (CAClient, error) {
+		// Scenario:
+		//   We mock client's LoadCertificateAuthorities() to return in the following order:
+		//      * caZ is an intermediate CA which is signed by externalCAY
+		//      * caX is a root CA that is in GCP CAS with the second oldest expiry (T + 2)
+		//      * caM is a root CA that is in GCP CAS with the earliest expiry (T + 1) but it is DISABLED
+		//   Everything except caM are in ENABLED state
+		//   Also note that the above is not ordered by expiry time
+		// Expectation:
+		//   * caX should be selected for signing
+		//   * root trust bundle should have { caX, externalcaY }. It should
+		//     neither have DISABLED caM nor intermediate caZ
+		caX, pkeyCAx, err := generateCert(t, "caX", nil, nil, 2, testkey.NewEC384)
+		require.NoError(t, err)
+		require.NotNil(t, pkeyCAx)
+		require.NotNil(t, caX)
+
+		caY, pkeyCAy, err := generateCert(t, "externalcaY", nil, nil, 3, testkey.NewEC384)
+		require.NoError(t, err)
+		require.NotNil(t, pkeyCAy)
+		require.NotNil(t, caY)
+
+		caZ, _, err := generateCert(t, "caZ", caY, pkeyCAy, 3, testkey.NewEC384)
+		require.NoError(t, err)
+		require.NotNil(t, caZ)
+
+		caM, _, err := generateCert(t, "caM", nil, nil, 1, testkey.NewEC384)
+		require.NoError(t, err)
+		require.NotNil(t, pkeyCAx)
+		require.NotNil(t, caX)
+
+		// Note: fakeClient.LoadCertificateAuthority() will automatically
+		// mark the last CA (i.e. caM) as DISABLED
+		// The rest (caX, caZ, caY) will be marked as ENABLED
+		cas := [][]*x509.Certificate{{caX}, {caZ, caY}, {caM}}
+		return &fakeClient{cas, t, &pkeyCAx}, nil
+	}
+	var upplugin upstreamauthorityv0.Plugin
+	spiretest.LoadPlugin(t, builtin(p), &upplugin)
+
+	ctx := context.Background()
+	_, err := p.Configure(ctx, &plugin.ConfigureRequest{Configuration: `
+    root_cert_spec {
+        project_name = "proj1"
+        region_name = "us-central1"
+        label_key = "proj-signer"
+        label_value = "true"
+    }
+
+    trust_bundle_cert_spec = [
+        {
+            project_name = "proj1"
+            region_name = "us-central1"
+            label_key = "somelable"
+            label_value = "somevalue"
+        }
+    ]
+    `})
+	require.NoError(t, err)
+
+	priv := testkey.NewEC384(t)
+	csr, err := commonutil.MakeCSRWithoutURISAN(priv)
+	require.NoError(t, err)
+
+	resp, err := p.mintX509CA(ctx, csr, 30)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	respCaChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
+	require.NoError(t, err)
+	require.NotNil(t, respCaChain)
+	require.Equal(t, respCaChain[0].Issuer.CommonName, "caX")
+
+	respRootChain, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
+	require.NoError(t, err)
+	require.NotNil(t, respRootChain)
+	// Confirm that we don't have unexpected CAs
+	require.Equal(t, 2, len(respRootChain))
+	require.Equal(t, respRootChain[0].Subject.CommonName, "caX")
+	require.Equal(t, respRootChain[0].Issuer.CommonName, "caX")
+	// We intentionally return the root externalcaY rather than intermediate caZ
+	require.Equal(t, respRootChain[1].Subject.CommonName, "externalcaY")
+	require.Equal(t, respRootChain[1].Issuer.CommonName, "externalcaY")
+}
+
+func generateCert(t *testing.T, cn string, issuer *x509.Certificate, issuerKey crypto.PrivateKey, ttlInHours int, keyfn func(testing.TB) *ecdsa.PrivateKey) (*x509.Certificate, crypto.PrivateKey, error) {
+	priv := keyfn(t)
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
 
@@ -35,7 +266,7 @@ func generateCert(cn string, issuer *x509.Certificate, issuerKey crypto.PrivateK
 		SerialNumber: serialNumber,
 		Subject:      pkix.Name{CommonName: cn},
 		NotBefore:    time.Now().Add(-1 * time.Hour),
-		NotAfter:     time.Now().Add(1 * time.Hour),
+		NotAfter:     time.Now().Add(time.Duration(ttlInHours) * time.Hour),
 
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -75,14 +306,15 @@ func (client *fakeClient) CreateCertificate(ctx context.Context, req *privatecap
 	// Mimic GCP GCA signing
 	// By first issuing a x509 cert and then converting it into GCP cert format
 	commonName := req.Certificate.GetConfig().GetSubjectConfig().GetCommonName()
-	x509ca, _, err := generateCert(commonName, client.mockX509CAs[0][0], *client.privKeyOfEarliestCA)
+	x509ca, _, err := generateCert(client.t, commonName, client.mockX509CAs[0][0],
+		*client.privKeyOfEarliestCA, 1 /* TTL */, testkey.NewEC256)
 	require.NoError(client.t, err)
 	require.NotNil(client.t, x509ca)
 
 	ca := new(privatecapb.Certificate)
 	ca.Name = commonName
 	ca.PemCertificate = string(pemutil.EncodeCertificate(x509ca))
-	ca.PemCertificateChain = make([]string, 0)
+	ca.PemCertificateChain = []string{}
 	for _, caentry := range client.mockX509CAs[0] {
 		ca.PemCertificateChain = append(ca.PemCertificateChain, string(pemutil.EncodeCertificate(caentry)))
 	}
@@ -90,86 +322,18 @@ func (client *fakeClient) CreateCertificate(ctx context.Context, req *privatecap
 }
 
 func (client *fakeClient) LoadCertificateAuthorities(ctx context.Context, spec CertificateAuthoritySpec) ([]*privatecapb.CertificateAuthority, error) {
-	allCerts := make([]*privatecapb.CertificateAuthority, 0)
+	var allCerts []*privatecapb.CertificateAuthority
 	for _, x509CA := range client.mockX509CAs {
 		ca := new(privatecapb.CertificateAuthority)
 		ca.Name = x509CA[0].Subject.CommonName
-		ca.PemCaCertificates = make([]string, 0)
+		ca.State = privatecapb.CertificateAuthority_ENABLED
+		ca.PemCaCertificates = []string{}
 		for _, caentry := range x509CA {
 			ca.PemCaCertificates = append(ca.PemCaCertificates, string(pemutil.EncodeCertificate(caentry)))
 		}
 		allCerts = append(allCerts, ca)
 	}
+	// Intentionally mimic the last one as DISABLED
+	allCerts[len(allCerts)-1].State = privatecapb.CertificateAuthority_DISABLED
 	return allCerts, nil
-}
-
-func TestGcpCAS(t *testing.T) {
-	p := New()
-	p.hook.getClient = func(ctxt context.Context) (CAClient, error) {
-		// Scenario:
-		// caX is a root CA that is in GCP CAS
-		// caZ is an intermediate CA which is signed by externalCAY
-		caX, pkeyCAx, err := generateCert("caX", nil, nil)
-		require.NoError(t, err)
-		require.NotNil(t, pkeyCAx)
-		require.NotNil(t, caX)
-
-		caY, pkeyCAy, err := generateCert("externalcaY", nil, nil)
-		require.NoError(t, err)
-		require.NotNil(t, pkeyCAy)
-		require.NotNil(t, caY)
-
-		caZ, _, err := generateCert("caZ", caY, pkeyCAy)
-		require.NoError(t, err)
-		require.NotNil(t, caZ)
-		cas := [][]*x509.Certificate{{caX}, {caZ, caY}}
-		return &fakeClient{cas, t, &pkeyCAx}, nil
-	}
-	var upplugin upstreamauthority.Plugin
-	spiretest.LoadPlugin(t, builtin(p), &upplugin)
-
-	ctx := context.Background()
-	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: `
-    root_cert_spec {
-        project_name = "proj1"
-        region_name = "us-central1"
-        label_key = "proj-signer"
-        label_value = "true"
-    }
-
-    trust_bundle_cert_spec = [
-        {
-            project_name = "proj1"
-            region_name = "us-central1"
-            label_key = "somelable"
-            label_value = "somevalue"
-        }
-    ]
-    `})
-	require.NoError(t, err)
-
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	csr, err := commonutil.MakeCSRWithoutURISAN(priv)
-	require.NoError(t, err)
-
-	resp, err := p.mintX509CA(ctx, csr, 30)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-
-	respCaChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	require.NoError(t, err)
-	require.NotNil(t, respCaChain)
-	require.Equal(t, respCaChain[0].Issuer.CommonName, "caX")
-
-	respRootChain, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
-	require.NoError(t, err)
-	require.NotNil(t, respRootChain)
-	require.Equal(t, 2, len(respRootChain))
-	// Root chains should have both the CAs
-	require.Equal(t, respRootChain[0].Subject.CommonName, "caX")
-	require.Equal(t, respRootChain[0].Issuer.CommonName, "caX")
-	// We intentionally return caZ
-	require.Equal(t, respRootChain[1].Subject.CommonName, "caZ")
-	require.Equal(t, respRootChain[1].Issuer.CommonName, "externalcaY")
 }
