@@ -12,8 +12,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -42,7 +42,7 @@ type DiskSuite struct {
 
 	clock     *clock.Mock
 	rawPlugin *Plugin
-	p         upstreamauthority.Plugin
+	p         upstreamauthorityv0.Plugin
 }
 
 func (s *DiskSuite) SetupTest() {
@@ -162,7 +162,7 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
 
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 	require.NoError(err)
 	require.NotNil(resp)
 
@@ -206,7 +206,7 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 		require.NoError(err)
 		require.NotNil(resp)
 
@@ -241,7 +241,7 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
@@ -251,7 +251,7 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	s.Require().Equal(s.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
 }
 
-func testCSRResp(t *testing.T, resp *upstreamauthority.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
+func testCSRResp(t *testing.T, resp *upstreamauthorityv0.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
 	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	require.NoError(t, err)
 
@@ -279,13 +279,13 @@ func (s *DiskSuite) TestSubmitInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 		require.Error(err)
 		require.Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(err)
 	require.Nil(resp)
 }
@@ -299,7 +299,7 @@ func (s *DiskSuite) TestRace() {
 		// the results of these RPCs aren't important; the test is just trying
 		// to get a bunch of stuff happening at once.
 		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		_, _ = s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+		_, _ = s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 	})
 }
 
@@ -318,7 +318,7 @@ func (s *DiskSuite) configureWith(keyFilePath, certFilePath string) error {
 }
 
 func (s *DiskSuite) TestPublishJWTKey() {
-	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthorityv0.PublishJWTKeyRequest{})
 	s.Require().NoError(err)
 	s.Require().NotNil(stream)
 
@@ -367,7 +367,7 @@ func TestInvalidConfigs(t *testing.T) {
 	}
 }
 
-func (s *DiskSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (s *DiskSuite) mintX509CA(req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

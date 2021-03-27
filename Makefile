@@ -172,7 +172,7 @@ plugingen_plugins = \
 	proto/spire/server/notifier/notifier.proto,proto/spire/server/notifier/v0,Notifier \
 	proto/spire/server/nodeattestor/nodeattestor.proto,proto/spire/server/nodeattestor/v0,NodeAttestor \
 	proto/spire/server/datastore/datastore.proto,pkg/server/plugin/datastore,DataStore \
-	proto/spire/server/upstreamauthority/upstreamauthority.proto,pkg/server/plugin/upstreamauthority,UpstreamAuthority \
+	proto/spire/server/upstreamauthority/upstreamauthority.proto,proto/spire/server/upstreamauthority/v0,UpstreamAuthority \
 	proto/spire/server/noderesolver/noderesolver.proto,proto/spire/server/noderesolver/v0,NodeResolver \
 	proto/spire/server/keymanager/keymanager.proto,proto/spire/server/keymanager/v0,KeyManager \
 	proto/spire/agent/nodeattestor/nodeattestor.proto,proto/spire/agent/nodeattestor/v0,NodeAttestor \

@@ -15,9 +15,9 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,11 +36,11 @@ type Configuration struct {
 }
 
 func BuiltIn() catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(New()))
+	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(New()))
 }
 
 type Plugin struct {
-	upstreamauthority.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
 
 	log hclog.Logger
 
@@ -111,7 +111,7 @@ func (m *Plugin) SetLogger(log hclog.Logger) {
 	m.log = log
 }
 
-func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (m *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	err := m.subscribeToPolling(stream.Context())
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream
 		// Send response with new X509 authorities
 		if !areRootsEqual(rootCAs, newRootCAs) {
 			rootCAs = newRootCAs
-			err := stream.Send(&upstreamauthority.MintX509CAResponse{
+			err := stream.Send(&upstreamauthorityv0.MintX509CAResponse{
 				X509CaChain:       rawChain,
 				UpstreamX509Roots: typeX509AuthoritiesToRaw(rootCAs),
 			})
@@ -162,7 +162,7 @@ func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream
 	}
 }
 
-func (m *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (m *Plugin) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	err := m.subscribeToPolling(stream.Context())
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func (m *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stre
 		// Send response when new JWT authority
 		if !arePublicKeysEqual(keys, newKeys) {
 			keys = newKeys
-			err := stream.Send(&upstreamauthority.PublishJWTKeyResponse{
+			err := stream.Send(&upstreamauthorityv0.PublishJWTKeyResponse{
 				UpstreamJwtKeys: typeJWTAuthoritiesToProto(keys),
 			})
 			if err != nil {

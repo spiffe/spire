@@ -15,8 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/acmpca"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -55,7 +55,7 @@ type PCAPluginSuite struct {
 	pcaClientFake *pcaClientFake
 	rawPlugin     *PCAPlugin
 	// The plugin under test
-	plugin upstreamauthority.Plugin
+	plugin upstreamauthorityv0.Plugin
 }
 
 func (as *PCAPluginSuite) SetupTest() {
@@ -187,7 +187,7 @@ func (as *PCAPluginSuite) Test_MintX509CA() {
 
 	// The resulting response should not error, and should contain the expected
 	// values from ACM.
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -225,7 +225,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_WithSupplementalBundle() {
 	as.Require().NoError(err)
 	as.verifyGetCertificate(encodedCert, encodedCertChain, nil)
 
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -246,7 +246,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_IssuanceError() {
 	as.verifyIssueCertificate(expectedEncodedCsr, expectedErr)
 
 	// The resulting response should return an error
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -265,7 +265,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_IssuanceWaitError() {
 	as.verifyWaitUntilCertificateIssued(errors.New("issuance waiting error"))
 
 	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -288,7 +288,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_GetCertificateError() {
 	as.verifyGetCertificate(nil, nil, errors.New("get certificate error"))
 
 	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -312,7 +312,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateParseError()
 	as.verifyGetCertificate(nil, encodedBundle, nil)
 
 	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -336,7 +336,7 @@ func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateChainParseEr
 	as.verifyGetCertificate(encodedCert, nil, nil)
 
 	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthority.MintX509CARequest{
+	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: testTTL,
 	})
@@ -494,7 +494,7 @@ func (as *PCAPluginSuite) generateCSR() ([]byte, *bytes.Buffer) {
 }
 
 func (as *PCAPluginSuite) TestPublishJWTKey() {
-	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{})
+	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{})
 	as.Require().NoError(err)
 	as.Require().NotNil(stream)
 
@@ -503,7 +503,7 @@ func (as *PCAPluginSuite) TestPublishJWTKey() {
 	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-pca: publishing upstream is unsupported")
 }
 
-func (as *PCAPluginSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (as *PCAPluginSuite) mintX509CA(req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

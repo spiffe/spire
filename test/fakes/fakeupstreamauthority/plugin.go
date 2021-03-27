@@ -1,36 +1,20 @@
 package fakeupstreamauthority
 
 import (
-	"context"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
 func Load(t *testing.T, config Config) (upstreamauthority.UpstreamAuthority, *UpstreamAuthority) {
 	fake := New(t, config)
 
-	var ua upstreamauthority.UpstreamAuthority
-	spiretest.LoadPlugin(t, catalog.MakePlugin("fake",
-		upstreamauthority.PluginServer(&upstreamAuthorityPlugin{
-			UpstreamAuthority: fake,
-		}),
-	), &ua)
+	server := upstreamauthorityv0.PluginServer(fake)
 
-	return ua, fake
-}
-
-type upstreamAuthorityPlugin struct {
-	*UpstreamAuthority
-}
-
-func (m upstreamAuthorityPlugin) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (m upstreamAuthorityPlugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
+	var v0 upstreamauthority.V0
+	spiretest.LoadPlugin(t, catalog.MakePlugin("fake", server), &v0)
+	return v0, fake
 }

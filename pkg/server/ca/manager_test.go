@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
@@ -522,12 +521,9 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 }
 
 func (s *ManagerSuite) TestAlternateKeyTypes() {
-	ua, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-
-	upstreamAuthority := fakeservercatalog.UpstreamAuthority(
-		"fakeupstreamauthority", ua)
 
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)
@@ -563,7 +559,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 
 	testCases := []struct {
 		name              string
-		upstreamAuthority *catalog.UpstreamAuthority
+		upstreamAuthority upstreamauthority.UpstreamAuthority
 		x509CAKeyType     keymanager.KeyType
 		jwtKeyType        keymanager.KeyType
 		checkX509CA       func(*testing.T, crypto.Signer)
@@ -679,7 +675,7 @@ func (s *ManagerSuite) initSelfSignedManager() {
 }
 
 func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamauthority.UpstreamAuthority) {
-	s.cat.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority("fakeupstreamauthority", upstreamAuthority))
+	s.cat.SetUpstreamAuthority(upstreamAuthority)
 
 	c := s.selfSignedConfig()
 	s.m = NewManager(c)
