@@ -145,7 +145,13 @@ func TestV0MintX509CA(t *testing.T) {
 			expectStreamCode:    codes.Internal,
 			expectStreamMessage: "upstreamauthority(test): plugin response has an X.509 CA chain after the first response",
 			expectLogs: []spiretest.LogEntry{
-				{Level: logrus.WarnLevel, Message: "Failed to parse an X.509 key update from the upstream authority plugin. Please report this bug."},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = upstreamauthority(test): plugin response has an X.509 CA chain after the first response",
+					},
+				},
 			},
 		},
 		{
@@ -162,7 +168,9 @@ func TestV0MintX509CA(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
-			ua := tt.builder.Load(t)
+			log, logHook := test.NewNullLogger()
+
+			ua := tt.builder.WithLog(log).Load(t)
 			x509CA, upstreamX509Roots, upstreamX509RootsStream, err := ua.MintX509CA(context.Background(), []byte(csr), preferredTTL)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMessage)
 			if tt.expectCode != codes.OK {
@@ -187,6 +195,8 @@ func TestV0MintX509CA(t *testing.T) {
 				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectStreamCode, tt.expectStreamMessage)
 				assert.Nil(t, upstreamX509Roots)
 			}
+
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
 		})
 	}
 }
@@ -292,7 +302,13 @@ func TestV0PublishJWTKey(t *testing.T) {
 			expectStreamCode:    codes.Internal,
 			expectStreamMessage: "upstreamauthority(test): plugin response missing ID for JWT key",
 			expectLogs: []spiretest.LogEntry{
-				{Level: logrus.WarnLevel, Message: "Failed to parse a JWT key update from the upstream authority plugin. Please report this bug."},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Failed to parse a JWT key update from the upstream authority plugin. Please report this bug.",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = upstreamauthority(test): plugin response missing ID for JWT key",
+					},
+				},
 			},
 		},
 		{

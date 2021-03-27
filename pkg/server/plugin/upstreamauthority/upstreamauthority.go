@@ -12,13 +12,14 @@ import (
 type UpstreamAuthority interface {
 	catalog.PluginInfo
 
-	// MintX509CA sends a CSR to the upstream authority for minting, using
-	// the preferred TTL. The TTL may not be honored by the Upstream Authority.
-	// The function returns the newly minted CA, the most  recent set of
-	// upstream X.509 authorities, and a stream for streaming upstream X.509
-	// authority updates. The returned stream MUST be closed when the caller
-	// is no longer interested in updates. If the upstream authority does not
-	// support streaming updates, the stream will return io.EOF when called.
+	// MintX509CA sends a CSR to the upstream authority for minting, using the
+	// preferred TTL. The preferred TTL is advisory only. Upstream Authorities
+	// may choose a different value.  The function returns the newly minted CA,
+	// the most recent set of upstream X.509 authorities, and a stream for
+	// streaming upstream X.509 authority updates. The returned stream MUST be
+	// closed when the caller is no longer interested in updates. If the
+	// upstream authority does not support streaming updates, the stream will
+	// return io.EOF when called.
 	MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (x509CA, upstreamX509Authorities []*x509.Certificate, stream UpstreamX509AuthorityStream, err error)
 
 	// PublishJWTKey publishes the given JWT key with the upstream authority.

@@ -159,7 +159,7 @@ func (s *v0UpstreamX509AuthorityStream) RecvUpstreamX509Authorities() ([]*x509.C
 
 		x509Authorities, err := s.v0.parseMintX509CABundleUpdate(resp)
 		if err != nil {
-			s.v0.Log.Warn("Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
+			s.v0.Log.WithError(err).Warn("Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
 			continue
 		}
 		return x509Authorities, nil
@@ -189,7 +189,7 @@ func (s *v0UpstreamJWTAuthorityStream) RecvUpstreamJWTAuthorities() ([]*common.P
 		}
 
 		if err := s.v0.validateJWTKeys(resp.UpstreamJwtKeys); err != nil {
-			s.v0.Log.Warn("Failed to parse a JWT key update from the upstream authority plugin. Please report this bug.")
+			s.v0.Log.WithError(err).Warn("Failed to parse a JWT key update from the upstream authority plugin. Please report this bug.")
 			continue
 		}
 		return resp.UpstreamJwtKeys, nil

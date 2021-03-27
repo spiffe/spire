@@ -331,7 +331,7 @@ func (pf *pluginFiller) getValue(t reflect.Type) (reflect.Value, bool) {
 }
 
 func (pf *pluginFiller) fillInterface(t reflect.Type) (reflect.Value, bool) {
-	// the PluginInfo and logrus.FieldLogger interface is satisfied by the
+	// the PluginInfo and logrus.FieldLogger interfaces are satisfied by the
 	// plugin itself
 	switch t {
 	case pluginInfoType:
