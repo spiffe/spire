@@ -8,7 +8,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	common_log "github.com/spiffe/spire/pkg/common/log"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
@@ -42,7 +41,6 @@ import (
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
@@ -52,8 +50,6 @@ import (
 
 var (
 	builtIns = []catalog.Plugin{
-		// DataStores
-		ds_sql.BuiltIn(),
 		// NodeAttestors
 		na_aws_iid.BuiltIn(),
 		na_gcp_iit.BuiltIn(),
@@ -173,7 +169,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfig := config.PluginConfig[datastore.Type]
 	delete(config.PluginConfig, datastore.Type)
-	ds, err := loadSQLDataStore(ctx, config.Log, dataStoreConfig)
+	ds, err := loadSQLDataStore(config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +248,7 @@ type versionedPlugins struct {
 	Notifiers         []notifier.V0
 }
 
-func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
+func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
 	switch {
 	case len(datastoreConfig) == 0:
 		return nil, errors.New("expecting a DataStore plugin")
@@ -275,11 +271,8 @@ func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConf
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	ds := ds_sql.New()
-	ds.SetLogger(common_log.NewHCLogAdapter(log, telemetry.PluginBuiltIn).Named(sqlConfig.Name))
-	if _, err := ds.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: sqlConfig.Data,
-	}); err != nil {
+	ds := ds_sql.New(log.WithField("subsystem_name", sqlConfig.Name))
+	if err := ds.Configure(sqlConfig.Data); err != nil {
 		return nil, err
 	}
 	return ds, nil

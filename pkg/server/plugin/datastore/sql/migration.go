@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -27,7 +27,7 @@ var (
 	codeVersion = semver.MustParse(version.Version())
 )
 
-func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logger) (err error) {
+func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.FieldLogger) (err error) {
 	// The version comparison logic in this package supports only 0.x and 1.x versioning semantics.
 	// It will need to be updated prior to releasing 2.x. Ensure that we're still building a pre-2.0
 	// version before continuing, and fail if we're not.
@@ -57,15 +57,15 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 
 	schemaVersion := migration.Version
 
-	log = log.With(telemetry.Schema, strconv.Itoa(schemaVersion))
+	log = log.WithField(telemetry.Schema, strconv.Itoa(schemaVersion))
 
 	dbCodeVersion, err := getDBCodeVersion(*migration)
 	if err != nil {
-		log.Error("Error getting DB code version", "error", err.Error())
+		log.WithError(err).Error("Error getting DB code version")
 		return sqlError.New("error getting DB code version: %v", err)
 	}
 
-	log = log.With(telemetry.VersionInfo, dbCodeVersion.String())
+	log = log.WithField(telemetry.VersionInfo, dbCodeVersion.String())
 
 	if schemaVersion == latestSchemaVersion {
 		log.Debug("Code and DB schema versions are the same. No migration needed")
@@ -86,7 +86,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log hclog.Logg
 
 	if disableMigration {
 		if err = isDisabledMigrationAllowed(codeVersion, dbCodeVersion); err != nil {
-			log.Error("Auto-migrate must be enabled", telemetry.Error, err)
+			log.WithError(err).Error("Auto-migrate must be enabled")
 			return sqlError.Wrap(err)
 		}
 		return nil
@@ -174,7 +174,7 @@ func isCompatibleCodeVersion(thisCodeVersion, dbCodeVersion semver.Version) bool
 	return true
 }
 
-func initDB(db *gorm.DB, dbType string, log hclog.Logger) (err error) {
+func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 	log.Info("Initializing new database")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
@@ -226,8 +226,8 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 	return tx
 }
 
-func migrateVersion(tx *gorm.DB, currVersion int, log hclog.Logger) (versionOut int, err error) {
-	log.Info("Migrating version", telemetry.VersionInfo, currVersion)
+func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versionOut int, err error) {
+	log.WithField(telemetry.VersionInfo, currVersion).Info("Migrating version")
 
 	// When a new version is added an entry must be included here that knows
 	// how to bring the previous version up. The migrations are run

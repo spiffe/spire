@@ -1,100 +1,16 @@
-// Provides interfaces and adapters for the DataStore service
-//
-// Generated code. Do not modify by hand.
 package datastore
 
 import (
 	"context"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/proto/spire/server/datastore"
-	"google.golang.org/grpc"
+	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type AppendBundleRequest = datastore.AppendBundleRequest                           //nolint: golint
-type AppendBundleResponse = datastore.AppendBundleResponse                         //nolint: golint
-type ByFederatesWith = datastore.ByFederatesWith                                   //nolint: golint
-type ByFederatesWith_MatchBehavior = datastore.ByFederatesWith_MatchBehavior       //nolint: golint
-type BySelectors = datastore.BySelectors                                           //nolint: golint
-type BySelectors_MatchBehavior = datastore.BySelectors_MatchBehavior               //nolint: golint
-type CountAttestedNodesRequest = datastore.CountAttestedNodesRequest               //nolint: golint
-type CountAttestedNodesResponse = datastore.CountAttestedNodesResponse             //nolint: golint
-type CountBundlesRequest = datastore.CountBundlesRequest                           //nolint: golint
-type CountBundlesResponse = datastore.CountBundlesResponse                         //nolint: golint
-type CountRegistrationEntriesRequest = datastore.CountRegistrationEntriesRequest   //nolint: golint
-type CountRegistrationEntriesResponse = datastore.CountRegistrationEntriesResponse //nolint: golint
-type CreateAttestedNodeRequest = datastore.CreateAttestedNodeRequest               //nolint: golint
-type CreateAttestedNodeResponse = datastore.CreateAttestedNodeResponse             //nolint: golint
-type CreateBundleRequest = datastore.CreateBundleRequest                           //nolint: golint
-type CreateBundleResponse = datastore.CreateBundleResponse                         //nolint: golint
-type CreateJoinTokenRequest = datastore.CreateJoinTokenRequest                     //nolint: golint
-type CreateJoinTokenResponse = datastore.CreateJoinTokenResponse                   //nolint: golint
-type CreateRegistrationEntryRequest = datastore.CreateRegistrationEntryRequest     //nolint: golint
-type CreateRegistrationEntryResponse = datastore.CreateRegistrationEntryResponse   //nolint: golint
-type DataStoreClient = datastore.DataStoreClient                                   //nolint: golint
-type DataStoreServer = datastore.DataStoreServer                                   //nolint: golint
-type DeleteAttestedNodeRequest = datastore.DeleteAttestedNodeRequest               //nolint: golint
-type DeleteAttestedNodeResponse = datastore.DeleteAttestedNodeResponse             //nolint: golint
-type DeleteBundleRequest = datastore.DeleteBundleRequest                           //nolint: golint
-type DeleteBundleRequest_Mode = datastore.DeleteBundleRequest_Mode                 //nolint: golint
-type DeleteBundleResponse = datastore.DeleteBundleResponse                         //nolint: golint
-type DeleteJoinTokenRequest = datastore.DeleteJoinTokenRequest                     //nolint: golint
-type DeleteJoinTokenResponse = datastore.DeleteJoinTokenResponse                   //nolint: golint
-type DeleteRegistrationEntryRequest = datastore.DeleteRegistrationEntryRequest     //nolint: golint
-type DeleteRegistrationEntryResponse = datastore.DeleteRegistrationEntryResponse   //nolint: golint
-type FetchAttestedNodeRequest = datastore.FetchAttestedNodeRequest                 //nolint: golint
-type FetchAttestedNodeResponse = datastore.FetchAttestedNodeResponse               //nolint: golint
-type FetchBundleRequest = datastore.FetchBundleRequest                             //nolint: golint
-type FetchBundleResponse = datastore.FetchBundleResponse                           //nolint: golint
-type FetchJoinTokenRequest = datastore.FetchJoinTokenRequest                       //nolint: golint
-type FetchJoinTokenResponse = datastore.FetchJoinTokenResponse                     //nolint: golint
-type FetchRegistrationEntryRequest = datastore.FetchRegistrationEntryRequest       //nolint: golint
-type FetchRegistrationEntryResponse = datastore.FetchRegistrationEntryResponse     //nolint: golint
-type GetNodeSelectorsRequest = datastore.GetNodeSelectorsRequest                   //nolint: golint
-type GetNodeSelectorsResponse = datastore.GetNodeSelectorsResponse                 //nolint: golint
-type JoinToken = datastore.JoinToken                                               //nolint: golint
-type ListAttestedNodesRequest = datastore.ListAttestedNodesRequest                 //nolint: golint
-type ListAttestedNodesResponse = datastore.ListAttestedNodesResponse               //nolint: golint
-type ListBundlesRequest = datastore.ListBundlesRequest                             //nolint: golint
-type ListBundlesResponse = datastore.ListBundlesResponse                           //nolint: golint
-type ListNodeSelectorsRequest = datastore.ListNodeSelectorsRequest                 //nolint: golint
-type ListNodeSelectorsResponse = datastore.ListNodeSelectorsResponse               //nolint: golint
-type ListRegistrationEntriesRequest = datastore.ListRegistrationEntriesRequest     //nolint: golint
-type ListRegistrationEntriesResponse = datastore.ListRegistrationEntriesResponse   //nolint: golint
-type NodeSelectors = datastore.NodeSelectors                                       //nolint: golint
-type Pagination = datastore.Pagination                                             //nolint: golint
-type PruneBundleRequest = datastore.PruneBundleRequest                             //nolint: golint
-type PruneBundleResponse = datastore.PruneBundleResponse                           //nolint: golint
-type PruneJoinTokensRequest = datastore.PruneJoinTokensRequest                     //nolint: golint
-type PruneJoinTokensResponse = datastore.PruneJoinTokensResponse                   //nolint: golint
-type PruneRegistrationEntriesRequest = datastore.PruneRegistrationEntriesRequest   //nolint: golint
-type PruneRegistrationEntriesResponse = datastore.PruneRegistrationEntriesResponse //nolint: golint
-type SetBundleRequest = datastore.SetBundleRequest                                 //nolint: golint
-type SetBundleResponse = datastore.SetBundleResponse                               //nolint: golint
-type SetNodeSelectorsRequest = datastore.SetNodeSelectorsRequest                   //nolint: golint
-type SetNodeSelectorsResponse = datastore.SetNodeSelectorsResponse                 //nolint: golint
-type UnimplementedDataStoreServer = datastore.UnimplementedDataStoreServer         //nolint: golint
-type UnsafeDataStoreServer = datastore.UnsafeDataStoreServer                       //nolint: golint
-type UpdateAttestedNodeRequest = datastore.UpdateAttestedNodeRequest               //nolint: golint
-type UpdateAttestedNodeResponse = datastore.UpdateAttestedNodeResponse             //nolint: golint
-type UpdateBundleRequest = datastore.UpdateBundleRequest                           //nolint: golint
-type UpdateBundleResponse = datastore.UpdateBundleResponse                         //nolint: golint
-type UpdateRegistrationEntryRequest = datastore.UpdateRegistrationEntryRequest     //nolint: golint
-type UpdateRegistrationEntryResponse = datastore.UpdateRegistrationEntryResponse   //nolint: golint
+const Type = "DataStore"
 
-const (
-	Type                           = "DataStore"
-	ByFederatesWith_MATCH_EXACT    = datastore.ByFederatesWith_MATCH_EXACT    //nolint: golint
-	ByFederatesWith_MATCH_SUBSET   = datastore.ByFederatesWith_MATCH_SUBSET   //nolint: golint
-	BySelectors_MATCH_EXACT        = datastore.BySelectors_MATCH_EXACT        //nolint: golint
-	BySelectors_MATCH_SUBSET       = datastore.BySelectors_MATCH_SUBSET       //nolint: golint
-	DeleteBundleRequest_DELETE     = datastore.DeleteBundleRequest_DELETE     //nolint: golint
-	DeleteBundleRequest_DISSOCIATE = datastore.DeleteBundleRequest_DISSOCIATE //nolint: golint
-	DeleteBundleRequest_RESTRICT   = datastore.DeleteBundleRequest_RESTRICT   //nolint: golint
-)
-
-// DataStore is the client interface for the service type DataStore interface.
+// DataStore is the data storage interface
 type DataStore interface {
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
@@ -127,206 +43,325 @@ type DataStore interface {
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
 }
 
-// Plugin is the client interface for the service with the plugin related methods used by the catalog to initialize the plugin.
-type Plugin interface {
-	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
-	Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error)
-	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
-	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
-	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error)
-	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
-	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
-	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
-	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
-	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	DeleteJoinToken(context.Context, *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error)
-	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
-	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
-	FetchJoinToken(context.Context, *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error)
-	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
-	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
-	GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error)
-	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
-	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
-	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
-	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
-	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
-	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
-	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
-	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
-	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
-	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
-	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
-	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
-}
+// Mode controls the delete behavior if there are other records
+// associated with the bundle (e.g. registration entries).
+type DeleteBundleRequest_Mode int32 //nolint: golint
 
-// PluginServer returns a catalog PluginServer implementation for the DataStore plugin.
-func PluginServer(server DataStoreServer) catalog.PluginServer {
-	return &pluginServer{
-		server: server,
+const (
+	// RESTRICT prevents the bundle from being deleted in the presence of associated entries
+	DeleteBundleRequest_RESTRICT DeleteBundleRequest_Mode = iota //nolint: golint
+	// DELETE deletes the bundle and associated entries
+	DeleteBundleRequest_DELETE //nolint: golint
+	// DISSOCIATE deletes the bundle and dissociates associated entries
+	DeleteBundleRequest_DISSOCIATE //nolint: golint
+)
+
+func (mode DeleteBundleRequest_Mode) String() string {
+	switch mode {
+	case DeleteBundleRequest_RESTRICT:
+		return "RESTRICT"
+	case DeleteBundleRequest_DELETE:
+		return "DELETE"
+	case DeleteBundleRequest_DISSOCIATE:
+		return "DISSOCIATE"
+	default:
+		return "UNKNOWN"
 	}
 }
 
-type pluginServer struct {
-	server DataStoreServer
+type BySelectors_MatchBehavior int32 //nolint: golint
+
+const (
+	BySelectors_MATCH_EXACT  BySelectors_MatchBehavior = 0 //nolint: golint
+	BySelectors_MATCH_SUBSET BySelectors_MatchBehavior = 1 //nolint: golint
+)
+
+type ByFederatesWith_MatchBehavior int32 //nolint: golint
+
+const (
+	ByFederatesWith_MATCH_EXACT  ByFederatesWith_MatchBehavior = 0 //nolint: golint
+	ByFederatesWith_MATCH_SUBSET ByFederatesWith_MatchBehavior = 1 //nolint: golint
+)
+
+type AppendBundleRequest struct {
+	Bundle *common.Bundle
 }
 
-func (s pluginServer) PluginType() string {
-	return Type
+type AppendBundleResponse struct {
+	Bundle *common.Bundle
 }
 
-func (s pluginServer) PluginClient() catalog.PluginClient {
-	return PluginClient
+type ByFederatesWith struct {
+	TrustDomains []string
+	Match        ByFederatesWith_MatchBehavior
 }
 
-func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	datastore.RegisterDataStoreServer(server, s.server)
-	return s.server
+type BySelectors struct {
+	Selectors []*common.Selector
+	Match     BySelectors_MatchBehavior
 }
 
-// PluginClient is a catalog PluginClient implementation for the DataStore plugin.
-var PluginClient catalog.PluginClient = pluginClient{}
-
-type pluginClient struct{}
-
-func (pluginClient) PluginType() string {
-	return Type
+type CountAttestedNodesRequest struct {
 }
 
-func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
-	return AdaptPluginClient(datastore.NewDataStoreClient(conn))
+type CountAttestedNodesResponse struct {
+	Nodes int32
 }
 
-func AdaptPluginClient(client DataStoreClient) DataStore {
-	return pluginClientAdapter{client: client}
+type CountBundlesRequest struct {
 }
 
-type pluginClientAdapter struct {
-	client DataStoreClient
+type CountBundlesResponse struct {
+	Bundles int32
 }
 
-func (a pluginClientAdapter) AppendBundle(ctx context.Context, in *AppendBundleRequest) (*AppendBundleResponse, error) {
-	return a.client.AppendBundle(ctx, in)
+type CountRegistrationEntriesRequest struct {
 }
 
-func (a pluginClientAdapter) Configure(ctx context.Context, in *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return a.client.Configure(ctx, in)
+type CountRegistrationEntriesResponse struct {
+	Entries int32
 }
 
-func (a pluginClientAdapter) CountAttestedNodes(ctx context.Context, in *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error) {
-	return a.client.CountAttestedNodes(ctx, in)
+type CreateAttestedNodeRequest struct {
+	Node *common.AttestedNode
 }
 
-func (a pluginClientAdapter) CountBundles(ctx context.Context, in *CountBundlesRequest) (*CountBundlesResponse, error) {
-	return a.client.CountBundles(ctx, in)
+type CreateAttestedNodeResponse struct {
+	Node *common.AttestedNode
 }
 
-func (a pluginClientAdapter) CountRegistrationEntries(ctx context.Context, in *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error) {
-	return a.client.CountRegistrationEntries(ctx, in)
+type CreateBundleRequest struct {
+	Bundle *common.Bundle
 }
 
-func (a pluginClientAdapter) CreateAttestedNode(ctx context.Context, in *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error) {
-	return a.client.CreateAttestedNode(ctx, in)
+type CreateBundleResponse struct {
+	Bundle *common.Bundle
 }
 
-func (a pluginClientAdapter) CreateBundle(ctx context.Context, in *CreateBundleRequest) (*CreateBundleResponse, error) {
-	return a.client.CreateBundle(ctx, in)
+type CreateJoinTokenRequest struct {
+	JoinToken *JoinToken
 }
 
-func (a pluginClientAdapter) CreateJoinToken(ctx context.Context, in *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error) {
-	return a.client.CreateJoinToken(ctx, in)
+type CreateJoinTokenResponse struct {
+	JoinToken *JoinToken
 }
 
-func (a pluginClientAdapter) CreateRegistrationEntry(ctx context.Context, in *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error) {
-	return a.client.CreateRegistrationEntry(ctx, in)
+type CreateRegistrationEntryRequest struct {
+	Entry *common.RegistrationEntry
 }
 
-func (a pluginClientAdapter) DeleteAttestedNode(ctx context.Context, in *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error) {
-	return a.client.DeleteAttestedNode(ctx, in)
+type CreateRegistrationEntryResponse struct {
+	Entry *common.RegistrationEntry
 }
 
-func (a pluginClientAdapter) DeleteBundle(ctx context.Context, in *DeleteBundleRequest) (*DeleteBundleResponse, error) {
-	return a.client.DeleteBundle(ctx, in)
+type DeleteAttestedNodeRequest struct {
+	SpiffeId string //nolint: golint
 }
 
-func (a pluginClientAdapter) DeleteJoinToken(ctx context.Context, in *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error) {
-	return a.client.DeleteJoinToken(ctx, in)
+type DeleteAttestedNodeResponse struct {
+	Node *common.AttestedNode
 }
 
-func (a pluginClientAdapter) DeleteRegistrationEntry(ctx context.Context, in *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error) {
-	return a.client.DeleteRegistrationEntry(ctx, in)
+type DeleteBundleRequest struct {
+	TrustDomainId string //nolint: golint
+	Mode          DeleteBundleRequest_Mode
 }
 
-func (a pluginClientAdapter) FetchAttestedNode(ctx context.Context, in *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error) {
-	return a.client.FetchAttestedNode(ctx, in)
+type DeleteBundleResponse struct {
+	Bundle *common.Bundle
 }
 
-func (a pluginClientAdapter) FetchBundle(ctx context.Context, in *FetchBundleRequest) (*FetchBundleResponse, error) {
-	return a.client.FetchBundle(ctx, in)
+type DeleteJoinTokenRequest struct {
+	Token string
 }
 
-func (a pluginClientAdapter) FetchJoinToken(ctx context.Context, in *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error) {
-	return a.client.FetchJoinToken(ctx, in)
+type DeleteJoinTokenResponse struct {
+	JoinToken *JoinToken
 }
 
-func (a pluginClientAdapter) FetchRegistrationEntry(ctx context.Context, in *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error) {
-	return a.client.FetchRegistrationEntry(ctx, in)
+type DeleteRegistrationEntryRequest struct {
+	EntryId string //nolint: golint
 }
 
-func (a pluginClientAdapter) GetNodeSelectors(ctx context.Context, in *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error) {
-	return a.client.GetNodeSelectors(ctx, in)
+type DeleteRegistrationEntryResponse struct {
+	Entry *common.RegistrationEntry
 }
 
-func (a pluginClientAdapter) GetPluginInfo(ctx context.Context, in *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return a.client.GetPluginInfo(ctx, in)
+type FetchAttestedNodeRequest struct {
+	SpiffeId string //nolint: golint
 }
 
-func (a pluginClientAdapter) ListAttestedNodes(ctx context.Context, in *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error) {
-	return a.client.ListAttestedNodes(ctx, in)
+type FetchAttestedNodeResponse struct {
+	Node *common.AttestedNode
 }
 
-func (a pluginClientAdapter) ListBundles(ctx context.Context, in *ListBundlesRequest) (*ListBundlesResponse, error) {
-	return a.client.ListBundles(ctx, in)
+type FetchBundleRequest struct {
+	TrustDomainId string //nolint: golint
 }
 
-func (a pluginClientAdapter) ListNodeSelectors(ctx context.Context, in *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error) {
-	return a.client.ListNodeSelectors(ctx, in)
+type FetchBundleResponse struct {
+	Bundle *common.Bundle
 }
 
-func (a pluginClientAdapter) ListRegistrationEntries(ctx context.Context, in *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error) {
-	return a.client.ListRegistrationEntries(ctx, in)
+type FetchJoinTokenRequest struct {
+	Token string
 }
 
-func (a pluginClientAdapter) PruneBundle(ctx context.Context, in *PruneBundleRequest) (*PruneBundleResponse, error) {
-	return a.client.PruneBundle(ctx, in)
+type FetchJoinTokenResponse struct {
+	JoinToken *JoinToken
 }
 
-func (a pluginClientAdapter) PruneJoinTokens(ctx context.Context, in *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error) {
-	return a.client.PruneJoinTokens(ctx, in)
+type FetchRegistrationEntryRequest struct {
+	EntryId string //nolint: golint
 }
 
-func (a pluginClientAdapter) PruneRegistrationEntries(ctx context.Context, in *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error) {
-	return a.client.PruneRegistrationEntries(ctx, in)
+type FetchRegistrationEntryResponse struct {
+	Entry *common.RegistrationEntry
 }
 
-func (a pluginClientAdapter) SetBundle(ctx context.Context, in *SetBundleRequest) (*SetBundleResponse, error) {
-	return a.client.SetBundle(ctx, in)
+type GetNodeSelectorsRequest struct {
+	SpiffeId string //nolint: golint
+	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
+	TolerateStale bool
 }
 
-func (a pluginClientAdapter) SetNodeSelectors(ctx context.Context, in *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error) {
-	return a.client.SetNodeSelectors(ctx, in)
+type GetNodeSelectorsResponse struct {
+	Selectors *NodeSelectors
 }
 
-func (a pluginClientAdapter) UpdateAttestedNode(ctx context.Context, in *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error) {
-	return a.client.UpdateAttestedNode(ctx, in)
+type JoinToken struct {
+	// Token value
+	Token string
+	// Expiration in seconds since unix epoch
+	Expiry int64
 }
 
-func (a pluginClientAdapter) UpdateBundle(ctx context.Context, in *UpdateBundleRequest) (*UpdateBundleResponse, error) {
-	return a.client.UpdateBundle(ctx, in)
+type ListAttestedNodesRequest struct {
+	ByExpiresBefore   *wrapperspb.Int64Value
+	Pagination        *Pagination
+	ByAttestationType string
+	BySelectorMatch   *BySelectors
+	ByBanned          *wrapperspb.BoolValue
+	FetchSelectors    bool
 }
 
-func (a pluginClientAdapter) UpdateRegistrationEntry(ctx context.Context, in *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error) {
-	return a.client.UpdateRegistrationEntry(ctx, in)
+type ListAttestedNodesResponse struct {
+	Nodes      []*common.AttestedNode
+	Pagination *Pagination
+}
+
+type ListBundlesRequest struct {
+	Pagination *Pagination
+}
+
+type ListBundlesResponse struct {
+	Bundles    []*common.Bundle
+	Pagination *Pagination
+}
+
+type ListNodeSelectorsRequest struct {
+	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
+	TolerateStale bool
+	ValidAt       *timestamppb.Timestamp
+}
+
+type ListNodeSelectorsResponse struct {
+	Selectors []*NodeSelectors
+}
+
+type ListRegistrationEntriesRequest struct {
+	ByParentId  *wrapperspb.StringValue //nolint: golint
+	BySelectors *BySelectors
+	BySpiffeId  *wrapperspb.StringValue //nolint: golint
+	Pagination  *Pagination
+	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
+	TolerateStale   bool
+	ByFederatesWith *ByFederatesWith
+}
+
+type ListRegistrationEntriesResponse struct {
+	Entries    []*common.RegistrationEntry
+	Pagination *Pagination
+}
+
+type NodeSelectors struct {
+	// Node SPIFFE ID
+	SpiffeId string //nolint: golint
+	// Node selectors
+	Selectors []*common.Selector
+}
+
+type Pagination struct {
+	Token    string
+	PageSize int32
+}
+
+type PruneBundleRequest struct {
+	// Trust domain of the bundle to prune
+	TrustDomainId string //nolint: golint
+	// Expiration time
+	ExpiresBefore int64
+}
+type PruneBundleResponse struct {
+	BundleChanged bool
+}
+
+type PruneJoinTokensRequest struct {
+	ExpiresBefore int64
+}
+
+type PruneJoinTokensResponse struct {
+}
+
+type PruneRegistrationEntriesRequest struct {
+	ExpiresBefore int64
+}
+
+type PruneRegistrationEntriesResponse struct {
+}
+
+type SetBundleRequest struct {
+	Bundle *common.Bundle
+}
+
+type SetBundleResponse struct {
+	Bundle *common.Bundle
+}
+
+type SetNodeSelectorsRequest struct {
+	Selectors *NodeSelectors
+}
+
+type SetNodeSelectorsResponse struct {
+}
+
+type UpdateAttestedNodeRequest struct {
+	SpiffeId            string //nolint: golint
+	CertSerialNumber    string
+	CertNotAfter        int64
+	NewCertSerialNumber string
+	NewCertNotAfter     int64
+	InputMask           *common.AttestedNodeMask
+}
+
+type UpdateAttestedNodeResponse struct {
+	Node *common.AttestedNode
+}
+
+type UpdateBundleRequest struct {
+	Bundle    *common.Bundle
+	InputMask *common.BundleMask
+}
+
+type UpdateBundleResponse struct {
+	Bundle *common.Bundle
+}
+
+type UpdateRegistrationEntryRequest struct {
+	Entry *common.RegistrationEntry
+	Mask  *common.RegistrationEntryMask
+}
+
+type UpdateRegistrationEntryResponse struct {
+	Entry *common.RegistrationEntry
 }

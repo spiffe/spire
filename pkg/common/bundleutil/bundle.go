@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	hclog "github.com/hashicorp/go-hclog"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -254,7 +254,7 @@ func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
 
 // PruneBundle removes the bundle RootCAs and JWT keys that expired before a given time
 // It returns an error if prunning results in a bundle with no CAs or keys
-func PruneBundle(bundle *common.Bundle, expiration time.Time, log hclog.Logger) (*common.Bundle, bool, error) {
+func PruneBundle(bundle *common.Bundle, expiration time.Time, log logrus.FieldLogger) (*common.Bundle, bool, error) {
 	if bundle == nil {
 		return nil, false, errors.New("current bundle is nil")
 	}
@@ -278,7 +278,10 @@ pruneRootCA:
 		// if any cert in the chain has expired, throw the whole chain out
 		for _, cert := range certs {
 			if !cert.NotAfter.After(expiration) {
-				log.Info("Pruning CA certificate due to expiration", telemetry.SerialNumber, cert.SerialNumber, telemetry.Expiration, cert.NotAfter)
+				log.WithFields(logrus.Fields{
+					telemetry.SerialNumber: cert.SerialNumber,
+					telemetry.Expiration:   cert.NotAfter,
+				}).Info("Pruning CA certificate due to expiration")
 				changed = true
 				continue pruneRootCA
 			}
@@ -289,7 +292,10 @@ pruneRootCA:
 	for _, jwtSigningKey := range bundle.JwtSigningKeys {
 		notAfter := time.Unix(jwtSigningKey.NotAfter, 0)
 		if !notAfter.After(expiration) {
-			log.Info("Pruning JWT signing key due to expiration", telemetry.Kid, jwtSigningKey.Kid, telemetry.Expiration, notAfter)
+			log.WithFields(logrus.Fields{
+				telemetry.Kid:        jwtSigningKey.Kid,
+				telemetry.Expiration: notAfter,
+			}).Info("Pruning JWT signing key due to expiration")
 			changed = true
 			continue
 		}

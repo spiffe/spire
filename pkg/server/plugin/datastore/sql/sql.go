@@ -12,19 +12,16 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
+	"github.com/sirupsen/logrus"
 
-	_ "github.com/jinzhu/gorm/dialects/sqlite" // gorm sqlite dialect init registration
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,14 +29,6 @@ import (
 )
 
 var (
-	pluginInfo = spi.GetPluginInfoResponse{
-		Description: "",
-		DateCreated: "",
-		Version:     "",
-		Author:      "",
-		Company:     "",
-	}
-
 	sqlError = errs.Class("datastore-sql")
 )
 
@@ -53,16 +42,6 @@ const (
 	// SQLite database type
 	SQLite = "sqlite3"
 )
-
-func BuiltIn() catalog.Plugin {
-	return builtin(New())
-}
-
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(PluginName,
-		datastore.PluginServer(p),
-	)
-}
 
 // Configuration for the datastore.
 // Pointer values are used to distinguish between "unset" and "zero" values.
@@ -107,22 +86,16 @@ func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interfa
 
 // Plugin is a DataStore plugin implemented via a SQL database
 type Plugin struct {
-	datastore.UnsafeDataStoreServer
-
 	mu   sync.Mutex
 	db   *sqlDB
 	roDb *sqlDB
-	log  hclog.Logger
+	log  logrus.FieldLogger
 }
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New() *Plugin {
-	return &Plugin{}
-}
-
-func (ds *Plugin) SetLogger(logger hclog.Logger) {
-	ds.log = logger
+func New(log logrus.FieldLogger) *Plugin {
+	return &Plugin{log: log}
 }
 
 // CreateBundle stores the given bundle
@@ -469,32 +442,32 @@ func (ds *Plugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinT
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
-func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (ds *Plugin) Configure(hclConfiguration string) error {
 	config := &configuration{}
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, err
+	if err := hcl.Decode(config, hclConfiguration); err != nil {
+		return err
 	}
 
 	if err := config.Validate(); err != nil {
-		return nil, err
+		return err
 	}
 
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
 	if err := ds.openConnection(config, false); err != nil {
-		return nil, err
+		return err
 	}
 
 	if config.RoConnectionString == "" {
-		return &spi.ConfigureResponse{}, nil
+		return nil
 	}
 
 	if err := ds.openConnection(config, true); err != nil {
-		return nil, err
+		return err
 	}
 
-	return &spi.ConfigureResponse{}, nil
+	return nil
 }
 
 func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
@@ -519,11 +492,11 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 			sqlDb.Close()
 		}
 
-		ds.log.Info("Connected to SQL database",
-			"type", config.DatabaseType,
-			"version", version,
-			"read_only", isReadOnly,
-		)
+		ds.log.WithFields(logrus.Fields{
+			"type":      config.DatabaseType,
+			"version":   version,
+			"read_only": isReadOnly,
+		}).Info("Connected to SQL database")
 
 		sqlDb = &sqlDB{
 			DB:               db,
@@ -554,11 +527,6 @@ func (ds *Plugin) closeDB() {
 	if ds.roDb != nil {
 		ds.roDb.Close()
 	}
-}
-
-// GetPluginInfo returns the sql plugin
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &pluginInfo, nil
 }
 
 // withReadModifyWriteTx wraps the operation in a transaction appropriate for
@@ -654,7 +622,7 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, dialect, error) {
 	var dialect dialect
 
-	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
+	ds.log.WithField(telemetry.DatabaseType, cfg.DatabaseType).Info("Opening SQL database")
 	switch cfg.DatabaseType {
 	case SQLite:
 		dialect = sqliteDB{log: ds.log}
@@ -671,11 +639,9 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		return nil, "", false, nil, err
 	}
 
-	gormLogger := ds.log.Named("gorm")
-	gormLogger.SetLevel(hclog.Debug)
-	db.SetLogger(gormLogger.StandardLogger(&hclog.StandardLoggerOptions{
-		InferLevels: true,
-	}))
+	db.SetLogger(gormLogger{
+		log: ds.log.WithField("subsystem_name", "gorm"),
+	})
 	if cfg.MaxOpenConns != nil {
 		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
 	}
@@ -698,6 +664,14 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	}
 
 	return db, version, supportsCTE, dialect, nil
+}
+
+type gormLogger struct {
+	log logrus.FieldLogger
+}
+
+func (logger gormLogger) Print(v ...interface{}) {
+	logger.log.Debug(v...)
 }
 
 func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
@@ -985,7 +959,7 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	return resp, nil
 }
 
-func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logger) (*datastore.PruneBundleResponse, error) {
+func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.FieldLogger) (*datastore.PruneBundleResponse, error) {
 	// Get current bundle
 	current, err := fetchBundle(tx, &datastore.FetchBundleRequest{TrustDomainId: req.TrustDomainId})
 	if err != nil {
@@ -3376,11 +3350,11 @@ func bindVarsFn(fn func(int) string, query string) string {
 
 func (cfg *configuration) Validate() error {
 	if cfg.DatabaseType == "" {
-		return errors.New("database_type must be set")
+		return sqlError.New("database_type must be set")
 	}
 
 	if cfg.ConnectionString == "" {
-		return errors.New("connection_string must be set")
+		return sqlError.New("connection_string must be set")
 	}
 
 	if cfg.DatabaseType == MySQL {
