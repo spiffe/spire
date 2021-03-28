@@ -221,12 +221,17 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		notifiers = append(notifiers, n)
 	}
 
+	var upstreamAuthority upstreamauthority.UpstreamAuthority
+	if p.UpstreamAuthority != nil {
+		upstreamAuthority = p.UpstreamAuthority
+	}
+
 	return &Repository{
 		Catalog: &Plugins{
 			DataStore:         ds,
 			NodeAttestors:     nodeAttestors,
 			NodeResolvers:     nodeResolvers,
-			UpstreamAuthority: p.UpstreamAuthority,
+			UpstreamAuthority: upstreamAuthority,
 			KeyManager:        p.KeyManager,
 			Notifiers:         notifiers,
 		},
@@ -242,7 +247,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 type versionedPlugins struct {
 	NodeAttestors     map[string]nodeattestor.V0
 	NodeResolvers     map[string]noderesolver.V0
-	UpstreamAuthority upstreamauthority.V0
+	UpstreamAuthority *upstreamauthority.V0
 	KeyManager        keymanager.V0
 	Notifiers         []notifier.V0
 }
