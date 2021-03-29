@@ -493,9 +493,9 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 		}
 
 		ds.log.WithFields(logrus.Fields{
-			"type":      config.DatabaseType,
-			"version":   version,
-			"read_only": isReadOnly,
+			telemetry.Type:     config.DatabaseType,
+			telemetry.Version:  version,
+			telemetry.ReadOnly: isReadOnly,
 		}).Info("Connected to SQL database")
 
 		sqlDb = &sqlDB{
@@ -640,7 +640,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	}
 
 	db.SetLogger(gormLogger{
-		log: ds.log.WithField("subsystem_name", "gorm"),
+		log: ds.log.WithField(telemetry.SubsystemName, "gorm"),
 	})
 	if cfg.MaxOpenConns != nil {
 		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
@@ -671,7 +671,7 @@ type gormLogger struct {
 }
 
 func (logger gormLogger) Print(v ...interface{}) {
-	logger.log.Debug(v...)
+	logger.log.Debug(gorm.LogFormatter(v...)...)
 }
 
 func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {

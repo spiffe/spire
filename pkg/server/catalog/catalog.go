@@ -271,7 +271,7 @@ func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	ds := ds_sql.New(log.WithField("subsystem_name", sqlConfig.Name))
+	ds := ds_sql.New(log.WithField(telemetry.SubsystemName, sqlConfig.Name))
 	if err := ds.Configure(sqlConfig.Data); err != nil {
 		return nil, err
 	}
