@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 
+	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -86,7 +86,8 @@ func TestPruneBundle(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			newBundle, changed, err := PruneBundle(tt.bundle, tt.expiration, hclog.NewNullLogger())
+			log, _ := testlog.NewNullLogger()
+			newBundle, changed, err := PruneBundle(tt.bundle, tt.expiration, log)
 			require.Equal(t, tt.newBundle, newBundle)
 			require.Equal(t, tt.changed, changed)
 			if tt.expectedErr != "" {
