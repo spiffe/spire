@@ -15,8 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/server/upstreamauthority"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -33,7 +32,7 @@ type Config struct {
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
 	MutateMintX509CAResponse    func(*upstreamauthorityv0.MintX509CAResponse)
-	MutatePublishJWTKeyResponse func(*upstreamauthority.PublishJWTKeyResponse)
+	MutatePublishJWTKeyResponse func(*upstreamauthorityv0.PublishJWTKeyResponse)
 }
 
 type UpstreamAuthority struct {

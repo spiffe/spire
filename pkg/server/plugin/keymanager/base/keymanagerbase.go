@@ -12,7 +12,7 @@ import (
 	"sort"
 	"sync"
 
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"

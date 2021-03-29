@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 	"github.com/spiffe/spire/test/spiretest"
 )
 

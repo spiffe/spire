@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 )
 
 const (
