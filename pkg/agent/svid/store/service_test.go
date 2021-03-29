@@ -338,6 +338,7 @@ func setupTest(t *testing.T, stores []*fakeSVIDStore) *serviceTest {
 		TrustDomain: td,
 		Cache:       cache,
 		Catalog:     cat,
+		Metrics:     telemetry.Blackhole{},
 	})
 	service.SetStoreFinishedHook(storeFinishedHook)
 

@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_store "github.com/spiffe/spire/pkg/common/telemetry/agent/store"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -168,6 +169,9 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 
 // TODO: may we change log.Error for debug?
 func (s *SVIDStoreService) processRecords(ctx context.Context) {
+	counter := telemetry_store.StartStoreSVIDUpdates(s.metrics)
+	defer counter.Done(nil)
+
 	for _, record := range s.cache.ReadyToStore() {
 		log := s.log.WithField(telemetry.Revision, record.Revision)
 

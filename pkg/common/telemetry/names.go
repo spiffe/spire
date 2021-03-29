@@ -106,6 +106,9 @@ const (
 	// (agent or server)
 	StorePrivateKey = "store_private_key"
 
+	// StoreSVIDUpdates related to storing a SVID updates
+	StoreSVIDUpdates = "store_svid_updates"
+
 	// Sync functionality for syncing (such as CA manager updates). Should
 	// be used with other tags to add clarity
 	Sync = "sync"
@@ -673,6 +676,9 @@ const (
 
 	// ServerKeyManager attached to all operations related to the server KeyManager interface
 	ServerKeyManager = "server_key_manager"
+
+	// Store functionality related to SVID Store service
+	Store = "store"
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"
