@@ -371,6 +371,11 @@ type fakeAgentService struct {
 }
 
 func (s *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
+	_, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
 	if s.failAttestAgent {
 		return errors.New("attestation failed by test")
 	}
@@ -379,11 +384,6 @@ func (s *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) e
 		if s.svid.Id.Path != "/join_token/"+s.joinToken {
 			return fmt.Errorf("expected to have path %q", "/join_token/"+s.joinToken)
 		}
-	}
-
-	_, err := stream.Recv()
-	if err != nil {
-		return err
 	}
 
 	for len(s.challengeResponses) > 0 {
