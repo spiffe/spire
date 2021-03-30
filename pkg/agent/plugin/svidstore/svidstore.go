@@ -19,7 +19,7 @@ type SVIDStore interface {
 
 type X509SVID struct {
 	// X509-SVID to be stored
-	Svid *Svid
+	SVID *SVID
 
 	// Data relevant for plugin to identify secret
 	SecretsData []string
@@ -27,7 +27,7 @@ type X509SVID struct {
 	FederatedBundles map[string][]*x509.Certificate
 }
 
-type Svid struct {
+type SVID struct {
 	// SPIFFE ID of the SVID.
 	SpiffeID spiffeid.ID
 

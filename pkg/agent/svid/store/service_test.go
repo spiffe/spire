@@ -58,7 +58,7 @@ func TestRun(t *testing.T) {
 					putReq: make(map[spiffeid.ID]*svidstore.X509SVID),
 					expectedPutReq: map[spiffeid.ID]*svidstore.X509SVID{
 						entrySpiffeID: {
-							Svid: &svidstore.Svid{
+							SVID: &svidstore.SVID{
 								SpiffeID:   entrySpiffeID,
 								Bundle:     []*x509.Certificate{bundleCerts[0]},
 								CertChain:  []*x509.Certificate{cert},
@@ -210,7 +210,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 					expectedDeleteReq: [][]string{{"a:1", "b:2"}},
 					expectedPutReq: map[spiffeid.ID]*svidstore.X509SVID{
 						entrySpiffeID: {
-							Svid: &svidstore.Svid{
+							SVID: &svidstore.SVID{
 								SpiffeID:   entrySpiffeID,
 								Bundle:     []*x509.Certificate{bundleCerts[0]},
 								CertChain:  []*x509.Certificate{cert},
@@ -400,7 +400,7 @@ func (s *fakeSVIDStore) PutX509SVID(ctx context.Context, req *svidstore.X509SVID
 	if s.err != nil {
 		return s.err
 	}
-	s.putReq[req.Svid.SpiffeID] = req
+	s.putReq[req.SVID.SpiffeID] = req
 
 	return nil
 }

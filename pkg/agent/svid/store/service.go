@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -16,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_store "github.com/spiffe/spire/pkg/common/telemetry/agent/store"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -175,11 +175,11 @@ func (s *SVIDStoreService) processRecords(ctx context.Context) {
 	for _, record := range s.cache.ReadyToStore() {
 		log := s.log.WithField(telemetry.Revision, record.Revision)
 
-		//  Is entry is marked as delete
+		// Check if entry is marked to be deleted
 		if record.Entry == nil {
 			// TODO: add a retry backoff
 			if s.deleteSVID(ctx, log, record.HandledEntry) {
-				// Deleted successfully update revision
+				// Deleted successfully. update revision
 				s.cache.HandledRecord(record.HandledEntry, record.Revision)
 			}
 			continue
@@ -188,7 +188,7 @@ func (s *SVIDStoreService) processRecords(ctx context.Context) {
 		// Entries with changes on selectors must be removed before secret is stored.
 		if record.HandledEntry != nil {
 			// Verify if selector change, and if it changes delete secret from store before update
-			if !reflect.DeepEqual(record.Entry.Selectors, record.HandledEntry.Selectors) {
+			if !util.EqualsSelectors(record.Entry.Selectors, record.HandledEntry.Selectors) {
 				// TODO: add retry, and maybe fail update until it is deleted?
 				s.deleteSVID(ctx, log, record.HandledEntry)
 			}
@@ -212,7 +212,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 	for _, federatedID := range record.Entry.FederatesWith {
 		td, err := spiffeid.TrustDomainFromString(federatedID)
 		if err != nil {
-			// Invalid spiffe ID it must never happens
+			// This is purely defensive since federatedID should be valid
 			continue
 		}
 
@@ -242,7 +242,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 
 	return &svidstore.X509SVID{
 		SecretsData: secretData,
-		Svid: &svidstore.Svid{
+		SVID: &svidstore.SVID{
 			SpiffeID:   spiffeID,
 			Bundle:     rootCA.RootCAs(),
 			CertChain:  record.Svid.Chain,

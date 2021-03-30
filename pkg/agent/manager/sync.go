@@ -33,7 +33,7 @@ type Cache interface {
 	// UpdateSVIDs updates SVIDs on provided records
 	UpdateSVIDs(update *cache.UpdateSVIDs)
 
-	// GetStaleEntries list of records that needs new SVIDs
+	// GetStaleEntries gets a list of records that need update SVIDs
 	GetStaleEntries() []*cache.StaleEntry
 }
 
@@ -189,8 +189,8 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 	}, nil
 }
 
-// fetchEntries fetchs entries that agent is allowed and split into two lists, one for regular entries and another for
-// storable entries
+// fetchEntries fetches entries that the agent is entitled to, divided in lists, one for regular entries and
+// another one for storable entries
 func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *cache.UpdateEntries, err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchEntriesUpdatesCall(m.c.Metrics)

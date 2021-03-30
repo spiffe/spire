@@ -3,11 +3,11 @@ package svidstore
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	svidstorev1 "github.com/spiffe/spire/proto/spire/agent/svidstore/v1"
+	"google.golang.org/grpc/codes"
 )
 
 type V1 struct {
@@ -34,18 +34,18 @@ func (v1 V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 		federatedBundles[id] = x509util.DERFromCertificates(bundle)
 	}
 
-	keyData, err := x509.MarshalPKCS8PrivateKey(x509SVID.Svid.PrivateKey)
+	keyData, err := x509.MarshalPKCS8PrivateKey(x509SVID.SVID.PrivateKey)
 	if err != nil {
-		return fmt.Errorf("failed to marshal key: %v", err)
+		return v1.Errorf(codes.Internal, "failed to marshal key: %v", err)
 	}
 	var svid *svidstorev1.X509SVID
-	if x509SVID.Svid != nil {
+	if x509SVID.SVID != nil {
 		svid = &svidstorev1.X509SVID{
-			SpiffeID:   x509SVID.Svid.SpiffeID.String(),
-			CertChain:  x509util.RawCertsFromCertificates(x509SVID.Svid.CertChain),
+			SpiffeID:   x509SVID.SVID.SpiffeID.String(),
+			CertChain:  x509util.RawCertsFromCertificates(x509SVID.SVID.CertChain),
 			PrivateKey: keyData,
-			Bundle:     x509util.RawCertsFromCertificates(x509SVID.Svid.Bundle),
-			ExpiresAt:  x509SVID.Svid.ExpiresAt.Unix(),
+			Bundle:     x509util.RawCertsFromCertificates(x509SVID.SVID.Bundle),
+			ExpiresAt:  x509SVID.SVID.ExpiresAt.Unix(),
 		}
 	}
 

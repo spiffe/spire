@@ -56,9 +56,9 @@ type Cache struct {
 
 	mtx sync.RWMutex
 
-	//bundles hold latests bundles
+	// bundles hold the latests bundles
 	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
-	// records hold all latests SVIDs with it's entries
+	// records holds all the latests SVIDs with its entries
 	records map[string]*cachedRecord
 
 	// staleEntries holds stale registration entries
@@ -78,7 +78,7 @@ func New(config *Config) *Cache {
 // revision record's revision number is incremented on each record baed on:
 // - Knowledge or when the SVID for that entry changes
 // - Knowledge when the bundle changes
-// - Knowledge when a federated bundle related to an exported entry changes
+// - Knowledge when a federated bundle related to an storable entry changes
 func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -115,24 +115,29 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 	}
 	trustDomainBundleChanged := bundleChanged[c.c.TrustDomain]
 
-	// Remove records for registration entries that no longer exist
+	// Remove records of registration entries that no longer exist
 	for id, record := range c.records {
 		if _, ok := update.RegistrationEntries[id]; !ok {
-			// Record is already mark as removed and it was catch processed by store service,
-			// since latest handled is equal to current revision
+			// Record is marked as removed and already processed by store service,
+			// since the value of latest handled is equal to current revision
 			if record.entry == nil && record.revision == record.handled {
 				delete(c.records, id)
+				c.c.Log.WithFields(logrus.Fields{
+					telemetry.Entry:    id,
+					telemetry.SPIFFEID: record.handledEntry.SpiffeId,
+				}).Debug("Entry removed")
 				continue
 			}
+
 			c.c.Log.WithFields(logrus.Fields{
 				telemetry.Entry:    id,
 				telemetry.SPIFFEID: record.entry.SpiffeId,
-			}).Debug("Entry removed")
+			}).Debug("Entry marked to be removed")
 
-			// Entry mark as removed set  entry as 'nil', latest handled entry as actual entry,
-			// and increments revision.
-			// Record will be taken by service to propagate it to stores.
-			// Once store plugin remove it from specific platform will set 'revision' == 'handledRevision'
+			// Mark the entry as removed, setting "entry" as 'nil'. The latest handled entry is set as current entry,
+			// and increment the revision.
+			// The record will be taken by the service to propagate it to SVID Stores.
+			// Once the SVID Store plugin removes it from the specific platform, 'revision' will be equal to 'handled'
 			record.handledEntry = record.entry
 			record.entry = nil
 			record.revision++
@@ -150,11 +155,11 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 		switch {
 		// Entry revision changed that means entry changed
 		case entryUpdated,
-			// Add revision to all entries when td bundle changes
+			// Increase the revision when the TD bundle changed
 			trustDomainBundleChanged,
 			// Mark record as stale when a federated bundle changed
 			isBundleChanged(record.entry.FederatesWith, bundleChanged),
-			// Update revision when federated bundle related with entry is removed
+			// Increase the revision when the federated bundle related with the entry is removed
 			isBundleRemoved(record.entry.FederatesWith, bundlesRemoved):
 			// Related bundles or entry changed, mark this record as outdated
 			record.revision++
@@ -243,7 +248,7 @@ func (c *Cache) GetStaleEntries() []*cache.StaleEntry {
 	return staleEntries
 }
 
-// GetStoreEntries provides all records with altered revision
+// ReadyToStore provides all records that are in state to be stored
 func (c *Cache) ReadyToStore() []*Record {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -288,8 +293,8 @@ func (c *Cache) Records() []*Record {
 	return records
 }
 
-// updateOrCreateRecord creates a new record if required or update existing record.
-// in case record is updated old entry is returned
+// updateOrCreateRecord creates a new record if required or updates the existing record.
+// In case that the record is updated, the old entry is returned.
 func (c *Cache) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*cachedRecord, *common.RegistrationEntry) {
 	var existingEntry *common.RegistrationEntry
 	record, recordExists := c.records[newEntry.EntryId]
@@ -309,7 +314,7 @@ func (c *Cache) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*cache
 	return record, existingEntry
 }
 
-// isBundleChanged verify if any federated bundle changed
+// isBundleChanged indicates whether any federated bundle changed or not
 func isBundleChanged(federatesWith []string, bundleChanged map[spiffeid.TrustDomain]bool) bool {
 	for _, federatedWith := range federatesWith {
 		td, err := spiffeid.TrustDomainFromString(federatedWith)
@@ -318,7 +323,7 @@ func isBundleChanged(federatesWith []string, bundleChanged map[spiffeid.TrustDom
 			continue
 		}
 
-		// In case a single bundle changed all record is marked as outdated
+		// In case that a single bundle changed, all the record is marked as outdated
 		if bundleChanged[td] {
 			return true
 		}
@@ -327,7 +332,7 @@ func isBundleChanged(federatesWith []string, bundleChanged map[spiffeid.TrustDom
 	return false
 }
 
-// isBundleRemoved validates if any federated bundle is removed
+// isBundleRemoved indicates if any federated bundle is now removed
 func isBundleRemoved(federatesWith []string, bundleRemoved map[spiffeid.TrustDomain]bool) bool {
 	for _, federatedWith := range federatesWith {
 		td, err := spiffeid.TrustDomainFromString(federatedWith)
@@ -336,7 +341,7 @@ func isBundleRemoved(federatesWith []string, bundleRemoved map[spiffeid.TrustDom
 			continue
 		}
 
-		// In case a single bundle is removed all record is marked as outdated
+		// In case a single bundle is removed, all the record is marked as outdated
 		if bundleRemoved[td] {
 			return true
 		}
