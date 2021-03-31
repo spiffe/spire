@@ -1,26 +1,15 @@
 // Provides interfaces and adapters for the SVIDStore service
 //
 // Generated code. Do not modify by hand.
-package v1
+package svidstorev0
 
 import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/svidstore"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc"
 )
-
-type DeleteX509SVIDRequest = svidstore.DeleteX509SVIDRequest               //nolint: golint
-type DeleteX509SVIDResponse = svidstore.DeleteX509SVIDResponse             //nolint: golint
-type PutX509SVIDRequest = svidstore.PutX509SVIDRequest                     //nolint: golint
-type PutX509SVIDResponse = svidstore.PutX509SVIDResponse                   //nolint: golint
-type SVIDStoreClient = svidstore.SVIDStoreClient                           //nolint: golint
-type SVIDStoreServer = svidstore.SVIDStoreServer                           //nolint: golint
-type UnimplementedSVIDStoreServer = svidstore.UnimplementedSVIDStoreServer //nolint: golint
-type UnsafeSVIDStoreServer = svidstore.UnsafeSVIDStoreServer               //nolint: golint
-type X509SVID = svidstore.X509SVID                                         //nolint: golint
 
 const (
 	Type = "SVIDStore"
@@ -60,7 +49,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	svidstore.RegisterSVIDStoreServer(server, s.server)
+	RegisterSVIDStoreServer(server, s.server)
 	return s.server
 }
 
@@ -74,7 +63,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
-	return AdaptPluginClient(svidstore.NewSVIDStoreClient(conn))
+	return AdaptPluginClient(NewSVIDStoreClient(conn))
 }
 
 func AdaptPluginClient(client SVIDStoreClient) SVIDStore {

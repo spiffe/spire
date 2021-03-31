@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 type SVIDStoreClient interface {
 	// Puts an X509-SVID in a configured secrets store
 	PutX509SVID(ctx context.Context, in *PutX509SVIDRequest, opts ...grpc.CallOption) (*PutX509SVIDResponse, error)
+	// Deletes a secrets from a secrets store
 	DeleteX509SVID(ctx context.Context, in *DeleteX509SVIDRequest, opts ...grpc.CallOption) (*DeleteX509SVIDResponse, error)
 	// Applies the plugin configuration and returns configuration errors
 	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
@@ -78,6 +79,7 @@ func (c *sVIDStoreClient) GetPluginInfo(ctx context.Context, in *plugin.GetPlugi
 type SVIDStoreServer interface {
 	// Puts an X509-SVID in a configured secrets store
 	PutX509SVID(context.Context, *PutX509SVIDRequest) (*PutX509SVIDResponse, error)
+	// Deletes a secrets from a secrets store
 	DeleteX509SVID(context.Context, *DeleteX509SVIDRequest) (*DeleteX509SVIDResponse, error)
 	// Applies the plugin configuration and returns configuration errors
 	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)

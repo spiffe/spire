@@ -6,29 +6,29 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	svidstorev1 "github.com/spiffe/spire/proto/spire/agent/svidstore/v1"
+	svidstorev0 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v0"
 	"google.golang.org/grpc/codes"
 )
 
-type V1 struct {
+type V0 struct {
 	plugin.Facade
 
-	Plugin svidstorev1.SVIDStore
+	Plugin svidstorev0.SVIDStore
 }
 
-func (v1 V1) DeleteX509SVID(ctx context.Context, secretData []string) error {
-	_, err := v1.Plugin.DeleteX509SVID(ctx, &svidstorev1.DeleteX509SVIDRequest{
+func (v0 V0) DeleteX509SVID(ctx context.Context, secretData []string) error {
+	_, err := v0.Plugin.DeleteX509SVID(ctx, &svidstorev0.DeleteX509SVIDRequest{
 		SecretData: secretData,
 	})
 
 	if err != nil {
-		return v1.WrapErr(err)
+		return v0.WrapErr(err)
 	}
 
 	return nil
 }
 
-func (v1 V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
+func (v0 V0) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 	federatedBundles := make(map[string][]byte)
 	for id, bundle := range x509SVID.FederatedBundles {
 		federatedBundles[id] = x509util.DERFromCertificates(bundle)
@@ -36,11 +36,11 @@ func (v1 V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 
 	keyData, err := x509.MarshalPKCS8PrivateKey(x509SVID.SVID.PrivateKey)
 	if err != nil {
-		return v1.Errorf(codes.Internal, "failed to marshal key: %v", err)
+		return v0.Errorf(codes.Internal, "failed to marshal key: %v", err)
 	}
-	var svid *svidstorev1.X509SVID
+	var svid *svidstorev0.X509SVID
 	if x509SVID.SVID != nil {
-		svid = &svidstorev1.X509SVID{
+		svid = &svidstorev0.X509SVID{
 			SpiffeID:   x509SVID.SVID.SpiffeID.String(),
 			CertChain:  x509util.RawCertsFromCertificates(x509SVID.SVID.CertChain),
 			PrivateKey: keyData,
@@ -49,14 +49,14 @@ func (v1 V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 		}
 	}
 
-	req := &svidstorev1.PutX509SVIDRequest{
+	req := &svidstorev0.PutX509SVIDRequest{
 		Svid:             svid,
 		SecretData:       x509SVID.SecretsData,
 		FederatedBundles: federatedBundles,
 	}
 
-	if _, err := v1.Plugin.PutX509SVID(ctx, req); err != nil {
-		return v1.WrapErr(err)
+	if _, err := v0.Plugin.PutX509SVID(ctx, req); err != nil {
+		return v0.WrapErr(err)
 	}
 
 	return nil
