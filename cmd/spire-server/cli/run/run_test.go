@@ -835,6 +835,34 @@ func TestNewServerConfig(t *testing.T) {
 				require.True(t, c.RateLimit.Attestation)
 			},
 		},
+		{
+			msg: "signing rate limit is on by default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.Signing)
+			},
+		},
+		{
+			msg: "signing rate limit can be explicitly disabled",
+			input: func(c *Config) {
+				value := false
+				c.Server.RateLimit.Signing = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.RateLimit.Signing)
+			},
+		},
+		{
+			msg: "signing rate limit can be explicitly enabled",
+			input: func(c *Config) {
+				value := true
+				c.Server.RateLimit.Signing = &value
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.RateLimit.Signing)
+			},
+		},
 	}
 
 	for _, testCase := range cases {

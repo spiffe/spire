@@ -15,7 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/api/node"
+	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -76,11 +76,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	if len(staleEntries) > 0 {
 		m.c.Log.WithFields(logrus.Fields{
 			telemetry.Count: len(staleEntries),
-			telemetry.Limit: node.CSRLimit,
+			telemetry.Limit: limits.SignLimitPerIP,
 		}).Debug("Renewing stale entries")
 		for _, staleEntry := range staleEntries {
 			// we've exceeded the CSR limit, don't make any more CSRs
-			if len(csrs) >= node.CSRLimit {
+			if len(csrs) >= limits.SignLimitPerIP {
 				break
 			}
 

@@ -29,6 +29,9 @@ func RSAKeyMatches(privateKey *rsa.PrivateKey, publicKey *rsa.PublicKey) bool {
 }
 
 func GetPublicKey(ctx context.Context, km keymanager.KeyManager, keyID string) (crypto.PublicKey, error) {
+	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
+	defer cancel()
+
 	resp, err := km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
 		KeyId: keyID,
 	})

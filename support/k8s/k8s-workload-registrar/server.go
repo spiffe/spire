@@ -37,6 +37,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 	}
 	if !config.InsecureSkipClientVerification {
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert

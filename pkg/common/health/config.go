@@ -18,6 +18,21 @@ type Config struct {
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
+// getAddress returns an address suitable for use as http.Server.Addr.
+func (c *Config) getAddress() string {
+	host := "localhost"
+	if c.BindAddress != "" {
+		host = c.BindAddress
+	}
+
+	port := "80"
+	if c.BindPort != "" {
+		port = c.BindPort
+	}
+
+	return fmt.Sprintf("%s:%s", host, port)
+}
+
 // getReadyPath returns the configured value or a default
 func (c *Config) getReadyPath() string {
 	if c.ReadyPath == "" {
@@ -36,17 +51,7 @@ func (c *Config) getLivePath() string {
 	return c.LivePath
 }
 
-// getAddress returns an address suitable for use as http.Server.Addr.
-func (c *Config) getAddress() string {
-	host := "localhost"
-	if c.BindAddress != "" {
-		host = c.BindAddress
-	}
-
-	port := "80"
-	if c.BindPort != "" {
-		port = c.BindPort
-	}
-
-	return fmt.Sprintf("%s:%s", host, port)
+// Details are additional data to be used when the system is ready
+type Details struct {
+	Message string `json:"message,omitempty"`
 }

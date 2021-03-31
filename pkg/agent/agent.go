@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
@@ -9,9 +10,9 @@ import (
 	"path"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	api_workload "github.com/spiffe/spire/api/workload"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
@@ -30,6 +31,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Agent struct {
@@ -66,6 +69,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	})
 
 	telemetry.EmitVersion(metrics)
+	uptime.ReportMetrics(ctx, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
 		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
@@ -97,7 +101,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(cat, metrics, manager)
 
-	if err := healthChecks.AddCheck("agent", a, time.Minute); err != nil {
+	if err := healthChecks.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
@@ -261,5 +265,23 @@ func (a *Agent) agentSVIDPath() string {
 
 // Status is used as a top-level health check for the Agent.
 func (a *Agent) Status() (interface{}, error) {
-	return nil, nil
+	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
+		Addr:        a.c.BindAddress,
+		FailOnError: true,
+	})
+	defer client.Stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- client.Start()
+	}()
+
+	err := <-errCh
+	if status.Code(err) == codes.Unavailable {
+		return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+	}
+
+	return health.Details{
+		Message: "successfully created a workload api client to fetch x509 svid",
+	}, nil
 }

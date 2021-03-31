@@ -532,7 +532,7 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 
 	nodeAttestor, ok := s.cat.GetNodeAttestorNamed(attestorType)
 	if !ok {
-		return nil, api.MakeErr(log, codes.FailedPrecondition, "could not find node attestor type", nil)
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "error getting node attestor", fmt.Errorf("could not find node attestor type %q", attestorType))
 	}
 
 	attestorStream, err := nodeAttestor.Attest(ctx)

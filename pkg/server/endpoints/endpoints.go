@@ -83,6 +83,9 @@ type APIServers struct {
 type RateLimitConfig struct {
 	// Attestation, if true, rate limits attestation
 	Attestation bool
+
+	// Signing, if true, rate limits JWT and X509 signing requests
+	Signing bool
 }
 
 // New creates new endpoints struct
@@ -92,7 +95,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
-	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
+	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 		defer call.Done(&err)
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())

@@ -12,6 +12,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
+const readyCheckInterval = time.Minute
+
 // health.Checker is responsible for running health checks and serving the healthcheck HTTP paths
 type Checker struct {
 	config Config
@@ -46,20 +48,21 @@ func NewChecker(config Config, log logrus.FieldLogger) *Checker {
 		}
 	}
 
-	hc.StatusListener = &statusListener{}
-	hc.Logger = &logadapter{FieldLogger: log.WithField(telemetry.SubsystemName, "health")}
+	l := log.WithField(telemetry.SubsystemName, "health")
+	hc.StatusListener = &statusListener{log: l}
+	hc.Logger = &logadapter{FieldLogger: l}
 
 	return &Checker{config: config, server: server, hc: hc, log: log}
 }
 
-func (c *Checker) AddCheck(name string, checker health.ICheckable, interval time.Duration) error {
+func (c *Checker) AddCheck(name string, checker health.ICheckable) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	return c.hc.AddCheck(&health.Config{
 		Name:     name,
 		Checker:  checker,
-		Interval: interval,
+		Interval: readyCheckInterval,
 		Fatal:    true,
 	})
 }

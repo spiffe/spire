@@ -1529,12 +1529,13 @@ func TestAttestAgent(t *testing.T) {
 			name:       "attest with bad attestor",
 			request:    getAttestAgentRequest("bad_type", []byte("payload_with_result"), testCsr),
 			expectCode: codes.FailedPrecondition,
-			expectMsg:  "could not find node attestor type",
+			expectMsg:  "error getting node attestor: could not find node attestor type \"bad_type\"",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Could not find node attestor type",
+					Message: "Error getting node attestor",
 					Data: logrus.Fields{
+						logrus.ErrorKey:            "could not find node attestor type \"bad_type\"",
 						telemetry.NodeAttestorType: "bad_type",
 					},
 				},

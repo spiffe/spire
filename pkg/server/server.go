@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
@@ -9,10 +10,10 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
@@ -30,6 +31,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"google.golang.org/grpc"
 )
 
@@ -85,6 +87,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	})
 
 	telemetry.EmitVersion(metrics)
+	uptime.ReportMetrics(ctx, metrics)
 
 	// Create the identity provider host service. It will not be functional
 	// until the call to SetDeps() below. There is some tricky initialization
@@ -159,7 +162,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
-	if err := healthChecks.AddCheck("server", s, time.Minute); err != nil {
+	if err := healthChecks.AddCheck("server", s); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
@@ -386,5 +389,23 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 
 // Status is used as a top-level health check for the Server.
 func (s *Server) Status() (interface{}, error) {
-	return nil, nil
+	client, err := server_util.NewServerClient(s.config.BindUDSAddress.Name)
+	if err != nil {
+		return nil, errors.New("cannot create registration client")
+	}
+	defer client.Release()
+
+	bundleClient := client.NewBundleClient()
+
+	// Currently using the ability to fetch a bundle as the health check. This
+	// **could** be problematic if the Upstream CA signing process is lengthy.
+	// As currently coded however, the API isn't served until after
+	// the server CA has been signed by upstream.
+	if _, err := bundleClient.GetBundle(context.Background(), &bundle.GetBundleRequest{}); err != nil {
+		return nil, errors.New("unable to fetch bundle")
+	}
+
+	return health.Details{
+		Message: "successfully fetched bundle",
+	}, nil
 }

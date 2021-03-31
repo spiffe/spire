@@ -10,12 +10,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
+	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/util/regentryutil"
-	node_pb "github.com/spiffe/spire/proto/spire/api/node"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
@@ -193,11 +193,20 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 	noLimit := middleware.NoLimit()
 	attestLimit := middleware.DisabledLimit()
 	if config.Attestation {
-		attestLimit = middleware.PerIPLimit(node_pb.AttestLimit)
+		attestLimit = middleware.PerIPLimit(limits.AttestLimitPerIP)
 	}
-	csrLimit := middleware.PerIPLimit(node_pb.CSRLimit)
-	jsrLimit := middleware.PerIPLimit(node_pb.JSRLimit)
-	pushJWTKeyLimit := middleware.PerIPLimit(node_pb.PushJWTKeyLimit)
+
+	csrLimit := middleware.DisabledLimit()
+	if config.Signing {
+		csrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
+	}
+
+	jsrLimit := middleware.DisabledLimit()
+	if config.Signing {
+		jsrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
+	}
+
+	pushJWTKeyLimit := middleware.PerIPLimit(limits.PushJWTKeyLimitPerIP)
 
 	return map[string]api.RateLimiter{
 		"/spire.api.server.svid.v1.SVID/MintX509SVID":                   noLimit,

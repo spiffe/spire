@@ -78,6 +78,14 @@ data:
       }
     }
 
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
+    }
+
 ---
 
 apiVersion: apps/v1
@@ -129,13 +137,15 @@ spec:
             - name: spire-token
               mountPath: /var/run/secrets/tokens
           livenessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock"]
+            httpGet:
+              path: /live
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/run/spire/sockets/agent.sock", "--shallow"]
+            httpGet:
+              path: /ready
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
@@ -151,8 +161,8 @@ spec:
             type: DirectoryOrCreate
         - name: spire-token
           projected:
-           sources:
-           - serviceAccountToken:
-              path: spire-agent
-              expirationSeconds: 7200
-              audience: spire-server
+            sources:
+            - serviceAccountToken:
+                path: spire-agent
+                expirationSeconds: 7200
+                audience: spire-server

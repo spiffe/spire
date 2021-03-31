@@ -67,6 +67,10 @@ func (r *rotator) runRotation(ctx context.Context) error {
 		err := r.rotateSVID(ctx)
 
 		switch {
+		case err != nil && rotationutil.X509Expired(r.clk.Now(), r.state.Value().(State).SVID[0]):
+			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
+			// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
+			return fmt.Errorf("current SVID has already expired and rotation failed: %v", err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 			return err
