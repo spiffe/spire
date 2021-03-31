@@ -6,7 +6,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/proto/spire/common"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
 )
 

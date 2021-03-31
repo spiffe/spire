@@ -12,6 +12,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // RegistrationClient is the client API for Registration service.
@@ -192,7 +193,7 @@ func (c *registrationClient) FetchFederatedBundle(ctx context.Context, in *Feder
 }
 
 func (c *registrationClient) ListFederatedBundles(ctx context.Context, in *common.Empty, opts ...grpc.CallOption) (Registration_ListFederatedBundlesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Registration_serviceDesc.Streams[0], "/spire.api.registration.Registration/ListFederatedBundles", opts...)
+	stream, err := c.cc.NewStream(ctx, &Registration_ServiceDesc.Streams[0], "/spire.api.registration.Registration/ListFederatedBundles", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +441,7 @@ type UnsafeRegistrationServer interface {
 }
 
 func RegisterRegistrationServer(s grpc.ServiceRegistrar, srv RegistrationServer) {
-	s.RegisterService(&_Registration_serviceDesc, srv)
+	s.RegisterService(&Registration_ServiceDesc, srv)
 }
 
 func _Registration_CreateEntry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -860,7 +861,10 @@ func _Registration_GetNodeSelectors_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-var _Registration_serviceDesc = grpc.ServiceDesc{
+// Registration_ServiceDesc is the grpc.ServiceDesc for Registration service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Registration_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "spire.api.registration.Registration",
 	HandlerType: (*RegistrationServer)(nil),
 	Methods: []grpc.MethodDesc{

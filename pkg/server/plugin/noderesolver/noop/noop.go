@@ -5,7 +5,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
 )
 
 func BuiltIn() catalog.Plugin {

@@ -19,9 +19,9 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/shirou/gopsutil/process"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 	"github.com/zeebo/errs"
 )
 

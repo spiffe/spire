@@ -11,8 +11,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"

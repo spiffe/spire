@@ -41,11 +41,11 @@ import (
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
-	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
-	notifierv0 "github.com/spiffe/spire/proto/spire/server/notifier/v0"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 var (
