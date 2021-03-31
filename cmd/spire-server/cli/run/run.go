@@ -77,7 +77,6 @@ type serverConfig struct {
 	RegistrationUDSPath string             `hcl:"registration_uds_path"`
 	DefaultSVIDTTL      string             `hcl:"default_svid_ttl"`
 	TrustDomain         string             `hcl:"trust_domain"`
-	CacheReloadInterval string             `hcl:"cache_reload_interval"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -94,7 +93,8 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AllowAgentlessNodeAttestors bool `hcl:"allow_agentless_node_attestors"`
+	AllowAgentlessNodeAttestors bool   `hcl:"allow_agentless_node_attestors"`
+	CacheReloadInterval         string `hcl:"cache_reload_interval"`
 
 	DeprecatedBundleEndpointEnabled bool                                     `hcl:"bundle_endpoint_enabled"`
 	DeprecatedBundleEndpointAddress string                                   `hcl:"bundle_endpoint_address"`
@@ -487,8 +487,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
 	}
 
-	if c.Server.CacheReloadInterval != "" {
-		interval, err := time.ParseDuration(c.Server.CacheReloadInterval)
+	if c.Server.Experimental.CacheReloadInterval != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse cache reload interval: %v", err)
 		}
