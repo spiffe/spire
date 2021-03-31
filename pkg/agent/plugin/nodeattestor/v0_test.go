@@ -83,7 +83,7 @@ func TestV0(t *testing.T) {
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData},
 			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
 			expectCode:    codes.Internal,
-			expectMessage: "nodeattestor(test): plugin closed stream after being issued a challenge",
+			expectMessage: "nodeattestor(test): plugin closed stream before handling the challenge",
 		},
 		{
 			test:          "plugin fails responding to challenge",

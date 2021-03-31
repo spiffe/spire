@@ -59,13 +59,15 @@ func (v0 V0) Attest(ctx context.Context, serverStream ServerStream) error {
 		})
 		switch {
 		case err == io.EOF:
-			return v0.Error(codes.Internal, "plugin closed stream after being issued a challenge")
+			return v0.Error(codes.Internal, "plugin closed stream before handling the challenge")
 		case err != nil:
 			return v0.WrapErr(err)
 		}
 
 		resp, err := pluginStream.Recv()
 		switch {
+		case err == io.EOF:
+			return v0.Error(codes.Internal, "plugin closed stream before handling the challenge")
 		case err != nil:
 			return v0.WrapErr(err)
 		case resp.Response == nil:
