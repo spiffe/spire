@@ -36,10 +36,16 @@ import (
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
 
-// This is the maximum amount of time an agent connection may exist before
-// the server sends a hangup request. This enables agents to more dynamically
-// route to the server in the case of a change in DNS membership.
-const defaultMaxConnectionAge = 3 * time.Minute
+const (
+	// This is the maximum amount of time an agent connection may exist before
+	// the server sends a hangup request. This enables agents to more dynamically
+	// route to the server in the case of a change in DNS membership.
+	defaultMaxConnectionAge = 3 * time.Minute
+
+	// This is the default amount of time between two reloads of the in-memory
+	// entry cache.
+	defaultCacheReloadInterval = 5 * time.Second
+)
 
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
@@ -102,7 +108,11 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock)
+	if c.CacheReloadInterval == 0 {
+		c.CacheReloadInterval = defaultCacheReloadInterval
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
 	if err != nil {
 		return nil, err
 	}
