@@ -1007,7 +1007,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg: "cache_reload_interval is correctly parsed",
 			input: func(c *Config) {
-				c.Server.CacheReloadInterval = "1m"
+				c.Server.Experimental.CacheReloadInterval = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.CacheReloadInterval)
@@ -1017,7 +1017,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg:         "invalid cache_reload_interval returns an error",
 			expectError: true,
 			input: func(c *Config) {
-				c.Server.CacheReloadInterval = "b"
+				c.Server.Experimental.CacheReloadInterval = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
