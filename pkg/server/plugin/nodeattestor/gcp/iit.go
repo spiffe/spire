@@ -13,10 +13,10 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
 )
@@ -38,7 +38,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *IITAttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		nodeattestor.PluginServer(p),
+		nodeattestorv0.PluginServer(p),
 	)
 }
 
@@ -84,7 +84,7 @@ func New() *IITAttestorPlugin {
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
-func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *IITAttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer
 		selectors = append(selectors, instanceSelectors...)
 	}
 
-	return stream.Send(&nodeattestor.AttestResponse{
+	return stream.Send(&nodeattestorv0.AttestResponse{
 		AgentId:   id.String(),
 		Selectors: selectors,
 	})
@@ -245,7 +245,7 @@ type keyValue struct {
 	value string
 }
 
-func validateAttestationAndExtractIdentityMetadata(stream nodeattestor.NodeAttestor_AttestServer, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
+func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv0.NodeAttestor_AttestServer, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return gcp.ComputeEngine{}, err

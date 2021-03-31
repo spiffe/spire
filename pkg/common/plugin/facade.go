@@ -3,6 +3,7 @@ package plugin
 import (
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,6 +22,7 @@ func PrefixMessage(pluginInfo catalog.PluginInfo, message string) string {
 // name prefixed.
 type Facade struct {
 	catalog.PluginInfo
+	logrus.FieldLogger
 }
 
 // FixedFacade is a helper that creates a facade from fixed information, i.e.

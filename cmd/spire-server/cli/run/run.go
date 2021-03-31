@@ -685,15 +685,15 @@ func defaultConfig() *Config {
 func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	switch strings.ToLower(s) {
 	case "rsa-2048":
-		return keymanager.KeyType_RSA_2048, nil
+		return keymanager.RSA2048, nil
 	case "rsa-4096":
-		return keymanager.KeyType_RSA_4096, nil
+		return keymanager.RSA4096, nil
 	case "ec-p256":
-		return keymanager.KeyType_EC_P256, nil
+		return keymanager.ECP256, nil
 	case "ec-p384":
-		return keymanager.KeyType_EC_P384, nil
+		return keymanager.ECP384, nil
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 

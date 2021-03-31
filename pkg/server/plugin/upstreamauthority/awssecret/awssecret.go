@@ -18,8 +18,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -34,7 +34,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		upstreamauthority.PluginServer(p),
+		upstreamauthorityv0.PluginServer(p),
 	)
 }
 
@@ -49,7 +49,7 @@ type Config struct {
 }
 
 type Plugin struct {
-	upstreamauthority.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
 
 	log hclog.Logger
 
@@ -123,7 +123,7 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 }
 
 // MintX509CA mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
-func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (m *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	ctx := stream.Context()
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
@@ -137,7 +137,7 @@ func (m *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream
 		return err
 	}
 
-	return stream.Send(&upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
 		X509CaChain:       [][]byte{cert.Raw},
 		UpstreamX509Roots: [][]byte{m.cert.Raw},
 	})
@@ -214,7 +214,7 @@ func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, error) {
 }
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (m *Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 

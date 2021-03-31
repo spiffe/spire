@@ -8,8 +8,8 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -25,7 +25,7 @@ type IIDResolverSuite struct {
 	spiretest.Suite
 
 	env      map[string]string
-	resolver noderesolver.Plugin
+	resolver noderesolverv0.Plugin
 	logHook  *test.Hook
 }
 
@@ -40,7 +40,7 @@ func (s *IIDResolverSuite) TestResolveWhenNotConfigured() {
 
 func (s *IIDResolverSuite) TestResolve() {
 	// nothing to resolve
-	resp, err := s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{})
+	resp, err := s.resolver.Resolve(context.Background(), &noderesolverv0.ResolveRequest{})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().Empty(resp.Map)
@@ -92,14 +92,14 @@ func (s *IIDResolverSuite) newResolver() {
 }
 
 func (s *IIDResolverSuite) assertResolveSuccess() {
-	expected := &noderesolver.ResolveResponse{}
+	expected := &noderesolverv0.ResolveResponse{}
 	actual, err := s.doResolve(awsAgentID)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(expected, actual)
 }
 
-func (s *IIDResolverSuite) doResolve(spiffeID string) (*noderesolver.ResolveResponse, error) {
-	return s.resolver.Resolve(context.Background(), &noderesolver.ResolveRequest{
+func (s *IIDResolverSuite) doResolve(spiffeID string) (*noderesolverv0.ResolveResponse, error) {
+	return s.resolver.Resolve(context.Background(), &noderesolverv0.ResolveRequest{
 		BaseSpiffeIdList: []string{spiffeID},
 	})
 }

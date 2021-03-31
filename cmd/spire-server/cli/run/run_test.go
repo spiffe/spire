@@ -761,8 +761,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
+				require.Equal(t, keymanager.RSA2048, c.CAKeyType)
+				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
 			},
 		},
 		{
@@ -771,8 +771,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.CAKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_RSA_4096, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
+				require.Equal(t, keymanager.RSA4096, c.CAKeyType)
+				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
 			},
 		},
 		{
@@ -781,8 +781,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.CAKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_EC_P256, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
 		{
@@ -791,8 +791,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.CAKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_EC_P384, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
+				require.Equal(t, keymanager.ECP384, c.CAKeyType)
+				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
 			},
 		},
 		{
@@ -811,8 +811,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_RSA_2048, c.JWTKeyType)
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
 			},
 		},
 		{
@@ -821,8 +821,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_RSA_4096, c.JWTKeyType)
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
 			},
 		},
 		{
@@ -831,8 +831,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
 		{
@@ -841,8 +841,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_UNSPECIFIED_KEY_TYPE, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_EC_P384, c.JWTKeyType)
+				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
 			},
 		},
 		{
@@ -862,8 +862,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyType_RSA_2048, c.CAKeyType)
-				require.Equal(t, keymanager.KeyType_EC_P256, c.JWTKeyType)
+				require.Equal(t, keymanager.RSA2048, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
 		{

@@ -204,9 +204,7 @@ func TestBundleInvalidations(t *testing.T) {
 			if tt.dsFailure {
 				resp, err := cache.FetchBundle(ctxWithCache, req)
 				require.NoError(t, err)
-				spiretest.RequireProtoEqual(t, &datastore.FetchBundleResponse{
-					Bundle: bundle1,
-				}, resp)
+				spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
 				return
 			}
 

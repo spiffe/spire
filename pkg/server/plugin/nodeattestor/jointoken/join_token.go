@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -15,19 +15,19 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("join_token",
-		nodeattestor.PluginServer(p),
+		nodeattestorv0.PluginServer(p),
 	)
 }
 
 type Plugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 }
 
 func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	return errors.New("join token attestation is currently implemented within the server")
 }
 

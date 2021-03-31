@@ -1,23 +1,18 @@
-package memory
+package memory_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/stretchr/testify/require"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
-func TestKeyManager(t *testing.T) {
-	test.Run(t, makeKeyManager)
-}
-
-func makeKeyManager(t *testing.T) catalog.Plugin {
-	m := New()
-	resp, err := m.Configure(context.Background(), &plugin.ConfigureRequest{})
-	require.NoError(t, err)
-	require.Equal(t, &plugin.ConfigureResponse{}, resp)
-	return builtin(m)
+func TestKeyManagerContract(t *testing.T) {
+	keymanagertest.Test(t, func(t *testing.T) keymanager.KeyManager {
+		var km keymanager.V0
+		spiretest.LoadPlugin(t, memory.BuiltIn(), &km)
+		return km
+	})
 }

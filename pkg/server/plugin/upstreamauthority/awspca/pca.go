@@ -16,8 +16,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -38,7 +38,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *PCAPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		upstreamauthority.PluginServer(p),
+		upstreamauthorityv0.PluginServer(p),
 	)
 }
 
@@ -55,7 +55,7 @@ type PCAPluginConfiguration struct {
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
 type PCAPlugin struct {
-	upstreamauthority.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
 
 	log hclog.Logger
 
@@ -156,7 +156,7 @@ func (*PCAPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*sp
 }
 
 // MintX509CA mints an X509CA by submitting the CSR to ACM to be signed by the certificate authority
-func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (m *PCAPlugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	ctx := stream.Context()
 
 	csrBuf := new(bytes.Buffer)
@@ -238,7 +238,7 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthority.MintX509CARequest, str
 	derChain := [][]byte{cert.Raw}
 	derChain = append(derChain, x509util.RawCertsFromCertificates(certChain[:len(certChain)-1])...)
 
-	return stream.Send(&upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
 		X509CaChain:       derChain,
 		UpstreamX509Roots: derBundle,
 	})
@@ -264,7 +264,7 @@ func (m *PCAPlugin) validateConfig(req *spi.ConfigureRequest) (*PCAPluginConfigu
 }
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *PCAPlugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (m *PCAPlugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 

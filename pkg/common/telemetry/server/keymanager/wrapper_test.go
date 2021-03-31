@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,19 +14,19 @@ import (
 
 type mockKeyManager struct{}
 
-func (mockKeyManager) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
+func (mockKeyManager) GenerateKey(ctx context.Context, req *keymanagerv0.GenerateKeyRequest) (*keymanagerv0.GenerateKeyResponse, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyRequest) (*keymanager.GetPublicKeyResponse, error) {
+func (mockKeyManager) GetPublicKey(ctx context.Context, req *keymanagerv0.GetPublicKeyRequest) (*keymanagerv0.GetPublicKeyResponse, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) GetPublicKeys(ctx context.Context, req *keymanager.GetPublicKeysRequest) (*keymanager.GetPublicKeysResponse, error) {
+func (mockKeyManager) GetPublicKeys(ctx context.Context, req *keymanagerv0.GetPublicKeysRequest) (*keymanagerv0.GetPublicKeysResponse, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*keymanager.SignDataResponse, error) {
+func (mockKeyManager) SignData(ctx context.Context, req *keymanagerv0.SignDataRequest) (*keymanagerv0.SignDataResponse, error) {
 	return nil, nil
 }
 

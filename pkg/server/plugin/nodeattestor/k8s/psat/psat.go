@@ -10,9 +10,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/zeebo/errs"
 )
 
@@ -31,7 +31,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *AttestorPlugin) catalog.Plugin {
 	return catalog.MakePlugin(pluginName,
-		nodeattestor.PluginServer(p),
+		nodeattestorv0.PluginServer(p),
 	)
 }
 
@@ -77,7 +77,7 @@ type clusterConfig struct {
 
 //AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
 type AttestorPlugin struct {
-	nodeattestor.UnsafeNodeAttestorServer
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mu     sync.RWMutex
 	config *attestorConfig
@@ -88,9 +88,9 @@ func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
 
-var _ nodeattestor.NodeAttestorServer = (*AttestorPlugin)(nil)
+var _ nodeattestorv0.NodeAttestorServer = (*AttestorPlugin)(nil)
 
-func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) error {
+func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return psatError.Wrap(err)
@@ -198,7 +198,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) e
 		}
 	}
 
-	return stream.Send(&nodeattestor.AttestResponse{
+	return stream.Send(&nodeattestorv0.AttestResponse{
 		AgentId:   k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
 		Selectors: selectors,
 	})

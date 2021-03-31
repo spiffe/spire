@@ -15,15 +15,12 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/agent/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -1729,14 +1726,6 @@ func TestAttestAgent(t *testing.T) {
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
-					Level:   logrus.DebugLevel,
-					Message: "Could not find node resolver",
-					Data: logrus.Fields{
-						telemetry.NodeAttestorType: "join_token",
-						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
-					},
-				},
-				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to update selectors",
 
@@ -1762,14 +1751,6 @@ func TestAttestAgent(t *testing.T) {
 				errors.New("some error"),
 			},
 			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.DebugLevel,
-					Message: "Could not find node resolver",
-					Data: logrus.Fields{
-						telemetry.NodeAttestorType: "join_token",
-						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
-					},
-				},
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to create attested agent",
@@ -1943,54 +1924,18 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 
 	attestorConfig.Challenges = map[string][]string{"id_with_challenge": {"challenge_response"}}
 
-	fakeServerAttestor := fakeservernodeattestor.New("test_type", attestorConfig)
-	fakeServerPlugin := nodeattestor.PluginServer(fakeServerAttestor)
-	fakeCatalogPlugin := catalog.MakePlugin("test_type", fakeServerPlugin)
-
-	loadedPlugin, err := catalog.LoadBuiltInPlugin(context.Background(), catalog.BuiltInPlugin{
-		Log:          nil,
-		Plugin:       fakeCatalogPlugin,
-		HostServices: nil,
-	})
-	require.NoError(t, err, "unable to load plugin")
-
-	var fakeNodeAttestorClient nodeattestor.NodeAttestor
-	if err := loadedPlugin.Fill(&fakeNodeAttestorClient); err != nil {
-		loadedPlugin.Close()
-		require.NoError(t, err, "unable to satisfy plugin client")
-	}
-
-	s.pluginCloser = loadedPlugin.Close
-	s.cat.AddNodeAttestorNamed("test_type", fakeNodeAttestorClient)
+	fakeNodeAttestor := fakeservernodeattestor.New(t, "test_type", attestorConfig)
+	s.cat.AddNodeAttestor(fakeNodeAttestor)
 }
 
 func (s *serviceTest) setupResolver(t *testing.T) {
-	resolverConfig := fakenoderesolver.Config{
-		Selectors: map[string][]string{
-			td.NewID("/spire/agent/test_type/id_with_result").String():    {"resolved"},
-			td.NewID("/spire/agent/test_type/id_with_challenge").String(): {"resolved_too"},
-		},
+	selectors := map[string][]string{
+		td.NewID("/spire/agent/test_type/id_with_result").String():    {"resolved"},
+		td.NewID("/spire/agent/test_type/id_with_challenge").String(): {"resolved_too"},
 	}
 
-	fakeServerAttestor := fakenoderesolver.New("test_type", resolverConfig)
-	fakeServerPlugin := noderesolver.PluginServer(fakeServerAttestor)
-	fakeCatalogPlugin := catalog.MakePlugin("test_type", fakeServerPlugin)
-
-	loadedPlugin, err := catalog.LoadBuiltInPlugin(context.Background(), catalog.BuiltInPlugin{
-		Log:          nil,
-		Plugin:       fakeCatalogPlugin,
-		HostServices: nil,
-	})
-	require.NoError(t, err, "unable to load plugin")
-
-	var fakeNodeResolverClient noderesolver.NodeResolver
-	if err := loadedPlugin.Fill(&fakeNodeResolverClient); err != nil {
-		loadedPlugin.Close()
-		require.NoError(t, err, "unable to satisfy plugin client")
-	}
-
-	s.pluginCloser = loadedPlugin.Close
-	s.cat.AddNodeResolverNamed("test_type", fakeNodeResolverClient)
+	fakeNodeResolver := fakenoderesolver.New(t, "test_type", selectors)
+	s.cat.AddNodeResolverNamed(fakeNodeResolver)
 }
 
 func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {

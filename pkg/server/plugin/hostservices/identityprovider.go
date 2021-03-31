@@ -7,17 +7,17 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/server/hostservices"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/grpc"
 )
 
-type FetchX509IdentityRequest = hostservices.FetchX509IdentityRequest                       //nolint: golint
-type FetchX509IdentityResponse = hostservices.FetchX509IdentityResponse                     //nolint: golint
-type IdentityProviderClient = hostservices.IdentityProviderClient                           //nolint: golint
-type IdentityProviderServer = hostservices.IdentityProviderServer                           //nolint: golint
-type UnimplementedIdentityProviderServer = hostservices.UnimplementedIdentityProviderServer //nolint: golint
-type UnsafeIdentityProviderServer = hostservices.UnsafeIdentityProviderServer               //nolint: golint
-type X509Identity = hostservices.X509Identity                                               //nolint: golint
+type FetchX509IdentityRequest = identityproviderv0.FetchX509IdentityRequest                       //nolint: golint
+type FetchX509IdentityResponse = identityproviderv0.FetchX509IdentityResponse                     //nolint: golint
+type IdentityProviderClient = identityproviderv0.IdentityProviderClient                           //nolint: golint
+type IdentityProviderServer = identityproviderv0.IdentityProviderServer                           //nolint: golint
+type UnimplementedIdentityProviderServer = identityproviderv0.UnimplementedIdentityProviderServer //nolint: golint
+type UnsafeIdentityProviderServer = identityproviderv0.UnsafeIdentityProviderServer               //nolint: golint
+type X509Identity = identityproviderv0.X509Identity                                               //nolint: golint
 
 const (
 	IdentityProviderType = "IdentityProvider"
@@ -44,7 +44,7 @@ func (s identityProviderHostServiceServer) HostServiceType() string {
 }
 
 func (s identityProviderHostServiceServer) RegisterHostServiceServer(server *grpc.Server) {
-	hostservices.RegisterIdentityProviderServer(server, s.server)
+	identityproviderv0.RegisterIdentityProviderServer(server, s.server)
 }
 
 // IdentityProviderHostServiceServer returns a catalog HostServiceServer implementation for the IdentityProvider plugin.
@@ -63,7 +63,7 @@ func (c *identityProviderHostServiceClient) HostServiceType() string {
 }
 
 func (c *identityProviderHostServiceClient) InitHostServiceClient(conn grpc.ClientConnInterface) {
-	*c.client = AdaptIdentityProviderHostServiceClient(hostservices.NewIdentityProviderClient(conn))
+	*c.client = AdaptIdentityProviderHostServiceClient(identityproviderv0.NewIdentityProviderClient(conn))
 }
 
 func AdaptIdentityProviderHostServiceClient(client IdentityProviderClient) IdentityProvider {

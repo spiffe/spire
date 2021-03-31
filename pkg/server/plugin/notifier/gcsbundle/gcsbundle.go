@@ -13,9 +13,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/zeebo/errs"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -29,7 +29,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtIn(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("gcs_bundle",
-		notifier.PluginServer(p),
+		notifierv0.PluginServer(p),
 	)
 }
 
@@ -46,7 +46,7 @@ type pluginConfig struct {
 }
 
 type Plugin struct {
-	notifier.UnsafeNotifierServer
+	notifierv0.UnsafeNotifierServer
 
 	mu               sync.RWMutex
 	log              hclog.Logger
@@ -79,34 +79,34 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 	return nil
 }
 
-func (p *Plugin) Notify(ctx context.Context, req *notifier.NotifyRequest) (*notifier.NotifyResponse, error) {
+func (p *Plugin) Notify(ctx context.Context, req *notifierv0.NotifyRequest) (*notifierv0.NotifyResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated); ok {
+	if _, ok := req.Event.(*notifierv0.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifier.NotifyResponse{}, nil
+	return &notifierv0.NotifyResponse{}, nil
 }
 
-func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
+func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndAdviseRequest) (*notifierv0.NotifyAndAdviseResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
+	if _, ok := req.Event.(*notifierv0.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifier.NotifyAndAdviseResponse{}, nil
+	return &notifierv0.NotifyAndAdviseResponse{}, nil
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
