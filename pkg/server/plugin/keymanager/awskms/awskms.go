@@ -27,7 +27,7 @@ import (
 
 const (
 	pluginName  = "aws_kms"
-	aliasPrefix = "alias/"
+	aliasPrefix = "alias/SPIRE_SERVER/"
 
 	keyArnTag    = "key_arn"
 	aliasNameTag = "alias_name"

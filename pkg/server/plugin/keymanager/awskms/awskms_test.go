@@ -31,7 +31,7 @@ const (
 	validServerID        = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 	keyID                = "abcd-fghi"
 	KeyArn               = "arn:aws:kms:region:1234:key/abcd-fghi"
-	aliasName            = "alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID"
+	aliasName            = "alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID"
 	spireKeyID           = "spireKeyID"
 	testTimeout          = 60 * time.Second
 )
@@ -124,7 +124,7 @@ func TestConfigure(t *testing.T) {
 					PublicKey: []byte("foo"),
 				},
 				{
-					AliasName: aws.String("alias/wrong_prefix"),
+					AliasName: aws.String("alias/SPIRE_SERVER/wrong_prefix"),
 					KeyID:     aws.String("foo_id"),
 					KeySpec:   types.CustomerMasterKeySpecEccNistP384,
 					Enabled:   true,
@@ -223,7 +223,7 @@ func TestConfigure(t *testing.T) {
 
 		{
 			name:             "disabled key",
-			err:              "failed to fetch aliases: found disabled SPIRE key: \"arn:aws:kms:region:1234:key/abcd-fghi\", alias: \"arn:aws:kms:region:1234:alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID\"",
+			err:              "failed to fetch aliases: found disabled SPIRE key: \"arn:aws:kms:region:1234:key/abcd-fghi\", alias: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID\"",
 			code:             codes.FailedPrecondition,
 			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
@@ -1008,7 +1008,7 @@ func TestRefreshAliases(t *testing.T) {
 			updateAliasErr:   "update failure",
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1023,7 +1023,7 @@ func TestRefreshAliases(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1032,7 +1032,7 @@ func TestRefreshAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
 					KeyID:                aws.String("key_id_02"),
 					KeySpec:              types.CustomerMasterKeySpecRsa2048,
 					Enabled:              true,
@@ -1041,7 +1041,7 @@ func TestRefreshAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server_id/id_03"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server_id/id_03"),
 					KeyID:                aws.String("key_id_03"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
 					Enabled:              true,
@@ -1050,7 +1050,7 @@ func TestRefreshAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
 					KeyID:                aws.String("key_id_04"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1059,7 +1059,7 @@ func TestRefreshAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/another_server_id/id_05"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/another_server_id/id_05"),
 					KeyID:                aws.String("key_id_05"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
 					Enabled:              true,
@@ -1068,7 +1068,7 @@ func TestRefreshAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated"),
 					KeyID:                aws.String("key_id_06"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
 					Enabled:              true,
@@ -1077,7 +1077,7 @@ func TestRefreshAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated/unrelated/id_07"),
 					KeyID:                aws.String("key_id_07"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
 					Enabled:              true,
@@ -1098,37 +1098,37 @@ func TestRefreshAliases(t *testing.T) {
 
 			expectedEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					AliasLastUpdatedDate: &refreshedDate,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
 					KeyID:                aws.String("key_id_02"),
 					AliasLastUpdatedDate: &refreshedDate,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server_id/id_03"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server_id/id_03"),
 					KeyID:                aws.String("key_id_03"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
 					KeyID:                aws.String("key_id_04"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/another_server_id/id_05"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/another_server_id/id_05"),
 					KeyID:                aws.String("key_id_05"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated"),
 					KeyID:                aws.String("key_id_06"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated/unrelated/id_07"),
 					KeyID:                aws.String("key_id_07"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
@@ -1207,7 +1207,7 @@ func TestDisposeAliases(t *testing.T) {
 
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1216,7 +1216,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
 					KeyID:                aws.String("key_id_02"),
 					KeySpec:              types.CustomerMasterKeySpecRsa2048,
 					Enabled:              true,
@@ -1225,7 +1225,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server_id/id_03"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server_id/id_03"),
 					KeyID:                aws.String("key_id_03"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
 					Enabled:              true,
@@ -1234,7 +1234,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
 					KeyID:                aws.String("key_id_04"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1243,7 +1243,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/another_server/id_05"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/another_server/id_05"),
 					KeyID:                aws.String("key_id_05"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
 					Enabled:              true,
@@ -1252,7 +1252,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated"),
 					KeyID:                aws.String("key_id_06"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
 					Enabled:              true,
@@ -1261,7 +1261,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated/unrelated/id_07"),
 					KeyID:                aws.String("key_id_07"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
 					Enabled:              true,
@@ -1279,7 +1279,7 @@ func TestDisposeAliases(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server_id/id_09"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server_id/id_09"),
 					KeyID:                aws.String("key_id_09"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
 					Enabled:              false,
@@ -1291,31 +1291,31 @@ func TestDisposeAliases(t *testing.T) {
 
 			expectedEntries: []fakeKeyEntry{
 				{
-					AliasName: aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName: aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:     aws.String("key_id_01"),
 				},
 				{
-					AliasName: aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
+					AliasName: aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
 					KeyID:     aws.String("key_id_02"),
 				},
 				{
-					AliasName: aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					AliasName: aws.String("alias/SPIRE_SERVER/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
 					KeyID:     aws.String("key_id_04"),
 				},
 				{
-					AliasName: aws.String("alias/another_td/another_server/id_05"),
+					AliasName: aws.String("alias/SPIRE_SERVER/another_td/another_server/id_05"),
 					KeyID:     aws.String("key_id_05"),
 				},
 				{
-					AliasName: aws.String("alias/unrelated"),
+					AliasName: aws.String("alias/SPIRE_SERVER/unrelated"),
 					KeyID:     aws.String("key_id_06"),
 				},
 				{
-					AliasName: aws.String("alias/unrelated/unrelated/id_07"),
+					AliasName: aws.String("alias/SPIRE_SERVER/unrelated/unrelated/id_07"),
 					KeyID:     aws.String("key_id_07"),
 				},
 				{
-					AliasName: aws.String("alias/test_example_org/another_server_id/id_09"),
+					AliasName: aws.String("alias/SPIRE_SERVER/test_example_org/another_server_id/id_09"),
 					KeyID:     aws.String("key_id_09"),
 				},
 			},
@@ -1327,7 +1327,7 @@ func TestDisposeAliases(t *testing.T) {
 			listAliasesErr:   "list aliases failure",
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1344,7 +1344,7 @@ func TestDisposeAliases(t *testing.T) {
 			describeKeyErr:   "describe key failure",
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1361,7 +1361,7 @@ func TestDisposeAliases(t *testing.T) {
 			deleteAliasErr:   "delete alias failure",
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server/id_01"),
 					KeyID:                aws.String("key_id_01"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
@@ -1458,7 +1458,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
 					KeyID:                aws.String("key_id_02"),
 					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
 					KeySpec:              types.CustomerMasterKeySpecRsa2048,
@@ -1468,7 +1468,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/another_server_id/id_03"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/another_server_id/id_03"),
 					KeyID:                aws.String("key_id_03"),
 					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
@@ -1478,7 +1478,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
 					KeyID:                aws.String("key_id_04"),
 					Description:          aws.String("SPIRE_SERVER_KEY/another_td"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
@@ -1488,7 +1488,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/another_td/another_server_id/id_05"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/another_td/another_server_id/id_05"),
 					KeyID:                aws.String("key_id_05"),
 					Description:          aws.String("SPIRE_SERVER_KEY/another_td"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
@@ -1498,7 +1498,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated"),
 					KeyID:                aws.String("key_id_06"),
 					Description:          nil,
 					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
@@ -1508,7 +1508,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/unrelated/unrelated/id_07"),
 					KeyID:                aws.String("key_id_07"),
 					Description:          nil,
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
@@ -1528,7 +1528,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
 					KeyID:                aws.String("key_id_09"),
 					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
