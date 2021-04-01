@@ -407,6 +407,10 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	}
 }
 
+// refreshAliasesTask will update the alias of all keys in the cache every 6 hours.
+// Aliases will be updated to the same key they already have.
+// The consequence of this is that the field LastUpdatedDate in each alias belonging to the server will be set to the current date.
+// This is all with the goal of being able to detect keys that are not in use by any server.
 func (p *Plugin) refreshAliasesTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(refreshAliasesFrequency)
 	defer ticker.Stop()
@@ -446,6 +450,12 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 	return nil
 }
 
+// disposeAliasesTask will be run every 24hs.
+// It will delete aliases that have a LastUpdatedDate value older than 48hs.
+// It will also delete the keys asociated with them.
+// It will only delete aliases belonging to the current trust domain but not the current server.
+// disposeAliasesTask relies on how aliases are built with prefixes to do all this.
+// Alias example: `alias/SPIRE_SERVER/{TRUST_DOMAIN}/{SERVER_ID}/{KEY_ID}`
 func (p *Plugin) disposeAliasesTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(disposeAliasesFrequency)
 	defer ticker.Stop()
@@ -540,6 +550,13 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 	return nil
 }
 
+// disposeKeysTask will be run every 48hs.
+// It will delete keys that have a CreationDate value older than 48hs.
+// It will only delete keys belonging to the current trust domain and without an alias.
+// disposeKeysTask relies on how the keys description is built to do all this.
+// Key description example: `SPIRE_SERVER/{TRUST_DOMAIN}`
+// Keys belonging to a server should never be without an alias.
+// The goal of this task is to remove keys that ended in this invalid state during a failure on alias assignment.
 func (p *Plugin) disposeKeysTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(disposeKeysFrequency)
 	defer ticker.Stop()
