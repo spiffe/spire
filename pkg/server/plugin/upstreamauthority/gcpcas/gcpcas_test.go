@@ -15,7 +15,7 @@ import (
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
@@ -82,86 +82,6 @@ func TestInvalidConfigs(t *testing.T) {
 			label_key = "proj-signer"
 			label_value = ""
 		    }`,
-		// Trust bundle cert spec is supplied as a block rather than an array of blocks
-		// This gets parsed into [ { project_name=myproj2 }, { region_name=us-central2 },
-		// { label_key=mylabel } & { label_value=myvalue } ]
-		`   root_cert_spec {
-			project_name = "proj1"
-			region_name = "us-central1"
-			label_key = "proj-signer"
-			label_value = "true"
-		    }
-		    trust_bundle_cert_spec =
-		        {
-		            project_name = "myproj2"
-		            region_name = "us-central2"
-		            label_key = "mylabel"
-		            label_value = "myvalue"
-		        }`,
-		// Trust bundle cert spec is a string rather than an array
-		`   root_cert_spec {
-			project_name = "proj1"
-			region_name = "us-central1"
-			label_key = "proj-signer"
-			label_value = "true"
-		    }
-		    trust_bundle_cert_spec = "blah"`,
-		// Empty proj name in Trust bundle cert spec
-		`   root_cert_spec {
-			project_name = "proj1"
-			region_name = "us-central1"
-			label_key = "proj-signer"
-			label_value = "true"
-		    }
-		    trust_bundle_cert_spec = [
-			{
-			    project_name = ""
-			    region_name = "us-central1"
-			    label_key = "somelabel"
-			    label_value = "somevalue"
-			} ]`,
-		// Empty region name in Trust bundle cert spec
-		`   root_cert_spec {
-			project_name = "proj1"
-			region_name = "us-central1"
-			label_key = "proj-signer"
-			label_value = "true"
-		    }
-		    trust_bundle_cert_spec = [
-		        {
-		            project_name = "proj2"
-		            region_name = ""
-		            label_key = "somelabel"
-		            label_value = "somevalue"
-		        } ]`,
-		// Empty label key in Trust bundle cert spec
-		`   root_cert_spec {
-			project_name = "proj1"
-			region_name = "us-central1"
-			label_key = "proj-signer"
-			label_value = "true"
-		    }
-		    trust_bundle_cert_spec = [
-		        {
-		            project_name = "proj2"
-		            region_name = "us-central1"
-		            label_key = ""
-		            label_value = "somevalue"
-		        } ]`,
-		// Empty label value in Trust bundle cert spec
-		`   root_cert_spec {
-			project_name = "proj1"
-			region_name = "us-central1"
-			label_key = "proj-signer"
-			label_value = "true"
-		    }
-		    trust_bundle_cert_spec = [
-		        {
-		            project_name = "proj2"
-		            region_name = "us-central1"
-		            label_key = "somelabel"
-		            label_value = ""
-		        } ]`,
 	} {
 		_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: config})
 		t.Logf("\ntestcase[%d] and err:%+v\n", i, err)
@@ -220,15 +140,6 @@ func TestGcpCAS(t *testing.T) {
         label_key = "proj-signer"
         label_value = "true"
     }
-
-    trust_bundle_cert_spec = [
-        {
-            project_name = "proj1"
-            region_name = "us-central1"
-            label_key = "somelable"
-            label_value = "somevalue"
-        }
-    ]
     `})
 	require.NoError(t, err)
 
@@ -240,21 +151,32 @@ func TestGcpCAS(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	respCaChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	require.NoError(t, err)
-	require.NotNil(t, respCaChain)
-	require.Equal(t, respCaChain[0].Issuer.CommonName, "caX")
-
 	respRootChain, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
 	require.NoError(t, err)
 	require.NotNil(t, respRootChain)
 	// Confirm that we don't have unexpected CAs
 	require.Equal(t, 2, len(respRootChain))
-	require.Equal(t, respRootChain[0].Subject.CommonName, "caX")
-	require.Equal(t, respRootChain[0].Issuer.CommonName, "caX")
+	require.Equal(t, "caX", respRootChain[0].Subject.CommonName)
+	require.Equal(t, "caX", respRootChain[0].Issuer.CommonName)
 	// We intentionally return the root externalcaY rather than intermediate caZ
-	require.Equal(t, respRootChain[1].Subject.CommonName, "externalcaY")
-	require.Equal(t, respRootChain[1].Issuer.CommonName, "externalcaY")
+	require.Equal(t, "externalcaY", respRootChain[1].Subject.CommonName)
+	require.Equal(t, "externalcaY", respRootChain[1].Issuer.CommonName)
+
+	respCaChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
+	require.NoError(t, err)
+	require.NotNil(t, respCaChain)
+	require.Equal(t, 1, len(respCaChain))
+
+	require.Equal(t, "caX", respCaChain[0].Issuer.CommonName)
+
+	rootPool := x509.NewCertPool()
+	rootPool.AddCert(respRootChain[0])
+	rootPool.AddCert(respRootChain[1])
+	var opt x509.VerifyOptions
+	opt.Roots = rootPool
+	res, err := respCaChain[0].Verify(opt)
+	require.NoError(t, err)
+	require.NotNil(t, res)
 }
 
 func generateCert(t *testing.T, cn string, issuer *x509.Certificate, issuerKey crypto.PrivateKey, ttlInHours int, keyfn func(testing.TB) *ecdsa.PrivateKey) (*x509.Certificate, crypto.PrivateKey, error) {

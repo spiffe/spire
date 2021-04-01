@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/api/iterator"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
 	"google.golang.org/grpc/codes"
@@ -48,8 +48,7 @@ func (spec *CertificateAuthoritySpec) caParentPath() string {
 }
 
 type Config struct {
-	RootSpec         CertificateAuthoritySpec   `hcl:"root_cert_spec,block"`
-	TrustBundleSpecs []CertificateAuthoritySpec `hcl:"trust_bundle_cert_spec,block"`
+	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block"`
 }
 
 type CAClient interface {
@@ -141,21 +140,6 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	if config.RootSpec.LabelValue == "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.LabelValue property")
 	}
-	for _, trustSpec := range config.TrustBundleSpecs {
-		if trustSpec.Project == "" {
-			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].Project property")
-		}
-		if trustSpec.Location == "" {
-			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].Location property")
-		}
-		// Even LabelKey/Value pair is necessary
-		if trustSpec.LabelKey == "" {
-			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].LabelKey property")
-		}
-		if trustSpec.LabelValue == "" {
-			return nil, status.Error(codes.InvalidArgument, "configuration has empty trust_bundle_cert_spec[].LabelValue property")
-		}
-	}
 
 	// Swap out the current configuration with the new configuration
 	p.setConfig(config)
@@ -217,22 +201,18 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	// we want the CA that is expiring the earliest
 	// so sort and grab the first one
 	sortCAsByExpiryTime(allCertRoots)
+	if len(allCertRoots) == 0 {
+		rootSpec := config.RootSpec
+		return nil, status.Errorf(codes.InvalidArgument, "no certificate authorities found in ENABLED state with label pair %q:%q",
+			rootSpec.LabelKey, rootSpec.LabelValue)
+	}
+
 	chosenCA := allCertRoots[0]
 
 	// All of the CAs that are eligible for signing are still trusted
 	var trustBundle []*privatecapb.CertificateAuthority
 	if len(allCertRoots) > 1 {
 		trustBundle = append(trustBundle, allCertRoots[1:]...)
-	}
-
-	// Also pick up if there any additional trust CAs (as per label in plugin config)
-	for _, spec := range config.TrustBundleSpecs {
-		trustBundleCerts, err := pcaClient.LoadCertificateAuthorities(ctx, spec)
-		trustBundleCerts = filterOutNonEnabledCAs(trustBundleCerts)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to load trust bundle CAs: %v", err)
-		}
-		trustBundle = append(trustBundle, trustBundleCerts...)
 	}
 
 	parentPath := chosenCA.Name
@@ -325,8 +305,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	// The last certificate returned from the chain is the root, so we seed the trust bundle with that.
 	rootBundle := []*x509.Certificate{certChain[len(certChain)-1]}
-	// Then we append all the extra cert roots we loaded, plus anything we loaded from the
-	// trust bundle spec
+	// Then we append all the extra cert roots we loaded
 	for _, c := range trustBundle {
 		// The last element in the PemCaCertificates is the root of this particular chain
 		// Note. We don't just use the CAs matched by labels from GCP because they could be
