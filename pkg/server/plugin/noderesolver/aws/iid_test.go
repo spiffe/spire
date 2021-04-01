@@ -9,7 +9,7 @@ import (
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	noderesolverv0 "github.com/spiffe/spire/proto/spire/server/noderesolver/v0"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
 	"github.com/spiffe/spire/test/spiretest"
 )
 

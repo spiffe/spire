@@ -7,25 +7,25 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common/hostservices"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	"google.golang.org/grpc"
 )
 
-type AddSampleRequest = hostservices.AddSampleRequest                                   //nolint: golint
-type AddSampleResponse = hostservices.AddSampleResponse                                 //nolint: golint
-type EmitKeyRequest = hostservices.EmitKeyRequest                                       //nolint: golint
-type EmitKeyResponse = hostservices.EmitKeyResponse                                     //nolint: golint
-type IncrCounterRequest = hostservices.IncrCounterRequest                               //nolint: golint
-type IncrCounterResponse = hostservices.IncrCounterResponse                             //nolint: golint
-type Label = hostservices.Label                                                         //nolint: golint
-type MeasureSinceRequest = hostservices.MeasureSinceRequest                             //nolint: golint
-type MeasureSinceResponse = hostservices.MeasureSinceResponse                           //nolint: golint
-type MetricsServiceClient = hostservices.MetricsServiceClient                           //nolint: golint
-type MetricsServiceServer = hostservices.MetricsServiceServer                           //nolint: golint
-type SetGaugeRequest = hostservices.SetGaugeRequest                                     //nolint: golint
-type SetGaugeResponse = hostservices.SetGaugeResponse                                   //nolint: golint
-type UnimplementedMetricsServiceServer = hostservices.UnimplementedMetricsServiceServer //nolint: golint
-type UnsafeMetricsServiceServer = hostservices.UnsafeMetricsServiceServer               //nolint: golint
+type AddSampleRequest = metricsv0.AddSampleRequest                                   //nolint: golint
+type AddSampleResponse = metricsv0.AddSampleResponse                                 //nolint: golint
+type EmitKeyRequest = metricsv0.EmitKeyRequest                                       //nolint: golint
+type EmitKeyResponse = metricsv0.EmitKeyResponse                                     //nolint: golint
+type IncrCounterRequest = metricsv0.IncrCounterRequest                               //nolint: golint
+type IncrCounterResponse = metricsv0.IncrCounterResponse                             //nolint: golint
+type Label = metricsv0.Label                                                         //nolint: golint
+type MeasureSinceRequest = metricsv0.MeasureSinceRequest                             //nolint: golint
+type MeasureSinceResponse = metricsv0.MeasureSinceResponse                           //nolint: golint
+type MetricsServiceClient = metricsv0.MetricsServiceClient                           //nolint: golint
+type MetricsServiceServer = metricsv0.MetricsServiceServer                           //nolint: golint
+type SetGaugeRequest = metricsv0.SetGaugeRequest                                     //nolint: golint
+type SetGaugeResponse = metricsv0.SetGaugeResponse                                   //nolint: golint
+type UnimplementedMetricsServiceServer = metricsv0.UnimplementedMetricsServiceServer //nolint: golint
+type UnsafeMetricsServiceServer = metricsv0.UnsafeMetricsServiceServer               //nolint: golint
 
 const (
 	MetricsServiceType = "MetricsService"
@@ -56,7 +56,7 @@ func (s metricsServiceHostServiceServer) HostServiceType() string {
 }
 
 func (s metricsServiceHostServiceServer) RegisterHostServiceServer(server *grpc.Server) {
-	hostservices.RegisterMetricsServiceServer(server, s.server)
+	metricsv0.RegisterMetricsServiceServer(server, s.server)
 }
 
 // MetricsServiceHostServiceServer returns a catalog HostServiceServer implementation for the MetricsService plugin.
@@ -75,7 +75,7 @@ func (c *metricsServiceHostServiceClient) HostServiceType() string {
 }
 
 func (c *metricsServiceHostServiceClient) InitHostServiceClient(conn grpc.ClientConnInterface) {
-	*c.client = AdaptMetricsServiceHostServiceClient(hostservices.NewMetricsServiceClient(conn))
+	*c.client = AdaptMetricsServiceHostServiceClient(metricsv0.NewMetricsServiceClient(conn))
 }
 
 func AdaptMetricsServiceHostServiceClient(client MetricsServiceClient) MetricsService {

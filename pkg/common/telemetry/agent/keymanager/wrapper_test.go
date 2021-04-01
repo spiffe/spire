@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

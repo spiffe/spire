@@ -8,7 +8,7 @@ import (
 	"io"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	"google.golang.org/grpc/codes"
 )
 

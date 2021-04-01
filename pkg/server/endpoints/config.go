@@ -64,6 +64,9 @@ type Config struct {
 	Uptime func() time.Duration
 
 	Clock clock.Clock
+
+	// CacheReloadInterval controls how often the in-memory entry cache reloads
+	CacheReloadInterval time.Duration
 }
 
 func (c *Config) makeOldAPIServers() OldAPIServers {
