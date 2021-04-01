@@ -138,15 +138,15 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "missing access key id",
-			configureRequest: configureRequestWithVars("", "secret_access_key", "region", getServerIDFilePath(t)),
+			configureRequest: configureRequestWithVars("", "secret_access_key", "region", getKeyMetadataFile(t)),
 		},
 		{
 			name:             "missing secret access key",
-			configureRequest: configureRequestWithVars("access_key", "", "region", getServerIDFilePath(t)),
+			configureRequest: configureRequestWithVars("access_key", "", "region", getKeyMetadataFile(t)),
 		},
 		{
 			name:             "missing region",
-			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "", getServerIDFilePath(t)),
+			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "", getKeyMetadataFile(t)),
 			err:              "configuration is missing a region",
 			code:             codes.InvalidArgument,
 		},
@@ -158,7 +158,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "new server id file path",
-			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", getEmptyServerIDFilePath(t)),
+			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", getEmptyKeyMetadataFile(t)),
 		},
 		{
 			name:             "decode error",
@@ -426,8 +426,9 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "No such key, dropping from delete schedule",
+					Message: "Failed to schedule key deletion",
 					Data: logrus.Fields{
+						reasonTag:        "No such key",
 						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
@@ -454,8 +455,9 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid ARN, dropping from delete schedule",
+					Message: "Failed to schedule key deletion",
 					Data: logrus.Fields{
+						reasonTag:        "Invalid ARN",
 						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
@@ -483,8 +485,9 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Key was on invalid state for deletion, dropping from delete schedule",
+					Message: "Failed to schedule key deletion",
 					Data: logrus.Fields{
+						reasonTag:        "Key was on invalid state for deletion",
 						keyArnTag:        KeyArn,
 						"subsystem_name": "built-in_plugin.aws_kms",
 					},
@@ -1395,9 +1398,9 @@ func TestDisposeAliases(t *testing.T) {
 			// wait for dispose aliases task to be initialized
 			_ = waitForSignal(t, disposeAliasesSignal)
 			// move the clock forward so the task is run
-			ts.clockHook.Add(48 * time.Hour)
+			ts.clockHook.Add(aliasThreshold)
 			// wait for dispose aliases to be run
-			// first run at 24hs won't dispose keys due to threshold being 48hs
+			// first run at 24hs won't dispose keys due to threshold being two weeks
 			_ = waitForSignal(t, disposeAliasesSignal)
 			// wait for dispose aliases to be run
 			err = waitForSignal(t, disposeAliasesSignal)
@@ -1765,43 +1768,43 @@ func configureRequestWithString(config string) *plugin.ConfigureRequest {
 	}
 }
 
-func configureRequestWithVars(accessKeyID, secretAccessKey, region, serverIDFilePath string) *plugin.ConfigureRequest {
+func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyMetadataFile string) *plugin.ConfigureRequest {
 	return &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`{
 			"access_key_id": "%s",
 			"secret_access_key": "%s",
 			"region":"%s",
-			"server_id_file_path":"%s"
+			"key_metadata_file":"%s"
 			}`,
 			accessKeyID,
 			secretAccessKey,
 			region,
-			serverIDFilePath),
+			keyMetadataFile),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "test.example.org"},
 	}
 }
 
 func configureRequestWithDefaults(t *testing.T) *plugin.ConfigureRequest {
 	return &plugin.ConfigureRequest{
-		Configuration: serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, getServerIDFilePath(t)),
+		Configuration: serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, getKeyMetadataFile(t)),
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "test.example.org"},
 	}
 }
 
-func serializedConfiguration(accessKeyID, secretAccessKey, region string, serverIDFilePath string) string {
+func serializedConfiguration(accessKeyID, secretAccessKey, region string, keyMetadataFile string) string {
 	return fmt.Sprintf(`{
 		"access_key_id": "%s",
 		"secret_access_key": "%s",
 		"region":"%s",
-		"server_id_file_path":"%s"
+		"key_metadata_file":"%s"
 		}`,
 		accessKeyID,
 		secretAccessKey,
 		region,
-		serverIDFilePath)
+		keyMetadataFile)
 }
 
-func getServerIDFilePath(t *testing.T) string {
+func getKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := path.Join(tempDir, validServerIDFile)
 	err := ioutil.WriteFile(tempFilePath, []byte(validServerID), 0600)
@@ -1811,7 +1814,7 @@ func getServerIDFilePath(t *testing.T) string {
 	return tempFilePath
 }
 
-func getEmptyServerIDFilePath(t *testing.T) string {
+func getEmptyKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	return path.Join(tempDir, validServerIDFile)
 }

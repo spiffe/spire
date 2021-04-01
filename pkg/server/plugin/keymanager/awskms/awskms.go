@@ -35,7 +35,7 @@ const (
 
 	refreshAliasesFrequency = time.Hour * 6
 	disposeAliasesFrequency = time.Hour * 24
-	aliasThreshold          = time.Hour * 48
+	aliasThreshold          = time.Hour * 24 * 14 // two weeks
 
 	disposeKeysFrequency = time.Hour * 48
 	keyThreshold         = time.Hour * 48
@@ -81,10 +81,10 @@ type Plugin struct {
 
 // Config provides configuration context for the plugin
 type Config struct {
-	AccessKeyID      string `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey  string `hcl:"secret_access_key" json:"secret_access_key"`
-	Region           string `hcl:"region" json:"region"`
-	ServerIDFilePath string `hcl:"server_id_file_path" json:"server_id_file_path"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
+	Region          string `hcl:"region" json:"region"`
+	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
 }
 
 // New returns an instantiated plugin
@@ -115,7 +115,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		return nil, err
 	}
 
-	serverID, err := loadServerID(config.ServerIDFilePath)
+	serverID, err := loadServerID(config.KeyMetadataFile)
 	if err != nil {
 		return nil, err
 	}
@@ -374,21 +374,21 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 
 			var notFoundErr *types.NotFoundException
 			if errors.As(err, &notFoundErr) {
-				log.Error("No such key, dropping from delete schedule")
+				log.Error("Failed to schedule key deletion", reasonTag, "No such key")
 				p.notifyDelete(err)
 				continue
 			}
 
 			var invalidArnErr *types.InvalidArnException
 			if errors.As(err, &invalidArnErr) {
-				log.Error("Invalid ARN, dropping from delete schedule")
+				log.Error("Failed to schedule key deletion", reasonTag, "Invalid ARN")
 				p.notifyDelete(err)
 				continue
 			}
 
 			var invalidState *types.KMSInvalidStateException
 			if errors.As(err, &invalidState) {
-				log.Error("Key was on invalid state for deletion, dropping from delete schedule")
+				log.Error("Failed to schedule key deletion", reasonTag, "Key was on invalid state for deletion")
 				p.notifyDelete(err)
 				continue
 			}
@@ -451,7 +451,7 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 }
 
 // disposeAliasesTask will be run every 24hs.
-// It will delete aliases that have a LastUpdatedDate value older than 48hs.
+// It will delete aliases that have a LastUpdatedDate value older than two weeks.
 // It will also delete the keys asociated with them.
 // It will only delete aliases belonging to the current trust domain but not the current server.
 // disposeAliasesTask relies on how aliases are built with prefixes to do all this.
@@ -512,11 +512,11 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 			describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias.AliasArn})
 			switch {
 			case err != nil:
-				log.Error("Failed to describe key to dispose", reasonTag, err)
+				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DescribeKey failed: %v", err))
 				errs = append(errs, err.Error())
 				continue
 			case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
-				log.Error("Malformed describe key response while trying to dispose")
+				log.Error("Failed to clean up old KMS keys", reasonTag, "Missing data in AWS API DescribeKey response")
 				continue
 			case !describeResp.KeyMetadata.Enabled:
 				continue
@@ -525,7 +525,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 
 			_, err = p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: alias.AliasName})
 			if err != nil {
-				p.log.Error("Failed to delete alias to dispose", reasonTag, err)
+				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DeleteAlias failed: %v", err))
 				errs = append(errs, err.Error())
 				continue
 			}
@@ -613,12 +613,12 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 				continue
 			}
 
-			// if key does not belong to trust domain skip
+			// if key does not belong to trust domain, skip it
 			if *describeResp.KeyMetadata.Description != p.descriptionPrefixForTrustDomain() {
 				continue
 			}
 
-			// if key has alias skip
+			// if key has alias, skip it
 			aliasesResp, err := p.kmsClient.ListAliases(ctx, &kms.ListAliasesInput{KeyId: key.KeyArn, Limit: aws.Int32(1)})
 			switch {
 			case err != nil:
@@ -718,7 +718,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
 	}
 
-	if config.ServerIDFilePath == "" {
+	if config.KeyMetadataFile == "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id file path")
 	}
 
