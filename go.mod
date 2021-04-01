@@ -5,7 +5,8 @@ go 1.15
 replace github.com/spiffe/spire/proto/spire => ./proto/spire
 
 require (
-	cloud.google.com/go/storage v1.6.0
+	cloud.google.com/go v0.80.0
+	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-sdk-for-go v44.0.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.0
@@ -56,20 +57,20 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.4
 	github.com/spiffe/spire/proto/spire v0.10.1
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
-	golang.org/x/sys v0.0.0-20200331124033-c3d80250170d
+	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
+	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	golang.org/x/tools v0.0.0-20200331025713-a30bf2db82d4
-	google.golang.org/api v0.29.0
-	google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98
-	google.golang.org/grpc v1.33.2
-	google.golang.org/protobuf v1.25.0
+	golang.org/x/tools v0.1.0
+	google.golang.org/api v0.42.0
+	google.golang.org/genproto v0.0.0-20210323160006-e668133fea6a
+	google.golang.org/grpc v1.36.0
+	google.golang.org/protobuf v1.26.0
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637

@@ -40,6 +40,7 @@ import (
 	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
+	up_gcpcas "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -64,6 +65,7 @@ var (
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
 		up_awspca.BuiltIn(),
+		up_gcpcas.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		up_disk.BuiltIn(),
