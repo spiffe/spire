@@ -211,7 +211,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 
 	for entryID, entry := range update.Entries {
 		switch {
-		case entry.StoreSvid:
+		case m.hooks.isStorableEntry(entry):
 			storeEntries[entryID] = entry
 		default:
 			cacheEntries[entryID] = entry
@@ -225,6 +225,12 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 			Bundles:             bundles,
 			RegistrationEntries: storeEntries,
 		}, nil
+}
+
+// isStorableEntry determinates if provided entry is an storable entry.
+// it is only for testing purposes and MUST be removed once types.Entry has StoreSVID bit
+func isStorableEntry(entry *common.RegistrationEntry) bool {
+	return entry.StoreSvid
 }
 
 func newCSR(spiffeID spiffeid.ID) (pk *ecdsa.PrivateKey, csr []byte, err error) {

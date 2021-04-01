@@ -82,6 +82,9 @@ func newManager(c *Config) *manager {
 		clk:             c.Clk,
 		svidStoreCache:  c.SVIDStoreCache,
 	}
+	// Hook was added only for testing purposes, and MUST be removed once types.Entry,
+	// has StoreSVID bit
+	m.hooks.isStorableEntry = isStorableEntry
 
 	return m
 }

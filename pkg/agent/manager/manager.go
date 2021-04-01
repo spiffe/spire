@@ -105,6 +105,10 @@ type manager struct {
 
 	// Cache for 'storable' SVIDs
 	svidStoreCache *storecache.Cache
+
+	hooks struct {
+		isStorableEntry func(*common.RegistrationEntry) bool
+	}
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
