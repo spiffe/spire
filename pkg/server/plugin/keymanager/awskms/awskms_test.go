@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
-	"runtime"
 	"testing"
 	"time"
 
@@ -34,12 +33,13 @@ const (
 	KeyArn               = "arn:aws:kms:region:1234:key/abcd-fghi"
 	aliasName            = "alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID"
 	spireKeyID           = "spireKeyID"
+	testTimeout          = 60 * time.Second
 )
 
 var (
-	ctx        = context.Background()
-	unixEpoch  = time.Unix(0, 0)
-	epochPlus6 = unixEpoch.Add(6 * time.Hour)
+	ctx           = context.Background()
+	unixEpoch     = time.Unix(0, 0)
+	refreshedDate = unixEpoch.Add(6 * time.Hour)
 )
 
 type pluginTest struct {
@@ -539,7 +539,8 @@ func TestGenerateKey(t *testing.T) {
 			ts.fakeClient.setCreateAliasesErr(tt.createAliasErr)
 			ts.fakeClient.setUpdateAliasErr(tt.updateAliasErr)
 			ts.fakeClient.setScheduleKeyDeletionErr(tt.scheduleKeyDeletionErr)
-			ts.plugin.hooks.deleteDone = make(chan struct{}, 3)
+			deleteSignal := make(chan error)
+			ts.plugin.hooks.scheduleDeleteSignal = deleteSignal
 
 			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
 			require.NoError(t, err)
@@ -556,9 +557,15 @@ func TestGenerateKey(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			if tt.waitForDelete {
-				<-ts.plugin.hooks.deleteDone
+			if !tt.waitForDelete {
+				return
+			}
+
+			select {
+			case <-deleteSignal:
 				spiretest.AssertLastLogs(t, ts.logHook.AllEntries(), tt.logs)
+			case <-time.After(testTimeout):
+				t.Fail()
 			}
 		})
 	}
@@ -989,27 +996,16 @@ func TestRefreshAliases(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
 		configureRequest *plugin.ConfigureRequest
+		err              string
 		fakeEntries      []fakeKeyEntry
 		expectedEntries  []fakeKeyEntry
 		updateAliasErr   string
-		logs             []spiretest.LogEntry
 	}{
 		{
 			name:             "refresh aliases error",
 			configureRequest: configureRequestWithDefaults(t),
+			err:              "update failure",
 			updateAliasErr:   "update failure",
-			logs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to refresh alias",
-					Data: logrus.Fields{
-						"alias_name":     "alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01",
-						"key_arn":        "arn:aws:kms:region:1234:key/key_id_01",
-						"reason":         "update failure",
-						"subsystem_name": "built-in_plugin.aws_kms",
-					},
-				},
-			},
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
@@ -1062,23 +1058,83 @@ func TestRefreshAliases(t *testing.T) {
 					CreationDate:         &unixEpoch,
 					AliasLastUpdatedDate: &unixEpoch,
 				},
+				{
+					AliasName:            aws.String("alias/another_td/another_server_id/id_05"),
+					KeyID:                aws.String("key_id_05"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated"),
+					KeyID:                aws.String("key_id_06"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					KeyID:                aws.String("key_id_07"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_08"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
 			},
 
 			expectedEntries: []fakeKeyEntry{
 				{
 					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
-					AliasLastUpdatedDate: &epochPlus6,
+					KeyID:                aws.String("key_id_01"),
+					AliasLastUpdatedDate: &refreshedDate,
 				},
 				{
 					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
-					AliasLastUpdatedDate: &epochPlus6,
+					KeyID:                aws.String("key_id_02"),
+					AliasLastUpdatedDate: &refreshedDate,
 				},
 				{
 					AliasName:            aws.String("alias/test_example_org/another_server_id/id_03"),
+					KeyID:                aws.String("key_id_03"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
 					AliasName:            aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					KeyID:                aws.String("key_id_04"),
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/another_td/another_server_id/id_05"),
+					KeyID:                aws.String("key_id_05"),
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated"),
+					KeyID:                aws.String("key_id_06"),
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					KeyID:                aws.String("key_id_07"),
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_08"),
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 			},
@@ -1090,28 +1146,45 @@ func TestRefreshAliases(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeClient.setEntries(tt.fakeEntries)
 			ts.fakeClient.setUpdateAliasErr(tt.updateAliasErr)
-			ts.plugin.hooks.taskDone = make(chan struct{}, 2)
+			refreshAliasesSignal := make(chan error)
+			ts.plugin.hooks.refreshAliasesSignal = refreshAliasesSignal
 
 			// exercise
 			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
 			require.NoError(t, err)
-			// TODO: it won't work without it
-			runtime.Gosched()
+
+			// wait for refresh alias task to be initialized
+			_ = waitForSignal(t, refreshAliasesSignal)
+			// move the clock forward so the task is run
 			ts.clockHook.Add(6 * time.Hour)
-			<-ts.plugin.hooks.taskDone
+			// wait for refresh aliases to be run
+			err = waitForSignal(t, refreshAliasesSignal)
 
 			// assert
 			if tt.updateAliasErr != "" {
-				spiretest.AssertLastLogs(t, ts.logHook.AllEntries(), tt.logs)
+				require.NotNil(t, err)
+				require.Equal(t, tt.err, err.Error())
 				return
 			}
 
+			require.NoError(t, err)
 			storedAliases := ts.fakeClient.store.aliases
-			require.Len(t, storedAliases, len(tt.expectedEntries))
+			require.Len(t, storedAliases, 7)
+			storedKeys := ts.fakeClient.store.keyEntries
+			require.Len(t, storedKeys, len(tt.expectedEntries))
 			for _, expected := range tt.expectedEntries {
+				if expected.AliasName == nil {
+					continue
+				}
+				// check aliases
 				alias, ok := storedAliases[*expected.AliasName]
 				require.True(t, ok, "Expected alias was not present on end result: %q", *expected.AliasName)
 				require.EqualValues(t, expected.AliasLastUpdatedDate.String(), alias.KeyEntry.AliasLastUpdatedDate.String(), *expected.AliasName)
+
+				// check keys
+				key, ok := storedKeys[*expected.KeyID]
+				require.True(t, ok, "Expected alias was not present on end result: %q", *expected.KeyID)
+				require.EqualValues(t, expected.AliasLastUpdatedDate.String(), key.AliasLastUpdatedDate.String(), *expected.KeyID)
 			}
 		})
 	}
@@ -1121,8 +1194,12 @@ func TestDisposeAliases(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
 		configureRequest *plugin.ConfigureRequest
+		err              string
 		fakeEntries      []fakeKeyEntry
 		expectedEntries  []fakeKeyEntry
+		listAliasesErr   string
+		describeKeyErr   string
+		deleteAliasErr   string
 	}{
 		{
 			name:             "dispose aliases succeeds",
@@ -1165,16 +1242,132 @@ func TestDisposeAliases(t *testing.T) {
 					CreationDate:         &unixEpoch,
 					AliasLastUpdatedDate: &unixEpoch,
 				},
+				{
+					AliasName:            aws.String("alias/another_td/another_server/id_05"),
+					KeyID:                aws.String("key_id_05"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated"),
+					KeyID:                aws.String("key_id_06"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					KeyID:                aws.String("key_id_07"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_08"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/test_example_org/another_server_id/id_09"),
+					KeyID:                aws.String("key_id_09"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
+					Enabled:              false,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
 			},
 
 			expectedEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					KeyID:     aws.String("key_id_01"),
 				},
 				{
-					AliasName: aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02")},
+					AliasName: aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
+					KeyID:     aws.String("key_id_02"),
+				},
 				{
 					AliasName: aws.String("alias/another_td/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_04"),
+					KeyID:     aws.String("key_id_04"),
+				},
+				{
+					AliasName: aws.String("alias/another_td/another_server/id_05"),
+					KeyID:     aws.String("key_id_05"),
+				},
+				{
+					AliasName: aws.String("alias/unrelated"),
+					KeyID:     aws.String("key_id_06"),
+				},
+				{
+					AliasName: aws.String("alias/unrelated/unrelated/id_07"),
+					KeyID:     aws.String("key_id_07"),
+				},
+				{
+					AliasName: aws.String("alias/test_example_org/another_server_id/id_09"),
+					KeyID:     aws.String("key_id_09"),
+				},
+			},
+		},
+		{
+			name:             "list aliases error",
+			configureRequest: configureRequestWithDefaults(t),
+			err:              "list aliases failure",
+			listAliasesErr:   "list aliases failure",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					KeyID:                aws.String("key_id_01"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+			},
+		},
+		{
+			name:             "describe key error",
+			configureRequest: configureRequestWithDefaults(t),
+			err:              "describe key failure",
+			describeKeyErr:   "describe key failure",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            aws.String("alias/test_example_org/another_server/id_01"),
+					KeyID:                aws.String("key_id_01"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+			},
+		},
+		{
+			name:             "delete alias error",
+			configureRequest: configureRequestWithDefaults(t),
+			err:              "delete alias failure",
+			deleteAliasErr:   "delete alias failure",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            aws.String("alias/test_example_org/another_server/id_01"),
+					KeyID:                aws.String("key_id_01"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
 				},
 			},
 		},
@@ -1184,22 +1377,55 @@ func TestDisposeAliases(t *testing.T) {
 			// setup
 			ts := setupTest(t)
 			ts.fakeClient.setEntries(tt.fakeEntries)
-			ts.plugin.hooks.deleteDone = make(chan struct{}, 3)
+			// this is so dispose keys blocks on init and allows to test dispose aliases isolated
+			ts.plugin.hooks.disposeKeysSignal = make(chan error)
+			disposeAliasesSignal := make(chan error)
+			ts.plugin.hooks.disposeAliasesSignal = disposeAliasesSignal
+			deleteSignal := make(chan error)
+			ts.plugin.hooks.scheduleDeleteSignal = deleteSignal
 
 			// exercise
 			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
 			require.NoError(t, err)
-			// TODO: it won't work without it
-			runtime.Gosched()
-			ts.clockHook.Add(48 * time.Hour)
-			<-ts.plugin.hooks.deleteDone
 
-			// assert
+			ts.fakeClient.setListAliasesErr(tt.listAliasesErr)
+			ts.fakeClient.setDescribeKeyErr(tt.describeKeyErr)
+			ts.fakeClient.setDeleteAliasErr(tt.deleteAliasErr)
+
+			// wait for dispose aliases task to be initialized
+			_ = waitForSignal(t, disposeAliasesSignal)
+			// move the clock forward so the task is run
+			ts.clockHook.Add(48 * time.Hour)
+			// wait for dispose aliases to be run
+			// first run at 24hs won't dispose keys due to threshold being 48hs
+			_ = waitForSignal(t, disposeAliasesSignal)
+			// wait for dispose aliases to be run
+			err = waitForSignal(t, disposeAliasesSignal)
+			//assert errors
+			if tt.err != "" {
+				require.NotNil(t, err)
+				require.Equal(t, tt.err, err.Error())
+				return
+			}
+			// wait for schedule delete to be run
+			_ = waitForSignal(t, deleteSignal)
+			//assert end result
+			require.NoError(t, err)
 			storedAliases := ts.fakeClient.store.aliases
-			require.Len(t, storedAliases, len(tt.expectedEntries))
+			require.Len(t, storedAliases, 7)
+			storedKeys := ts.fakeClient.store.keyEntries
+			require.Len(t, storedKeys, 8)
+
 			for _, expected := range tt.expectedEntries {
+				if expected.AliasName == nil {
+					continue
+				}
+				// check aliases
 				_, ok := storedAliases[*expected.AliasName]
 				require.True(t, ok, "Expected alias was not present on end result: %q", *expected.AliasName)
+				// check keys
+				_, ok = storedKeys[*expected.KeyID]
+				require.True(t, ok, "Expected alias was not present on end result: %q", *expected.KeyID)
 			}
 		})
 	}
@@ -1209,8 +1435,12 @@ func TestDisposeKeys(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
 		configureRequest *plugin.ConfigureRequest
+		err              string
 		fakeEntries      []fakeKeyEntry
 		expectedEntries  []fakeKeyEntry
+		listKeysErr      string
+		describeKeyErr   string
+		listAliasesErr   string
 	}{
 		{
 			name:             "dispose keys succeeds",
@@ -1218,7 +1448,7 @@ func TestDisposeKeys(t *testing.T) {
 
 			fakeEntries: []fakeKeyEntry{
 				{
-					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					AliasName:            nil,
 					KeyID:                aws.String("key_id_01"),
 					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
@@ -1228,7 +1458,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            nil,
+					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_02"),
 					KeyID:                aws.String("key_id_02"),
 					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
 					KeySpec:              types.CustomerMasterKeySpecRsa2048,
@@ -1238,7 +1468,7 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            aws.String("alias/not_spire/id_03"),
+					AliasName:            aws.String("alias/test_example_org/another_server_id/id_03"),
 					KeyID:                aws.String("key_id_03"),
 					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
@@ -1258,9 +1488,119 @@ func TestDisposeKeys(t *testing.T) {
 					AliasLastUpdatedDate: &unixEpoch,
 				},
 				{
-					AliasName:            nil,
+					AliasName:            aws.String("alias/another_td/another_server_id/id_05"),
 					KeyID:                aws.String("key_id_05"),
 					Description:          aws.String("SPIRE_SERVER_KEY/another_td"),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated"),
+					KeyID:                aws.String("key_id_06"),
+					Description:          nil,
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/unrelated/unrelated/id_07"),
+					KeyID:                aws.String("key_id_07"),
+					Description:          nil,
+					KeySpec:              types.CustomerMasterKeySpecEccNistP384,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_08"),
+					Description:          nil,
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            aws.String("alias/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+					KeyID:                aws.String("key_id_09"),
+					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_10"),
+					Description:          aws.String("SPIRE_SERVER_KEY/another_td"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_11"),
+					Description:          aws.String("SPIRE_SERVER_KEY/"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_12"),
+					Description:          aws.String("SPIRE_SERVER_KEY"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_13"),
+					Description:          aws.String("test_example_org"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_14"),
+					Description:          aws.String("unrelated"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_15"),
+					Description:          aws.String("disabled key"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              false,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_16"),
+					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org/extra"),
 					KeySpec:              types.CustomerMasterKeySpecRsa4096,
 					Enabled:              true,
 					PublicKey:            []byte("foo"),
@@ -1271,7 +1611,7 @@ func TestDisposeKeys(t *testing.T) {
 
 			expectedEntries: []fakeKeyEntry{
 				{
-					KeyID: aws.String("key_id_01"),
+					KeyID: aws.String("key_id_02"),
 				},
 				{
 					KeyID: aws.String("key_id_03"),
@@ -1282,6 +1622,93 @@ func TestDisposeKeys(t *testing.T) {
 				{
 					KeyID: aws.String("key_id_05"),
 				},
+				{
+					KeyID: aws.String("key_id_06"),
+				},
+				{
+					KeyID: aws.String("key_id_07"),
+				},
+				{
+					KeyID: aws.String("key_id_08"),
+				},
+				{
+					KeyID: aws.String("key_id_09"),
+				},
+				{
+					KeyID: aws.String("key_id_10"),
+				},
+				{
+					KeyID: aws.String("key_id_11"),
+				},
+				{
+					KeyID: aws.String("key_id_12"),
+				},
+				{
+					KeyID: aws.String("key_id_13"),
+				},
+				{
+					KeyID: aws.String("key_id_14"),
+				},
+				{
+					KeyID: aws.String("key_id_15"),
+				},
+				{
+					KeyID: aws.String("key_id_16"),
+				},
+			},
+		},
+		{
+			name:             "list keys error",
+			configureRequest: configureRequestWithDefaults(t),
+			err:              "list keys failure",
+			listKeysErr:      "list keys failure",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_01"),
+					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+			},
+		},
+		{
+			name:             "list aliases error",
+			configureRequest: configureRequestWithDefaults(t),
+			err:              "list aliases failure",
+			listAliasesErr:   "list aliases failure",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_01"),
+					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+			},
+		},
+		{
+			name:             "describe key error",
+			configureRequest: configureRequestWithDefaults(t),
+			err:              "describe key failure",
+			describeKeyErr:   "describe key failure",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            nil,
+					KeyID:                aws.String("key_id_01"),
+					Description:          aws.String("SPIRE_SERVER_KEY/test_example_org"),
+					KeySpec:              types.CustomerMasterKeySpecRsa4096,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					CreationDate:         &unixEpoch,
+					AliasLastUpdatedDate: &unixEpoch,
+				},
 			},
 		},
 	} {
@@ -1290,16 +1717,36 @@ func TestDisposeKeys(t *testing.T) {
 			// setup
 			ts := setupTest(t)
 			ts.fakeClient.setEntries(tt.fakeEntries)
-			ts.plugin.hooks.deleteDone = make(chan struct{}, 3)
+
+			// this is so dispose aliases blocks on init and allows to test dispose keys isolated
+			ts.plugin.hooks.disposeAliasesSignal = make(chan error)
+			disposeKeysSignal := make(chan error)
+			ts.plugin.hooks.disposeKeysSignal = disposeKeysSignal
+			deleteSignal := make(chan error)
+			ts.plugin.hooks.scheduleDeleteSignal = deleteSignal
 
 			// exercise
 			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
 			require.NoError(t, err)
 
-			// TODO: it won't work without it
-			runtime.Gosched()
+			ts.fakeClient.setListKeysErr(tt.listKeysErr)
+			ts.fakeClient.setDescribeKeyErr(tt.describeKeyErr)
+			ts.fakeClient.setListAliasesErr(tt.listAliasesErr)
+
+			// wait for dispose kesy task to be initialized
+			_ = waitForSignal(t, disposeKeysSignal)
+			// move the clock forward so the task is run
 			ts.clockHook.Add(48 * time.Hour)
-			<-ts.plugin.hooks.deleteDone
+			// wait for dispose keys to be run
+			err = waitForSignal(t, disposeKeysSignal)
+			//assert errors
+			if tt.err != "" {
+				require.NotNil(t, err)
+				require.Equal(t, tt.err, err.Error())
+				return
+			}
+			// wait for schedule delete to be run
+			_ = waitForSignal(t, deleteSignal)
 
 			// assert
 			storedKeys := ts.fakeClient.store.keyEntries
@@ -1367,4 +1814,14 @@ func getServerIDFilePath(t *testing.T) string {
 func getEmptyServerIDFilePath(t *testing.T) string {
 	tempDir := t.TempDir()
 	return path.Join(tempDir, validServerIDFile)
+}
+
+func waitForSignal(t *testing.T, ch chan error) error {
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(testTimeout):
+		t.Fail()
+	}
+	return nil
 }

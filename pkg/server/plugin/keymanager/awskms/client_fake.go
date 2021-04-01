@@ -32,6 +32,7 @@ type kmsClientFake struct {
 	scheduleKeyDeletionErr error
 	signErr                error
 	listKeysErr            error
+	deleteAliasErr         error
 }
 
 func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
@@ -258,6 +259,10 @@ func (k *kmsClientFake) ListKeys(ctw context.Context, input *kms.ListKeysInput, 
 func (k *kmsClientFake) DeleteAlias(ctx context.Context, params *kms.DeleteAliasInput, optFns ...func(*kms.Options)) (*kms.DeleteAliasOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
+	if k.deleteAliasErr != nil {
+		return nil, k.deleteAliasErr
+	}
+
 	k.store.DeleteAlias(*params.AliasName)
 	return nil, nil
 }
@@ -345,13 +350,21 @@ func (k *kmsClientFake) setSignDataErr(fakeError string) {
 	}
 }
 
-// func (k *kmsClientFake) setListKeysErr(fakeError string) {
-// 	k.mu.Lock()
-// 	defer k.mu.Unlock()
-// 	if fakeError != "" {
-// 		k.listKeysErr = errors.New(fakeError)
-// 	}
-// }
+func (k *kmsClientFake) setListKeysErr(fakeError string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if fakeError != "" {
+		k.listKeysErr = errors.New(fakeError)
+	}
+}
+
+func (k *kmsClientFake) setDeleteAliasErr(fakeError string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if fakeError != "" {
+		k.deleteAliasErr = errors.New(fakeError)
+	}
+}
 
 const (
 	fakeKeyArnPrefix   = "arn:aws:kms:region:1234:key/"

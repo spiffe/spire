@@ -59,8 +59,10 @@ type pluginHooks struct {
 	newClient func(ctx context.Context, config *Config) (kmsClient, error)
 	clk       clock.Clock
 	// just for testing
-	deleteDone chan struct{}
-	taskDone   chan struct{}
+	scheduleDeleteSignal chan error
+	refreshAliasesSignal chan error
+	disposeAliasesSignal chan error
+	disposeKeysSignal    chan error
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -355,8 +357,6 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("Stopping schedule delete task", reasonTag, ctx.Err())
-			p.notifyDeleteDone()
 			return
 		case keyArn := <-p.scheduleDelete:
 			log := p.log.With(keyArnTag, keyArn)
@@ -368,28 +368,28 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			if err == nil {
 				log.Debug("Key deleted")
 				backoff = backoffMin
-				p.notifyDeleteDone()
+				p.notifyDelete(nil)
 				continue
 			}
 
 			var notFoundErr *types.NotFoundException
 			if errors.As(err, &notFoundErr) {
 				log.Error("No such key, dropping from delete schedule")
-				p.notifyDeleteDone()
+				p.notifyDelete(err)
 				continue
 			}
 
 			var invalidArnErr *types.InvalidArnException
 			if errors.As(err, &invalidArnErr) {
 				log.Error("Invalid ARN, dropping from delete schedule")
-				p.notifyDeleteDone()
+				p.notifyDelete(err)
 				continue
 			}
 
 			var invalidState *types.KMSInvalidStateException
 			if errors.As(err, &invalidState) {
 				log.Error("Key was on invalid state for deletion, dropping from delete schedule")
-				p.notifyDeleteDone()
+				p.notifyDelete(err)
 				continue
 			}
 
@@ -400,9 +400,9 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			default:
 				log.Error("Failed to re-enqueue key for deletion")
 			}
-			p.notifyDeleteDone()
+			p.notifyDelete(nil)
 			backoff = min(backoff*2, backoffMax)
-			time.Sleep(backoff)
+			p.hooks.clk.Sleep(backoff)
 		}
 	}
 }
@@ -411,63 +411,72 @@ func (p *Plugin) refreshAliasesTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(refreshAliasesFrequency)
 	defer ticker.Stop()
 
+	p.notifyRefreshAliases(nil)
+
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("Stopping refresh keys task", reasonTag, ctx.Err())
 			return
 		case <-ticker.C:
-			p.refreshAliases(ctx)
-			p.notifyTaskDone()
+			err := p.refreshAliases(ctx)
+			p.notifyRefreshAliases(err)
 		}
 	}
 }
 
-func (p *Plugin) refreshAliases(ctx context.Context) {
+func (p *Plugin) refreshAliases(ctx context.Context) error {
 	p.log.Debug("Refreshing aliases")
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	var errs []string
 	for _, entry := range p.entries {
 		_, err := p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
 			AliasName:   &entry.AliasName,
 			TargetKeyId: &entry.Arn,
 		})
 		if err != nil {
-			p.log.Error("Failed to refresh alias",
-				aliasNameTag, entry.AliasName, keyArnTag, entry.Arn, reasonTag, err)
+			p.log.Error("Failed to refresh alias", aliasNameTag, entry.AliasName, keyArnTag, entry.Arn, reasonTag, err)
+			errs = append(errs, err.Error())
 		}
 	}
+
+	if errs != nil {
+		return fmt.Errorf(strings.Join(errs, ": "))
+	}
+	return nil
 }
 
 func (p *Plugin) disposeAliasesTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(disposeAliasesFrequency)
 	defer ticker.Stop()
 
+	p.notifyDisposeAliases(nil)
+
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("Stopping dispose aliases task", reasonTag, ctx.Err())
 			return
 		case <-ticker.C:
-			p.disposeAliases(ctx)
-			p.notifyTaskDone()
+			err := p.disposeAliases(ctx)
+			p.notifyDisposeAliases(err)
 		}
 	}
 }
 
-func (p *Plugin) disposeAliases(ctx context.Context) {
+func (p *Plugin) disposeAliases(ctx context.Context) error {
 	p.log.Debug("Looking for aliases in trust domain to dispose")
 	paginator := kms.NewListAliasesPaginator(p.kmsClient, &kms.ListAliasesInput{Limit: aws.Int32(100)})
+	var errs []string
 
 	for {
 		aliasesResp, err := paginator.NextPage(ctx)
 		switch {
 		case err != nil:
 			p.log.Error("Failed to fetch aliases to dispose", reasonTag, err)
-			return
+			return err
 		case aliasesResp == nil:
 			p.log.Error("Failed to fetch aliases to dispose: nil response")
-			return
+			return err
 		}
 
 		for _, alias := range aliasesResp.Aliases {
@@ -494,6 +503,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) {
 			switch {
 			case err != nil:
 				log.Error("Failed to describe key to dispose", reasonTag, err)
+				errs = append(errs, err.Error())
 				continue
 			case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
 				log.Error("Malformed describe key response while trying to dispose")
@@ -506,6 +516,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) {
 			_, err = p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: alias.AliasName})
 			if err != nil {
 				p.log.Error("Failed to delete alias to dispose", reasonTag, err)
+				errs = append(errs, err.Error())
 				continue
 			}
 
@@ -521,37 +532,45 @@ func (p *Plugin) disposeAliases(ctx context.Context) {
 			break
 		}
 	}
+
+	if errs != nil {
+		return fmt.Errorf(strings.Join(errs, ": "))
+	}
+
+	return nil
 }
 
 func (p *Plugin) disposeKeysTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(disposeKeysFrequency)
 	defer ticker.Stop()
 
+	p.notifyDisposeKeys(nil)
+
 	for {
 		select {
 		case <-ctx.Done():
-			p.log.Debug("Stopping dispose keys task", reasonTag, ctx.Err())
 			return
 		case <-ticker.C:
-			p.disposeKeys(ctx)
-			p.notifyTaskDone()
+			err := p.disposeKeys(ctx)
+			p.notifyDisposeKeys(err)
 		}
 	}
 }
 
-func (p *Plugin) disposeKeys(ctx context.Context) {
+func (p *Plugin) disposeKeys(ctx context.Context) error {
 	p.log.Debug("Looking for keys in trust domain to dispose")
 	paginator := kms.NewListKeysPaginator(p.kmsClient, &kms.ListKeysInput{Limit: aws.Int32(1000)})
+	var errs []string
 
 	for {
 		keysResp, err := paginator.NextPage(ctx)
 		switch {
 		case err != nil:
 			p.log.Error("Failed to fetch keys to dispose", reasonTag, err)
-			return
+			return err
 		case keysResp == nil:
 			p.log.Error("Failed to fetch keys to dispose: nil response")
-			return
+			return err
 		}
 
 		for _, key := range keysResp.Keys {
@@ -565,6 +584,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) {
 			switch {
 			case err != nil:
 				log.Error("Failed to describe key to dispose", reasonTag, err)
+				errs = append(errs, err.Error())
 				continue
 			case describeResp == nil ||
 				describeResp.KeyMetadata == nil ||
@@ -577,7 +597,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) {
 			}
 
 			// if key does not belong to trust domain skip
-			if !strings.HasPrefix(*describeResp.KeyMetadata.Description, p.descriptionPrefixForTrustDomain()) {
+			if *describeResp.KeyMetadata.Description != p.descriptionPrefixForTrustDomain() {
 				continue
 			}
 
@@ -586,6 +606,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) {
 			switch {
 			case err != nil:
 				log.Error("Failed to fetch alias for key", reasonTag, err)
+				errs = append(errs, err.Error())
 				continue
 			case aliasesResp == nil || len(aliasesResp.Aliases) > 0:
 				continue
@@ -611,6 +632,11 @@ func (p *Plugin) disposeKeys(ctx context.Context) {
 			break
 		}
 	}
+	if errs != nil {
+		return fmt.Errorf(strings.Join(errs, ": "))
+	}
+
+	return nil
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
@@ -635,15 +661,27 @@ func (p *Plugin) aliasPrefixForTrustDomain() string {
 	return path.Join(aliasPrefix, trustDomain)
 }
 
-func (p *Plugin) notifyDeleteDone() {
-	if p.hooks.deleteDone != nil {
-		p.hooks.deleteDone <- struct{}{}
+func (p *Plugin) notifyDelete(err error) {
+	if p.hooks.scheduleDeleteSignal != nil {
+		p.hooks.scheduleDeleteSignal <- err
 	}
 }
 
-func (p *Plugin) notifyTaskDone() {
-	if p.hooks.taskDone != nil {
-		p.hooks.taskDone <- struct{}{}
+func (p *Plugin) notifyRefreshAliases(err error) {
+	if p.hooks.refreshAliasesSignal != nil {
+		p.hooks.refreshAliasesSignal <- err
+	}
+}
+
+func (p *Plugin) notifyDisposeAliases(err error) {
+	if p.hooks.disposeAliasesSignal != nil {
+		p.hooks.disposeAliasesSignal <- err
+	}
+}
+
+func (p *Plugin) notifyDisposeKeys(err error) {
+	if p.hooks.disposeKeysSignal != nil {
+		p.hooks.disposeKeysSignal <- err
 	}
 }
 
