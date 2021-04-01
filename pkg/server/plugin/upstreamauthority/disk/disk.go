@@ -19,8 +19,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -29,7 +29,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("disk",
-		upstreamauthority.PluginServer(p),
+		upstreamauthorityv0.PluginServer(p),
 	)
 }
 
@@ -42,7 +42,7 @@ type Configuration struct {
 }
 
 type Plugin struct {
-	upstreamauthority.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
 
 	log   hclog.Logger
 	clock clock.Clock
@@ -112,7 +112,7 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (p *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	ctx := stream.Context()
 
 	upstreamCA, upstreamCerts, err := p.reloadCA()
@@ -125,13 +125,13 @@ func (p *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream
 		return err
 	}
 
-	return stream.Send(&upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
 		X509CaChain:       append([][]byte{cert.Raw}, upstreamCerts.certChain...),
 		UpstreamX509Roots: upstreamCerts.trustBundle,
 	})
 }
 
-func (*Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (*Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 

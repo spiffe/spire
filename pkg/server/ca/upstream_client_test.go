@@ -9,8 +9,8 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -46,36 +46,36 @@ func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
-		mutate func(*upstreamauthority.MintX509CAResponse)
+		mutate func(*upstreamauthorityv0.MintX509CAResponse)
 		err    string
 	}{
 		{
 			name: "missing X.509 CA chain",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
+			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
 				resp.X509CaChain = nil
 			},
-			err: "upstream authority returned empty X.509 CA chain",
+			err: "plugin response missing X.509 CA chain",
 		},
 		{
 			name: "malformed X.509 CA chain",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
+			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
 				resp.X509CaChain = [][]byte{{0x00}}
 			},
-			err: "malformed X.509 CA chain:",
+			err: "plugin response has malformed X.509 CA chain:",
 		},
 		{
 			name: "missing X.509 roots",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
+			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
 				resp.UpstreamX509Roots = nil
 			},
-			err: "upstream authority returned no upstream X.509 roots",
+			err: "plugin response missing upstream X.509 roots",
 		},
 		{
 			name: "malformed X.509 roots",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
+			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
 				resp.UpstreamX509Roots = [][]byte{{0x00}}
 			},
-			err: "malformed upstream X.509 roots:",
+			err: "plugin response has malformed upstream X.509 roots:",
 		},
 	} {
 		tt := tt
@@ -86,68 +86,7 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 			})
 
 			_, err := client.MintX509CA(context.Background(), csr, 0)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tt.err)
-		})
-	}
-}
-
-func TestUpstreamClientMintX509CA_LogsOnBadSubsequentResponses(t *testing.T) {
-	for _, tt := range []struct {
-		name   string
-		mutate func(*upstreamauthority.MintX509CAResponse)
-		err    string
-	}{
-		{
-			name: "has X.509 CA chain",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
-				resp.X509CaChain = [][]byte{{0x00}}
-			},
-			err: "upstream authority returned an X.509 CA chain after the first response",
-		},
-		{
-			name: "missing X.509 roots",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
-				resp.UpstreamX509Roots = nil
-			},
-			err: "upstream authority returned no upstream X.509 roots",
-		},
-		{
-			name: "malformed X.509 roots",
-			mutate: func(resp *upstreamauthority.MintX509CAResponse) {
-				resp.UpstreamX509Roots = [][]byte{{0x00}}
-			},
-			err: "malformed upstream X.509 roots:",
-		},
-	} {
-		tt := tt
-
-		t.Run(tt.name, func(t *testing.T) {
-			var first bool
-			client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
-				TrustDomain: trustDomain,
-				MutateMintX509CAResponse: func(resp *upstreamauthority.MintX509CAResponse) {
-					if !first {
-						first = true
-						return
-					}
-					tt.mutate(resp)
-				},
-			})
-
-			x509CA, err := client.MintX509CA(context.Background(), csr, 0)
-			require.NoError(t, err)
-			require.NotNil(t, x509CA)
-
-			// Rotating the upstream CA. This change won't be picked up because
-			// we are mutating the response in the test hook to ensure the
-			// bad response is ignored.
-			ua.RotateX509CA()
-
-			msg, err := updater.WaitForError(t)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tt.err)
-			require.Equal(t, msg, "Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
+			spiretest.RequireGRPCStatusContains(t, err, codes.Internal, tt.err)
 		})
 	}
 }
@@ -157,12 +96,18 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 		TrustDomain: trustDomain,
 	})
 
-	key1 := &common.PublicKey{
-		Kid: "KEY1",
+	makePublicKey := func(t *testing.T, kid string) *common.PublicKey {
+		key := testkey.NewEC256(t)
+		pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
+		require.NoError(t, err)
+		return &common.PublicKey{
+			Kid:       kid,
+			PkixBytes: pkixBytes,
+		}
 	}
-	key2 := &common.PublicKey{
-		Kid: "KEY2",
-	}
+
+	key1 := makePublicKey(t, "KEY1")
+	key2 := makePublicKey(t, "KEY2")
 
 	jwtKeys, err := client.PublishJWTKey(context.Background(), key1)
 	require.NoError(t, err)
@@ -184,7 +129,7 @@ func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
 	})
 
 	jwtKeys, err := client.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "KEY"})
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "disallowed")
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(fake): disallowed")
 	require.Nil(t, jwtKeys)
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 )
@@ -11,6 +12,7 @@ import (
 type LoadedPlugin struct {
 	name         string
 	pluginType   string
+	log          logrus.FieldLogger
 	plugin       interface{}
 	all          []interface{}
 	serviceNames []string

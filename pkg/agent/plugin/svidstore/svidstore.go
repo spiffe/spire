@@ -7,18 +7,18 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/agent/svidstore"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	svidstorev0 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v0"
 	"google.golang.org/grpc"
 )
 
-type PutX509SVIDRequest = svidstore.PutX509SVIDRequest                     //nolint: golint
-type PutX509SVIDResponse = svidstore.PutX509SVIDResponse                   //nolint: golint
-type SVIDStoreClient = svidstore.SVIDStoreClient                           //nolint: golint
-type SVIDStoreServer = svidstore.SVIDStoreServer                           //nolint: golint
-type UnimplementedSVIDStoreServer = svidstore.UnimplementedSVIDStoreServer //nolint: golint
-type UnsafeSVIDStoreServer = svidstore.UnsafeSVIDStoreServer               //nolint: golint
-type X509SVID = svidstore.X509SVID                                         //nolint: golint
+type PutX509SVIDRequest = svidstorev0.PutX509SVIDRequest                     //nolint: golint
+type PutX509SVIDResponse = svidstorev0.PutX509SVIDResponse                   //nolint: golint
+type SVIDStoreClient = svidstorev0.SVIDStoreClient                           //nolint: golint
+type SVIDStoreServer = svidstorev0.SVIDStoreServer                           //nolint: golint
+type UnimplementedSVIDStoreServer = svidstorev0.UnimplementedSVIDStoreServer //nolint: golint
+type UnsafeSVIDStoreServer = svidstorev0.UnsafeSVIDStoreServer               //nolint: golint
+type X509SVID = svidstorev0.X509SVID                                         //nolint: golint
 
 const (
 	Type = "SVIDStore"
@@ -56,7 +56,7 @@ func (s pluginServer) PluginClient() catalog.PluginClient {
 }
 
 func (s pluginServer) RegisterPluginServer(server *grpc.Server) interface{} {
-	svidstore.RegisterSVIDStoreServer(server, s.server)
+	svidstorev0.RegisterSVIDStoreServer(server, s.server)
 	return s.server
 }
 
@@ -70,7 +70,7 @@ func (pluginClient) PluginType() string {
 }
 
 func (pluginClient) NewPluginClient(conn grpc.ClientConnInterface) interface{} {
-	return AdaptPluginClient(svidstore.NewSVIDStoreClient(conn))
+	return AdaptPluginClient(svidstorev0.NewSVIDStoreClient(conn))
 }
 
 func AdaptPluginClient(client SVIDStoreClient) SVIDStore {

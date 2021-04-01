@@ -16,8 +16,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 const (
@@ -30,7 +30,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(p))
+	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(p))
 }
 
 type PluginConfig struct {
@@ -88,7 +88,7 @@ type AppRoleAuthConfig struct {
 }
 
 type Plugin struct {
-	upstreamauthority.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
 
 	mtx    *sync.RWMutex
 	logger hclog.Logger
@@ -134,7 +134,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	return &spi.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	if p.cc == nil {
 		return errors.New("plugin not configured")
 	}
@@ -201,7 +201,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream ups
 		certChain = append(certChain, b.Raw)
 	}
 
-	return stream.Send(&upstreamauthority.MintX509CAResponse{
+	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
 		X509CaChain:       certChain,
 		UpstreamX509Roots: bundles,
 	})
@@ -212,7 +212,7 @@ func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.G
 }
 
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (*Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (*Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
 }
 

@@ -98,6 +98,8 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
+	CacheReloadInterval string `hcl:"cache_reload_interval"`
+
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -507,6 +509,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.AllowUnsafeIDs != nil {
 		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
 		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
+	}
+
+	if c.Server.Experimental.CacheReloadInterval != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse cache reload interval: %v", err)
+		}
+		sc.CacheReloadInterval = interval
 	}
 
 	return sc, nil

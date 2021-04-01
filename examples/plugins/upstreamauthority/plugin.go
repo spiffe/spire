@@ -7,9 +7,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/zeebo/errs"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -20,19 +21,13 @@ const (
 	pluginName = "my-plugin"
 )
 
-var (
-	// pluginErr is a convenience error class that prefixes errors with the
-	// plugin name.
-	pluginErr = errs.Class(pluginName)
-)
-
 // BuiltIn constructs a catalog Plugin using a new instance of this plugin.
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(p))
+	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(p))
 }
 
 type Config struct {
@@ -46,7 +41,7 @@ type Config struct {
 type Plugin struct {
 	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
 	// a way of opting in or out of forward build compatibility.
-	upstreamauthority.UnimplementedUpstreamAuthorityServer
+	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
 
 	// mu is a mutex that protects the configuration. Plugins may at some point
 	// need to support hot-reloading of configuration (by receiving another
@@ -61,7 +56,7 @@ type Plugin struct {
 // broker as well as the UpstreamAuthority itself.
 var _ catalog.NeedsLogger = (*Plugin)(nil)
 var _ catalog.NeedsLogger = (*Plugin)(nil)
-var _ upstreamauthority.UpstreamAuthorityServer = (*Plugin)(nil)
+var _ upstreamauthorityv0.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
 	return &Plugin{}
@@ -93,7 +88,7 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 // The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream X.509 roots as SPIRE
 // core will not reopen a closed stream until the next X.509 CA rotation.
-func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	// TODO: implement
 	return nil
 }
@@ -109,7 +104,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthority.MintX509CARequest, stream ups
 // The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream JWT keys as SPIRE
 // core will not reopen a closed stream until the next JWT key rotation.
-func (p *Plugin) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (p *Plugin) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	// TODO: implement or return NotImplemented if unsupported
 	return nil
 }
@@ -118,7 +113,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	// Parse HCL config payload into config struct
 	config := new(Config)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, pluginErr.New("unable to decode configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	// Swap out the current configuration with the new configuration
@@ -138,7 +133,7 @@ func (p *Plugin) getConfig() (*Config, error) {
 	defer p.mu.Unlock()
 
 	if p.c == nil {
-		return nil, pluginErr.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
 	return p.c, nil

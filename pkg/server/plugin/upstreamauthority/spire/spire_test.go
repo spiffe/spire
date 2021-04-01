@@ -23,9 +23,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -442,7 +442,7 @@ func TestSpirePlugin_MintX509CA(t *testing.T) {
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			csr, pubKey := c.getCSR()
-			stream, err := p.MintX509CA(ctx, &upstreamauthority.MintX509CARequest{Csr: csr})
+			stream, err := p.MintX509CA(ctx, &upstreamauthorityv0.MintX509CARequest{Csr: csr})
 			require.NoError(t, err)
 			require.NotNil(t, stream)
 
@@ -504,7 +504,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 
 	// Send initial request and get stream
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	stream, err := p.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{
+	stream, err := p.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
 			Kid: "kid-2",
 		},
@@ -546,7 +546,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	server.sAPIServer.err = errors.New("some error")
-	stream, err = p.PublishJWTKey(ctx, &upstreamauthority.PublishJWTKeyRequest{
+	stream, err = p.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{
 		JwtKey: &common.PublicKey{
 			Kid: "kid-2",
 		},
@@ -559,7 +559,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	require.EqualError(t, err, "rpc error: code = Unknown desc = some error")
 }
 
-func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthority.Plugin, *clock.Mock) {
+func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthorityv0.Plugin, *clock.Mock) {
 	host, port, _ := net.SplitHostPort(addr)
 
 	config := Configuration{
@@ -576,7 +576,7 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain.String()},
 	}
 
-	var plugin upstreamauthority.Plugin
+	var plugin upstreamauthorityv0.Plugin
 	spiretest.LoadPlugin(t, BuiltIn(), &plugin)
 	if _, err = plugin.Configure(ctx, pluginConfig); err != nil {
 		require.NoError(t, err)
