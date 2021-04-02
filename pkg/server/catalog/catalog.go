@@ -179,7 +179,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	if _, ok := config.PluginConfig[nodeResolverType]["noop"]; ok {
+	if noopConfig, ok := config.PluginConfig[nodeResolverType]["noop"]; ok && noopConfig.PluginCmd == "" {
 		// TODO: remove in 1.1.0
 		delete(config.PluginConfig[nodeResolverType], "noop")
 		config.Log.Warn(`The "noop" NodeResolver is not required, is deprecated, and will be removed from a future release`)
