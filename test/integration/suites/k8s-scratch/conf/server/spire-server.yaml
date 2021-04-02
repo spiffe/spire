@@ -108,9 +108,9 @@ data:
       default_svid_ttl = "1h"
       ca_ttl = "12h"
       ca_subject = {
-        country = ["US"],
-        organization = ["SPIFFE"],
-        common_name = "",
+        country = ["US"]
+        organization = ["SPIFFE"]
+        common_name = ""
       }
     }
 
@@ -163,9 +163,9 @@ metadata:
   namespace: spire
 data:
   k8s-workload-registrar.conf: |
-    cert_path = "/run/spire/k8s-workload-registrar/certs/server-cert.pem" 
-    key_path = "/run/spire/k8s-workload-registrar/secret/server-key.pem" 
-    cacert_path = "/run/spire/k8s-workload-registrar/certs/cacert.pem" 
+    cert_path = "/run/spire/k8s-workload-registrar/certs/server-cert.pem"
+    key_path = "/run/spire/k8s-workload-registrar/secret/server-key.pem"
+    cacert_path = "/run/spire/k8s-workload-registrar/certs/cacert.pem"
     trust_domain = "example.org"
     cluster = "example-cluster"
     server_socket_path = "/tmp/spire-server/private/api.sock"
