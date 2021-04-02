@@ -29,7 +29,6 @@ import (
 	na_sshpop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
 	na_x509pop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
@@ -65,7 +64,6 @@ var (
 		na_k8s_psat.BuiltIn(),
 		na_join_token.BuiltIn(),
 		// NodeResolvers
-		nr_aws_iid.BuiltIn(),
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
 		up_awspca.BuiltIn(),
