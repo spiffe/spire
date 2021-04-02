@@ -63,6 +63,14 @@ func (c *Context) Close() {
 	}
 
 	if c.rwc != nil {
+		// EmulatorReadWriteCloser type does not need to be closed. It closes
+		// the connection after each Read() call. Closing it again results in
+		// an error.
+		_, ok := c.rwc.(*tpmutil.EmulatorReadWriteCloser)
+		if ok {
+			return
+		}
+
 		err := c.rwc.Close()
 		if err != nil {
 			c.log.Warn(fmt.Sprintf("Failed to close TPM: %v", err))
