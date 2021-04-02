@@ -7,10 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -74,14 +72,9 @@ func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Du
 	u.mintX509CAMtx.Lock()
 	defer u.mintX509CAMtx.Unlock()
 
-	req := &upstreamauthority.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: int32(ttl / time.Second),
-	}
-
 	firstResultCh := make(chan mintX509CAResult, 1)
 	u.mintX509CAStream.Start(func(streamCtx context.Context) {
-		u.runMintX509CAStream(streamCtx, req, firstResultCh)
+		u.runMintX509CAStream(streamCtx, csr, ttl, firstResultCh)
 	})
 	defer func() {
 		if err != nil {
@@ -110,13 +103,9 @@ func (u *UpstreamClient) PublishJWTKey(ctx context.Context, jwtKey *common.Publi
 	u.publishJWTKeyMtx.Lock()
 	defer u.publishJWTKeyMtx.Unlock()
 
-	req := &upstreamauthority.PublishJWTKeyRequest{
-		JwtKey: jwtKey,
-	}
-
 	firstResultCh := make(chan publishJWTKeyResult, 1)
 	u.publishJWTKeyStream.Start(func(streamCtx context.Context) {
-		u.runPublishJWTKeyStream(streamCtx, req, firstResultCh)
+		u.runPublishJWTKeyStream(streamCtx, jwtKey, firstResultCh)
 	})
 	defer func() {
 		if err != nil {
@@ -137,27 +126,13 @@ func (u *UpstreamClient) WaitUntilPublishJWTKeyStreamDone(ctx context.Context) e
 	return u.publishJWTKeyStream.WaitUntilStopped(ctx)
 }
 
-func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreamauthority.MintX509CARequest, firstResultCh chan<- mintX509CAResult) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	stream, err := u.c.UpstreamAuthority.MintX509CA(ctx, req)
+func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, ttl time.Duration, firstResultCh chan<- mintX509CAResult) {
+	x509CA, x509Roots, x509RootsStream, err := u.c.UpstreamAuthority.MintX509CA(ctx, csr, ttl)
 	if err != nil {
 		firstResultCh <- mintX509CAResult{err: err}
 		return
 	}
-
-	resp, err := stream.Recv()
-	if err != nil {
-		firstResultCh <- mintX509CAResult{err: err}
-		return
-	}
-
-	x509CA, x509Roots, err := parseMintX509CAFirstResponse(resp)
-	if err != nil {
-		firstResultCh <- mintX509CAResult{err: err}
-		return
-	}
+	defer x509RootsStream.Close()
 
 	if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
 		firstResultCh <- mintX509CAResult{err: err}
@@ -167,7 +142,7 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 	firstResultCh <- mintX509CAResult{x509CA: x509CA}
 
 	for {
-		resp, err := stream.Recv()
+		x509Roots, err := x509RootsStream.RecvUpstreamX509Authorities()
 		if err != nil {
 			switch {
 			case err == io.EOF:
@@ -182,12 +157,6 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 			return
 		}
 
-		x509Roots, err := parseMintX509CABundleUpdate(resp)
-		if err != nil {
-			u.c.BundleUpdater.LogError(err, "Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
-			continue
-		}
-
 		if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
 			u.c.BundleUpdater.LogError(err, "Failed to store X.509 roots received by the upstream authority plugin.")
 			continue
@@ -195,23 +164,15 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, req *upstreama
 	}
 }
 
-func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstreamauthority.PublishJWTKeyRequest, firstResultCh chan<- publishJWTKeyResult) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	stream, err := u.c.UpstreamAuthority.PublishJWTKey(ctx, req)
+func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, jwtKey *common.PublicKey, firstResultCh chan<- publishJWTKeyResult) {
+	jwtKeys, jwtKeysStream, err := u.c.UpstreamAuthority.PublishJWTKey(ctx, jwtKey)
 	if err != nil {
 		firstResultCh <- publishJWTKeyResult{err: err}
 		return
 	}
+	defer jwtKeysStream.Close()
 
-	resp, err := stream.Recv()
-	if err != nil {
-		firstResultCh <- publishJWTKeyResult{err: err}
-		return
-	}
-
-	updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, resp.UpstreamJwtKeys)
+	updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, jwtKeys)
 	if err != nil {
 		firstResultCh <- publishJWTKeyResult{err: err}
 		return
@@ -219,7 +180,7 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 	firstResultCh <- publishJWTKeyResult{jwtKeys: updatedKeys}
 
 	for {
-		resp, err := stream.Recv()
+		jwtKeys, err := jwtKeysStream.RecvUpstreamJWTAuthorities()
 		if err != nil {
 			switch {
 			case err == io.EOF:
@@ -234,7 +195,7 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 			return
 		}
 
-		if _, err := u.c.BundleUpdater.AppendJWTKeys(ctx, resp.UpstreamJwtKeys); err != nil {
+		if _, err := u.c.BundleUpdater.AppendJWTKeys(ctx, jwtKeys); err != nil {
 			u.c.BundleUpdater.LogError(err, "Failed to store JWT keys received by the upstream authority plugin.")
 			continue
 		}
@@ -244,39 +205,6 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, req *upstre
 type mintX509CAResult struct {
 	x509CA []*x509.Certificate
 	err    error
-}
-
-func parseMintX509CAFirstResponse(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
-	x509CA, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	if err != nil {
-		return nil, nil, errs.New("malformed X.509 CA chain: %v", err)
-	}
-	if len(x509CA) == 0 {
-		return nil, nil, errs.New("upstream authority returned empty X.509 CA chain")
-	}
-	x509Roots, err := parseX509Roots(resp.UpstreamX509Roots)
-	if err != nil {
-		return nil, nil, err
-	}
-	return x509CA, x509Roots, nil
-}
-
-func parseMintX509CABundleUpdate(resp *upstreamauthority.MintX509CAResponse) ([]*x509.Certificate, error) {
-	if len(resp.X509CaChain) > 0 {
-		return nil, errs.New("upstream authority returned an X.509 CA chain after the first response")
-	}
-	return parseX509Roots(resp.UpstreamX509Roots)
-}
-
-func parseX509Roots(rawX509Roots [][]byte) ([]*x509.Certificate, error) {
-	x509Roots, err := x509util.RawCertsToCertificates(rawX509Roots)
-	if err != nil {
-		return nil, errs.New("malformed upstream X.509 roots: %v", err)
-	}
-	if len(x509Roots) == 0 {
-		return nil, errs.New("upstream authority returned no upstream X.509 roots")
-	}
-	return x509Roots, nil
 }
 
 type publishJWTKeyResult struct {

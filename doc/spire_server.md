@@ -37,6 +37,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | UpstreamAuthority | [disk](/doc/plugin_server_upstreamauthority_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md) | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md) | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
 | UpstreamAuthority | [vault](/doc/plugin_server_upstreamauthority_vault.md) | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
@@ -58,6 +59,7 @@ This may be useful for templating configuration files, for example across differ
 | `ca_ttl`                    | The default CA/signing key TTL                                                                    | 24h                                                            |
 | `data_dir`                  | A directory the server can use for its runtime                                                    |                                                                |
 | `default_svid_ttl`          | The default SVID TTL                                                                              | 1h                                                             |
+| `experimental`              | The experimental options that are subject to change or removal (see below)                        |                                                                |
 | `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)           |                                                                |
 | `jwt_key_type`              | The key type used for the server CA (JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>               | The value of `ca_key_type` or ec-p256 if not defined           |
 | `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                      |                                                                |
@@ -73,6 +75,10 @@ This may be useful for templating configuration files, for example across differ
 | `country`                   | Array of `Country` values      |                |
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
+
+| experimental                | Description                    | Default        |
+|:----------------------------|--------------------------------|----------------|
+| `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s |
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|

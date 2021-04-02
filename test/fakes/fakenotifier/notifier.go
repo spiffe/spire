@@ -2,60 +2,56 @@ package fakenotifier
 
 import (
 	"context"
+	"testing"
 
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
+	"github.com/spiffe/spire/proto/spire/common"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 type Config struct {
-	OnNotify          func(*notifier.NotifyRequest) (*notifier.NotifyResponse, error)
-	OnNotifyAndAdvise func(*notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error)
+	OnNotifyBundleUpdated         func(*common.Bundle) error
+	OnNotifyAndAdviseBundleLoaded func(*common.Bundle) error
 }
 
-type Notifier struct {
-	notifier.UnsafeNotifierServer
+func New(t *testing.T, config Config) notifier.Notifier {
+	server := notifierv0.PluginServer(&fakeNotifer{config: config})
+
+	var v0 notifier.V0
+	spiretest.LoadPlugin(t, catalog.MakePlugin("fake", server), &v0)
+	return v0
+}
+
+type fakeNotifer struct {
+	notifierv0.UnimplementedNotifierServer
 
 	config Config
 }
 
-func New(config Config) *Notifier {
-	return &Notifier{
-		config: config,
+func (n *fakeNotifer) Notify(ctx context.Context, req *notifierv0.NotifyRequest) (*notifierv0.NotifyResponse, error) {
+	var err error
+	if event := req.GetBundleUpdated(); event != nil && n.config.OnNotifyBundleUpdated != nil {
+		err = n.config.OnNotifyBundleUpdated(event.Bundle)
 	}
+	return &notifierv0.NotifyResponse{}, err
 }
 
-func (n *Notifier) Notify(ctx context.Context, req *notifier.NotifyRequest) (*notifier.NotifyResponse, error) {
-	if n.config.OnNotify != nil {
-		return n.config.OnNotify(req)
+func (n *fakeNotifer) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndAdviseRequest) (*notifierv0.NotifyAndAdviseResponse, error) {
+	var err error
+	if event := req.GetBundleLoaded(); event != nil && n.config.OnNotifyAndAdviseBundleLoaded != nil {
+		err = n.config.OnNotifyAndAdviseBundleLoaded(event.Bundle)
 	}
-	return &notifier.NotifyResponse{}, nil
+	return &notifierv0.NotifyAndAdviseResponse{}, err
 }
 
-func (n *Notifier) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
-	if n.config.OnNotifyAndAdvise != nil {
-		return n.config.OnNotifyAndAdvise(req)
-	}
-	return &notifier.NotifyAndAdviseResponse{}, nil
-}
-
-func (n *Notifier) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (n *Notifier) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
-}
-
-func NotifyWaiter() (*Notifier, <-chan *notifier.NotifyRequest) {
-	ch := make(chan *notifier.NotifyRequest)
-	return New(Config{
-		OnNotify: SendOnNotify(ch),
+func NotifyBundleUpdatedWaiter(t *testing.T) (notifier.Notifier, <-chan *common.Bundle) {
+	ch := make(chan *common.Bundle)
+	return New(t, Config{
+		OnNotifyBundleUpdated: func(bundle *common.Bundle) error {
+			ch <- bundle
+			return nil
+		},
 	}), ch
-}
-
-func SendOnNotify(ch chan<- *notifier.NotifyRequest) func(req *notifier.NotifyRequest) (*notifier.NotifyResponse, error) {
-	return func(req *notifier.NotifyRequest) (*notifier.NotifyResponse, error) {
-		ch <- req
-		return &notifier.NotifyResponse{}, nil
-	}
 }

@@ -7,13 +7,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/test/spiretest"
 )
 
 var (
@@ -21,8 +20,6 @@ var (
 )
 
 type DataStore struct {
-	datastore.UnsafeDataStoreServer
-
 	ds   datastore.DataStore
 	errs []error
 }
@@ -30,15 +27,14 @@ type DataStore struct {
 var _ datastore.DataStore = (*DataStore)(nil)
 
 func New(tb testing.TB) *DataStore {
-	var ds datastore.Plugin
-	spiretest.LoadPlugin(tb, sql.BuiltIn(), &ds)
+	log, _ := test.NewNullLogger()
 
-	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-			database_type = "sqlite3"
-			connection_string = "file:memdb%d?mode=memory&cache=shared"
-		`, atomic.AddUint32(&nextID, 1)),
-	})
+	ds := sql.New(log)
+
+	err := ds.Configure(fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = "file:memdb%d?mode=memory&cache=shared"
+	`, atomic.AddUint32(&nextID, 1)))
 	require.NoError(tb, err)
 
 	return &DataStore{
@@ -282,12 +278,4 @@ func (s *DataStore) getNextError() error {
 	err := s.errs[0]
 	s.errs = s.errs[1:]
 	return err
-}
-
-func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (s *DataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
 }

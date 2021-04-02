@@ -14,9 +14,9 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -60,7 +60,7 @@ type Suite struct {
 	k *fakeKubeClient
 
 	raw *Plugin
-	p   notifier.Plugin
+	p   notifierv0.Plugin
 }
 
 func (s *Suite) SetupTest() {
@@ -75,7 +75,7 @@ func (s *Suite) SetupTest() {
 }
 
 func (s *Suite) TestNotifyFailsIfNotConfigured() {
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{})
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{})
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: not configured")
 	s.Nil(resp)
 }
@@ -83,13 +83,13 @@ func (s *Suite) TestNotifyFailsIfNotConfigured() {
 func (s *Suite) TestNotifyIgnoresUnknownEvents() {
 	s.configure("")
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{})
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{})
 	s.NoError(err)
-	s.AssertProtoEqual(&notifier.NotifyResponse{}, resp)
+	s.AssertProtoEqual(&notifierv0.NotifyResponse{}, resp)
 }
 
 func (s *Suite) TestNotifyAndAdviseFailsIfNotConfigured() {
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{})
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{})
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: not configured")
 	s.Nil(resp)
 }
@@ -97,9 +97,9 @@ func (s *Suite) TestNotifyAndAdviseFailsIfNotConfigured() {
 func (s *Suite) TestNotifyAndAdviseIgnoresUnknownEvents() {
 	s.configure("")
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{})
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{})
 	s.NoError(err)
-	s.AssertProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
+	s.AssertProtoEqual(&notifierv0.NotifyAndAdviseResponse{}, resp)
 }
 
 func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
@@ -107,9 +107,9 @@ func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
 
 	s.configure("")
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: testBundle,
 			},
 		},
@@ -121,9 +121,9 @@ func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
 func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
 	s.configure("")
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: testBundle,
 			},
 		},
@@ -144,9 +144,9 @@ func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 
 	s.configure("")
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: testBundle,
 			},
 		},
@@ -171,15 +171,15 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 
 	s.configure("")
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: testBundle,
 			},
 		},
 	})
 	s.NoError(err)
-	s.AssertProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
+	s.AssertProtoEqual(&notifierv0.NotifyAndAdviseResponse{}, resp)
 
 	// make sure the config map contains the second bundle data
 	configMap := s.k.getConfigMap("spire", "spire-bundle")
@@ -193,15 +193,15 @@ func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 	s.k.setConfigMap(newConfigMap())
 	s.r.AppendBundle(testBundle)
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: testBundle,
 			},
 		},
 	})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&notifier.NotifyAndAdviseResponse{}, resp)
+	s.RequireProtoEqual(&notifierv0.NotifyAndAdviseResponse{}, resp)
 
 	s.Require().Equal(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -234,9 +234,9 @@ config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-		Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifier.BundleLoaded{
+	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: testBundle,
 			},
 		},
@@ -261,9 +261,9 @@ func (s *Suite) TestBundleUpdatedWhenCannotCreateClient() {
 
 	s.configure("")
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
+		Event: &notifierv0.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: testBundle,
 			},
 		},
@@ -275,9 +275,9 @@ func (s *Suite) TestBundleUpdatedWhenCannotCreateClient() {
 func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
 	s.configure("")
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
+		Event: &notifierv0.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: testBundle,
 			},
 		},
@@ -298,9 +298,9 @@ func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
 
 	s.configure("")
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
+		Event: &notifierv0.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: testBundle,
 			},
 		},
@@ -325,15 +325,15 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 
 	s.configure("")
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
+		Event: &notifierv0.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: testBundle,
 			},
 		},
 	})
 	s.NoError(err)
-	s.AssertProtoEqual(&notifier.NotifyResponse{}, resp)
+	s.AssertProtoEqual(&notifierv0.NotifyResponse{}, resp)
 
 	// make sure the config map contains the second bundle data
 	configMap := s.k.getConfigMap("spire", "spire-bundle")
@@ -347,15 +347,15 @@ func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 	s.k.setConfigMap(newConfigMap())
 	s.r.AppendBundle(testBundle)
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
+		Event: &notifierv0.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: testBundle,
 			},
 		},
 	})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&notifier.NotifyResponse{}, resp)
+	s.RequireProtoEqual(&notifierv0.NotifyResponse{}, resp)
 
 	s.Equal(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -388,9 +388,9 @@ config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
 
-	resp, err := s.p.Notify(context.Background(), &notifier.NotifyRequest{
-		Event: &notifier.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifier.BundleUpdated{
+	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
+		Event: &notifierv0.NotifyRequest_BundleUpdated{
+			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: testBundle,
 			},
 		},

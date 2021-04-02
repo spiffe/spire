@@ -743,14 +743,7 @@ func (m *Manager) notifyBundleLoaded(ctx context.Context) error {
 			return err
 		},
 		func(ctx context.Context, n notifier.Notifier) error {
-			_, err := n.NotifyAndAdvise(ctx, &notifier.NotifyAndAdviseRequest{
-				Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-					BundleLoaded: &notifier.BundleLoaded{
-						Bundle: bundle,
-					},
-				},
-			})
-			return err
+			return n.NotifyAndAdviseBundleLoaded(ctx, bundle)
 		},
 	)
 }
@@ -763,14 +756,7 @@ func (m *Manager) notifyBundleUpdated(ctx context.Context) error {
 			return err
 		},
 		func(ctx context.Context, n notifier.Notifier) error {
-			_, err := n.Notify(ctx, &notifier.NotifyRequest{
-				Event: &notifier.NotifyRequest_BundleUpdated{
-					BundleUpdated: &notifier.BundleUpdated{
-						Bundle: bundle,
-					},
-				},
-			})
-			return err
+			return n.NotifyBundleUpdated(ctx, bundle)
 		},
 	)
 }
@@ -789,7 +775,7 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 
 	errsCh := make(chan error, len(notifiers))
 	for _, n := range notifiers {
-		go func(n catalog.Notifier) {
+		go func(n notifier.Notifier) {
 			err := do(ctx, n)
 			f := m.c.Log.WithFields(logrus.Fields{
 				telemetry.Notifier: n.Name(),

@@ -15,7 +15,7 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 )

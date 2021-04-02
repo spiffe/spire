@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -14,12 +14,12 @@ func BuiltIn() catalog.Plugin {
 
 func builtin(p *NoOp) catalog.Plugin {
 	return catalog.MakePlugin("noop",
-		noderesolver.PluginServer(p),
+		noderesolverv0.PluginServer(p),
 	)
 }
 
 type NoOp struct {
-	noderesolver.UnsafeNodeResolverServer
+	noderesolverv0.UnsafeNodeResolverServer
 }
 
 func New() *NoOp {
@@ -34,6 +34,6 @@ func (NoOp) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetP
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-func (NoOp) Resolve(context.Context, *noderesolver.ResolveRequest) (*noderesolver.ResolveResponse, error) {
-	return &noderesolver.ResolveResponse{}, nil
+func (NoOp) Resolve(context.Context, *noderesolverv0.ResolveRequest) (*noderesolverv0.ResolveResponse, error) {
+	return &noderesolverv0.ResolveResponse{}, nil
 }

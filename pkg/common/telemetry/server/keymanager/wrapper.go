@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 )
 
 type serverKeyManagerWrapper struct {

@@ -245,6 +245,9 @@ const (
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
+	// ReadOnly tags something read-only
+	ReadOnly = "read_only"
+
 	// Reason is the reason for something
 	Reason = "reason"
 
@@ -321,6 +324,9 @@ const (
 	// with other tags to add clarity
 	TTL = "ttl"
 
+	// Type tags a type
+	Type = "type"
+
 	// TrustDomainID tags some trust domain ID
 	TrustDomainID = "trust_domain_id"
 
@@ -330,6 +336,9 @@ const (
 	// Updated tags some entity as updated; should be used
 	// with other tags to add clarity
 	Updated = "updated"
+
+	// Version tags a version
+	Version = "version"
 
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"

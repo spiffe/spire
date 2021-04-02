@@ -8,7 +8,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	common_log "github.com/spiffe/spire/pkg/common/log"
 	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
@@ -41,16 +40,18 @@ import (
 	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
+	up_gcpcas "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
+	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 var (
 	builtIns = []catalog.Plugin{
-		// DataStores
-		ds_sql.BuiltIn(),
 		// NodeAttestors
 		na_aws_iid.BuiltIn(),
 		na_gcp_iit.BuiltIn(),
@@ -66,6 +67,7 @@ var (
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
 		up_awspca.BuiltIn(),
+		up_gcpcas.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		up_disk.BuiltIn(),
@@ -85,8 +87,8 @@ type Catalog interface {
 	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
 	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
 	GetKeyManager() keymanager.KeyManager
-	GetNotifiers() []Notifier
-	GetUpstreamAuthority() (*UpstreamAuthority, bool)
+	GetNotifiers() []notifier.Notifier
+	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
 }
 
 type GlobalConfig = catalog.GlobalConfig
@@ -95,11 +97,11 @@ type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 
 func KnownPlugins() []catalog.PluginClient {
 	return []catalog.PluginClient{
-		nodeattestor.PluginClient,
-		noderesolver.PluginClient,
-		upstreamauthority.PluginClient,
+		nodeattestorv0.PluginClient,
+		noderesolverv0.PluginClient,
+		upstreamauthorityv0.PluginClient,
 		keymanagerv0.PluginClient,
-		notifier.PluginClient,
+		notifierv0.PluginClient,
 	}
 }
 
@@ -111,25 +113,15 @@ func BuiltIns() []catalog.Plugin {
 	return append([]catalog.Plugin(nil), builtIns...)
 }
 
-type Notifier struct {
-	catalog.PluginInfo
-	notifier.Notifier
-}
-
-type UpstreamAuthority struct {
-	catalog.PluginInfo
-	upstreamauthority.UpstreamAuthority
-}
-
 type Plugins struct {
 	// DataStore isn't actually a plugin.
 	DataStore datastore.DataStore
 
 	NodeAttestors     map[string]nodeattestor.NodeAttestor
 	NodeResolvers     map[string]noderesolver.NodeResolver
-	UpstreamAuthority *UpstreamAuthority
+	UpstreamAuthority upstreamauthority.UpstreamAuthority
 	KeyManager        keymanager.KeyManager
-	Notifiers         []Notifier
+	Notifiers         []notifier.Notifier
 }
 
 var _ Catalog = (*Plugins)(nil)
@@ -152,11 +144,11 @@ func (p *Plugins) GetKeyManager() keymanager.KeyManager {
 	return p.KeyManager
 }
 
-func (p *Plugins) GetNotifiers() []Notifier {
+func (p *Plugins) GetNotifiers() []notifier.Notifier {
 	return p.Notifiers
 }
 
-func (p *Plugins) GetUpstreamAuthority() (*UpstreamAuthority, bool) {
+func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
 	return p.UpstreamAuthority, p.UpstreamAuthority != nil
 }
 
@@ -181,7 +173,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfig := config.PluginConfig[datastore.Type]
 	delete(config.PluginConfig, datastore.Type)
-	ds, err := loadSQLDataStore(ctx, config.Log, dataStoreConfig)
+	ds, err := loadSQLDataStore(config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -214,14 +206,34 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 
 	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
 
+	nodeAttestors := make(map[string]nodeattestor.NodeAttestor)
+	for _, na := range p.NodeAttestors {
+		nodeAttestors[na.Name()] = na
+	}
+
+	nodeResolvers := make(map[string]noderesolver.NodeResolver)
+	for _, nr := range p.NodeResolvers {
+		nodeResolvers[nr.Name()] = nr
+	}
+
+	var notifiers []notifier.Notifier
+	for _, n := range p.Notifiers {
+		notifiers = append(notifiers, n)
+	}
+
+	var upstreamAuthority upstreamauthority.UpstreamAuthority
+	if p.UpstreamAuthority != nil {
+		upstreamAuthority = p.UpstreamAuthority
+	}
+
 	return &Repository{
 		Catalog: &Plugins{
 			DataStore:         ds,
-			NodeAttestors:     p.NodeAttestors,
-			NodeResolvers:     p.NodeResolvers,
-			UpstreamAuthority: p.UpstreamAuthority,
+			NodeAttestors:     nodeAttestors,
+			NodeResolvers:     nodeResolvers,
+			UpstreamAuthority: upstreamAuthority,
 			KeyManager:        p.KeyManager,
-			Notifiers:         p.Notifiers,
+			Notifiers:         notifiers,
 		},
 		Closer: closer,
 	}, nil
@@ -233,14 +245,14 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 // when the catalog is refactored to leverage the new common catalog with
 // native versioning support (see issue #2153).
 type versionedPlugins struct {
-	NodeAttestors     map[string]nodeattestor.NodeAttestor
-	NodeResolvers     map[string]noderesolver.NodeResolver
-	UpstreamAuthority *UpstreamAuthority
+	NodeAttestors     map[string]nodeattestor.V0
+	NodeResolvers     map[string]noderesolver.V0
+	UpstreamAuthority *upstreamauthority.V0
 	KeyManager        keymanager.V0
-	Notifiers         []Notifier
+	Notifiers         []notifier.V0
 }
 
-func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
+func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
 	switch {
 	case len(datastoreConfig) == 0:
 		return nil, errors.New("expecting a DataStore plugin")
@@ -263,11 +275,8 @@ func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConf
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	ds := ds_sql.New()
-	ds.SetLogger(common_log.NewHCLogAdapter(log, telemetry.PluginBuiltIn).Named(sqlConfig.Name))
-	if _, err := ds.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: sqlConfig.Data,
-	}); err != nil {
+	ds := ds_sql.New(log.WithField(telemetry.SubsystemName, sqlConfig.Name))
+	if err := ds.Configure(sqlConfig.Data); err != nil {
 		return nil, err
 	}
 	return ds, nil

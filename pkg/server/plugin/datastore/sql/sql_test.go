@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	testutil "github.com/spiffe/spire/test/util"
@@ -64,10 +64,9 @@ type PluginSuite struct {
 	cert   *x509.Certificate
 	cacert *x509.Certificate
 
-	dir       string
-	nextID    int
-	ds        datastore.Plugin
-	sqlPlugin *Plugin
+	dir    string
+	nextID int
+	ds     *Plugin
 
 	staleDelay time.Duration
 }
@@ -123,15 +122,12 @@ func (s *PluginSuite) SetupTest() {
 }
 
 func (s *PluginSuite) TearDownTest() {
-	s.sqlPlugin.closeDB()
+	s.ds.closeDB()
 }
 
-func (s *PluginSuite) newPlugin() datastore.Plugin {
-	p := New()
-	s.sqlPlugin = p
-
-	var ds datastore.Plugin
-	s.LoadPlugin(builtin(p), &ds)
+func (s *PluginSuite) newPlugin() *Plugin {
+	log, _ := test.NewNullLogger()
+	ds := New(log)
 
 	// When the test suite is executed normally, we test against sqlite3 since
 	// it requires no external dependencies. The integration test framework
@@ -140,53 +136,47 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 	case "":
 		s.nextID++
 		dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
-		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-			Configuration: fmt.Sprintf(`
-				database_type = "sqlite3"
-				log_sql = true
-				connection_string = "%s"
-				`, dbPath),
-		})
+		err := ds.Configure(fmt.Sprintf(`
+			database_type = "sqlite3"
+			log_sql = true
+			connection_string = "%s"
+		`, dbPath))
 		s.Require().NoError(err)
 
 		// assert that WAL journal mode is enabled
 		jm := struct {
 			JournalMode string
 		}{}
-		p.db.Raw("PRAGMA journal_mode").Scan(&jm)
+		ds.db.Raw("PRAGMA journal_mode").Scan(&jm)
 		s.Require().Equal(jm.JournalMode, "wal")
 
 		// assert that foreign_key support is enabled
 		fk := struct {
 			ForeignKeys string
 		}{}
-		p.db.Raw("PRAGMA foreign_keys").Scan(&fk)
+		ds.db.Raw("PRAGMA foreign_keys").Scan(&fk)
 		s.Require().Equal(fk.ForeignKeys, "1")
 	case "mysql":
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipeMySQL(s.T(), TestConnString)
-		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-			Configuration: fmt.Sprintf(`
-				database_type = "mysql"
-				log_sql = true
-				connection_string = "%s"
-				ro_connection_string = "%s"
-				`, TestConnString, TestROConnString),
-		})
+		err := ds.Configure(fmt.Sprintf(`
+			database_type = "mysql"
+			log_sql = true
+			connection_string = "%s"
+			ro_connection_string = "%s"
+		`, TestConnString, TestROConnString))
 		s.Require().NoError(err)
 	case "postgres":
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipePostgres(s.T(), TestConnString)
-		_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-			Configuration: fmt.Sprintf(`
-				database_type = "postgres"
-				log_sql = true
-				connection_string = "%s"
-				ro_connection_string = "%s"
-				`, TestConnString, TestROConnString),
-		})
+		err := ds.Configure(fmt.Sprintf(`
+			database_type = "postgres"
+			log_sql = true
+			connection_string = "%s"
+			ro_connection_string = "%s"
+		`, TestConnString, TestROConnString))
 		s.Require().NoError(err)
 	default:
 		s.Require().FailNowf("Unsupported external test dialect %q", TestDialect)
@@ -196,38 +186,30 @@ func (s *PluginSuite) newPlugin() datastore.Plugin {
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
-	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: `
+	err := s.ds.Configure(`
 		database_type = "wrong"
 		connection_string = "bad"
-		`,
-	})
+	`)
 	s.RequireErrorContains(err, "datastore-sql: unsupported database_type: wrong")
 }
 
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
-	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: `
+	err := s.ds.Configure(`
 		database_type = "mysql"
 		connection_string = "username:@tcp(127.0.0.1)/spire_test"
-		`,
-	})
+	`)
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
 
-	_, roErr := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: `
+	err = s.ds.Configure(`
 		database_type = "mysql"
 		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
-		`,
-	})
-	s.RequireErrorContains(roErr, "rpc error: code = Unknown desc = connection_string must be set")
+	`)
+	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
 
-	_, error := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: `
+	err = s.ds.Configure(`
 		database_type = "mysql"
-		`,
-	})
-	s.RequireErrorContains(error, "rpc error: code = Unknown desc = connection_string must be set")
+	`)
+	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
 }
 
 func (s *PluginSuite) TestBundleCRUD() {
@@ -498,11 +480,8 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			expectedResponse := &datastore.ListBundlesResponse{
-				Bundles:    test.expectedList,
-				Pagination: test.expectedPagination,
-			}
-			spiretest.RequireProtoEqual(t, expectedResponse, resp)
+			spiretest.RequireProtoListEqual(t, test.expectedList, resp.Bundles)
+			require.Equal(t, test.expectedPagination, resp.Pagination)
 		})
 	}
 }
@@ -511,7 +490,7 @@ func (s *PluginSuite) TestCountBundles() {
 	// Count empty bundles
 	resp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
 	s.Require().NoError(err)
-	spiretest.RequireProtoEqual(s.T(), &datastore.CountBundlesResponse{Bundles: 0}, resp)
+	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 0}, resp)
 
 	// Create bundles
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
@@ -535,14 +514,14 @@ func (s *PluginSuite) TestCountBundles() {
 	// Count all
 	resp, err = s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
 	s.Require().NoError(err)
-	spiretest.RequireProtoEqual(s.T(), &datastore.CountBundlesResponse{Bundles: 3}, resp)
+	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 3}, resp)
 }
 
 func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
 	resp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	s.Require().NoError(err)
-	spiretest.RequireProtoEqual(s.T(), &datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
+	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
 
 	// Create attested nodes
 	node := &common.AttestedNode{
@@ -566,14 +545,14 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count all
 	resp, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	s.Require().NoError(err)
-	spiretest.RequireProtoEqual(s.T(), &datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
+	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
 }
 
 func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
 	resp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 	s.Require().NoError(err)
-	spiretest.RequireProtoEqual(s.T(), &datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
+	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
 
 	// Create attested nodes
 	entry := &common.RegistrationEntry{
@@ -595,7 +574,7 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count all
 	resp, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 	s.Require().NoError(err)
-	spiretest.RequireProtoEqual(s.T(), &datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
+	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
 }
 
 func (s *PluginSuite) TestSetBundle() {
@@ -655,7 +634,7 @@ func (s *PluginSuite) TestBundlePrune() {
 		ExpiresBefore: expiration,
 	})
 	s.NoError(err)
-	s.AssertProtoEqual(presp, &datastore.PruneBundleResponse{})
+	s.Equal(presp, &datastore.PruneBundleResponse{})
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
 	expiration = time.Now().Unix()
@@ -1212,11 +1191,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			expectedResponse := &datastore.ListAttestedNodesResponse{
-				Nodes:      test.expectedList,
-				Pagination: test.expectedPagination,
-			}
-			spiretest.RequireProtoEqual(t, expectedResponse, resp)
+			spiretest.RequireProtoListEqual(t, test.expectedList, resp.Nodes)
+			require.Equal(t, test.expectedPagination, resp.Pagination)
 		})
 	}
 
@@ -1325,7 +1301,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.ds = s.newPlugin()
-			defer s.sqlPlugin.closeDB()
+			defer s.ds.closeDB()
 
 			_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: &common.AttestedNode{
 				SpiffeId:            nodeID,
@@ -1694,7 +1670,8 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	}
 	util.SortRegistrationEntries(expectedResponse.Entries)
 	util.SortRegistrationEntries(resp.Entries)
-	s.RequireProtoEqual(expectedResponse, resp)
+	s.RequireProtoListEqual(expectedResponse.Entries, resp.Entries)
+	s.Require().Equal(expectedResponse.Pagination, resp.Pagination)
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
@@ -1900,7 +1877,8 @@ func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, toler
 			}
 			util.SortRegistrationEntries(expectedResponse.Entries)
 			util.SortRegistrationEntries(resp.Entries)
-			spiretest.RequireProtoEqual(t, expectedResponse, resp)
+			spiretest.RequireProtoListEqual(t, expectedResponse.Entries, resp.Entries)
+			require.Equal(t, expectedResponse.Pagination, resp.Pagination)
 		})
 	}
 }
@@ -2015,7 +1993,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
 	// This is gross. Since the bug that left selectors around has been fixed
 	// (#1191), I'm not sure how else to test this other than just sneaking in
 	// there and removing the registered_entries row.
-	res, err := s.sqlPlugin.db.raw.Exec("DELETE FROM registered_entries")
+	res, err := s.ds.db.raw.Exec("DELETE FROM registered_entries")
 	s.Require().NoError(err)
 	rowsAffected, err := res.RowsAffected()
 	s.Require().NoError(err)
@@ -2615,7 +2593,7 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Token: joinToken2.Token,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(joinToken2, resp.JoinToken)
+	s.Equal(joinToken2, resp.JoinToken)
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
@@ -2668,12 +2646,6 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Nil(resp.JoinToken)
 }
 
-func (s *PluginSuite) TestGetPluginInfo() {
-	resp, err := s.ds.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-}
-
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 	dbVersion := 8
 
@@ -2684,15 +2656,12 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", dbVersion)
 
 	// configure the datastore to use the new database
-	_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-				database_type = "sqlite3"
-				connection_string = "file://%s"
-				disable_migration = true
-			`, dbPath),
-	})
-	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql:"+
-		" auto-migration must be enabled for current DB")
+	err := s.ds.Configure(fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = "file://%s"
+		disable_migration = true
+	`, dbPath))
+	s.Require().EqualError(err, "datastore-sql: auto-migration must be enabled for current DB")
 }
 
 func (s *PluginSuite) TestMigration() {
@@ -2705,12 +2674,10 @@ func (s *PluginSuite) TestMigration() {
 		s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", i)
 
 		// configure the datastore to use the new database
-		_, err := s.ds.Configure(context.Background(), &spi.ConfigureRequest{
-			Configuration: fmt.Sprintf(`
-				database_type = "sqlite3"
-				connection_string = "file://%s"
-			`, dbPath),
-		})
+		err := s.ds.Configure(fmt.Sprintf(`
+			database_type = "sqlite3"
+			connection_string = "file://%s"
+		`, dbPath))
 		s.Require().NoError(err)
 
 		switch i {
@@ -2885,13 +2852,13 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Empty(resp.Node.NewCertSerialNumber)
 			s.Require().Empty(resp.Node.NewCertNotAfter)
 		case 13:
-			s.Require().True(s.sqlPlugin.db.Dialect().HasColumn("registered_entries", "revision_number"))
+			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		case 14:
 			db, err := openSQLite3(dbURI)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
 		case 15:
-			s.Require().True(s.sqlPlugin.db.Dialect().HasColumn("registered_entries", "store_svid"))
+			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "store_svid"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}
@@ -2900,7 +2867,7 @@ func (s *PluginSuite) TestMigration() {
 
 func (s *PluginSuite) TestPristineDatabaseMigrationValues() {
 	var m Migration
-	s.Require().NoError(s.sqlPlugin.db.First(&m).Error)
+	s.Require().NoError(s.ds.db.First(&m).Error)
 	s.Equal(latestSchemaVersion, m.Version)
 	s.Equal(codeVersion.String(), m.CodeVersion)
 }
@@ -3015,7 +2982,7 @@ func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Sele
 		},
 	})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&datastore.SetNodeSelectorsResponse{}, resp)
+	s.Equal(&datastore.SetNodeSelectorsResponse{}, resp)
 }
 
 func (s *PluginSuite) TestConfigure() {
@@ -3055,21 +3022,17 @@ func (s *PluginSuite) TestConfigure() {
 	for _, tt := range tests {
 		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
-			p := New()
-
-			var ds datastore.Plugin
-			spiretest.LoadPlugin(t, builtin(p), &ds)
-
 			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
 
-			_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-				Configuration: fmt.Sprintf(`
+			log, _ := test.NewNullLogger()
+
+			p := New(log)
+			err := p.Configure(fmt.Sprintf(`
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
 				%s
-			`, dbPath, tt.giveDBConfig),
-			})
+			`, dbPath, tt.giveDBConfig))
 			require.NoError(t, err)
 
 			db := p.db.DB.DB()

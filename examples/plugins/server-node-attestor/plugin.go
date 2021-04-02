@@ -7,10 +7,10 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/zeebo/errs"
 )
 
@@ -33,7 +33,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestor.PluginServer(p))
+	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
 }
 
 type Config struct {
@@ -101,7 +101,7 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 //   3) Receive a challenge from the server
 //   4) Send a challenge response back to the server
 //   5) Repeat 3 and 4 as much as necessary to complete the challenge/response.
-func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) (err error) {
+func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) (err error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (p *Plugin) Attest(stream nodeattestor.NodeAttestor_AttestServer) (err erro
 		return err
 	}
 
-	return stream.Send(&nodeattestor.AttestResponse{
+	return stream.Send(&nodeattestorv0.AttestResponse{
 		AgentId:   agentID,
 		Selectors: selectors,
 	})
@@ -154,7 +154,7 @@ func (p *Plugin) setConfig(c *Config) {
 	p.c = c
 }
 
-func (p *Plugin) attest(ctx context.Context, config *Config, stream nodeattestor.NodeAttestor_AttestServer) (string, []*common.Selector, error) {
+func (p *Plugin) attest(ctx context.Context, config *Config, stream nodeattestorv0.NodeAttestor_AttestServer) (string, []*common.Selector, error) {
 	resp, err := stream.Recv()
 	if err != nil {
 		return "", nil, err
