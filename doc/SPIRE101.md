@@ -87,10 +87,6 @@ If you don't already have Docker installed, please follow these [installation in
             }
         }
 
-        NodeResolver "noop" {
-            plugin_data {}
-        }
-
         KeyManager "memory" {
             plugin_data = {}
         }
