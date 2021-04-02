@@ -452,7 +452,7 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 
 // disposeAliasesTask will be run every 24hs.
 // It will delete aliases that have a LastUpdatedDate value older than two weeks.
-// It will also delete the keys asociated with them.
+// It will also delete the keys associated with them.
 // It will only delete aliases belonging to the current trust domain but not the current server.
 // disposeAliasesTask relies on how aliases are built with prefixes to do all this.
 // Alias example: `alias/SPIRE_SERVER/{TRUST_DOMAIN}/{SERVER_ID}/{KEY_ID}`
