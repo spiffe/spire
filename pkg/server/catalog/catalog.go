@@ -31,7 +31,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
-	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
@@ -49,6 +48,11 @@ import (
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
+const (
+	dataStoreType    = "DataStore"
+	nodeResolverType = "NodeResolver"
+)
+
 var (
 	builtIns = []catalog.Plugin{
 		// NodeAttestors
@@ -61,7 +65,6 @@ var (
 		na_k8s_psat.BuiltIn(),
 		na_join_token.BuiltIn(),
 		// NodeResolvers
-		nr_noop.BuiltIn(),
 		nr_aws_iid.BuiltIn(),
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
@@ -169,11 +172,17 @@ type Repository struct {
 func Load(ctx context.Context, config Config) (*Repository, error) {
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
-	dataStoreConfig := config.PluginConfig[datastore.Type]
-	delete(config.PluginConfig, datastore.Type)
+	dataStoreConfig := config.PluginConfig[dataStoreType]
+	delete(config.PluginConfig, dataStoreType)
 	ds, err := loadSQLDataStore(config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	if _, ok := config.PluginConfig[nodeResolverType]["noop"]; ok {
+		// TODO: remove in 1.1.0
+		delete(config.PluginConfig[nodeResolverType], "noop")
+		config.Log.Warn(`The "noop" NodeResolver is not required, is deprecated, and will be removed from a future release`)
 	}
 
 	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
@@ -263,7 +272,7 @@ func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	sqlConfig, err := catalog.PluginConfigFromHCL(datastore.Type, ds_sql.PluginName, sqlHCLConfig)
+	sqlConfig, err := catalog.PluginConfigFromHCL(dataStoreType, ds_sql.PluginName, sqlHCLConfig)
 	if err != nil {
 		return nil, err
 	}
