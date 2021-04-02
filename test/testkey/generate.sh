@@ -8,7 +8,7 @@
 
 # The following variables control how many keys of each type are generated:
 NUMRSA1024=5
-NUMRSA2048=10
+NUMRSA2048=5
 NUMRSA4096=5
 NUMEC256=26
 NUMEC384=5

@@ -18,9 +18,9 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | Type | Name | Description |
 | ---- | ---- | ----------- |
 | DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore |
-| KeyManager  | [aws_kms](/doc/plugin_server_keymanager_awskms.md) | A key manager for signing SVIDs which only generates and stores keys in AWS KMS |
-| KeyManager  | [disk](/doc/plugin_server_keymanager_disk.md) | A disk-based key manager for signing SVIDs |
-| KeyManager  | [memory](/doc/plugin_server_keymanager_memory.md) | A key manager for signing SVIDs which only stores keys in memory and does not actually persist them anywhere |
+| KeyManager  | [aws_kms](/doc/plugin_server_keymanager_awskms.md) | A key manager which manages keys in AWS KMS |
+| KeyManager  | [disk](/doc/plugin_server_keymanager_disk.md) | A key manager which manages keys persisted on disk |
+| KeyManager  | [memory](/doc/plugin_server_keymanager_memory.md) | A key manager which manages unpersisted keys in memory |
 | NodeAttestor | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
 | NodeAttestor | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) | A node attestor which attests agent identity using an Azure MSI token |
 | NodeAttestor | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |

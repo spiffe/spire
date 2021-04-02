@@ -23,6 +23,7 @@ type kmsClientFake struct {
 	t                      *testing.T
 	store                  fakeStore
 	mu                     sync.RWMutex
+	testKeys               testkey.Keys
 	createKeyErr           error
 	describeKeyErr         error
 	getPublicKeyErr        error
@@ -54,19 +55,19 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 
 	switch input.CustomerMasterKeySpec {
 	case types.CustomerMasterKeySpecEccNistP256:
-		key := testkey.NewEC256(k.t)
+		key := k.testKeys.NewEC256(k.t)
 		privateKey = key
 		publicKey = &key.PublicKey
 	case types.CustomerMasterKeySpecEccNistP384:
-		key := testkey.NewEC384(k.t)
+		key := k.testKeys.NewEC384(k.t)
 		privateKey = key
 		publicKey = &key.PublicKey
 	case types.CustomerMasterKeySpecRsa2048:
-		key := testkey.NewRSA2048(k.t)
+		key := k.testKeys.NewRSA2048(k.t)
 		privateKey = key
 		publicKey = &key.PublicKey
 	case types.CustomerMasterKeySpecRsa4096:
-		key := testkey.NewRSA4096(k.t)
+		key := k.testKeys.NewRSA4096(k.t)
 		privateKey = key
 		publicKey = &key.PublicKey
 	default:
