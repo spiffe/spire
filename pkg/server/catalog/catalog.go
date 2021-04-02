@@ -8,14 +8,12 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	km_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	km_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
@@ -41,6 +39,9 @@ import (
 	up_gcpcas "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
@@ -159,9 +160,9 @@ type Config struct {
 	PluginConfig HCLPluginConfigMap
 
 	Metrics          telemetry.Metrics
-	IdentityProvider hostservices.IdentityProviderServer
-	AgentStore       hostservices.AgentStoreServer
-	MetricsService   common_services.MetricsServiceServer
+	IdentityProvider identityproviderv0.IdentityProviderServer
+	AgentStore       agentstorev0.AgentStoreServer
+	MetricsService   metricsv0.MetricsServiceServer
 }
 
 type Repository struct {
@@ -199,9 +200,9 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		KnownServices: KnownServices(),
 		BuiltIns:      BuiltIns(),
 		HostServices: []catalog.HostServiceServer{
-			hostservices.IdentityProviderHostServiceServer(config.IdentityProvider),
-			hostservices.AgentStoreHostServiceServer(config.AgentStore),
-			common_services.MetricsServiceHostServiceServer(config.MetricsService),
+			identityproviderv0.HostServiceServer(config.IdentityProvider),
+			agentstorev0.HostServiceServer(config.AgentStore),
+			metricsv0.HostServiceServer(config.MetricsService),
 		},
 	}, p)
 	if err != nil {

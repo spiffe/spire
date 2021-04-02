@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func EnsureNotAttested(ctx context.Context, store hostservices.AgentStore, agentID string) error {
+func EnsureNotAttested(ctx context.Context, store agentstorev0.AgentStore, agentID string) error {
 	attested, err := IsAttested(ctx, store, agentID)
 	switch {
 	case err != nil:
@@ -22,8 +22,8 @@ func EnsureNotAttested(ctx context.Context, store hostservices.AgentStore, agent
 	}
 }
 
-func IsAttested(ctx context.Context, store hostservices.AgentStore, agentID string) (bool, error) {
-	_, err := store.GetAgentInfo(ctx, &hostservices.GetAgentInfoRequest{
+func IsAttested(ctx context.Context, store agentstorev0.AgentStore, agentID string) (bool, error) {
+	_, err := store.GetAgentInfo(ctx, &agentstorev0.GetAgentInfoRequest{
 		AgentId: agentID,
 	})
 	switch status.Code(err) {

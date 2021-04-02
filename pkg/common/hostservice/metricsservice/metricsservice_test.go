@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 )
 
-func setupMetricsService() (hostservices.MetricsService, *fakemetrics.FakeMetrics) {
+func setupMetricsService() (metricsv0.MetricsService, *fakemetrics.FakeMetrics) {
 	metrics := fakemetrics.New()
 	return New(Config{
 		Metrics: metrics,
@@ -21,21 +21,21 @@ func setupMetricsService() (hostservices.MetricsService, *fakemetrics.FakeMetric
 func TestSetGauge(t *testing.T) {
 	tests := []struct {
 		desc string
-		req  *hostservices.SetGaugeRequest
+		req  *metricsv0.SetGaugeRequest
 	}{
 		{
 			desc: "no labels",
-			req: &hostservices.SetGaugeRequest{
+			req: &metricsv0.SetGaugeRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
 		},
 		{
 			desc: "one label",
-			req: &hostservices.SetGaugeRequest{
+			req: &metricsv0.SetGaugeRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
-				Labels: []*hostservices.Label{
+				Labels: []*metricsv0.Label{
 					{
 						Name:  "label1",
 						Value: "val1",
@@ -45,7 +45,7 @@ func TestSetGauge(t *testing.T) {
 		},
 		{
 			desc: "empty request",
-			req:  &hostservices.SetGaugeRequest{},
+			req:  &metricsv0.SetGaugeRequest{},
 		},
 	}
 
@@ -58,7 +58,7 @@ func TestSetGauge(t *testing.T) {
 			service, actual := setupMetricsService()
 			resp, err := service.SetGauge(context.Background(), tt.req)
 			if assert.NoError(t, err) {
-				assert.Equal(t, &hostservices.SetGaugeResponse{}, resp)
+				assert.Equal(t, &metricsv0.SetGaugeResponse{}, resp)
 				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
 		})
@@ -68,21 +68,21 @@ func TestSetGauge(t *testing.T) {
 func TestMeasureSince(t *testing.T) {
 	tests := []struct {
 		desc string
-		req  *hostservices.MeasureSinceRequest
+		req  *metricsv0.MeasureSinceRequest
 	}{
 		{
 			desc: "no labels",
-			req: &hostservices.MeasureSinceRequest{
+			req: &metricsv0.MeasureSinceRequest{
 				Key:  []string{"key1", "key2"},
 				Time: time.Now().Unix(),
 			},
 		},
 		{
 			desc: "one label",
-			req: &hostservices.MeasureSinceRequest{
+			req: &metricsv0.MeasureSinceRequest{
 				Key:  []string{"key1", "key2"},
 				Time: time.Now().Unix(),
-				Labels: []*hostservices.Label{
+				Labels: []*metricsv0.Label{
 					{
 						Name:  "label1",
 						Value: "val1",
@@ -92,7 +92,7 @@ func TestMeasureSince(t *testing.T) {
 		},
 		{
 			desc: "empty request",
-			req:  &hostservices.MeasureSinceRequest{},
+			req:  &metricsv0.MeasureSinceRequest{},
 		},
 	}
 
@@ -105,7 +105,7 @@ func TestMeasureSince(t *testing.T) {
 			service, actual := setupMetricsService()
 			resp, err := service.MeasureSince(context.Background(), tt.req)
 			if assert.NoError(t, err) {
-				assert.Equal(t, &hostservices.MeasureSinceResponse{}, resp)
+				assert.Equal(t, &metricsv0.MeasureSinceResponse{}, resp)
 				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
 		})
@@ -115,21 +115,21 @@ func TestMeasureSince(t *testing.T) {
 func TestIncrCounter(t *testing.T) {
 	tests := []struct {
 		desc string
-		req  *hostservices.IncrCounterRequest
+		req  *metricsv0.IncrCounterRequest
 	}{
 		{
 			desc: "no labels",
-			req: &hostservices.IncrCounterRequest{
+			req: &metricsv0.IncrCounterRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
 		},
 		{
 			desc: "one label",
-			req: &hostservices.IncrCounterRequest{
+			req: &metricsv0.IncrCounterRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
-				Labels: []*hostservices.Label{
+				Labels: []*metricsv0.Label{
 					{
 						Name:  "label1",
 						Value: "val1",
@@ -139,7 +139,7 @@ func TestIncrCounter(t *testing.T) {
 		},
 		{
 			desc: "empty request",
-			req:  &hostservices.IncrCounterRequest{},
+			req:  &metricsv0.IncrCounterRequest{},
 		},
 	}
 
@@ -152,7 +152,7 @@ func TestIncrCounter(t *testing.T) {
 			service, actual := setupMetricsService()
 			resp, err := service.IncrCounter(context.Background(), tt.req)
 			if assert.NoError(t, err) {
-				assert.Equal(t, &hostservices.IncrCounterResponse{}, resp)
+				assert.Equal(t, &metricsv0.IncrCounterResponse{}, resp)
 				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
 		})
@@ -162,21 +162,21 @@ func TestIncrCounter(t *testing.T) {
 func TestAddSample(t *testing.T) {
 	tests := []struct {
 		desc string
-		req  *hostservices.AddSampleRequest
+		req  *metricsv0.AddSampleRequest
 	}{
 		{
 			desc: "no labels",
-			req: &hostservices.AddSampleRequest{
+			req: &metricsv0.AddSampleRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
 		},
 		{
 			desc: "one label",
-			req: &hostservices.AddSampleRequest{
+			req: &metricsv0.AddSampleRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
-				Labels: []*hostservices.Label{
+				Labels: []*metricsv0.Label{
 					{
 						Name:  "label1",
 						Value: "val1",
@@ -186,7 +186,7 @@ func TestAddSample(t *testing.T) {
 		},
 		{
 			desc: "empty request",
-			req:  &hostservices.AddSampleRequest{},
+			req:  &metricsv0.AddSampleRequest{},
 		},
 	}
 
@@ -199,7 +199,7 @@ func TestAddSample(t *testing.T) {
 			service, actual := setupMetricsService()
 			resp, err := service.AddSample(context.Background(), tt.req)
 			if assert.NoError(t, err) {
-				assert.Equal(t, &hostservices.AddSampleResponse{}, resp)
+				assert.Equal(t, &metricsv0.AddSampleResponse{}, resp)
 				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
 		})
@@ -209,18 +209,18 @@ func TestAddSample(t *testing.T) {
 func TestEmitKey(t *testing.T) {
 	tests := []struct {
 		desc string
-		req  *hostservices.EmitKeyRequest
+		req  *metricsv0.EmitKeyRequest
 	}{
 		{
 			desc: "normal request",
-			req: &hostservices.EmitKeyRequest{
+			req: &metricsv0.EmitKeyRequest{
 				Key: []string{"key1", "key2"},
 				Val: 0,
 			},
 		},
 		{
 			desc: "empty request",
-			req:  &hostservices.EmitKeyRequest{},
+			req:  &metricsv0.EmitKeyRequest{},
 		},
 	}
 
@@ -233,7 +233,7 @@ func TestEmitKey(t *testing.T) {
 			service, actual := setupMetricsService()
 			resp, err := service.EmitKey(context.Background(), tt.req)
 			if assert.NoError(t, err) {
-				assert.Equal(t, &hostservices.EmitKeyResponse{}, resp)
+				assert.Equal(t, &metricsv0.EmitKeyResponse{}, resp)
 				assert.Equal(t, expected.AllMetrics(), actual.AllMetrics())
 			}
 		})
@@ -243,7 +243,7 @@ func TestEmitKey(t *testing.T) {
 func TestConvertToTelemetryLabels(t *testing.T) {
 	tests := []struct {
 		desc         string
-		inLabels     []*hostservices.Label
+		inLabels     []*metricsv0.Label
 		expectLabels []telemetry.Label
 	}{
 		{
@@ -252,12 +252,12 @@ func TestConvertToTelemetryLabels(t *testing.T) {
 		},
 		{
 			desc:         "empty input",
-			inLabels:     []*hostservices.Label{},
+			inLabels:     []*metricsv0.Label{},
 			expectLabels: []telemetry.Label{},
 		},
 		{
 			desc: "one label",
-			inLabels: []*hostservices.Label{
+			inLabels: []*metricsv0.Label{
 				{
 					Name:  "label1",
 					Value: "val2",
@@ -272,7 +272,7 @@ func TestConvertToTelemetryLabels(t *testing.T) {
 		},
 		{
 			desc: "two labels",
-			inLabels: []*hostservices.Label{
+			inLabels: []*metricsv0.Label{
 				{
 					Name:  "label1",
 					Value: "val2",
@@ -295,7 +295,7 @@ func TestConvertToTelemetryLabels(t *testing.T) {
 		},
 		{
 			desc: "empty label",
-			inLabels: []*hostservices.Label{
+			inLabels: []*metricsv0.Label{
 				{},
 			},
 			expectLabels: []telemetry.Label{
@@ -307,7 +307,7 @@ func TestConvertToTelemetryLabels(t *testing.T) {
 		},
 		{
 			desc: "nil label skipped",
-			inLabels: []*hostservices.Label{
+			inLabels: []*metricsv0.Label{
 				{
 					Name:  "label1",
 					Value: "val2",
@@ -345,16 +345,16 @@ func TestConvertToRPCLabels(t *testing.T) {
 	tests := []struct {
 		desc         string
 		inLabels     []telemetry.Label
-		expectLabels []*hostservices.Label
+		expectLabels []*metricsv0.Label
 	}{
 		{
 			desc:         "nil input",
-			expectLabels: []*hostservices.Label{},
+			expectLabels: []*metricsv0.Label{},
 		},
 		{
 			desc:         "empty input",
 			inLabels:     []telemetry.Label{},
-			expectLabels: []*hostservices.Label{},
+			expectLabels: []*metricsv0.Label{},
 		},
 		{
 			desc: "one label",
@@ -364,7 +364,7 @@ func TestConvertToRPCLabels(t *testing.T) {
 					Value: "val2",
 				},
 			},
-			expectLabels: []*hostservices.Label{
+			expectLabels: []*metricsv0.Label{
 				{
 					Name:  "label1",
 					Value: "val2",
@@ -383,7 +383,7 @@ func TestConvertToRPCLabels(t *testing.T) {
 					Value: "val3",
 				},
 			},
-			expectLabels: []*hostservices.Label{
+			expectLabels: []*metricsv0.Label{
 				{
 					Name:  "label1",
 					Value: "val2",
@@ -399,7 +399,7 @@ func TestConvertToRPCLabels(t *testing.T) {
 			inLabels: []telemetry.Label{
 				{},
 			},
-			expectLabels: []*hostservices.Label{
+			expectLabels: []*metricsv0.Label{
 				{
 					Name:  "",
 					Value: "",
