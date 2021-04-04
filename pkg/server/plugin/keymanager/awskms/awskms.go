@@ -288,7 +288,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
-	if pub == nil || pub.KeyId == nil || pub.PublicKey == nil || len(pub.PublicKey) == 0 {
+	if pub == nil || pub.KeyId == nil || len(pub.PublicKey) == 0 {
 		return nil, status.Error(codes.Internal, "malformed get public key response")
 	}
 

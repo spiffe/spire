@@ -41,21 +41,27 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 		kf.log.Debug("Found aliases", "num_aliases", len(aliasesResp.Aliases))
 
 		for _, alias := range aliasesResp.Aliases {
-			switch {
-			case alias.TargetKeyId == nil:
-				// this means something external to the plugin created the alias, without associating it to a key.
-				// it should never happen with CMKs.
-				return nil, status.Errorf(codes.FailedPrecondition, "failed to fetch aliases: found SPIRE alias without key: %q", *alias.AliasArn)
-			case alias.AliasArn == nil:
-				return nil, status.Errorf(codes.Internal, "failed to fetch aliases: found SPIRE alias without arn: %q", *alias.AliasArn)
-			case alias.AliasName == nil:
-				return nil, status.Error(codes.Internal, "failed to fetch aliases: found alias without a name")
+			// Ensure the alias has a name. This check is purely defensive
+			// since aliases should always have a name.
+			if alias.AliasName == nil {
+				continue
 			}
 
 			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
 			// ignore aliases/keys not belonging to this server
 			if !ok {
 				continue
+			}
+
+			// The following checks are purely defensive but we want to ensure
+			// we don't try and handle an alias with a malformed shape.
+			switch {
+			case alias.AliasArn == nil:
+				return nil, status.Errorf(codes.Internal, "failed to fetch aliases: found SPIRE alias without arn: name=%q", *alias.AliasName)
+			case alias.TargetKeyId == nil:
+				// this means something external to the plugin created the alias, without associating it to a key.
+				// it should never happen with CMKs.
+				return nil, status.Errorf(codes.FailedPrecondition, "failed to fetch aliases: found SPIRE alias without key: name=%q arn=%q", *alias.AliasName, *alias.AliasArn)
 			}
 
 			a := alias
