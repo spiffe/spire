@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,13 +65,16 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	x509CA, bundle, err = ca.SelfSignX509CA(context.Background(), signer, trustDomain, subject, notBefore, notAfter)
 	require.NoError(t, err)
 
+	healthChecker := fakehealthchecker.New()
+
 	serverCA := ca.NewCA(ca.Config{
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: trustDomain,
-		X509SVIDTTL: options.X509SVIDTTL,
-		JWTSVIDTTL:  options.JWTSVIDTTL,
-		Clock:       options.Clock,
+		Log:           log,
+		Metrics:       telemetry.Blackhole{},
+		TrustDomain:   trustDomain,
+		X509SVIDTTL:   options.X509SVIDTTL,
+		JWTSVIDTTL:    options.JWTSVIDTTL,
+		Clock:         options.Clock,
+		HealthChecker: healthChecker,
 	})
 	serverCA.SetX509CA(x509CA)
 	serverCA.SetJWTKey(&ca.JWTKey{

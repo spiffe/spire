@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -54,14 +55,15 @@ func TestManager(t *testing.T) {
 type ManagerSuite struct {
 	spiretest.Suite
 
-	clock   *clock.Mock
-	ca      *fakeCA
-	log     logrus.FieldLogger
-	logHook *test.Hook
-	dir     string
-	km      keymanager.KeyManager
-	ds      *fakedatastore.DataStore
-	cat     *fakeservercatalog.Catalog
+	clock         *clock.Mock
+	ca            *fakeCA
+	log           logrus.FieldLogger
+	logHook       *test.Hook
+	dir           string
+	km            keymanager.KeyManager
+	ds            *fakedatastore.DataStore
+	cat           *fakeservercatalog.Catalog
+	healthChecker *fakehealthchecker.Checker
 
 	m *Manager
 }
@@ -77,6 +79,7 @@ func (s *ManagerSuite) SetupTest() {
 	s.cat.SetKeyManager(s.km)
 	s.cat.SetDataStore(s.ds)
 	s.dir = s.TempDir()
+	s.healthChecker = fakehealthchecker.New()
 }
 
 func (s *ManagerSuite) TestPersistence() {
@@ -713,6 +716,7 @@ func (s *ManagerSuite) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType ke
 		Metrics:       telemetry.Blackhole{},
 		Log:           s.log,
 		Clock:         s.clock,
+		HealthChecker: s.healthChecker,
 	}
 }
 
