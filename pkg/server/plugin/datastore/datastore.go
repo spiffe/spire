@@ -8,8 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-const Type = "DataStore"
-
 // DataStore is the data storage interface
 type DataStore interface {
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
