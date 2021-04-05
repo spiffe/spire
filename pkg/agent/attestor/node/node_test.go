@@ -26,13 +26,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	servernodeattestor "github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	agentpb "github.com/spiffe/spire/proto/spire/api/server/agent/v1"
 	bundlepb "github.com/spiffe/spire/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/proto/spire/types"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
-	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -353,16 +351,6 @@ func TestAttestor(t *testing.T) {
 			})
 
 			// load up the fake server-side node attestor
-			serverNA := prepareServerNA(t, fakeservernodeattestor.Config{
-				TrustDomain: "domain.test",
-				Data: map[string]string{
-					"TEST": "foo",
-				},
-				Challenges: map[string][]string{
-					"foo": testCase.agentClient.challengeResponses,
-				},
-			})
-
 			// load up an in-memory key manager
 			km := prepareKeyManager(t, testCase.storeKey)
 
@@ -372,11 +360,7 @@ func TestAttestor(t *testing.T) {
 			catalog.SetKeyManager(fakeagentcatalog.KeyManager(km))
 
 			// kick off the gRPC server serving the node API
-			serverAddr, serverDone := startNodeServer(t, tlsConfig, fakeNodeAPIConfig{
-				CACert:         caCert,
-				Attestor:       serverNA,
-				FailAttestCall: testCase.agentClient.failAttestAgent,
-			})
+			serverAddr, serverDone := startServer(t, tlsConfig)
 			defer serverDone()
 
 			// create the attestor
@@ -536,14 +520,6 @@ func prepareAgentNA(t *testing.T, config fakeagentnodeattestor.Config) agentnode
 		agentnodeattestor.PluginServer(fakeagentnodeattestor.New(config)),
 	), &agentNA)
 	return agentNA
-}
-
-func prepareServerNA(t *testing.T, config fakeservernodeattestor.Config) servernodeattestor.NodeAttestor {
-	var serverNA servernodeattestor.NodeAttestor
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test",
-		servernodeattestor.PluginServer(fakeservernodeattestor.New("test", config)),
-	), &serverNA)
-	return serverNA
 }
 
 func prepareKeyManager(t *testing.T, key crypto.PrivateKey) keymanager.KeyManager {
