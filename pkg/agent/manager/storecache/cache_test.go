@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -687,6 +688,66 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 
 	require.Equal(t, expectedRecords, c.Records())
 
+	// Update SVIDs does not updates records that are in remove state
+	c.UpdateSVIDs(&cache.UpdateSVIDs{
+		X509SVIDs: map[string]*cache.X509SVID{
+			"bar": {
+				Chain: []*x509.Certificate{
+					{Raw: []byte{1}},
+				},
+			},
+			"foh": {
+				Chain: []*x509.Certificate{
+					{Raw: []byte{2}},
+				},
+			},
+		},
+	})
+	expectedRecords = []*storecache.Record{
+		{
+			ID: "bar",
+			HandledEntry: &common.RegistrationEntry{
+				EntryId: "bar",
+				Selectors: []*common.Selector{
+					{Type: "d", Value: "b:1"},
+				},
+				SpiffeId:       "spiffe://example.org/bar",
+				FederatesWith:  []string{"spiffe://federated.td1"},
+				StoreSvid:      true,
+				RevisionNumber: 1,
+			},
+			Revision: 2,
+			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				td:          tdBundle,
+				federatedTD: federatedBundle,
+			},
+		},
+		{
+			ID: "foh",
+			Entry: &common.RegistrationEntry{
+				EntryId: "foh",
+				Selectors: []*common.Selector{
+					{Type: "a", Value: "b:1"},
+					{Type: "a", Value: "c:2"},
+				},
+				SpiffeId:       "spiffe://example.org/foh",
+				StoreSvid:      true,
+				RevisionNumber: 1,
+			},
+			Revision: 2,
+			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				td:          tdBundle,
+				federatedTD: federatedBundle,
+			},
+			Svid: &cache.X509SVID{
+				Chain: []*x509.Certificate{
+					{Raw: []byte{2}},
+				},
+			},
+		},
+	}
+	require.Equal(t, expectedRecords, c.Records())
+
 	// Update handle revision, and verify that after update, record is removed
 	c.HandledRecord(&common.RegistrationEntry{
 		EntryId: "bar",
@@ -713,10 +774,15 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				StoreSvid:      true,
 				RevisionNumber: 1,
 			},
-			Revision: 1,
+			Revision: 2,
 			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
+			},
+			Svid: &cache.X509SVID{
+				Chain: []*x509.Certificate{
+					{Raw: []byte{2}},
+				},
 			},
 		},
 	}
@@ -938,6 +1004,7 @@ func TestGetStaleEntries(t *testing.T) {
 
 	update := createUpdateEntries()
 	fohEntry := update.RegistrationEntries["foh"]
+	barEntry := update.RegistrationEntries["bar"]
 
 	c.UpdateEntries(update, func(re1, re2 *common.RegistrationEntry, xs *cache.X509SVID) bool {
 		// Set only 'foh' as stale
@@ -951,16 +1018,39 @@ func TestGetStaleEntries(t *testing.T) {
 	}
 	require.Equal(t, expectedStaleEntries, c.GetStaleEntries())
 
+	expiresAt := time.Now().Add(time.Minute)
+
 	// Call UpdateSVID to remove 'foh' from stale entries
 	c.UpdateSVIDs(&cache.UpdateSVIDs{
 		X509SVIDs: map[string]*cache.X509SVID{
 			"foh": {
-				Chain: []*x509.Certificate{{URIs: []*url.URL{td.NewID("foh").URL()}}},
+				Chain: []*x509.Certificate{
+					{
+						URIs:     []*url.URL{td.NewID("foh").URL()},
+						NotAfter: expiresAt,
+					},
+				},
 			},
 		},
 	})
-
 	require.Empty(t, c.GetStaleEntries())
+
+	// Call update but mark both records as stale.
+	c.UpdateEntries(update, func(re1, re2 *common.RegistrationEntry, xs *cache.X509SVID) bool {
+		return true
+	})
+
+	// Expects ordered list and 'ExpiresAt' is set on entries with SVID
+	expectedStaleEntries = []*cache.StaleEntry{
+		{
+			Entry: barEntry,
+		},
+		{
+			Entry:     fohEntry,
+			ExpiresAt: expiresAt,
+		},
+	}
+	require.Equal(t, expectedStaleEntries, c.GetStaleEntries())
 }
 
 func TestCheckSVID(t *testing.T) {

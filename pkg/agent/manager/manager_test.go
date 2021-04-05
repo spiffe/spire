@@ -988,8 +988,8 @@ func TestStorableSVIDsSync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Second call will take resp5 and update SVID, this tests is not testing the proces to update cache but
-	// that is updating based on sync
+	// Second call will take resp5 and update SVID, this tests is not testing the process to update cache
+	// but that is updating based on sync
 	entries = regEntriesMap["resp5"]
 	records = m.svidStoreCache.Records()
 	validateResponse(records, entries)
