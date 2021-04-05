@@ -16,8 +16,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/api/iterator"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
 	"google.golang.org/grpc/codes"
@@ -59,7 +59,7 @@ type CAClient interface {
 type Plugin struct {
 	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
 	// a way of opting in or out of forward build compatibility.
-	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
+	upstreamauthority.UnimplementedUpstreamAuthorityServer
 
 	// mu is a mutex that protects the configuration. Plugins may at some point
 	// need to support hot-reloading of configuration (by receiving another
@@ -79,7 +79,7 @@ type Plugin struct {
 // catalog requires to provide the plugin with a logger and host service
 // broker as well as the UpstreamAuthority itself.
 var _ catalog.NeedsLogger = (*Plugin)(nil)
-var _ upstreamauthorityv0.UpstreamAuthorityServer = (*Plugin)(nil)
+var _ upstreamauthority.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
 	p := &Plugin{}
@@ -103,7 +103,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 // The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream X.509 roots as SPIRE
 // core will not reopen a closed stream until the next X.509 CA rotation.
-func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
 	ctx := stream.Context()
 
 	minted, err := p.mintX509CA(ctx, request.Csr, request.PreferredTtl)
@@ -115,7 +115,7 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 }
 
 // PublishJWTKey is not yet supported. It will return with GRPC Unimplemented error
-func (p *Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
+func (p *Plugin) PublishJWTKey(*upstreamauthority.PublishJWTKeyRequest, upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
@@ -168,7 +168,7 @@ func (p *Plugin) setConfig(c *Config) {
 	p.c = c
 }
 
-func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthorityv0.MintX509CAResponse, error) {
+func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthority.MintX509CAResponse, error) {
 	p.log.Debug("Request to GCP_CAS to mint new X509")
 	csrParsed, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
@@ -326,14 +326,14 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	derBundle := x509util.RawCertsFromCertificates(rootBundle)
 
 	p.log.Info("Successfully minted new X509")
-	return &upstreamauthorityv0.MintX509CAResponse{
+	return &upstreamauthority.MintX509CAResponse{
 		X509CaChain:       derChain,
 		UpstreamX509Roots: derBundle,
 	}, nil
 }
 
 func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(p))
+	return catalog.MakePlugin(pluginName, upstreamauthority.PluginServer(p))
 }
 
 func getClient(ctx context.Context) (CAClient, error) {

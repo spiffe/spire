@@ -14,8 +14,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
@@ -26,7 +26,7 @@ import (
 
 func TestInvalidConfigs(t *testing.T) {
 	p := New()
-	var upplugin upstreamauthorityv0.Plugin
+	var upplugin upstreamauthority.Plugin
 	spiretest.LoadPlugin(t, builtin(p), &upplugin)
 	// ctx := context.Background()
 	for i, config := range []string{
@@ -129,7 +129,7 @@ func TestGcpCAS(t *testing.T) {
 		cas := [][]*x509.Certificate{{caX}, {caZ, caY}, {caM}}
 		return &fakeClient{cas, t, &pkeyCAx}, nil
 	}
-	var upplugin upstreamauthorityv0.Plugin
+	var upplugin upstreamauthority.Plugin
 	spiretest.LoadPlugin(t, builtin(p), &upplugin)
 
 	ctx := context.Background()

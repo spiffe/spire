@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/hashicorp/go-hclog"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -124,7 +124,7 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 	return &keyEntry{
 		Arn:       *describeResp.KeyMetadata.Arn,
 		AliasName: *alias.AliasName,
-		PublicKey: &keymanagerv0.PublicKey{
+		PublicKey: &keymanager.PublicKey{
 			Id:       spireKeyID,
 			Type:     keyType,
 			PkixData: publicKeyResp.PublicKey,
