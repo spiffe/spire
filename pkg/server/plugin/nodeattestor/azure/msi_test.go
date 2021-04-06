@@ -11,9 +11,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -223,7 +223,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	s.addKey()
 
 	agentID := "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID"
-	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
 		AgentId: agentID,
 	})
 	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID"),
@@ -329,7 +329,7 @@ func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.Plugin {
 	})
 	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
 	)
 	return plugin
 }

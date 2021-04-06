@@ -7,8 +7,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +30,7 @@ func TestFetchX509IdentityFailsIfDepsUnset(t *testing.T) {
 	hs := New(Config{
 		TrustDomainID: "spiffe://domain.test",
 	})
-	resp, err := hs.FetchX509Identity(context.Background(), &hostservices.FetchX509IdentityRequest{})
+	resp, err := hs.FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
 	st := status.Convert(err)
 	assert.Equal(t, "IdentityProvider host service has not been initialized", st.Message())
 	assert.Equal(t, codes.FailedPrecondition, st.Code())
@@ -71,7 +71,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := hs.FetchX509Identity(context.Background(), &hostservices.FetchX509IdentityRequest{})
+	resp, err := hs.FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.Identity)
