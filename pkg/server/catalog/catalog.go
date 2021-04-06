@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	km_awskms "github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
 	km_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	km_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -27,7 +28,6 @@ import (
 	na_sshpop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
 	na_x509pop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
@@ -66,7 +66,6 @@ var (
 		na_k8s_psat.BuiltIn(),
 		na_join_token.BuiltIn(),
 		// NodeResolvers
-		nr_aws_iid.BuiltIn(),
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
 		up_awspca.BuiltIn(),
@@ -78,6 +77,7 @@ var (
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
+		km_awskms.BuiltIn(),
 		// Notifiers
 		no_k8sbundle.BuiltIn(),
 		no_gcs_bundle.BuiltIn(),
@@ -180,7 +180,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	if _, ok := config.PluginConfig[nodeResolverType]["noop"]; ok {
+	if noopConfig, ok := config.PluginConfig[nodeResolverType]["noop"]; ok && noopConfig.PluginCmd == "" {
 		// TODO: remove in 1.1.0
 		delete(config.PluginConfig[nodeResolverType], "noop")
 		config.Log.Warn(`The "noop" NodeResolver is not required, is deprecated, and will be removed from a future release`)
