@@ -212,7 +212,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	ds = datastore_telemetry.WithMetrics(ds, config.Metrics)
 	ds = dscache.New(ds, clock.New())
 
-	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
+	keyManager := keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
 	nodeAttestors := make(map[string]nodeattestor.NodeAttestor)
 	for _, na := range p.NodeAttestors {
@@ -240,7 +240,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 			NodeAttestors:     nodeAttestors,
 			NodeResolvers:     nodeResolvers,
 			UpstreamAuthority: upstreamAuthority,
-			KeyManager:        p.KeyManager,
+			KeyManager:        keyManager,
 			Notifiers:         notifiers,
 		},
 		Closer: closer,

@@ -126,7 +126,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
+	keyManager := keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
 	var workloadAttestors []workloadattestor.WorkloadAttestor
 	for _, workloadAttestorV0 := range p.WorkloadAttestors {
@@ -135,7 +135,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 
 	return &Repository{
 		Catalog: &Plugins{
-			KeyManager:        p.KeyManager,
+			KeyManager:        keyManager,
 			NodeAttestor:      p.NodeAttestor,
 			WorkloadAttestors: workloadAttestors,
 		},
