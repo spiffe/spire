@@ -87,11 +87,11 @@ func (c *Context) SolveDevIDChallenge(nonce []byte) ([]byte, error) {
 // SolveCredActivationChallenge runs credential activation on the TPM. It proves
 // that the attestation key resides on the same TPM as the endorsement key.
 func (c *Context) SolveCredActivationChallenge(credentialBlob, secret []byte) ([]byte, error) {
-	hSession, err := c.createPolicySession(c.rwc)
+	hSession, err := c.createPolicySession()
 	if err != nil {
 		return nil, err
 	}
-	defer c.flushContext(c.rwc, hSession)
+	defer c.flushContext(hSession)
 
 	b, err := tpm2.ActivateCredentialUsingAuth(
 		c.rwc,
@@ -150,10 +150,10 @@ func (c *Context) CreateEK() ([]byte, tpmutil.Handle, error) {
 	return encodedPublicEK, ek.Handle(), nil
 }
 
-func (c *Context) createPolicySession(rw io.ReadWriter) (tpmutil.Handle, error) {
+func (c *Context) createPolicySession() (tpmutil.Handle, error) {
 	var nonceCaller [32]byte
 	hSession, _, err := tpm2.StartAuthSession(
-		rw,
+		c.rwc,
 		tpm2.HandleNull,
 		tpm2.HandleNull,
 		nonceCaller[:],
@@ -167,7 +167,7 @@ func (c *Context) createPolicySession(rw io.ReadWriter) (tpmutil.Handle, error) 
 	}
 
 	_, err = tpm2.PolicySecret(
-		rw,
+		c.rwc,
 		tpm2.HandleEndorsement,
 		tpm2.AuthCommand{Session: tpm2.HandlePasswordSession},
 		hSession,
@@ -177,15 +177,15 @@ func (c *Context) createPolicySession(rw io.ReadWriter) (tpmutil.Handle, error) 
 		0,
 	)
 	if err != nil {
-		c.flushContext(rw, hSession)
+		c.flushContext(hSession)
 		return 0, err
 	}
 
 	return hSession, nil
 }
 
-func (c *Context) flushContext(rw io.ReadWriter, handle tpmutil.Handle) {
-	err := tpm2.FlushContext(rw, handle)
+func (c *Context) flushContext(handle tpmutil.Handle) {
+	err := tpm2.FlushContext(c.rwc, handle)
 	if err != nil {
 		c.log.Warn(fmt.Sprintf("Failed to flush handle %v: %v", handle, err))
 	}
