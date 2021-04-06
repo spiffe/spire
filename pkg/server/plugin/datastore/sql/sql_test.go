@@ -2089,7 +2089,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		update func(*common.RegistrationEntry)
 		result func(*common.RegistrationEntry)
 		err    error
-	}{ /// SPIFFE ID FIELD -- this field is validated so we check with good and bad data
+	}{ // SPIFFE ID FIELD -- this field is validated so we check with good and bad data
 		{name: "Update Spiffe ID, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{SpiffeId: true},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = newEntry.SpiffeId },
@@ -2106,7 +2106,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{SpiffeId: false},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
 			result: func(e *common.RegistrationEntry) {}},
-		/// PARENT ID FIELD -- This field isn't validated so we just check with good data
+		// PARENT ID FIELD -- This field isn't validated so we just check with good data
 		{name: "Update Parent ID, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{ParentId: true},
 			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
@@ -2115,7 +2115,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{ParentId: false},
 			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
 			result: func(e *common.RegistrationEntry) {}},
-		/// TTL FIELD -- This field is validated so we check with good and bad data
+		// TTL FIELD -- This field is validated so we check with good and bad data
 		{name: "Update TTL, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Ttl: true},
 			update: func(e *common.RegistrationEntry) { e.Ttl = newEntry.Ttl },
@@ -2132,7 +2132,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Ttl: false},
 			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
 			result: func(e *common.RegistrationEntry) {}},
-		/// SELECTORS FIELD -- This field is validated so we check with good and bad data
+		// SELECTORS FIELD -- This field is validated so we check with good and bad data
 		{name: "Update Selectors, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Selectors: true},
 			update: func(e *common.RegistrationEntry) { e.Selectors = newEntry.Selectors },
@@ -2149,7 +2149,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Selectors: false},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
 			result: func(e *common.RegistrationEntry) {}},
-		/// FEDERATESWITH FIELD -- This field isn't validated so we just check with good data
+		// FEDERATESWITH FIELD -- This field isn't validated so we just check with good data
 		{name: "Update FederatesWith, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{FederatesWith: true},
 			update: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith },
@@ -2158,7 +2158,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{FederatesWith: false},
 			update: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith },
 			result: func(e *common.RegistrationEntry) {}},
-		/// ADMIN FIELD -- This field isn't validated so we just check with good data
+		// ADMIN FIELD -- This field isn't validated so we just check with good data
 		{name: "Update Admin, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Admin: true},
 			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
@@ -2167,7 +2167,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Admin: false},
 			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
 			result: func(e *common.RegistrationEntry) {}},
-		/// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
+		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
 		{name: "Update EntryExpiry, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{EntryExpiry: true},
 			update: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry },
@@ -2176,7 +2176,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{EntryExpiry: false},
 			update: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry },
 			result: func(e *common.RegistrationEntry) {}},
-		/// DNSNAMES FIELD -- This field isn't validated so we just check with good data
+		// DNSNAMES FIELD -- This field isn't validated so we just check with good data
 		{name: "Update DnsNames, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{DnsNames: true},
 			update: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames },
@@ -2185,7 +2185,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{DnsNames: false},
 			update: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames },
 			result: func(e *common.RegistrationEntry) {}},
-		/// DOWNSTREAM FIELD -- This field isn't validated so we just check with good data
+		// DOWNSTREAM FIELD -- This field isn't validated so we just check with good data
 		{name: "Update DnsNames, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Downstream: true},
 			update: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream },

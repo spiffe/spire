@@ -72,9 +72,9 @@ func TestDownloadTrustBundle(t *testing.T) {
 				func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(testCase.status)
 					_, _ = io.WriteString(w, testCase.fileContents)
-					//if err != nil {
-					//	return
-					//}
+					// if err != nil {
+					// 	return
+					// }
 				}))
 			defer testServer.Close()
 			_, err := downloadTrustBundle(testServer.URL)
@@ -970,16 +970,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		// TODO: Re-enable unused key detection for telemetry. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//{
-		//	msg:            "in telemetry block",
-		//	confFile:   "server_and_agent_bad_telemetry_block.conf",
-		//	expectedLogEntries: []logEntry{
-		//		{
-		//			section: "telemetry",
-		//			keys:    "unknown_option1,unknown_option2",
-		//		},
-		//	},
-		//},
+		// {
+		// 	msg:            "in telemetry block",
+		// 	confFile:   "server_and_agent_bad_telemetry_block.conf",
+		// 	expectedLogEntries: []logEntry{
+		// 		{
+		// 			section: "telemetry",
+		// 			keys:    "unknown_option1,unknown_option2",
+		// 		},
+		// 	},
+		// },
 		{
 			msg:      "in nested Prometheus block",
 			confFile: "server_and_agent_bad_nested_Prometheus_block.conf",

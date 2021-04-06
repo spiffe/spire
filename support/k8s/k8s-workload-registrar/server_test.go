@@ -170,7 +170,8 @@ func TestServer(t *testing.T) {
 			// set up the transport
 			transport := &http.Transport{
 				TLSClientConfig: &tls.Config{
-					RootCAs: rootCAs,
+					RootCAs:    rootCAs,
+					MinVersion: tls.VersionTLS12,
 				},
 				TLSHandshakeTimeout: time.Second * 10,
 			}

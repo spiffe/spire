@@ -742,6 +742,7 @@ func (s *Suite) startSecureKubelet(hostNetworking bool, token string) {
 		},
 		ClientCAs:  clientCAs,
 		ClientAuth: tls.VerifyClientCertIfGiven,
+		MinVersion: tls.VersionTLS12,
 	}
 	server.StartTLS()
 	s.setServer(server)

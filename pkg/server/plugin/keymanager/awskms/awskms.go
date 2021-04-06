@@ -703,7 +703,7 @@ func (p *Plugin) notifyDisposeKeys(err error) {
 }
 
 func sanitizeTrustDomain(trustDomain string) string {
-	return strings.Replace(trustDomain, ".", "_", -1)
+	return strings.ReplaceAll(trustDomain, ".", "_")
 }
 
 // parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
