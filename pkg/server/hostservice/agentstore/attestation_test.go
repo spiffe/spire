@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,11 +44,11 @@ func TestIsAttested(t *testing.T) {
 
 type fakeAgentStore struct{}
 
-func (fakeAgentStore) GetAgentInfo(ctx context.Context, in *hostservices.GetAgentInfoRequest) (*hostservices.GetAgentInfoResponse, error) {
+func (fakeAgentStore) GetAgentInfo(ctx context.Context, in *agentstorev0.GetAgentInfoRequest) (*agentstorev0.GetAgentInfoResponse, error) {
 	switch in.AgentId {
 	case "spiffe://domain.test/spire/agent/test/attested":
-		return &hostservices.GetAgentInfoResponse{
-			Info: &hostservices.AgentInfo{
+		return &agentstorev0.GetAgentInfoResponse{
+			Info: &agentstorev0.AgentInfo{
 				AgentId: in.AgentId,
 			},
 		}, nil

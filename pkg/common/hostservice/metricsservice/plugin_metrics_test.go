@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 )
@@ -31,7 +31,7 @@ func TestWrapPluginMetricsForContext(t *testing.T) {
 	pMetrics, ok := metrics.(pluginMetrics)
 	assert.True(t, ok)
 
-	assert.Equal(t, []*hostservices.Label{
+	assert.Equal(t, []*metricsv0.Label{
 		{
 			Name:  "name1",
 			Value: "val1",

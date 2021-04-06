@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -17,7 +17,7 @@ type Deps struct {
 }
 
 type AgentStore struct {
-	hostservices.UnsafeAgentStoreServer
+	agentstorev0.UnsafeAgentStoreServer
 
 	mu   sync.RWMutex
 	deps *Deps
@@ -46,7 +46,7 @@ func (s *AgentStore) getDeps() (*Deps, error) {
 	return s.deps, nil
 }
 
-func (s *AgentStore) GetAgentInfo(ctx context.Context, req *hostservices.GetAgentInfoRequest) (*hostservices.GetAgentInfoResponse, error) {
+func (s *AgentStore) GetAgentInfo(ctx context.Context, req *agentstorev0.GetAgentInfoRequest) (*agentstorev0.GetAgentInfoResponse, error) {
 	deps, err := s.getDeps()
 	if err != nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (s *AgentStore) GetAgentInfo(ctx context.Context, req *hostservices.GetAgen
 		return nil, status.Error(codes.NotFound, "no such agent")
 	}
 
-	return &hostservices.GetAgentInfoResponse{
-		Info: &hostservices.AgentInfo{
+	return &agentstorev0.GetAgentInfoResponse{
+		Info: &agentstorev0.AgentInfo{
 			AgentId: req.AgentId,
 		},
 	}, nil

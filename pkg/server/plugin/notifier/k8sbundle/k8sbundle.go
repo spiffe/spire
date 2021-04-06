@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -67,7 +67,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider hostservices.IdentityProvider
+	identityProvider identityproviderv0.IdentityProvider
 	cancelWatcher    func()
 
 	hooks struct {
@@ -86,7 +86,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(hostservices.IdentityProviderHostServiceClient(&p.identityProvider))
+	has, err := broker.GetHostService(identityproviderv0.HostServiceClient(&p.identityProvider))
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		// loaded after fetching the object so we can properly detect and
 		// correct a race updating the bundle (i.e.  read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &hostservices.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
 		if err != nil {
 			return err
 		}
@@ -320,7 +320,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error)
-	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error)
+	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
 	Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error)
 }
@@ -345,7 +345,7 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 	}, nil
 }
 
-func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting ConfigMap")
@@ -384,7 +384,7 @@ func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig
 	})
 }
 
-func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting MutatingWebhookConfiguration")
@@ -446,7 +446,7 @@ func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConf
 	})
 }
 
-func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting ValidatingWebhookConfiguration")

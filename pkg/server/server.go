@@ -15,8 +15,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/hostservices/metricsservice"
-	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
+	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
@@ -25,12 +24,14 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints"
-	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
-	"github.com/spiffe/spire/pkg/server/hostservices/identityprovider"
+	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
+	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/grpc"
 )
 
@@ -237,8 +238,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider hostservices.IdentityProviderServer, agentStore hostservices.AgentStoreServer,
-	metricsService common_services.MetricsServiceServer) (*catalog.Repository, error) {
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider identityproviderv0.IdentityProviderServer, agentStore agentstorev0.AgentStoreServer,
+	metricsService metricsv0.MetricsServiceServer) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log: s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		GlobalConfig: &catalog.GlobalConfig{
