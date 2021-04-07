@@ -83,7 +83,7 @@ func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
 		return connectionString, nil
 	}
 
-	tlsConf := tls.Config{}
+	tlsConf := tls.Config{} //nolint: gosec // There are scenaries where MySQL requires older tls version, and example is when compiled with yaSSL that supports only TLSv1 and TLSv1.1 protocols.
 
 	opts, err := mysql.ParseDSN(connectionString)
 	if err != nil {

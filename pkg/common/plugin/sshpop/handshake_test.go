@@ -3,9 +3,9 @@ package sshpop
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"reflect"
 	"testing"
 	"text/template"
@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
-
-var randReader = rand.New(rand.NewSource(1234))
 
 type testParams struct {
 	Signer      ssh.Signer
@@ -30,7 +28,7 @@ func principal(name string) func(*ssh.Certificate) {
 }
 
 func newTest(t *testing.T, opts ...func(*ssh.Certificate)) *testParams {
-	privkey, err := ecdsa.GenerateKey(elliptic.P256(), randReader)
+	privkey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	signer, err := ssh.NewSignerFromSigner(privkey)
 	require.NoError(t, err)
@@ -43,7 +41,7 @@ func newTest(t *testing.T, opts ...func(*ssh.Certificate)) *testParams {
 	for _, opt := range opts {
 		opt(certificate)
 	}
-	err = certificate.SignCert(randReader, signer)
+	err = certificate.SignCert(rand.Reader, signer)
 	require.NoError(t, err)
 	certChecker := &ssh.CertChecker{
 		IsHostAuthority: func(auth ssh.PublicKey, _ string) bool {

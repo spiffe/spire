@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	mathrand "math/rand"
+	"math/big"
 	"time"
 
 	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -68,13 +68,15 @@ func doJoinTokenStep(ctx context.Context) error {
 	c := itclient.NewLocalServerClient(ctx)
 	defer c.Release()
 
-	s1 := mathrand.NewSource(time.Now().UnixNano())
-	tokenID := mathrand.New(s1).Intn(1000000)
+	tokenID, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return err
+	}
 	tokenName := fmt.Sprintf("test_token_%v", tokenID)
 
 	// Create a join token using the local socket connection (simulating the CLI running on the spire-server)
 	agentClient := c.AgentClient()
-	_, err := agentClient.CreateJoinToken(ctx, &agent.CreateJoinTokenRequest{Ttl: 1000, Token: tokenName})
+	_, err = agentClient.CreateJoinToken(ctx, &agent.CreateJoinTokenRequest{Ttl: 1000, Token: tokenName})
 	if err != nil {
 		return fmt.Errorf("unable to create join token: %v", err)
 	}
