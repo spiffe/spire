@@ -19,10 +19,10 @@ const ekRSACertificateHandle = tpmutil.Handle(0x01c00002)
 type Context struct {
 	DevID *SigningKey
 	AK    *SigningKey
+	EK    *tpm2tools.Key
 
-	EKPub    []byte
-	EKCert   []byte
-	EKHandle tpmutil.Handle
+	EKPub  []byte
+	EKCert []byte
 
 	CertifiedDevID         []byte
 	CertificationSignature []byte
@@ -62,6 +62,10 @@ func (c *Context) Close() {
 		}
 	}
 
+	if c.EK != nil {
+		c.EK.Close()
+	}
+
 	if c.rwc != nil {
 		// EmulatorReadWriteCloser type does not need to be closed. It closes
 		// the connection after each Read() call. Closing it again results in
@@ -91,7 +95,6 @@ func (c *Context) SolveCredActivationChallenge(credentialBlob, secret []byte) ([
 	if err != nil {
 		return nil, err
 	}
-	defer c.flushContext(hSession)
 
 	b, err := tpm2.ActivateCredentialUsingAuth(
 		c.rwc,
@@ -100,11 +103,14 @@ func (c *Context) SolveCredActivationChallenge(credentialBlob, secret []byte) ([
 			{Session: hSession},
 		},
 		c.AK.Handle,
-		c.EKHandle,
+		c.EK.Handle(),
 		credentialBlob,
 		secret,
 	)
 	if err != nil {
+		// Flush only in case of error. If the command executes successfully it
+		// closes the session. Closing it again produces an error.
+		c.flushContext(hSession)
 		return b, fmt.Errorf("failed to activate credential: %w", err)
 	}
 
@@ -130,24 +136,25 @@ func (c *Context) GetEKCert() ([]byte, error) {
 	return EKCert, nil
 }
 
-// CreateEK regenerates the Endorsement Key using the default RSA template
-func (c *Context) CreateEK() ([]byte, tpmutil.Handle, error) {
-	ek, err := tpm2tools.EndorsementKeyRSA(c.rwc)
-	if err != nil {
-		return nil, 0, err
-	}
+// RegenerateEK regenerates the Endorsement Key using the default RSA template
+func (c *Context) RegenerateEK() (*tpm2tools.Key, error) {
+	return tpm2tools.EndorsementKeyRSA(c.rwc)
+}
 
-	publicEK, _, _, err := tpm2.ReadPublic(c.rwc, ek.Handle())
+// EncodePublicEK returns the public part of the Endorsement Key encoded in
+// TPM wire format
+func (c *Context) EncodePublicEK() ([]byte, error) {
+	publicEK, _, _, err := tpm2.ReadPublic(c.rwc, c.EK.Handle())
 	if err != nil {
-		return nil, 0, fmt.Errorf("cannot read ek from handle: %w", err)
+		return nil, fmt.Errorf("cannot read EK from handle: %w", err)
 	}
 
 	encodedPublicEK, err := publicEK.Encode()
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to encode ek: %w", err)
+		return nil, fmt.Errorf("encode failed: %w", err)
 	}
 
-	return encodedPublicEK, ek.Handle(), nil
+	return encodedPublicEK, nil
 }
 
 func (c *Context) createPolicySession() (tpmutil.Handle, error) {

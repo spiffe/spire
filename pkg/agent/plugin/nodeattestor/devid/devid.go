@@ -348,13 +348,19 @@ func loadTPMContext(intConf *config, log hclog.Logger) (*tpm.Context, error) {
 		return nil, fmt.Errorf("cannot load attestation key: %w", err)
 	}
 
-	// Create Endorsement Key
-	tpmCtx.EKPub, tpmCtx.EKHandle, err = tpmCtx.CreateEK()
+	// Regenerate Endorsement Key
+	tpmCtx.EK, err = tpmCtx.RegenerateEK()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create endorsement key: %w", err)
 	}
 
-	// Get Endorsement Certificate
+	// Encode public part of the Endorsement Key
+	tpmCtx.EKPub, err = tpmCtx.EncodePublicEK()
+	if err != nil {
+		return nil, fmt.Errorf("cannot encode public EK: %w", err)
+	}
+
+	// Read Endorsement Certificate
 	tpmCtx.EKCert, err = tpmCtx.GetEKCert()
 	if err != nil {
 		return nil, fmt.Errorf("cannot retrieve endorsement certificate: %w", err)
