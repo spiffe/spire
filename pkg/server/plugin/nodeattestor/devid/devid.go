@@ -262,10 +262,11 @@ func verifyDevIDSignature(cert *x509.Certificate, roots *x509.CertPool) error {
 }
 
 // verifyDevIDResidency verifies that the DevID resides on the same TPM than EK.
-// The process is the following:
-//  1. Verify that DevID is in the same TPM than AK
-//  2. Verify that AK is in the same TPM than EK (credential activation)
-//  3. Verify EK chain of trust using the provided manufacturer roots.
+// This is done in two steps:
+// (1) Verify that the DevID resides in the same TPM than the AK
+// (2) Verify that the AK is in the same TPM than the EK.
+// The verification is complete once the agent solves the challenge that this
+// function generates.
 func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x509.CertPool) (*common_devid.CredActivation, []byte, error) {
 	// Check that request contains all the information required to validate DevID residency
 	err := isDevIDResidencyInfoComplete(attData)
@@ -294,22 +295,29 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 		return nil, nil, status.Error(codes.InvalidArgument, "cannot decode endorsement key")
 	}
 
-	// 1. Verify DevID resides in the same TPM than AK
+	// Verify the public part of the EK generated from the template is the same
+	// than the one in the EK certificate.
+	err = verifyEKsMatch(ekCert, ekPub)
+	if err != nil {
+		return nil, nil, fmt.Errorf("public key in EK certificate differs from public key created via EK template: %w", err)
+	}
+
+	// Verify EK chain of trust using the provided manufacturer roots.
+	err = verifyEKSignature(ekCert, ekRoots)
+	if err != nil {
+		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot verify EK signature: %v", err)
+	}
+
+	// Verify DevID resides in the same TPM than AK
 	err = verifyDevIDCertification(&akPub, &devIDPub, attData.CertifiedDevID, attData.CertificationSignature)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot to verify that DevID is in the same TPM than AK: %v", err)
 	}
 
-	// 2. Issue a credential activation challenge (to verify AK is in the same TPM than EK)
+	// Issue a credential activation challenge (to verify AK is in the same TPM than EK)
 	challenge, nonce, err := newCredActivationChallenge(akPub, ekPub)
 	if err != nil {
 		return nil, nil, status.Error(codes.Internal, "cannot generate credential activation challenge")
-	}
-
-	// 3. Verify EK chain of trust using the provided manufacturer roots.
-	err = verifyEKSignature(ekCert, ekRoots)
-	if err != nil {
-		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot verify EK signature: %v", err)
 	}
 
 	return challenge, nonce, nil
@@ -357,6 +365,35 @@ func verifyEKSignature(ekCert *x509.Certificate, roots *x509.CertPool) error {
 	})
 	if err != nil {
 		return fmt.Errorf("endorsement certificate verification failed: %w", err)
+	}
+
+	return nil
+}
+
+// verifyEKsMatch checks that the public key generated using the EK template
+// matches the public key included in the Endorsement Certificate.
+func verifyEKsMatch(ekCert *x509.Certificate, ekPub tpm2.Public) error {
+	keyFromCert, ok := ekCert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("key from certificate is not an RSA key")
+	}
+
+	cryptoKey, err := ekPub.Key()
+	if err != nil {
+		return fmt.Errorf("cannot get template key: %w", err)
+	}
+
+	keyFromTemplate, ok := cryptoKey.(*rsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("key from template is not an RSA key")
+	}
+
+	if keyFromCert.E != keyFromTemplate.E {
+		return fmt.Errorf("exponent missmatch")
+	}
+
+	if keyFromCert.N.Cmp(keyFromTemplate.N) != 0 {
+		return fmt.Errorf("modulus missmatch")
 	}
 
 	return nil
