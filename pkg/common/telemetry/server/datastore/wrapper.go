@@ -127,22 +127,22 @@ func (w metricsWrapper) ListRegistrationEntries(ctx context.Context, req *datast
 	return w.ds.ListRegistrationEntries(ctx, req)
 }
 
-func (w metricsWrapper) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (_ *datastore.CountAttestedNodesResponse, err error) {
+func (w metricsWrapper) CountAttestedNodes(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountAttestedNodes(ctx, req)
+	return w.ds.CountAttestedNodes(ctx)
 }
 
-func (w metricsWrapper) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (_ *datastore.CountBundlesResponse, err error) {
+func (w metricsWrapper) CountBundles(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountBundles(ctx, req)
+	return w.ds.CountBundles(ctx)
 }
 
-func (w metricsWrapper) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (_ *datastore.CountRegistrationEntriesResponse, err error) {
+func (w metricsWrapper) CountRegistrationEntries(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountRegistrationEntries(ctx, req)
+	return w.ds.CountRegistrationEntries(ctx)
 }
 
 func (w metricsWrapper) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (_ *datastore.PruneBundleResponse, err error) {

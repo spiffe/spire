@@ -30,154 +30,124 @@ func TestWithMetrics(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		key         string
-		methodName  string
-		returnCount int
+		key        string
+		methodName string
 	}{
 		{
-			key:         "datastore.bundle.append",
-			methodName:  "AppendBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.append",
+			methodName: "AppendBundle",
 		},
 		{
-			key:         "datastore.node.count",
-			methodName:  "CountAttestedNodes",
-			returnCount: 2,
+			key:        "datastore.node.count",
+			methodName: "CountAttestedNodes",
 		},
 		{
-			key:         "datastore.bundle.count",
-			methodName:  "CountBundles",
-			returnCount: 2,
+			key:        "datastore.bundle.count",
+			methodName: "CountBundles",
 		},
 		{
-			key:         "datastore.registration_entry.count",
-			methodName:  "CountRegistrationEntries",
-			returnCount: 2,
+			key:        "datastore.registration_entry.count",
+			methodName: "CountRegistrationEntries",
 		},
 		{
-			key:         "datastore.node.create",
-			methodName:  "CreateAttestedNode",
-			returnCount: 2,
+			key:        "datastore.node.create",
+			methodName: "CreateAttestedNode",
 		},
 		{
-			key:         "datastore.bundle.create",
-			methodName:  "CreateBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.create",
+			methodName: "CreateBundle",
 		},
 		{
-			key:         "datastore.join_token.create",
-			methodName:  "CreateJoinToken",
-			returnCount: 2,
+			key:        "datastore.join_token.create",
+			methodName: "CreateJoinToken",
 		},
 		{
-			key:         "datastore.registration_entry.create",
-			methodName:  "CreateRegistrationEntry",
-			returnCount: 2,
+			key:        "datastore.registration_entry.create",
+			methodName: "CreateRegistrationEntry",
 		},
 		{
-			key:         "datastore.node.delete",
-			methodName:  "DeleteAttestedNode",
-			returnCount: 2,
+			key:        "datastore.node.delete",
+			methodName: "DeleteAttestedNode",
 		},
 		{
-			key:         "datastore.bundle.delete",
-			methodName:  "DeleteBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.delete",
+			methodName: "DeleteBundle",
 		},
 		{
-			key:         "datastore.join_token.delete",
-			methodName:  "DeleteJoinToken",
-			returnCount: 2,
+			key:        "datastore.join_token.delete",
+			methodName: "DeleteJoinToken",
 		},
 		{
-			key:         "datastore.registration_entry.delete",
-			methodName:  "DeleteRegistrationEntry",
-			returnCount: 2,
+			key:        "datastore.registration_entry.delete",
+			methodName: "DeleteRegistrationEntry",
 		},
 		{
-			key:         "datastore.node.fetch",
-			methodName:  "FetchAttestedNode",
-			returnCount: 2,
+			key:        "datastore.node.fetch",
+			methodName: "FetchAttestedNode",
 		},
 		{
-			key:         "datastore.bundle.fetch",
-			methodName:  "FetchBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.fetch",
+			methodName: "FetchBundle",
 		},
 		{
-			key:         "datastore.join_token.fetch",
-			methodName:  "FetchJoinToken",
-			returnCount: 2,
+			key:        "datastore.join_token.fetch",
+			methodName: "FetchJoinToken",
 		},
 		{
-			key:         "datastore.registration_entry.fetch",
-			methodName:  "FetchRegistrationEntry",
-			returnCount: 2,
+			key:        "datastore.registration_entry.fetch",
+			methodName: "FetchRegistrationEntry",
 		},
 		{
-			key:         "datastore.node.selectors.fetch",
-			methodName:  "GetNodeSelectors",
-			returnCount: 2,
+			key:        "datastore.node.selectors.fetch",
+			methodName: "GetNodeSelectors",
 		},
 		{
-			key:         "datastore.node.list",
-			methodName:  "ListAttestedNodes",
-			returnCount: 2,
+			key:        "datastore.node.list",
+			methodName: "ListAttestedNodes",
 		},
 		{
-			key:         "datastore.bundle.list",
-			methodName:  "ListBundles",
-			returnCount: 2,
+			key:        "datastore.bundle.list",
+			methodName: "ListBundles",
 		},
 		{
-			key:         "datastore.node.selectors.list",
-			methodName:  "ListNodeSelectors",
-			returnCount: 2,
+			key:        "datastore.node.selectors.list",
+			methodName: "ListNodeSelectors",
 		},
 		{
-			key:         "datastore.registration_entry.list",
-			methodName:  "ListRegistrationEntries",
-			returnCount: 2,
+			key:        "datastore.registration_entry.list",
+			methodName: "ListRegistrationEntries",
 		},
 		{
-			key:         "datastore.bundle.prune",
-			methodName:  "PruneBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.prune",
+			methodName: "PruneBundle",
 		},
 		{
-			key:         "datastore.join_token.prune",
-			methodName:  "PruneJoinTokens",
-			returnCount: 1,
+			key:        "datastore.join_token.prune",
+			methodName: "PruneJoinTokens",
 		},
 		{
-			key:         "datastore.registration_entry.prune",
-			methodName:  "PruneRegistrationEntries",
-			returnCount: 2,
+			key:        "datastore.registration_entry.prune",
+			methodName: "PruneRegistrationEntries",
 		},
 		{
-			key:         "datastore.bundle.set",
-			methodName:  "SetBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.set",
+			methodName: "SetBundle",
 		},
 		{
-			key:         "datastore.node.selectors.set",
-			methodName:  "SetNodeSelectors",
-			returnCount: 2,
+			key:        "datastore.node.selectors.set",
+			methodName: "SetNodeSelectors",
 		},
 		{
-			key:         "datastore.node.update",
-			methodName:  "UpdateAttestedNode",
-			returnCount: 2,
+			key:        "datastore.node.update",
+			methodName: "UpdateAttestedNode",
 		},
 		{
-			key:         "datastore.bundle.update",
-			methodName:  "UpdateBundle",
-			returnCount: 2,
+			key:        "datastore.bundle.update",
+			methodName: "UpdateBundle",
 		},
 		{
-			key:         "datastore.registration_entry.update",
-			methodName:  "UpdateRegistrationEntry",
-			returnCount: 2,
+			key:        "datastore.registration_entry.update",
+			methodName: "UpdateRegistrationEntry",
 		},
 	} {
 		tt := tt
@@ -192,18 +162,19 @@ func TestWithMetrics(t *testing.T) {
 		doCall := func(err error) interface{} {
 			m.Reset()
 			ds.SetError(err)
-			out := methodValue.Call([]reflect.Value{
-				reflect.ValueOf(context.Background()),
-				reflect.New(methodValue.Type().In(1)).Elem(),
-			})
-			require.Len(t, out, tt.returnCount)
-			// Our fake always returns a response even on failure, which
-			// our metrics shim should not be concerned about.
-			if tt.returnCount > 1 {
-				require.NotNil(t, out[0].Interface(), "response should not be nil")
-				return out[1].Interface()
+			numIn := methodValue.Type().NumIn()
+			numOut := methodValue.Type().NumOut()
+			args := []reflect.Value{reflect.ValueOf(context.Background())}
+			for i := 1; i < numIn; i++ {
+				args = append(args, reflect.New(methodValue.Type().In(i)).Elem())
 			}
-			return out[0].Interface()
+			out := methodValue.Call(args)
+			require.Len(t, out, numOut)
+			// Does it make sense to test the return types? The compiler will catch any errors.
+			for i := 1; i < numOut; i++ {
+				require.Equal(t, methodValue.Type().Out(i), out[i].Type(), "response type mismatch")
+			}
+			return out[numOut-1].Interface()
 		}
 
 		expectedMetrics := func(code codes.Code) []fakemetrics.MetricItem {
@@ -257,16 +228,16 @@ func (ds *fakeDataStore) AppendBundle(context.Context, *datastore.AppendBundleRe
 	return &datastore.AppendBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) CountAttestedNodes(context.Context, *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
-	return &datastore.CountAttestedNodesResponse{}, ds.err
+func (ds *fakeDataStore) CountAttestedNodes(context.Context) (int32, error) {
+	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CountBundles(context.Context, *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
-	return &datastore.CountBundlesResponse{}, ds.err
+func (ds *fakeDataStore) CountBundles(context.Context) (int32, error) {
+	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CountRegistrationEntries(context.Context, *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
-	return &datastore.CountRegistrationEntriesResponse{}, ds.err
+func (ds *fakeDataStore) CountRegistrationEntries(context.Context) (int32, error) {
+	return 0, ds.err
 }
 
 func (ds *fakeDataStore) CreateAttestedNode(context.Context, *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {

@@ -488,9 +488,9 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 
 func (s *PluginSuite) TestCountBundles() {
 	// Count empty bundles
-	resp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err := s.ds.CountBundles(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create bundles
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
@@ -512,16 +512,16 @@ func (s *PluginSuite) TestCountBundles() {
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err = s.ds.CountBundles(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 3}, resp)
+	s.Require().Equal(int32(3), count)
 }
 
 func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
-	resp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err := s.ds.CountAttestedNodes(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	node := &common.AttestedNode{
@@ -543,16 +543,16 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err = s.ds.CountAttestedNodes(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
+	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
-	resp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err := s.ds.CountRegistrationEntries(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	entry := &common.RegistrationEntry{
@@ -572,9 +572,9 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err = s.ds.CountRegistrationEntries(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
+	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestSetBundle() {

@@ -12,7 +12,7 @@ import (
 type DataStore interface {
 	// Bundles
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
-	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
+	CountBundles(context.Context) (int32, error)
 	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
 	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
@@ -22,7 +22,7 @@ type DataStore interface {
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
 
 	// Entries
-	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error)
+	CountRegistrationEntries(context.Context) (int32, error)
 	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
 	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
 	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
@@ -31,7 +31,7 @@ type DataStore interface {
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
 
 	// Nodes
-	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
+	CountAttestedNodes(context.Context) (int32, error)
 	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
 	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
 	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
@@ -106,27 +106,6 @@ type ByFederatesWith struct {
 type BySelectors struct {
 	Selectors []*common.Selector
 	Match     BySelectors_MatchBehavior
-}
-
-type CountAttestedNodesRequest struct {
-}
-
-type CountAttestedNodesResponse struct {
-	Nodes int32
-}
-
-type CountBundlesRequest struct {
-}
-
-type CountBundlesResponse struct {
-	Bundles int32
-}
-
-type CountRegistrationEntriesRequest struct {
-}
-
-type CountRegistrationEntriesResponse struct {
-	Entries int32
 }
 
 type CreateAttestedNodeRequest struct {

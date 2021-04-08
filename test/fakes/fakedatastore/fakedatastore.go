@@ -70,12 +70,12 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	return s.ds.AppendBundle(ctx, req)
 }
 
-func (s *DataStore) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
+func (s *DataStore) CountBundles(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return s.ds.CountBundles(ctx, req)
+	return s.ds.CountBundles(ctx)
 }
 
 func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
@@ -113,11 +113,11 @@ func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleR
 	return s.ds.PruneBundle(ctx, req)
 }
 
-func (s *DataStore) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
+func (s *DataStore) CountAttestedNodes(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return s.ds.CountAttestedNodes(ctx, req)
+	return s.ds.CountAttestedNodes(ctx)
 }
 
 func (s *DataStore) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
@@ -181,11 +181,11 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNode
 	return resp, err
 }
 
-func (s *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
+func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return s.ds.CountRegistrationEntries(ctx, req)
+	return s.ds.CountRegistrationEntries(ctx)
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
