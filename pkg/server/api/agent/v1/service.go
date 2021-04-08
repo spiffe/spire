@@ -514,11 +514,11 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, "join_token")
 
-	resp, err := s.ds.FetchJoinToken(ctx, token)
+	joinToken, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
-	case resp == nil:
+	case joinToken == nil:
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
@@ -526,7 +526,7 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(resp.Expiry, 0).Before(s.clk.Now()):
+	case time.Unix(joinToken.Expiry, 0).Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
