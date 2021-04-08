@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -47,7 +48,7 @@ type DataStore interface {
 	CreateJoinToken(context.Context, *JoinToken) error
 	DeleteJoinToken(context.Context, string) error
 	FetchJoinToken(context.Context, string) (*JoinToken, error)
-	PruneJoinTokens(context.Context, int64) error
+	PruneJoinTokens(context.Context, time.Time) error
 }
 
 // Mode controls the delete behavior if there are other records

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
@@ -256,7 +257,7 @@ func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) error {
 	return s.ds.DeleteJoinToken(ctx, token)
 }
 
-func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore int64) error {
+func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}

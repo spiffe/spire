@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -151,7 +152,7 @@ func (w metricsWrapper) PruneBundle(ctx context.Context, req *datastore.PruneBun
 	return w.ds.PruneBundle(ctx, req)
 }
 
-func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore int64) (err error) {
+func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) (err error) {
 	callCounter := StartPruneJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.PruneJoinTokens(ctx, expiresBefore)

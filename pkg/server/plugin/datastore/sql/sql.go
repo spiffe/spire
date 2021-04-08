@@ -429,7 +429,7 @@ func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (err error)
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry int64) (err error) {
+func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneJoinTokens(tx, expiry)
 		return err
@@ -3126,8 +3126,8 @@ func deleteJoinToken(tx *gorm.DB, token string) error {
 	return nil
 }
 
-func pruneJoinTokens(tx *gorm.DB, expiresBefore int64) error {
-	if err := tx.Where("expiry < ?", expiresBefore).Delete(&JoinToken{}).Error; err != nil {
+func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
+	if err := tx.Where("expiry < ?", expiresBefore.Unix()).Delete(&JoinToken{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -316,7 +317,7 @@ func (ds *fakeDataStore) PruneBundle(context.Context, *datastore.PruneBundleRequ
 	return &datastore.PruneBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneJoinTokens(context.Context, int64) error {
+func (ds *fakeDataStore) PruneJoinTokens(context.Context, time.Time) error {
 	return ds.err
 }
 
