@@ -200,19 +200,18 @@ func (ds *Plugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleReq
 }
 
 // CreateAttestedNode stores the given attested node
-func (ds *Plugin) CreateAttestedNode(ctx context.Context,
-	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
-	if req.Node == nil {
+func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (attestedNode *common.AttestedNode, err error) {
+	if node == nil {
 		return nil, sqlError.New("invalid request: missing attested node")
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createAttestedNode(tx, req)
+		attestedNode, err = createAttestedNode(tx, node)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return attestedNode, nil
 }
 
 // FetchAttestedNode fetches an existing attested node by SPIFFE ID
@@ -985,23 +984,21 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.Fiel
 	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
-func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
+func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
 	model := AttestedNode{
-		SpiffeID:        req.Node.SpiffeId,
-		DataType:        req.Node.AttestationDataType,
-		SerialNumber:    req.Node.CertSerialNumber,
-		ExpiresAt:       time.Unix(req.Node.CertNotAfter, 0),
-		NewSerialNumber: req.Node.NewCertSerialNumber,
-		NewExpiresAt:    nullableUnixTimeToDBTime(req.Node.NewCertNotAfter),
+		SpiffeID:        node.SpiffeId,
+		DataType:        node.AttestationDataType,
+		SerialNumber:    node.CertSerialNumber,
+		ExpiresAt:       time.Unix(node.CertNotAfter, 0),
+		NewSerialNumber: node.NewCertSerialNumber,
+		NewExpiresAt:    nullableUnixTimeToDBTime(node.NewCertNotAfter),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateAttestedNodeResponse{
-		Node: modelToAttestedNode(model),
-	}, nil
+	return modelToAttestedNode(model), nil
 }
 
 func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {

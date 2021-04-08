@@ -5,6 +5,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // WithMetrics wraps a datastore interface and provides per-call metrics. The
@@ -25,10 +26,10 @@ func (w metricsWrapper) AppendBundle(ctx context.Context, req *datastore.AppendB
 	return w.ds.AppendBundle(ctx, req)
 }
 
-func (w metricsWrapper) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (_ *datastore.CreateAttestedNodeResponse, err error) {
+func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (_ *common.AttestedNode, err error) {
 	callCounter := StartCreateNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateAttestedNode(ctx, req)
+	return w.ds.CreateAttestedNode(ctx, node)
 }
 
 func (w metricsWrapper) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (_ *datastore.CreateBundleResponse, err error) {

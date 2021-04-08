@@ -9,6 +9,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -240,8 +241,8 @@ func (ds *fakeDataStore) CountRegistrationEntries(context.Context) (int32, error
 	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CreateAttestedNode(context.Context, *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-	return &datastore.CreateAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {

@@ -1320,13 +1320,11 @@ func (s *HandlerSuite) TestGetNodeSelectors() {
 }
 
 func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
-	createResponse, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId: spiffeID,
-		},
+	attestedNode, err := s.ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+		SpiffeId: spiffeID,
 	})
 	s.Require().NoError(err, "Failed to create attested node")
-	return createResponse.Node
+	return attestedNode
 }
 
 func (s *HandlerSuite) TestAuthorizeCall() {

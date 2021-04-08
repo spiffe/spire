@@ -318,11 +318,9 @@ func prepareDataStore(t *testing.T, ds datastore.DataStore, ca *testca.CA, agent
 	require.NoError(t, err)
 
 	// Create the attested node
-	_, err = ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId:         agentID.String(),
-			CertSerialNumber: agentSVID.Certificates[0].SerialNumber.String(),
-		},
+	_, err = ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+		SpiffeId:         agentID.String(),
+		CertSerialNumber: agentSVID.Certificates[0].SerialNumber.String(),
 	})
 	require.NoError(t, err)
 

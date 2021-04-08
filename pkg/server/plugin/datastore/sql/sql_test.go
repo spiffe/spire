@@ -530,7 +530,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 		CertSerialNumber:    "1234",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	s.Require().NoError(err)
 
 	node2 := &common.AttestedNode{
@@ -539,7 +539,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 		CertSerialNumber:    "5678",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node2})
+	_, err = s.ds.CreateAttestedNode(ctx, node2)
 	s.Require().NoError(err)
 
 	// Count all
@@ -670,9 +670,9 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	attestedNode, err := s.ds.CreateAttestedNode(ctx, node)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, cresp.Node)
+	s.AssertProtoEqual(node, attestedNode)
 
 	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
 	s.Require().NoError(err)
@@ -709,10 +709,10 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
+	_, err := s.ds.CreateAttestedNode(ctx, efuture)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
+	_, err = s.ds.CreateAttestedNode(ctx, epast)
 	s.Require().NoError(err)
 
 	expiration := time.Now().Unix()
@@ -763,19 +763,19 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode1})
+	_, err := s.ds.CreateAttestedNode(ctx, aNode1)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode2})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode2)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode3})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode3)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode4})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode4)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode5})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode5)
 	s.Require().NoError(err)
 
 	aNode1WithSelectors := cloneAttestedNode(aNode1)
@@ -1303,14 +1303,14 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.ds = s.newPlugin()
 			defer s.ds.closeDB()
 
-			_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: &common.AttestedNode{
+			_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 				SpiffeId:            nodeID,
 				AttestationDataType: attestationType,
 				CertSerialNumber:    serial,
 				CertNotAfter:        expires,
 				NewCertNotAfter:     newExpires,
 				NewCertSerialNumber: newSerial,
-			}})
+			})
 			s.Require().NoError(err)
 
 			// Update attested node
@@ -1345,7 +1345,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
+	_, err = s.ds.CreateAttestedNode(ctx, entry)
 	s.Require().NoError(err)
 
 	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
@@ -1443,11 +1443,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	allAttNodesToCreate := append(nonExpiredAttNodes, expiredAttNodes...)
 	selectorMap := make(map[string][]*common.Selector)
 	for i, n := range allAttNodesToCreate {
-		req := &datastore.CreateAttestedNodeRequest{
-			Node: n,
-		}
-
-		_, err := s.ds.CreateAttestedNode(ctx, req)
+		_, err := s.ds.CreateAttestedNode(ctx, n)
 		s.Require().NoError(err)
 
 		selectors := []*common.Selector{
@@ -2854,7 +2850,7 @@ func (s *PluginSuite) TestRace() {
 			CertNotAfter:        exp,
 		}
 
-		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+		_, err := s.ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
 		_, err = s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
 		require.NoError(t, err)
