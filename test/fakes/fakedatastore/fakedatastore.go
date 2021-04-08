@@ -235,32 +235,32 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore
 	return s.ds.PruneRegistrationEntries(ctx, req)
 }
 
-func (s *DataStore) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
+func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (*datastore.JoinToken, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateJoinToken(ctx, req)
+	return s.ds.CreateJoinToken(ctx, token)
 }
 
-func (s *DataStore) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
+func (s *DataStore) FetchJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchJoinToken(ctx, req)
+	return s.ds.FetchJoinToken(ctx, token)
 }
 
-func (s *DataStore) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
+func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.DeleteJoinToken(ctx, req)
+	return s.ds.DeleteJoinToken(ctx, token)
 }
 
-func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
+func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore int64) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.PruneJoinTokens(ctx, req)
+	return s.ds.PruneJoinTokens(ctx, expiresBefore)
 }
 
 func (s *DataStore) SetNextError(err error) {

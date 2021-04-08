@@ -30,124 +30,154 @@ func TestWithMetrics(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		key        string
-		methodName string
+		key         string
+		methodName  string
+		returnCount int
 	}{
 		{
-			key:        "datastore.bundle.append",
-			methodName: "AppendBundle",
+			key:         "datastore.bundle.append",
+			methodName:  "AppendBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.count",
-			methodName: "CountAttestedNodes",
+			key:         "datastore.node.count",
+			methodName:  "CountAttestedNodes",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.count",
-			methodName: "CountBundles",
+			key:         "datastore.bundle.count",
+			methodName:  "CountBundles",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.registration_entry.count",
-			methodName: "CountRegistrationEntries",
+			key:         "datastore.registration_entry.count",
+			methodName:  "CountRegistrationEntries",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.create",
-			methodName: "CreateAttestedNode",
+			key:         "datastore.node.create",
+			methodName:  "CreateAttestedNode",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.create",
-			methodName: "CreateBundle",
+			key:         "datastore.bundle.create",
+			methodName:  "CreateBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.join_token.create",
-			methodName: "CreateJoinToken",
+			key:         "datastore.join_token.create",
+			methodName:  "CreateJoinToken",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.registration_entry.create",
-			methodName: "CreateRegistrationEntry",
+			key:         "datastore.registration_entry.create",
+			methodName:  "CreateRegistrationEntry",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.delete",
-			methodName: "DeleteAttestedNode",
+			key:         "datastore.node.delete",
+			methodName:  "DeleteAttestedNode",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.delete",
-			methodName: "DeleteBundle",
+			key:         "datastore.bundle.delete",
+			methodName:  "DeleteBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.join_token.delete",
-			methodName: "DeleteJoinToken",
+			key:         "datastore.join_token.delete",
+			methodName:  "DeleteJoinToken",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.registration_entry.delete",
-			methodName: "DeleteRegistrationEntry",
+			key:         "datastore.registration_entry.delete",
+			methodName:  "DeleteRegistrationEntry",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.fetch",
-			methodName: "FetchAttestedNode",
+			key:         "datastore.node.fetch",
+			methodName:  "FetchAttestedNode",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.fetch",
-			methodName: "FetchBundle",
+			key:         "datastore.bundle.fetch",
+			methodName:  "FetchBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.join_token.fetch",
-			methodName: "FetchJoinToken",
+			key:         "datastore.join_token.fetch",
+			methodName:  "FetchJoinToken",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.registration_entry.fetch",
-			methodName: "FetchRegistrationEntry",
+			key:         "datastore.registration_entry.fetch",
+			methodName:  "FetchRegistrationEntry",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.selectors.fetch",
-			methodName: "GetNodeSelectors",
+			key:         "datastore.node.selectors.fetch",
+			methodName:  "GetNodeSelectors",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.list",
-			methodName: "ListAttestedNodes",
+			key:         "datastore.node.list",
+			methodName:  "ListAttestedNodes",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.list",
-			methodName: "ListBundles",
+			key:         "datastore.bundle.list",
+			methodName:  "ListBundles",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.selectors.list",
-			methodName: "ListNodeSelectors",
+			key:         "datastore.node.selectors.list",
+			methodName:  "ListNodeSelectors",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.registration_entry.list",
-			methodName: "ListRegistrationEntries",
+			key:         "datastore.registration_entry.list",
+			methodName:  "ListRegistrationEntries",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.prune",
-			methodName: "PruneBundle",
+			key:         "datastore.bundle.prune",
+			methodName:  "PruneBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.join_token.prune",
-			methodName: "PruneJoinTokens",
+			key:         "datastore.join_token.prune",
+			methodName:  "PruneJoinTokens",
+			returnCount: 1,
 		},
 		{
-			key:        "datastore.registration_entry.prune",
-			methodName: "PruneRegistrationEntries",
+			key:         "datastore.registration_entry.prune",
+			methodName:  "PruneRegistrationEntries",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.set",
-			methodName: "SetBundle",
+			key:         "datastore.bundle.set",
+			methodName:  "SetBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.selectors.set",
-			methodName: "SetNodeSelectors",
+			key:         "datastore.node.selectors.set",
+			methodName:  "SetNodeSelectors",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.node.update",
-			methodName: "UpdateAttestedNode",
+			key:         "datastore.node.update",
+			methodName:  "UpdateAttestedNode",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.bundle.update",
-			methodName: "UpdateBundle",
+			key:         "datastore.bundle.update",
+			methodName:  "UpdateBundle",
+			returnCount: 2,
 		},
 		{
-			key:        "datastore.registration_entry.update",
-			methodName: "UpdateRegistrationEntry",
+			key:         "datastore.registration_entry.update",
+			methodName:  "UpdateRegistrationEntry",
+			returnCount: 2,
 		},
 	} {
 		tt := tt
@@ -166,11 +196,14 @@ func TestWithMetrics(t *testing.T) {
 				reflect.ValueOf(context.Background()),
 				reflect.New(methodValue.Type().In(1)).Elem(),
 			})
-			require.Len(t, out, 2)
+			require.Len(t, out, tt.returnCount)
 			// Our fake always returns a response even on failure, which
 			// our metrics shim should not be concerned about.
-			require.NotNil(t, out[0].Interface(), "response should not be nil")
-			return out[1].Interface()
+			if tt.returnCount > 1 {
+				require.NotNil(t, out[0].Interface(), "response should not be nil")
+				return out[1].Interface()
+			}
+			return out[0].Interface()
 		}
 
 		expectedMetrics := func(code codes.Code) []fakemetrics.MetricItem {
@@ -244,8 +277,8 @@ func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRe
 	return &datastore.CreateBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
-	return &datastore.CreateJoinTokenResponse{}, ds.err
+func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) (*datastore.JoinToken, error) {
+	return &datastore.JoinToken{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
@@ -260,8 +293,8 @@ func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRe
 	return &datastore.DeleteBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteJoinToken(context.Context, *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
-	return &datastore.DeleteJoinTokenResponse{}, ds.err
+func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) (*datastore.JoinToken, error) {
+	return &datastore.JoinToken{}, ds.err
 }
 
 func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
@@ -276,8 +309,8 @@ func (ds *fakeDataStore) FetchBundle(context.Context, *datastore.FetchBundleRequ
 	return &datastore.FetchBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchJoinToken(context.Context, *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
-	return &datastore.FetchJoinTokenResponse{}, ds.err
+func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {
+	return &datastore.JoinToken{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
@@ -308,8 +341,8 @@ func (ds *fakeDataStore) PruneBundle(context.Context, *datastore.PruneBundleRequ
 	return &datastore.PruneBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneJoinTokens(context.Context, *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
-	return &datastore.PruneJoinTokensResponse{}, ds.err
+func (ds *fakeDataStore) PruneJoinTokens(context.Context, int64) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {

@@ -391,13 +391,13 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.P
 }
 
 // CreateJoinToken takes a Token message and stores it
-func (ds *Plugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
-	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
+func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (resp *datastore.JoinToken, err error) {
+	if token == nil || token.Token == "" || token.Expiry == 0 {
 		return nil, errors.New("token and expiry are required")
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createJoinToken(tx, req)
+		resp, err = createJoinToken(tx, token)
 		return err
 	}); err != nil {
 		return nil, err
@@ -407,9 +407,9 @@ func (ds *Plugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoin
 
 // FetchJoinToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (ds *Plugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (resp *datastore.FetchJoinTokenResponse, err error) {
+func (ds *Plugin) FetchJoinToken(ctx context.Context, token string) (resp *datastore.JoinToken, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchJoinToken(tx, req)
+		resp, err = fetchJoinToken(tx, token)
 		return err
 	}); err != nil {
 		return nil, err
@@ -419,9 +419,9 @@ func (ds *Plugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTo
 }
 
 // DeleteJoinToken deletes the given join token
-func (ds *Plugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
+func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (resp *datastore.JoinToken, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteJoinToken(tx, req)
+		resp, err = deleteJoinToken(tx, token)
 		return err
 	}); err != nil {
 		return nil, err
@@ -431,14 +431,14 @@ func (ds *Plugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoin
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *Plugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (resp *datastore.PruneJoinTokensResponse, err error) {
+func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry int64) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneJoinTokens(tx, req)
+		err = pruneJoinTokens(tx, expiry)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
@@ -3099,38 +3099,34 @@ func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntri
 	return &datastore.PruneRegistrationEntriesResponse{}, nil
 }
 
-func createJoinToken(tx *gorm.DB, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
+func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) (*datastore.JoinToken, error) {
 	t := JoinToken{
-		Token:  req.JoinToken.Token,
-		Expiry: req.JoinToken.Expiry,
+		Token:  token.Token,
+		Expiry: token.Expiry,
 	}
 
 	if err := tx.Create(&t).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateJoinTokenResponse{
-		JoinToken: req.JoinToken,
-	}, nil
+	return token, nil
 }
 
-func fetchJoinToken(tx *gorm.DB, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
+func fetchJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
 	var model JoinToken
-	err := tx.Find(&model, "token = ?", req.Token).Error
+	err := tx.Find(&model, "token = ?", token).Error
 	if err == gorm.ErrRecordNotFound {
-		return &datastore.FetchJoinTokenResponse{}, nil
+		return nil, nil
 	} else if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.FetchJoinTokenResponse{
-		JoinToken: modelToJoinToken(model),
-	}, nil
+	return modelToJoinToken(model), nil
 }
 
-func deleteJoinToken(tx *gorm.DB, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
+func deleteJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
 	var model JoinToken
-	if err := tx.Find(&model, "token = ?", req.Token).Error; err != nil {
+	if err := tx.Find(&model, "token = ?", token).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -3138,17 +3134,15 @@ func deleteJoinToken(tx *gorm.DB, req *datastore.DeleteJoinTokenRequest) (*datas
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.DeleteJoinTokenResponse{
-		JoinToken: modelToJoinToken(model),
-	}, nil
+	return modelToJoinToken(model), nil
 }
 
-func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
-	if err := tx.Where("expiry < ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+func pruneJoinTokens(tx *gorm.DB, expiresBefore int64) error {
+	if err := tx.Where("expiry < ?", expiresBefore).Delete(&JoinToken{}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
-	return &datastore.PruneJoinTokensResponse{}, nil
+	return nil
 }
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also

@@ -434,11 +434,9 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 
 	expiry := time.Now().Unix() + int64(req.Ttl)
 
-	result, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  req.Token,
-			Expiry: expiry,
-		},
+	result, err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  req.Token,
+		Expiry: expiry,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
@@ -451,7 +449,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		}
 	}
 
-	return &types.JoinToken{Value: result.JoinToken.Token, ExpiresAt: expiry}, nil
+	return &types.JoinToken{Value: result.Token, ExpiresAt: expiry}, nil
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
@@ -516,23 +514,19 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, "join_token")
 
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: token,
-	})
+	resp, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
-	case resp.JoinToken == nil:
+	case resp == nil:
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
-	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
-		Token: token,
-	})
+	_, err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(resp.JoinToken.Expiry, 0).Before(s.clk.Now()):
+	case time.Unix(resp.Expiry, 0).Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
