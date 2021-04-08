@@ -170,9 +170,13 @@ func TestWithMetrics(t *testing.T) {
 			}
 			out := methodValue.Call(args)
 			require.Len(t, out, numOut)
-			// Does it make sense to test the return types? The compiler will catch any errors.
-			for i := 1; i < numOut; i++ {
-				require.Equal(t, methodValue.Type().Out(i), out[i].Type(), "response type mismatch")
+			for i := 0; i < numOut-1; i++ {
+				switch v := reflect.ValueOf(methodValue.Type().Out(i)); v.Kind() {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					require.True(t, out[i].IsZero())
+				default:
+					require.NotNil(t, methodValue.Type().Out(i))
+				}
 			}
 			return out[numOut-1].Interface()
 		}
