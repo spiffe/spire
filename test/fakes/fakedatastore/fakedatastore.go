@@ -249,9 +249,9 @@ func (s *DataStore) FetchJoinToken(ctx context.Context, token string) (*datastor
 	return s.ds.FetchJoinToken(ctx, token)
 }
 
-func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
+func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.DeleteJoinToken(ctx, token)
 }

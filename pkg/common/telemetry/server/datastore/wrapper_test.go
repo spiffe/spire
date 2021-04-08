@@ -264,8 +264,8 @@ func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRe
 	return &datastore.DeleteBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) (*datastore.JoinToken, error) {
-	return &datastore.JoinToken{}, ds.err
+func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {

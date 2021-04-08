@@ -2566,7 +2566,7 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 	_, err = s.ds.CreateJoinToken(ctx, joinToken2)
 	s.Require().NoError(err)
 
-	_, err = s.ds.DeleteJoinToken(ctx, joinToken1.Token)
+	err = s.ds.DeleteJoinToken(ctx, joinToken1.Token)
 	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete

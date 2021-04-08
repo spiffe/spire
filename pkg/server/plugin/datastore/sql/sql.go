@@ -417,14 +417,14 @@ func (ds *Plugin) FetchJoinToken(ctx context.Context, token string) (resp *datas
 }
 
 // DeleteJoinToken deletes the given join token
-func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (resp *datastore.JoinToken, err error) {
+func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteJoinToken(tx, token)
+		err = deleteJoinToken(tx, token)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
@@ -3113,17 +3113,17 @@ func fetchJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
 	return modelToJoinToken(model), nil
 }
 
-func deleteJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
+func deleteJoinToken(tx *gorm.DB, token string) error {
 	var model JoinToken
 	if err := tx.Find(&model, "token = ?", token).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
 	if err := tx.Delete(&model).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
-	return modelToJoinToken(model), nil
+	return nil
 }
 
 func pruneJoinTokens(tx *gorm.DB, expiresBefore int64) error {

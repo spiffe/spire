@@ -61,7 +61,7 @@ func (w metricsWrapper) DeleteBundle(ctx context.Context, req *datastore.DeleteB
 	return w.ds.DeleteBundle(ctx, req)
 }
 
-func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (_ *datastore.JoinToken, err error) {
+func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
 	callCounter := StartDeleteJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.DeleteJoinToken(ctx, token)

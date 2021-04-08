@@ -522,7 +522,7 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
-	_, err = s.ds.DeleteJoinToken(ctx, token)
+	err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
