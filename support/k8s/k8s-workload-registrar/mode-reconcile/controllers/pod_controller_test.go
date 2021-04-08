@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck // No longer deprectated in newer versions.
+	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck // No longer deprecated in newer versions.
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/golang/mock/gomock"

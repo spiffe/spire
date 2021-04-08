@@ -86,10 +86,6 @@ func TestRunTaskCancelsTasksIfContextCanceled(t *testing.T) {
 	assertErrorChan(t, out2, context.Canceled)
 }
 
-// ///////////////////////////////////////////////////////////////////////////
-// Helpers
-// ///////////////////////////////////////////////////////////////////////////
-
 func newFakeTask() (chan error, chan error, func(context.Context) error) {
 	in := make(chan error)
 	out := make(chan error, 1)
