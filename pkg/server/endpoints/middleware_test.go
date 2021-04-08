@@ -212,9 +212,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			ds := fakedatastore.New(t)
 
 			if tt.node != nil {
-				_, err := ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-					Node: tt.node,
-				})
+				_, err := ds.CreateAttestedNode(context.Background(), tt.node)
 				require.NoError(t, err)
 			}
 
@@ -291,11 +289,7 @@ func setNodeSelectors(t testing.TB, ds datastore.DataStore, id spiffeid.ID, sele
 }
 
 func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.AttestedNode) {
-	req := &datastore.CreateAttestedNodeRequest{
-		Node: node,
-	}
-
-	_, err := ds.CreateAttestedNode(context.Background(), req)
+	_, err := ds.CreateAttestedNode(context.Background(), node)
 	require.NoError(t, err)
 }
 

@@ -33,7 +33,7 @@ type DataStore interface {
 
 	// Nodes
 	CountAttestedNodes(context.Context) (int32, error)
-	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
+	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
 	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
 	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
@@ -107,14 +107,6 @@ type ByFederatesWith struct {
 type BySelectors struct {
 	Selectors []*common.Selector
 	Match     BySelectors_MatchBehavior
-}
-
-type CreateAttestedNodeRequest struct {
-	Node *common.AttestedNode
-}
-
-type CreateAttestedNodeResponse struct {
-	Node *common.AttestedNode
 }
 
 type CreateBundleRequest struct {

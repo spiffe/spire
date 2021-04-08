@@ -63,13 +63,11 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.NoError(err)
 
 	// create attested node with current trust domain
-	nodeResp, err := ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId:            "spiffe://test.com/host",
-			AttestationDataType: "fake_nodeattestor_1",
-			CertNotAfter:        1822684794,
-			CertSerialNumber:    "18392437442709699290",
-		},
+	attestedNode, err := ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "spiffe://test.com/host",
+		AttestationDataType: "fake_nodeattestor_1",
+		CertNotAfter:        1822684794,
+		CertSerialNumber:    "18392437442709699290",
 	})
 	suite.NoError(err)
 
@@ -135,16 +133,14 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	// create attested node with current trust domain
 	// drop resp
 	_, err = ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: nodeResp.Node.SpiffeId,
+		SpiffeId: attestedNode.SpiffeId,
 	})
 	suite.NoError(err)
-	_, err = ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId:            "spiffe://inv%ild/host",
-			AttestationDataType: "fake_nodeattestor_1",
-			CertNotAfter:        1822684794,
-			CertSerialNumber:    "18392437442709699290",
-		},
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "spiffe://inv%ild/host",
+		AttestationDataType: "fake_nodeattestor_1",
+		CertNotAfter:        1822684794,
+		CertSerialNumber:    "18392437442709699290",
 	})
 	suite.NoError(err)
 	// Attested now with same trust domain created, no error expected

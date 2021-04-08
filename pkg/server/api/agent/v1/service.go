@@ -316,14 +316,13 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 
 	// create or update attested entry
 	if attestedNode.Node == nil {
-		req := &datastore.CreateAttestedNodeRequest{
-			Node: &common.AttestedNode{
-				AttestationDataType: params.Data.Type,
-				SpiffeId:            agentID,
-				CertNotAfter:        svid[0].NotAfter.Unix(),
-				CertSerialNumber:    svid[0].SerialNumber.String(),
-			}}
-		if _, err := s.ds.CreateAttestedNode(ctx, req); err != nil {
+		node := &common.AttestedNode{
+			AttestationDataType: params.Data.Type,
+			SpiffeId:            agentID,
+			CertNotAfter:        svid[0].NotAfter.Unix(),
+			CertSerialNumber:    svid[0].SerialNumber.String(),
+		}
+		if _, err := s.ds.CreateAttestedNode(ctx, node); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to create attested agent", err)
 		}
 	} else {

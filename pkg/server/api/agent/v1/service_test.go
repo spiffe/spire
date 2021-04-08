@@ -172,18 +172,16 @@ func TestCountAgents(t *testing.T) {
 			defer test.Cleanup()
 
 			for i := 0; i < int(tt.count); i++ {
-				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-					Node: &common.AttestedNode{
-						SpiffeId:            ids[i].String(),
-						AttestationDataType: "t1",
-						CertSerialNumber:    "badcafe",
-						CertNotAfter:        time.Now().Add(-time.Minute).Unix(),
-						NewCertNotAfter:     time.Now().Add(time.Minute).Unix(),
-						NewCertSerialNumber: "new badcafe",
-						Selectors: []*common.Selector{
-							{Type: "a", Value: "1"},
-							{Type: "b", Value: "2"},
-						},
+				_, err := test.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+					SpiffeId:            ids[i].String(),
+					AttestationDataType: "t1",
+					CertSerialNumber:    "badcafe",
+					CertNotAfter:        time.Now().Add(-time.Minute).Unix(),
+					NewCertNotAfter:     time.Now().Add(time.Minute).Unix(),
+					NewCertSerialNumber: "new badcafe",
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
 					},
 				})
 				require.NoError(t, err)
@@ -225,9 +223,7 @@ func TestListAgents(t *testing.T) {
 			{Type: "b", Value: "2"},
 		},
 	}
-	_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: node1,
-	})
+	_, err := test.ds.CreateAttestedNode(ctx, node1)
 	require.NoError(t, err)
 	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
@@ -249,9 +245,7 @@ func TestListAgents(t *testing.T) {
 			{Type: "c", Value: "3"},
 		},
 	}
-	_, err = test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: node2,
-	})
+	_, err = test.ds.CreateAttestedNode(ctx, node2)
 	require.NoError(t, err)
 	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
@@ -269,9 +263,7 @@ func TestListAgents(t *testing.T) {
 		NewCertNotAfter:     newNoAfter,
 		NewCertSerialNumber: "",
 	}
-	_, err = test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: node3,
-	})
+	_, err = test.ds.CreateAttestedNode(ctx, node3)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -652,9 +644,7 @@ func TestBanAgent(t *testing.T) {
 				NewCertSerialNumber: "1235",
 			}
 
-			_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-				Node: node,
-			})
+			_, err := test.ds.CreateAttestedNode(ctx, node)
 			require.NoError(t, err)
 			test.ds.SetNextError(tt.dsError)
 
@@ -831,9 +821,7 @@ func TestDeleteAgent(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
-			_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-				Node: node1,
-			})
+			_, err := test.ds.CreateAttestedNode(ctx, node1)
 			require.NoError(t, err)
 			test.ds.SetNextError(tt.dsError)
 
@@ -1195,9 +1183,7 @@ func TestRenewAgent(t *testing.T) {
 			defer test.Cleanup()
 
 			if tt.createNode != nil {
-				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-					Node: tt.createNode,
-				})
+				_, err := test.ds.CreateAttestedNode(ctx, tt.createNode)
 				require.NoError(t, err)
 			}
 			if tt.failSigning {
@@ -1942,33 +1928,30 @@ func (s *serviceTest) setupResolver(t *testing.T) {
 }
 
 func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
-	req := &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			AttestationDataType: "test_type",
-			SpiffeId:            td.NewID("/spire/agent/test_type/id_attested_before").String(),
-			CertSerialNumber:    "test_serial_number",
-		}}
-	_, err := s.ds.CreateAttestedNode(ctx, req)
+	node := &common.AttestedNode{
+		AttestationDataType: "test_type",
+		SpiffeId:            td.NewID("/spire/agent/test_type/id_attested_before").String(),
+		CertSerialNumber:    "test_serial_number",
+	}
+	_, err := s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
 
-	req = &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			AttestationDataType: "test_type",
-			SpiffeId:            td.NewID("/spire/agent/test_type/id_banned").String(),
-			CertNotAfter:        0,
-			CertSerialNumber:    "",
-		}}
-	_, err = s.ds.CreateAttestedNode(ctx, req)
+	node = &common.AttestedNode{
+		AttestationDataType: "test_type",
+		SpiffeId:            td.NewID("/spire/agent/test_type/id_banned").String(),
+		CertNotAfter:        0,
+		CertSerialNumber:    "",
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
 
-	req = &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			AttestationDataType: "join_token",
-			SpiffeId:            td.NewID("/spire/agent/join_token/banned_token").String(),
-			CertNotAfter:        0,
-			CertSerialNumber:    "",
-		}}
-	_, err = s.ds.CreateAttestedNode(ctx, req)
+	node = &common.AttestedNode{
+		AttestationDataType: "join_token",
+		SpiffeId:            td.NewID("/spire/agent/join_token/banned_token").String(),
+		CertNotAfter:        0,
+		CertSerialNumber:    "",
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
 }
 
@@ -1996,7 +1979,7 @@ func (s *serviceTest) setupJoinTokens(ctx context.Context, t *testing.T) {
 func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 	for _, testNode := range testNodes {
 		// create the test node
-		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: testNode})
+		_, err := s.ds.CreateAttestedNode(ctx, testNode)
 		require.NoError(t, err)
 
 		// set selectors to the test node
