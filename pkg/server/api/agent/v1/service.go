@@ -434,7 +434,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 
 	expiry := time.Now().Unix() + int64(req.Ttl)
 
-	result, err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  req.Token,
 		Expiry: expiry,
 	})
@@ -449,7 +449,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		}
 	}
 
-	return &types.JoinToken{Value: result.Token, ExpiresAt: expiry}, nil
+	return &types.JoinToken{Value: req.Token, ExpiresAt: expiry}, nil
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {

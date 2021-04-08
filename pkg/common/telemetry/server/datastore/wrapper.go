@@ -37,7 +37,7 @@ func (w metricsWrapper) CreateBundle(ctx context.Context, req *datastore.CreateB
 	return w.ds.CreateBundle(ctx, req)
 }
 
-func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (_ *datastore.JoinToken, err error) {
+func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
 	callCounter := StartCreateJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.CreateJoinToken(ctx, token)

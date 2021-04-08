@@ -252,8 +252,8 @@ func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRe
 	return &datastore.CreateBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) (*datastore.JoinToken, error) {
-	return &datastore.JoinToken{}, ds.err
+func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {

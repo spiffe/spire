@@ -2524,11 +2524,11 @@ func (s *PluginSuite) TestCreateJoinToken() {
 		Token:  "foobar",
 		Expiry: now,
 	}
-	_, err := s.ds.CreateJoinToken(ctx, req)
+	err := s.ds.CreateJoinToken(ctx, req)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
-	_, err = s.ds.CreateJoinToken(ctx, req)
+	err = s.ds.CreateJoinToken(ctx, req)
 	s.NotNil(err)
 }
 
@@ -2539,7 +2539,7 @@ func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, joinToken)
+	err := s.ds.CreateJoinToken(ctx, joinToken)
 	s.Require().NoError(err)
 
 	res, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
@@ -2555,7 +2555,7 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, joinToken1)
+	err := s.ds.CreateJoinToken(ctx, joinToken1)
 	s.Require().NoError(err)
 
 	joinToken2 := &datastore.JoinToken{
@@ -2563,7 +2563,7 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Expiry: now,
 	}
 
-	_, err = s.ds.CreateJoinToken(ctx, joinToken2)
+	err = s.ds.CreateJoinToken(ctx, joinToken2)
 	s.Require().NoError(err)
 
 	err = s.ds.DeleteJoinToken(ctx, joinToken1.Token)
@@ -2587,7 +2587,7 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, joinToken)
+	err := s.ds.CreateJoinToken(ctx, joinToken)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s

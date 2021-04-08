@@ -44,7 +44,7 @@ type DataStore interface {
 	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
 
 	// Tokens
-	CreateJoinToken(context.Context, *JoinToken) (*JoinToken, error)
+	CreateJoinToken(context.Context, *JoinToken) error
 	DeleteJoinToken(context.Context, string) error
 	FetchJoinToken(context.Context, string) (*JoinToken, error)
 	PruneJoinTokens(context.Context, int64) error

@@ -1970,19 +1970,19 @@ func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 }
 
 func (s *serviceTest) setupJoinTokens(ctx context.Context, t *testing.T) {
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+	err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  "test_token",
 		Expiry: time.Now().Unix() + int64(60*10),
 	})
 	require.NoError(t, err)
 
-	_, err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  "banned_token",
 		Expiry: time.Now().Unix() + int64(60*10),
 	})
 	require.NoError(t, err)
 
-	_, err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  "expired_token",
 		Expiry: time.Now().Unix() - int64(60*10),
 	})

@@ -235,9 +235,9 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore
 	return s.ds.PruneRegistrationEntries(ctx, req)
 }
 
-func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (*datastore.JoinToken, error) {
+func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.CreateJoinToken(ctx, token)
 }
