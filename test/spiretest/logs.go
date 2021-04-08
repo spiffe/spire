@@ -34,6 +34,21 @@ func AssertLogsAnyOrder(t *testing.T, entries []*logrus.Entry, expected []LogEnt
 	assert.ElementsMatch(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
+func AssertLastLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
+	for _, entry := range entries {
+		for key, field := range entry.Data {
+			entry.Data[key] = fmt.Sprint(field)
+		}
+	}
+
+	removeLen := len(entries) - len(expected)
+	if removeLen > 0 {
+		assert.Equal(t, expected, convertLogEntries(entries[removeLen:]), "unexpected logs")
+		return
+	}
+	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
+}
+
 func convertLogEntries(entries []*logrus.Entry) (out []LogEntry) {
 	for _, entry := range entries {
 		out = append(out, LogEntry{

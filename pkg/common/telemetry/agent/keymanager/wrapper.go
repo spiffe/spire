@@ -2,37 +2,35 @@ package keymanager
 
 import (
 	"context"
+	"crypto"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 )
 
-type agentKeyManagerWrapper struct {
+type keyManagerWrapper struct {
+	keymanager.KeyManager
 	m telemetry.Metrics
-	k keymanagerv0.KeyManager
 }
 
-func WithMetrics(km keymanagerv0.KeyManager, metrics telemetry.Metrics) keymanagerv0.KeyManager {
-	return agentKeyManagerWrapper{
-		m: metrics,
-		k: km,
+func WithMetrics(km keymanager.KeyManager, metrics telemetry.Metrics) keymanager.KeyManager {
+	return keyManagerWrapper{
+		KeyManager: km,
+		m:          metrics,
 	}
 }
 
-func (w agentKeyManagerWrapper) GenerateKeyPair(ctx context.Context, req *keymanagerv0.GenerateKeyPairRequest) (_ *keymanagerv0.GenerateKeyPairResponse, err error) {
-	callCounter := StartGenerateKeyPairCall(w.m)
-	defer callCounter.Done(&err)
-	return w.k.GenerateKeyPair(ctx, req)
+func (w keyManagerWrapper) GenerateKey(ctx context.Context) (_ crypto.Signer, err error) {
+	defer StartGenerateKeyPairCall(w.m).Done(&err)
+	return w.KeyManager.GenerateKey(ctx)
 }
 
-func (w agentKeyManagerWrapper) FetchPrivateKey(ctx context.Context, req *keymanagerv0.FetchPrivateKeyRequest) (_ *keymanagerv0.FetchPrivateKeyResponse, err error) {
-	callCounter := StartFetchPrivateKeyCall(w.m)
-	defer callCounter.Done(&err)
-	return w.k.FetchPrivateKey(ctx, req)
+func (w keyManagerWrapper) GetKey(ctx context.Context) (_ crypto.Signer, err error) {
+	defer StartFetchPrivateKeyCall(w.m).Done(&err)
+	return w.KeyManager.GetKey(ctx)
 }
 
-func (w agentKeyManagerWrapper) StorePrivateKey(ctx context.Context, req *keymanagerv0.StorePrivateKeyRequest) (_ *keymanagerv0.StorePrivateKeyResponse, err error) {
-	callCounter := StartStorePrivateKeyCall(w.m)
-	defer callCounter.Done(&err)
-	return w.k.StorePrivateKey(ctx, req)
+func (w keyManagerWrapper) SetKey(ctx context.Context, key crypto.Signer) (err error) {
+	defer StartStorePrivateKeyCall(w.m).Done(&err)
+	return w.KeyManager.SetKey(ctx, key)
 }

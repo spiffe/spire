@@ -470,7 +470,15 @@ func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
 		},
 	}))
 
-	s.Require().EqualError(s.m.Run(ctx), "one or more notifiers returned an error: rpc error: code = Canceled desc = notifier(fake): context canceled")
+	// Run the manager. The bundle loaded handler above will cancel the
+	// context. This will usually be observed as an error returned from the
+	// notifier, but not always, depending on the timing of the cancelation.
+	// When the notifier does not return an error, Run will return without an
+	// error when the canceled context is passed internally to run the tasks.
+	err := s.m.Run(ctx)
+	if err != nil {
+		s.Require().EqualError(err, "one or more notifiers returned an error: rpc error: code = Canceled desc = notifier(fake): context canceled")
+	}
 
 	// make sure the event contained the bundle
 	expected := s.fetchBundle()

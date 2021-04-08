@@ -108,9 +108,9 @@ data:
       default_svid_ttl = "1h"
       ca_ttl = "12h"
       ca_subject = {
-        country = ["US"],
-        organization = ["SPIFFE"],
-        common_name = "",
+        country = ["US"]
+        organization = ["SPIFFE"]
+        common_name = ""
       }
     }
 
@@ -146,6 +146,14 @@ data:
       }
     }
 
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
+    }
+
 ---
 
 apiVersion: v1
@@ -155,9 +163,9 @@ metadata:
   namespace: spire
 data:
   k8s-workload-registrar.conf: |
-    cert_path = "/run/spire/k8s-workload-registrar/certs/server-cert.pem" 
-    key_path = "/run/spire/k8s-workload-registrar/secret/server-key.pem" 
-    cacert_path = "/run/spire/k8s-workload-registrar/certs/cacert.pem" 
+    cert_path = "/run/spire/k8s-workload-registrar/certs/server-cert.pem"
+    key_path = "/run/spire/k8s-workload-registrar/secret/server-key.pem"
+    cacert_path = "/run/spire/k8s-workload-registrar/certs/cacert.pem"
     trust_domain = "example.org"
     cluster = "example-cluster"
     server_socket_path = "/tmp/spire-server/private/api.sock"
@@ -241,13 +249,15 @@ spec:
               mountPath: /tmp/spire-server/private
               readOnly: false
           livenessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-server", "healthcheck"]
+            httpGet:
+              path: /live
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
-            exec:
-              command: ["/opt/spire/bin/spire-server", "healthcheck", "--shallow"]
+            httpGet:
+              path: /ready
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
         - name: k8s-workload-registrar

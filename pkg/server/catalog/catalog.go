@@ -8,15 +8,14 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	common_services "github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	km_awskms "github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
 	km_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	km_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -30,9 +29,7 @@ import (
 	na_sshpop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
 	na_x509pop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	nr_aws_iid "github.com/spiffe/spire/pkg/server/plugin/noderesolver/aws"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
-	nr_noop "github.com/spiffe/spire/pkg/server/plugin/noderesolver/noop"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
 	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
@@ -40,13 +37,22 @@ import (
 	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
 	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
+	up_gcpcas "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
 	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+)
+
+const (
+	dataStoreType    = "DataStore"
+	nodeResolverType = "NodeResolver"
 )
 
 var (
@@ -62,11 +68,10 @@ var (
 		na_join_token.BuiltIn(),
 		na_devid.BuiltIn(),
 		// NodeResolvers
-		nr_noop.BuiltIn(),
-		nr_aws_iid.BuiltIn(),
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities
 		up_awspca.BuiltIn(),
+		up_gcpcas.BuiltIn(),
 		up_awssecret.BuiltIn(),
 		up_spire.BuiltIn(),
 		up_disk.BuiltIn(),
@@ -74,6 +79,7 @@ var (
 		// KeyManagers
 		km_disk.BuiltIn(),
 		km_memory.BuiltIn(),
+		km_awskms.BuiltIn(),
 		// Notifiers
 		no_k8sbundle.BuiltIn(),
 		no_gcs_bundle.BuiltIn(),
@@ -156,9 +162,9 @@ type Config struct {
 	PluginConfig HCLPluginConfigMap
 
 	Metrics          telemetry.Metrics
-	IdentityProvider hostservices.IdentityProviderServer
-	AgentStore       hostservices.AgentStoreServer
-	MetricsService   common_services.MetricsServiceServer
+	IdentityProvider identityproviderv0.IdentityProviderServer
+	AgentStore       agentstorev0.AgentStoreServer
+	MetricsService   metricsv0.MetricsServiceServer
 }
 
 type Repository struct {
@@ -169,11 +175,17 @@ type Repository struct {
 func Load(ctx context.Context, config Config) (*Repository, error) {
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
-	dataStoreConfig := config.PluginConfig[datastore.Type]
-	delete(config.PluginConfig, datastore.Type)
+	dataStoreConfig := config.PluginConfig[dataStoreType]
+	delete(config.PluginConfig, dataStoreType)
 	ds, err := loadSQLDataStore(config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	if noopConfig, ok := config.PluginConfig[nodeResolverType]["noop"]; ok && noopConfig.PluginCmd == "" {
+		// TODO: remove in 1.1.0
+		delete(config.PluginConfig[nodeResolverType], "noop")
+		config.Log.Warn(`The "noop" NodeResolver is not required, is deprecated, and will be removed from a future release`)
 	}
 
 	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
@@ -190,9 +202,9 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		KnownServices: KnownServices(),
 		BuiltIns:      BuiltIns(),
 		HostServices: []catalog.HostServiceServer{
-			hostservices.IdentityProviderHostServiceServer(config.IdentityProvider),
-			hostservices.AgentStoreHostServiceServer(config.AgentStore),
-			common_services.MetricsServiceHostServiceServer(config.MetricsService),
+			identityproviderv0.HostServiceServer(config.IdentityProvider),
+			agentstorev0.HostServiceServer(config.AgentStore),
+			metricsv0.HostServiceServer(config.MetricsService),
 		},
 	}, p)
 	if err != nil {
@@ -202,7 +214,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 	ds = datastore_telemetry.WithMetrics(ds, config.Metrics)
 	ds = dscache.New(ds, clock.New())
 
-	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
+	keyManager := keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
 	nodeAttestors := make(map[string]nodeattestor.NodeAttestor)
 	for _, na := range p.NodeAttestors {
@@ -230,7 +242,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 			NodeAttestors:     nodeAttestors,
 			NodeResolvers:     nodeResolvers,
 			UpstreamAuthority: upstreamAuthority,
-			KeyManager:        p.KeyManager,
+			KeyManager:        keyManager,
 			Notifiers:         notifiers,
 		},
 		Closer: closer,
@@ -263,7 +275,7 @@ func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	sqlConfig, err := catalog.PluginConfigFromHCL(datastore.Type, ds_sql.PluginName, sqlHCLConfig)
+	sqlConfig, err := catalog.PluginConfigFromHCL(dataStoreType, ds_sql.PluginName, sqlHCLConfig)
 	if err != nil {
 		return nil, err
 	}

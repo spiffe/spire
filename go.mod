@@ -3,7 +3,8 @@ module github.com/spiffe/spire
 go 1.15
 
 require (
-	cloud.google.com/go/storage v1.6.0
+	cloud.google.com/go v0.80.0
+	cloud.google.com/go/storage v1.10.0
 	github.com/Azure/azure-sdk-for-go v44.0.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.0
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.0
@@ -18,6 +19,10 @@ require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.2
 	github.com/aws/aws-sdk-go v1.28.9
+	github.com/aws/aws-sdk-go-v2 v1.2.0
+	github.com/aws/aws-sdk-go-v2/config v1.1.1
+	github.com/aws/aws-sdk-go-v2/credentials v1.1.1
+	github.com/aws/aws-sdk-go-v2/service/kms v1.1.1
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/containerd/containerd v1.3.2 // indirect
@@ -30,8 +35,8 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/gofrs/uuid v3.2.0+incompatible
-	github.com/golang/mock v1.4.3
-	github.com/golang/protobuf v1.5.0
+	github.com/golang/mock v1.5.0
+	github.com/golang/protobuf v1.5.1
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-tpm v0.3.2
 	github.com/google/go-tpm-tools v0.2.1
@@ -56,18 +61,19 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
 	github.com/spiffe/spire-api-sdk v1.0.0-pre.0.20210318220945-7ff3eb0759ce
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.4.0
 	go.uber.org/goleak v0.10.0
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e
-	golang.org/x/sys v0.0.0-20201207223542-d4d67f95c62d
+	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	golang.org/x/tools v0.0.0-20200331025713-a30bf2db82d4
-	google.golang.org/api v0.29.0
-	google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98
+	golang.org/x/tools v0.1.0
+	google.golang.org/api v0.42.0
+	google.golang.org/genproto v0.0.0-20210323160006-e668133fea6a
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 // indirect

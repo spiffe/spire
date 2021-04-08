@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -43,7 +43,7 @@ type Deps struct {
 }
 
 type IdentityProvider struct {
-	hostservices.UnsafeIdentityProviderServer
+	identityproviderv0.UnsafeIdentityProviderServer
 
 	config Config
 
@@ -79,7 +79,7 @@ func (s *IdentityProvider) getDeps() (*Deps, error) {
 	return s.deps, nil
 }
 
-func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *hostservices.FetchX509IdentityRequest) (*hostservices.FetchX509IdentityResponse, error) {
+func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityproviderv0.FetchX509IdentityRequest) (*identityproviderv0.FetchX509IdentityResponse, error) {
 	deps, err := s.getDeps()
 	if err != nil {
 		return nil, err
@@ -107,8 +107,8 @@ func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *hostservi
 		return nil, errs.Wrap(err)
 	}
 
-	return &hostservices.FetchX509IdentityResponse{
-		Identity: &hostservices.X509Identity{
+	return &identityproviderv0.FetchX509IdentityResponse{
+		Identity: &identityproviderv0.X509Identity{
 			CertChain:  certChain,
 			PrivateKey: privateKey,
 		},
