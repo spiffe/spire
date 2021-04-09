@@ -258,12 +258,10 @@ func TestAgentAuthorizer(t *testing.T) {
 			}
 
 			// Assert the new SVID serial number (if existed) is now set as current
-			resp, err := ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
-				SpiffeId: tt.node.SpiffeId,
-			})
+			attestedNode, err := ds.FetchAttestedNode(context.Background(), tt.node.SpiffeId)
 			require.NoError(t, err)
-			require.Equal(t, agentSVID.SerialNumber.String(), resp.Node.CertSerialNumber)
-			require.Empty(t, resp.Node.NewCertSerialNumber)
+			require.Equal(t, agentSVID.SerialNumber.String(), attestedNode.CertSerialNumber)
+			require.Empty(t, attestedNode.NewCertSerialNumber)
 		})
 	}
 }

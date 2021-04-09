@@ -674,9 +674,9 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, attestedNode)
 
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+	fetchedNode, err := s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, fresp.Node)
+	s.AssertProtoEqual(node, fetchedNode)
 
 	expiration := time.Now().Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
@@ -689,9 +689,9 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: "missing"})
+	fetchedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
 	s.Require().NoError(err)
-	s.Require().Nil(fresp.Node)
+	s.Require().Nil(fetchedNode)
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
@@ -1325,10 +1325,10 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.RequireProtoEqual(tt.expUpdatedNode, uresp.Node)
 
 			// Check a fresh fetch shows the updated attested node
-			fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: tt.updateReq.SpiffeId})
+			fresp, err := s.ds.FetchAttestedNode(ctx, tt.updateReq.SpiffeId)
 			s.Require().NoError(err)
 			s.Require().NotNil(fresp)
-			s.RequireProtoEqual(tt.expUpdatedNode, fresp.Node)
+			s.RequireProtoEqual(tt.expUpdatedNode, fresp)
 		})
 	}
 }
@@ -1342,19 +1342,19 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	}
 
 	// delete it before it exists
-	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	_, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	_, err = s.ds.CreateAttestedNode(ctx, entry)
 	s.Require().NoError(err)
 
-	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(entry, dresp.Node)
+	s.AssertProtoEqual(entry, deletedNode)
 
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	node, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.Nil(fresp.Node)
+	s.Nil(node)
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
@@ -2803,20 +2803,18 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
 
-			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
-				SpiffeId: "spiffe://example.org/host",
-			})
+			resp, err := s.ds.FetchAttestedNode(context.Background(), "spiffe://example.org/host")
 			s.Require().NoError(err)
 
 			// Assert current serial numbers and expiration time remains the same
 			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
 			s.Require().NoError(err)
-			s.Require().Equal(expectedTime.Unix(), resp.Node.CertNotAfter)
-			s.Require().Equal("111", resp.Node.CertSerialNumber)
+			s.Require().Equal(expectedTime.Unix(), resp.CertNotAfter)
+			s.Require().Equal("111", resp.CertSerialNumber)
 
 			// Assert the new fields are empty for pre-existing entries
-			s.Require().Empty(resp.Node.NewCertSerialNumber)
-			s.Require().Empty(resp.Node.NewCertNotAfter)
+			s.Require().Empty(resp.NewCertSerialNumber)
+			s.Require().Empty(resp.NewCertNotAfter)
 		case 13:
 			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		case 14:
@@ -2852,7 +2850,7 @@ func (s *PluginSuite) TestRace() {
 
 		_, err := s.ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
-		_, err = s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+		_, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 		require.NoError(t, err)
 	})
 }

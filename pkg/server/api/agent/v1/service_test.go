@@ -655,28 +655,24 @@ func TestBanAgent(t *testing.T) {
 			if tt.expectCode != codes.OK {
 				require.Nil(t, banResp)
 
-				fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-					SpiffeId: node.SpiffeId,
-				})
+				fetchResp, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId)
 				require.NoError(t, err)
 				require.NotNil(t, fetchResp)
-				require.NotZero(t, fetchResp.Node.CertSerialNumber)
-				require.NotZero(t, fetchResp.Node.NewCertSerialNumber)
+				require.NotZero(t, fetchResp.CertSerialNumber)
+				require.NotZero(t, fetchResp.NewCertSerialNumber)
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, banResp)
 
-			fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String(),
-			})
+			fetchResp, err := test.ds.FetchAttestedNode(ctx, spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String())
 			require.NoError(t, err)
 			require.NotNil(t, fetchResp)
 
 			node.CertSerialNumber = ""
 			node.NewCertSerialNumber = ""
-			spiretest.RequireProtoEqual(t, node, fetchResp.Node)
+			spiretest.RequireProtoEqual(t, node, fetchResp)
 		})
 	}
 }
@@ -833,11 +829,9 @@ func TestDeleteAgent(t *testing.T) {
 				spiretest.RequireGRPCStatus(t, err, tt.code, tt.err)
 
 				// Verify node was not deleted
-				node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-					SpiffeId: node1.SpiffeId,
-				})
+				node, err := test.ds.FetchAttestedNode(ctx, node1.SpiffeId)
 				require.NoError(t, err)
-				require.NotNil(t, node.Node)
+				require.NotNil(t, node)
 
 				return
 			}
@@ -847,11 +841,9 @@ func TestDeleteAgent(t *testing.T) {
 
 			id := spiffeid.Must(tt.req.Id.TrustDomain, tt.req.Id.Path)
 
-			node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: id.String(),
-			})
+			node, err := test.ds.FetchAttestedNode(ctx, id.String())
 			require.NoError(t, err)
-			require.Nil(t, node.Node)
+			require.Nil(t, node)
 		})
 	}
 }
@@ -1225,15 +1217,13 @@ func TestRenewAgent(t *testing.T) {
 			require.Equal(t, []*url.URL{agentID.URL()}, x509Svid.URIs)
 
 			// Validate attested node in datastore
-			updatedNode, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: agentID.String(),
-			})
+			updatedNode, err := test.ds.FetchAttestedNode(ctx, agentID.String())
 			require.NoError(t, err)
 			require.NotNil(t, updatedNode)
 			expectedNode := tt.createNode
 			expectedNode.NewCertNotAfter = x509Svid.NotAfter.Unix()
 			expectedNode.NewCertSerialNumber = x509Svid.SerialNumber.String()
-			spiretest.AssertProtoEqual(t, expectedNode, updatedNode.Node)
+			spiretest.AssertProtoEqual(t, expectedNode, updatedNode)
 
 			// No logs expected
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
@@ -2003,12 +1993,10 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 }
 
 func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector) {
-	attestedAgent, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: expectedID,
-	})
+	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID)
 	require.NoError(t, err)
-	require.NotNil(t, attestedAgent.Node)
-	require.Equal(t, expectedID, attestedAgent.Node.SpiffeId)
+	require.NotNil(t, attestedAgent)
+	require.Equal(t, expectedID, attestedAgent.SpiffeId)
 
 	agentSelectors, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
 		SpiffeId: expectedID,

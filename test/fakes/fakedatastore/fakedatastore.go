@@ -129,11 +129,11 @@ func (s *DataStore) CreateAttestedNode(ctx context.Context, node *common.Atteste
 	return s.ds.CreateAttestedNode(ctx, node)
 }
 
-func (s *DataStore) FetchAttestedNode(ctx context.Context, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
+func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchAttestedNode(ctx, req)
+	return s.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
 func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -150,11 +150,11 @@ func (s *DataStore) UpdateAttestedNode(ctx context.Context, req *datastore.Updat
 	return s.ds.UpdateAttestedNode(ctx, req)
 }
 
-func (s *DataStore) DeleteAttestedNode(ctx context.Context, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
+func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.DeleteAttestedNode(ctx, req)
+	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
 func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {

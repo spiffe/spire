@@ -51,10 +51,10 @@ func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, req *datast
 	return w.ds.CreateRegistrationEntry(ctx, req)
 }
 
-func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, req *datastore.DeleteAttestedNodeRequest) (_ *datastore.DeleteAttestedNodeResponse, err error) {
+func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteAttestedNode(ctx, req)
+	return w.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
 func (w metricsWrapper) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (_ *datastore.DeleteBundleResponse, err error) {
@@ -75,10 +75,10 @@ func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, req *datast
 	return w.ds.DeleteRegistrationEntry(ctx, req)
 }
 
-func (w metricsWrapper) FetchAttestedNode(ctx context.Context, req *datastore.FetchAttestedNodeRequest) (_ *datastore.FetchAttestedNodeResponse, err error) {
+func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartFetchNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchAttestedNode(ctx, req)
+	return w.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
 func (w metricsWrapper) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (_ *datastore.FetchBundleResponse, err error) {
