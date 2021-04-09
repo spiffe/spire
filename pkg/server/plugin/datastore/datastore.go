@@ -34,8 +34,8 @@ type DataStore interface {
 	// Nodes
 	CountAttestedNodes(context.Context) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
-	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
-	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
+	DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error)
+	FetchAttestedNode(context.Context, string) (*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
 
@@ -125,14 +125,6 @@ type CreateRegistrationEntryResponse struct {
 	Entry *common.RegistrationEntry
 }
 
-type DeleteAttestedNodeRequest struct {
-	SpiffeId string //nolint: golint
-}
-
-type DeleteAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
 type DeleteBundleRequest struct {
 	TrustDomainId string //nolint: golint
 	Mode          DeleteBundleRequest_Mode
@@ -148,14 +140,6 @@ type DeleteRegistrationEntryRequest struct {
 
 type DeleteRegistrationEntryResponse struct {
 	Entry *common.RegistrationEntry
-}
-
-type FetchAttestedNodeRequest struct {
-	SpiffeId string //nolint: golint
-}
-
-type FetchAttestedNodeResponse struct {
-	Node *common.AttestedNode
 }
 
 type FetchBundleRequest struct {

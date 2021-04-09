@@ -132,9 +132,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// create attested node with current trust domain
 	// drop resp
-	_, err = ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: attestedNode.SpiffeId,
-	})
+	_, err = ds.DeleteAttestedNode(ctx, attestedNode.SpiffeId)
 	suite.NoError(err)
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "spiffe://inv%ild/host",

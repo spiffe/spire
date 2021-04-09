@@ -263,8 +263,8 @@ func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.Cre
 	return &datastore.CreateRegistrationEntryResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteAttestedNode(context.Context, *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
-	return &datastore.DeleteAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
 func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
@@ -279,8 +279,8 @@ func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.Del
 	return &datastore.DeleteRegistrationEntryResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchAttestedNode(context.Context, *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
-	return &datastore.FetchAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchBundle(context.Context, *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
