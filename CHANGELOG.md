@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.12.1] - 2021-03-04
+
+### Security
+- Fixed CVE-2021-27098
+- Fixed CVE-2021-27099
+- Fixed file descriptor leak in peertracker
+
+## [0.11.3] - 2021-03-04
+
+### Security
+- Fixed CVE-2021-27098
+- Fixed CVE-2021-27099
+- Fixed file descriptor leak in peertracker
+
+## [0.10.2] - 2021-03-04
+
+### Security
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
+
+## [0.9.4] - 2021-03-04
+
+### Security
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
+
+## [0.8.5] - 2021-03-04
+
+### Security
+- Fixed CVE-2021-27098
+- Fixed file descriptor leak in peertracker
+
 ## [0.12.0] - 2020-12-17
 
 ### Added
