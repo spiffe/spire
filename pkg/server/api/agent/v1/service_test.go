@@ -655,24 +655,24 @@ func TestBanAgent(t *testing.T) {
 			if tt.expectCode != codes.OK {
 				require.Nil(t, banResp)
 
-				fetchResp, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId)
+				attestedNode, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId)
 				require.NoError(t, err)
-				require.NotNil(t, fetchResp)
-				require.NotZero(t, fetchResp.CertSerialNumber)
-				require.NotZero(t, fetchResp.NewCertSerialNumber)
+				require.NotNil(t, attestedNode)
+				require.NotZero(t, attestedNode.CertSerialNumber)
+				require.NotZero(t, attestedNode.NewCertSerialNumber)
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, banResp)
 
-			fetchResp, err := test.ds.FetchAttestedNode(ctx, spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String())
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String())
 			require.NoError(t, err)
-			require.NotNil(t, fetchResp)
+			require.NotNil(t, attestedNode)
 
 			node.CertSerialNumber = ""
 			node.NewCertSerialNumber = ""
-			spiretest.RequireProtoEqual(t, node, fetchResp)
+			spiretest.RequireProtoEqual(t, node, attestedNode)
 		})
 	}
 }
@@ -829,9 +829,9 @@ func TestDeleteAgent(t *testing.T) {
 				spiretest.RequireGRPCStatus(t, err, tt.code, tt.err)
 
 				// Verify node was not deleted
-				node, err := test.ds.FetchAttestedNode(ctx, node1.SpiffeId)
+				attestedNode, err := test.ds.FetchAttestedNode(ctx, node1.SpiffeId)
 				require.NoError(t, err)
-				require.NotNil(t, node)
+				require.NotNil(t, attestedNode)
 
 				return
 			}
@@ -841,9 +841,9 @@ func TestDeleteAgent(t *testing.T) {
 
 			id := spiffeid.Must(tt.req.Id.TrustDomain, tt.req.Id.Path)
 
-			node, err := test.ds.FetchAttestedNode(ctx, id.String())
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, id.String())
 			require.NoError(t, err)
-			require.Nil(t, node)
+			require.Nil(t, attestedNode)
 		})
 	}
 }

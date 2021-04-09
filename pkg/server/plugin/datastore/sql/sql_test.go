@@ -674,9 +674,9 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, attestedNode)
 
-	fetchedNode, err := s.ds.FetchAttestedNode(ctx, node.SpiffeId)
+	attestedNode, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, fetchedNode)
+	s.AssertProtoEqual(node, attestedNode)
 
 	expiration := time.Now().Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
@@ -689,9 +689,9 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
-	fetchedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
 	s.Require().NoError(err)
-	s.Require().Nil(fetchedNode)
+	s.Require().Nil(attestedNode)
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
