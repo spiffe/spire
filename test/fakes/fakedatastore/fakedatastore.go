@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
@@ -236,9 +237,9 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore
 	return s.ds.PruneRegistrationEntries(ctx, req)
 }
 
-func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (*datastore.JoinToken, error) {
+func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.CreateJoinToken(ctx, token)
 }
@@ -250,14 +251,14 @@ func (s *DataStore) FetchJoinToken(ctx context.Context, token string) (*datastor
 	return s.ds.FetchJoinToken(ctx, token)
 }
 
-func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
+func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.DeleteJoinToken(ctx, token)
 }
 
-func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore int64) error {
+func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}

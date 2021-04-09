@@ -433,7 +433,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 
 	expiry := time.Now().Unix() + int64(req.Ttl)
 
-	result, err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  req.Token,
 		Expiry: expiry,
 	})
@@ -448,7 +448,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		}
 	}
 
-	return &types.JoinToken{Value: result.Token, ExpiresAt: expiry}, nil
+	return &types.JoinToken{Value: req.Token, ExpiresAt: expiry}, nil
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
@@ -513,19 +513,19 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, "join_token")
 
-	resp, err := s.ds.FetchJoinToken(ctx, token)
+	joinToken, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
-	case resp == nil:
+	case joinToken == nil:
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
-	_, err = s.ds.DeleteJoinToken(ctx, token)
+	err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(resp.Expiry, 0).Before(s.clk.Now()):
+	case time.Unix(joinToken.Expiry, 0).Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 

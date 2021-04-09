@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -38,7 +39,7 @@ func (w metricsWrapper) CreateBundle(ctx context.Context, req *datastore.CreateB
 	return w.ds.CreateBundle(ctx, req)
 }
 
-func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (_ *datastore.JoinToken, err error) {
+func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
 	callCounter := StartCreateJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.CreateJoinToken(ctx, token)
@@ -62,7 +63,7 @@ func (w metricsWrapper) DeleteBundle(ctx context.Context, req *datastore.DeleteB
 	return w.ds.DeleteBundle(ctx, req)
 }
 
-func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (_ *datastore.JoinToken, err error) {
+func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
 	callCounter := StartDeleteJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.DeleteJoinToken(ctx, token)
@@ -152,7 +153,7 @@ func (w metricsWrapper) PruneBundle(ctx context.Context, req *datastore.PruneBun
 	return w.ds.PruneBundle(ctx, req)
 }
 
-func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore int64) (err error) {
+func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) (err error) {
 	callCounter := StartPruneJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.PruneJoinTokens(ctx, expiresBefore)

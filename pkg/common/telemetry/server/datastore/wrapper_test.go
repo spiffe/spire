@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -171,9 +172,13 @@ func TestWithMetrics(t *testing.T) {
 			}
 			out := methodValue.Call(args)
 			require.Len(t, out, numOut)
-			// Does it make sense to test the return types? The compiler will catch any errors.
-			for i := 1; i < numOut; i++ {
-				require.Equal(t, methodValue.Type().Out(i), out[i].Type(), "response type mismatch")
+			for i := 0; i < numOut-1; i++ {
+				switch v := reflect.ValueOf(methodValue.Type().Out(i)); v.Kind() {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					require.True(t, out[i].IsZero())
+				default:
+					require.NotNil(t, methodValue.Type().Out(i))
+				}
 			}
 			return out[numOut-1].Interface()
 		}
@@ -249,8 +254,8 @@ func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRe
 	return &datastore.CreateBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) (*datastore.JoinToken, error) {
-	return &datastore.JoinToken{}, ds.err
+func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
@@ -265,8 +270,8 @@ func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRe
 	return &datastore.DeleteBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) (*datastore.JoinToken, error) {
-	return &datastore.JoinToken{}, ds.err
+func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
@@ -313,7 +318,7 @@ func (ds *fakeDataStore) PruneBundle(context.Context, *datastore.PruneBundleRequ
 	return &datastore.PruneBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneJoinTokens(context.Context, int64) error {
+func (ds *fakeDataStore) PruneJoinTokens(context.Context, time.Time) error {
 	return ds.err
 }
 

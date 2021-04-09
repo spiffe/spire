@@ -530,7 +530,7 @@ func (h *Handler) CreateJoinToken(ctx context.Context, request *registration.Joi
 	ds := h.getDataStore()
 	expiry := time.Now().Unix() + int64(request.Ttl)
 
-	_, err = ds.CreateJoinToken(ctx, &datastore.JoinToken{
+	err = ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  request.Token,
 		Expiry: expiry,
 	})
