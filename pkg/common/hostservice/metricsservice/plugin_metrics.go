@@ -5,14 +5,14 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/common/plugin/hostservices"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 )
 
 type pluginMetrics struct {
-	m           hostservices.MetricsService
+	m           metricsv0.MetricsService
 	log         hclog.Logger
-	fixedLabels []*hostservices.Label
+	fixedLabels []*metricsv0.Label
 }
 
 // WrapPluginMetrics returns a Metrics implementation that wraps the Metrics Host Service
@@ -20,7 +20,7 @@ type pluginMetrics struct {
 // resulting metrics calls.
 // This enables usage of common functionality related to the Metrics interface from a plugin.
 // Any errors are logged, but not returned.
-func WrapPluginMetrics(m hostservices.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
+func WrapPluginMetrics(m metricsv0.MetricsService, log hclog.Logger, labels ...telemetry.Label) telemetry.Metrics {
 	return pluginMetrics{
 		m:           m,
 		log:         log,
@@ -34,7 +34,7 @@ func (p pluginMetrics) SetGauge(key []string, val float32) {
 }
 
 func (p pluginMetrics) SetGaugeWithLabels(key []string, val float32, labels []telemetry.Label) {
-	_, err := p.m.SetGauge(context.Background(), &hostservices.SetGaugeRequest{
+	_, err := p.m.SetGauge(context.Background(), &metricsv0.SetGaugeRequest{
 		Key:    key,
 		Val:    val,
 		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
@@ -47,7 +47,7 @@ func (p pluginMetrics) SetGaugeWithLabels(key []string, val float32, labels []te
 
 // Should emit a Key/Value pair for each call
 func (p pluginMetrics) EmitKey(key []string, val float32) {
-	_, err := p.m.EmitKey(context.Background(), &hostservices.EmitKeyRequest{
+	_, err := p.m.EmitKey(context.Background(), &metricsv0.EmitKeyRequest{
 		Key: key,
 		Val: val,
 	})
@@ -63,7 +63,7 @@ func (p pluginMetrics) IncrCounter(key []string, val float32) {
 }
 
 func (p pluginMetrics) IncrCounterWithLabels(key []string, val float32, labels []telemetry.Label) {
-	_, err := p.m.IncrCounter(context.Background(), &hostservices.IncrCounterRequest{
+	_, err := p.m.IncrCounter(context.Background(), &metricsv0.IncrCounterRequest{
 		Key:    key,
 		Val:    val,
 		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
@@ -80,7 +80,7 @@ func (p pluginMetrics) AddSample(key []string, val float32) {
 }
 
 func (p pluginMetrics) AddSampleWithLabels(key []string, val float32, labels []telemetry.Label) {
-	_, err := p.m.AddSample(context.Background(), &hostservices.AddSampleRequest{
+	_, err := p.m.AddSample(context.Background(), &metricsv0.AddSampleRequest{
 		Key:    key,
 		Val:    val,
 		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),
@@ -97,7 +97,7 @@ func (p pluginMetrics) MeasureSince(key []string, start time.Time) {
 }
 
 func (p pluginMetrics) MeasureSinceWithLabels(key []string, start time.Time, labels []telemetry.Label) {
-	_, err := p.m.MeasureSince(context.Background(), &hostservices.MeasureSinceRequest{
+	_, err := p.m.MeasureSince(context.Background(), &metricsv0.MeasureSinceRequest{
 		Key:    key,
 		Time:   start.UnixNano(),
 		Labels: append(convertToRPCLabels(labels), p.fixedLabels...),

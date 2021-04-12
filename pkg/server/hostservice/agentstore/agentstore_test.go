@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -74,7 +74,7 @@ func TestAgentStore(t *testing.T) {
 				}
 			}
 
-			resp, err := s.GetAgentInfo(context.Background(), &hostservices.GetAgentInfoRequest{
+			resp, err := s.GetAgentInfo(context.Background(), &agentstorev0.GetAgentInfoRequest{
 				AgentId: testCase.agentID,
 			})
 			if testCase.getErr != "" {

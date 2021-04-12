@@ -2,34 +2,33 @@ package keymanager
 
 import (
 	"context"
+	"crypto"
 	"strings"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type mockKeyManager struct{}
+type fakeKeyManager struct{}
 
-func (mockKeyManager) GenerateKeyPair(ctx context.Context, req *keymanagerv0.GenerateKeyPairRequest) (*keymanagerv0.GenerateKeyPairResponse, error) {
+func (fakeKeyManager) GenerateKey(ctx context.Context) (crypto.Signer, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) FetchPrivateKey(ctx context.Context, req *keymanagerv0.FetchPrivateKeyRequest) (*keymanagerv0.FetchPrivateKeyResponse, error) {
+func (fakeKeyManager) GetKey(ctx context.Context) (crypto.Signer, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) StorePrivateKey(ctx context.Context, req *keymanagerv0.StorePrivateKeyRequest) (*keymanagerv0.StorePrivateKeyResponse, error) {
-	return nil, nil
+func (fakeKeyManager) SetKey(ctx context.Context, key crypto.Signer) error {
+	return nil
 }
 
 func TestWithMetrics(t *testing.T) {
-	var km mockKeyManager
 	m := fakemetrics.New()
-	w := WithMetrics(km, m)
+	w := WithMetrics(fakeKeyManager{}, m)
 	for _, tt := range []struct {
 		key  string
 		call func() error
@@ -37,22 +36,21 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key: "agent_key_manager.generate_key_pair",
 			call: func() error {
-				_, err := w.GenerateKeyPair(context.Background(), nil)
+				_, err := w.GenerateKey(context.Background())
 				return err
 			},
 		},
 		{
 			key: "agent_key_manager.fetch_private_key",
 			call: func() error {
-				_, err := w.FetchPrivateKey(context.Background(), nil)
+				_, err := w.GetKey(context.Background())
 				return err
 			},
 		},
 		{
 			key: "agent_key_manager.store_private_key",
 			call: func() error {
-				_, err := w.StorePrivateKey(context.Background(), nil)
-				return err
+				return w.SetKey(context.Background(), nil)
 			},
 		},
 	} {

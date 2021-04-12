@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/spiretest"
@@ -69,7 +69,7 @@ func (s *Suite) SetupTest() {
 
 	s.raw = New()
 	s.LoadPlugin(builtIn(s.raw), &s.p,
-		spiretest.HostService(hostservices.IdentityProviderHostServiceServer(s.r)))
+		spiretest.HostService(identityproviderv0.HostServiceServer(s.r)))
 
 	s.withKubeClient(s.k, "")
 }
@@ -480,7 +480,7 @@ func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting config map")
