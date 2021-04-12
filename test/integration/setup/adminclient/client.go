@@ -55,6 +55,14 @@ var (
 )
 
 func main() {
+	if msg := run(); msg != "" {
+		log.Fatal(msg)
+	}
+	log.Println("Admin client finished successfully")
+}
+
+// run execute all test cases return true if all test cases finished successfully
+func run() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -102,15 +110,13 @@ func main() {
 	testRPC("GetAgent", getAgent)
 	testRPC("BanAgent", banAgent)
 	testRPC("DeleteAgent", deleteAgent)
-	if len(failures) == 0 {
-		log.Println("Admin client finished successfully")
-		return
+
+	msg := ""
+	for _, failure := range failures {
+		msg += fmt.Sprintf("RPC %q: %v\n", failure.name, failure.err)
 	}
 
-	for _, failure := range failures {
-		log.Printf("RPC %q: %v\n", failure.name, failure.err)
-	}
-	log.Fatalln("Admin tests failed")
+	return msg
 }
 
 func mintX509SVID(ctx context.Context, c *itclient.Client) error {

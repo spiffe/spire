@@ -185,7 +185,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 }
 
 func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
-	tlsConfig := &tls.Config{
+	tlsConfig := &tls.Config{ //nolint: gosec // False positive, getTLSConfig is setting MinVersion
 		GetConfigForClient: e.getTLSConfig(ctx),
 	}
 

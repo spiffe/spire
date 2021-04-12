@@ -37,7 +37,7 @@ func (listCommand) Synopsis() string {
 	return "Lists attested agents and their SPIFFE IDs"
 }
 
-//Run lists attested agents
+// Run lists attested agents
 func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	agentClient := serverClient.NewAgentClient()
 	listResponse, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{})

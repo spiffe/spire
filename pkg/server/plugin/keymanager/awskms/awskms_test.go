@@ -983,10 +983,10 @@ func TestGetPluginInfo(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			//setup
+			// setup
 			ts := setupTest(t)
 
-			//exercise
+			// exercise
 			resp, err := ts.plugin.GetPluginInfo(ctx, &plugin.GetPluginInfoRequest{})
 
 			require.NotNil(t, resp)
@@ -1404,7 +1404,7 @@ func TestDisposeAliases(t *testing.T) {
 			_ = waitForSignal(t, disposeAliasesSignal)
 			// wait for dispose aliases to be run
 			err = waitForSignal(t, disposeAliasesSignal)
-			//assert errors
+			// assert errors
 			if tt.err != "" {
 				require.NotNil(t, err)
 				require.Equal(t, tt.err, err.Error())
@@ -1412,7 +1412,7 @@ func TestDisposeAliases(t *testing.T) {
 			}
 			// wait for schedule delete to be run
 			_ = waitForSignal(t, deleteSignal)
-			//assert end result
+			// assert end result
 			require.NoError(t, err)
 			storedAliases := ts.fakeClient.store.aliases
 			require.Len(t, storedAliases, 7)
@@ -1742,7 +1742,7 @@ func TestDisposeKeys(t *testing.T) {
 			ts.clockHook.Add(48 * time.Hour)
 			// wait for dispose keys to be run
 			err = waitForSignal(t, disposeKeysSignal)
-			//assert errors
+			// assert errors
 			if tt.err != "" {
 				require.NotNil(t, err)
 				require.Equal(t, tt.err, err.Error())

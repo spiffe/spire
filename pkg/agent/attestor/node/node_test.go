@@ -68,6 +68,7 @@ func TestAttestor(t *testing.T) {
 				PrivateKey:  testKey,
 			},
 		},
+		MinVersion: tls.VersionTLS12,
 	}
 
 	testCases := []struct {
