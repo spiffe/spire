@@ -436,7 +436,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 
 	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  req.Token,
-		Expiry: expiry,
+		Expiry: time.Unix(expiry, 0),
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
@@ -526,7 +526,7 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(joinToken.Expiry, 0).Before(s.clk.Now()):
+	case joinToken.Expiry.Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
