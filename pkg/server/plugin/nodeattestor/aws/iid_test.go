@@ -20,10 +20,10 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 	"github.com/spiffe/spire/test/spiretest"
@@ -88,7 +88,7 @@ func (s *IIDAttestorSuite) SetupTest() {
 	}
 	s.plugin = p
 	s.LoadPlugin(builtin(s.plugin), &s.p,
-		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
 	)
 }
 
@@ -181,7 +181,7 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 	}
 
 	agentID := "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance"
-	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
 		AgentId: agentID,
 	})
 

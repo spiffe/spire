@@ -20,10 +20,10 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/spiretest"
@@ -130,7 +130,7 @@ func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 
 func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	agentID := "spiffe://example.org/spire/agent/k8s_sat/FOO/UUID"
-	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
 		AgentId: agentID,
 	})
 
@@ -459,7 +459,7 @@ func (s *AttestorSuite) newAttestor() nodeattestorv0.Plugin {
 	}
 	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
 	)
 	return plugin
 }
@@ -493,7 +493,7 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
 
 	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
 	)
 	return plugin
 }

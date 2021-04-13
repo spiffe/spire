@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	agent_catalog "github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 	"github.com/zeebo/errs"
 )
 

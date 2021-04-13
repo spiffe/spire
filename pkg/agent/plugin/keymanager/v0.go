@@ -7,8 +7,7 @@ import (
 	"crypto/x509"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/proto/spire/agent/keymanager"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 	"google.golang.org/grpc/codes"
 )
 
@@ -65,7 +64,7 @@ func (v0 V0) SetKey(ctx context.Context, key crypto.Signer) error {
 		return v0.Errorf(codes.Internal, "failed unexpectedly to marshal private key: %v", err)
 	}
 
-	if _, err := v0.Plugin.StorePrivateKey(context.Background(), &keymanager.StorePrivateKeyRequest{
+	if _, err := v0.Plugin.StorePrivateKey(context.Background(), &keymanagerv0.StorePrivateKeyRequest{
 		PrivateKey: keyBytes,
 	}); err != nil {
 		return v0.WrapErr(err)

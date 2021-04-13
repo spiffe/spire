@@ -39,7 +39,7 @@ func (showCommand) Synopsis() string {
 	return "Shows the details of an attested agent given its SPIFFE ID"
 }
 
-//Run shows an agent given its SPIFFE ID
+// Run shows an agent given its SPIFFE ID
 func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")

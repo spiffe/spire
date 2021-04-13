@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 )
 
 type V0 struct {

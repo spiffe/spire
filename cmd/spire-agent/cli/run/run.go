@@ -492,9 +492,9 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
-	//if len(c.Telemetry.UnusedKeys) != 0 {
+	// if len(c.Telemetry.UnusedKeys) != 0 {
 	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
-	//}
+	// }
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		detectedUnknown("Prometheus", p.UnusedKeys)

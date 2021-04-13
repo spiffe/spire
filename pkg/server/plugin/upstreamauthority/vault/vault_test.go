@@ -16,7 +16,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/server/upstreamauthority/v0"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -454,7 +454,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
 
 	vps.LoadPlugin(builtin(p), &vps.plugin)
 	req := vps.loadMintX509CARequestFromTestFile()
-	req.Csr = []byte("invalid-csr") //overwrite the CSR value
+	req.Csr = []byte("invalid-csr") // overwrite the CSR value
 
 	_, err = vps.mintX509CA(req)
 	vps.Require().Error(err)

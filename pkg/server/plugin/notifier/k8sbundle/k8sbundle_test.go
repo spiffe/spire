@@ -13,10 +13,10 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	notifierv0 "github.com/spiffe/spire/proto/spire/server/notifier/v0"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -69,9 +69,9 @@ func (s *Suite) SetupTest() {
 
 	s.raw = New()
 	s.LoadPlugin(builtIn(s.raw), &s.p,
-		spiretest.HostService(hostservices.IdentityProviderHostServiceServer(s.r)))
+		spiretest.HostService(identityproviderv0.HostServiceServer(s.r)))
 
-	s.withKubeClient(s.k, "")
+	s.withKubeClient([]kubeClient{s.k}, "")
 }
 
 func (s *Suite) TestNotifyFailsIfNotConfigured() {
@@ -216,7 +216,7 @@ func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 }
 
 func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
-	s.withKubeClient(s.k, "/some/file/path")
+	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
 
 	s.k.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -370,7 +370,7 @@ func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 }
 
 func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
-	s.withKubeClient(s.k, "/some/file/path")
+	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
 
 	s.k.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -432,13 +432,13 @@ func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
 	}
 }
 
-func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
+func (s *Suite) withKubeClient(client []kubeClient, expectedConfigPath string) {
 	s.raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
 		s.Equal(expectedConfigPath, c.KubeConfigFilePath)
 		if client == nil {
 			return nil, errors.New("kube client not configured")
 		}
-		return []kubeClient{client}, nil
+		return client, nil
 	}
 }
 
@@ -480,7 +480,7 @@ func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting config map")

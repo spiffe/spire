@@ -2,44 +2,72 @@ package keymanager
 
 import (
 	"context"
+	"crypto"
+	"io"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/server/keymanager/v0"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
-type serverKeyManagerWrapper struct {
-	m telemetry.Metrics
-	k keymanagerv0.KeyManager
-}
-
-func WithMetrics(km keymanagerv0.KeyManager, metrics telemetry.Metrics) keymanagerv0.KeyManager {
-	return serverKeyManagerWrapper{
-		m: metrics,
-		k: km,
+func WithMetrics(km keymanager.KeyManager, metrics telemetry.Metrics) keymanager.KeyManager {
+	return keyManagerWrapper{
+		KeyManager: km,
+		m:          metrics,
 	}
 }
 
-func (w serverKeyManagerWrapper) GenerateKey(ctx context.Context, req *keymanagerv0.GenerateKeyRequest) (_ *keymanagerv0.GenerateKeyResponse, err error) {
-	callCounter := StartGenerateKeyCall(w.m)
-	defer callCounter.Done(&err)
-
-	return w.k.GenerateKey(ctx, req)
+type keyManagerWrapper struct {
+	keymanager.KeyManager
+	m telemetry.Metrics
 }
 
-func (w serverKeyManagerWrapper) GetPublicKey(ctx context.Context, req *keymanagerv0.GetPublicKeyRequest) (_ *keymanagerv0.GetPublicKeyResponse, err error) {
-	callCounter := StartGetPublicKeyCall(w.m)
-	defer callCounter.Done(&err)
-	return w.k.GetPublicKey(ctx, req)
+func (w keyManagerWrapper) GenerateKey(ctx context.Context, id string, keyType keymanager.KeyType) (_ keymanager.Key, err error) {
+	defer StartGenerateKeyCall(w.m).Done(&err)
+	return w.KeyManager.GenerateKey(ctx, id, keyType)
 }
 
-func (w serverKeyManagerWrapper) GetPublicKeys(ctx context.Context, req *keymanagerv0.GetPublicKeysRequest) (_ *keymanagerv0.GetPublicKeysResponse, err error) {
-	callCounter := StartGetPublicKeysCall(w.m)
-	defer callCounter.Done(&err)
-	return w.k.GetPublicKeys(ctx, req)
+func (w keyManagerWrapper) GetKey(ctx context.Context, id string) (_ keymanager.Key, err error) {
+	defer StartGetPublicKeyCall(w.m).Done(&err)
+	key, err := w.KeyManager.GetKey(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return wrapKey(w.m, key), nil
 }
 
-func (w serverKeyManagerWrapper) SignData(ctx context.Context, req *keymanagerv0.SignDataRequest) (_ *keymanagerv0.SignDataResponse, err error) {
-	callCounter := StartSignDataCall(w.m)
-	defer callCounter.Done(&err)
-	return w.k.SignData(ctx, req)
+func (w keyManagerWrapper) GetKeys(ctx context.Context) (_ []keymanager.Key, err error) {
+	defer StartGetPublicKeysCall(w.m).Done(&err)
+	keys, err := w.KeyManager.GetKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return wrapKeys(w.m, keys), nil
+}
+
+type keyWrapper struct {
+	keymanager.Key
+	m telemetry.Metrics
+}
+
+func (w keyWrapper) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (_ []byte, err error) {
+	defer StartSignDataCall(w.m).Done(&err)
+	return w.Key.Sign(rand, digest, opts)
+}
+
+func wrapKeys(m telemetry.Metrics, keys []keymanager.Key) []keymanager.Key {
+	if keys == nil {
+		return nil
+	}
+	wrapped := make([]keymanager.Key, 0, len(keys))
+	for _, key := range keys {
+		wrapped = append(wrapped, wrapKey(m, key))
+	}
+	return wrapped
+}
+
+func wrapKey(m telemetry.Metrics, key keymanager.Key) keymanager.Key {
+	return keyWrapper{
+		Key: key,
+		m:   m,
+	}
 }

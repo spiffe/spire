@@ -39,7 +39,7 @@ func (evictCommand) Synopsis() string {
 	return "Evicts an attested agent given its SPIFFE ID"
 }
 
-//Run evicts an agent given its SPIFFE ID
+// Run evicts an agent given its SPIFFE ID
 func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")

@@ -8,9 +8,9 @@ import (
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -83,7 +83,7 @@ func TestV0(t *testing.T) {
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData},
 			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
 			expectCode:    codes.Internal,
-			expectMessage: "nodeattestor(test): plugin closed stream after being issued a challenge",
+			expectMessage: "nodeattestor(test): plugin closed stream before handling the challenge",
 		},
 		{
 			test:          "plugin fails responding to challenge",

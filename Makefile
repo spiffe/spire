@@ -104,7 +104,7 @@ go_bin_dir := $(go_dir)/bin
 go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.27.0
+golangci_lint_version = v1.39.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 
@@ -122,7 +122,7 @@ protoc_gen_go_base_dir := $(build_dir)/protoc-gen-go
 protoc_gen_go_dir := $(protoc_gen_go_base_dir)/$(protoc_gen_go_version)-go$(go_version)
 protoc_gen_go_bin := $(protoc_gen_go_dir)/protoc-gen-go
 
-protoc_gen_go_grpc_version := v1.0.1
+protoc_gen_go_grpc_version := v1.1.0
 protoc_gen_go_grpc_base_dir := $(build_dir)/protoc-gen-go-grpc
 protoc_gen_go_grpc_dir := $(protoc_gen_go_grpc_base_dir)/$(protoc_gen_go_grpc_version)-go$(go_version)
 protoc_gen_go_grpc_bin := $(protoc_gen_go_grpc_dir)/protoc-gen-go-grpc
@@ -144,20 +144,20 @@ protos := \
 
 serviceprotos := \
 	proto/private/test/catalogtest/test.proto \
-	proto/spire/agent/keymanager/keymanager.proto \
-	proto/spire/agent/nodeattestor/nodeattestor.proto \
-	proto/spire/agent/svidstore/svidstore.proto \
-	proto/spire/agent/workloadattestor/workloadattestor.proto \
 	proto/spire/api/registration/registration.proto \
-	proto/spire/common/hostservices/metricsservice.proto \
 	proto/spire/common/plugin/plugin.proto \
-	proto/spire/server/hostservices/agentstore.proto \
-	proto/spire/server/hostservices/identityprovider.proto \
-	proto/spire/server/keymanager/keymanager.proto \
-	proto/spire/server/nodeattestor/nodeattestor.proto \
-	proto/spire/server/noderesolver/noderesolver.proto \
-	proto/spire/server/notifier/notifier.proto \
-	proto/spire/server/upstreamauthority/upstreamauthority.proto \
+	proto/spire/hostservice/server/agentstore/v0/agentstore.proto \
+	proto/spire/hostservice/server/identityprovider/v0/identityprovider.proto \
+	proto/spire/hostservice/common/metrics/v0/metrics.proto \
+	proto/spire/plugin/agent/keymanager/v0/keymanager.proto \
+	proto/spire/plugin/agent/nodeattestor/v0/nodeattestor.proto \
+	proto/spire/plugin/agent/svidstore/v0/svidstore.proto \
+	proto/spire/plugin/agent/workloadattestor/v0/workloadattestor.proto \
+	proto/spire/plugin/server/keymanager/v0/keymanager.proto \
+	proto/spire/plugin/server/nodeattestor/v0/nodeattestor.proto \
+	proto/spire/plugin/server/noderesolver/v0/noderesolver.proto \
+	proto/spire/plugin/server/notifier/v0/notifier.proto \
+	proto/spire/plugin/server/upstreamauthority/v0/upstreamauthority.proto \
 
 
 # The following three variables define the plugin, service, and hostservice
@@ -168,25 +168,25 @@ serviceprotos := \
 # "shared" means that the interface shares a package with other interfaces, which
 # impacts the code generation (adds stutter to disambiguate names)
 plugingen_plugins = \
-	proto/spire/server/notifier/notifier.proto,proto/spire/server/notifier/v0,Notifier \
-	proto/spire/server/nodeattestor/nodeattestor.proto,proto/spire/server/nodeattestor/v0,NodeAttestor \
-	proto/spire/server/upstreamauthority/upstreamauthority.proto,proto/spire/server/upstreamauthority/v0,UpstreamAuthority \
-	proto/spire/server/noderesolver/noderesolver.proto,proto/spire/server/noderesolver/v0,NodeResolver \
-	proto/spire/server/keymanager/keymanager.proto,proto/spire/server/keymanager/v0,KeyManager \
-	proto/spire/agent/nodeattestor/nodeattestor.proto,proto/spire/agent/nodeattestor/v0,NodeAttestor \
-	proto/spire/agent/workloadattestor/workloadattestor.proto,proto/spire/agent/workloadattestor/v0,WorkloadAttestor \
-	proto/spire/agent/keymanager/keymanager.proto,proto/spire/agent/keymanager/v0,KeyManager \
-	proto/spire/agent/svidstore/svidstore.proto,pkg/agent/plugin/svidstore,SVIDStore \
 	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Plugin,shared \
+	proto/spire/plugin/agent/keymanager/v0/keymanager.proto,proto/spire/plugin/agent/keymanager/v0,KeyManager \
+	proto/spire/plugin/agent/nodeattestor/v0/nodeattestor.proto,proto/spire/plugin/agent/nodeattestor/v0,NodeAttestor \
+	proto/spire/plugin/agent/svidstore/v0/svidstore.proto,pkg/agent/plugin/svidstore,SVIDStore \
+	proto/spire/plugin/agent/workloadattestor/v0/workloadattestor.proto,proto/spire/plugin/agent/workloadattestor/v0,WorkloadAttestor \
+	proto/spire/plugin/server/keymanager/v0/keymanager.proto,proto/spire/plugin/server/keymanager/v0,KeyManager \
+	proto/spire/plugin/server/nodeattestor/v0/nodeattestor.proto,proto/spire/plugin/server/nodeattestor/v0,NodeAttestor \
+	proto/spire/plugin/server/noderesolver/v0/noderesolver.proto,proto/spire/plugin/server/noderesolver/v0,NodeResolver \
+	proto/spire/plugin/server/notifier/v0/notifier.proto,proto/spire/plugin/server/notifier/v0,Notifier \
+	proto/spire/plugin/server/upstreamauthority/v0/upstreamauthority.proto,proto/spire/plugin/server/upstreamauthority/v0,UpstreamAuthority \
 
 plugingen_services = \
 	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Service,shared \
 
 plugingen_hostservices = \
-	proto/spire/server/hostservices/identityprovider.proto,pkg/server/plugin/hostservices,IdentityProvider,shared \
-	proto/spire/server/hostservices/agentstore.proto,pkg/server/plugin/hostservices,AgentStore,shared \
-	proto/spire/common/hostservices/metricsservice.proto,pkg/common/plugin/hostservices,MetricsService,shared \
 	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,HostService,shared \
+	proto/spire/hostservice/common/metrics/v0/metrics.proto,proto/spire/hostservice/common/metrics/v0,MetricsService \
+	proto/spire/hostservice/server/agentstore/v0/agentstore.proto,proto/spire/hostservice/server/agentstore/v0,AgentStore \
+	proto/spire/hostservice/server/identityprovider/v0/identityprovider.proto,proto/spire/hostservice/server/identityprovider/v0,IdentityProvider \
 
 # The following are the mock interfaces generated by mockgen. The syntax of each
 # entry is as follows:

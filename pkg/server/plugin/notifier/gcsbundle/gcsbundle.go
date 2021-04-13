@@ -12,10 +12,10 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	notifierv0 "github.com/spiffe/spire/proto/spire/server/notifier/v0"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/zeebo/errs"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -51,7 +51,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider hostservices.IdentityProvider
+	identityProvider identityproviderv0.IdentityProvider
 
 	hooks struct {
 		newBucketClient func(ctx context.Context, configPath string) (bucketClient, error)
@@ -69,7 +69,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(hostservices.IdentityProviderHostServiceClient(&p.identityProvider))
+	has, err := broker.GetHostService(identityproviderv0.HostServiceClient(&p.identityProvider))
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 		// be loaded after fetching the generation so we can properly detect
 		// and correct a race updating the bundle (i.e. read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &hostservices.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
 		if err != nil {
 			st := status.Convert(err)
 			return status.Errorf(st.Code(), "unable to fetch bundle from SPIRE server: %v", st.Message())

@@ -51,7 +51,8 @@ func TestServer(t *testing.T) {
 	client := http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				RootCAs: rootCAs,
+				RootCAs:    rootCAs,
+				MinVersion: tls.VersionTLS12,
 			},
 		},
 	}
@@ -166,6 +167,7 @@ func TestACMEAuth(t *testing.T) {
 			TLSClientConfig: &tls.Config{
 				RootCAs:    ca.Roots,
 				ServerName: "domain.test",
+				MinVersion: tls.VersionTLS12,
 			},
 		},
 	}

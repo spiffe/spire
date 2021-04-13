@@ -23,9 +23,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/agent/keymanager/v0"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/agent/nodeattestor/v0"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/agent/workloadattestor/v0"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 )
 
 type Catalog interface {
@@ -126,7 +126,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p.KeyManager.Plugin = keymanager_telemetry.WithMetrics(p.KeyManager.Plugin, config.Metrics)
+	keyManager := keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
 
 	var workloadAttestors []workloadattestor.WorkloadAttestor
 	for _, workloadAttestorV0 := range p.WorkloadAttestors {
@@ -135,7 +135,7 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 
 	return &Repository{
 		Catalog: &Plugins{
-			KeyManager:        p.KeyManager,
+			KeyManager:        keyManager,
 			NodeAttestor:      p.NodeAttestor,
 			WorkloadAttestors: workloadAttestors,
 		},

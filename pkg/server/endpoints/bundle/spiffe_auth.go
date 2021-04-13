@@ -19,6 +19,7 @@ type spiffeAuth struct {
 func (s *spiffeAuth) GetTLSConfig() *tls.Config {
 	return &tls.Config{
 		GetCertificate: s.getCertificate,
+		MinVersion:     tls.VersionTLS12,
 	}
 }
 

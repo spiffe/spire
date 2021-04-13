@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	notifierv0 "github.com/spiffe/spire/proto/spire/server/notifier/v0"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -85,7 +85,7 @@ func TestConfigure(t *testing.T) {
 			raw := New()
 			var plugin notifierv0.Plugin
 			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
-				spiretest.HostService(hostservices.IdentityProviderHostServiceServer(idp)))
+				spiretest.HostService(identityproviderv0.HostServiceServer(idp)))
 
 			resp, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{Configuration: tt.config})
 			if tt.code != codes.OK {
@@ -238,7 +238,7 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 			// Load the instance as a plugin
 			var plugin notifierv0.Plugin
 			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
-				spiretest.HostService(hostservices.IdentityProviderHostServiceServer(idp)))
+				spiretest.HostService(identityproviderv0.HostServiceServer(idp)))
 
 			if !tt.skipConfigure {
 				_, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{

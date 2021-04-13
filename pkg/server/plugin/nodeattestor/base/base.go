@@ -5,19 +5,19 @@ import (
 	"errors"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/hostservices/agentstore"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/server/nodeattestor/v0"
+	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 )
 
 type Base struct {
 	nodeattestorv0.UnsafeNodeAttestorServer
 
-	store hostservices.AgentStore
+	store agentstorev0.AgentStore
 }
 
 func (p *Base) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(hostservices.AgentStoreHostServiceClient(&p.store))
+	has, err := broker.GetHostService(agentstorev0.HostServiceClient(&p.store))
 	if err != nil {
 		return err
 	}

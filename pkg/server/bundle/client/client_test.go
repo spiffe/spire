@@ -72,6 +72,7 @@ func TestClient(t *testing.T) {
 						PrivateKey:  serverKey,
 					},
 				},
+				MinVersion: tls.VersionTLS12,
 			}
 			server.StartTLS()
 			defer server.Close()

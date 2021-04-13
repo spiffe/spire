@@ -25,6 +25,15 @@ var (
 )
 
 func main() {
+	// Run all tests cases and if error msg is returned make client fails
+	if msg := run(); msg != "" {
+		log.Fatal(msg)
+	}
+	log.Println("Downstream client finished successfully")
+}
+
+// run executes all tests cases and return error msg when failing
+func run() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	c := itclient.New(ctx)
@@ -41,16 +50,12 @@ func main() {
 		failures["PublishJWTAuthority"] = err
 	}
 
-	if len(failures) == 0 {
-		log.Println("downstream client finished successfully")
-		return
-	}
-
 	msg := ""
 	for rpcName, err := range failures {
 		msg += fmt.Sprintf("RPC %q: %v\n", rpcName, err)
 	}
-	log.Fatal(msg)
+
+	return msg
 }
 
 func validateNewDownstreamX509CA(ctx context.Context, c *itclient.Client) error {

@@ -19,7 +19,6 @@ linters:
     - gosec
     - misspell
     - nakedret
-    - scopelint
     - unconvert
     - unparam
     - whitespace

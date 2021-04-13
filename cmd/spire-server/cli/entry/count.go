@@ -34,7 +34,7 @@ func (countCommand) Synopsis() string {
 	return "Count registration entries"
 }
 
-//Run counts attested entries
+// Run counts attested entries
 func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	entryClient := serverClient.NewEntryClient()
 	countResponse, err := entryClient.CountEntries(ctx, &entryv1.CountEntriesRequest{})
