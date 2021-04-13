@@ -390,7 +390,7 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.P
 
 // CreateJoinToken takes a Token message and stores it
 func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
-	if token == nil || token.Token == "" || token.Expiry.Equal(time.Time{}) {
+	if token == nil || token.Token == "" || token.Expiry.IsZero() {
 		return errors.New("token and expiry are required")
 	}
 
