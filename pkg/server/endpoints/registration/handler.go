@@ -528,11 +528,11 @@ func (h *Handler) CreateJoinToken(ctx context.Context, request *registration.Joi
 	}
 
 	ds := h.getDataStore()
-	expiry := time.Now().Unix() + int64(request.Ttl)
+	expiry := time.Now().Add(time.Second * time.Duration(request.Ttl))
 
 	err = ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  request.Token,
-		Expiry: time.Unix(expiry, 0),
+		Expiry: expiry,
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to register token")
