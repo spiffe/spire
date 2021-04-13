@@ -532,7 +532,7 @@ func (h *Handler) CreateJoinToken(ctx context.Context, request *registration.Joi
 
 	err = ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  request.Token,
-		Expiry: expiry,
+		Expiry: time.Unix(expiry, 0),
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to register token")

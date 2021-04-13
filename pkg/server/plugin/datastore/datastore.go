@@ -172,7 +172,7 @@ type JoinToken struct {
 	// Token value
 	Token string
 	// Expiration in seconds since unix epoch
-	Expiry int64
+	Expiry time.Time
 }
 
 type ListAttestedNodesRequest struct {

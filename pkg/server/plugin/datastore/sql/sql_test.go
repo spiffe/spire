@@ -2515,10 +2515,9 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 }
 
 func (s *PluginSuite) TestCreateJoinToken() {
-	now := time.Now().Unix()
 	req := &datastore.JoinToken{
 		Token:  "foobar",
-		Expiry: now,
+		Expiry: time.Now().Truncate(time.Second),
 	}
 	err := s.ds.CreateJoinToken(ctx, req)
 	s.Require().NoError(err)
@@ -2529,7 +2528,7 @@ func (s *PluginSuite) TestCreateJoinToken() {
 }
 
 func (s *PluginSuite) TestCreateAndFetchJoinToken() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
@@ -2545,7 +2544,7 @@ func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 }
 
 func (s *PluginSuite) TestDeleteJoinToken() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken1 := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
@@ -2577,7 +2576,7 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
@@ -2603,7 +2602,7 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Equal("foobar", resp.Token)
 
 	// Ensure we prune old tokens
-	joinToken.Expiry = (now + 10)
+	joinToken.Expiry = now.Add(time.Second * 10)
 	err = s.ds.PruneJoinTokens(ctx, time.Now().Add(time.Second*10))
 	s.Require().NoError(err)
 

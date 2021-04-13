@@ -387,7 +387,7 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.P
 
 // CreateJoinToken takes a Token message and stores it
 func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
-	if token == nil || token.Token == "" || token.Expiry == 0 {
+	if token == nil || token.Token == "" || token.Expiry.Equal(time.Time{}) {
 		return errors.New("token and expiry are required")
 	}
 
@@ -3082,7 +3082,7 @@ func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntri
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
 	t := JoinToken{
 		Token:  token.Token,
-		Expiry: token.Expiry,
+		Expiry: token.Expiry.Unix(),
 	}
 
 	if err := tx.Create(&t).Error; err != nil {
@@ -3275,7 +3275,7 @@ func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
 func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 	return &datastore.JoinToken{
 		Token:  model.Token,
-		Expiry: model.Expiry,
+		Expiry: time.Unix(model.Expiry, 0),
 	}
 }
 
