@@ -14,6 +14,7 @@ The plugin accepts the following configuration options:
 | config_map            | The name of the ConfigMap                   | `spire-bundle`  |
 | config_map_key        | The key within the ConfigMap for the bundle | `bundle.crt`    |
 | kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. | |
+| api_service_label     | If set, rotate the CA Bundle in API services with this label set to `true`. | |
 | webhook_label         | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`. | |
 
 ## Configuring Kubernetes
@@ -64,8 +65,9 @@ metadata:
   namespace: spire
 ```
 
-### Configuration when Rotating Webhook CA Bundles
-When rotating webhook CA bundles, use the below ClusterRole:
+### Configuration when Rotating Webhook and API Service CA Bundles
+
+When rotating webhook and API Service CA bundles, use the below ClusterRole:
 
 ```yaml
 kind: ClusterRole
@@ -78,6 +80,9 @@ rules:
   verbs: ["get", "patch"]
 - apiGroups: ["admissionregistration.k8s.io"]
   resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "patch", "watch"]
+- apiGroups: ["apiregistration.k8s.io"]
+  resources: ["apiservices"]
   verbs: ["get", "list", "patch", "watch"]
 ```
 
@@ -112,16 +117,19 @@ the credentials found in the `/path/to/kubeconfig` file.
     }
 ```
 
-### Default In-Cluster with Webhook Rotation
+### Default In-Cluster with Webhook and APIService Rotation
+
 The following configuration pushes bundle contents from an in-cluster SPIRE
 server to
 - The `bundle.crt` key in the `spire:spire-bundle` ConfigMap
 - Validating and mutating webhooks with a label of `spiffe.io/webhook: true`
+- API services with a label of `spiffe.io/api_service: true`
 
 ```
     Notifier "k8sbundle" {
         plugin_data {
-            webhook_label = "spiffe.io/webhook"
+            webhook_label    = "spiffe.io/webhook"
+            api_service_label = "spiffe.io/api_service"
         }
     }
 ```
