@@ -6,7 +6,7 @@ services:
 language: go
 
 go:
-  - 1.15.5
+  - 1.16.3
 
 git:
   # The upgrade integration test inspects the version tags. The default depth
