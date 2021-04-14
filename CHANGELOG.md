@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.12.2] - TBD
+
+### Added
+- Added `aws_kms` server KeyManager plugin that uses the AWS Key Management Service (KMS) (#2066)
+- Added `gcp_cas` UpstreamAuthority plugin that uses the Certificate Authority Service from Google Cloud Platform (#2172)
+- Improved error returned during attestation of agents (#2159)
+- The `aws_iid` NodeAttestor plugin now supports running in a location with no public internet access available for the server (#2119)
+- The `k8s` notifier can now rotate Admission Controller Webhook CA Bundles (#2022)
+- Rate limiting on X.509 signing and JWT signing can now be disabled (#2142)
+- Added uptime metrics in server and agent (#2032)
+- Calls to KeyManager plugins now time out at 30 seconds (#2044)
+- Added logging when lookup of user by uid or group by gid fails in the `unix` WorkloadAttestor plugin (#2048)
+
+### Changed
+- The `k8s` WorkloadAttestor plugin now emits selectors for both image and image ID (#2116)
+- HTTP readiness endpoint on agent now checks the health of the Workload API (#2015, #2087)
+- SDS API in agent now returns an error if an SDS client requests resource names that don't exist (#2020)
+- Bundle and k8s-workload-registrar endpoints now only accept clients using TLS v1.2+ (#2025)
+
+### Fixed
+- Registration entry update handling in CRD mode of the k8s-workload-registrar to prevent unnecessary issuance of new SVIDs (#2155)
+- Failure to update CA bundle due to improper MySQL isolation level for read-modify-write operations (#2150)
+- Regression preventing agent selectors from showing in `spire-server agent show` command (#2133)
+- Issue in the token authentication method of the Vault Upstream Authority plugin (#2110)
+- Reporting of errors in server entry cache telemetry (#2091)
+- Agent logs an error and automatically shuts down when its SVID has expired and it requires re-attestation (#2065)
+
 ## [0.12.1] - 2021-03-04
 
 ### Security
