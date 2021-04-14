@@ -172,11 +172,12 @@ func TestWithMetrics(t *testing.T) {
 			out := methodValue.Call(args)
 			require.Len(t, out, numOut)
 			for i := 0; i < numOut-1; i++ {
-				switch v := reflect.ValueOf(methodValue.Type().Out(i)); v.Kind() {
+				mv := methodValue.Type().Out(i)
+				switch v := reflect.ValueOf(mv); v.Kind() {
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 					require.True(t, out[i].IsZero())
 				default:
-					require.NotNil(t, methodValue.Type().Out(i))
+					require.NotNil(t, mv)
 				}
 			}
 			return out[numOut-1].Interface()

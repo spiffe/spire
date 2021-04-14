@@ -2590,7 +2590,7 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
-	err = s.ds.PruneJoinTokens(ctx, time.Now().Add(-time.Second*10))
+	err = s.ds.PruneJoinTokens(ctx, now.Add(-time.Second*10))
 	s.Require().NoError(err)
 
 	resp, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
@@ -2598,7 +2598,7 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Equal("foobar", resp.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	err = s.ds.PruneJoinTokens(ctx, time.Now())
+	err = s.ds.PruneJoinTokens(ctx, now)
 	s.Require().NoError(err)
 
 	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
@@ -2607,7 +2607,7 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 
 	// Ensure we prune old tokens
 	joinToken.Expiry = now.Add(time.Second * 10)
-	err = s.ds.PruneJoinTokens(ctx, time.Now().Add(time.Second*10))
+	err = s.ds.PruneJoinTokens(ctx, now.Add(time.Second*10))
 	s.Require().NoError(err)
 
 	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
