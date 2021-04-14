@@ -4,7 +4,6 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -79,11 +78,9 @@ func TestSortRegistrationEntries(t *testing.T) {
 		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
 	}
 
-	rnd := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
-
 	var actual []*common.RegistrationEntry
 	for {
-		actual = shuffleRegistrationEntries(rnd, entries)
+		actual = shuffleRegistrationEntries(entries)
 		if !reflect.DeepEqual(actual, entries) {
 			break
 		}
@@ -92,11 +89,11 @@ func TestSortRegistrationEntries(t *testing.T) {
 	assertRegistrationEntries(t, actual, expected, "failed to sort registration entries")
 }
 
-func shuffleRegistrationEntries(rnd *rand.Rand, rs []*common.RegistrationEntry) []*common.RegistrationEntry {
-	shuffled := make([]*common.RegistrationEntry, len(rs))
-	for i, v := range rnd.Perm(len(rs)) {
-		shuffled[v] = rs[i]
-	}
+func shuffleRegistrationEntries(rs []*common.RegistrationEntry) []*common.RegistrationEntry {
+	shuffled := append([]*common.RegistrationEntry{}, rs...)
+	rand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
 	return shuffled
 }
 
@@ -169,11 +166,9 @@ func TestSortTypesEntries(t *testing.T) {
 		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
 	}
 
-	rnd := rand.New(rand.NewSource(time.Now().UTC().UnixNano()))
-
 	var actual []*types.Entry
 	for {
-		actual = shuffleTypesEntries(rnd, entries)
+		actual = shuffleTypesEntries(entries)
 		if !reflect.DeepEqual(actual, entries) {
 			break
 		}
@@ -182,11 +177,11 @@ func TestSortTypesEntries(t *testing.T) {
 	assertTypesEntries(t, actual, expected, "failed to sort registration entries")
 }
 
-func shuffleTypesEntries(rnd *rand.Rand, rs []*types.Entry) []*types.Entry {
-	shuffled := make([]*types.Entry, len(rs))
-	for i, v := range rnd.Perm(len(rs)) {
-		shuffled[v] = rs[i]
-	}
+func shuffleTypesEntries(rs []*types.Entry) []*types.Entry {
+	shuffled := append([]*types.Entry{}, rs...)
+	rand.Shuffle(len(rs), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
 	return shuffled
 }
 

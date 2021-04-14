@@ -36,8 +36,8 @@ var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchStri
 
 const defaultListEntriesPageSize = 50
 
-//Handler service is used to register SPIFFE IDs, and the attestation logic that should
-//be performed on a workload before those IDs can be issued.
+// Handler service is used to register SPIFFE IDs, and the attestation logic that should
+// be performed on a workload before those IDs can be issued.
 type Handler struct {
 	registration.UnsafeRegistrationServer
 
@@ -48,8 +48,8 @@ type Handler struct {
 	ServerCA    ca.ServerCA
 }
 
-//CreateEntry creates an entry in the Registration table,
-//used to assign SPIFFE IDs to nodes and workloads.
+// CreateEntry creates an entry in the Registration table,
+// used to assign SPIFFE IDs to nodes and workloads.
 func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationEntry) (_ *registration.RegistrationEntryID, err error) {
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
@@ -102,7 +102,7 @@ func (h *Handler) CreateEntryIfNotExists(ctx context.Context, request *common.Re
 	return resp, nil
 }
 
-//DeleteEntry deletes an entry in the Registration table
+// DeleteEntry deletes an entry in the Registration table
 func (h *Handler) DeleteEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -122,7 +122,7 @@ func (h *Handler) DeleteEntry(ctx context.Context, request *registration.Registr
 	return resp.Entry, nil
 }
 
-//FetchEntry Retrieves a specific registered entry
+// FetchEntry Retrieves a specific registered entry
 func (h *Handler) FetchEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -144,7 +144,7 @@ func (h *Handler) FetchEntry(ctx context.Context, request *registration.Registra
 	return fetchResponse.Entry, nil
 }
 
-//FetchEntries retrieves all registered entries
+// FetchEntries retrieves all registered entries
 func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -162,7 +162,7 @@ func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *c
 	}, nil
 }
 
-//UpdateEntry updates a specific registered entry
+// UpdateEntry updates a specific registered entry
 func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateEntryRequest) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -198,7 +198,7 @@ func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateE
 	return resp.Entry, nil
 }
 
-//ListByParentID Returns all the Entries associated with the ParentID value
+// ListByParentID Returns all the Entries associated with the ParentID value
 func (h *Handler) ListByParentID(ctx context.Context, request *registration.ParentID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -228,7 +228,7 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	}, nil
 }
 
-//ListBySelector returns all the Entries associated with the Selector
+// ListBySelector returns all the Entries associated with the Selector
 func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -252,7 +252,7 @@ func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) 
 	}, nil
 }
 
-//ListBySelectors returns all the Entries associated with the Selectors
+// ListBySelectors returns all the Entries associated with the Selectors
 func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -276,7 +276,7 @@ func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors
 	}, nil
 }
 
-//ListBySpiffeID returns all the Entries associated with the SPIFFE ID
+// ListBySpiffeID returns all the Entries associated with the SPIFFE ID
 func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.SpiffeID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -306,7 +306,7 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 	}, nil
 }
 
-//ListAllEntriesWithPages retrieves all registered entries with pagination.
+// ListAllEntriesWithPages retrieves all registered entries with pagination.
 func (h *Handler) ListAllEntriesWithPages(ctx context.Context, request *registration.ListAllEntriesRequest) (_ *registration.ListAllEntriesResponse, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -567,7 +567,7 @@ func (h *Handler) FetchBundle(ctx context.Context, request *common.Empty) (_ *re
 	}, nil
 }
 
-//EvictAgent removes a node from the attested nodes store
+// EvictAgent removes a node from the attested nodes store
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
 	log := h.Log.WithFields(logrus.Fields{
@@ -587,7 +587,7 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 	}, nil
 }
 
-//ListAgents returns the list of attested nodes
+// ListAgents returns the list of attested nodes
 func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
 	log := h.Log.WithField(telemetry.Method, telemetry.ListAgents)
 	ds := h.Catalog.GetDataStore()

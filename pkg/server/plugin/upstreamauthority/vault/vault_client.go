@@ -23,7 +23,7 @@ const (
 	envVaultClientKey       = "VAULT_CLIENT_KEY"
 	envVaultCACert          = "VAULT_CACERT"
 	envVaultAppRoleID       = "VAULT_APPROLE_ID"
-	envVaultAppRoleSecretID = "VAULT_APPROLE_SECRET_ID" //// #nosec G101
+	envVaultAppRoleSecretID = "VAULT_APPROLE_SECRET_ID" // #nosec G101
 	envVaultNamespace       = "VAULT_NAMESPACE"
 
 	defaultCertMountPoint    = "cert"
