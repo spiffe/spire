@@ -695,18 +695,19 @@ func (s *PluginSuite) TestFetchAttestedNodeMissing() {
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
+	now := time.Now()
 	efuture := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+		CertNotAfter:        now.Add(time.Hour).Unix(),
 	}
 
 	epast := &common.AttestedNode{
 		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "deadbeef",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
 	}
 
 	_, err := s.ds.CreateAttestedNode(ctx, efuture)
@@ -715,7 +716,7 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 	_, err = s.ds.CreateAttestedNode(ctx, epast)
 	s.Require().NoError(err)
 
-	expiration := time.Now().Unix()
+	expiration := now.Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrapperspb.Int64Value{
 			Value: expiration,
@@ -726,26 +727,27 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 }
 
 func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
+	now := time.Now()
 	// Create all necessary nodes
 	aNode1 := &common.AttestedNode{
 		SpiffeId:            "node1",
 		AttestationDataType: "t1",
 		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
 	}
 
 	aNode2 := &common.AttestedNode{
 		SpiffeId:            "node2",
 		AttestationDataType: "t2",
 		CertSerialNumber:    "deadbeef",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+		CertNotAfter:        now.Add(time.Hour).Unix(),
 	}
 
 	aNode3 := &common.AttestedNode{
 		SpiffeId:            "node3",
 		AttestationDataType: "t3",
 		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
 	}
 
 	aNode4 := &common.AttestedNode{
@@ -753,14 +755,14 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		AttestationDataType: "t1",
 		// Banned
 		CertSerialNumber: "",
-		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:     now.Add(-time.Hour).Unix(),
 	}
 	aNode5 := &common.AttestedNode{
 		SpiffeId:            "node5",
 		AttestationDataType: "t4",
 		// Banned
 		CertSerialNumber: "",
-		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:     now.Add(-time.Hour).Unix(),
 	}
 
 	_, err := s.ds.CreateAttestedNode(ctx, aNode1)
@@ -924,7 +926,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "get nodes by expire no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode3, aNode4, aNode5},
@@ -937,7 +939,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode3},
@@ -954,7 +956,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode4, aNode5},
@@ -971,7 +973,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{},
@@ -1416,14 +1418,15 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	const numNonExpiredAttNodes = 3
 	const attestationDataType = "fake_nodeattestor"
 	nonExpiredAttNodes := make([]*common.AttestedNode, numNonExpiredAttNodes)
+	now := time.Now()
 	for i := 0; i < numNonExpiredAttNodes; i++ {
 		nonExpiredAttNodes[i] = &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/non-expired-node-%d", i),
 			AttestationDataType: attestationDataType,
 			CertSerialNumber:    fmt.Sprintf("non-expired serial %d-1", i),
-			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+			CertNotAfter:        now.Add(time.Hour).Unix(),
 			NewCertSerialNumber: fmt.Sprintf("non-expired serial %d-2", i),
-			NewCertNotAfter:     time.Now().Add(2 * time.Hour).Unix(),
+			NewCertNotAfter:     now.Add(2 * time.Hour).Unix(),
 		}
 	}
 
@@ -1434,9 +1437,9 @@ func (s *PluginSuite) TestListNodeSelectors() {
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/expired-node-%d", i),
 			AttestationDataType: attestationDataType,
 			CertSerialNumber:    fmt.Sprintf("expired serial %d-1", i),
-			CertNotAfter:        time.Now().Add(-24 * time.Hour).Unix(),
+			CertNotAfter:        now.Add(-24 * time.Hour).Unix(),
 			NewCertSerialNumber: fmt.Sprintf("expired serial %d-2", i),
-			NewCertNotAfter:     time.Now().Add(-12 * time.Hour).Unix(),
+			NewCertNotAfter:     now.Add(-12 * time.Hour).Unix(),
 		}
 	}
 
@@ -1472,7 +1475,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
 			ValidAt: &timestamppb.Timestamp{
-				Seconds: time.Now().Unix(),
+				Seconds: now.Unix(),
 			},
 		}
 
@@ -2802,18 +2805,18 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
 
-			resp, err := s.ds.FetchAttestedNode(context.Background(), "spiffe://example.org/host")
+			attestedNode, err := s.ds.FetchAttestedNode(context.Background(), "spiffe://example.org/host")
 			s.Require().NoError(err)
 
 			// Assert current serial numbers and expiration time remains the same
 			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
 			s.Require().NoError(err)
-			s.Require().Equal(expectedTime.Unix(), resp.CertNotAfter)
-			s.Require().Equal("111", resp.CertSerialNumber)
+			s.Require().Equal(expectedTime.Unix(), attestedNode.CertNotAfter)
+			s.Require().Equal("111", attestedNode.CertSerialNumber)
 
 			// Assert the new fields are empty for pre-existing entries
-			s.Require().Empty(resp.NewCertSerialNumber)
-			s.Require().Empty(resp.NewCertNotAfter)
+			s.Require().Empty(attestedNode.NewCertSerialNumber)
+			s.Require().Empty(attestedNode.NewCertNotAfter)
 		case 13:
 			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		case 14:
