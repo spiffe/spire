@@ -1327,10 +1327,10 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.RequireProtoEqual(tt.expUpdatedNode, uresp.Node)
 
 			// Check a fresh fetch shows the updated attested node
-			fresp, err := s.ds.FetchAttestedNode(ctx, tt.updateReq.SpiffeId)
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateReq.SpiffeId)
 			s.Require().NoError(err)
-			s.Require().NotNil(fresp)
-			s.RequireProtoEqual(tt.expUpdatedNode, fresp)
+			s.Require().NotNil(attestedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, attestedNode)
 		})
 	}
 }
@@ -1354,9 +1354,9 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(entry, deletedNode)
 
-	node, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.Nil(node)
+	s.Nil(attestedNode)
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
