@@ -102,6 +102,7 @@ jobs:
       script:
         - make images
         - make scratch-images
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         - CICD_TARGET_BRANCH="$TRAVIS_BRANCH" make integration
         - .travis/publish-images.sh
 
@@ -112,6 +113,7 @@ jobs:
       script:
         - make images
         - make scratch-images
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
         - CICD_TARGET_BRANCH="$TRAVIS_BRANCH" make integration
 
 notifications:
