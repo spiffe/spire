@@ -434,7 +434,7 @@ A JSON object passed to `-data` for `entry create/update` expects the following 
 }
 ```
 
-The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/master/proto/spire/common/common.proto).
+The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/main/proto/spire/common/common.proto).
 
 _Note: to create node entries, set `parent_id` to the special value `spiffe://<your-trust-domain>/spire/server`.
 That's what the code does when the `-node` flag is passed on the cli._
