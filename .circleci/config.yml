@@ -135,6 +135,7 @@ jobs:
             # CircleCI is silly and doesn't provide this incredibly helpful
             # environment variable. Requests for it go back years. For shame.
             CIRCLE_TARGET_BRANCH=$(.circleci/determine-target-branch.sh)
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             cd test/integration
             circleci tests glob "suites/*" | circleci tests split | CICD_TARGET_BRANCH="${CIRCLE_TARGET_BRANCH}" xargs ./test.sh
 
