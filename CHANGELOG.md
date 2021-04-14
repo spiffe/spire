@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.2] - TBD
+## [0.12.2] - 2021-04-14
 
 ### Added
 - Added `aws_kms` server KeyManager plugin that uses the AWS Key Management Service (KMS) (#2066)
