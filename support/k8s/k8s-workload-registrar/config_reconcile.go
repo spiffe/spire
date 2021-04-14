@@ -64,7 +64,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 	}))
 	setupLog := ctrl.Log.WithName("setup")
 
-	//Connect to Spire Server
+	// Connect to Spire Server
 	spireClient, err := c.EntryClient(ctx, SpiffeLogWrapper{setupLog})
 	if err != nil {
 		setupLog.Error(err, "Unable to connect to SPIRE registration API")

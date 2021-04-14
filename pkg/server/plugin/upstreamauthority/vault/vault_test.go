@@ -454,7 +454,7 @@ func (vps *VaultPluginSuite) Test_MintX509CA_InvalidCSR() {
 
 	vps.LoadPlugin(builtin(p), &vps.plugin)
 	req := vps.loadMintX509CARequestFromTestFile()
-	req.Csr = []byte("invalid-csr") //overwrite the CSR value
+	req.Csr = []byte("invalid-csr") // overwrite the CSR value
 
 	_, err = vps.mintX509CA(req)
 	vps.Require().Error(err)

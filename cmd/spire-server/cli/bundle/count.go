@@ -34,7 +34,7 @@ func (countCommand) Synopsis() string {
 	return "Count bundles"
 }
 
-//Run counts attested bundles
+// Run counts attested bundles
 func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
 	countResponse, err := bundleClient.CountBundles(ctx, &bundlev1.CountBundlesRequest{})

@@ -1216,7 +1216,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//{
+		// {
 		//	msg:            "in nested experimental block",
 		//	confFile: "/server_bad_nested_experimental_block.conf",
 		//	expectedLogEntries: []logEntry{
@@ -1225,8 +1225,8 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//			keys: 		"unknown_option1,unknown_option2",
 		//		},
 		//	},
-		//},
-		//{
+		// },
+		// {
 		//	msg:            "in nested federation block",
 		//	confFile: "/server_bad_nested_federation_block.conf",
 		//	expectedLogEntries: []logEntry{
@@ -1235,7 +1235,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//			keys: "unknown_option1,unknown_option2",
 		//		},
 		//	},
-		//},
+		// },
 		{
 			msg:      "in nested federation.bundle_endpoint block",
 			confFile: "server_bad_nested_bundle_endpoint_block.conf",
@@ -1273,7 +1273,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		// TODO: Re-enable unused key detection for telemetry. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//{
+		// {
 		//	msg:            "in telemetry block",
 		//	confFile: "/server_and_agent_bad_telemetry_block.conf",
 		//	expectedLogEntries: []logEntry{
@@ -1282,7 +1282,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//			keys: "unknown_option1,unknown_option2",
 		//		},
 		//	},
-		//},
+		// },
 		{
 			msg:      "in nested Prometheus block",
 			confFile: "server_and_agent_bad_nested_Prometheus_block.conf",

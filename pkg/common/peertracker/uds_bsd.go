@@ -7,7 +7,7 @@ import (
 )
 
 func getCallerInfo(fd uintptr) (CallerInfo, error) {
-	result, err := unix.GetsockoptInt(int(fd), 0, 0x002) //getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID)
+	result, err := unix.GetsockoptInt(int(fd), 0, 0x002) // getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID)
 	if err != nil {
 		return CallerInfo{}, err
 	}

@@ -232,7 +232,7 @@ func (cmd *Command) Run(args []string) int {
 	return 0
 }
 
-//Synopsis of the command
+// Synopsis of the command
 func (*Command) Synopsis() string {
 	return "Runs the server"
 }
@@ -600,17 +600,17 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//if len(c.Server.Experimental.UnusedKeys) != 0 {
+		// if len(c.Server.Experimental.UnusedKeys) != 0 {
 		//	detectedUnknown("experimental", c.Server.Experimental.UnusedKeys)
-		//}
+		// }
 
 		if c.Server.Federation != nil {
 			// TODO: Re-enable unused key detection for experimental config. See
 			// https://github.com/spiffe/spire/issues/1101 for more information
 			//
-			//if len(c.Server.Federation.UnusedKeys) != 0 {
+			// if len(c.Server.Federation.UnusedKeys) != 0 {
 			//	detectedUnknown("federation", c.Server.Federation.UnusedKeys)
-			//}
+			// }
 
 			if c.Server.Federation.BundleEndpoint != nil {
 				if len(c.Server.Federation.BundleEndpoint.UnusedKeys) != 0 {
@@ -633,9 +633,9 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
-	//if len(c.Telemetry.UnusedKeys) != 0 {
+	// if len(c.Telemetry.UnusedKeys) != 0 {
 	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
-	//}
+	// }
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		detectedUnknown("Prometheus", p.UnusedKeys)

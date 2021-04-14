@@ -34,7 +34,7 @@ func (countCommand) Synopsis() string {
 	return "Count attested agents"
 }
 
-//Run counts attested agents
+// Run counts attested agents
 func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	agentClient := serverClient.NewAgentClient()
 	countResponse, err := agentClient.CountAgents(ctx, &agentv1.CountAgentsRequest{})
@@ -45,7 +45,7 @@ func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClien
 	count := int(countResponse.Count)
 	msg := fmt.Sprintf("%d attested ", count)
 	msg = util.Pluralizer(msg, "agent", "agents", count)
-	env.Println(msg)
+	_ = env.Println(msg)
 
 	return nil
 }
