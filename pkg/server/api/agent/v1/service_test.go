@@ -172,12 +172,13 @@ func TestCountAgents(t *testing.T) {
 			defer test.Cleanup()
 
 			for i := 0; i < int(tt.count); i++ {
+				now := time.Now()
 				_, err := test.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 					SpiffeId:            ids[i].String(),
 					AttestationDataType: "t1",
 					CertSerialNumber:    "badcafe",
-					CertNotAfter:        time.Now().Add(-time.Minute).Unix(),
-					NewCertNotAfter:     time.Now().Add(time.Minute).Unix(),
+					CertNotAfter:        now.Add(-time.Minute).Unix(),
+					NewCertNotAfter:     now.Add(time.Minute).Unix(),
 					NewCertSerialNumber: "new badcafe",
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},

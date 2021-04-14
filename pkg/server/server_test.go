@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -66,25 +67,25 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	attestedNode, err := ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "spiffe://test.com/host",
 		AttestationDataType: "fake_nodeattestor_1",
-		CertNotAfter:        1822684794,
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 		CertSerialNumber:    "18392437442709699290",
 	})
 	suite.NoError(err)
 
-	// Attested now with same trust domain created, no error expected
+	// Validate created trust domain, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
 	suite.NoError(err)
 
 	// Update server trust domain to force errors
 	suite.server.config.TrustDomain = newTrustDomain
 
-	// Update server's trust domain, error expected because invalid trust domain
+	// Validate new trust domain
 	err = suite.server.validateTrustDomain(ctx, ds)
 	// no error expected, warning is displaying in this case
 	suite.NoError(err)
 	suite.Require().Contains(suite.stdout.String(), fmt.Sprintf(invalidTrustDomainAttestedNode, "test.com", "new_test.com"))
 
-	// Back server's trust domain
+	// Restore original trust domain
 	suite.server.config.TrustDomain = trustDomain
 
 	// Create a registration entry with original trust domain
@@ -137,7 +138,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "spiffe://inv%ild/host",
 		AttestationDataType: "fake_nodeattestor_1",
-		CertNotAfter:        1822684794,
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 		CertSerialNumber:    "18392437442709699290",
 	})
 	suite.NoError(err)
