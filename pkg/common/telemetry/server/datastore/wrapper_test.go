@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -162,15 +163,24 @@ func TestWithMetrics(t *testing.T) {
 		doCall := func(err error) interface{} {
 			m.Reset()
 			ds.SetError(err)
-			out := methodValue.Call([]reflect.Value{
-				reflect.ValueOf(context.Background()),
-				reflect.New(methodValue.Type().In(1)).Elem(),
-			})
-			require.Len(t, out, 2)
-			// Our fake always returns a response even on failure, which
-			// our metrics shim should not be concerned about.
-			require.NotNil(t, out[0].Interface(), "response should not be nil")
-			return out[1].Interface()
+			numIn := methodValue.Type().NumIn()
+			numOut := methodValue.Type().NumOut()
+			args := []reflect.Value{reflect.ValueOf(context.Background())}
+			for i := 1; i < numIn; i++ {
+				args = append(args, reflect.New(methodValue.Type().In(i)).Elem())
+			}
+			out := methodValue.Call(args)
+			require.Len(t, out, numOut)
+			for i := 0; i < numOut-1; i++ {
+				mv := methodValue.Type().Out(i)
+				switch v := reflect.ValueOf(mv); v.Kind() {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					require.True(t, out[i].IsZero())
+				default:
+					require.NotNil(t, mv)
+				}
+			}
+			return out[numOut-1].Interface()
 		}
 
 		expectedMetrics := func(code codes.Code) []fakemetrics.MetricItem {
@@ -224,16 +234,16 @@ func (ds *fakeDataStore) AppendBundle(context.Context, *datastore.AppendBundleRe
 	return &datastore.AppendBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) CountAttestedNodes(context.Context, *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
-	return &datastore.CountAttestedNodesResponse{}, ds.err
+func (ds *fakeDataStore) CountAttestedNodes(context.Context) (int32, error) {
+	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CountBundles(context.Context, *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
-	return &datastore.CountBundlesResponse{}, ds.err
+func (ds *fakeDataStore) CountBundles(context.Context) (int32, error) {
+	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CountRegistrationEntries(context.Context, *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
-	return &datastore.CountRegistrationEntriesResponse{}, ds.err
+func (ds *fakeDataStore) CountRegistrationEntries(context.Context) (int32, error) {
+	return 0, ds.err
 }
 
 func (ds *fakeDataStore) CreateAttestedNode(context.Context, *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
@@ -244,8 +254,8 @@ func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRe
 	return &datastore.CreateBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
-	return &datastore.CreateJoinTokenResponse{}, ds.err
+func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
@@ -260,8 +270,8 @@ func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRe
 	return &datastore.DeleteBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteJoinToken(context.Context, *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
-	return &datastore.DeleteJoinTokenResponse{}, ds.err
+func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
@@ -276,8 +286,8 @@ func (ds *fakeDataStore) FetchBundle(context.Context, *datastore.FetchBundleRequ
 	return &datastore.FetchBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchJoinToken(context.Context, *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
-	return &datastore.FetchJoinTokenResponse{}, ds.err
+func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {
+	return &datastore.JoinToken{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
@@ -308,8 +318,8 @@ func (ds *fakeDataStore) PruneBundle(context.Context, *datastore.PruneBundleRequ
 	return &datastore.PruneBundleResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneJoinTokens(context.Context, *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
-	return &datastore.PruneJoinTokensResponse{}, ds.err
+func (ds *fakeDataStore) PruneJoinTokens(context.Context, time.Time) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {

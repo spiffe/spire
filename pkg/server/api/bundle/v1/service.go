@@ -64,13 +64,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountBundles returns the total number of bundles.
 func (s *Service) CountBundles(ctx context.Context, req *bundlev1.CountBundlesRequest) (*bundlev1.CountBundlesResponse, error) {
-	dsResp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err := s.ds.CountBundles(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count bundles", err)
 	}
 
-	return &bundlev1.CountBundlesResponse{Count: dsResp.Bundles}, nil
+	return &bundlev1.CountBundlesResponse{Count: count}, nil
 }
 
 // GetBundle returns the bundle associated with the given trust domain.

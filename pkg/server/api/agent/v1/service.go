@@ -70,13 +70,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountAgents returns the total number of agents.
 func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
-	dsResp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err := s.ds.CountAttestedNodes(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 	}
 
-	return &agentv1.CountAgentsResponse{Count: dsResp.Nodes}, nil
+	return &agentv1.CountAgentsResponse{Count: count}, nil
 }
 
 // ListAgents returns an optionally filtered and/or paginated list of agents.
@@ -432,13 +432,11 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		req.Token = u.String()
 	}
 
-	expiry := time.Now().Unix() + int64(req.Ttl)
+	expiry := s.clk.Now().Add(time.Second * time.Duration(req.Ttl))
 
-	result, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  req.Token,
-			Expiry: expiry,
-		},
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  req.Token,
+		Expiry: expiry,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
@@ -451,7 +449,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		}
 	}
 
-	return &types.JoinToken{Value: result.JoinToken.Token, ExpiresAt: expiry}, nil
+	return &types.JoinToken{Value: req.Token, ExpiresAt: expiry.Unix()}, nil
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
@@ -516,23 +514,19 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, "join_token")
 
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: token,
-	})
+	joinToken, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
-	case resp.JoinToken == nil:
+	case joinToken == nil:
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
-	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
-		Token: token,
-	})
+	err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(resp.JoinToken.Expiry, 0).Before(s.clk.Now()):
+	case joinToken.Expiry.Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 

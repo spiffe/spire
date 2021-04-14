@@ -2,43 +2,53 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// DataStore is the data storage interface
+// DataStore is the data storage interface.
 type DataStore interface {
+	// Bundles
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
-	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
-	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
-	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error)
-	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
+	CountBundles(context.Context) (int32, error)
 	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
-	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
-	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
 	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	DeleteJoinToken(context.Context, *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error)
-	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
 	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
-	FetchJoinToken(context.Context, *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error)
-	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
-	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
-	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
-	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
-	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
-	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
-	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
-	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
-	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
+
+	// Entries
+	CountRegistrationEntries(context.Context) (int32, error)
+	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
+	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
+	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
+
+	// Nodes
+	CountAttestedNodes(context.Context) (int32, error)
+	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
+	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
+	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
+	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
+	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
+
+	// Node selectors
+	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
+	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
+	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+
+	// Tokens
+	CreateJoinToken(context.Context, *JoinToken) error
+	DeleteJoinToken(context.Context, string) error
+	FetchJoinToken(context.Context, string) (*JoinToken, error)
+	PruneJoinTokens(context.Context, time.Time) error
 }
 
 // Mode controls the delete behavior if there are other records
@@ -99,27 +109,6 @@ type BySelectors struct {
 	Match     BySelectors_MatchBehavior
 }
 
-type CountAttestedNodesRequest struct {
-}
-
-type CountAttestedNodesResponse struct {
-	Nodes int32
-}
-
-type CountBundlesRequest struct {
-}
-
-type CountBundlesResponse struct {
-	Bundles int32
-}
-
-type CountRegistrationEntriesRequest struct {
-}
-
-type CountRegistrationEntriesResponse struct {
-	Entries int32
-}
-
 type CreateAttestedNodeRequest struct {
 	Node *common.AttestedNode
 }
@@ -134,14 +123,6 @@ type CreateBundleRequest struct {
 
 type CreateBundleResponse struct {
 	Bundle *common.Bundle
-}
-
-type CreateJoinTokenRequest struct {
-	JoinToken *JoinToken
-}
-
-type CreateJoinTokenResponse struct {
-	JoinToken *JoinToken
 }
 
 type CreateRegistrationEntryRequest struct {
@@ -169,14 +150,6 @@ type DeleteBundleResponse struct {
 	Bundle *common.Bundle
 }
 
-type DeleteJoinTokenRequest struct {
-	Token string
-}
-
-type DeleteJoinTokenResponse struct {
-	JoinToken *JoinToken
-}
-
 type DeleteRegistrationEntryRequest struct {
 	EntryId string //nolint: golint
 }
@@ -201,14 +174,6 @@ type FetchBundleResponse struct {
 	Bundle *common.Bundle
 }
 
-type FetchJoinTokenRequest struct {
-	Token string
-}
-
-type FetchJoinTokenResponse struct {
-	JoinToken *JoinToken
-}
-
 type FetchRegistrationEntryRequest struct {
 	EntryId string //nolint: golint
 }
@@ -231,7 +196,7 @@ type JoinToken struct {
 	// Token value
 	Token string
 	// Expiration in seconds since unix epoch
-	Expiry int64
+	Expiry time.Time
 }
 
 type ListAttestedNodesRequest struct {
@@ -302,13 +267,6 @@ type PruneBundleRequest struct {
 }
 type PruneBundleResponse struct {
 	BundleChanged bool
-}
-
-type PruneJoinTokensRequest struct {
-	ExpiresBefore int64
-}
-
-type PruneJoinTokensResponse struct {
 }
 
 type PruneRegistrationEntriesRequest struct {

@@ -488,9 +488,9 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 
 func (s *PluginSuite) TestCountBundles() {
 	// Count empty bundles
-	resp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err := s.ds.CountBundles(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create bundles
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
@@ -512,16 +512,16 @@ func (s *PluginSuite) TestCountBundles() {
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err = s.ds.CountBundles(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 3}, resp)
+	s.Require().Equal(int32(3), count)
 }
 
 func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
-	resp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err := s.ds.CountAttestedNodes(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	node := &common.AttestedNode{
@@ -543,16 +543,16 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err = s.ds.CountAttestedNodes(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
+	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
-	resp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err := s.ds.CountRegistrationEntries(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	entry := &common.RegistrationEntry{
@@ -572,9 +572,9 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err = s.ds.CountRegistrationEntries(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
+	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestSetBundle() {
@@ -2519,51 +2519,42 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 }
 
 func (s *PluginSuite) TestCreateJoinToken() {
-	now := time.Now().Unix()
-	req := &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  "foobar",
-			Expiry: now,
-		},
+	req := &datastore.JoinToken{
+		Token:  "foobar",
+		Expiry: time.Now().Truncate(time.Second),
 	}
-	_, err := s.ds.CreateJoinToken(ctx, req)
+	err := s.ds.CreateJoinToken(ctx, req)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
-	_, err = s.ds.CreateJoinToken(ctx, req)
+	err = s.ds.CreateJoinToken(ctx, req)
 	s.NotNil(err)
 }
 
 func (s *PluginSuite) TestCreateAndFetchJoinToken() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken,
-	})
+	err := s.ds.CreateJoinToken(ctx, joinToken)
 	s.Require().NoError(err)
 
-	res, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	res, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Equal("foobar", res.JoinToken.Token)
-	s.Equal(now, res.JoinToken.Expiry)
+	s.Equal("foobar", res.Token)
+	s.Equal(now, res.Expiry)
 }
 
 func (s *PluginSuite) TestDeleteJoinToken() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken1 := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken1,
-	})
+	err := s.ds.CreateJoinToken(ctx, joinToken1)
 	s.Require().NoError(err)
 
 	joinToken2 := &datastore.JoinToken{
@@ -2571,79 +2562,57 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Expiry: now,
 	}
 
-	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken2,
-	})
+	err = s.ds.CreateJoinToken(ctx, joinToken2)
 	s.Require().NoError(err)
 
-	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
-		Token: joinToken1.Token,
-	})
+	err = s.ds.DeleteJoinToken(ctx, joinToken1.Token)
 	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken1.Token,
-	})
+	resp, err := s.ds.FetchJoinToken(ctx, joinToken1.Token)
 	s.Require().NoError(err)
-	s.Nil(resp.JoinToken)
+	s.Nil(resp)
 
 	// Second token should still be present
-	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken2.Token,
-	})
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken2.Token)
 	s.Require().NoError(err)
-	s.Equal(joinToken2, resp.JoinToken)
+	s.Equal(joinToken2, resp)
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken,
-	})
+	err := s.ds.CreateJoinToken(ctx, joinToken)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
-	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
-		ExpiresBefore: now - 10,
-	})
+	err = s.ds.PruneJoinTokens(ctx, now.Add(-time.Second*10))
 	s.Require().NoError(err)
 
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	resp, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Equal("foobar", resp.JoinToken.Token)
+	s.Equal("foobar", resp.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
-		ExpiresBefore: now,
-	})
+	err = s.ds.PruneJoinTokens(ctx, now)
 	s.Require().NoError(err)
 
-	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Equal("foobar", resp.JoinToken.Token)
+	s.Equal("foobar", resp.Token)
 
 	// Ensure we prune old tokens
-	joinToken.Expiry = (now + 10)
-	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
-		ExpiresBefore: now + 10,
-	})
+	joinToken.Expiry = now.Add(time.Second * 10)
+	err = s.ds.PruneJoinTokens(ctx, now.Add(time.Second*10))
 	s.Require().NoError(err)
 
-	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Nil(resp.JoinToken)
+	s.Nil(resp)
 }
 
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
