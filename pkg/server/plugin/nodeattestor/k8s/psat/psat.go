@@ -75,7 +75,7 @@ type clusterConfig struct {
 	allowedPodLabelKeys  map[string]bool
 }
 
-//AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
+// AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
 type AttestorPlugin struct {
 	nodeattestorv0.UnsafeNodeAttestorServer
 

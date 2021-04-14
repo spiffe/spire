@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	mrand "math/rand"
 	"net/url"
 	"time"
 
@@ -178,7 +177,6 @@ func addSpiffeExtension(spiffeID string, cert *x509.Certificate) error {
 
 // Creates a random certificate serial number
 func randomSerial() *big.Int {
-	src := mrand.NewSource(1337)
-	num := mrand.New(src).Int63()
-	return big.NewInt(num)
+	serial, _ := rand.Int(rand.Reader, big.NewInt(1337))
+	return serial
 }

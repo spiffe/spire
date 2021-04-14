@@ -1824,6 +1824,7 @@ type serviceTest struct {
 	ds           *fakedatastore.DataStore
 	ca           *fakeserverca.CA
 	cat          *fakeservercatalog.Catalog
+	clk          clock.Clock
 	logHook      *test.Hook
 	rateLimiter  *fakeRateLimiter
 	withCallerID bool
@@ -1841,12 +1842,13 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
+	clk := clock.NewMock(t)
 
 	service := agent.New(agent.Config{
 		ServerCA:    ca,
 		DataStore:   ds,
 		TrustDomain: td,
-		Clock:       clock.NewMock(t),
+		Clock:       clk,
 		Catalog:     cat,
 	})
 
@@ -1862,6 +1864,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		ca:          ca,
 		ds:          ds,
 		cat:         cat,
+		clk:         clk,
 		logHook:     logHook,
 		rateLimiter: rateLimiter,
 	}
@@ -1943,7 +1946,7 @@ func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 }
 
 func (s *serviceTest) setupJoinTokens(ctx context.Context, t *testing.T) {
-	now := time.Now().Truncate(time.Second)
+	now := s.clk.Now()
 	err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
 		Token:  "test_token",
 		Expiry: now.Add(time.Second * 600),
