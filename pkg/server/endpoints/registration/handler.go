@@ -731,16 +731,12 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	}
 
 	ds := h.Catalog.GetDataStore()
-	req := &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: agentID,
-	}
-
-	resp, err := ds.DeleteAttestedNode(ctx, req)
+	attestedNode, err := ds.DeleteAttestedNode(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	return resp.Node, nil
+	return attestedNode, nil
 }
 
 func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, error) {
