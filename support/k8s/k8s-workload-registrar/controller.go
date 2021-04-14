@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,14 +21,13 @@ import (
 )
 
 type ControllerConfig struct {
-	Log                  logrus.FieldLogger
-	E                    entryv1.EntryClient
-	TrustDomain          string
-	Cluster              string
-	PodLabel             string
-	PodAnnotation        string
-	DisabledNamespaces   map[string]bool
-	FederationAnnotation string
+	Log                logrus.FieldLogger
+	E                  entryv1.EntryClient
+	TrustDomain        string
+	Cluster            string
+	PodLabel           string
+	PodAnnotation      string
+	DisabledNamespaces map[string]bool
 }
 
 type Controller struct {
@@ -139,7 +138,7 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		return nil
 	}
 
-	federationDomains := c.getFederationDomains(pod)
+	federationDomains := federation.GetFederationDomains(pod)
 
 	return c.createEntry(ctx, &types.Entry{
 		ParentId: c.nodeID(),
@@ -150,13 +149,6 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		},
 		FederatesWith: federationDomains,
 	})
-}
-
-func (c *Controller) getFederationDomains(pod *corev1.Pod) []string {
-	if val, ok := pod.GetAnnotations()[c.c.FederationAnnotation]; ok {
-		return strings.Split(val, ",")
-	}
-	return []string{}
 }
 
 func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string) error {

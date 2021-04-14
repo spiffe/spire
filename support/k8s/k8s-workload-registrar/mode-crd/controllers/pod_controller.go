@@ -17,9 +17,9 @@ package controllers
 
 import (
 	"context"
-	"strings"
 
 	"github.com/sirupsen/logrus"
+	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,16 +33,15 @@ import (
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
 type PodReconcilerConfig struct {
-	Client               client.Client
-	Cluster              string
-	Ctx                  context.Context
-	DisabledNamespaces   []string
-	Log                  logrus.FieldLogger
-	PodLabel             string
-	PodAnnotation        string
-	Scheme               *runtime.Scheme
-	TrustDomain          string
-	FederationAnnotation string
+	Client             client.Client
+	Cluster            string
+	Ctx                context.Context
+	DisabledNamespaces []string
+	Log                logrus.FieldLogger
+	PodLabel           string
+	PodAnnotation      string
+	Scheme             *runtime.Scheme
+	TrustDomain        string
 }
 
 // PodReconciler holds the runtime configuration and state of this controller
@@ -100,7 +99,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		return ctrl.Result{}, nil
 	}
 
-	federationDomains := r.getFederationDomains(pod)
+	federationDomains := federation.GetFederationDomains(pod)
 
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
@@ -159,13 +158,6 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 
 	// Nothing to do
 	return ctrl.Result{}, nil
-}
-
-func (r *PodReconciler) getFederationDomains(pod *corev1.Pod) []string {
-	if val, ok := pod.GetAnnotations()[r.c.FederationAnnotation]; ok {
-		return strings.Split(val, ",")
-	}
-	return []string{}
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored

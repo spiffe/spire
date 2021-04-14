@@ -36,14 +36,13 @@ func TestLoadMode(t *testing.T) {
 
 	require.Equal(&WebhookMode{
 		CommonMode: CommonMode{
-			ServerSocketPath:     "SOCKETPATH",
-			ServerAddress:        "unix://SOCKETPATH",
-			TrustDomain:          "TRUSTDOMAIN",
-			Cluster:              "CLUSTER",
-			LogLevel:             defaultLogLevel,
-			Mode:                 "webhook",
-			DisabledNamespaces:   []string{"kube-system", "kube-public"},
-			FederationAnnotation: defaultFederationAnnotation,
+			ServerSocketPath:   "SOCKETPATH",
+			ServerAddress:      "unix://SOCKETPATH",
+			TrustDomain:        "TRUSTDOMAIN",
+			Cluster:            "CLUSTER",
+			LogLevel:           defaultLogLevel,
+			Mode:               "webhook",
+			DisabledNamespaces: []string{"kube-system", "kube-public"},
 		},
 		Addr:       ":8443",
 		CertPath:   defaultCertPath,
@@ -62,14 +61,13 @@ func TestLoadMode(t *testing.T) {
 			in:   testMinimalConfig,
 			out: &WebhookMode{
 				CommonMode: CommonMode{
-					LogLevel:             defaultLogLevel,
-					ServerSocketPath:     "SOCKETPATH",
-					ServerAddress:        "unix://SOCKETPATH",
-					TrustDomain:          "TRUSTDOMAIN",
-					Cluster:              "CLUSTER",
-					Mode:                 "webhook",
-					DisabledNamespaces:   []string{"kube-system", "kube-public"},
-					FederationAnnotation: defaultFederationAnnotation,
+					LogLevel:           defaultLogLevel,
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "TRUSTDOMAIN",
+					Cluster:            "CLUSTER",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
 				},
 				Addr:                           ":8443",
 				CertPath:                       defaultCertPath,
@@ -92,20 +90,18 @@ func TestLoadMode(t *testing.T) {
 				trust_domain = "TRUSTDOMAINOVERRIDE"
 				cluster = "CLUSTEROVERRIDE"
 				pod_label = "PODLABEL"
-				federation_annotation = "FEDERATESOVERRIDE"
 			`,
 			out: &WebhookMode{
 				CommonMode: CommonMode{
-					LogLevel:             "LEVELOVERRIDE",
-					LogPath:              "PATHOVERRIDE",
-					ServerSocketPath:     "SOCKETPATHOVERRIDE",
-					ServerAddress:        "unix://SOCKETPATHOVERRIDE",
-					TrustDomain:          "TRUSTDOMAINOVERRIDE",
-					Cluster:              "CLUSTEROVERRIDE",
-					PodLabel:             "PODLABEL",
-					Mode:                 "webhook",
-					DisabledNamespaces:   []string{"kube-system", "kube-public"},
-					FederationAnnotation: "FEDERATESOVERRIDE",
+					LogLevel:           "LEVELOVERRIDE",
+					LogPath:            "PATHOVERRIDE",
+					ServerSocketPath:   "SOCKETPATHOVERRIDE",
+					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
+					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					Cluster:            "CLUSTEROVERRIDE",
+					PodLabel:           "PODLABEL",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
 				},
 				Addr:                           ":1234",
 				CertPath:                       "CERTOVERRIDE",

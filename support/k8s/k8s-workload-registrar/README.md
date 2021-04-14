@@ -31,7 +31,6 @@ The configuration file is a **required** by the registrar. It contains
 | `cluster`                  | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string   | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `federation_annotation`    | string   | optional | The pod annotation used for [Federated Entry Registration](#federated-entry-registration) | |
 | `mode`                     | string   | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
 | `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
 
@@ -103,8 +102,6 @@ spec:
   containers:
   ...
 ```
-
-The annotation can be changed by setting `federation_annotation` in the config.
 
 ### Service Account Based Workload Registration
 

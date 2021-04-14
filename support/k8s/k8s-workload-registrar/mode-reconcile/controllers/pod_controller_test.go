@@ -100,7 +100,6 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				"",
 				false,
 				[]string{},
-				"spiffe.io/federatesWith",
 			)
 
 			pod := corev1.Pod{
@@ -206,7 +205,6 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		"cluster.local",
 		true,
 		[]string{},
-		"",
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -319,7 +317,6 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 		"cluster.local",
 		true,
 		[]string{},
-		"",
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -410,7 +407,6 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 		"cluster.local",
 		true,
 		[]string{},
-		"",
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -493,7 +489,6 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 		"cluster.local",
 		true,
 		[]string{"bar"},
-		"",
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
