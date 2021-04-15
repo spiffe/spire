@@ -47,10 +47,11 @@ type Selector struct {
 
 // SpiffeIDSpec defines the desired state of SpiffeID
 type SpiffeIDSpec struct {
-	ParentId string   `json:"parentId"`
-	SpiffeId string   `json:"spiffeId"`
-	Selector Selector `json:"selector"`
-	DnsNames []string `json:"dnsNames,omitempty"`
+	ParentId      string   `json:"parentId"`
+	SpiffeId      string   `json:"spiffeId"`
+	Selector      Selector `json:"selector"`
+	DnsNames      []string `json:"dnsNames,omitempty"`
+	FederatesWith []string `json:"federatesWith,omitempty"`
 }
 
 // SpiffeIDStatus defines the observed state of SpiffeID

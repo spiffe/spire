@@ -83,6 +83,26 @@ specify only `pod_annotation`.
 
 It may take several seconds for newly created SVIDs to become available to workloads.
 
+### Federated Entry Registration
+
+The pod annotatation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
+
+To specify multiple trust domains, separate them with commas.
+
+Example:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    spiffe.io/federatesWith: example.com,example.io,example.ai
+  name: test
+spec:
+  containers:
+  ...
+```
+
 ### Service Account Based Workload Registration
 
 The SPIFFE ID granted to the workload is derived from the 1) service
@@ -261,6 +281,8 @@ metadata:
 spec:
   dnsNames:
   - my-dns-name
+  federatesWith:
+  - example-third-party.org
   selector:
     namespace: my-namespace
     podName: my-pod-name
@@ -279,6 +301,6 @@ The supported selectors are:
 - podUID --  Pod UID to match for this SPIFFE ID
 - serviceAccount -- ServiceAccount to match for this SPIFFE ID
 
-Note: Specifying DNS Names is optional.
+Note: Specifying DNS Names or Federation Domains is optional.
 
 Spire enforces that spiffeId+parentId+selectors are unique. The optional `"crd"` mode webhook
