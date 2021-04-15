@@ -31,7 +31,7 @@ func wrapWithDeprecationLogging(log logrus.FieldLogger, unary grpc.UnaryServerIn
 
 func maybeLogDeprecation(log logrus.FieldLogger, fullMethod string) {
 	if shouldLogDeprecation(fullMethod) {
-		log.WithField("method", fullMethod).Warn("This API is deprecated and will be removed in a future release (see https://github.com/spiffe/spire/blob/master/doc/migrating_registration_api_clients.md)")
+		log.WithField("method", fullMethod).Warn("This API is deprecated and will be removed in a future release (see https://github.com/spiffe/spire/blob/main/doc/migrating_registration_api_clients.md)")
 	}
 }
 

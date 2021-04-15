@@ -25,12 +25,12 @@ cache:
     # cache the Go module cache
     - $HOME/go/pkg/mod
 
-# Only build for master and branches that look like versions. This also covers
+# Only build for main and branches that look like versions. This also covers
 # tags, which keeps us from building (and deploying) from the extra tags we set
 # during a release for go multi-module repo support (i.e. proto/spire/v1.2.3).
 branches:
   only:
-    - master
+    - main
     - /^v\d+\.\d+(\.\d+)?$/
 
 stages:
@@ -93,7 +93,7 @@ jobs:
             condition: $GITHUB_TOKEN != ""
 
     - stage: publish images
-      if: type = push AND (tag IS present OR branch = master)
+      if: type = push AND (tag IS present OR branch = main)
       os: linux
       dist: xenial
       before_script:
