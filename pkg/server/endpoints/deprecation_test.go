@@ -37,7 +37,7 @@ func TestWrapWithDeprecationLogging(t *testing.T) {
 	expectLogs := []spiretest.LogEntry{
 		{
 			Level:   logrus.WarnLevel,
-			Message: "This API is deprecated and will be removed in a future release (see https://github.com/spiffe/spire/blob/master/doc/migrating_registration_api_clients.md)",
+			Message: "This API is deprecated and will be removed in a future release (see https://github.com/spiffe/spire/blob/main/doc/migrating_registration_api_clients.md)",
 			Data: logrus.Fields{
 				"method": "/spire.api.registration.Registration/FetchEntry",
 			},

@@ -65,16 +65,16 @@ While reviewing, SPIRE maintainers should ask questions similar to the following
 The above list is advisory, and is meant only to get the mind going.
 
 ## Release and Branch Management
-The SPIRE project maintains active support for both the current and the previous major versions. All active development occurs in the `master` branch. Version branches are used for minor releases of the previous major version when necessary.
+The SPIRE project maintains active support for both the current and the previous major versions. All active development occurs in the `main` branch. Version branches are used for minor releases of the previous major version when necessary.
 
 ### Version Branches
 When a bug is discovered in the latest release that also affects releases of the prior major version, it is necessary to backport the fix.
 
-If it is the first time that the prior major version is receiving a backported patch, then a version branch is created to track it. The version branch is named `vX.Y` where X and Y are the two most significant digits in the semantic version number. Its base is the last tag present in master for the release in question. For example, if SPIRE is on version 0.9.3, and the last 0.8 release was 0.8.4, then a `v0.8` branch is created with its base being the master commit tagged with `v0.8.4`.
+If it is the first time that the prior major version is receiving a backported patch, then a version branch is created to track it. The version branch is named `vX.Y` where X and Y are the two most significant digits in the semantic version number. Its base is the last tag present in main for the release in question. For example, if SPIRE is on version 0.9.3, and the last 0.8 release was 0.8.4, then a `v0.8` branch is created with its base being the main commit tagged with `v0.8.4`.
 
-Once the version branch is created, the patch is either cherry picked or backported into a PR against the version branch. The version branch is maintained via the same process as the master branch, including PR approval process etc.
+Once the version branch is created, the patch is either cherry picked or backported into a PR against the version branch. The version branch is maintained via the same process as the main branch, including PR approval process etc.
 
-Releases for the previous major version are made directly from its version branch. Ensure that the CHANGELOG is updated in both the master and the version branch to reflect the new release.
+Releases for the previous major version are made directly from its version branch. Ensure that the CHANGELOG is updated in both the main and the version branch to reflect the new release.
 
 ### Releasing
 The SPIRE release machinery is tag-driven. When the maintainers are ready to release, a tag is pushed referencing the release commit. While the CI/CD pipeline takes care of the rest, it is important to keep an eye on its progress. If an error is encountered during this process, the release is aborted.
@@ -91,9 +91,9 @@ This section summarizes the steps necessary to execute a SPIRE release. Unless e
 The following steps must be completed one week prior to release:
 * Ensure all changes intended to be included in the release are fully merged.
 * Identify a specific commit as the release candidate.
-* Create a draft pull request against master branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
+* Create a draft pull request against the main branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
 * Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash. Reference the pull request with the updates to the CHANGELOG.
-* If the current state of the master branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
+* If the current state of the main branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
   * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
   * Create a GitHub project named `Release vX.X.X` to identify the PRs that will be cherry-picked. The project should have two statuses to track the progress: one to identify the PRs to be cherry-picked and one for those that have been merged in the version branch.
   * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released.
@@ -107,7 +107,7 @@ The following steps must be completed one week prior to release:
 
 The following steps must be completed to perform a release:
 * Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it**. If a version branch was created for the realease, cherry-pick the final CHANGELOG changes into the version branch once they are merged.
-* If releasing from master and the current state of the master branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG. If releasing from a version branch, the candidate commit is now the one that has the CHANGELOG changes cherry-picked in the branch.
+* If releasing from main and the current state of the main branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG. If releasing from a version branch, the candidate commit is now the one that has the CHANGELOG changes cherry-picked in the branch.
 * Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
   * The first line of the annotation should be `X.X.X` followed by the CHANGELOG. Refer to previous annotated tags as an example.
   * The `proto/spire/vX.X.X` tag is needed for proper versioning of the github.com/spiffe/spire/proto/spire go module and can be omitted if/when that go module is no longer in the SPIRE repository.
@@ -189,6 +189,6 @@ The responsibilities of the community chair are as follows:
 [1]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md
 [2]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md#maintainers
 [3]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md#change-review-process
-[4]: https://github.com/spiffe/spire/blob/master/CONTRIBUTING.md
-[5]: https://github.com/spiffe/spire/blob/master/doc/upgrading.md
+[4]: https://github.com/spiffe/spire/blob/main/CONTRIBUTING.md
+[5]: https://github.com/spiffe/spire/blob/main/doc/upgrading.md
 [6]: https://github.com/spiffe/spiffe/blob/master/CODE-OF-CONDUCT.md
