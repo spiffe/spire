@@ -65,7 +65,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                               | INFO                                                           |
 | `log_format`                | Format of logs, \<text\|json\>                                                                    | text                                                           |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
-| `socketPath`                | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
+| `socket_path`               | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
 
 | ca_subject                  | Description                    | Default        |
