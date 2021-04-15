@@ -56,6 +56,40 @@ var (
 	}
 }
 `
+
+	fakePodWithFederation = `
+{
+	"kind": "Pod",
+	"apiVersion": "v1",
+	"metadata": {
+		"name": "PODNAME",
+		"namespace": "NAMESPACE",
+		"annotations": {
+			"spiffe.io/federatesWith": "example.net"
+		}
+	},
+	"spec": {
+		"serviceAccountName": "SERVICEACCOUNT"
+	}
+}
+`
+
+	fakePodWithMultiFederation = `
+{
+	"kind": "Pod",
+	"apiVersion": "v1",
+	"metadata": {
+		"name": "PODNAME",
+		"namespace": "NAMESPACE",
+		"annotations": {
+			"spiffe.io/federatesWith": "example.net,example.io"
+		}
+	},
+	"spec": {
+		"serviceAccountName": "SERVICEACCOUNT"
+	}
+}
+`
 	fakePodOnlySA = `
 {
 	"kind": "Pod",
@@ -379,6 +413,72 @@ func TestControllerAnnotationBasedRegistration(t *testing.T) {
 			Id:       "00000001",
 			ParentId: mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
 			SpiffeId: mustIDFromString("spiffe://domain.test/ENV/WORKLOAD"),
+			Selectors: []*types.Selector{
+				{Type: "k8s", Value: "ns:NAMESPACE"},
+				{Type: "k8s", Value: "pod-name:PODNAME"},
+			},
+		},
+	}, r.GetEntries())
+}
+
+func TestControllerFederationBasedRegistration(t *testing.T) {
+	controller, r := newTestController("", "")
+
+	// Send in a POD CREATE and assert that it will be admitted
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+		UID: "uid",
+		Kind: metav1.GroupVersionKind{
+			Version: "v1",
+			Kind:    "Pod",
+		},
+		Namespace: "NAMESPACE",
+		Name:      "PODNAME",
+		Operation: "CREATE",
+		Object: runtime.RawExtension{
+			Raw: []byte(fakePodWithFederation),
+		},
+	})
+
+	// Assert that the registration entry for the pod was created
+	requireEntriesEqual(t, []*types.Entry{
+		{
+			Id:            "00000001",
+			ParentId:      mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
+			SpiffeId:      mustIDFromString("spiffe://domain.test/ns/NAMESPACE/sa/SERVICEACCOUNT"),
+			FederatesWith: []string{"example.net"},
+			Selectors: []*types.Selector{
+				{Type: "k8s", Value: "ns:NAMESPACE"},
+				{Type: "k8s", Value: "pod-name:PODNAME"},
+			},
+		},
+	}, r.GetEntries())
+}
+
+func TestControllerMultiFederationBasedRegistration(t *testing.T) {
+	controller, r := newTestController("", "")
+
+	// Send in a POD CREATE and assert that it will be admitted
+	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+		UID: "uid",
+		Kind: metav1.GroupVersionKind{
+			Version: "v1",
+			Kind:    "Pod",
+		},
+		Namespace: "NAMESPACE",
+		Name:      "PODNAME",
+		Operation: "CREATE",
+		Object: runtime.RawExtension{
+			Raw: []byte(fakePodWithMultiFederation),
+		},
+	})
+
+	// Assert that the registration entry for the pod was created
+	requireEntriesEqual(t, []*types.Entry{
+		{
+			Id:            "00000001",
+			ParentId:      mustIDFromString("spiffe://domain.test/k8s-workload-registrar/CLUSTER/node"),
+			SpiffeId:      mustIDFromString("spiffe://domain.test/ns/NAMESPACE/sa/SERVICEACCOUNT"),
+			FederatesWith: []string{"example.net", "example.io"},
 			Selectors: []*types.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
 				{Type: "k8s", Value: "pod-name:PODNAME"},

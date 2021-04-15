@@ -40,6 +40,10 @@ spec:
               items:
                 type: string
               type: array
+            federatesWith:
+              items:
+                type: string
+              type: array
             parentId:
               type: string
             selector:
