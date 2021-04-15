@@ -32,42 +32,42 @@ func parseSelector(str string) (*types.Selector, error) {
 }
 
 func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
-	printf("Entry ID         : %s\n", printableEntryID(e.Id))
-	printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
-	printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
-	printf("Revision         : %d\n", e.RevisionNumber)
+	_ = printf("Entry ID         : %s\n", printableEntryID(e.Id))
+	_ = printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
+	_ = printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
+	_ = printf("Revision         : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
-		printf("Downstream       : %t\n", e.Downstream)
+		_ = printf("Downstream       : %t\n", e.Downstream)
 	}
 
 	if e.Ttl == 0 {
-		printf("TTL              : default\n")
+		_ = printf("TTL              : default\n")
 	} else {
-		printf("TTL              : %d\n", e.Ttl)
+		_ = printf("TTL              : %d\n", e.Ttl)
 	}
 
 	if e.ExpiresAt != 0 {
-		printf("Expiration time  : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
+		_ = printf("Expiration time  : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
 	}
 
 	for _, s := range e.Selectors {
-		printf("Selector         : %s:%s\n", s.Type, s.Value)
+		_ = printf("Selector         : %s:%s\n", s.Type, s.Value)
 	}
 	for _, id := range e.FederatesWith {
-		printf("FederatesWith    : %s\n", id)
+		_ = printf("FederatesWith    : %s\n", id)
 	}
 	for _, dnsName := range e.DnsNames {
-		printf("DNS name         : %s\n", dnsName)
+		_ = printf("DNS name         : %s\n", dnsName)
 	}
 
 	// admin is rare, so only show admin if true to keep
 	// from muddying the output.
 	if e.Admin {
-		printf("Admin            : %t\n", e.Admin)
+		_ = printf("Admin            : %t\n", e.Admin)
 	}
 
-	printf("\n")
+	_ = printf("\n")
 }
 
 // idStringToProto converts a SPIFFE ID from the given string to *types.SPIFFEID

@@ -21,10 +21,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -33,6 +31,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -60,7 +59,7 @@ type ManagerSuite struct {
 	log     logrus.FieldLogger
 	logHook *test.Hook
 	dir     string
-	km      *memory.KeyManager
+	km      keymanager.KeyManager
 	ds      *fakedatastore.DataStore
 	cat     *fakeservercatalog.Catalog
 
@@ -71,7 +70,7 @@ func (s *ManagerSuite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.ca = new(fakeCA)
 	s.log, s.logHook = test.NewNullLogger()
-	s.km = memory.New()
+	s.km = fakeserverkeymanager.New(s.T())
 	s.ds = fakedatastore.New(s.T())
 
 	s.cat = fakeservercatalog.New()
@@ -115,7 +114,7 @@ func (s *ManagerSuite) TestPersistenceFailsIfKeyManagerLosesKeys() {
 
 	// reset the key manager, reinitialize, and make sure the keys differ. this
 	// simulates the key manager not having keys for the persisted pairs.
-	s.cat.SetKeyManager(memory.New())
+	s.cat.SetKeyManager(fakeserverkeymanager.New(s.T()))
 	s.initSelfSignedManager()
 	s.requireX509CANotEqual(x509CA, s.currentX509CA())
 	s.requireJWTKeyNotEqual(jwtKey, s.currentJWTKey())
@@ -226,7 +225,7 @@ func (s *ManagerSuite) TestUpstreamAuthorityWithPublishJWTKeyImplemented() {
 }
 
 func (s *ManagerSuite) TestX509CARotation() {
-	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(s.T())
 	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
@@ -324,7 +323,7 @@ func (s *ManagerSuite) TestX509CARotationMetric() {
 }
 
 func (s *ManagerSuite) TestJWTKeyRotation() {
-	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(s.T())
 	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
@@ -397,7 +396,7 @@ func (s *ManagerSuite) TestJWTKeyRotation() {
 }
 
 func (s *ManagerSuite) TestPrune() {
-	notifier, notifyCh := fakenotifier.NotifyWaiter()
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(s.T())
 	s.setNotifier(notifier)
 	s.initSelfSignedManager()
 
@@ -463,18 +462,23 @@ func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
 	defer cancel()
 
 	var actual *common.Bundle
-	s.setNotifier(fakenotifier.New(fakenotifier.Config{
-		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
-			if event, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
-				actual = event.BundleLoaded.Bundle
-			}
-			// cancel immediately
+	s.setNotifier(fakenotifier.New(s.T(), fakenotifier.Config{
+		OnNotifyAndAdviseBundleLoaded: func(bundle *common.Bundle) error {
+			actual = bundle
 			cancel()
-			return &notifier.NotifyAndAdviseResponse{}, nil
+			return nil
 		},
 	}))
 
-	s.Require().NoError(s.m.Run(ctx))
+	// Run the manager. The bundle loaded handler above will cancel the
+	// context. This will usually be observed as an error returned from the
+	// notifier, but not always, depending on the timing of the cancelation.
+	// When the notifier does not return an error, Run will return without an
+	// error when the canceled context is passed internally to run the tasks.
+	err := s.m.Run(ctx)
+	if err != nil {
+		s.Require().EqualError(err, "one or more notifiers returned an error: rpc error: code = Canceled desc = notifier(fake): context canceled")
+	}
 
 	// make sure the event contained the bundle
 	expected := s.fetchBundle()
@@ -483,9 +487,9 @@ func (s *ManagerSuite) TestRunNotifiesBundleLoaded() {
 
 func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	s.m = NewManager(s.selfSignedConfig())
-	s.setNotifier(fakenotifier.New(fakenotifier.Config{
-		OnNotifyAndAdvise: func(req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
-			return nil, errors.New("ohno")
+	s.setNotifier(fakenotifier.New(s.T(), fakenotifier.Config{
+		OnNotifyAndAdviseBundleLoaded: func(bundle *common.Bundle) error {
+			return errors.New("ohno")
 		},
 	}))
 
@@ -495,12 +499,12 @@ func (s *ManagerSuite) TestRunFailsIfNotifierFails() {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	err = s.m.Run(ctx)
-	s.Require().EqualError(err, "one or more notifiers returned an error: ohno")
+	s.Require().EqualError(err, "one or more notifiers returned an error: rpc error: code = Unknown desc = notifier(fake): ohno")
 
 	entry := s.logHook.LastEntry()
 	s.Equal("fake", entry.Data["notifier"])
 	s.Equal("bundle loaded", entry.Data["event"])
-	s.Equal("ohno", fmt.Sprintf("%v", entry.Data["error"]))
+	s.Equal("rpc error: code = Unknown desc = notifier(fake): ohno", fmt.Sprintf("%v", entry.Data["error"]))
 	s.Equal("Notifier failed to handle event", entry.Message)
 }
 
@@ -525,12 +529,9 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 }
 
 func (s *ManagerSuite) TestAlternateKeyTypes() {
-	ua, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
-
-	upstreamAuthority := fakeservercatalog.UpstreamAuthority(
-		"fakeupstreamauthority", ua)
 
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)
@@ -566,7 +567,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 
 	testCases := []struct {
 		name              string
-		upstreamAuthority *catalog.UpstreamAuthority
+		upstreamAuthority upstreamauthority.UpstreamAuthority
 		x509CAKeyType     keymanager.KeyType
 		jwtKeyType        keymanager.KeyType
 		checkX509CA       func(*testing.T, crypto.Signer)
@@ -579,36 +580,36 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		},
 		{
 			name:          "self-signed with RSA 2048",
-			x509CAKeyType: keymanager.KeyType_RSA_2048,
-			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			x509CAKeyType: keymanager.RSA2048,
+			jwtKeyType:    keymanager.RSA2048,
 			checkX509CA:   expectRSA2048,
 			checkJWTKey:   expectRSA2048,
 		},
 		{
 			name:          "self-signed with RSA 4096",
-			x509CAKeyType: keymanager.KeyType_RSA_4096,
-			jwtKeyType:    keymanager.KeyType_RSA_4096,
+			x509CAKeyType: keymanager.RSA4096,
+			jwtKeyType:    keymanager.RSA4096,
 			checkX509CA:   expectRSA4096,
 			checkJWTKey:   expectRSA4096,
 		},
 		{
 			name:          "self-signed with EC P256",
-			x509CAKeyType: keymanager.KeyType_EC_P256,
-			jwtKeyType:    keymanager.KeyType_EC_P256,
+			x509CAKeyType: keymanager.ECP256,
+			jwtKeyType:    keymanager.ECP256,
 			checkX509CA:   expectEC256,
 			checkJWTKey:   expectEC256,
 		},
 		{
 			name:          "self-signed with EC P384",
-			x509CAKeyType: keymanager.KeyType_EC_P384,
-			jwtKeyType:    keymanager.KeyType_EC_P384,
+			x509CAKeyType: keymanager.ECP384,
+			jwtKeyType:    keymanager.ECP384,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectEC384,
 		},
 		{
 			name:          "self-signed JWT with RSA 2048 and X509 with EC P384",
-			x509CAKeyType: keymanager.KeyType_EC_P384,
-			jwtKeyType:    keymanager.KeyType_RSA_2048,
+			x509CAKeyType: keymanager.ECP384,
+			jwtKeyType:    keymanager.RSA2048,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectRSA2048,
 		},
@@ -621,32 +622,32 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		{
 			name:              "upstream-signed with RSA 2048",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_RSA_2048,
-			jwtKeyType:        keymanager.KeyType_RSA_2048,
+			x509CAKeyType:     keymanager.RSA2048,
+			jwtKeyType:        keymanager.RSA2048,
 			checkX509CA:       expectRSA2048,
 			checkJWTKey:       expectRSA2048,
 		},
 		{
 			name:              "upstream-signed with RSA 4096",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_RSA_4096,
-			jwtKeyType:        keymanager.KeyType_RSA_4096,
+			x509CAKeyType:     keymanager.RSA4096,
+			jwtKeyType:        keymanager.RSA4096,
 			checkX509CA:       expectRSA4096,
 			checkJWTKey:       expectRSA4096,
 		},
 		{
 			name:              "upstream-signed with EC P256",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_EC_P256,
-			jwtKeyType:        keymanager.KeyType_EC_P256,
+			x509CAKeyType:     keymanager.ECP256,
+			jwtKeyType:        keymanager.ECP256,
 			checkX509CA:       expectEC256,
 			checkJWTKey:       expectEC256,
 		},
 		{
 			name:              "upstream-signed with EC P384",
 			upstreamAuthority: upstreamAuthority,
-			x509CAKeyType:     keymanager.KeyType_EC_P384,
-			jwtKeyType:        keymanager.KeyType_EC_P384,
+			x509CAKeyType:     keymanager.ECP384,
+			jwtKeyType:        keymanager.ECP384,
 			checkX509CA:       expectEC384,
 			checkJWTKey:       expectEC384,
 		},
@@ -661,7 +662,7 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 
 			// Reset the key manager for each test case to ensure a fresh
 			// rotation.
-			s.cat.SetKeyManager(memory.New())
+			s.cat.SetKeyManager(fakeserverkeymanager.New(s.T()))
 
 			// Optionally provide an upstream authority
 			s.cat.SetUpstreamAuthority(testCase.upstreamAuthority)
@@ -682,7 +683,7 @@ func (s *ManagerSuite) initSelfSignedManager() {
 }
 
 func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamauthority.UpstreamAuthority) {
-	s.cat.SetUpstreamAuthority(fakeservercatalog.UpstreamAuthority("fakeupstreamauthority", upstreamAuthority))
+	s.cat.SetUpstreamAuthority(upstreamAuthority)
 
 	c := s.selfSignedConfig()
 	s.m = NewManager(c)
@@ -690,7 +691,7 @@ func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamautho
 }
 
 func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
-	s.cat.AddNotifier(fakeservercatalog.Notifier("fake", notifier))
+	s.cat.AddNotifier(notifier)
 }
 
 func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
@@ -765,13 +766,13 @@ func (s *ManagerSuite) getJWTKeyInfo(jwtKey *JWTKey) jwtKeyInfo {
 }
 
 func (s *ManagerSuite) getSignerInfo(signer crypto.Signer) signerInfo {
-	ks, ok := signer.(interface{ KeyID() string })
+	ks, ok := signer.(interface{ ID() string })
 	s.Require().True(ok, "signer is not a Key Manager")
 
 	publicKey, err := x509.MarshalPKIXPublicKey(signer.Public())
 	s.Require().NoError(err)
 	return signerInfo{
-		KeyID:     ks.KeyID(),
+		KeyID:     ks.ID(),
 		PublicKey: publicKey,
 	}
 }
@@ -890,14 +891,11 @@ func (s *ManagerSuite) wipeJournal() {
 	s.Require().NoError(os.Remove(s.m.journalPath()))
 }
 
-func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *notifier.NotifyRequest) {
+func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *common.Bundle) {
 	select {
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for bundle update notification")
-	case req := <-ch:
-		event, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated)
-		s.Require().True(ok, "expected a bundle updated notification")
-		actual := event.BundleUpdated.Bundle
+	case actual := <-ch:
 		expected := s.fetchBundle()
 		s.RequireProtoEqual(expected, actual)
 	}

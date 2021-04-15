@@ -4,17 +4,18 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
+	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func BuiltIn() catalog.Plugin {
@@ -22,7 +23,7 @@ func BuiltIn() catalog.Plugin {
 }
 
 func builtin(p *KeyManager) catalog.Plugin {
-	return catalog.MakePlugin("disk", keymanager.PluginServer(p))
+	return catalog.MakePlugin("disk", keymanagerv0.PluginServer(p))
 }
 
 type configuration struct {
@@ -30,7 +31,7 @@ type configuration struct {
 }
 
 type KeyManager struct {
-	*base.Base
+	*keymanagerbase.Base
 
 	mu     sync.Mutex
 	config *configuration
@@ -38,9 +39,8 @@ type KeyManager struct {
 
 func New() *KeyManager {
 	m := &KeyManager{}
-	m.Base = base.New(base.Impl{
-		ErrorFn: newError,
-		WriteFn: m.saveEntries,
+	m.Base = keymanagerbase.New(keymanagerbase.Funcs{
+		WriteEntries: m.writeEntries,
 	})
 	return m
 }
@@ -48,11 +48,11 @@ func New() *KeyManager {
 func (m *KeyManager) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
 	config := new(configuration)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, newError("unable to decode configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	if config.KeysPath == "" {
-		return nil, newError("keys_path is required")
+		return nil, status.Error(codes.InvalidArgument, "keys_path is required")
 	}
 
 	m.mu.Lock()
@@ -83,13 +83,13 @@ func (m *KeyManager) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInf
 	return &plugin.GetPluginInfoResponse{}, nil
 }
 
-func (m *KeyManager) saveEntries(ctx context.Context, entries []*base.KeyEntry) error {
+func (m *KeyManager) writeEntries(ctx context.Context, entries []*keymanagerbase.KeyEntry) error {
 	m.mu.Lock()
 	config := m.config
 	m.mu.Unlock()
 
 	if config == nil {
-		return newError("not configured")
+		return status.Error(codes.FailedPrecondition, "not configured")
 	}
 
 	return writeEntries(config.KeysPath, entries)
@@ -99,7 +99,7 @@ type entriesData struct {
 	Keys map[string][]byte `json:"keys"`
 }
 
-func loadEntries(path string) ([]*base.KeyEntry, error) {
+func loadEntries(path string) ([]*keymanagerbase.KeyEntry, error) {
 	jsonBytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -110,25 +110,25 @@ func loadEntries(path string) ([]*base.KeyEntry, error) {
 
 	data := new(entriesData)
 	if err := json.Unmarshal(jsonBytes, data); err != nil {
-		return nil, newError("unable to decode keys JSON: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to decode keys JSON: %v", err)
 	}
 
-	var entries []*base.KeyEntry
+	var entries []*keymanagerbase.KeyEntry
 	for id, keyBytes := range data.Keys {
 		key, err := x509.ParsePKCS8PrivateKey(keyBytes)
 		if err != nil {
-			return nil, newError("unable to parse key %q: %v", id, err)
+			return nil, status.Errorf(codes.Internal, "unable to parse key %q: %v", id, err)
 		}
-		entry, err := base.MakeKeyEntryFromKey(id, key)
+		entry, err := keymanagerbase.MakeKeyEntryFromKey(id, key)
 		if err != nil {
-			return nil, newError("unable to make entry %q: %v", id, err)
+			return nil, status.Errorf(codes.Internal, "unable to make entry %q: %v", id, err)
 		}
 		entries = append(entries, entry)
 	}
 	return entries, nil
 }
 
-func writeEntries(path string, entries []*base.KeyEntry) error {
+func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
 	data := &entriesData{
 		Keys: make(map[string][]byte),
 	}
@@ -142,16 +142,12 @@ func writeEntries(path string, entries []*base.KeyEntry) error {
 
 	jsonBytes, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
-		return newError("unable to marshal entries: %v", err)
+		return status.Errorf(codes.Internal, "unable to marshal entries: %v", err)
 	}
 
 	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0644); err != nil {
-		return newError("unable to write entries: %v", err)
+		return status.Errorf(codes.Internal, "unable to write entries: %v", err)
 	}
 
 	return nil
-}
-
-func newError(format string, args ...interface{}) error {
-	return fmt.Errorf("keymanager(disk): "+format, args...)
 }

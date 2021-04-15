@@ -1030,6 +1030,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: h.getGRPCServerConfig,
+		MinVersion:         tls.VersionTLS12,
 	}
 
 	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
@@ -1157,6 +1158,7 @@ func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, 
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 		Certificates: certs,
 		ClientCAs:    roots,
+		MinVersion:   tls.VersionTLS12,
 	}, nil
 }
 

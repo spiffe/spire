@@ -12,19 +12,16 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
+	"github.com/sirupsen/logrus"
 
-	_ "github.com/jinzhu/gorm/dialects/sqlite" // gorm sqlite dialect init registration
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,14 +29,6 @@ import (
 )
 
 var (
-	pluginInfo = spi.GetPluginInfoResponse{
-		Description: "",
-		DateCreated: "",
-		Version:     "",
-		Author:      "",
-		Company:     "",
-	}
-
 	sqlError = errs.Class("datastore-sql")
 )
 
@@ -53,16 +42,6 @@ const (
 	// SQLite database type
 	SQLite = "sqlite3"
 )
-
-func BuiltIn() catalog.Plugin {
-	return builtin(New())
-}
-
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(PluginName,
-		datastore.PluginServer(p),
-	)
-}
 
 // Configuration for the datastore.
 // Pointer values are used to distinguish between "unset" and "zero" values.
@@ -107,22 +86,16 @@ func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interfa
 
 // Plugin is a DataStore plugin implemented via a SQL database
 type Plugin struct {
-	datastore.UnsafeDataStoreServer
-
 	mu   sync.Mutex
 	db   *sqlDB
 	roDb *sqlDB
-	log  hclog.Logger
+	log  logrus.FieldLogger
 }
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New() *Plugin {
-	return &Plugin{}
-}
-
-func (ds *Plugin) SetLogger(logger hclog.Logger) {
-	ds.log = logger
+func New(log logrus.FieldLogger) *Plugin {
+	return &Plugin{log: log}
 }
 
 // CreateBundle stores the given bundle
@@ -193,14 +166,14 @@ func (ds *Plugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleReq
 }
 
 // CountBundles can be used to count all existing bundles.
-func (ds *Plugin) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (resp *datastore.CountBundlesResponse, err error) {
+func (ds *Plugin) CountBundles(ctx context.Context) (count int32, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = countBundles(tx)
+		count, err = countBundles(tx)
 		return err
 	}); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return resp, nil
+	return count, nil
 }
 
 // ListBundles can be used to fetch all existing bundles.
@@ -255,16 +228,15 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context,
 }
 
 // CountAttestedNodes counts all attested nodes
-func (ds *Plugin) CountAttestedNodes(ctx context.Context,
-	req *datastore.CountAttestedNodesRequest) (resp *datastore.CountAttestedNodesResponse, err error) {
+func (ds *Plugin) CountAttestedNodes(ctx context.Context) (count int32, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = countAttestedNodes(tx)
+		count, err = countAttestedNodes(tx)
 		return err
 	}); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return resp, nil
+	return count, nil
 }
 
 // ListAttestedNodes lists all attested nodes (pagination available)
@@ -360,16 +332,15 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 }
 
 // CounCountRegistrationEntries counts all registrations (pagination available)
-func (ds *Plugin) CountRegistrationEntries(ctx context.Context,
-	req *datastore.CountRegistrationEntriesRequest) (resp *datastore.CountRegistrationEntriesResponse, err error) {
+func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = countRegistrationEntries(tx)
+		count, err = countRegistrationEntries(tx)
 		return err
 	}); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return resp, nil
+	return count, nil
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -418,25 +389,25 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.P
 }
 
 // CreateJoinToken takes a Token message and stores it
-func (ds *Plugin) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (resp *datastore.CreateJoinTokenResponse, err error) {
-	if req.JoinToken == nil || req.JoinToken.Token == "" || req.JoinToken.Expiry == 0 {
-		return nil, errors.New("token and expiry are required")
+func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
+	if token == nil || token.Token == "" || token.Expiry.IsZero() {
+		return errors.New("token and expiry are required")
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createJoinToken(tx, req)
+		err = createJoinToken(tx, token)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // FetchJoinToken takes a Token message and returns one, populating the fields
 // we have knowledge of
-func (ds *Plugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (resp *datastore.FetchJoinTokenResponse, err error) {
+func (ds *Plugin) FetchJoinToken(ctx context.Context, token string) (resp *datastore.JoinToken, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchJoinToken(tx, req)
+		resp, err = fetchJoinToken(tx, token)
 		return err
 	}); err != nil {
 		return nil, err
@@ -446,55 +417,55 @@ func (ds *Plugin) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTo
 }
 
 // DeleteJoinToken deletes the given join token
-func (ds *Plugin) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (resp *datastore.DeleteJoinTokenResponse, err error) {
+func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteJoinToken(tx, req)
+		err = deleteJoinToken(tx, token)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *Plugin) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (resp *datastore.PruneJoinTokensResponse, err error) {
+func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneJoinTokens(tx, req)
+		err = pruneJoinTokens(tx, expiry)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
-func (ds *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (ds *Plugin) Configure(hclConfiguration string) error {
 	config := &configuration{}
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, err
+	if err := hcl.Decode(config, hclConfiguration); err != nil {
+		return err
 	}
 
 	if err := config.Validate(); err != nil {
-		return nil, err
+		return err
 	}
 
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
 	if err := ds.openConnection(config, false); err != nil {
-		return nil, err
+		return err
 	}
 
 	if config.RoConnectionString == "" {
-		return &spi.ConfigureResponse{}, nil
+		return nil
 	}
 
 	if err := ds.openConnection(config, true); err != nil {
-		return nil, err
+		return err
 	}
 
-	return &spi.ConfigureResponse{}, nil
+	return nil
 }
 
 func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
@@ -519,11 +490,11 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 			sqlDb.Close()
 		}
 
-		ds.log.Info("Connected to SQL database",
-			"type", config.DatabaseType,
-			"version", version,
-			"read_only", isReadOnly,
-		)
+		ds.log.WithFields(logrus.Fields{
+			telemetry.Type:     config.DatabaseType,
+			telemetry.Version:  version,
+			telemetry.ReadOnly: isReadOnly,
+		}).Info("Connected to SQL database")
 
 		sqlDb = &sqlDB{
 			DB:               db,
@@ -554,11 +525,6 @@ func (ds *Plugin) closeDB() {
 	if ds.roDb != nil {
 		ds.roDb.Close()
 	}
-}
-
-// GetPluginInfo returns the sql plugin
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &pluginInfo, nil
 }
 
 // withReadModifyWriteTx wraps the operation in a transaction appropriate for
@@ -654,7 +620,7 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, dialect, error) {
 	var dialect dialect
 
-	ds.log.Info("Opening SQL database", telemetry.DatabaseType, cfg.DatabaseType)
+	ds.log.WithField(telemetry.DatabaseType, cfg.DatabaseType).Info("Opening SQL database")
 	switch cfg.DatabaseType {
 	case SQLite:
 		dialect = sqliteDB{log: ds.log}
@@ -671,11 +637,9 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		return nil, "", false, nil, err
 	}
 
-	gormLogger := ds.log.Named("gorm")
-	gormLogger.SetLevel(hclog.Debug)
-	db.SetLogger(gormLogger.StandardLogger(&hclog.StandardLoggerOptions{
-		InferLevels: true,
-	}))
+	db.SetLogger(gormLogger{
+		log: ds.log.WithField(telemetry.SubsystemName, "gorm"),
+	})
 	if cfg.MaxOpenConns != nil {
 		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
 	}
@@ -698,6 +662,14 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	}
 
 	return db, version, supportsCTE, dialect, nil
+}
+
+type gormLogger struct {
+	log logrus.FieldLogger
+}
+
+func (logger gormLogger) Print(v ...interface{}) {
+	logger.log.Debug(gorm.LogFormatter(v...)...)
 }
 
 func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
@@ -926,18 +898,15 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 }
 
 // countBundles can be used to count existing bundles
-func countBundles(tx *gorm.DB) (*datastore.CountBundlesResponse, error) {
+func countBundles(tx *gorm.DB) (int32, error) {
 	tx = tx.Model(&Bundle{})
 
 	var count int
 	if err := tx.Count(&count).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return 0, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.CountBundlesResponse{
-		Bundles: int32(count),
-	}
-	return resp, nil
+	return int32(count), nil
 }
 
 // listBundles can be used to fetch all existing bundles.
@@ -985,7 +954,7 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	return resp, nil
 }
 
-func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log hclog.Logger) (*datastore.PruneBundleResponse, error) {
+func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.FieldLogger) (*datastore.PruneBundleResponse, error) {
 	// Get current bundle
 	current, err := fetchBundle(tx, &datastore.FetchBundleRequest{TrustDomainId: req.TrustDomainId})
 	if err != nil {
@@ -1049,16 +1018,13 @@ func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*d
 	}, nil
 }
 
-func countAttestedNodes(tx *gorm.DB) (*datastore.CountAttestedNodesResponse, error) {
+func countAttestedNodes(tx *gorm.DB) (int32, error) {
 	var count int
 	if err := tx.Model(&AttestedNode{}).Count(&count).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return 0, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.CountAttestedNodesResponse{
-		Nodes: int32(count),
-	}
-	return resp, nil
+	return int32(count), nil
 }
 
 func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -2047,16 +2013,13 @@ ORDER BY selector_id, dns_name_id
 	return query, []interface{}{req.EntryId}, nil
 }
 
-func countRegistrationEntries(tx *gorm.DB) (*datastore.CountRegistrationEntriesResponse, error) {
+func countRegistrationEntries(tx *gorm.DB) (int32, error) {
 	var count int
 	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return 0, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.CountRegistrationEntriesResponse{
-		Entries: int32(count),
-	}
-	return resp, nil
+	return int32(count), nil
 }
 
 func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
@@ -3125,56 +3088,50 @@ func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntri
 	return &datastore.PruneRegistrationEntriesResponse{}, nil
 }
 
-func createJoinToken(tx *gorm.DB, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
+func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
 	t := JoinToken{
-		Token:  req.JoinToken.Token,
-		Expiry: req.JoinToken.Expiry,
+		Token:  token.Token,
+		Expiry: token.Expiry.Unix(),
 	}
 
 	if err := tx.Create(&t).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateJoinTokenResponse{
-		JoinToken: req.JoinToken,
-	}, nil
+	return nil
 }
 
-func fetchJoinToken(tx *gorm.DB, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
+func fetchJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
 	var model JoinToken
-	err := tx.Find(&model, "token = ?", req.Token).Error
+	err := tx.Find(&model, "token = ?", token).Error
 	if err == gorm.ErrRecordNotFound {
-		return &datastore.FetchJoinTokenResponse{}, nil
+		return nil, nil
 	} else if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.FetchJoinTokenResponse{
-		JoinToken: modelToJoinToken(model),
-	}, nil
+	return modelToJoinToken(model), nil
 }
 
-func deleteJoinToken(tx *gorm.DB, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
+func deleteJoinToken(tx *gorm.DB, token string) error {
 	var model JoinToken
-	if err := tx.Find(&model, "token = ?", req.Token).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+	if err := tx.Find(&model, "token = ?", token).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
 	if err := tx.Delete(&model).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
-	return &datastore.DeleteJoinTokenResponse{
-		JoinToken: modelToJoinToken(model),
-	}, nil
+	return nil
 }
 
-func pruneJoinTokens(tx *gorm.DB, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
-	if err := tx.Where("expiry < ?", req.ExpiresBefore).Delete(&JoinToken{}).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
+	if err := tx.Where("expiry < ?", expiresBefore.Unix()).Delete(&JoinToken{}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
-	return &datastore.PruneJoinTokensResponse{}, nil
+	return nil
 }
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
@@ -3327,7 +3284,7 @@ func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
 func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 	return &datastore.JoinToken{
 		Token:  model.Token,
-		Expiry: model.Expiry,
+		Expiry: time.Unix(model.Expiry, 0),
 	}
 }
 
@@ -3376,11 +3333,11 @@ func bindVarsFn(fn func(int) string, query string) string {
 
 func (cfg *configuration) Validate() error {
 	if cfg.DatabaseType == "" {
-		return errors.New("database_type must be set")
+		return sqlError.New("database_type must be set")
 	}
 
 	if cfg.ConnectionString == "" {
-		return errors.New("connection_string must be set")
+		return sqlError.New("connection_string must be set")
 	}
 
 	if cfg.DatabaseType == MySQL {

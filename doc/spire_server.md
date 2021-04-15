@@ -18,8 +18,9 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | Type | Name | Description |
 | ---- | ---- | ----------- |
 | DataStore | [sql](/doc/plugin_server_datastore_sql.md) | An sql database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore |
-| KeyManager  | [disk](/doc/plugin_server_keymanager_disk.md) | A disk-based key manager for signing SVIDs |
-| KeyManager  | [memory](/doc/plugin_server_keymanager_memory.md) | A key manager for signing SVIDs which only stores keys in memory and does not actually persist them anywhere |
+| KeyManager  | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md) | A key manager which manages keys in AWS KMS |
+| KeyManager  | [disk](/doc/plugin_server_keymanager_disk.md) | A key manager which manages keys persisted on disk |
+| KeyManager  | [memory](/doc/plugin_server_keymanager_memory.md) | A key manager which manages unpersisted keys in memory |
 | NodeAttestor | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
 | NodeAttestor | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) | A node attestor which attests agent identity using an Azure MSI token |
 | NodeAttestor | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
@@ -28,14 +29,13 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
 | NodeAttestor | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
 | NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
-| NodeResolver | [aws_iid](/doc/plugin_server_noderesolver_aws_iid.md) | A node resolver which extends the [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md) node attestor plugin to support selecting nodes based on additional properties (such as Security Group ID). |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
-| NodeResolver | [noop](/doc/plugin_server_noderesolver_noop.md) | It is mandatory to have at least one node resolver plugin configured. This one is a no-op |
 | Notifier   | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md) | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage. |
 | Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
 | UpstreamAuthority | [disk](/doc/plugin_server_upstreamauthority_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md) | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md) | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates. |
+| UpstreamAuthority | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md) | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
 | UpstreamAuthority | [vault](/doc/plugin_server_upstreamauthority_vault.md) | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
 
@@ -57,6 +57,7 @@ This may be useful for templating configuration files, for example across differ
 | `ca_ttl`                    | The default CA/signing key TTL                                                                    | 24h                                                            |
 | `data_dir`                  | A directory the server can use for its runtime                                                    |                                                                |
 | `default_svid_ttl`          | The default SVID TTL                                                                              | 1h                                                             |
+| `experimental`              | The experimental options that are subject to change or removal (see below)                        |                                                                |
 | `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)           |                                                                |
 | `jwt_key_type`              | The key type used for the server CA (JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>               | The value of `ca_key_type` or ec-p256 if not defined           |
 | `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                      |                                                                |
@@ -64,7 +65,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                               | INFO                                                           |
 | `log_format`                | Format of logs, \<text\|json\>                                                                    | text                                                           |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
-| `socketPath`                | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
+| `socket_path`               | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
 
 | ca_subject                  | Description                    | Default        |
@@ -72,6 +73,10 @@ This may be useful for templating configuration files, for example across differ
 | `country`                   | Array of `Country` values      |                |
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
+
+| experimental                | Description                    | Default        |
+|:----------------------------|--------------------------------|----------------|
+| `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s |
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -429,7 +434,7 @@ A JSON object passed to `-data` for `entry create/update` expects the following 
 }
 ```
 
-The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/master/proto/spire/common/common.proto).
+The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/main/proto/spire/common/common.proto).
 
 _Note: to create node entries, set `parent_id` to the special value `spiffe://<your-trust-domain>/spire/server`.
 That's what the code does when the `-node` flag is passed on the cli._
@@ -469,9 +474,6 @@ plugins {
         }
     }
     NodeAttestor "join_token" {
-        plugin_data {}
-    }
-    NodeResolver "noop" {
         plugin_data {}
     }
     KeyManager "disk" {

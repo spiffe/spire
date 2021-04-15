@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	sqlds "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -477,7 +477,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 func BenchmarkBuildSQL(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 	ctx := context.Background()
-	ds := newSQLPlugin(ctx, b)
+	ds := newSQLPlugin(b)
 
 	for _, entry := range allEntries {
 		e, _ := api.ProtoToRegistrationEntry(td, entry)
@@ -739,10 +739,9 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	return allEntries, agents
 }
 
-func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.Plugin {
-	p := sqlds.BuiltIn()
-	var ds datastore.Plugin
-	spiretest.LoadPlugin(tb, p, &ds)
+func newSQLPlugin(tb testing.TB) datastore.DataStore {
+	log, _ := test.NewNullLogger()
+	p := sqlds.New(log)
 
 	// When the test suite is executed normally, we test against sqlite3 since
 	// it requires no external dependencies. The integration test framework
@@ -778,11 +777,8 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.Plugin {
 		require.FailNowf(tb, "Unsupported external test dialect %q", TestDialect)
 	}
 
-	cfgReq := &spi.ConfigureRequest{
-		Configuration: cfg,
-	}
-	_, err := ds.Configure(ctx, cfgReq)
+	err := p.Configure(cfg)
 	require.NoError(tb, err)
 
-	return ds
+	return p
 }

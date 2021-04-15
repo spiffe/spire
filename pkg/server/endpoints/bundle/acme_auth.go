@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"crypto/x509"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/autocert"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/zeebo/errs"
 	"golang.org/x/crypto/acme"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -101,20 +101,15 @@ type acmeKeyStore struct {
 func (ks *acmeKeyStore) GetPrivateKey(ctx context.Context, id string) (crypto.Signer, error) {
 	keyID := acmeKeyPrefix + id
 
-	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
-	defer cancel()
-
-	resp, err := ks.km.GetPublicKey(ctx, &keymanager.GetPublicKeyRequest{
-		KeyId: keyID,
-	})
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	if resp.PublicKey == nil {
+	key, err := ks.km.GetKey(ctx, keyID)
+	switch status.Code(err) {
+	case codes.OK:
+		return key, nil
+	case codes.NotFound:
 		return nil, autocert.ErrNoSuchKey
+	default:
+		return nil, err
 	}
-
-	return ks.signer(keyID, resp.PublicKey)
 }
 
 func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType autocert.KeyType) (crypto.Signer, error) {
@@ -123,32 +118,17 @@ func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType au
 	var kmKeyType keymanager.KeyType
 	switch keyType {
 	case autocert.RSA2048:
-		kmKeyType = keymanager.KeyType_RSA_2048
+		kmKeyType = keymanager.RSA2048
 	case autocert.EC256:
-		kmKeyType = keymanager.KeyType_EC_P256
+		kmKeyType = keymanager.ECP256
 	default:
 		return nil, errs.New("unsupported key type: %d", keyType)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, keymanager.RPCTimeout)
-	defer cancel()
-
-	resp, err := ks.km.GenerateKey(ctx, &keymanager.GenerateKeyRequest{
-		KeyId:   keyID,
-		KeyType: kmKeyType,
-	})
+	key, err := ks.km.GenerateKey(ctx, keyID, kmKeyType)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
-
-	ks.log.WithField("id", id).Info("Generated new key")
-	return ks.signer(keyID, resp.PublicKey)
-}
-
-func (ks *acmeKeyStore) signer(id string, kmPublicKey *keymanager.PublicKey) (crypto.Signer, error) {
-	publicKey, err := x509.ParsePKIXPublicKey(kmPublicKey.PkixData)
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	return cryptoutil.NewKeyManagerSigner(ks.km, id, publicKey), nil
+	ks.log.WithField("id", keyID).Info("Generated new key")
+	return key, nil
 }

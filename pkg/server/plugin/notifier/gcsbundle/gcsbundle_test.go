@@ -9,10 +9,10 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -83,9 +83,9 @@ func TestConfigure(t *testing.T) {
 			idp := fakeidentityprovider.New()
 
 			raw := New()
-			var plugin notifier.Plugin
+			var plugin notifierv0.Plugin
 			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
-				spiretest.HostService(hostservices.IdentityProviderHostServiceServer(idp)))
+				spiretest.HostService(identityproviderv0.HostServiceServer(idp)))
 
 			resp, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{Configuration: tt.config})
 			if tt.code != codes.OK {
@@ -105,10 +105,10 @@ func TestGetPluginInfo(t *testing.T) {
 }
 
 func TestNotify(t *testing.T) {
-	testUpdateBundleObject(t, func(plugin notifier.Plugin) error {
-		_, err := plugin.Notify(context.Background(), &notifier.NotifyRequest{
-			Event: &notifier.NotifyRequest_BundleUpdated{
-				BundleUpdated: &notifier.BundleUpdated{},
+	testUpdateBundleObject(t, func(plugin notifierv0.Plugin) error {
+		_, err := plugin.Notify(context.Background(), &notifierv0.NotifyRequest{
+			Event: &notifierv0.NotifyRequest_BundleUpdated{
+				BundleUpdated: &notifierv0.BundleUpdated{},
 			},
 		})
 		return err
@@ -116,17 +116,17 @@ func TestNotify(t *testing.T) {
 }
 
 func TestNotifyAndAdvise(t *testing.T) {
-	testUpdateBundleObject(t, func(plugin notifier.Plugin) error {
-		_, err := plugin.NotifyAndAdvise(context.Background(), &notifier.NotifyAndAdviseRequest{
-			Event: &notifier.NotifyAndAdviseRequest_BundleLoaded{
-				BundleLoaded: &notifier.BundleLoaded{},
+	testUpdateBundleObject(t, func(plugin notifierv0.Plugin) error {
+		_, err := plugin.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
+			Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
+				BundleLoaded: &notifierv0.BundleLoaded{},
 			},
 		})
 		return err
 	})
 }
 
-func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) error) {
+func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) error) {
 	bundle1 := &common.Bundle{RootCas: []*common.Certificate{{DerBytes: []byte("1")}}}
 	bundle2 := &common.Bundle{RootCas: []*common.Certificate{{DerBytes: []byte("2")}}}
 
@@ -236,9 +236,9 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifier.Plugin) er
 			}
 
 			// Load the instance as a plugin
-			var plugin notifier.Plugin
+			var plugin notifierv0.Plugin
 			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
-				spiretest.HostService(hostservices.IdentityProviderHostServiceServer(idp)))
+				spiretest.HostService(identityproviderv0.HostServiceServer(idp)))
 
 			if !tt.skipConfigure {
 				_, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{

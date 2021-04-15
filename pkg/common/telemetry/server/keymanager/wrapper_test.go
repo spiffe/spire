@@ -2,6 +2,8 @@ package keymanager
 
 import (
 	"context"
+	"crypto"
+	"io"
 	"strings"
 	"testing"
 
@@ -12,64 +14,77 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockKeyManager struct{}
+type fakeKeyManager struct{}
 
-func (mockKeyManager) GenerateKey(ctx context.Context, req *keymanager.GenerateKeyRequest) (*keymanager.GenerateKeyResponse, error) {
+func (fakeKeyManager) Name() string { return "" }
+
+func (fakeKeyManager) Type() string { return "" }
+
+func (fakeKeyManager) GenerateKey(ctx context.Context, id string, keyType keymanager.KeyType) (_ keymanager.Key, err error) {
+	return fakeKey{}, nil
+}
+
+func (fakeKeyManager) GetKey(ctx context.Context, id string) (_ keymanager.Key, err error) {
+	return fakeKey{}, nil
+}
+
+func (fakeKeyManager) GetKeys(ctx context.Context) (_ []keymanager.Key, err error) {
+	return []keymanager.Key{fakeKey{}}, nil
+}
+
+type fakeKey struct{}
+
+func (fakeKey) ID() string { return "" }
+
+func (fakeKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	return nil, nil
 }
 
-func (mockKeyManager) GetPublicKey(ctx context.Context, req *keymanager.GetPublicKeyRequest) (*keymanager.GetPublicKeyResponse, error) {
-	return nil, nil
-}
-
-func (mockKeyManager) GetPublicKeys(ctx context.Context, req *keymanager.GetPublicKeysRequest) (*keymanager.GetPublicKeysResponse, error) {
-	return nil, nil
-}
-
-func (mockKeyManager) SignData(ctx context.Context, req *keymanager.SignDataRequest) (*keymanager.SignDataResponse, error) {
-	return nil, nil
-}
+func (fakeKey) Public() crypto.PublicKey { return nil }
 
 func TestWithMetrics(t *testing.T) {
-	var km mockKeyManager
 	m := fakemetrics.New()
-	w := WithMetrics(km, m)
+	w := WithMetrics(fakeKeyManager{}, m)
 	for _, tt := range []struct {
 		key  string
-		call func() error
+		call func(*testing.T)
 	}{
 		{
 			key: "server_key_manager.generate_key",
-			call: func() error {
-				_, err := w.GenerateKey(context.Background(), nil)
-				return err
+			call: func(t *testing.T) {
+				_, err := w.GenerateKey(context.Background(), "", keymanager.ECP256)
+				require.NoError(t, err)
 			},
 		},
 		{
 			key: "server_key_manager.get_public_key",
-			call: func() error {
-				_, err := w.GetPublicKey(context.Background(), nil)
-				return err
+			call: func(t *testing.T) {
+				_, err := w.GetKey(context.Background(), "")
+				require.NoError(t, err)
 			},
 		},
 		{
 			key: "server_key_manager.get_public_keys",
-			call: func() error {
-				_, err := w.GetPublicKeys(context.Background(), nil)
-				return err
+			call: func(t *testing.T) {
+				_, err := w.GetKeys(context.Background())
+				require.NoError(t, err)
 			},
 		},
 		{
 			key: "server_key_manager.sign_data",
-			call: func() error {
-				_, err := w.SignData(context.Background(), nil)
-				return err
+			call: func(t *testing.T) {
+				key, err := w.GetKey(context.Background(), "")
+				require.NoError(t, err)
+				m.Reset()
+				_, err = key.Sign(nil, nil, nil)
+				require.NoError(t, err)
 			},
 		},
 	} {
 		tt := tt
 		m.Reset()
-		require.NoError(t, tt.call())
+		tt.call(t)
+
 		key := strings.Split(tt.key, ".")
 		expectedMetrics := []fakemetrics.MetricItem{{
 			Type:   fakemetrics.IncrCounterWithLabelsType,

@@ -272,6 +272,108 @@ resource name (e.g. `spiffe://example.org`). Alternatively, if the default name 
 `auth.CertificateValidationContext` containing the trusted CA certificates for the agent's trust domain is fetched.
 The default name is configurable (see `default_bundle_name` under [SDS Configuration](#sds-configuration)).
 
+## OpenShift Support
+
+The default security profile of [OpenShift](https://www.openshift.com/products/container-platform) forbids access to host level resources. A custom set of policies can be applied to enable the level of access needed by Spire to operate within OpenShift.
+
+_Note: A user with `cluster-admin` privileges is required in order to apply these policies._
+
+### Security Context Constraints
+
+Actions performed by pods are controlled by Security Context Constraints (SCC's) and every pod that is admitted is assigned a particular SCC depending on range of conditions. The following custom SCC with the name `spire` can be used to enable the necessary host level access needed by the Spire Agent
+
+```
+allowHostDirVolumePlugin: true
+allowHostIPC: true
+allowHostNetwork: true
+allowHostPID: true
+allowHostPorts: true
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: false
+allowedCapabilities: null
+apiVersion: security.openshift.io/v1
+defaultAddCapabilities: null
+fsGroup:
+  type: MustRunAs
+groups: []
+kind: SecurityContextConstraints
+metadata:
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    kubernetes.io/description: Customized policy for Spire to enable host level access.
+    release.openshift.io/create-only: "true"
+  name: spire
+priority: null
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+  - KILL
+  - MKNOD
+  - SETUID
+  - SETGID
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: RunAsAny
+users: []
+volumes:
+  - hostPath
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+```
+
+### Associating A Security Constraint With a Workload
+
+Workloads can be granted access to Security Context Constraints through Role Based Access Control Policies by associating the SCC with the Service Account referenced by the pod.
+
+In order to leverage the `spire` SCC, a _ClusterRole_ leveraging `use` verb referencing the SCC must be created:
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  name: system:openshift:scc:spire
+rules:
+- apiGroups:
+  - security.openshift.io
+  resourceNames:
+  - spire
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
+```
+
+Finally, associate the `system:openshift:scc:spire` _ClusterRole_ to the `spire-agent` Service account by creating a _RoleBinding_ in the `spire` namespace
+
+_Note:_ Create the `spire` namespace if it does exist prior to applying the following policy.
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: system:openshift:scc:spire
+  namespace: spire
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:spire
+subjects:
+  - kind: ServiceAccount
+    name: spire-agent
+    namespace: spire
+```
+
+As SCC's are applied at pod admission time, remove any existing Spire Agent pods. All newly admitted pods will make use of the `spire` SCC enabling their use within OpenShift.
+
 ## Further reading
 
 * [SPIFFE Reference Implementation Architecture](https://docs.google.com/document/d/1nV8ZbYEATycdFhgjTB619pwIvamzOjU6l0SyBGbzbo4/edit#)

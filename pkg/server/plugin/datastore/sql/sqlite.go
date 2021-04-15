@@ -5,16 +5,16 @@ package sql
 import (
 	"net/url"
 
-	hclog "github.com/hashicorp/go-hclog"
 	"github.com/jinzhu/gorm"
 	"github.com/mattn/go-sqlite3"
+	"github.com/sirupsen/logrus"
 
 	// gorm sqlite dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
 
 type sqliteDB struct {
-	log hclog.Logger
+	log logrus.FieldLogger
 }
 
 func (s sqliteDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {

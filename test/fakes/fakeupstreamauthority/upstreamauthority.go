@@ -14,8 +14,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -31,12 +31,12 @@ type Config struct {
 	TrustDomain                 spiffeid.TrustDomain
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
-	MutateMintX509CAResponse    func(*upstreamauthority.MintX509CAResponse)
-	MutatePublishJWTKeyResponse func(*upstreamauthority.PublishJWTKeyResponse)
+	MutateMintX509CAResponse    func(*upstreamauthorityv0.MintX509CAResponse)
+	MutatePublishJWTKeyResponse func(*upstreamauthorityv0.PublishJWTKeyResponse)
 }
 
 type UpstreamAuthority struct {
-	upstreamauthority.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
 
 	t      *testing.T
 	config Config
@@ -67,7 +67,7 @@ func New(t *testing.T, config Config) *UpstreamAuthority {
 	return ua
 }
 
-func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthority.MintX509CARequest, stream upstreamauthority.UpstreamAuthority_MintX509CAServer) error {
+func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	streamCh := ua.newMintX509CAStream()
 	defer ua.removeMintX509CAStream(streamCh)
 
@@ -78,7 +78,7 @@ func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthority.MintX509CAReq
 		return err
 	}
 
-	if err := ua.sendMintX509CAResponse(stream, &upstreamauthority.MintX509CAResponse{
+	if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv0.MintX509CAResponse{
 		X509CaChain:       certsDER(x509CAChain),
 		UpstreamX509Roots: certsDER(ua.X509Roots()),
 	}); err != nil {
@@ -90,7 +90,7 @@ func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthority.MintX509CAReq
 		case <-ctx.Done():
 			return nil
 		case <-streamCh:
-			if err := ua.sendMintX509CAResponse(stream, &upstreamauthority.MintX509CAResponse{
+			if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv0.MintX509CAResponse{
 				UpstreamX509Roots: certsDER(ua.X509Roots()),
 			}); err != nil {
 				return err
@@ -99,7 +99,7 @@ func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthority.MintX509CAReq
 	}
 }
 
-func (ua *UpstreamAuthority) PublishJWTKey(req *upstreamauthority.PublishJWTKeyRequest, stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer) error {
+func (ua *UpstreamAuthority) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
 	if ua.config.DisallowPublishJWTKey {
 		return status.Error(codes.Unimplemented, "disallowed")
 	}
@@ -116,7 +116,7 @@ func (ua *UpstreamAuthority) PublishJWTKey(req *upstreamauthority.PublishJWTKeyR
 		case <-ctx.Done():
 			return nil
 		case <-streamCh:
-			if err := ua.sendPublishJWTKeyStream(stream, &upstreamauthority.PublishJWTKeyResponse{
+			if err := ua.sendPublishJWTKeyStream(stream, &upstreamauthorityv0.PublishJWTKeyResponse{
 				UpstreamJwtKeys: ua.JWTKeys(),
 			}); err != nil {
 				return err
@@ -231,7 +231,7 @@ func (ua *UpstreamAuthority) mintX509CA(ctx context.Context, csr []byte, preferr
 	return x509CAChain, nil
 }
 
-func (ua *UpstreamAuthority) sendMintX509CAResponse(stream upstreamauthority.UpstreamAuthority_MintX509CAServer, resp *upstreamauthority.MintX509CAResponse) error {
+func (ua *UpstreamAuthority) sendMintX509CAResponse(stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer, resp *upstreamauthorityv0.MintX509CAResponse) error {
 	if ua.config.MutateMintX509CAResponse != nil {
 		ua.config.MutateMintX509CAResponse(resp)
 	}
@@ -252,7 +252,7 @@ func (ua *UpstreamAuthority) removePublishJWTKeyStream(streamCh chan struct{}) {
 	ua.streamsMtx.Unlock()
 }
 
-func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthority.UpstreamAuthority_PublishJWTKeyServer, resp *upstreamauthority.PublishJWTKeyResponse) error {
+func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer, resp *upstreamauthorityv0.PublishJWTKeyResponse) error {
 	if ua.config.MutatePublishJWTKeyResponse != nil {
 		ua.config.MutatePublishJWTKeyResponse(resp)
 	}

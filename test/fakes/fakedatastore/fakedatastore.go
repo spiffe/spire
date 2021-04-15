@@ -6,14 +6,14 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	"github.com/spiffe/spire/test/spiretest"
 )
 
 var (
@@ -21,8 +21,6 @@ var (
 )
 
 type DataStore struct {
-	datastore.UnsafeDataStoreServer
-
 	ds   datastore.DataStore
 	errs []error
 }
@@ -30,15 +28,14 @@ type DataStore struct {
 var _ datastore.DataStore = (*DataStore)(nil)
 
 func New(tb testing.TB) *DataStore {
-	var ds datastore.Plugin
-	spiretest.LoadPlugin(tb, sql.BuiltIn(), &ds)
+	log, _ := test.NewNullLogger()
 
-	_, err := ds.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-			database_type = "sqlite3"
-			connection_string = "file:memdb%d?mode=memory&cache=shared"
-		`, atomic.AddUint32(&nextID, 1)),
-	})
+	ds := sql.New(log)
+
+	err := ds.Configure(fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = "file:memdb%d?mode=memory&cache=shared"
+	`, atomic.AddUint32(&nextID, 1)))
 	require.NoError(tb, err)
 
 	return &DataStore{
@@ -74,12 +71,12 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	return s.ds.AppendBundle(ctx, req)
 }
 
-func (s *DataStore) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
+func (s *DataStore) CountBundles(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return s.ds.CountBundles(ctx, req)
+	return s.ds.CountBundles(ctx)
 }
 
 func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
@@ -117,11 +114,11 @@ func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleR
 	return s.ds.PruneBundle(ctx, req)
 }
 
-func (s *DataStore) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
+func (s *DataStore) CountAttestedNodes(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return s.ds.CountAttestedNodes(ctx, req)
+	return s.ds.CountAttestedNodes(ctx)
 }
 
 func (s *DataStore) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
@@ -185,11 +182,11 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNode
 	return resp, err
 }
 
-func (s *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
+func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return s.ds.CountRegistrationEntries(ctx, req)
+	return s.ds.CountRegistrationEntries(ctx)
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
@@ -239,32 +236,32 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore
 	return s.ds.PruneRegistrationEntries(ctx, req)
 }
 
-func (s *DataStore) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
+func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.CreateJoinToken(ctx, req)
+	return s.ds.CreateJoinToken(ctx, token)
 }
 
-func (s *DataStore) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
+func (s *DataStore) FetchJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchJoinToken(ctx, req)
+	return s.ds.FetchJoinToken(ctx, token)
 }
 
-func (s *DataStore) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
+func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.DeleteJoinToken(ctx, req)
+	return s.ds.DeleteJoinToken(ctx, token)
 }
 
-func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
+func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.PruneJoinTokens(ctx, req)
+	return s.ds.PruneJoinTokens(ctx, expiresBefore)
 }
 
 func (s *DataStore) SetNextError(err error) {
@@ -282,12 +279,4 @@ func (s *DataStore) getNextError() error {
 	err := s.errs[0]
 	s.errs = s.errs[1:]
 	return err
-}
-
-func (s *DataStore) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (s *DataStore) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
 }

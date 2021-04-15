@@ -113,11 +113,11 @@ func (r *PodReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEI
 func (r *PodReconciler) mungeIP(ip string) string {
 	if strings.Contains(ip, ".") {
 		// IPv4
-		return strings.Replace(ip, ".", "-", -1)
+		return strings.ReplaceAll(ip, ".", "-")
 	}
 	if strings.Contains(ip, ":") {
 		// IPv6
-		return strings.Replace(ip, ":", "-", -1)
+		return strings.ReplaceAll(ip, ":", "-")
 	}
 	return ip
 }

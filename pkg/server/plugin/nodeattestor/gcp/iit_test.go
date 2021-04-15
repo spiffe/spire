@@ -11,10 +11,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/api/compute/v1"
@@ -53,7 +53,7 @@ type IITAttestorSuite struct {
 	spiretest.Suite
 
 	agentStore *fakeagentstore.AgentStore
-	p          nodeattestor.Plugin
+	p          nodeattestorv0.Plugin
 
 	client *fakeComputeEngineClient
 }
@@ -78,12 +78,12 @@ func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidToken() {
-	_, err := s.attest(&nodeattestor.AttestRequest{})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{})
 	s.RequireErrorContains(err, "gcp-iit: request missing attestation data")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidType() {
-	_, err := s.attest(&nodeattestor.AttestRequest{
+	_, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: "foo",
 		},
@@ -100,7 +100,7 @@ func (s *IITAttestorSuite) TestErrorOnMissingKid() {
 		Data: s.signToken(token),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, "identity token missing kid header")
 }
 
@@ -114,7 +114,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
 		Data: s.signToken(token),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token is expired")
 }
 
@@ -127,7 +127,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAudience() {
 		Data: s.signToken(token),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, `gcp-iit: unexpected identity token audience "invalid"`)
 }
 
@@ -139,11 +139,11 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 		Data: s.signToken(token),
 	}
 
-	s.agentStore.SetAgentInfo(&hostservices.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
 		AgentId: testAgentID,
 	})
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, "gcp-iit: IIT has already been used to attest an agent")
 }
 
@@ -155,7 +155,7 @@ func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 		Type: gcp.PluginName,
 		Data: s.signToken(token),
 	}
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the whitelist`)
 }
 
@@ -169,7 +169,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 		Data: []byte(tokenString),
 	}
 
-	_, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.RequireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token contains an invalid number of segments")
 }
 
@@ -196,7 +196,7 @@ service_account_file = "error_sa.json"
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
 	s.Require().NoError(err)
-	_, err = s.attest(&nodeattestor.AttestRequest{
+	_, err = s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: gcp.PluginName,
 			Data: s.signToken(buildToken()),
@@ -212,9 +212,9 @@ func (s *IITAttestorSuite) TestAttestSuccess() {
 		Type: gcp.PluginName,
 		Data: s.signToken(token),
 	}
-	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	res, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&nodeattestor.AttestResponse{
+	s.RequireProtoEqual(&nodeattestorv0.AttestResponse{
 		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
@@ -255,7 +255,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 		},
 	})
 
-	expected := &nodeattestor.AttestResponse{
+	expected := &nodeattestorv0.AttestResponse{
 		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
@@ -271,7 +271,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			{Type: "gcp_iit", Value: "label:allowed-no-value:"},
 		},
 	}
-	actual, err := s.attest(&nodeattestor.AttestRequest{
+	actual, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: gcp.PluginName,
 			Data: s.signToken(buildToken()),
@@ -296,7 +296,7 @@ func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() 
 		},
 	})
 
-	_, err := s.attest(&nodeattestor.AttestRequest{
+	_, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: gcp.PluginName,
 			Data: s.signToken(buildToken()),
@@ -308,14 +308,14 @@ func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() 
 func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 	s.configureForInstanceMetadata(&compute.Instance{})
 
-	res, err := s.attest(&nodeattestor.AttestRequest{
+	res, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: gcp.PluginName,
 			Data: s.signToken(buildToken()),
 		},
 	})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&nodeattestor.AttestResponse{
+	s.RequireProtoEqual(&nodeattestorv0.AttestResponse{
 		AgentId: testAgentID,
 		Selectors: []*common.Selector{
 			{Type: "gcp_iit", Value: "project-id:" + testProject},
@@ -328,7 +328,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 func (s *IITAttestorSuite) TestAttestFailureDueToMissingInstanceMetadata() {
 	s.configureForInstanceMetadata(nil)
 
-	res, err := s.attest(&nodeattestor.AttestRequest{
+	res, err := s.attest(&nodeattestorv0.AttestRequest{
 		AttestationData: &common.AttestationData{
 			Type: gcp.PluginName,
 			Data: s.signToken(buildToken()),
@@ -355,7 +355,7 @@ agent_path_template = "{{ .InstanceID }}"
 		Type: gcp.PluginName,
 		Data: s.signToken(token),
 	}
-	res, err := s.attest(&nodeattestor.AttestRequest{AttestationData: data})
+	res, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
 	s.Require().NoError(err)
 	s.Require().NotNil(res)
 	s.Require().Equal(expectSVID, res.AgentId)
@@ -420,14 +420,14 @@ func (s *IITAttestorSuite) TestFailToRecvStream() {
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
-func (s *IITAttestorSuite) newPlugin() nodeattestor.Plugin {
+func (s *IITAttestorSuite) newPlugin() nodeattestorv0.Plugin {
 	p := New()
 	p.tokenKeyRetriever = testKeyRetriever{}
 	p.client = s.client
 
-	var plugin nodeattestor.Plugin
+	var plugin nodeattestorv0.Plugin
 	s.LoadPlugin(builtin(p), &plugin,
-		spiretest.HostService(hostservices.AgentStoreHostServiceServer(s.agentStore)),
+		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
 	)
 	return plugin
 }
@@ -442,7 +442,7 @@ projectid_whitelist = ["test-project"]
 	s.Require().NoError(err)
 }
 
-func (s *IITAttestorSuite) attest(req *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
+func (s *IITAttestorSuite) attest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := s.p.Attest(context.Background())
 	defer func() {
 		s.Require().NoError(stream.CloseSend())
@@ -478,10 +478,10 @@ service_account_file = "test_sa.json"
 // Test helpers
 
 type recvFailStream struct {
-	nodeattestor.NodeAttestor_AttestServer
+	nodeattestorv0.NodeAttestor_AttestServer
 }
 
-func (r *recvFailStream) Recv() (*nodeattestor.AttestRequest, error) {
+func (r *recvFailStream) Recv() (*nodeattestorv0.AttestRequest, error) {
 	return nil, errors.New("failed to recv from stream")
 }
 

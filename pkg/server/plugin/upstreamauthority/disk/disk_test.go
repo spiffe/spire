@@ -12,8 +12,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -42,7 +42,7 @@ type DiskSuite struct {
 
 	clock     *clock.Mock
 	rawPlugin *Plugin
-	p         upstreamauthority.Plugin
+	p         upstreamauthorityv0.Plugin
 }
 
 func (s *DiskSuite) SetupTest() {
@@ -124,13 +124,13 @@ func (s *DiskSuite) TestGetPluginInfo() {
 func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	// On OSX
 	// openssl ecparam -name prime256v1 -genkey -noout -out root_key.pem
-	//openssl req -days 3650 -x509 -new -key root_key.pem -out root_cert.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://root\nbasicConstraints=CA:true") -extensions v3
-	//openssl ecparam -name prime256v1 -genkey -noout -out intermediate_key.pem
-	//openssl req  -new -key intermediate_key.pem -out intermediate_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
-	//openssl x509 -days 3650 -req -CA root_cert.pem -CAkey root_key.pem -in intermediate_csr.pem -out intermediate_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
-	//openssl ecparam -name prime256v1 -genkey -noout -out upstream_key.pem
-	//openssl req  -new -key upstream_key.pem -out upstream_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
-	//openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in upstream_csr.pem -out upstream_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
+	// openssl req -days 3650 -x509 -new -key root_key.pem -out root_cert.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://root\nbasicConstraints=CA:true") -extensions v3
+	// openssl ecparam -name prime256v1 -genkey -noout -out intermediate_key.pem
+	// openssl req  -new -key intermediate_key.pem -out intermediate_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
+	// openssl x509 -days 3650 -req -CA root_cert.pem -CAkey root_key.pem -in intermediate_csr.pem -out intermediate_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
+	// openssl ecparam -name prime256v1 -genkey -noout -out upstream_key.pem
+	// openssl req  -new -key upstream_key.pem -out upstream_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
+	// openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in upstream_csr.pem -out upstream_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
 	// cat upstream_cert.pem intermediate_cert.pem > upstream_and_intermediate.pem
 	// This test verifies the cert chain and will start failing on May 15 2029
 	require := s.Require()
@@ -162,7 +162,7 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 	require.NoError(err)
 
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 	require.NoError(err)
 	require.NotNil(resp)
 
@@ -206,7 +206,7 @@ func (s *DiskSuite) TestSubmitValidCSR() {
 		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 		require.NoError(err)
 		require.NotNil(resp)
 
@@ -241,7 +241,7 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	s.Require().NoError(err)
 
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
+	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 
@@ -251,7 +251,7 @@ func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
 	s.Require().Equal(s.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
 }
 
-func testCSRResp(t *testing.T, resp *upstreamauthority.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
+func testCSRResp(t *testing.T, resp *upstreamauthorityv0.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
 	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	require.NoError(t, err)
 
@@ -279,13 +279,13 @@ func (s *DiskSuite) TestSubmitInvalidCSR() {
 		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
 		require.NoError(err)
 
-		resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+		resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 		require.Error(err)
 		require.Nil(resp)
 	}
 
 	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
+	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
 	require.Error(err)
 	require.Nil(resp)
 }
@@ -299,7 +299,7 @@ func (s *DiskSuite) TestRace() {
 		// the results of these RPCs aren't important; the test is just trying
 		// to get a bunch of stuff happening at once.
 		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		_, _ = s.mintX509CA(&upstreamauthority.MintX509CARequest{Csr: csr})
+		_, _ = s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
 	})
 }
 
@@ -318,7 +318,7 @@ func (s *DiskSuite) configureWith(keyFilePath, certFilePath string) error {
 }
 
 func (s *DiskSuite) TestPublishJWTKey() {
-	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthority.PublishJWTKeyRequest{})
+	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthorityv0.PublishJWTKeyRequest{})
 	s.Require().NoError(err)
 	s.Require().NotNil(stream)
 
@@ -367,7 +367,7 @@ func TestInvalidConfigs(t *testing.T) {
 	}
 }
 
-func (s *DiskSuite) mintX509CA(req *upstreamauthority.MintX509CARequest) (*upstreamauthority.MintX509CAResponse, error) {
+func (s *DiskSuite) mintX509CA(req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

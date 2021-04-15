@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
@@ -37,10 +38,10 @@ func (w metricsWrapper) CreateBundle(ctx context.Context, req *datastore.CreateB
 	return w.ds.CreateBundle(ctx, req)
 }
 
-func (w metricsWrapper) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (_ *datastore.CreateJoinTokenResponse, err error) {
+func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
 	callCounter := StartCreateJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateJoinToken(ctx, req)
+	return w.ds.CreateJoinToken(ctx, token)
 }
 
 func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (_ *datastore.CreateRegistrationEntryResponse, err error) {
@@ -61,10 +62,10 @@ func (w metricsWrapper) DeleteBundle(ctx context.Context, req *datastore.DeleteB
 	return w.ds.DeleteBundle(ctx, req)
 }
 
-func (w metricsWrapper) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (_ *datastore.DeleteJoinTokenResponse, err error) {
+func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
 	callCounter := StartDeleteJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteJoinToken(ctx, req)
+	return w.ds.DeleteJoinToken(ctx, token)
 }
 
 func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, req *datastore.DeleteRegistrationEntryRequest) (_ *datastore.DeleteRegistrationEntryResponse, err error) {
@@ -85,10 +86,10 @@ func (w metricsWrapper) FetchBundle(ctx context.Context, req *datastore.FetchBun
 	return w.ds.FetchBundle(ctx, req)
 }
 
-func (w metricsWrapper) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (_ *datastore.FetchJoinTokenResponse, err error) {
+func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *datastore.JoinToken, err error) {
 	callCounter := StartFetchJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchJoinToken(ctx, req)
+	return w.ds.FetchJoinToken(ctx, token)
 }
 
 func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, req *datastore.FetchRegistrationEntryRequest) (_ *datastore.FetchRegistrationEntryResponse, err error) {
@@ -127,22 +128,22 @@ func (w metricsWrapper) ListRegistrationEntries(ctx context.Context, req *datast
 	return w.ds.ListRegistrationEntries(ctx, req)
 }
 
-func (w metricsWrapper) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (_ *datastore.CountAttestedNodesResponse, err error) {
+func (w metricsWrapper) CountAttestedNodes(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountAttestedNodes(ctx, req)
+	return w.ds.CountAttestedNodes(ctx)
 }
 
-func (w metricsWrapper) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (_ *datastore.CountBundlesResponse, err error) {
+func (w metricsWrapper) CountBundles(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountBundles(ctx, req)
+	return w.ds.CountBundles(ctx)
 }
 
-func (w metricsWrapper) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (_ *datastore.CountRegistrationEntriesResponse, err error) {
+func (w metricsWrapper) CountRegistrationEntries(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountRegistrationEntries(ctx, req)
+	return w.ds.CountRegistrationEntries(ctx)
 }
 
 func (w metricsWrapper) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (_ *datastore.PruneBundleResponse, err error) {
@@ -151,10 +152,10 @@ func (w metricsWrapper) PruneBundle(ctx context.Context, req *datastore.PruneBun
 	return w.ds.PruneBundle(ctx, req)
 }
 
-func (w metricsWrapper) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (_ *datastore.PruneJoinTokensResponse, err error) {
+func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) (err error) {
 	callCounter := StartPruneJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.PruneJoinTokens(ctx, req)
+	return w.ds.PruneJoinTokens(ctx, expiresBefore)
 }
 
 func (w metricsWrapper) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (_ *datastore.PruneRegistrationEntriesResponse, err error) {

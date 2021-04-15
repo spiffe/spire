@@ -12,10 +12,10 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
-	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
+	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/zeebo/errs"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -29,7 +29,7 @@ func BuiltIn() catalog.Plugin {
 
 func builtIn(p *Plugin) catalog.Plugin {
 	return catalog.MakePlugin("gcs_bundle",
-		notifier.PluginServer(p),
+		notifierv0.PluginServer(p),
 	)
 }
 
@@ -46,12 +46,12 @@ type pluginConfig struct {
 }
 
 type Plugin struct {
-	notifier.UnsafeNotifierServer
+	notifierv0.UnsafeNotifierServer
 
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider hostservices.IdentityProvider
+	identityProvider identityproviderv0.IdentityProvider
 
 	hooks struct {
 		newBucketClient func(ctx context.Context, configPath string) (bucketClient, error)
@@ -69,7 +69,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(hostservices.IdentityProviderHostServiceClient(&p.identityProvider))
+	has, err := broker.GetHostService(identityproviderv0.HostServiceClient(&p.identityProvider))
 	if err != nil {
 		return err
 	}
@@ -79,34 +79,34 @@ func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
 	return nil
 }
 
-func (p *Plugin) Notify(ctx context.Context, req *notifier.NotifyRequest) (*notifier.NotifyResponse, error) {
+func (p *Plugin) Notify(ctx context.Context, req *notifierv0.NotifyRequest) (*notifierv0.NotifyResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifier.NotifyRequest_BundleUpdated); ok {
+	if _, ok := req.Event.(*notifierv0.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifier.NotifyResponse{}, nil
+	return &notifierv0.NotifyResponse{}, nil
 }
 
-func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifier.NotifyAndAdviseRequest) (*notifier.NotifyAndAdviseResponse, error) {
+func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndAdviseRequest) (*notifierv0.NotifyAndAdviseResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifier.NotifyAndAdviseRequest_BundleLoaded); ok {
+	if _, ok := req.Event.(*notifierv0.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifier.NotifyAndAdviseResponse{}, nil
+	return &notifierv0.NotifyAndAdviseResponse{}, nil
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
@@ -169,7 +169,7 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 		// be loaded after fetching the generation so we can properly detect
 		// and correct a race updating the bundle (i.e. read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &hostservices.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
 		if err != nil {
 			st := status.Convert(err)
 			return status.Errorf(st.Code(), "unable to fetch bundle from SPIRE server: %v", st.Message())

@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"path"
 	"time"
 
@@ -25,7 +24,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -72,13 +70,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountAgents returns the total number of agents.
 func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
-	dsResp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err := s.ds.CountAttestedNodes(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 	}
 
-	return &agentv1.CountAgentsResponse{Count: dsResp.Nodes}, nil
+	return &agentv1.CountAgentsResponse{Count: count}, nil
 }
 
 // ListAgents returns an optionally filtered and/or paginated list of agents.
@@ -257,20 +255,20 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	log = log.WithField(telemetry.NodeAttestorType, params.Data.Type)
 
 	// attest
-	var attestResp *nodeattestor.AttestResponse
+	var attestResult *nodeattestor.AttestResult
 	if params.Data.Type == "join_token" {
-		attestResp, err = s.attestJoinToken(ctx, string(params.Data.Payload))
+		attestResult, err = s.attestJoinToken(ctx, string(params.Data.Payload))
 		if err != nil {
 			return err
 		}
 	} else {
-		attestResp, err = s.attestChallengeResponse(ctx, stream, params)
+		attestResult, err = s.attestChallengeResponse(ctx, stream, params)
 		if err != nil {
 			return err
 		}
 	}
 
-	agentID := attestResp.AgentId
+	agentID := attestResult.AgentID
 	log = log.WithField(telemetry.AgentID, agentID)
 
 	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
@@ -301,15 +299,15 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// augment selectors with resolver
-	augmentedSels, err := s.augmentSelectors(ctx, agentID, attestResp.Selectors, params.Data.Type)
+	resolvedSelectors, err := s.resolveSelectors(ctx, agentID, params.Data.Type)
 	if err != nil {
-		return api.MakeErr(log, codes.Internal, "failed to augment selectors", err)
+		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
 	_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
 			SpiffeId:  agentID,
-			Selectors: augmentedSels,
+			Selectors: append(attestResult.Selectors, resolvedSelectors...),
 		},
 	})
 	if err != nil {
@@ -434,13 +432,11 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		req.Token = u.String()
 	}
 
-	expiry := time.Now().Unix() + int64(req.Ttl)
+	expiry := s.clk.Now().Add(time.Second * time.Duration(req.Ttl))
 
-	result, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  req.Token,
-			Expiry: expiry,
-		},
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  req.Token,
+		Expiry: expiry,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
@@ -453,7 +449,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		}
 	}
 
-	return &types.JoinToken{Value: result.JoinToken.Token, ExpiresAt: expiry}, nil
+	return &types.JoinToken{Value: req.Token, ExpiresAt: expiry.Unix()}, nil
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
@@ -515,36 +511,32 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 	return api.NodeSelectorsToProto(resp.Selectors)
 }
 
-func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResponse, error) {
+func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, "join_token")
 
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: token,
-	})
+	joinToken, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
-	case resp.JoinToken == nil:
+	case joinToken == nil:
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
-	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
-		Token: token,
-	})
+	err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(resp.JoinToken.Expiry, 0).Before(s.clk.Now()):
+	case joinToken.Expiry.Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
 	tokenPath := path.Join("spire", "agent", "join_token", token)
-	return &nodeattestor.AttestResponse{
-		AgentId: s.td.NewID(tokenPath).String(),
+	return &nodeattestor.AttestResult{
+		AgentID: s.td.NewID(tokenPath).String(),
 	}, nil
 }
 
-func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agentv1.Agent_AttestAgentServer, params *agentv1.AttestAgentRequest_Params) (*nodeattestor.AttestResponse, error) {
+func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agentv1.Agent_AttestAgentServer, params *agentv1.AttestAgentRequest_Params) (*nodeattestor.AttestResult, error) {
 	attestorType := params.Data.Type
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, attestorType)
 
@@ -553,32 +545,10 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 		return nil, api.MakeErr(log, codes.FailedPrecondition, "error getting node attestor", fmt.Errorf("could not find node attestor type %q", attestorType))
 	}
 
-	attestorStream, err := nodeAttestor.Attest(ctx)
-	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to open stream with attestor", err)
-	}
-
-	attestRequest := &nodeattestor.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: attestorType,
-			Data: params.Data.Payload,
-		},
-	}
-	var attestResp *nodeattestor.AttestResponse
-
-	for {
-		attestResp, err = attest(attestorStream, attestRequest)
-		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to attest", err)
-		}
-		// Without a challenge we are done. Otherwise we need to continue the challenge/response flow
-		if attestResp.Challenge == nil {
-			break
-		}
-
+	result, err := nodeAttestor.Attest(ctx, params.Data.Payload, func(ctx context.Context, challenge []byte) ([]byte, error) {
 		resp := &agentv1.AttestAgentResponse{
 			Step: &agentv1.AttestAgentResponse_Challenge{
-				Challenge: attestResp.Challenge,
+				Challenge: challenge,
 			},
 		}
 		if err := agentStream.Send(resp); err != nil {
@@ -590,49 +560,20 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 			return nil, api.MakeErr(log, codes.Internal, "failed to receive challenge from agent", err)
 		}
 
-		attestRequest = &nodeattestor.AttestRequest{
-			Response: req.GetChallengeResponse(),
-		}
-	}
-
-	if attestResp.AgentId == "" {
-		return nil, api.MakeErr(log, codes.Internal, "failed to attest: AgentID response should not be empty", nil)
-	}
-
-	if err := attestorStream.CloseSend(); err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to close send stream", err)
-	}
-	if _, err := attestorStream.Recv(); err != io.EOF {
-		log.WithError(err).Warn("Expected EOF on attestation stream")
-	}
-
-	return attestResp, nil
-}
-
-func (s *Service) augmentSelectors(ctx context.Context, agentID string, selectors []*common.Selector, attestationType string) ([]*common.Selector, error) {
-	log := rpccontext.Logger(ctx).
-		WithField(telemetry.AgentID, agentID).
-		WithField(telemetry.NodeAttestorType, attestationType)
-
-	// Select node resolver based on request attestation type
-	nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType)
-	if !ok {
-		log.Debug("Could not find node resolver")
-		return selectors, nil
-	}
-
-	//Call node resolver plugin to get a map of spiffeID=>Selector
-	response, err := nodeResolver.Resolve(ctx, &noderesolver.ResolveRequest{
-		BaseSpiffeIdList: []string{agentID},
+		return req.GetChallengeResponse(), nil
 	})
 	if err != nil {
-		return nil, err
+		st := status.Convert(err)
+		return nil, api.MakeErr(log, st.Code(), st.Message(), nil)
 	}
-	if resolved := response.Map[agentID]; resolved != nil {
-		selectors = append(selectors, resolved.Entries...)
-	}
+	return result, nil
+}
 
-	return selectors, nil
+func (s *Service) resolveSelectors(ctx context.Context, agentID string, attestationType string) ([]*common.Selector, error) {
+	if nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType); ok {
+		return nodeResolver.Resolve(ctx, agentID)
+	}
+	return nil, nil
 }
 
 func applyMask(a *types.Agent, mask *types.AgentMask) {
@@ -677,13 +618,6 @@ func validateAttestAgentParams(params *agentv1.AttestAgentRequest_Params) error 
 	default:
 		return nil
 	}
-}
-
-func attest(attestorStream nodeattestor.NodeAttestor_AttestClient, attestRequest *nodeattestor.AttestRequest) (*nodeattestor.AttestResponse, error) {
-	if err := attestorStream.Send(attestRequest); err != nil {
-		return nil, err
-	}
-	return attestorStream.Recv()
 }
 
 func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate) *agentv1.AttestAgentResponse {

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
@@ -24,67 +26,79 @@ var (
 func main() {
 	flag.Parse()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	switch *testCaseFlag {
-	case "agentEndpoints":
-		agentEndpoints(ctx)
-	case "serverWithWorkload":
-		serverWithWorkload(ctx)
-	case "serverWithInsecure":
-		serverWithInsecure(ctx)
-	default:
-		log.Fatal("Unsupported test case")
+	if err := run(); err != nil {
+		log.Fatalf("Debug client failed: %v", err)
 	}
 }
 
-func agentEndpoints(ctx context.Context) {
+func run() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	var err error
+	switch *testCaseFlag {
+	case "agentEndpoints":
+		err = agentEndpoints(ctx)
+	case "serverWithWorkload":
+		err = serverWithWorkload(ctx)
+	case "serverWithInsecure":
+		err = serverWithInsecure(ctx)
+	default:
+		err = errors.New("unsupported test case")
+	}
+
+	return err
+}
+
+func agentEndpoints(ctx context.Context) error {
 	conn, err := grpc.Dial(*socketPathFlag, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("Failed to connect server: %v", err)
+		return fmt.Errorf("failed to connect server: %v", err)
 	}
 	defer conn.Close()
 
 	client := agent_debugv1.NewDebugClient(conn)
 	resp, err := client.GetInfo(ctx, &agent_debugv1.GetInfoRequest{})
 	if err != nil {
-		log.Fatalf("Failed to get info: %v", err)
+		return fmt.Errorf("failed to get info: %v", err)
 	}
 
 	m := protojson.MarshalOptions{Indent: " "}
 	s, err := m.Marshal(resp)
 	if err != nil {
-		log.Fatalf("Failed to parse proto: %v", err)
+		return fmt.Errorf("failed to parse proto: %v", err)
 	}
+
 	log.Printf("Debug info: %s", string(s))
+	return nil
 }
 
-func serverWithWorkload(ctx context.Context) {
+func serverWithWorkload(ctx context.Context) error {
 	itClient := itclient.New(ctx)
 	defer itClient.Release()
 
 	debugClient := itClient.DebugClient()
 	_, err := debugClient.GetInfo(ctx, &server_debugv1.GetInfoRequest{})
-	validateError(err)
+	return validateError(err)
 }
 
-func serverWithInsecure(ctx context.Context) {
+func serverWithInsecure(ctx context.Context) error {
 	itClient := itclient.NewInsecure(ctx)
 	defer itClient.Release()
 
 	debugClient := itClient.DebugClient()
 	_, err := debugClient.GetInfo(ctx, &server_debugv1.GetInfoRequest{})
-	validateError(err)
+	return validateError(err)
 }
 
-func validateError(err error) {
+func validateError(err error) error {
 	switch status.Code(err) {
 	case codes.OK:
-		log.Fatalf("connection using TCP must fails")
+		return errors.New("connection using TCP must fails")
 	case codes.Unimplemented:
 		log.Print("success!")
+		return nil
 	default:
-		log.Fatalf("unexpected error: %v", err)
+		return fmt.Errorf("unexpected error: %v", err)
 	}
 }

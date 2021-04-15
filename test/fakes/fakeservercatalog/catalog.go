@@ -24,21 +24,18 @@ func New() *Catalog {
 }
 
 func (c *Catalog) SetDataStore(dataStore datastore.DataStore) {
-	c.DataStore = catalog.DataStore{
-		PluginInfo: pluginInfo{name: "fake", typ: datastore.Type},
-		DataStore:  dataStore,
-	}
+	c.DataStore = dataStore
 }
 
-func (c *Catalog) AddNodeAttestorNamed(name string, nodeAttestor nodeattestor.NodeAttestor) {
-	c.NodeAttestors[name] = nodeAttestor
+func (c *Catalog) AddNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
+	c.NodeAttestors[nodeAttestor.Name()] = nodeAttestor
 }
 
-func (c *Catalog) AddNodeResolverNamed(name string, nodeResolver noderesolver.NodeResolver) {
-	c.NodeResolvers[name] = nodeResolver
+func (c *Catalog) AddNodeResolverNamed(nodeResolver noderesolver.NodeResolver) {
+	c.NodeResolvers[nodeResolver.Name()] = nodeResolver
 }
 
-func (c *Catalog) SetUpstreamAuthority(upstreamAuthority *catalog.UpstreamAuthority) {
+func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
 	c.UpstreamAuthority = upstreamAuthority
 }
 
@@ -46,37 +43,6 @@ func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
 	c.KeyManager = keyManager
 }
 
-func (c *Catalog) AddNotifier(notifier catalog.Notifier) {
+func (c *Catalog) AddNotifier(notifier notifier.Notifier) {
 	c.Notifiers = append(c.Notifiers, notifier)
-}
-
-func Notifier(name string, n notifier.Notifier) catalog.Notifier {
-	return catalog.Notifier{
-		PluginInfo: pluginInfo{name: name, typ: notifier.Type},
-		Notifier:   n,
-	}
-}
-
-func UpstreamAuthority(name string, ua upstreamauthority.UpstreamAuthority) *catalog.UpstreamAuthority {
-	return &catalog.UpstreamAuthority{
-		PluginInfo:        pluginInfo{name: name},
-		UpstreamAuthority: ua,
-	}
-}
-
-type pluginInfo struct {
-	name string
-	typ  string
-}
-
-func (pi pluginInfo) Name() string {
-	return pi.name
-}
-
-func (pi pluginInfo) Type() string {
-	return pi.typ
-}
-
-func (pi pluginInfo) BuiltIn() bool {
-	return true
 }

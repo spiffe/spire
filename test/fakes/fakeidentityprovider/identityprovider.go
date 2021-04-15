@@ -5,12 +5,12 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/spiffe/spire/pkg/server/plugin/hostservices"
 	"github.com/spiffe/spire/proto/spire/common"
+	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 )
 
 type IdentityProvider struct {
-	hostservices.UnsafeIdentityProviderServer
+	identityproviderv0.UnsafeIdentityProviderServer
 
 	mu      sync.Mutex
 	bundles []*common.Bundle
@@ -20,7 +20,7 @@ func New() *IdentityProvider {
 	return &IdentityProvider{}
 }
 
-func (c *IdentityProvider) FetchX509Identity(ctx context.Context, req *hostservices.FetchX509IdentityRequest) (*hostservices.FetchX509IdentityResponse, error) {
+func (c *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityproviderv0.FetchX509IdentityRequest) (*identityproviderv0.FetchX509IdentityResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -32,7 +32,7 @@ func (c *IdentityProvider) FetchX509Identity(ctx context.Context, req *hostservi
 	c.bundles = c.bundles[1:]
 
 	// TODO: support sending back the identity
-	return &hostservices.FetchX509IdentityResponse{
+	return &identityproviderv0.FetchX509IdentityResponse{
 		Bundle: bundle,
 	}, nil
 }

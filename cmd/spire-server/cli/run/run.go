@@ -98,6 +98,8 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
+	CacheReloadInterval string `hcl:"cache_reload_interval"`
+
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -230,7 +232,7 @@ func (cmd *Command) Run(args []string) int {
 	return 0
 }
 
-//Synopsis of the command
+// Synopsis of the command
 func (*Command) Synopsis() string {
 	return "Runs the server"
 }
@@ -509,6 +511,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
 	}
 
+	if c.Server.Experimental.CacheReloadInterval != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse cache reload interval: %v", err)
+		}
+		sc.CacheReloadInterval = interval
+	}
+
 	return sc, nil
 }
 
@@ -590,17 +600,17 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//if len(c.Server.Experimental.UnusedKeys) != 0 {
+		// if len(c.Server.Experimental.UnusedKeys) != 0 {
 		//	detectedUnknown("experimental", c.Server.Experimental.UnusedKeys)
-		//}
+		// }
 
 		if c.Server.Federation != nil {
 			// TODO: Re-enable unused key detection for experimental config. See
 			// https://github.com/spiffe/spire/issues/1101 for more information
 			//
-			//if len(c.Server.Federation.UnusedKeys) != 0 {
+			// if len(c.Server.Federation.UnusedKeys) != 0 {
 			//	detectedUnknown("federation", c.Server.Federation.UnusedKeys)
-			//}
+			// }
 
 			if c.Server.Federation.BundleEndpoint != nil {
 				if len(c.Server.Federation.BundleEndpoint.UnusedKeys) != 0 {
@@ -623,9 +633,9 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
-	//if len(c.Telemetry.UnusedKeys) != 0 {
+	// if len(c.Telemetry.UnusedKeys) != 0 {
 	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
-	//}
+	// }
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		detectedUnknown("Prometheus", p.UnusedKeys)
@@ -675,15 +685,15 @@ func defaultConfig() *Config {
 func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	switch strings.ToLower(s) {
 	case "rsa-2048":
-		return keymanager.KeyType_RSA_2048, nil
+		return keymanager.RSA2048, nil
 	case "rsa-4096":
-		return keymanager.KeyType_RSA_4096, nil
+		return keymanager.RSA4096, nil
 	case "ec-p256":
-		return keymanager.KeyType_EC_P256, nil
+		return keymanager.ECP256, nil
 	case "ec-p384":
-		return keymanager.KeyType_EC_P384, nil
+		return keymanager.ECP384, nil
 	default:
-		return keymanager.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 

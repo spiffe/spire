@@ -22,8 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
+	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +51,8 @@ func TestServer(t *testing.T) {
 	client := http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				RootCAs: rootCAs,
+				RootCAs:    rootCAs,
+				MinVersion: tls.VersionTLS12,
 			},
 		},
 	}
@@ -158,7 +158,7 @@ func TestACMEAuth(t *testing.T) {
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	bundle := bundleutil.New(trustDomain)
-	km := memory.New()
+	km := fakeserverkeymanager.New(t)
 
 	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})
 
@@ -167,6 +167,7 @@ func TestACMEAuth(t *testing.T) {
 			TLSClientConfig: &tls.Config{
 				RootCAs:    ca.Roots,
 				ServerName: "domain.test",
+				MinVersion: tls.VersionTLS12,
 			},
 		},
 	}
@@ -227,12 +228,17 @@ func TestACMEAuth(t *testing.T) {
 
 		// Assert that the keystore has been populated with the account
 		// key and cert key for the domain.
-		keys, err := km.GetPublicKeys(context.Background(), &keymanager.GetPublicKeysRequest{})
+		keys, err := km.GetKeys(context.Background())
 		require.NoError(t, err)
-		if assert.Len(t, keys.PublicKeys, 2) {
-			assert.Equal(t, "bundle-acme-acme_account+key", keys.PublicKeys[0].Id)
-			assert.Equal(t, "bundle-acme-domain.test", keys.PublicKeys[1].Id)
+
+		var actualIDs []string
+		for _, key := range keys {
+			actualIDs = append(actualIDs, key.ID())
 		}
+		assert.ElementsMatch(t, []string{
+			"bundle-acme-acme_account+key",
+			"bundle-acme-domain.test",
+		}, actualIDs)
 
 		// Make sure we logged the ToS details
 		if entry := hook.LastEntry(); assert.NotNil(t, entry) {

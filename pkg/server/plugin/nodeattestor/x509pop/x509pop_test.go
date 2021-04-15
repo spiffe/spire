@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
+	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -26,7 +26,7 @@ func TestX509PoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p nodeattestor.Plugin
+	p nodeattestorv0.Plugin
 
 	rootCertPath     string
 	leafBundle       [][]byte
@@ -108,7 +108,7 @@ func (s *Suite) TestAttestSuccess() {
 			attestationData := &x509pop.AttestationData{
 				Certificates: s.leafBundle,
 			}
-			err := stream.Send(&nodeattestor.AttestRequest{
+			err := stream.Send(&nodeattestorv0.AttestRequest{
 				AttestationData: &common.AttestationData{
 					Type: "x509pop",
 					Data: s.marshal(attestationData),
@@ -128,7 +128,7 @@ func (s *Suite) TestAttestSuccess() {
 			// calculate and send the response
 			response, err := x509pop.CalculateResponse(s.leafKey, challenge)
 			require.NoError(err)
-			err = stream.Send(&nodeattestor.AttestRequest{
+			err = stream.Send(&nodeattestorv0.AttestRequest{
 				Response: s.marshal(response),
 			})
 			require.NoError(err)
@@ -162,7 +162,7 @@ func (s *Suite) TestAttestFailure() {
 		stream, done := s.attest()
 		defer done()
 
-		require.NoError(stream.Send(&nodeattestor.AttestRequest{
+		require.NoError(stream.Send(&nodeattestorv0.AttestRequest{
 			AttestationData: attestationData,
 		}))
 
@@ -175,7 +175,7 @@ func (s *Suite) TestAttestFailure() {
 		stream, done := s.attest()
 		defer done()
 
-		require.NoError(stream.Send(&nodeattestor.AttestRequest{
+		require.NoError(stream.Send(&nodeattestorv0.AttestRequest{
 			AttestationData: makeData(&x509pop.AttestationData{
 				Certificates: s.leafBundle,
 			}),
@@ -185,7 +185,7 @@ func (s *Suite) TestAttestFailure() {
 		require.NoError(err)
 		s.NotNil(resp)
 
-		require.NoError(stream.Send(&nodeattestor.AttestRequest{
+		require.NoError(stream.Send(&nodeattestorv0.AttestRequest{
 			Response: []byte(response),
 		}))
 
@@ -345,7 +345,7 @@ ca_bundle_paths = %s
 	return ""
 }
 
-func (s *Suite) attest() (nodeattestor.NodeAttestor_AttestClient, func()) {
+func (s *Suite) attest() (nodeattestorv0.NodeAttestor_AttestClient, func()) {
 	stream, err := s.p.Attest(context.Background())
 	s.Require().NoError(err)
 	return stream, func() {

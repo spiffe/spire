@@ -51,13 +51,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountEntries returns the total number of entries.
 func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
-	dsResp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err := s.ds.CountRegistrationEntries(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 	}
 
-	return &entryv1.CountEntriesResponse{Count: dsResp.Entries}, nil
+	return &entryv1.CountEntriesResponse{Count: count}, nil
 }
 
 // ListEntries returns the optionally filtered and/or paginated list of entries.
