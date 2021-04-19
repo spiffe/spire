@@ -200,31 +200,29 @@ func (ds *Plugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleReq
 }
 
 // CreateAttestedNode stores the given attested node
-func (ds *Plugin) CreateAttestedNode(ctx context.Context,
-	req *datastore.CreateAttestedNodeRequest) (resp *datastore.CreateAttestedNodeResponse, err error) {
-	if req.Node == nil {
+func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (attestedNode *common.AttestedNode, err error) {
+	if node == nil {
 		return nil, sqlError.New("invalid request: missing attested node")
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createAttestedNode(tx, req)
+		attestedNode, err = createAttestedNode(tx, node)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return attestedNode, nil
 }
 
 // FetchAttestedNode fetches an existing attested node by SPIFFE ID
-func (ds *Plugin) FetchAttestedNode(ctx context.Context,
-	req *datastore.FetchAttestedNodeRequest) (resp *datastore.FetchAttestedNodeResponse, err error) {
+func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchAttestedNode(tx, req)
+		attestedNode, err = fetchAttestedNode(tx, spiffeID)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return attestedNode, nil
 }
 
 // CountAttestedNodes counts all attested nodes
@@ -264,15 +262,14 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context,
 }
 
 // DeleteAttestedNode deletes the given attested node
-func (ds *Plugin) DeleteAttestedNode(ctx context.Context,
-	req *datastore.DeleteAttestedNodeRequest) (resp *datastore.DeleteAttestedNodeResponse, err error) {
+func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteAttestedNode(tx, req)
+		attestedNode, err = deleteAttestedNode(tx, spiffeID)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return attestedNode, nil
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
@@ -985,37 +982,33 @@ func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.Fiel
 	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
 }
 
-func createAttestedNode(tx *gorm.DB, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
+func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
 	model := AttestedNode{
-		SpiffeID:        req.Node.SpiffeId,
-		DataType:        req.Node.AttestationDataType,
-		SerialNumber:    req.Node.CertSerialNumber,
-		ExpiresAt:       time.Unix(req.Node.CertNotAfter, 0),
-		NewSerialNumber: req.Node.NewCertSerialNumber,
-		NewExpiresAt:    nullableUnixTimeToDBTime(req.Node.NewCertNotAfter),
+		SpiffeID:        node.SpiffeId,
+		DataType:        node.AttestationDataType,
+		SerialNumber:    node.CertSerialNumber,
+		ExpiresAt:       time.Unix(node.CertNotAfter, 0),
+		NewSerialNumber: node.NewCertSerialNumber,
+		NewExpiresAt:    nullableUnixTimeToDBTime(node.NewCertNotAfter),
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateAttestedNodeResponse{
-		Node: modelToAttestedNode(model),
-	}, nil
+	return modelToAttestedNode(model), nil
 }
 
-func fetchAttestedNode(tx *gorm.DB, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
+func fetchAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
 	var model AttestedNode
-	err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error
+	err := tx.Find(&model, "spiffe_id = ?", spiffeID).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
-		return &datastore.FetchAttestedNodeResponse{}, nil
+		return nil, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
 	}
-	return &datastore.FetchAttestedNodeResponse{
-		Node: modelToAttestedNode(model),
-	}, nil
+	return modelToAttestedNode(model), nil
 }
 
 func countAttestedNodes(tx *gorm.DB) (int32, error) {
@@ -1538,9 +1531,9 @@ func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (
 	}, nil
 }
 
-func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
+func deleteAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
 	var model AttestedNode
-	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
+	if err := tx.Find(&model, "spiffe_id = ?", spiffeID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -1548,9 +1541,7 @@ func deleteAttestedNode(tx *gorm.DB, req *datastore.DeleteAttestedNodeRequest) (
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.DeleteAttestedNodeResponse{
-		Node: modelToAttestedNode(model),
-	}, nil
+	return modelToAttestedNode(model), nil
 }
 
 func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
