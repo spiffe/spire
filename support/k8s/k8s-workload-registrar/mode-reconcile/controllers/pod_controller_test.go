@@ -11,6 +11,8 @@ import (
 
 	"github.com/go-logr/logr"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 	corev1 "k8s.io/api/core/v1"
@@ -108,7 +110,8 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 						"spiffe": "label1",
 					},
 					Annotations: map[string]string{
-						"spiffe": "annotation1",
+						"spiffe":                  "annotation1",
+						"spiffe.io/federatesWith": "example.io",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -117,7 +120,10 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				},
 			}
 
-			err := s.k8sClient.Create(ctx, &pod)
+			_, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{Bundle: &common.Bundle{TrustDomainId: "spiffe://example.io"}})
+			s.Assert().NoError(err)
+
+			err = s.k8sClient.Create(ctx, &pod)
 			s.Assert().NoError(err)
 
 			_, err = r.Reconcile(ctrl.Request{

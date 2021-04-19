@@ -13,12 +13,14 @@ import (
 	"net/url"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -65,6 +67,7 @@ type ManagerConfig struct {
 	Log           logrus.FieldLogger
 	Metrics       telemetry.Metrics
 	Clock         clock.Clock
+	HealthChecker health.Checker
 }
 
 type Manager struct {
@@ -79,6 +82,9 @@ type Manager struct {
 	nextJWTKey    *jwtKeySlot
 
 	journal *Journal
+
+	// For keeping track of number of failed rotations.
+	failedRotationNum uint64
 
 	// Used to log a warning only once when the UpstreamAuthority does not support JWT-SVIDs.
 	jwtUnimplementedWarnOnce sync.Once
@@ -115,6 +121,8 @@ func NewManager(c ManagerConfig) *Manager {
 		})
 		m.upstreamPluginName = upstreamAuthority.Name()
 	}
+
+	_ = c.HealthChecker.AddCheck("server.ca.manager", &managerHealth{m: m})
 
 	return m
 }
@@ -180,11 +188,13 @@ func (m *Manager) rotateEvery(ctx context.Context, interval time.Duration) error
 func (m *Manager) rotate(ctx context.Context) error {
 	x509CAErr := m.rotateX509CA(ctx)
 	if x509CAErr != nil {
+		atomic.AddUint64(&m.failedRotationNum, 1)
 		m.c.Log.WithError(x509CAErr).Error("Unable to rotate X509 CA")
 	}
 
 	jwtKeyErr := m.rotateJWTKey(ctx)
 	if jwtKeyErr != nil {
+		atomic.AddUint64(&m.failedRotationNum, 1)
 		m.c.Log.WithError(jwtKeyErr).Error("Unable to rotate JWT key")
 	}
 
@@ -217,6 +227,10 @@ func (m *Manager) rotateX509CA(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) failedRotationResult() uint64 {
+	return atomic.LoadUint64(&m.failedRotationNum)
 }
 
 func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err error) {

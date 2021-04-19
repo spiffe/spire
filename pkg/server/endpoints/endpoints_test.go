@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -76,14 +77,16 @@ func TestNew(t *testing.T) {
 	clk := clock.NewMock(t)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
+	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
-		CA:          serverCA,
-		Catalog:     cat,
-		TrustDomain: testTD,
-		Dir:         spiretest.TempDir(t),
-		Log:         log,
-		Metrics:     metrics,
-		Clock:       clk,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   testTD,
+		Dir:           spiretest.TempDir(t),
+		Log:           log,
+		Metrics:       metrics,
+		Clock:         clk,
+		HealthChecker: healthChecker,
 	})
 
 	endpoints, err := New(ctx, Config{
@@ -136,14 +139,16 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	clk := clock.NewMock(t)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
+	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
-		CA:          serverCA,
-		Catalog:     cat,
-		TrustDomain: testTD,
-		Dir:         spiretest.TempDir(t),
-		Log:         log,
-		Metrics:     metrics,
-		Clock:       clk,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   testTD,
+		Dir:           spiretest.TempDir(t),
+		Log:           log,
+		Metrics:       metrics,
+		Clock:         clk,
+		HealthChecker: healthChecker,
 	})
 
 	endpoints, err := New(ctx, Config{

@@ -96,7 +96,7 @@ The following steps must be completed one week prior to release:
 * If the current state of the main branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
   * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
   * Create a GitHub project named `Release vX.X.X` to identify the PRs that will be cherry-picked. The project should have two statuses to track the progress: one to identify the PRs to be cherry-picked and one for those that have been merged in the version branch.
-  * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released.
+  * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released and that the [upgrade integration test is updated](test/integration/suites/upgrade/README.MD#maintenance).
   * Cherry-pick into the version branch the commits for all the changes that must be included in the release.
 
 **If this is a major release**, the following steps must be completed before releasing:
@@ -116,7 +116,7 @@ The following steps must be completed to perform a release:
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub rendering bug that you will notice before completing this task.
 * Close the GitHub project created to track the release process.
-* Open and merge a PR to bump the SPIRE version to the next projected version.
+* Open and merge a PR to bump the SPIRE version to the next projected version and [update the upgrade integration test](test/integration/suites/upgrade/README.MD#maintenance).
   * For example, after releasing 0.10.0, update the version to 0.10.1, since it is more likely to be released before 0.11.0.
   * Ideally, this is the first commit merged following the release.
 
