@@ -144,9 +144,9 @@ func (ds *Plugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleR
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (ds *Plugin) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) (err error) {
+func (ds *Plugin) DeleteBundle(ctx context.Context, trustDomainID string, mode datastore.DeleteMode) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = deleteBundle(tx, trustDomain, mode)
+		err = deleteBundle(tx, trustDomainID, mode)
 		return err
 	}); err != nil {
 		return err
@@ -155,9 +155,9 @@ func (ds *Plugin) DeleteBundle(ctx context.Context, trustDomain string, mode dat
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (ds *Plugin) FetchBundle(ctx context.Context, trustDomain string) (resp *common.Bundle, err error) {
+func (ds *Plugin) FetchBundle(ctx context.Context, trustDomainID string) (resp *common.Bundle, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchBundle(tx, trustDomain)
+		resp, err = fetchBundle(tx, trustDomainID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -812,8 +812,8 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 	}, nil
 }
 
-func deleteBundle(tx *gorm.DB, td string, mode datastore.DeleteMode) error {
-	trustDomainID, err := idutil.NormalizeSpiffeID(td, idutil.AllowAnyTrustDomain())
+func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) error {
+	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -860,8 +860,8 @@ func deleteBundle(tx *gorm.DB, td string, mode datastore.DeleteMode) error {
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func fetchBundle(tx *gorm.DB, td string) (*common.Bundle, error) {
-	trustDomainID, err := idutil.NormalizeSpiffeID(td, idutil.AllowAnyTrustDomain())
+func fetchBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
+	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
