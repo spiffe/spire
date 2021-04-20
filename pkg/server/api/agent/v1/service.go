@@ -100,7 +100,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 				return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
 			}
 			listReq.BySelectorMatch = &datastore.BySelectors{
-				Match:     datastore.BySelectors_MatchBehavior(filter.BySelectorMatch.Match),
+				Match:     datastore.MatchBehavior(filter.BySelectorMatch.Match),
 				Selectors: selectors,
 			}
 		}

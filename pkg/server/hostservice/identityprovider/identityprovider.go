@@ -85,9 +85,7 @@ func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityp
 		return nil, err
 	}
 
-	resp, err := deps.DataStore.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: s.config.TrustDomainID,
-	})
+	bundle, err := deps.DataStore.FetchBundle(ctx, s.config.TrustDomainID)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +110,6 @@ func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityp
 			CertChain:  certChain,
 			PrivateKey: privateKey,
 		},
-		Bundle: resp.Bundle,
+		Bundle: bundle,
 	}, nil
 }

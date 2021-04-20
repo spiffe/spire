@@ -48,16 +48,14 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
 	}
 
-	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: s.td.IDString(),
-	})
+	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
 
 	var unhealthyReason string
 	switch {
 	case err != nil:
 		log = log.WithError(err)
 		unhealthyReason = "unable to fetch bundle"
-	case resp.Bundle == nil:
+	case bundle == nil:
 		unhealthyReason = "bundle is missing"
 	}
 

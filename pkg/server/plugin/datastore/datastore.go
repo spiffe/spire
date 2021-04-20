@@ -14,9 +14,9 @@ type DataStore interface {
 	// Bundles
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	CountBundles(context.Context) (int32, error)
-	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
-	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
+	CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error)
+	DeleteBundle(context.Context, string, DeleteMode) error
+	FetchBundle(context.Context, string) (*common.Bundle, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
@@ -51,44 +51,36 @@ type DataStore interface {
 	PruneJoinTokens(context.Context, time.Time) error
 }
 
-// Mode controls the delete behavior if there are other records
-// associated with the bundle (e.g. registration entries).
-type DeleteBundleRequest_Mode int32 //nolint: golint
+// DeleteMode defines delete behavior if associated records exist.
+type DeleteMode int32
 
 const (
-	// RESTRICT prevents the bundle from being deleted in the presence of associated entries
-	DeleteBundleRequest_RESTRICT DeleteBundleRequest_Mode = iota //nolint: golint
-	// DELETE deletes the bundle and associated entries
-	DeleteBundleRequest_DELETE //nolint: golint
-	// DISSOCIATE deletes the bundle and dissociates associated entries
-	DeleteBundleRequest_DISSOCIATE //nolint: golint
+	// Restrict the bundle from being deleted in the presence of associated entries
+	Restrict DeleteMode = iota
+	// Delete the bundle and associated entries
+	Delete
+	// Dissociate deletes the bundle and dissociates associated entries
+	Dissociate
 )
 
-func (mode DeleteBundleRequest_Mode) String() string {
+func (mode DeleteMode) String() string {
 	switch mode {
-	case DeleteBundleRequest_RESTRICT:
+	case Restrict:
 		return "RESTRICT"
-	case DeleteBundleRequest_DELETE:
+	case Delete:
 		return "DELETE"
-	case DeleteBundleRequest_DISSOCIATE:
+	case Dissociate:
 		return "DISSOCIATE"
 	default:
 		return "UNKNOWN"
 	}
 }
 
-type BySelectors_MatchBehavior int32 //nolint: golint
+type MatchBehavior int32
 
 const (
-	BySelectors_MATCH_EXACT  BySelectors_MatchBehavior = 0 //nolint: golint
-	BySelectors_MATCH_SUBSET BySelectors_MatchBehavior = 1 //nolint: golint
-)
-
-type ByFederatesWith_MatchBehavior int32 //nolint: golint
-
-const (
-	ByFederatesWith_MATCH_EXACT  ByFederatesWith_MatchBehavior = 0 //nolint: golint
-	ByFederatesWith_MATCH_SUBSET ByFederatesWith_MatchBehavior = 1 //nolint: golint
+	Exact  MatchBehavior = 0
+	Subset MatchBehavior = 1
 )
 
 type AppendBundleRequest struct {
@@ -101,20 +93,12 @@ type AppendBundleResponse struct {
 
 type ByFederatesWith struct {
 	TrustDomains []string
-	Match        ByFederatesWith_MatchBehavior
+	Match        MatchBehavior
 }
 
 type BySelectors struct {
 	Selectors []*common.Selector
-	Match     BySelectors_MatchBehavior
-}
-
-type CreateBundleRequest struct {
-	Bundle *common.Bundle
-}
-
-type CreateBundleResponse struct {
-	Bundle *common.Bundle
+	Match     MatchBehavior
 }
 
 type CreateRegistrationEntryRequest struct {
@@ -125,29 +109,12 @@ type CreateRegistrationEntryResponse struct {
 	Entry *common.RegistrationEntry
 }
 
-type DeleteBundleRequest struct {
-	TrustDomainId string //nolint: golint
-	Mode          DeleteBundleRequest_Mode
-}
-
-type DeleteBundleResponse struct {
-	Bundle *common.Bundle
-}
-
 type DeleteRegistrationEntryRequest struct {
 	EntryId string //nolint: golint
 }
 
 type DeleteRegistrationEntryResponse struct {
 	Entry *common.RegistrationEntry
-}
-
-type FetchBundleRequest struct {
-	TrustDomainId string //nolint: golint
-}
-
-type FetchBundleResponse struct {
-	Bundle *common.Bundle
 }
 
 type FetchRegistrationEntryRequest struct {

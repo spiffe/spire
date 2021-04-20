@@ -317,9 +317,7 @@ func TestListenAndServe(t *testing.T) {
 
 func prepareDataStore(t *testing.T, ds datastore.DataStore, ca *testca.CA, agentSVID *x509svid.SVID) {
 	// Prepare the bundle
-	_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: makeBundle(ca),
-	})
+	_, err := ds.CreateBundle(context.Background(), makeBundle(ca))
 	require.NoError(t, err)
 
 	// Create the attested node

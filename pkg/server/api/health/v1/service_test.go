@@ -12,7 +12,6 @@ import (
 
 	"github.com/spiffe/spire/pkg/server/api/health/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -95,9 +94,7 @@ func TestServiceCheck(t *testing.T) {
 				ds.SetNextError(tt.dsErr)
 			}
 			if tt.bundle != nil {
-				_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-					Bundle: tt.bundle,
-				})
+				_, err := ds.CreateBundle(context.Background(), tt.bundle)
 				require.NoError(t, err)
 			}
 

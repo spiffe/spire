@@ -836,13 +836,11 @@ func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, erro
 
 func (m *Manager) fetchOptionalBundle(ctx context.Context) (*common.Bundle, error) {
 	ds := m.c.Catalog.GetDataStore()
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: m.c.TrustDomain.IDString(),
-	})
+	bundle, err := ds.FetchBundle(ctx, m.c.TrustDomain.IDString())
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	return resp.Bundle, nil
+	return bundle, nil
 }
 
 type bundleUpdater struct {

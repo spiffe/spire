@@ -19,7 +19,7 @@ import (
 )
 
 func TestFetchBundleCache(t *testing.T) {
-	req := &datastore.FetchBundleRequest{TrustDomainId: "spiffe://domain.test"}
+	td := "spiffe://domain.test"
 	bundle1 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 1}
 	bundle2 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 2}
 	ds := fakedatastore.New(t)
@@ -29,9 +29,9 @@ func TestFetchBundleCache(t *testing.T) {
 	ctxWithoutCache := context.Background()
 
 	// Assert bundle is missing
-	resp, err := cache.FetchBundle(ctxWithCache, req)
+	bundle, err := cache.FetchBundle(ctxWithCache, td)
 	require.NoError(t, err)
-	require.Empty(t, resp.Bundle)
+	require.Nil(t, bundle)
 
 	// Add bundle
 	_, err = ds.SetBundle(ctxWithCache, &datastore.SetBundleRequest{
@@ -41,9 +41,9 @@ func TestFetchBundleCache(t *testing.T) {
 
 	// Assert that we didn't cache the bundle miss and that the newly added
 	// bundle is there
-	resp, err = cache.FetchBundle(ctxWithCache, req)
+	bundle, err = cache.FetchBundle(ctxWithCache, td)
 	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
+	spiretest.RequireProtoEqual(t, bundle1, bundle)
 
 	// Change bundle
 	_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{
@@ -52,15 +52,15 @@ func TestFetchBundleCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert bundle contents unchanged since cache is still valid
-	resp, err = cache.FetchBundle(ctxWithCache, req)
+	bundle, err = cache.FetchBundle(ctxWithCache, td)
 	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
+	spiretest.RequireProtoEqual(t, bundle1, bundle)
 
 	// If caches expires by time, FetchBundle must fetch a fresh bundle
 	clock.Add(datastoreCacheExpiry)
-	resp, err = cache.FetchBundle(ctxWithCache, req)
+	bundle, err = cache.FetchBundle(ctxWithCache, td)
 	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle2, resp.Bundle)
+	spiretest.RequireProtoEqual(t, bundle2, bundle)
 
 	// Change bundle
 	_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{
@@ -69,17 +69,17 @@ func TestFetchBundleCache(t *testing.T) {
 	require.NoError(t, err)
 
 	// If a context without cache is used, FetchBundle must fetch a fresh bundle
-	resp, err = cache.FetchBundle(ctxWithoutCache, req)
+	bundle, err = cache.FetchBundle(ctxWithoutCache, td)
 	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
+	spiretest.RequireProtoEqual(t, bundle1, bundle)
 
-	resp, err = cache.FetchBundle(ctxWithCache, req)
+	bundle, err = cache.FetchBundle(ctxWithCache, td)
 	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
+	spiretest.RequireProtoEqual(t, bundle1, bundle)
 }
 
 func TestBundleInvalidations(t *testing.T) {
-	req := &datastore.FetchBundleRequest{TrustDomainId: "spiffe://domain.test"}
+	td := "spiffe://domain.test"
 	bundle1, bundle2 := getBundles(t, "spiffe://domain.test")
 
 	for _, tt := range []struct {
@@ -125,7 +125,7 @@ func TestBundleInvalidations(t *testing.T) {
 			name: "PruneBundle invalidates cache if succeeds",
 			invalidatingFunc: func(cache *DatastoreCache) {
 				_, _ = cache.PruneBundle(context.Background(), &datastore.PruneBundleRequest{
-					TrustDomainId: req.TrustDomainId,
+					TrustDomainId: td,
 				})
 			},
 		},
@@ -134,25 +134,21 @@ func TestBundleInvalidations(t *testing.T) {
 			dsFailure: true,
 			invalidatingFunc: func(cache *DatastoreCache) {
 				_, _ = cache.PruneBundle(context.Background(), &datastore.PruneBundleRequest{
-					TrustDomainId: req.TrustDomainId,
+					TrustDomainId: td,
 				})
 			},
 		},
 		{
 			name: "DeleteBundle invalidates cache if succeeds",
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-					TrustDomainId: req.TrustDomainId,
-				})
+				_ = cache.DeleteBundle(context.Background(), td, datastore.Restrict)
 			},
 		},
 		{
 			name:      "DeleteBundle keeps cache if fails",
 			dsFailure: true,
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-					TrustDomainId: req.TrustDomainId,
-				})
+				_ = cache.DeleteBundle(context.Background(), td, datastore.Restrict)
 			},
 		},
 		{
@@ -185,7 +181,7 @@ func TestBundleInvalidations(t *testing.T) {
 			require.NoError(t, err)
 
 			// Make an initial fetch call to store the bundle in cache
-			_, err = cache.FetchBundle(context.Background(), req)
+			_, err = cache.FetchBundle(context.Background(), td)
 			require.NoError(t, err)
 
 			// Run the function that invalidates the bundle (Prune, Append, etc)
@@ -202,18 +198,18 @@ func TestBundleInvalidations(t *testing.T) {
 			// If invalidatingFunc fails, we keep the current cache value,
 			// next call to FetchBundle should return bundle1
 			if tt.dsFailure {
-				resp, err := cache.FetchBundle(ctxWithCache, req)
+				bundle, err := cache.FetchBundle(ctxWithCache, td)
 				require.NoError(t, err)
-				spiretest.RequireProtoEqual(t, bundle1, resp.Bundle)
+				spiretest.RequireProtoEqual(t, bundle1, bundle)
 				return
 			}
 
 			// If invalidatingFunc succeeds, we invalidate the current cache
 			// value, next call to FetchBundle should return the updated
 			// bundle (bundle2)
-			resp, err := cache.FetchBundle(ctxWithCache, req)
+			bundle, err := cache.FetchBundle(ctxWithCache, td)
 			require.NoError(t, err)
-			spiretest.RequireProtoEqual(t, bundle2, resp.Bundle)
+			spiretest.RequireProtoEqual(t, bundle2, bundle)
 		})
 	}
 }

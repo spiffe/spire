@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -810,13 +809,11 @@ func (s *ManagerSuite) requireBundleJWTKeys(jwtKeys ...*JWTKey) {
 }
 
 func (s *ManagerSuite) createBundle() *common.Bundle {
-	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: testTrustDomain.IDString(),
-		},
+	bundle, err := s.ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: testTrustDomain.IDString(),
 	})
 	s.Require().NoError(err)
-	return resp.Bundle
+	return bundle
 }
 
 func (s *ManagerSuite) fetchBundle() *common.Bundle {
@@ -824,12 +821,10 @@ func (s *ManagerSuite) fetchBundle() *common.Bundle {
 }
 
 func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomain spiffeid.TrustDomain) *common.Bundle {
-	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomain.IDString(),
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomain.IDString())
 	s.Require().NoError(err)
-	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomain.IDString())
-	return resp.Bundle
+	s.Require().NotNil(bundle, "missing bundle for trust domain %q", trustDomain.IDString())
+	return bundle
 }
 
 func (s *ManagerSuite) currentX509CA() *X509CA {
