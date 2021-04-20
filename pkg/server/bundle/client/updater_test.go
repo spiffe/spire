@@ -11,7 +11,6 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -84,9 +83,7 @@ func TestBundleUpdater(t *testing.T) {
 			ds := fakedatastore.New(t)
 
 			if testCase.localBundle != nil {
-				_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-					Bundle: testCase.localBundle.Proto(),
-				})
+				_, err := ds.CreateBundle(context.Background(), testCase.localBundle.Proto())
 				require.NoError(t, err)
 			}
 
@@ -122,16 +119,13 @@ func TestBundleUpdater(t *testing.T) {
 				require.Nil(t, endpointBundle)
 			}
 
-			resp, err := ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-				TrustDomainId: testCase.trustDomain.IDString(),
-			})
+			bundle, err := ds.FetchBundle(context.Background(), testCase.trustDomain.IDString())
 			require.NoError(t, err)
-			require.NotNil(t, resp)
 			if testCase.storedBundle != nil {
-				require.NotNil(t, resp.Bundle)
-				spiretest.RequireProtoEqual(t, testCase.storedBundle.Proto(), resp.Bundle)
+				require.NotNil(t, bundle)
+				spiretest.RequireProtoEqual(t, testCase.storedBundle.Proto(), bundle)
 			} else {
-				require.Nil(t, resp.Bundle)
+				require.Nil(t, bundle)
 			}
 		})
 	}

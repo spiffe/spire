@@ -99,14 +99,14 @@ func New(log logrus.FieldLogger) *Plugin {
 }
 
 // CreateBundle stores the given bundle
-func (ds *Plugin) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (resp *datastore.CreateBundleResponse, err error) {
+func (ds *Plugin) CreateBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createBundle(tx, req)
+		bundle, err = createBundle(tx, b)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
@@ -144,20 +144,20 @@ func (ds *Plugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleR
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
-func (ds *Plugin) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
+func (ds *Plugin) DeleteBundle(ctx context.Context, trustDomainID string, mode datastore.DeleteMode) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteBundle(tx, req)
+		err = deleteBundle(tx, trustDomainID, mode)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func (ds *Plugin) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (resp *datastore.FetchBundleResponse, err error) {
+func (ds *Plugin) FetchBundle(ctx context.Context, trustDomainID string) (resp *common.Bundle, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = fetchBundle(tx, req)
+		resp, err = fetchBundle(tx, trustDomainID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -669,8 +669,8 @@ func (logger gormLogger) Print(v ...interface{}) {
 	logger.log.Debug(gorm.LogFormatter(v...)...)
 }
 
-func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
-	model, err := bundleToModel(req.Bundle)
+func createBundle(tx *gorm.DB, bundle *common.Bundle) (*common.Bundle, error) {
+	model, err := bundleToModel(bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -679,9 +679,7 @@ func createBundle(tx *gorm.DB, req *datastore.CreateBundleRequest) (*datastore.C
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.CreateBundleResponse{
-		Bundle: req.Bundle,
-	}, nil
+	return bundle, nil
 }
 
 func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
@@ -750,12 +748,12 @@ func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBund
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		bundle, err := createBundle(tx, req.Bundle)
 		if err != nil {
 			return nil, err
 		}
 		return &datastore.SetBundleResponse{
-			Bundle: resp.Bundle,
+			Bundle: bundle,
 		}, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
@@ -780,12 +778,12 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		resp, err := createBundle(tx, &datastore.CreateBundleRequest{Bundle: req.Bundle})
+		bundle, err := createBundle(tx, req.Bundle)
 		if err != nil {
 			return nil, err
 		}
 		return &datastore.AppendBundleResponse{
-			Bundle: resp.Bundle,
+			Bundle: bundle,
 		}, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
@@ -814,27 +812,27 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 	}, nil
 }
 
-func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
-	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) error {
+	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
 	if err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
 	model := new(Bundle)
 	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
 	// Get a count of associated registration entries
 	entriesAssociation := tx.Model(model).Association("FederatedEntries")
 	entriesCount := entriesAssociation.Count()
 	if err := entriesAssociation.Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
 	if entriesCount > 0 {
-		switch req.Mode {
-		case datastore.DeleteBundleRequest_DELETE:
+		switch mode {
+		case datastore.Delete:
 			// TODO: figure out how to do this gracefully with GORM.
 			if err := tx.Exec(bindVars(tx, `DELETE FROM registered_entries WHERE id in (
 				SELECT
@@ -843,34 +841,27 @@ func deleteBundle(tx *gorm.DB, req *datastore.DeleteBundleRequest) (*datastore.D
 					federated_registration_entries
 				WHERE
 					bundle_id = ?)`), model.ID).Error; err != nil {
-				return nil, sqlError.Wrap(err)
+				return sqlError.Wrap(err)
 			}
-		case datastore.DeleteBundleRequest_DISSOCIATE:
+		case datastore.Dissociate:
 			if err := entriesAssociation.Clear().Error; err != nil {
-				return nil, sqlError.Wrap(err)
+				return sqlError.Wrap(err)
 			}
 		default:
-			return nil, status.Newf(codes.FailedPrecondition, "datastore-sql: cannot delete bundle; federated with %d registration entries", entriesCount).Err()
+			return status.Newf(codes.FailedPrecondition, "datastore-sql: cannot delete bundle; federated with %d registration entries", entriesCount).Err()
 		}
 	}
 
 	if err := tx.Delete(model).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+		return sqlError.Wrap(err)
 	}
 
-	bundle, err := modelToBundle(model)
-	if err != nil {
-		return nil, err
-	}
-
-	return &datastore.DeleteBundleResponse{
-		Bundle: bundle,
-	}, nil
+	return nil
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
-func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
-	trustDomainID, err := idutil.NormalizeSpiffeID(req.TrustDomainId, idutil.AllowAnyTrustDomain())
+func fetchBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
+	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -879,7 +870,7 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
 	switch {
 	case err == gorm.ErrRecordNotFound:
-		return &datastore.FetchBundleResponse{}, nil
+		return nil, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
 	}
@@ -889,9 +880,7 @@ func fetchBundle(tx *gorm.DB, req *datastore.FetchBundleRequest) (*datastore.Fet
 		return nil, err
 	}
 
-	return &datastore.FetchBundleResponse{
-		Bundle: bundle,
-	}, nil
+	return bundle, nil
 }
 
 // countBundles can be used to count existing bundles
@@ -953,18 +942,18 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 
 func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.FieldLogger) (*datastore.PruneBundleResponse, error) {
 	// Get current bundle
-	current, err := fetchBundle(tx, &datastore.FetchBundleRequest{TrustDomainId: req.TrustDomainId})
+	currentBundle, err := fetchBundle(tx, req.TrustDomainId)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch current bundle: %v", err)
 	}
 
-	if current.Bundle == nil {
+	if currentBundle == nil {
 		// No bundle to prune
 		return &datastore.PruneBundleResponse{}, nil
 	}
 
 	// Prune
-	newBundle, changed, err := bundleutil.PruneBundle(current.Bundle, time.Unix(req.ExpiresBefore, 0), log)
+	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, time.Unix(req.ExpiresBefore, 0), log)
 	if err != nil {
 		return nil, fmt.Errorf("prune failed: %v", err)
 	}
@@ -1273,7 +1262,7 @@ SELECT
 		query := "SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?"
 
 		switch req.BySelectorMatch.Match {
-		case datastore.BySelectors_MATCH_SUBSET:
+		case datastore.Subset:
 			// Subset needs a union, so we need to group them and add the group
 			// as a child to the root
 			for i := range req.BySelectorMatch.Selectors {
@@ -1283,7 +1272,7 @@ SELECT
 					builder.WriteString("\n\t\tUNION\n")
 				}
 			}
-		case datastore.BySelectors_MATCH_EXACT:
+		case datastore.Exact:
 			for i := range req.BySelectorMatch.Selectors {
 				switch dbType {
 				// MySQL does not support INTERSECT, so use INNER JOIN instead
@@ -1329,7 +1318,7 @@ SELECT
 	}
 
 	if dbType == PostgreSQL ||
-		(req.BySelectorMatch != nil && req.BySelectorMatch.Match == datastore.BySelectors_MATCH_SUBSET) {
+		(req.BySelectorMatch != nil && req.BySelectorMatch.Match == datastore.Subset) {
 		builder.WriteString(" AS result_nodes")
 	}
 	if req.Pagination != nil {
@@ -1442,7 +1431,7 @@ FROM attested_node_entries N
 			query := "SELECT spiffe_id FROM node_resolver_map_entries WHERE type = ? AND value = ?"
 
 			switch req.BySelectorMatch.Match {
-			case datastore.BySelectors_MATCH_SUBSET:
+			case datastore.Subset:
 				builder.WriteString("\t\t\tINNER JOIN\n")
 				builder.WriteString("\t\t\t(SELECT spiffe_id FROM (\n")
 
@@ -1458,7 +1447,7 @@ FROM attested_node_entries N
 
 				builder.WriteString("\t\t\t) s_1) c_2\n")
 				builder.WriteString("\t\t\tUSING(spiffe_id)\n")
-			case datastore.BySelectors_MATCH_EXACT:
+			case datastore.Exact:
 				for i := range req.BySelectorMatch.Selectors {
 					builder.WriteString("\t\t\tINNER JOIN\n")
 					builder.WriteString("\t\t\t(")
@@ -2603,7 +2592,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
 		switch req.BySelectors.Match {
-		case datastore.BySelectors_MATCH_SUBSET:
+		case datastore.Subset:
 			// subset needs a union, so we need to group them and add the group
 			// as a child to the root.
 			group := idFilterNode{
@@ -2615,7 +2604,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 				})
 			}
 			root.children = append(root.children, group)
-		case datastore.BySelectors_MATCH_EXACT:
+		case datastore.Exact:
 			// exact match does uses an intersection, so we can just add these
 			// directly to the root idFilterNode, since it is already an intersection
 			for range req.BySelectors.Selectors {
@@ -2658,7 +2647,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		}
 
 		switch req.ByFederatesWith.Match {
-		case datastore.ByFederatesWith_MATCH_SUBSET:
+		case datastore.Subset:
 			// Subset federates-with matching requires filtering out all registration
 			// entries that don't federate with even one trust domain in the request
 			sliceArg := buildSliceArg(len(trustDomains))
@@ -2666,7 +2655,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			for _, td := range trustDomains {
 				args = append(args, td)
 			}
-		case datastore.ByFederatesWith_MATCH_EXACT:
+		case datastore.Exact:
 			// Exact federates-with matching requires filtering out all registration
 			// entries that don't federate with all the trust domains in the request
 			sliceArg := buildSliceArg(len(trustDomains))

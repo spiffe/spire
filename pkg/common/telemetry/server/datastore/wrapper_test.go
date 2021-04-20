@@ -251,8 +251,8 @@ func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNod
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
-	return &datastore.CreateBundleResponse{}, ds.err
+func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
@@ -267,8 +267,8 @@ func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.At
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
-	return &datastore.DeleteBundleResponse{}, ds.err
+func (ds *fakeDataStore) DeleteBundle(context.Context, string, datastore.DeleteMode) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) error {
@@ -283,8 +283,8 @@ func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.Att
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchBundle(context.Context, *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
-	return &datastore.FetchBundleResponse{}, ds.err
+func (ds *fakeDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {

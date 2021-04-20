@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -43,9 +42,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 	}
 
 	ds := fakedatastore.New(t)
-	_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err := ds.CreateBundle(context.Background(), bundle)
 	require.NoError(t, err)
 
 	hs := New(Config{

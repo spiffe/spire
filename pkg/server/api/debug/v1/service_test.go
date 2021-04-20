@@ -385,9 +385,7 @@ func TestGetInfo(t *testing.T) {
 			}
 			test.so.state = tt.state
 			for _, bundle := range tt.bundles {
-				_, err := test.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-					Bundle: bundle,
-				})
+				_, err := test.ds.CreateBundle(ctx, bundle)
 				require.NoError(t, err)
 			}
 

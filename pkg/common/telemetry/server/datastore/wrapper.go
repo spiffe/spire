@@ -33,10 +33,10 @@ func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.Att
 	return w.ds.CreateAttestedNode(ctx, node)
 }
 
-func (w metricsWrapper) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (_ *datastore.CreateBundleResponse, err error) {
+func (w metricsWrapper) CreateBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
 	callCounter := StartCreateBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateBundle(ctx, req)
+	return w.ds.CreateBundle(ctx, bundle)
 }
 
 func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
@@ -57,10 +57,10 @@ func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string)
 	return w.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
-func (w metricsWrapper) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (_ *datastore.DeleteBundleResponse, err error) {
+func (w metricsWrapper) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) (err error) {
 	callCounter := StartDeleteBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteBundle(ctx, req)
+	return w.ds.DeleteBundle(ctx, trustDomain, mode)
 }
 
 func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
@@ -81,10 +81,10 @@ func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) 
 	return w.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
-func (w metricsWrapper) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (_ *datastore.FetchBundleResponse, err error) {
+func (w metricsWrapper) FetchBundle(ctx context.Context, trustDomain string) (_ *common.Bundle, err error) {
 	callCounter := StartFetchBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchBundle(ctx, req)
+	return w.ds.FetchBundle(ctx, trustDomain)
 }
 
 func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *datastore.JoinToken, err error) {

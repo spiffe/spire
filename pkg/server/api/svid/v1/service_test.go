@@ -1026,9 +1026,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 				})
 				require.NoError(t, err)
 			} else {
-				_, err := test.ds.DeleteBundle(context.Background(),
-					&datastore.DeleteBundleRequest{TrustDomainId: td.IDString()},
-				)
+				err := test.ds.DeleteBundle(context.Background(), td.IDString(), datastore.Restrict)
 				require.NoError(t, err)
 			}
 

@@ -216,40 +216,35 @@ func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existent
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.Require().NotNil(fresp)
-	s.Require().Nil(fresp.Bundle)
+	s.Require().Nil(fb)
 
 	// update non-existent
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
-	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
+	err = s.ds.DeleteBundle(ctx, "spiffe://foo", datastore.Restrict)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// create
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Require().NoError(err)
 
 	// create again (constraint violation)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Equal(status.Code(err), codes.AlreadyExists)
 
 	// fetch
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fresp.Bundle)
+	s.AssertProtoEqual(bundle, fb)
 
 	// fetch (with denormalized id)
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://fOO"})
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://fOO")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fresp.Bundle)
+	s.AssertProtoEqual(bundle, fb)
 
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
@@ -341,11 +336,8 @@ func (s *PluginSuite) TestBundleCRUD() {
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-	})
+	err = s.ds.DeleteBundle(ctx, bundle.TrustDomainId, datastore.Restrict)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle2, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -353,11 +345,8 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 
 	// delete (with denormalized id)
-	dresp, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://bAR",
-	})
+	err = s.ds.DeleteBundle(ctx, "spiffe://bAR", datastore.Restrict)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle3, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -366,27 +355,19 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 func (s *PluginSuite) TestListBundlesWithPagination() {
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err := s.ds.CreateBundle(ctx, bundle1)
 	s.Require().NoError(err)
 
 	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle2)
 	s.Require().NoError(err)
 
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle3,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle3)
 	s.Require().NoError(err)
 
 	bundle4 := bundleutil.BundleProtoFromRootCA("spiffe://baz", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle4,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle4)
 	s.Require().NoError(err)
 
 	tests := []struct {
@@ -494,21 +475,15 @@ func (s *PluginSuite) TestCountBundles() {
 
 	// Create bundles
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle1)
 	s.Require().NoError(err)
 
 	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle2)
 	s.Require().NoError(err)
 
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle3,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle3)
 	s.Require().NoError(err)
 
 	// Count all
@@ -623,7 +598,7 @@ func (s *PluginSuite) TestBundlePrune() {
 	}
 
 	// Store bundle in datastore
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{Bundle: bundle})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Require().NoError(err)
 
 	// Prune
@@ -657,9 +632,9 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(expectedPrunedBundle, fresp.Bundle)
+	s.AssertProtoEqual(expectedPrunedBundle, fb)
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -1062,7 +1037,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1083,7 +1058,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1100,7 +1075,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "by selector match exact no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1117,7 +1092,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 4,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_SUBSET,
+					Match: datastore.Subset,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1134,7 +1109,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "by selector match subset no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_SUBSET,
+					Match: datastore.Subset,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1153,7 +1128,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByAttestationType: "t1",
 				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1172,7 +1147,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByAttestationType: "t1",
 				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1855,7 +1830,7 @@ func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, toler
 			if test.selectors != nil {
 				bySelectors = &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_EXACT,
+					Match:     datastore.Exact,
 				}
 			}
 			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
@@ -1958,13 +1933,13 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 			Selectors: []*common.Selector{
 				{Type: "T1", Value: "V1"},
 			},
-			Match: datastore.BySelectors_MATCH_EXACT,
+			Match: datastore.Exact,
 		},
 		ByFederatesWith: &datastore.ByFederatesWith{
 			TrustDomains: []string{
 				"spiffe://federates1.org",
 			},
-			Match: datastore.ByFederatesWith_MATCH_EXACT,
+			Match: datastore.Exact,
 		},
 	})
 
@@ -2371,7 +2346,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_EXACT,
+					Match:     datastore.Exact,
 				},
 			})
 			require.NoError(t, err)
@@ -2426,7 +2401,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_SUBSET,
+					Match:     datastore.Subset,
 				},
 			})
 			require.NoError(t, err)
@@ -2464,9 +2439,7 @@ func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
 	s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
 	// delete the bundle in RESTRICTED mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-	})
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Restrict)
 	s.RequireErrorContains(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
 }
 
@@ -2482,11 +2455,8 @@ func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.createBundle("spiffe://otherdomain.org")
 	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
-	// delete the bundle in DELETE mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-		Mode:          datastore.DeleteBundleRequest_DELETE,
-	})
+	// delete the bundle in Delete mode
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Delete)
 	s.Require().NoError(err)
 
 	// verify that the registeration entry has been deleted
@@ -2506,10 +2476,7 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
 	// delete the bundle in DISSOCIATE mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-		Mode:          datastore.DeleteBundleRequest_DISSOCIATE,
-	})
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Dissociate)
 	s.Require().NoError(err)
 
 	// make sure the entry still exists, albeit without an associated bundle
@@ -2655,9 +2622,7 @@ func (s *PluginSuite) TestMigration() {
 			// exist. if we try and create a bundle with the same id, it should
 			// fail if the migration did not run, due to uniqueness
 			// constraints.
-			_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-				Bundle: bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil),
-			})
+			_, err := s.ds.CreateBundle(context.Background(), bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil))
 			s.Require().NoError(err)
 		case 1:
 			// registration entries should gain the federates_with column.
@@ -2874,17 +2839,13 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 }
 
 func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
-	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
 	s.Require().NoError(err)
-	return resp.Bundle
+	return bundle
 }
 
 func (s *PluginSuite) createBundle(trustDomainID string) {
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
-	})
+	_, err := s.ds.CreateBundle(ctx, bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert))
 	s.Require().NoError(err)
 }
 
@@ -8920,42 +8881,42 @@ ORDER BY e_id, selector_id, dns_name_id
 				case "selector-subset-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case "selector-subset-many":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case "selector-exact-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case "selector-exact-many":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case "federates-with-subset-one":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org"},
-						Match:        datastore.ByFederatesWith_MATCH_SUBSET,
+						Match:        datastore.Subset,
 					}
 				case "federates-with-subset-many":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org", "spiffe://federates2.org"},
-						Match:        datastore.ByFederatesWith_MATCH_SUBSET,
+						Match:        datastore.Subset,
 					}
 				case "federates-with-exact-one":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org"},
-						Match:        datastore.ByFederatesWith_MATCH_EXACT,
+						Match:        datastore.Exact,
 					}
 				case "federates-with-exact-many":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org", "spiffe://federates2.org"},
-						Match:        datastore.ByFederatesWith_MATCH_EXACT,
+						Match:        datastore.Exact,
 					}
 				default:
 					require.FailNow(t, "unsupported by case: %q", by)

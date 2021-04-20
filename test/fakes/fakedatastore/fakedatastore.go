@@ -44,11 +44,11 @@ func New(tb testing.TB) *DataStore {
 	}
 }
 
-func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
+func (s *DataStore) CreateBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateBundle(ctx, req)
+	return s.ds.CreateBundle(ctx, bundle)
 }
 
 func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
@@ -80,18 +80,18 @@ func (s *DataStore) CountBundles(ctx context.Context) (int32, error) {
 	return s.ds.CountBundles(ctx)
 }
 
-func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
+func (s *DataStore) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.DeleteBundle(ctx, req)
+	return s.ds.DeleteBundle(ctx, trustDomain, mode)
 }
 
-func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+func (s *DataStore) FetchBundle(ctx context.Context, trustDomain string) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchBundle(ctx, req)
+	return s.ds.FetchBundle(ctx, trustDomain)
 }
 
 func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
