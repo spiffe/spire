@@ -15,8 +15,8 @@ type DataStore interface {
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	CountBundles(context.Context) (int32, error)
 	CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error)
-	DeleteBundle(context.Context, string, DeleteMode) error
-	FetchBundle(context.Context, string) (*common.Bundle, error)
+	DeleteBundle(ctx context.Context, trustDomain string, mode DeleteMode) error
+	FetchBundle(ctx context.Context, trustDomain string) (*common.Bundle, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
