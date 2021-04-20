@@ -13,6 +13,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -109,14 +110,15 @@ type JWTKey struct {
 }
 
 type Config struct {
-	Log         logrus.FieldLogger
-	Metrics     telemetry.Metrics
-	TrustDomain spiffeid.TrustDomain
-	X509SVIDTTL time.Duration
-	JWTSVIDTTL  time.Duration
-	JWTIssuer   string
-	Clock       clock.Clock
-	CASubject   pkix.Name
+	Log           logrus.FieldLogger
+	Metrics       telemetry.Metrics
+	TrustDomain   spiffeid.TrustDomain
+	X509SVIDTTL   time.Duration
+	JWTSVIDTTL    time.Duration
+	JWTIssuer     string
+	Clock         clock.Clock
+	CASubject     pkix.Name
+	HealthChecker health.Checker
 }
 
 type CA struct {
@@ -140,13 +142,20 @@ func NewCA(config Config) *CA {
 		config.Clock = clock.New()
 	}
 
-	return &CA{
+	ca := &CA{
 		c: config,
 		jwtSigner: jwtsvid.NewSigner(jwtsvid.SignerConfig{
 			Clock:  config.Clock,
 			Issuer: config.JWTIssuer,
 		}),
 	}
+
+	_ = config.HealthChecker.AddCheck("server.ca", &caHealth{
+		ca: ca,
+		td: config.TrustDomain,
+	})
+
+	return ca
 }
 
 func (ca *CA) X509CA() *X509CA {

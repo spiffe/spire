@@ -19,6 +19,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -98,6 +99,8 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		return ctrl.Result{}, nil
 	}
 
+	federationDomains := federation.GetFederationDomains(pod)
+
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
 		ObjectMeta: metav1.ObjectMeta{
@@ -108,9 +111,10 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 			},
 		},
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
-			SpiffeId: spiffeIDURI,
-			ParentId: r.podParentID(pod.Spec.NodeName),
-			DnsNames: []string{pod.Name}, // Set pod name as first DNS name
+			SpiffeId:      spiffeIDURI,
+			ParentId:      r.podParentID(pod.Spec.NodeName),
+			DnsNames:      []string{pod.Name}, // Set pod name as first DNS name
+			FederatesWith: federationDomains,
 			Selector: spiffeidv1beta1.Selector{
 				PodUid:    pod.GetUID(),
 				Namespace: pod.Namespace,

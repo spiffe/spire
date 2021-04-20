@@ -84,7 +84,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(a.c.HealthChecks, a.c.Log)
+	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
@@ -98,7 +98,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(cat, metrics, manager)
 
-	if err := healthChecks.AddCheck("agent", a); err != nil {
+	if err := healthChecker.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
-		util.SerialRun(a.waitForTestDial, healthChecks.ListenAndServe),
+		util.SerialRun(a.waitForTestDial, healthChecker.ListenAndServe),
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -260,8 +260,27 @@ func (a *Agent) waitForTestDial(ctx context.Context) error {
 	return nil
 }
 
-// Status is used as a top-level health check for the Agent.
-func (a *Agent) Status() (interface{}, error) {
+// CheckHealth is used as a top-level health check for the agent.
+func (a *Agent) CheckHealth() health.State {
+	err := a.checkWorkloadAPI()
+
+	// Both liveness and readiness checks are done by
+	// agents ability to create new Workload API client
+	// for the X509SVID service.
+	// TODO: Better live check for agent.
+	return health.State{
+		Ready: err == nil,
+		Live:  err == nil,
+		ReadyDetails: agentHealthDetails{
+			WorkloadAPIErr: errString(err),
+		},
+		LiveDetails: agentHealthDetails{
+			WorkloadAPIErr: errString(err),
+		},
+	}
+}
+
+func (a *Agent) checkWorkloadAPI() error {
 	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
 		Addr:        a.c.BindAddress,
 		FailOnError: true,
@@ -275,10 +294,19 @@ func (a *Agent) Status() (interface{}, error) {
 
 	err := <-errCh
 	if status.Code(err) == codes.Unavailable {
-		return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+		return errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
 	}
 
-	return health.Details{
-		Message: "successfully created a workload api client to fetch x509 svid",
-	}, nil
+	return nil
+}
+
+type agentHealthDetails struct {
+	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
+}
+
+func errString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
 }

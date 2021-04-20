@@ -11,11 +11,13 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -46,6 +48,8 @@ type CATestSuite struct {
 	upstreamCert *x509.Certificate
 	caCert       *x509.Certificate
 
+	healthChecker *fakehealthchecker.Checker
+
 	ca *CA
 }
 
@@ -61,6 +65,7 @@ func (s *CATestSuite) SetupTest() {
 	log, logHook := test.NewNullLogger()
 	s.logHook = logHook
 
+	s.healthChecker = fakehealthchecker.New()
 	s.ca = NewCA(Config{
 		Log:         log,
 		Metrics:     telemetry.Blackhole{},
@@ -70,6 +75,7 @@ func (s *CATestSuite) SetupTest() {
 		CASubject: pkix.Name{
 			CommonName: "TESTCA",
 		},
+		HealthChecker: s.healthChecker,
 	})
 	s.setX509CA(true)
 	s.setJWTKey()
@@ -342,6 +348,33 @@ func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
 func (s *CATestSuite) TestSignCAX509SVIDValidatesTrustDomain() {
 	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainFoo))
 	s.Require().EqualError(err, `"spiffe://foo.com" is not a member of trust domain "example.org"`)
+}
+
+func (s *CATestSuite) TestHealthChecks() {
+	// Successful health check
+	s.Equal(map[string]health.State{
+		"server.ca": {
+			Live:         true,
+			Ready:        true,
+			ReadyDetails: caHealthDetails{},
+			LiveDetails:  caHealthDetails{},
+		},
+	}, s.healthChecker.RunChecks())
+
+	// Failed health check (no X509 CA available)
+	s.ca.SetX509CA(nil)
+	s.Equal(map[string]health.State{
+		"server.ca": {
+			Live:  false,
+			Ready: false,
+			ReadyDetails: caHealthDetails{
+				SignX509SVIDErr: "X509 CA is not available for signing",
+			},
+			LiveDetails: caHealthDetails{
+				SignX509SVIDErr: "X509 CA is not available for signing",
+			},
+		},
+	}, s.healthChecker.RunChecks())
 }
 
 func (s *CATestSuite) setX509CA(selfSigned bool) {

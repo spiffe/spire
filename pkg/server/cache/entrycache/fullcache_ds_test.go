@@ -143,10 +143,6 @@ func TestAgentIteratorDS(t *testing.T) {
 }
 
 func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.AttestedNode) {
-	req := &datastore.CreateAttestedNodeRequest{
-		Node: node,
-	}
-
-	_, err := ds.CreateAttestedNode(context.Background(), req)
+	_, err := ds.CreateAttestedNode(context.Background(), node)
 	require.NoError(t, err)
 }
