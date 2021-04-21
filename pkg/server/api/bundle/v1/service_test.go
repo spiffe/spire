@@ -741,9 +741,9 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 
 			var entryID string
 			if tt.entry != nil {
-				r, err := test.ds.CreateRegistrationEntry(ctx, tt.entry)
+				registrationEntry, err := test.ds.CreateRegistrationEntry(ctx, tt.entry)
 				require.NoError(t, err)
-				entryID = r.EntryId
+				entryID = registrationEntry.EntryId
 			}
 
 			// Set datastore error after creating the test bundles

@@ -1525,7 +1525,7 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
-	registeredEntry := &common.RegistrationEntry{
+	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1540,17 +1540,17 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		},
 	}
 
-	createRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, registeredEntry)
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
 
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createRegistrationEntry.EntryId)
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.RequireProtoEqual(createRegistrationEntry, fetchRegistrationEntry)
+	s.RequireProtoEqual(createdRegistrationEntry, fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
 	now := time.Now().Unix()
-	registeredEntry := &common.RegistrationEntry{
+	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1562,7 +1562,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		EntryExpiry: now,
 	}
 
-	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, registeredEntry)
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid entries, wind clock back 10s
@@ -2165,8 +2165,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	} {
 		tt := testcase
 		s.Run(tt.name, func() {
-			entry := s.createRegistrationEntry(oldEntry)
-			id := entry.EntryId
+			registrationEntry := s.createRegistrationEntry(oldEntry)
+			id := registrationEntry.EntryId
 
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
@@ -2190,7 +2190,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			s.RequireProtoEqual(expectedResult, updateRegistrationEntryResponse.Entry)
 
 			// Fetch and check the results match expectations
-			registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, id)
+			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
 			s.Require().NoError(err)
 			s.Require().NotNil(registrationEntry)
 
@@ -2275,10 +2275,10 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, entry)
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				entry.EntryId = r.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				ByParentId: &wrapperspb.StringValue{
@@ -2324,10 +2324,10 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, entry)
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				entry.EntryId = r.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
@@ -2378,10 +2378,10 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, entry)
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				entry.EntryId = r.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{

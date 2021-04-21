@@ -324,7 +324,7 @@ func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 
 // FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
-	entryID string) (registrationEntry *common.RegistrationEntry, err error) {
+	entryID string) (*common.RegistrationEntry, error) {
 	return fetchRegistrationEntry(ctx, ds.db, entryID)
 }
 
@@ -3017,7 +3017,7 @@ func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationE
 		return nil, sqlError.Wrap(err)
 	}
 
-	respEntry, err := modelToEntry(tx, entry)
+	registrationEntry, err := modelToEntry(tx, entry)
 	if err != nil {
 		return nil, err
 	}
@@ -3027,7 +3027,7 @@ func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationE
 		return nil, err
 	}
 
-	return respEntry, nil
+	return registrationEntry, nil
 }
 
 func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
