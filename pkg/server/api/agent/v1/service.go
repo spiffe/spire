@@ -447,16 +447,14 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
 	parentID := s.td.NewID(path.Join("spire", "agent", "join_token", token))
-	req := &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId: parentID.String(),
-			SpiffeId: agentID,
-			Selectors: []*common.Selector{
-				{Type: "spiffe_id", Value: parentID.String()},
-			},
+	entry := &common.RegistrationEntry{
+		ParentId: parentID.String(),
+		SpiffeId: agentID,
+		Selectors: []*common.Selector{
+			{Type: "spiffe_id", Value: parentID.String()},
 		},
 	}
-	_, err := s.ds.CreateRegistrationEntry(ctx, req)
+	_, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	if err != nil {
 		return err
 	}

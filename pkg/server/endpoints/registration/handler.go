@@ -110,16 +110,13 @@ func (h *Handler) DeleteEntry(ctx context.Context, request *registration.Registr
 	log := h.Log.WithField(telemetry.Method, telemetry.DeleteRegistrationEntry)
 
 	ds := h.getDataStore()
-	req := &datastore.DeleteRegistrationEntryRequest{
-		EntryId: request.Id,
-	}
-	resp, err := ds.DeleteRegistrationEntry(ctx, req)
+	registrationEntry, err := ds.DeleteRegistrationEntry(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Error deleting registration entry")
 		return &common.RegistrationEntry{}, status.Error(codes.Internal, err.Error())
 	}
 
-	return resp.Entry, nil
+	return registrationEntry, nil
 }
 
 // FetchEntry Retrieves a specific registered entry
@@ -130,18 +127,16 @@ func (h *Handler) FetchEntry(ctx context.Context, request *registration.Registra
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntry)
 
 	ds := h.getDataStore()
-	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
-		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
-	)
+	registrationEntry, err := ds.FetchRegistrationEntry(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Error trying to fetch entry")
 		return nil, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
 	}
-	if fetchResponse.Entry == nil {
+	if registrationEntry == nil {
 		log.Error("No such registration entry")
 		return nil, status.Error(codes.NotFound, "no such registration entry")
 	}
-	return fetchResponse.Entry, nil
+	return registrationEntry, nil
 }
 
 // FetchEntries retrieves all registered entries
@@ -798,14 +793,12 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 		return existingEntry, true, nil
 	}
 
-	createResponse, err := ds.CreateRegistrationEntry(ctx,
-		&datastore.CreateRegistrationEntryRequest{Entry: requestedEntry},
-	)
+	registrationEntry, err := ds.CreateRegistrationEntry(ctx, requestedEntry)
 	if err != nil {
 		return nil, false, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
-	return createResponse.Entry, false, nil
+	return registrationEntry, false, nil
 }
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
 	original := entry

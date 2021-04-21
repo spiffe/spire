@@ -342,13 +342,11 @@ func (s *HandlerSuite) TestCreateEntryAndCreateEntryIfNotExists() {
 	}
 
 	verifyEntry := func(entry *common.RegistrationEntry) {
-		storedEntry, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
-			EntryId: entry.EntryId,
-		})
+		storedEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
 		s.Require().NoError(err)
 		s.Require().NotNil(storedEntry)
-		s.T().Logf("actual=%+v expected=%+v", storedEntry.Entry, entry)
-		s.Require().True(proto.Equal(storedEntry.Entry, entry))
+		s.T().Logf("actual=%+v expected=%+v", storedEntry, entry)
+		s.Require().True(proto.Equal(storedEntry, entry))
 	}
 
 	for _, testCase := range testCases {
@@ -420,15 +418,13 @@ func (s *HandlerSuite) TestCreateEntry() {
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.Id)
 
-			entry, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
-				EntryId: resp.Id,
-			})
+			entry, err := s.ds.FetchRegistrationEntry(context.Background(), resp.Id)
 			require.NoError(t, err)
 			require.NotNil(t, entry)
 			// set ID (unknown before fetch) to do comparison
-			testCase.Entry.EntryId = entry.Entry.EntryId
-			t.Logf("actual=%+v expected=%+v", entry.Entry, testCase.Entry)
-			require.True(t, proto.Equal(entry.Entry, testCase.Entry))
+			testCase.Entry.EntryId = entry.EntryId
+			t.Logf("actual=%+v expected=%+v", entry, testCase.Entry)
+			require.True(t, proto.Equal(entry, testCase.Entry))
 		})
 	}
 }
@@ -1512,11 +1508,9 @@ func (s *HandlerSuite) createBundle(bundle *common.Bundle) {
 }
 
 func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	registrationEntry, err := s.ds.CreateRegistrationEntry(context.Background(), entry)
 	s.Require().NoError(err)
-	return resp.Entry
+	return registrationEntry
 }
 
 func (s *HandlerSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {

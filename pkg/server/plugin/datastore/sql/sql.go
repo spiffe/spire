@@ -307,25 +307,25 @@ func (ds *Plugin) ListNodeSelectors(ctx context.Context,
 
 // CreateRegistrationEntry stores the given registration entry
 func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
-	req *datastore.CreateRegistrationEntryRequest) (resp *datastore.CreateRegistrationEntryResponse, err error) {
+	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, err error) {
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
-	if err = validateRegistrationEntry(req.Entry); err != nil {
+	if err = validateRegistrationEntry(entry); err != nil {
 		return nil, err
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = createRegistrationEntry(tx, req)
+		registrationEntry, err = createRegistrationEntry(tx, entry)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return registrationEntry, nil
 }
 
 // FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
-	req *datastore.FetchRegistrationEntryRequest) (resp *datastore.FetchRegistrationEntryResponse, err error) {
-	return fetchRegistrationEntry(ctx, ds.db, req)
+	entryID string) (registrationEntry *common.RegistrationEntry, err error) {
+	return fetchRegistrationEntry(ctx, ds.db, entryID)
 }
 
 // CounCountRegistrationEntries counts all registrations (pagination available)
@@ -363,14 +363,14 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context,
 
 // DeleteRegistrationEntry deletes the given registration
 func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
-	req *datastore.DeleteRegistrationEntryRequest) (resp *datastore.DeleteRegistrationEntryResponse, err error) {
+	entryID string) (registrationEntry *common.RegistrationEntry, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = deleteRegistrationEntry(tx, req)
+		registrationEntry, err = deleteRegistrationEntry(tx, entryID)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return registrationEntry, nil
 }
 
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
@@ -1665,7 +1665,7 @@ func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query
 	return sb.String(), args
 }
 
-func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	entryID, err := newRegistrationEntryID()
 	if err != nil {
 		return nil, err
@@ -1673,19 +1673,19 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 
 	newRegisteredEntry := RegisteredEntry{
 		EntryID:    entryID,
-		SpiffeID:   req.Entry.SpiffeId,
-		ParentID:   req.Entry.ParentId,
-		TTL:        req.Entry.Ttl,
-		Admin:      req.Entry.Admin,
-		Downstream: req.Entry.Downstream,
-		Expiry:     req.Entry.EntryExpiry,
+		SpiffeID:   entry.SpiffeId,
+		ParentID:   entry.ParentId,
+		TTL:        entry.Ttl,
+		Admin:      entry.Admin,
+		Downstream: entry.Downstream,
+		Expiry:     entry.EntryExpiry,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	federatesWith, err := makeFederatesWith(tx, entry.FederatesWith)
 	if err != nil {
 		return nil, err
 	}
@@ -1694,7 +1694,7 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 		return nil, err
 	}
 
-	for _, registeredSelector := range req.Entry.Selectors {
+	for _, registeredSelector := range entry.Selectors {
 		newSelector := Selector{
 			RegisteredEntryID: newRegisteredEntry.ID,
 			Type:              registeredSelector.Type,
@@ -1705,7 +1705,7 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 		}
 	}
 
-	for _, registeredDNS := range req.Entry.DnsNames {
+	for _, registeredDNS := range entry.DnsNames {
 		newDNS := DNSName{
 			RegisteredEntryID: newRegisteredEntry.ID,
 			Value:             registeredDNS,
@@ -1716,18 +1716,16 @@ func createRegistrationEntry(tx *gorm.DB, req *datastore.CreateRegistrationEntry
 		}
 	}
 
-	entry, err := modelToEntry(tx, newRegisteredEntry)
+	registrationEntry, err := modelToEntry(tx, newRegisteredEntry)
 	if err != nil {
 		return nil, err
 	}
 
-	return &datastore.CreateRegistrationEntryResponse{
-		Entry: entry,
-	}, nil
+	return registrationEntry, nil
 }
 
-func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, db.supportsCTE, req)
+func fetchRegistrationEntry(ctx context.Context, db *sqlDB, entryID string) (*common.RegistrationEntry, error) {
+	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, db.supportsCTE, entryID)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1757,32 +1755,30 @@ func fetchRegistrationEntry(ctx context.Context, db *sqlDB, req *datastore.Fetch
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.FetchRegistrationEntryResponse{
-		Entry: entry,
-	}, nil
+	return entry, nil
 }
 
-func buildFetchRegistrationEntryQuery(dbType string, supportsCTE bool, req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQuery(dbType string, supportsCTE bool, entryID string) (string, []interface{}, error) {
 	switch dbType {
 	case SQLite:
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
-		return buildFetchRegistrationEntryQuerySQLite3(req)
+		return buildFetchRegistrationEntryQuerySQLite3(entryID)
 	case PostgreSQL:
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
-		return buildFetchRegistrationEntryQueryPostgreSQL(req)
+		return buildFetchRegistrationEntryQueryPostgreSQL(entryID)
 	case MySQL:
 		if supportsCTE {
-			return buildFetchRegistrationEntryQueryMySQLCTE(req)
+			return buildFetchRegistrationEntryQueryMySQLCTE(entryID)
 		}
-		return buildFetchRegistrationEntryQueryMySQL(req)
+		return buildFetchRegistrationEntryQueryMySQL(entryID)
 	default:
 		return "", nil, sqlError.New("unsupported db type: %q", dbType)
 	}
 }
 
-func buildFetchRegistrationEntryQuerySQLite3(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQuerySQLite3(entryID string) (string, []interface{}, error) {
 	const query = `
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id = ?
@@ -1838,10 +1834,10 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
 ;`
-	return query, []interface{}{req.EntryId}, nil
+	return query, []interface{}{entryID}, nil
 }
 
-func buildFetchRegistrationEntryQueryPostgreSQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQueryPostgreSQL(entryID string) (string, []interface{}, error) {
 	const query = `
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id = $1
@@ -1897,10 +1893,10 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
 ;`
-	return query, []interface{}{req.EntryId}, nil
+	return query, []interface{}{entryID}, nil
 }
 
-func buildFetchRegistrationEntryQueryMySQL(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQueryMySQL(entryID string) (string, []interface{}, error) {
 	const query = `
 SELECT
 	E.id AS e_id,
@@ -1931,10 +1927,10 @@ LEFT JOIN
 WHERE E.entry_id = ?
 ORDER BY selector_id, dns_name_id
 ;`
-	return query, []interface{}{req.EntryId}, nil
+	return query, []interface{}{entryID}, nil
 }
 
-func buildFetchRegistrationEntryQueryMySQLCTE(req *datastore.FetchRegistrationEntryRequest) (string, []interface{}, error) {
+func buildFetchRegistrationEntryQueryMySQLCTE(entryID string) (string, []interface{}, error) {
 	const query = `
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id = ?
@@ -1990,7 +1986,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
 ;`
-	return query, []interface{}{req.EntryId}, nil
+	return query, []interface{}{entryID}, nil
 }
 
 func countRegistrationEntries(tx *gorm.DB) (int32, error) {
@@ -3015,9 +3011,9 @@ func updateRegistrationEntry(tx *gorm.DB,
 	}, nil
 }
 
-func deleteRegistrationEntry(tx *gorm.DB, req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
+func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationEntry, error) {
 	entry := RegisteredEntry{}
-	if err := tx.Find(&entry, "entry_id = ?", req.EntryId).Error; err != nil {
+	if err := tx.Find(&entry, "entry_id = ?", entryID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -3031,9 +3027,7 @@ func deleteRegistrationEntry(tx *gorm.DB, req *datastore.DeleteRegistrationEntry
 		return nil, err
 	}
 
-	return &datastore.DeleteRegistrationEntryResponse{
-		Entry: respEntry,
-	}, nil
+	return respEntry, nil
 }
 
 func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {

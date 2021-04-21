@@ -36,9 +36,9 @@ import (
 )
 
 const (
-	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
+	invalidTrustDomainAttestedNode = "an attested node with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. Agents may need to be reconfigured to use new trust domain"
-	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
+	invalidTrustDomainRegistrationEntry = "a registration entry with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
 		"please delete all existing registration entries"
 	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
