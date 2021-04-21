@@ -345,8 +345,7 @@ func (s *HandlerSuite) TestCreateEntryAndCreateEntryIfNotExists() {
 		storedEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
 		s.Require().NoError(err)
 		s.Require().NotNil(storedEntry)
-		s.T().Logf("actual=%+v expected=%+v", storedEntry, entry)
-		s.Require().True(proto.Equal(storedEntry, entry))
+		s.RequireProtoEqual(entry, storedEntry)
 	}
 
 	for _, testCase := range testCases {
@@ -423,8 +422,7 @@ func (s *HandlerSuite) TestCreateEntry() {
 			require.NotNil(t, entry)
 			// set ID (unknown before fetch) to do comparison
 			testCase.Entry.EntryId = entry.EntryId
-			t.Logf("actual=%+v expected=%+v", entry, testCase.Entry)
-			require.True(t, proto.Equal(entry, testCase.Entry))
+			s.RequireProtoEqual(testCase.Entry, entry)
 		})
 	}
 }
@@ -530,7 +528,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 				entry = proto.Clone(original).(*common.RegistrationEntry)
 				testCase.PrepareEntry(entry)
 			}
-			resp, err := s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{
+			updatedEntry, err := s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{
 				Entry: entry,
 			})
 			if testCase.Err != "" {
@@ -539,8 +537,7 @@ func (s *HandlerSuite) TestUpdateEntry() {
 			}
 			require.NoError(t, err)
 			entry.RevisionNumber++
-			t.Logf("actual=%+v expected=%+v", resp, entry)
-			require.True(t, proto.Equal(resp, entry))
+			s.RequireProtoEqual(entry, updatedEntry)
 		})
 	}
 }
@@ -638,7 +635,7 @@ func (s *HandlerSuite) TestFetchEntries() {
 	resp, err = s.handler.FetchEntries(context.Background(), &common.Empty{})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
 
 	// More than one entry
 	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -649,8 +646,8 @@ func (s *HandlerSuite) TestFetchEntries() {
 	resp, err = s.handler.FetchEntries(context.Background(), &common.Empty{})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 2)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
-	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
+	s.RequireProtoEqual(entry2, resp.Entries[1])
 }
 
 func (s *HandlerSuite) TestListByParentId() {
@@ -690,7 +687,7 @@ func (s *HandlerSuite) TestListByParentId() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+	s.RequireProtoEqual(entry3, resp.Entries[0])
 
 	// More than one entry
 	resp, err = s.handler.ListByParentID(context.Background(), &registration.ParentID{
@@ -698,8 +695,8 @@ func (s *HandlerSuite) TestListByParentId() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 2)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
-	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
+	s.RequireProtoEqual(entry2, resp.Entries[1])
 }
 
 func (s *HandlerSuite) TestListBySelector() {
@@ -728,14 +725,14 @@ func (s *HandlerSuite) TestListBySelector() {
 	resp, err = s.handler.ListBySelector(context.Background(), &common.Selector{Type: "B", Value: "b"})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+	s.RequireProtoEqual(entry3, resp.Entries[0])
 
 	// More than one entry
 	resp, err = s.handler.ListBySelector(context.Background(), &common.Selector{Type: "A", Value: "a"})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 2)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
-	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
+	s.RequireProtoEqual(entry2, resp.Entries[1])
 }
 
 func (s *HandlerSuite) TestListBySelectors() {
@@ -774,7 +771,7 @@ func (s *HandlerSuite) TestListBySelectors() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+	s.RequireProtoEqual(entry3, resp.Entries[0])
 
 	// More than one entry
 	resp, err = s.handler.ListBySelectors(context.Background(), &common.Selectors{
@@ -785,8 +782,8 @@ func (s *HandlerSuite) TestListBySelectors() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 2)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
-	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
+	s.RequireProtoEqual(entry2, resp.Entries[1])
 }
 
 func (s *HandlerSuite) TestListBySpiffeID() {
@@ -826,7 +823,7 @@ func (s *HandlerSuite) TestListBySpiffeID() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+	s.RequireProtoEqual(entry3, resp.Entries[0])
 
 	// More than one entry
 	resp, err = s.handler.ListBySpiffeID(context.Background(), &registration.SpiffeID{
@@ -834,8 +831,8 @@ func (s *HandlerSuite) TestListBySpiffeID() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 2)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
-	s.Require().True(proto.Equal(entry2, resp.Entries[1]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
+	s.RequireProtoEqual(entry2, resp.Entries[1])
 }
 
 func (s *HandlerSuite) TestListAllEntriesWithPages() {
@@ -923,7 +920,7 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry1, resp.Entries[0]))
+	s.RequireProtoEqual(entry1, resp.Entries[0])
 	// 2nd page
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
 		Pagination: &registration.Pagination{
@@ -933,7 +930,7 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry2, resp.Entries[0]))
+	s.RequireProtoEqual(entry2, resp.Entries[0])
 
 	// 3rd page
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
@@ -944,7 +941,7 @@ func (s *HandlerSuite) TestListAllEntriesWithPages() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(resp.Entries, 1)
-	s.Require().True(proto.Equal(entry3, resp.Entries[0]))
+	s.RequireProtoEqual(entry3, resp.Entries[0])
 
 	// 4th page should be empty
 	resp, err = s.handler.ListAllEntriesWithPages(context.Background(), &registration.ListAllEntriesRequest{
