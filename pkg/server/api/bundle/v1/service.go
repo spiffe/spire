@@ -77,18 +77,16 @@ func (s *Service) CountBundles(ctx context.Context, req *bundlev1.CountBundlesRe
 func (s *Service) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	log := rpccontext.Logger(ctx)
 
-	dsResp, err := s.ds.FetchBundle(dscache.WithCache(ctx), &datastore.FetchBundleRequest{
-		TrustDomainId: s.td.IDString(),
-	})
+	commonBundle, err := s.ds.FetchBundle(dscache.WithCache(ctx), s.td.IDString())
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
 	}
 
-	if dsResp.Bundle == nil {
+	if commonBundle == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "bundle not found", nil)
 	}
 
-	bundle, err := api.BundleToProto(dsResp.Bundle)
+	bundle, err := api.BundleToProto(commonBundle)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert bundle", err)
 	}
@@ -189,9 +187,9 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundlev1.ListFe
 		resp.NextPageToken = dsResp.Pagination.Token
 	}
 
-	for _, dsBundle := range dsResp.Bundles {
-		log = log.WithField(telemetry.TrustDomainID, dsBundle.TrustDomainId)
-		td, err := spiffeid.TrustDomainFromString(dsBundle.TrustDomainId)
+	for _, commonBundle := range dsResp.Bundles {
+		log = log.WithField(telemetry.TrustDomainID, commonBundle.TrustDomainId)
+		td, err := spiffeid.TrustDomainFromString(commonBundle.TrustDomainId)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "bundle has an invalid trust domain ID", err)
 		}
@@ -201,7 +199,7 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundlev1.ListFe
 			continue
 		}
 
-		b, err := api.BundleToProto(dsBundle)
+		b, err := api.BundleToProto(commonBundle)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to convert bundle", err)
 		}
@@ -225,25 +223,23 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFeder
 		return nil, api.MakeErr(log, codes.InvalidArgument, "getting a federated bundle for the server's own trust domain is not allowed", nil)
 	}
 
-	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: td.IDString(),
-	})
+	commonBundle, err := s.ds.FetchBundle(ctx, td.IDString())
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
 	}
 
-	if dsResp.Bundle == nil {
+	if commonBundle == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "bundle not found", nil)
 	}
 
-	b, err := api.BundleToProto(dsResp.Bundle)
+	bundle, err := api.BundleToProto(commonBundle)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert bundle", err)
 	}
 
-	applyBundleMask(b, req.OutputMask)
+	applyBundleMask(bundle, req.OutputMask)
 
-	return b, nil
+	return bundle, nil
 }
 
 // BatchCreateFederatedBundle adds one or more bundles to the server.
@@ -274,16 +270,14 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 		}
 	}
 
-	dsBundle, err := api.ProtoToBundle(b)
+	commonBundle, err := api.ProtoToBundle(b)
 	if err != nil {
 		return &bundlev1.BatchCreateFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert bundle", err),
 		}
 	}
 
-	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: dsBundle,
-	})
+	cb, err := s.ds.CreateBundle(ctx, commonBundle)
 	switch status.Code(err) {
 	case codes.OK:
 	case codes.AlreadyExists:
@@ -296,7 +290,7 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 		}
 	}
 
-	protoBundle, err := api.BundleToProto(resp.Bundle)
+	protoBundle, err := api.BundleToProto(cb)
 	if err != nil {
 		return &bundlev1.BatchCreateFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert bundle", err),
@@ -328,14 +322,14 @@ func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outpu
 		}
 	}
 
-	dsBundle, err := api.ProtoToBundle(b)
+	commonBundle, err := api.ProtoToBundle(b)
 	if err != nil {
 		return &bundlev1.BatchSetFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert bundle", err),
 		}
 	}
 	resp, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: dsBundle,
+		Bundle: commonBundle,
 	})
 
 	if err != nil {
@@ -387,14 +381,14 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 		}
 	}
 
-	dsBundle, err := api.ProtoToBundle(b)
+	commonBundle, err := api.ProtoToBundle(b)
 	if err != nil {
 		return &bundlev1.BatchUpdateFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert bundle", err),
 		}
 	}
 	resp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle:    dsBundle,
+		Bundle:    commonBundle,
 		InputMask: api.ProtoToBundleMask(inputMask),
 	})
 
@@ -457,7 +451,7 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundlev1.
 	}, nil
 }
 
-func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLogger, trustDomain string, mode datastore.DeleteBundleRequest_Mode) *bundlev1.BatchDeleteFederatedBundleResponse_Result {
+func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLogger, trustDomain string, mode datastore.DeleteMode) *bundlev1.BatchDeleteFederatedBundleResponse_Result {
 	log = log.WithField(telemetry.TrustDomainID, trustDomain)
 
 	td, err := spiffeid.TrustDomainFromString(trustDomain)
@@ -475,10 +469,7 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLog
 		}
 	}
 
-	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: td.IDString(),
-		Mode:          mode,
-	})
+	err = s.ds.DeleteBundle(ctx, td.IDString(), mode)
 
 	code := status.Code(err)
 	switch code {
@@ -500,16 +491,16 @@ func (s *Service) deleteFederatedBundle(ctx context.Context, log logrus.FieldLog
 	}
 }
 
-func parseDeleteMode(mode bundlev1.BatchDeleteFederatedBundleRequest_Mode) (datastore.DeleteBundleRequest_Mode, error) {
+func parseDeleteMode(mode bundlev1.BatchDeleteFederatedBundleRequest_Mode) (datastore.DeleteMode, error) {
 	switch mode {
 	case bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT:
-		return datastore.DeleteBundleRequest_RESTRICT, nil
+		return datastore.Restrict, nil
 	case bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE:
-		return datastore.DeleteBundleRequest_DISSOCIATE, nil
+		return datastore.Dissociate, nil
 	case bundlev1.BatchDeleteFederatedBundleRequest_DELETE:
-		return datastore.DeleteBundleRequest_DELETE, nil
+		return datastore.Delete, nil
 	default:
-		return datastore.DeleteBundleRequest_RESTRICT, fmt.Errorf("unhandled delete mode %q", mode)
+		return datastore.Restrict, fmt.Errorf("unhandled delete mode %q", mode)
 	}
 }
 

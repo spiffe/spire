@@ -1446,24 +1446,20 @@ func TestGetAuthorizedEntries(t *testing.T) {
 }
 
 func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
-	_, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: federatedTd.IDString(),
-			RootCas: []*common.Certificate{
-				{
-					DerBytes: []byte("federated bundle"),
-				},
+	_, err := ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: federatedTd.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("federated bundle"),
 			},
 		},
 	})
 	require.NoError(t, err)
-	_, err = ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: secondFederatedTd.IDString(),
-			RootCas: []*common.Certificate{
-				{
-					DerBytes: []byte("second federated bundle"),
-				},
+	_, err = ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: secondFederatedTd.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("second federated bundle"),
 			},
 		},
 	})

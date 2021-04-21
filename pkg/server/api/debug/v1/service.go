@@ -116,20 +116,18 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	trustDomainID := s.td.IDString()
 
 	// Extract trustdomains bundle and append federated bundles
-	bundle, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch trust domain bundle", err)
 	}
 
-	if bundle.Bundle == nil {
+	if bundle == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "trust domain bundle not found", nil)
 	}
 
 	// Create bundle source using rootCAs
 	var rootCAs []*x509.Certificate
-	for _, b := range bundle.Bundle.RootCas {
+	for _, b := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(b.DerBytes)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to parse bundle", err)

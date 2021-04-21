@@ -21,6 +21,7 @@ import (
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	"github.com/zeebo/errs"
 
 	"github.com/go-logr/logr"
@@ -218,6 +219,7 @@ func (r *BaseReconciler) createEntry(ctx context.Context, entryToCreate *spirety
 func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithMetadata) (*spiretypes.Entry, error) {
 	spiffeID := r.makeSpiffeID(obj)
 	parentID := r.makeParentID(obj)
+	federationDomains := federation.GetFederationDomains(obj)
 
 	if spiffeID == nil || parentID == nil {
 		return nil, nil
@@ -228,8 +230,9 @@ func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithM
 			Namespace: obj.GetNamespace(),
 			Name:      obj.GetName(),
 		}),
-		ParentId: parentID,
-		SpiffeId: spiffeID,
+		ParentId:      parentID,
+		SpiffeId:      spiffeID,
+		FederatesWith: federationDomains,
 	}
 	return r.fillEntryForObject(ctx, &newEntry, obj)
 }

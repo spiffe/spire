@@ -216,40 +216,35 @@ func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existent
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.Require().NotNil(fresp)
-	s.Require().Nil(fresp.Bundle)
+	s.Require().Nil(fb)
 
 	// update non-existent
 	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
-	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
+	err = s.ds.DeleteBundle(ctx, "spiffe://foo", datastore.Restrict)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// create
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Require().NoError(err)
 
 	// create again (constraint violation)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Equal(status.Code(err), codes.AlreadyExists)
 
 	// fetch
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fresp.Bundle)
+	s.AssertProtoEqual(bundle, fb)
 
 	// fetch (with denormalized id)
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://fOO"})
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://fOO")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fresp.Bundle)
+	s.AssertProtoEqual(bundle, fb)
 
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
@@ -341,11 +336,8 @@ func (s *PluginSuite) TestBundleCRUD() {
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-	})
+	err = s.ds.DeleteBundle(ctx, bundle.TrustDomainId, datastore.Restrict)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle2, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -353,11 +345,8 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 
 	// delete (with denormalized id)
-	dresp, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://bAR",
-	})
+	err = s.ds.DeleteBundle(ctx, "spiffe://bAR", datastore.Restrict)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle3, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -366,27 +355,19 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 func (s *PluginSuite) TestListBundlesWithPagination() {
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err := s.ds.CreateBundle(ctx, bundle1)
 	s.Require().NoError(err)
 
 	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle2)
 	s.Require().NoError(err)
 
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle3,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle3)
 	s.Require().NoError(err)
 
 	bundle4 := bundleutil.BundleProtoFromRootCA("spiffe://baz", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle4,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle4)
 	s.Require().NoError(err)
 
 	tests := []struct {
@@ -494,21 +475,15 @@ func (s *PluginSuite) TestCountBundles() {
 
 	// Create bundles
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle1)
 	s.Require().NoError(err)
 
 	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle2)
 	s.Require().NoError(err)
 
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle3,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle3)
 	s.Require().NoError(err)
 
 	// Count all
@@ -530,7 +505,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 		CertSerialNumber:    "1234",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	s.Require().NoError(err)
 
 	node2 := &common.AttestedNode{
@@ -539,7 +514,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 		CertSerialNumber:    "5678",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node2})
+	_, err = s.ds.CreateAttestedNode(ctx, node2)
 	s.Require().NoError(err)
 
 	// Count all
@@ -623,7 +598,7 @@ func (s *PluginSuite) TestBundlePrune() {
 	}
 
 	// Store bundle in datastore
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{Bundle: bundle})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Require().NoError(err)
 
 	// Prune
@@ -657,9 +632,9 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(expectedPrunedBundle, fresp.Bundle)
+	s.AssertProtoEqual(expectedPrunedBundle, fb)
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -670,13 +645,13 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	attestedNode, err := s.ds.CreateAttestedNode(ctx, node)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, cresp.Node)
+	s.AssertProtoEqual(node, attestedNode)
 
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+	attestedNode, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, fresp.Node)
+	s.AssertProtoEqual(node, attestedNode)
 
 	expiration := time.Now().Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
@@ -689,33 +664,34 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: "missing"})
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
 	s.Require().NoError(err)
-	s.Require().Nil(fresp.Node)
+	s.Require().Nil(attestedNode)
 }
 
 func (s *PluginSuite) TestFetchStaleNodes() {
+	now := time.Now()
 	efuture := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+		CertNotAfter:        now.Add(time.Hour).Unix(),
 	}
 
 	epast := &common.AttestedNode{
 		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "deadbeef",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
+	_, err := s.ds.CreateAttestedNode(ctx, efuture)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
+	_, err = s.ds.CreateAttestedNode(ctx, epast)
 	s.Require().NoError(err)
 
-	expiration := time.Now().Unix()
+	expiration := now.Unix()
 	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		ByExpiresBefore: &wrapperspb.Int64Value{
 			Value: expiration,
@@ -726,26 +702,27 @@ func (s *PluginSuite) TestFetchStaleNodes() {
 }
 
 func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
+	now := time.Now()
 	// Create all necessary nodes
 	aNode1 := &common.AttestedNode{
 		SpiffeId:            "node1",
 		AttestationDataType: "t1",
 		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
 	}
 
 	aNode2 := &common.AttestedNode{
 		SpiffeId:            "node2",
 		AttestationDataType: "t2",
 		CertSerialNumber:    "deadbeef",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+		CertNotAfter:        now.Add(time.Hour).Unix(),
 	}
 
 	aNode3 := &common.AttestedNode{
 		SpiffeId:            "node3",
 		AttestationDataType: "t3",
 		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
 	}
 
 	aNode4 := &common.AttestedNode{
@@ -753,29 +730,29 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		AttestationDataType: "t1",
 		// Banned
 		CertSerialNumber: "",
-		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:     now.Add(-time.Hour).Unix(),
 	}
 	aNode5 := &common.AttestedNode{
 		SpiffeId:            "node5",
 		AttestationDataType: "t4",
 		// Banned
 		CertSerialNumber: "",
-		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
+		CertNotAfter:     now.Add(-time.Hour).Unix(),
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode1})
+	_, err := s.ds.CreateAttestedNode(ctx, aNode1)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode2})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode2)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode3})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode3)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode4})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode4)
 	s.Require().NoError(err)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode5})
+	_, err = s.ds.CreateAttestedNode(ctx, aNode5)
 	s.Require().NoError(err)
 
 	aNode1WithSelectors := cloneAttestedNode(aNode1)
@@ -924,7 +901,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "get nodes by expire no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode3, aNode4, aNode5},
@@ -937,7 +914,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1, aNode3},
@@ -954,7 +931,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode4, aNode5},
@@ -971,7 +948,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
+					Value: now.Unix(),
 				},
 			},
 			expectedList: []*common.AttestedNode{},
@@ -1060,7 +1037,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1081,7 +1058,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1098,7 +1075,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "by selector match exact no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1115,7 +1092,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 4,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_SUBSET,
+					Match: datastore.Subset,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1132,7 +1109,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "by selector match subset no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_SUBSET,
+					Match: datastore.Subset,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1151,7 +1128,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByAttestationType: "t1",
 				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1170,7 +1147,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByAttestationType: "t1",
 				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
+					Match: datastore.Exact,
 					Selectors: []*common.Selector{
 						{Type: "a", Value: "1"},
 						{Type: "b", Value: "2"},
@@ -1303,14 +1280,14 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.ds = s.newPlugin()
 			defer s.ds.closeDB()
 
-			_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: &common.AttestedNode{
+			_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 				SpiffeId:            nodeID,
 				AttestationDataType: attestationType,
 				CertSerialNumber:    serial,
 				CertNotAfter:        expires,
 				NewCertNotAfter:     newExpires,
 				NewCertSerialNumber: newSerial,
-			}})
+			})
 			s.Require().NoError(err)
 
 			// Update attested node
@@ -1325,10 +1302,10 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.RequireProtoEqual(tt.expUpdatedNode, uresp.Node)
 
 			// Check a fresh fetch shows the updated attested node
-			fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: tt.updateReq.SpiffeId})
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateReq.SpiffeId)
 			s.Require().NoError(err)
-			s.Require().NotNil(fresp)
-			s.RequireProtoEqual(tt.expUpdatedNode, fresp.Node)
+			s.Require().NotNil(attestedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, attestedNode)
 		})
 	}
 }
@@ -1342,19 +1319,19 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	}
 
 	// delete it before it exists
-	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	_, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
+	_, err = s.ds.CreateAttestedNode(ctx, entry)
 	s.Require().NoError(err)
 
-	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(entry, dresp.Node)
+	s.AssertProtoEqual(entry, deletedNode)
 
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.Nil(fresp.Node)
+	s.Nil(attestedNode)
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
@@ -1416,14 +1393,15 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	const numNonExpiredAttNodes = 3
 	const attestationDataType = "fake_nodeattestor"
 	nonExpiredAttNodes := make([]*common.AttestedNode, numNonExpiredAttNodes)
+	now := time.Now()
 	for i := 0; i < numNonExpiredAttNodes; i++ {
 		nonExpiredAttNodes[i] = &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/non-expired-node-%d", i),
 			AttestationDataType: attestationDataType,
 			CertSerialNumber:    fmt.Sprintf("non-expired serial %d-1", i),
-			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+			CertNotAfter:        now.Add(time.Hour).Unix(),
 			NewCertSerialNumber: fmt.Sprintf("non-expired serial %d-2", i),
-			NewCertNotAfter:     time.Now().Add(2 * time.Hour).Unix(),
+			NewCertNotAfter:     now.Add(2 * time.Hour).Unix(),
 		}
 	}
 
@@ -1434,20 +1412,16 @@ func (s *PluginSuite) TestListNodeSelectors() {
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/expired-node-%d", i),
 			AttestationDataType: attestationDataType,
 			CertSerialNumber:    fmt.Sprintf("expired serial %d-1", i),
-			CertNotAfter:        time.Now().Add(-24 * time.Hour).Unix(),
+			CertNotAfter:        now.Add(-24 * time.Hour).Unix(),
 			NewCertSerialNumber: fmt.Sprintf("expired serial %d-2", i),
-			NewCertNotAfter:     time.Now().Add(-12 * time.Hour).Unix(),
+			NewCertNotAfter:     now.Add(-12 * time.Hour).Unix(),
 		}
 	}
 
 	allAttNodesToCreate := append(nonExpiredAttNodes, expiredAttNodes...)
 	selectorMap := make(map[string][]*common.Selector)
 	for i, n := range allAttNodesToCreate {
-		req := &datastore.CreateAttestedNodeRequest{
-			Node: n,
-		}
-
-		_, err := s.ds.CreateAttestedNode(ctx, req)
+		_, err := s.ds.CreateAttestedNode(ctx, n)
 		s.Require().NoError(err)
 
 		selectors := []*common.Selector{
@@ -1476,7 +1450,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
 			ValidAt: &timestamppb.Timestamp{
-				Seconds: time.Now().Unix(),
+				Seconds: now.Unix(),
 			},
 		}
 
@@ -1856,7 +1830,7 @@ func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, toler
 			if test.selectors != nil {
 				bySelectors = &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_EXACT,
+					Match:     datastore.Exact,
 				}
 			}
 			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
@@ -1959,13 +1933,13 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 			Selectors: []*common.Selector{
 				{Type: "T1", Value: "V1"},
 			},
-			Match: datastore.BySelectors_MATCH_EXACT,
+			Match: datastore.Exact,
 		},
 		ByFederatesWith: &datastore.ByFederatesWith{
 			TrustDomains: []string{
 				"spiffe://federates1.org",
 			},
-			Match: datastore.ByFederatesWith_MATCH_EXACT,
+			Match: datastore.Exact,
 		},
 	})
 
@@ -2372,7 +2346,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_EXACT,
+					Match:     datastore.Exact,
 				},
 			})
 			require.NoError(t, err)
@@ -2427,7 +2401,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_SUBSET,
+					Match:     datastore.Subset,
 				},
 			})
 			require.NoError(t, err)
@@ -2465,9 +2439,7 @@ func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
 	s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
 	// delete the bundle in RESTRICTED mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-	})
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Restrict)
 	s.RequireErrorContains(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
 }
 
@@ -2483,11 +2455,8 @@ func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.createBundle("spiffe://otherdomain.org")
 	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
-	// delete the bundle in DELETE mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-		Mode:          datastore.DeleteBundleRequest_DELETE,
-	})
+	// delete the bundle in Delete mode
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Delete)
 	s.Require().NoError(err)
 
 	// verify that the registeration entry has been deleted
@@ -2507,10 +2476,7 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
 	// delete the bundle in DISSOCIATE mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-		Mode:          datastore.DeleteBundleRequest_DISSOCIATE,
-	})
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Dissociate)
 	s.Require().NoError(err)
 
 	// make sure the entry still exists, albeit without an associated bundle
@@ -2598,7 +2564,7 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Equal("foobar", resp.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	err = s.ds.PruneJoinTokens(ctx, now)
+	err = s.ds.PruneJoinTokens(ctx, time.Now())
 	s.Require().NoError(err)
 
 	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
@@ -2656,9 +2622,7 @@ func (s *PluginSuite) TestMigration() {
 			// exist. if we try and create a bundle with the same id, it should
 			// fail if the migration did not run, due to uniqueness
 			// constraints.
-			_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-				Bundle: bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil),
-			})
+			_, err := s.ds.CreateBundle(context.Background(), bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil))
 			s.Require().NoError(err)
 		case 1:
 			// registration entries should gain the federates_with column.
@@ -2806,20 +2770,18 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
 
-			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
-				SpiffeId: "spiffe://example.org/host",
-			})
+			attestedNode, err := s.ds.FetchAttestedNode(context.Background(), "spiffe://example.org/host")
 			s.Require().NoError(err)
 
 			// Assert current serial numbers and expiration time remains the same
 			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
 			s.Require().NoError(err)
-			s.Require().Equal(expectedTime.Unix(), resp.Node.CertNotAfter)
-			s.Require().Equal("111", resp.Node.CertSerialNumber)
+			s.Require().Equal(expectedTime.Unix(), attestedNode.CertNotAfter)
+			s.Require().Equal("111", attestedNode.CertSerialNumber)
 
 			// Assert the new fields are empty for pre-existing entries
-			s.Require().Empty(resp.Node.NewCertSerialNumber)
-			s.Require().Empty(resp.Node.NewCertNotAfter)
+			s.Require().Empty(attestedNode.NewCertSerialNumber)
+			s.Require().Empty(attestedNode.NewCertNotAfter)
 		case 13:
 			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		case 14:
@@ -2853,9 +2815,9 @@ func (s *PluginSuite) TestRace() {
 			CertNotAfter:        exp,
 		}
 
-		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+		_, err := s.ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
-		_, err = s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+		_, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 		require.NoError(t, err)
 	})
 }
@@ -2877,17 +2839,13 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 }
 
 func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
-	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
 	s.Require().NoError(err)
-	return resp.Bundle
+	return bundle
 }
 
 func (s *PluginSuite) createBundle(trustDomainID string) {
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
-	})
+	_, err := s.ds.CreateBundle(ctx, bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert))
 	s.Require().NoError(err)
 }
 
@@ -8923,42 +8881,42 @@ ORDER BY e_id, selector_id, dns_name_id
 				case "selector-subset-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case "selector-subset-many":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case "selector-exact-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case "selector-exact-many":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case "federates-with-subset-one":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org"},
-						Match:        datastore.ByFederatesWith_MATCH_SUBSET,
+						Match:        datastore.Subset,
 					}
 				case "federates-with-subset-many":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org", "spiffe://federates2.org"},
-						Match:        datastore.ByFederatesWith_MATCH_SUBSET,
+						Match:        datastore.Subset,
 					}
 				case "federates-with-exact-one":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org"},
-						Match:        datastore.ByFederatesWith_MATCH_EXACT,
+						Match:        datastore.Exact,
 					}
 				case "federates-with-exact-many":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
 						TrustDomains: []string{"spiffe://federates1.org", "spiffe://federates2.org"},
-						Match:        datastore.ByFederatesWith_MATCH_EXACT,
+						Match:        datastore.Exact,
 					}
 				default:
 					require.FailNow(t, "unsupported by case: %q", by)
