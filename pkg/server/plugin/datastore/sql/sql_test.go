@@ -2564,11 +2564,12 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Equal("foobar", resp.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	err = s.ds.PruneJoinTokens(ctx, time.Now())
+	err = s.ds.PruneJoinTokens(ctx, now)
 	s.Require().NoError(err)
 
 	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
+	s.Require().NotNil(resp, "token was unexpectedly pruned")
 	s.Equal("foobar", resp.Token)
 
 	// Ensure we prune old tokens
