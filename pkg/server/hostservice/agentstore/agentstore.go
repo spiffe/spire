@@ -52,13 +52,11 @@ func (s *AgentStore) GetAgentInfo(ctx context.Context, req *agentstorev0.GetAgen
 		return nil, err
 	}
 
-	resp, err := deps.DataStore.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: req.AgentId,
-	})
+	attestedNode, err := deps.DataStore.FetchAttestedNode(ctx, req.AgentId)
 	if err != nil {
 		return nil, err
 	}
-	if resp.Node == nil {
+	if attestedNode == nil {
 		return nil, status.Error(codes.NotFound, "no such agent")
 	}
 

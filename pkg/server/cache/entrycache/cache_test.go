@@ -20,7 +20,7 @@ func TestFetchSVIDCache(t *testing.T) {
 	oneID := "spiffe://example.org/1"
 
 	entries := []*common.RegistrationEntry{
-		&common.RegistrationEntry{
+		{
 			ParentId: key,
 			SpiffeId: oneID,
 		},

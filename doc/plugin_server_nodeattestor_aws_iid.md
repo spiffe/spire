@@ -44,7 +44,10 @@ The following is an example for a IAM policy needed to get instance's info from 
         {
             "Sid": "VisualEditor0",
             "Effect": "Allow",
-            "Action": "ec2:DescribeInstances",
+            "Action": [
+                "ec2:DescribeInstances",
+                "iam:GetInstanceProfile"
+            ],
             "Resource": "*"
         }
     ]

@@ -385,9 +385,7 @@ func TestGetInfo(t *testing.T) {
 			}
 			test.so.state = tt.state
 			for _, bundle := range tt.bundles {
-				_, err := test.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-					Bundle: bundle,
-				})
+				_, err := test.ds.CreateBundle(ctx, bundle)
 				require.NoError(t, err)
 			}
 
@@ -399,10 +397,8 @@ func TestGetInfo(t *testing.T) {
 			test.clk.Add(tt.addToClk)
 
 			// Init datastore
-			for _, attestedNode := range tt.attestedNodes {
-				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-					Node: attestedNode,
-				})
+			for _, node := range tt.attestedNodes {
+				_, err := test.ds.CreateAttestedNode(ctx, node)
 				require.NoError(t, err)
 			}
 			for _, entry := range tt.registrationEntries {

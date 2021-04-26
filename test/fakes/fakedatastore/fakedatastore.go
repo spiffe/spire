@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 var (
@@ -43,11 +44,11 @@ func New(tb testing.TB) *DataStore {
 	}
 }
 
-func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
+func (s *DataStore) CreateBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateBundle(ctx, req)
+	return s.ds.CreateBundle(ctx, bundle)
 }
 
 func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
@@ -79,18 +80,18 @@ func (s *DataStore) CountBundles(ctx context.Context) (int32, error) {
 	return s.ds.CountBundles(ctx)
 }
 
-func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
+func (s *DataStore) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.DeleteBundle(ctx, req)
+	return s.ds.DeleteBundle(ctx, trustDomain, mode)
 }
 
-func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+func (s *DataStore) FetchBundle(ctx context.Context, trustDomain string) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchBundle(ctx, req)
+	return s.ds.FetchBundle(ctx, trustDomain)
 }
 
 func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
@@ -121,18 +122,18 @@ func (s *DataStore) CountAttestedNodes(ctx context.Context) (int32, error) {
 	return s.ds.CountAttestedNodes(ctx)
 }
 
-func (s *DataStore) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
+func (s *DataStore) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateAttestedNode(ctx, req)
+	return s.ds.CreateAttestedNode(ctx, node)
 }
 
-func (s *DataStore) FetchAttestedNode(ctx context.Context, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
+func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchAttestedNode(ctx, req)
+	return s.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
 func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -149,11 +150,11 @@ func (s *DataStore) UpdateAttestedNode(ctx context.Context, req *datastore.Updat
 	return s.ds.UpdateAttestedNode(ctx, req)
 }
 
-func (s *DataStore) DeleteAttestedNode(ctx context.Context, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
+func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.DeleteAttestedNode(ctx, req)
+	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
 func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
