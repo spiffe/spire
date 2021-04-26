@@ -365,7 +365,7 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_WithCertAuth() {
 
 	testPool, err := testRootCAs()
 	vcs.Require().NoError(err)
-	vcs.Require().Equal(testPool, tcc.RootCAs)
+	vcs.Require().Equal(testPool.Subjects(), tcc.RootCAs.Subjects())
 }
 
 func (vcs *VaultClientSuite) Test_ConfigureTLS_WithTokenAuth() {
@@ -386,7 +386,7 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_WithTokenAuth() {
 
 	testPool, err := testRootCAs()
 	vcs.Require().NoError(err)
-	vcs.Require().Equal(testPool, tcc.RootCAs)
+	vcs.Require().Equal(testPool.Subjects(), tcc.RootCAs.Subjects())
 }
 
 func (vcs *VaultClientSuite) Test_ConfigureTLS_WithAppRoleAuth() {
@@ -408,7 +408,7 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_WithAppRoleAuth() {
 
 	testPool, err := testRootCAs()
 	vcs.Require().NoError(err)
-	vcs.Require().Equal(testPool, tcc.RootCAs)
+	vcs.Require().Equal(testPool.Subjects(), tcc.RootCAs.Subjects())
 }
 
 func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidCACert() {

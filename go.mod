@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go v0.80.0
@@ -74,7 +74,6 @@ require (
 	google.golang.org/genproto v0.0.0-20210323160006-e668133fea6a
 	google.golang.org/grpc v1.36.0
 	google.golang.org/protobuf v1.26.0
-	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gotest.tools v2.2.0+incompatible
