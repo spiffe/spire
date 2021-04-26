@@ -78,17 +78,17 @@ func (s *Service) GetInfo(ctx context.Context, req *debugv1.GetInfoRequest) (*de
 
 	// Update cache when expired or does not exists
 	if s.getInfoResp.ts.IsZero() || s.clock.Now().Sub(s.getInfoResp.ts) >= cacheExpiry {
-		nodes, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+		nodes, err := s.ds.CountAttestedNodes(ctx)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 		}
 
-		entries, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+		entries, err := s.ds.CountRegistrationEntries(ctx)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 		}
 
-		bundles, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+		bundles, err := s.ds.CountBundles(ctx)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to count bundles", err)
 		}
@@ -101,9 +101,9 @@ func (s *Service) GetInfo(ctx context.Context, req *debugv1.GetInfoRequest) (*de
 		// Reset clock and set current response
 		s.getInfoResp.ts = s.clock.Now()
 		s.getInfoResp.resp = &debugv1.GetInfoResponse{
-			AgentsCount:           nodes.Nodes,
-			EntriesCount:          entries.Entries,
-			FederatedBundlesCount: bundles.Bundles,
+			AgentsCount:           nodes,
+			EntriesCount:          entries,
+			FederatedBundlesCount: bundles,
 			SvidChain:             svidChain,
 			Uptime:                int32(s.uptime().Seconds()),
 		}
@@ -116,20 +116,18 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	trustDomainID := s.td.IDString()
 
 	// Extract trustdomains bundle and append federated bundles
-	bundle, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch trust domain bundle", err)
 	}
 
-	if bundle.Bundle == nil {
+	if bundle == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "trust domain bundle not found", nil)
 	}
 
 	// Create bundle source using rootCAs
 	var rootCAs []*x509.Certificate
-	for _, b := range bundle.Bundle.RootCas {
+	for _, b := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(b.DerBytes)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to parse bundle", err)

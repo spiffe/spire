@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 var (
@@ -42,11 +44,11 @@ func New(tb testing.TB) *DataStore {
 	}
 }
 
-func (s *DataStore) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
+func (s *DataStore) CreateBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateBundle(ctx, req)
+	return s.ds.CreateBundle(ctx, bundle)
 }
 
 func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
@@ -70,26 +72,26 @@ func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundl
 	return s.ds.AppendBundle(ctx, req)
 }
 
-func (s *DataStore) CountBundles(ctx context.Context, req *datastore.CountBundlesRequest) (*datastore.CountBundlesResponse, error) {
+func (s *DataStore) CountBundles(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return s.ds.CountBundles(ctx, req)
+	return s.ds.CountBundles(ctx)
 }
 
-func (s *DataStore) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
+func (s *DataStore) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.DeleteBundle(ctx, req)
+	return s.ds.DeleteBundle(ctx, trustDomain, mode)
 }
 
-func (s *DataStore) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+func (s *DataStore) FetchBundle(ctx context.Context, trustDomain string) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchBundle(ctx, req)
+	return s.ds.FetchBundle(ctx, trustDomain)
 }
 
 func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
@@ -113,25 +115,25 @@ func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleR
 	return s.ds.PruneBundle(ctx, req)
 }
 
-func (s *DataStore) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (*datastore.CountAttestedNodesResponse, error) {
+func (s *DataStore) CountAttestedNodes(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return s.ds.CountAttestedNodes(ctx, req)
+	return s.ds.CountAttestedNodes(ctx)
 }
 
-func (s *DataStore) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
+func (s *DataStore) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateAttestedNode(ctx, req)
+	return s.ds.CreateAttestedNode(ctx, node)
 }
 
-func (s *DataStore) FetchAttestedNode(ctx context.Context, req *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
+func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchAttestedNode(ctx, req)
+	return s.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
 func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -148,11 +150,11 @@ func (s *DataStore) UpdateAttestedNode(ctx context.Context, req *datastore.Updat
 	return s.ds.UpdateAttestedNode(ctx, req)
 }
 
-func (s *DataStore) DeleteAttestedNode(ctx context.Context, req *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
+func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.DeleteAttestedNode(ctx, req)
+	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
 func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
@@ -181,11 +183,11 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNode
 	return resp, err
 }
 
-func (s *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (*datastore.CountRegistrationEntriesResponse, error) {
+func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return s.ds.CountRegistrationEntries(ctx, req)
+	return s.ds.CountRegistrationEntries(ctx)
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
@@ -235,32 +237,32 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore
 	return s.ds.PruneRegistrationEntries(ctx, req)
 }
 
-func (s *DataStore) CreateJoinToken(ctx context.Context, req *datastore.CreateJoinTokenRequest) (*datastore.CreateJoinTokenResponse, error) {
+func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.CreateJoinToken(ctx, req)
+	return s.ds.CreateJoinToken(ctx, token)
 }
 
-func (s *DataStore) FetchJoinToken(ctx context.Context, req *datastore.FetchJoinTokenRequest) (*datastore.FetchJoinTokenResponse, error) {
+func (s *DataStore) FetchJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchJoinToken(ctx, req)
+	return s.ds.FetchJoinToken(ctx, token)
 }
 
-func (s *DataStore) DeleteJoinToken(ctx context.Context, req *datastore.DeleteJoinTokenRequest) (*datastore.DeleteJoinTokenResponse, error) {
+func (s *DataStore) DeleteJoinToken(ctx context.Context, token string) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.DeleteJoinToken(ctx, req)
+	return s.ds.DeleteJoinToken(ctx, token)
 }
 
-func (s *DataStore) PruneJoinTokens(ctx context.Context, req *datastore.PruneJoinTokensRequest) (*datastore.PruneJoinTokensResponse, error) {
+func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.PruneJoinTokens(ctx, req)
+	return s.ds.PruneJoinTokens(ctx, expiresBefore)
 }
 
 func (s *DataStore) SetNextError(err error) {

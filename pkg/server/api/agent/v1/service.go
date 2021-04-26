@@ -70,13 +70,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountAgents returns the total number of agents.
 func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
-	dsResp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err := s.ds.CountAttestedNodes(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 	}
 
-	return &agentv1.CountAgentsResponse{Count: dsResp.Nodes}, nil
+	return &agentv1.CountAgentsResponse{Count: count}, nil
 }
 
 // ListAgents returns an optionally filtered and/or paginated list of agents.
@@ -100,7 +100,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 				return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
 			}
 			listReq.BySelectorMatch = &datastore.BySelectors{
-				Match:     datastore.BySelectors_MatchBehavior(filter.BySelectorMatch.Match),
+				Match:     datastore.MatchBehavior(filter.BySelectorMatch.Match),
 				Selectors: selectors,
 			}
 		}
@@ -150,23 +150,21 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())
-	resp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: agentID.String(),
-	})
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
-	if resp.Node == nil {
+	if attestedNode == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
 	}
 
-	selectors, err := s.getSelectorsFromAgentID(ctx, resp.Node.SpiffeId)
+	selectors, err := s.getSelectorsFromAgentID(ctx, attestedNode.SpiffeId)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to get selectors from agent", err)
 	}
 
-	agent, err := api.AttestedNodeToProto(resp.Node, selectors)
+	agent, err := api.AttestedNodeToProto(attestedNode, selectors)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert attested node to agent", err)
 	}
@@ -186,9 +184,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
-	_, err = s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: id.String(),
-	})
+	_, err = s.ds.DeleteAttestedNode(ctx, id.String())
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent deleted")
@@ -281,14 +277,12 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// fetch the agent/node to check if it was already attested or banned
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: agentID,
-	})
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
-	if attestedNode.Node != nil && nodeutil.IsAgentBanned(attestedNode.Node) {
+	if attestedNode != nil && nodeutil.IsAgentBanned(attestedNode) {
 		return api.MakeErr(log, codes.PermissionDenied, "failed to attest: agent is banned", nil)
 	}
 
@@ -315,15 +309,14 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// create or update attested entry
-	if attestedNode.Node == nil {
-		req := &datastore.CreateAttestedNodeRequest{
-			Node: &common.AttestedNode{
-				AttestationDataType: params.Data.Type,
-				SpiffeId:            agentID,
-				CertNotAfter:        svid[0].NotAfter.Unix(),
-				CertSerialNumber:    svid[0].SerialNumber.String(),
-			}}
-		if _, err := s.ds.CreateAttestedNode(ctx, req); err != nil {
+	if attestedNode == nil {
+		node := &common.AttestedNode{
+			AttestationDataType: params.Data.Type,
+			SpiffeId:            agentID,
+			CertNotAfter:        svid[0].NotAfter.Unix(),
+			CertSerialNumber:    svid[0].SerialNumber.String(),
+		}
+		if _, err := s.ds.CreateAttestedNode(ctx, node); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to create attested agent", err)
 		}
 	} else {
@@ -432,13 +425,11 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		req.Token = u.String()
 	}
 
-	expiry := time.Now().Unix() + int64(req.Ttl)
+	expiry := s.clk.Now().Add(time.Second * time.Duration(req.Ttl))
 
-	result, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  req.Token,
-			Expiry: expiry,
-		},
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  req.Token,
+		Expiry: expiry,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
@@ -451,7 +442,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		}
 	}
 
-	return &types.JoinToken{Value: result.JoinToken.Token, ExpiresAt: expiry}, nil
+	return &types.JoinToken{Value: req.Token, ExpiresAt: expiry.Unix()}, nil
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
@@ -516,23 +507,19 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.NodeAttestorType, "join_token")
 
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: token,
-	})
+	joinToken, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
-	case resp.JoinToken == nil:
+	case joinToken == nil:
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
-	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
-		Token: token,
-	})
+	err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
 		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
-	case time.Unix(resp.JoinToken.Expiry, 0).Before(s.clk.Now()):
+	case joinToken.Expiry.Before(s.clk.Now()):
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 

@@ -172,18 +172,17 @@ func TestCountAgents(t *testing.T) {
 			defer test.Cleanup()
 
 			for i := 0; i < int(tt.count); i++ {
-				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-					Node: &common.AttestedNode{
-						SpiffeId:            ids[i].String(),
-						AttestationDataType: "t1",
-						CertSerialNumber:    "badcafe",
-						CertNotAfter:        time.Now().Add(-time.Minute).Unix(),
-						NewCertNotAfter:     time.Now().Add(time.Minute).Unix(),
-						NewCertSerialNumber: "new badcafe",
-						Selectors: []*common.Selector{
-							{Type: "a", Value: "1"},
-							{Type: "b", Value: "2"},
-						},
+				now := time.Now()
+				_, err := test.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+					SpiffeId:            ids[i].String(),
+					AttestationDataType: "t1",
+					CertSerialNumber:    "badcafe",
+					CertNotAfter:        now.Add(-time.Minute).Unix(),
+					NewCertNotAfter:     now.Add(time.Minute).Unix(),
+					NewCertSerialNumber: "new badcafe",
+					Selectors: []*common.Selector{
+						{Type: "a", Value: "1"},
+						{Type: "b", Value: "2"},
 					},
 				})
 				require.NoError(t, err)
@@ -225,9 +224,7 @@ func TestListAgents(t *testing.T) {
 			{Type: "b", Value: "2"},
 		},
 	}
-	_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: node1,
-	})
+	_, err := test.ds.CreateAttestedNode(ctx, node1)
 	require.NoError(t, err)
 	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
@@ -249,9 +246,7 @@ func TestListAgents(t *testing.T) {
 			{Type: "c", Value: "3"},
 		},
 	}
-	_, err = test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: node2,
-	})
+	_, err = test.ds.CreateAttestedNode(ctx, node2)
 	require.NoError(t, err)
 	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 		Selectors: &datastore.NodeSelectors{
@@ -269,9 +264,7 @@ func TestListAgents(t *testing.T) {
 		NewCertNotAfter:     newNoAfter,
 		NewCertSerialNumber: "",
 	}
-	_, err = test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-		Node: node3,
-	})
+	_, err = test.ds.CreateAttestedNode(ctx, node3)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -652,9 +645,7 @@ func TestBanAgent(t *testing.T) {
 				NewCertSerialNumber: "1235",
 			}
 
-			_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-				Node: node,
-			})
+			_, err := test.ds.CreateAttestedNode(ctx, node)
 			require.NoError(t, err)
 			test.ds.SetNextError(tt.dsError)
 
@@ -665,28 +656,24 @@ func TestBanAgent(t *testing.T) {
 			if tt.expectCode != codes.OK {
 				require.Nil(t, banResp)
 
-				fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-					SpiffeId: node.SpiffeId,
-				})
+				attestedNode, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId)
 				require.NoError(t, err)
-				require.NotNil(t, fetchResp)
-				require.NotZero(t, fetchResp.Node.CertSerialNumber)
-				require.NotZero(t, fetchResp.Node.NewCertSerialNumber)
+				require.NotNil(t, attestedNode)
+				require.NotZero(t, attestedNode.CertSerialNumber)
+				require.NotZero(t, attestedNode.NewCertSerialNumber)
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, banResp)
 
-			fetchResp, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String(),
-			})
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String())
 			require.NoError(t, err)
-			require.NotNil(t, fetchResp)
+			require.NotNil(t, attestedNode)
 
 			node.CertSerialNumber = ""
 			node.NewCertSerialNumber = ""
-			spiretest.RequireProtoEqual(t, node, fetchResp.Node)
+			spiretest.RequireProtoEqual(t, node, attestedNode)
 		})
 	}
 }
@@ -831,9 +818,7 @@ func TestDeleteAgent(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
-			_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-				Node: node1,
-			})
+			_, err := test.ds.CreateAttestedNode(ctx, node1)
 			require.NoError(t, err)
 			test.ds.SetNextError(tt.dsError)
 
@@ -845,11 +830,9 @@ func TestDeleteAgent(t *testing.T) {
 				spiretest.RequireGRPCStatus(t, err, tt.code, tt.err)
 
 				// Verify node was not deleted
-				node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-					SpiffeId: node1.SpiffeId,
-				})
+				attestedNode, err := test.ds.FetchAttestedNode(ctx, node1.SpiffeId)
 				require.NoError(t, err)
-				require.NotNil(t, node.Node)
+				require.NotNil(t, attestedNode)
 
 				return
 			}
@@ -859,11 +842,9 @@ func TestDeleteAgent(t *testing.T) {
 
 			id := spiffeid.Must(tt.req.Id.TrustDomain, tt.req.Id.Path)
 
-			node, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: id.String(),
-			})
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, id.String())
 			require.NoError(t, err)
-			require.Nil(t, node.Node)
+			require.Nil(t, attestedNode)
 		})
 	}
 }
@@ -1195,9 +1176,7 @@ func TestRenewAgent(t *testing.T) {
 			defer test.Cleanup()
 
 			if tt.createNode != nil {
-				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-					Node: tt.createNode,
-				})
+				_, err := test.ds.CreateAttestedNode(ctx, tt.createNode)
 				require.NoError(t, err)
 			}
 			if tt.failSigning {
@@ -1239,15 +1218,13 @@ func TestRenewAgent(t *testing.T) {
 			require.Equal(t, []*url.URL{agentID.URL()}, x509Svid.URIs)
 
 			// Validate attested node in datastore
-			updatedNode, err := test.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-				SpiffeId: agentID.String(),
-			})
+			updatedNode, err := test.ds.FetchAttestedNode(ctx, agentID.String())
 			require.NoError(t, err)
 			require.NotNil(t, updatedNode)
 			expectedNode := tt.createNode
 			expectedNode.NewCertNotAfter = x509Svid.NotAfter.Unix()
 			expectedNode.NewCertSerialNumber = x509Svid.SerialNumber.String()
-			spiretest.AssertProtoEqual(t, expectedNode, updatedNode.Node)
+			spiretest.AssertProtoEqual(t, expectedNode, updatedNode)
 
 			// No logs expected
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
@@ -1848,6 +1825,7 @@ type serviceTest struct {
 	ds           *fakedatastore.DataStore
 	ca           *fakeserverca.CA
 	cat          *fakeservercatalog.Catalog
+	clk          clock.Clock
 	logHook      *test.Hook
 	rateLimiter  *fakeRateLimiter
 	withCallerID bool
@@ -1865,12 +1843,13 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
+	clk := clock.NewMock(t)
 
 	service := agent.New(agent.Config{
 		ServerCA:    ca,
 		DataStore:   ds,
 		TrustDomain: td,
-		Clock:       clock.NewMock(t),
+		Clock:       clk,
 		Catalog:     cat,
 	})
 
@@ -1886,6 +1865,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		ca:          ca,
 		ds:          ds,
 		cat:         cat,
+		clk:         clk,
 		logHook:     logHook,
 		rateLimiter: rateLimiter,
 	}
@@ -1939,58 +1919,50 @@ func (s *serviceTest) setupResolver(t *testing.T) {
 }
 
 func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
-	req := &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			AttestationDataType: "test_type",
-			SpiffeId:            td.NewID("/spire/agent/test_type/id_attested_before").String(),
-			CertSerialNumber:    "test_serial_number",
-		}}
-	_, err := s.ds.CreateAttestedNode(ctx, req)
+	node := &common.AttestedNode{
+		AttestationDataType: "test_type",
+		SpiffeId:            td.NewID("/spire/agent/test_type/id_attested_before").String(),
+		CertSerialNumber:    "test_serial_number",
+	}
+	_, err := s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
 
-	req = &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			AttestationDataType: "test_type",
-			SpiffeId:            td.NewID("/spire/agent/test_type/id_banned").String(),
-			CertNotAfter:        0,
-			CertSerialNumber:    "",
-		}}
-	_, err = s.ds.CreateAttestedNode(ctx, req)
+	node = &common.AttestedNode{
+		AttestationDataType: "test_type",
+		SpiffeId:            td.NewID("/spire/agent/test_type/id_banned").String(),
+		CertNotAfter:        0,
+		CertSerialNumber:    "",
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
 
-	req = &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			AttestationDataType: "join_token",
-			SpiffeId:            td.NewID("/spire/agent/join_token/banned_token").String(),
-			CertNotAfter:        0,
-			CertSerialNumber:    "",
-		}}
-	_, err = s.ds.CreateAttestedNode(ctx, req)
+	node = &common.AttestedNode{
+		AttestationDataType: "join_token",
+		SpiffeId:            td.NewID("/spire/agent/join_token/banned_token").String(),
+		CertNotAfter:        0,
+		CertSerialNumber:    "",
+	}
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
 }
 
 func (s *serviceTest) setupJoinTokens(ctx context.Context, t *testing.T) {
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  "test_token",
-			Expiry: time.Now().Unix() + int64(60*10),
-		},
+	now := s.clk.Now()
+	err := s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  "test_token",
+		Expiry: now.Add(time.Second * 600),
 	})
 	require.NoError(t, err)
 
-	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  "banned_token",
-			Expiry: time.Now().Unix() + int64(60*10),
-		},
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  "banned_token",
+		Expiry: now.Add(time.Second * 600),
 	})
 	require.NoError(t, err)
 
-	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  "expired_token",
-			Expiry: time.Now().Unix() - int64(60*10),
-		},
+	err = s.ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  "expired_token",
+		Expiry: now.Add(-time.Second * 600),
 	})
 	require.NoError(t, err)
 }
@@ -1998,7 +1970,7 @@ func (s *serviceTest) setupJoinTokens(ctx context.Context, t *testing.T) {
 func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 	for _, testNode := range testNodes {
 		// create the test node
-		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: testNode})
+		_, err := s.ds.CreateAttestedNode(ctx, testNode)
 		require.NoError(t, err)
 
 		// set selectors to the test node
@@ -2026,12 +1998,10 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 }
 
 func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector) {
-	attestedAgent, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-		SpiffeId: expectedID,
-	})
+	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID)
 	require.NoError(t, err)
-	require.NotNil(t, attestedAgent.Node)
-	require.Equal(t, expectedID, attestedAgent.Node.SpiffeId)
+	require.NotNil(t, attestedAgent)
+	require.Equal(t, expectedID, attestedAgent.SpiffeId)
 
 	agentSelectors, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
 		SpiffeId: expectedID,

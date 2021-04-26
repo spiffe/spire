@@ -11,6 +11,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -137,6 +138,8 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 		return nil
 	}
 
+	federationDomains := federation.GetFederationDomains(pod)
+
 	return c.createEntry(ctx, &types.Entry{
 		ParentId: c.nodeID(),
 		SpiffeId: spiffeID,
@@ -144,6 +147,7 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 			namespaceSelector(pod.Namespace),
 			podNameSelector(pod.Name),
 		},
+		FederatesWith: federationDomains,
 	})
 }
 

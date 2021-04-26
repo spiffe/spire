@@ -51,13 +51,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountEntries returns the total number of entries.
 func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
-	dsResp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err := s.ds.CountRegistrationEntries(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 	}
 
-	return &entryv1.CountEntriesResponse{Count: dsResp.Entries}, nil
+	return &entryv1.CountEntriesResponse{Count: count}, nil
 }
 
 // ListEntries returns the optionally filtered and/or paginated list of entries.
@@ -103,7 +103,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
 			}
 			listReq.BySelectors = &datastore.BySelectors{
-				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
+				Match:     datastore.MatchBehavior(req.Filter.BySelectors.Match),
 				Selectors: dsSelectors,
 			}
 		}
@@ -121,7 +121,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
 			}
 			listReq.ByFederatesWith = &datastore.ByFederatesWith{
-				Match:        datastore.ByFederatesWith_MatchBehavior(req.Filter.ByFederatesWith.Match),
+				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
 				TrustDomains: trustDomains,
 			}
 		}
@@ -392,7 +392,7 @@ func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEn
 			Value: e.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{
-			Match:     datastore.BySelectors_MATCH_EXACT,
+			Match:     datastore.Exact,
 			Selectors: e.Selectors,
 		},
 	})

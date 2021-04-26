@@ -2,83 +2,85 @@ package datastore
 
 import (
 	"context"
+	"time"
 
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// DataStore is the data storage interface
+// DataStore is the data storage interface.
 type DataStore interface {
+	// Bundles
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
-	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (*CountAttestedNodesResponse, error)
-	CountBundles(context.Context, *CountBundlesRequest) (*CountBundlesResponse, error)
-	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (*CountRegistrationEntriesResponse, error)
-	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
-	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
-	CreateJoinToken(context.Context, *CreateJoinTokenRequest) (*CreateJoinTokenResponse, error)
-	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
-	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	DeleteJoinToken(context.Context, *DeleteJoinTokenRequest) (*DeleteJoinTokenResponse, error)
-	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
-	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
-	FetchJoinToken(context.Context, *FetchJoinTokenRequest) (*FetchJoinTokenResponse, error)
-	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
-	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
-	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
+	CountBundles(context.Context) (int32, error)
+	CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error)
+	DeleteBundle(ctx context.Context, trustDomainID string, mode DeleteMode) error
+	FetchBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
-	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
-	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
-	PruneJoinTokens(context.Context, *PruneJoinTokensRequest) (*PruneJoinTokensResponse, error)
-	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
-	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
-	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
 	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
+
+	// Entries
+	CountRegistrationEntries(context.Context) (int32, error)
+	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
+	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
+	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
+	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
+
+	// Nodes
+	CountAttestedNodes(context.Context) (int32, error)
+	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
+	DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error)
+	FetchAttestedNode(context.Context, string) (*common.AttestedNode, error)
+	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
+	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
+
+	// Node selectors
+	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
+	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
+	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+
+	// Tokens
+	CreateJoinToken(context.Context, *JoinToken) error
+	DeleteJoinToken(context.Context, string) error
+	FetchJoinToken(context.Context, string) (*JoinToken, error)
+	PruneJoinTokens(context.Context, time.Time) error
 }
 
-// Mode controls the delete behavior if there are other records
-// associated with the bundle (e.g. registration entries).
-type DeleteBundleRequest_Mode int32 //nolint: golint
+// DeleteMode defines delete behavior if associated records exist.
+type DeleteMode int32
 
 const (
-	// RESTRICT prevents the bundle from being deleted in the presence of associated entries
-	DeleteBundleRequest_RESTRICT DeleteBundleRequest_Mode = iota //nolint: golint
-	// DELETE deletes the bundle and associated entries
-	DeleteBundleRequest_DELETE //nolint: golint
-	// DISSOCIATE deletes the bundle and dissociates associated entries
-	DeleteBundleRequest_DISSOCIATE //nolint: golint
+	// Restrict the bundle from being deleted in the presence of associated entries
+	Restrict DeleteMode = iota
+	// Delete the bundle and associated entries
+	Delete
+	// Dissociate deletes the bundle and dissociates associated entries
+	Dissociate
 )
 
-func (mode DeleteBundleRequest_Mode) String() string {
+func (mode DeleteMode) String() string {
 	switch mode {
-	case DeleteBundleRequest_RESTRICT:
+	case Restrict:
 		return "RESTRICT"
-	case DeleteBundleRequest_DELETE:
+	case Delete:
 		return "DELETE"
-	case DeleteBundleRequest_DISSOCIATE:
+	case Dissociate:
 		return "DISSOCIATE"
 	default:
 		return "UNKNOWN"
 	}
 }
 
-type BySelectors_MatchBehavior int32 //nolint: golint
+type MatchBehavior int32
 
 const (
-	BySelectors_MATCH_EXACT  BySelectors_MatchBehavior = 0 //nolint: golint
-	BySelectors_MATCH_SUBSET BySelectors_MatchBehavior = 1 //nolint: golint
-)
-
-type ByFederatesWith_MatchBehavior int32 //nolint: golint
-
-const (
-	ByFederatesWith_MATCH_EXACT  ByFederatesWith_MatchBehavior = 0 //nolint: golint
-	ByFederatesWith_MATCH_SUBSET ByFederatesWith_MatchBehavior = 1 //nolint: golint
+	Exact  MatchBehavior = 0
+	Subset MatchBehavior = 1
 )
 
 type AppendBundleRequest struct {
@@ -91,57 +93,12 @@ type AppendBundleResponse struct {
 
 type ByFederatesWith struct {
 	TrustDomains []string
-	Match        ByFederatesWith_MatchBehavior
+	Match        MatchBehavior
 }
 
 type BySelectors struct {
 	Selectors []*common.Selector
-	Match     BySelectors_MatchBehavior
-}
-
-type CountAttestedNodesRequest struct {
-}
-
-type CountAttestedNodesResponse struct {
-	Nodes int32
-}
-
-type CountBundlesRequest struct {
-}
-
-type CountBundlesResponse struct {
-	Bundles int32
-}
-
-type CountRegistrationEntriesRequest struct {
-}
-
-type CountRegistrationEntriesResponse struct {
-	Entries int32
-}
-
-type CreateAttestedNodeRequest struct {
-	Node *common.AttestedNode
-}
-
-type CreateAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type CreateBundleRequest struct {
-	Bundle *common.Bundle
-}
-
-type CreateBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type CreateJoinTokenRequest struct {
-	JoinToken *JoinToken
-}
-
-type CreateJoinTokenResponse struct {
-	JoinToken *JoinToken
+	Match     MatchBehavior
 }
 
 type CreateRegistrationEntryRequest struct {
@@ -152,61 +109,12 @@ type CreateRegistrationEntryResponse struct {
 	Entry *common.RegistrationEntry
 }
 
-type DeleteAttestedNodeRequest struct {
-	SpiffeId string //nolint: golint
-}
-
-type DeleteAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type DeleteBundleRequest struct {
-	TrustDomainId string //nolint: golint
-	Mode          DeleteBundleRequest_Mode
-}
-
-type DeleteBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type DeleteJoinTokenRequest struct {
-	Token string
-}
-
-type DeleteJoinTokenResponse struct {
-	JoinToken *JoinToken
-}
-
 type DeleteRegistrationEntryRequest struct {
 	EntryId string //nolint: golint
 }
 
 type DeleteRegistrationEntryResponse struct {
 	Entry *common.RegistrationEntry
-}
-
-type FetchAttestedNodeRequest struct {
-	SpiffeId string //nolint: golint
-}
-
-type FetchAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type FetchBundleRequest struct {
-	TrustDomainId string //nolint: golint
-}
-
-type FetchBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type FetchJoinTokenRequest struct {
-	Token string
-}
-
-type FetchJoinTokenResponse struct {
-	JoinToken *JoinToken
 }
 
 type FetchRegistrationEntryRequest struct {
@@ -231,7 +139,7 @@ type JoinToken struct {
 	// Token value
 	Token string
 	// Expiration in seconds since unix epoch
-	Expiry int64
+	Expiry time.Time
 }
 
 type ListAttestedNodesRequest struct {
@@ -302,13 +210,6 @@ type PruneBundleRequest struct {
 }
 type PruneBundleResponse struct {
 	BundleChanged bool
-}
-
-type PruneJoinTokensRequest struct {
-	ExpiresBefore int64
-}
-
-type PruneJoinTokensResponse struct {
 }
 
 type PruneRegistrationEntriesRequest struct {

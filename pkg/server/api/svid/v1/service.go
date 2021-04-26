@@ -339,19 +339,17 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
 
-	dsResp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: s.td.IDString(),
-	})
+	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
 	}
 
-	if dsResp.Bundle == nil {
+	if bundle == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "bundle not found", nil)
 	}
 
-	rawRootCerts := make([][]byte, 0, len(dsResp.Bundle.RootCas))
-	for _, cert := range dsResp.Bundle.RootCas {
+	rawRootCerts := make([][]byte, 0, len(bundle.RootCas))
+	for _, cert := range bundle.RootCas {
 		rawRootCerts = append(rawRootCerts, cert.DerBytes)
 	}
 

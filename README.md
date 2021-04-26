@@ -1,12 +1,12 @@
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
-[![Build Status](https://travis-ci.com/spiffe/spire.svg?branch=master)](https://travis-ci.com/github/spiffe/spire)
-[![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=master)](https://coveralls.io/github/spiffe/spire?branch=master)
+[![Build Status](https://travis-ci.com/spiffe/spire.svg?branch=main)](https://travis-ci.com/github/spiffe/spire)
+[![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=main)](https://coveralls.io/github/spiffe/spire?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/spiffe/spire)](https://goreportcard.com/report/github.com/spiffe/spire)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
 
-SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/master/v2/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. SPIRE can also enable workloads to securely authenticate to a secret store, a database, or a cloud provider service.
+SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/main/v2/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. SPIRE can also enable workloads to securely authenticate to a secret store, a database, or a cloud provider service.
 
 
 - [Get SPIRE](#get-spire)
@@ -38,7 +38,7 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 ## Integrate with SPIRE
 
 - See [Extend SPIRE](https://spiffe.io/spire/docs/extending/) to learn about the highly extensible SPIRE plugin framework.
-- Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/master/v2), [Java](https://github.com/spiffe/java-spiffe) and [C++](https://github.com/spiffe/c-spiffe) languages. See [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/) for code samples.
+- Client libraries for interacting with the [SPIFFE Workload API](https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Workload_API.md) are available in [Go](https://github.com/spiffe/go-spiffe/tree/main/v2), [Java](https://github.com/spiffe/java-spiffe) and [C++](https://github.com/spiffe/c-spiffe) languages. See [SPIFFE Library Usage Examples](https://spiffe.io/spire/try/spiffe-library-usage-examples/) for code samples.
 - SPIRE provides an implementation of the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS) for use with [Envoy Proxy](https://envoyproxy.io).  SDS can be used to transparently install and rotate TLS certificates and trust bundles in Envoy. See [Using SPIRE with Envoy](https://spiffe.io/spire/docs/envoy/) for more information.
 
 For supported integration versions, see [Supported Integrations](/doc/supported_integrations.md).
@@ -48,7 +48,7 @@ For supported integration versions, see [Supported Integrations](/doc/supported_
 The SPIFFE community maintains the SPIRE project. Information on the various SIGs and relevant standards can be found in
 https://github.com/spiffe/spiffe.
 
-- See [CONTRIBUTING](https://github.com/spiffe/spire/blob/master/CONTRIBUTING.md) to get started.
+- See [CONTRIBUTING](https://github.com/spiffe/spire/blob/main/CONTRIBUTING.md) to get started.
 - Use [GitHub Issues](https://github.com/spiffe/spire/issues) to request features or file bugs.
 - See [GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md) for SPIFFE and SPIRE governance policies.
 

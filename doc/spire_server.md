@@ -65,7 +65,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                               | INFO                                                           |
 | `log_format`                | Format of logs, \<text\|json\>                                                                    | text                                                           |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
-| `socketPath`                | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
+| `socket_path`               | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
 
 | ca_subject                  | Description                    | Default        |
@@ -434,7 +434,7 @@ A JSON object passed to `-data` for `entry create/update` expects the following 
 }
 ```
 
-The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/master/proto/spire/common/common.proto).
+The entry object is described by `RegistrationEntry` in the [common protobuf file](https://github.com/spiffe/spire/blob/main/proto/spire/common/common.proto).
 
 _Note: to create node entries, set `parent_id` to the special value `spiffe://<your-trust-domain>/spire/server`.
 That's what the code does when the `-node` flag is passed on the cli._

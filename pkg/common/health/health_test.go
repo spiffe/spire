@@ -9,14 +9,14 @@ import (
 
 func TestServerDisabledByDefault(t *testing.T) {
 	log, _ := logtest.NewNullLogger()
-	checker := NewChecker(Config{}, log)
+	checker := NewChecker(Config{}, log).(*checker)
 
 	assert.Nil(t, checker.server)
 }
 
 func TestServerEnabled(t *testing.T) {
 	log, _ := logtest.NewNullLogger()
-	checker := NewChecker(Config{ListenerEnabled: true}, log)
+	checker := NewChecker(Config{ListenerEnabled: true}, log).(*checker)
 
 	assert.NotNil(t, checker.server)
 }

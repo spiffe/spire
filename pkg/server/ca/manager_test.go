@@ -21,13 +21,13 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakenotifier"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -54,14 +54,15 @@ func TestManager(t *testing.T) {
 type ManagerSuite struct {
 	spiretest.Suite
 
-	clock   *clock.Mock
-	ca      *fakeCA
-	log     logrus.FieldLogger
-	logHook *test.Hook
-	dir     string
-	km      keymanager.KeyManager
-	ds      *fakedatastore.DataStore
-	cat     *fakeservercatalog.Catalog
+	clock         *clock.Mock
+	ca            *fakeCA
+	log           logrus.FieldLogger
+	logHook       *test.Hook
+	dir           string
+	km            keymanager.KeyManager
+	ds            *fakedatastore.DataStore
+	cat           *fakeservercatalog.Catalog
+	healthChecker *fakehealthchecker.Checker
 
 	m *Manager
 }
@@ -77,6 +78,7 @@ func (s *ManagerSuite) SetupTest() {
 	s.cat.SetKeyManager(s.km)
 	s.cat.SetDataStore(s.ds)
 	s.dir = s.TempDir()
+	s.healthChecker = fakehealthchecker.New()
 }
 
 func (s *ManagerSuite) TestPersistence() {
@@ -713,6 +715,7 @@ func (s *ManagerSuite) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType ke
 		Metrics:       telemetry.Blackhole{},
 		Log:           s.log,
 		Clock:         s.clock,
+		HealthChecker: s.healthChecker,
 	}
 }
 
@@ -806,13 +809,11 @@ func (s *ManagerSuite) requireBundleJWTKeys(jwtKeys ...*JWTKey) {
 }
 
 func (s *ManagerSuite) createBundle() *common.Bundle {
-	resp, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: testTrustDomain.IDString(),
-		},
+	bundle, err := s.ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: testTrustDomain.IDString(),
 	})
 	s.Require().NoError(err)
-	return resp.Bundle
+	return bundle
 }
 
 func (s *ManagerSuite) fetchBundle() *common.Bundle {
@@ -820,12 +821,10 @@ func (s *ManagerSuite) fetchBundle() *common.Bundle {
 }
 
 func (s *ManagerSuite) fetchBundleForTrustDomain(trustDomain spiffeid.TrustDomain) *common.Bundle {
-	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomain.IDString(),
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomain.IDString())
 	s.Require().NoError(err)
-	s.Require().NotNil(resp.Bundle, "missing bundle for trust domain %q", trustDomain.IDString())
-	return resp.Bundle
+	s.Require().NotNil(bundle, "missing bundle for trust domain %q", trustDomain.IDString())
+	return bundle
 }
 
 func (s *ManagerSuite) currentX509CA() *X509CA {

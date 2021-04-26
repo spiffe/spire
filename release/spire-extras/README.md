@@ -1,7 +1,7 @@
 = SPIRE Extras
 
-- [SPIRE Kubernetes Workload Registrar](https://github.com/spiffe/spire/blob/master/support/k8s/k8s-workload-registrar/README.md)
-- [SPIRE OIDC Discovery Provider](https://github.com/spiffe/spire/blob/master/support/oidc-discovery-provider/README.md)
+- [SPIRE Kubernetes Workload Registrar](https://github.com/spiffe/spire/blob/main/support/k8s/k8s-workload-registrar/README.md)
+- [SPIRE OIDC Discovery Provider](https://github.com/spiffe/spire/blob/main/support/oidc-discovery-provider/README.md)
 
 The configuration files included in this release are intended for evaluation
 purposes only and are **NOT** production ready.

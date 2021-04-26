@@ -142,13 +142,11 @@ func (s *HandlerSuite) TestCreateFederatedBundle() {
 		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
-		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomainId: testCase.TrustDomainID,
-		})
+		bundle, err := s.ds.FetchBundle(context.Background(), testCase.TrustDomainID)
 		s.Require().NoError(err)
-		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainID)
-		s.Require().Len(resp.Bundle.RootCas, 1)
-		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
+		s.Require().Equal(bundle.TrustDomainId, testCase.TrustDomainID)
+		s.Require().Len(bundle.RootCas, 1)
+		s.Require().Equal(bundle.RootCas[0].DerBytes, testCase.CaCerts)
 	}
 }
 
@@ -262,13 +260,11 @@ func (s *HandlerSuite) TestUpdateFederatedBundle() {
 		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was created in the datastore
-		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomainId: testCase.TrustDomainID,
-		})
+		bundle, err := s.ds.FetchBundle(context.Background(), testCase.TrustDomainID)
 		s.Require().NoError(err)
-		s.Require().Equal(resp.Bundle.TrustDomainId, testCase.TrustDomainID)
-		s.Require().Len(resp.Bundle.RootCas, 1)
-		s.Require().Equal(resp.Bundle.RootCas[0].DerBytes, testCase.CaCerts)
+		s.Require().Equal(bundle.TrustDomainId, testCase.TrustDomainID)
+		s.Require().Len(bundle.RootCas, 1)
+		s.Require().Equal(bundle.RootCas[0].DerBytes, testCase.CaCerts)
 	}
 }
 
@@ -303,12 +299,9 @@ func (s *HandlerSuite) TestDeleteFederatedBundle() {
 		s.RequireProtoEqual(&common.Empty{}, response)
 
 		// assert that the bundle was deleted
-		resp, err := s.ds.FetchBundle(context.Background(), &datastore.FetchBundleRequest{
-			TrustDomainId: testCase.TrustDomainID,
-		})
+		bundle, err := s.ds.FetchBundle(context.Background(), testCase.TrustDomainID)
 		s.Require().NoError(err)
-		s.Require().NotNil(resp)
-		s.Require().Nil(resp.Bundle)
+		s.Require().Nil(bundle)
 	}
 }
 
@@ -1320,13 +1313,11 @@ func (s *HandlerSuite) TestGetNodeSelectors() {
 }
 
 func (s *HandlerSuite) createAttestedNode(spiffeID string) *common.AttestedNode {
-	createResponse, err := s.ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId: spiffeID,
-		},
+	attestedNode, err := s.ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+		SpiffeId: spiffeID,
 	})
 	s.Require().NoError(err, "Failed to create attested node")
-	return createResponse.Node
+	return attestedNode
 }
 
 func (s *HandlerSuite) TestAuthorizeCall() {
@@ -1516,9 +1507,7 @@ INk16I343I4FortWWCEV9nprutN3KQCZiIhHGkK4zQ6iyH7mTGc5bOfPIqE4aLynK`,
 }
 
 func (s *HandlerSuite) createBundle(bundle *common.Bundle) {
-	_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err := s.ds.CreateBundle(context.Background(), bundle)
 	s.Require().NoError(err)
 }
 
