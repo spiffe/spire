@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -70,6 +71,12 @@ func TestExternalPlugin(t *testing.T) {
 				config.PluginConfigs[0].Checksum = "DEADBEEF"
 			},
 			expectErr: `failed to load plugin "test": expected checksum of length 64; got 8`,
+		})
+		testLoad(t, pluginPath, loadTest{
+			mutateConfig: func(config *catalog.Config) {
+				config.PluginConfigs[0].Checksum = strings.Repeat("0", 64)
+			},
+			expectErr: `failed to load plugin "test": failed to launch plugin: checksums did not match`,
 		})
 	})
 

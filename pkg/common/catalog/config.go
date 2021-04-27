@@ -19,6 +19,10 @@ type PluginConfig struct {
 	Disabled bool
 }
 
+func (c *PluginConfig) IsExternal() bool {
+	return c.Path != ""
+}
+
 // HCLPluginConfig serves as an intermediary struct. We pass this to the
 // HCL library for parsing, except the parser won't parse pluginData
 // as a string.

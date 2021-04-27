@@ -170,7 +170,7 @@ func (p *initServer) Init(ctx context.Context, req *spi.InitRequest) (resp *spi.
 
 	initted := make(map[interface{}]bool)
 	for _, impl := range p.impls {
-		// skip initialializing the same implementation twice. the plugin and
+		// skip initializing the same implementation twice. the plugin and
 		// service interface might be implemented by the same underlying struct.
 		if initted[impl] {
 			continue

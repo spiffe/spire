@@ -22,12 +22,12 @@ type bindable interface {
 
 func makeBindablePluginRepos(repos map[string]PluginRepo) (map[string]bindablePluginRepo, error) {
 	bindables := make(map[string]bindablePluginRepo)
-	for name, repo := range repos {
+	for pluginType, repo := range repos {
 		bindable, err := makeBindablePluginRepo(repo)
 		if err != nil {
 			return nil, err
 		}
-		bindables[name] = bindable
+		bindables[pluginType] = bindable
 	}
 	return bindables, nil
 }

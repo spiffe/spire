@@ -43,7 +43,7 @@ type externalConfig struct {
 func loadExternal(ctx context.Context, config externalConfig) (*pluginImpl, error) {
 	// TODO: honor context cancellation... unfortunately go-plugin doesn't seem
 	// to give us a mechanism for this, so we'd have to spin up some goroutine
-	// to watch for cancelation and start killing clients and closing
+	// to watch for cancellation and start killing clients and closing
 	// connections and the like.
 
 	// Resolve path to an absolute path. We don't want to rely on PATH

@@ -34,9 +34,10 @@ type PluginRepo interface {
 	// returning successfully.
 	Constraints() Constraints
 
-	// LegacyVersion returns the version to use for legacy plugins, if any.
-	// The Load function will fail if a legacy plugin is detected but no legacy
-	// version is available.
+	// LegacyVersion is called when the catalog detects a legacy plugin to
+	// obtain the legacy plugin version. If no legacy version exists for this
+	// plugin, this function returns false, which causes the Load() function to
+	// fail.
 	LegacyVersion() (Version, bool)
 
 	// BuiltIns provides the list of built ins that are available for the
@@ -66,13 +67,13 @@ type ServiceRepo interface {
 }
 
 // Version represents a plugin or service version. It is used to instantiate
-// facades for that version that are bound to the plugin or service
+// facades for the versions that are bound to the plugin or service
 // repositories (see the Binder method on the ServiceRepo).
 type Version interface {
 	// New returns a new facade for this version. Instantiated facades are only
 	// bound via the repo binder when they match a gRPC service name provided
 	// by the plugin.
-	New() (facade Facade)
+	New() Facade
 
 	// Deprecated returns whether or not the version is deprecated.
 	Deprecated() bool
@@ -89,7 +90,7 @@ type Facade interface {
 	InitInfo(info PluginInfo)
 
 	// InitLog initializes the facade with the logger for the loaded plugin
-	// that provides providing the service server.
+	// that provides the service server.
 	InitLog(log logrus.FieldLogger)
 }
 
@@ -223,12 +224,12 @@ func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.Fie
 	return log.WithFields(logrus.Fields{
 		telemetry.PluginName: pluginConfig.Name,
 		telemetry.PluginType: pluginConfig.Type,
-		telemetry.External:   pluginConfig.Path != "",
+		telemetry.External:   pluginConfig.IsExternal(),
 	})
 }
 
 func loadPlugin(ctx context.Context, builtIns []BuiltIn, pluginConfig PluginConfig, pluginLog logrus.FieldLogger, hostServices []HostServiceServer) (*pluginImpl, error) {
-	if pluginConfig.Path != "" {
+	if pluginConfig.IsExternal() {
 		return loadExternal(ctx, externalConfig{
 			Name:         pluginConfig.Name,
 			Type:         pluginConfig.Type,

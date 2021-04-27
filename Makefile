@@ -449,8 +449,8 @@ generate: $(protos:.proto=.pb.go) \
 %.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin) FORCE
 	@echo "generating $@..."
 	$(E) PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) \
-		--go_out=. --go_opt=module=github.com/spiffe/spire \
 		-I proto \
+		--go_out=. --go_opt=module=github.com/spiffe/spire \
 		$<
 
 generate-check:
