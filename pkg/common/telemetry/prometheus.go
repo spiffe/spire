@@ -30,7 +30,7 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 
 	var err error
-	runner.sink, err = prommetrics.NewPrometheusSink()
+	runner.sink, err = prommetrics.NewPrometheusSinkFrom(prommetrics.PrometheusOpts{})
 	if err != nil {
 		return runner, err
 	}
