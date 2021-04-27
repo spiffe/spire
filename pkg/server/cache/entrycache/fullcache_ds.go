@@ -92,14 +92,18 @@ func (it *entryIteratorDS) Err() error {
 	return it.err
 }
 
+type agentDS interface {
+	ListNodeSelectors(context.Context, *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error)
+}
+
 type agentIteratorDS struct {
-	ds     datastore.DataStore
+	ds     agentDS
 	agents []Agent
 	next   int
 	err    error
 }
 
-func makeAgentIteratorDS(ds datastore.DataStore) AgentIterator {
+func makeAgentIteratorDS(ds agentDS) AgentIterator {
 	return &agentIteratorDS{
 		ds: ds,
 	}
@@ -144,15 +148,23 @@ func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
 		return nil, err
 	}
 
-	agents := make([]Agent, 0, len(resp.Selectors))
+	// Aggregate selectors by agent ID. This is a defensive measure in case a
+	// datastore bug causes it to return agent selectors split across multiple
+	// response records.
+	agentSelectors := make(map[spiffeid.ID][]*common.Selector, len(resp.Selectors))
 	for _, selector := range resp.Selectors {
 		agentID, err := spiffeid.FromString(selector.SpiffeId)
 		if err != nil {
 			return nil, err
 		}
+		agentSelectors[agentID] = append(agentSelectors[agentID], selector.Selectors...)
+	}
+
+	agents := make([]Agent, 0, len(agentSelectors))
+	for agentID, selectors := range agentSelectors {
 		agents = append(agents, Agent{
 			ID:        agentID,
-			Selectors: api.ProtoFromSelectors(selector.Selectors),
+			Selectors: api.ProtoFromSelectors(selectors),
 		})
 	}
 	return agents, nil

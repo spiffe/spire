@@ -1464,6 +1464,40 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	})
 }
 
+func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
+	insertSelector := func(spiffeID, selectorType, selectorValue string) {
+		query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(spiffe_id, type, value) VALUES (?, ?, ?)")
+		_, err := s.ds.db.raw.Exec(query, spiffeID, selectorType, selectorValue)
+		s.Require().NoError(err)
+	}
+	insertSelector("spiffe://example.org/node3", "A", "a")
+	insertSelector("spiffe://example.org/node2", "B", "b")
+	insertSelector("spiffe://example.org/node3", "C", "c")
+	insertSelector("spiffe://example.org/node1", "D", "d")
+	insertSelector("spiffe://example.org/node2", "E", "e")
+	insertSelector("spiffe://example.org/node3", "F", "f")
+
+	resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
+
+	type selector struct {
+		Type  string
+		Value string
+	}
+
+	actual := map[string][]selector{}
+	for _, agent := range resp.Selectors {
+		for _, s := range agent.Selectors {
+			actual[agent.SpiffeId] = append(actual[agent.SpiffeId], selector{Type: s.Type, Value: s.Value})
+		}
+	}
+
+	s.Equal(map[string][]selector{
+		"spiffe://example.org/node1": {{Type: "D", Value: "d"}},
+		"spiffe://example.org/node2": {{Type: "B", Value: "b"}, {Type: "E", Value: "e"}},
+		"spiffe://example.org/node3": {{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}},
+	}, actual)
+}
+
 func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 	selectors := []*common.Selector{
 		{Type: "TYPE", Value: "VALUE"},

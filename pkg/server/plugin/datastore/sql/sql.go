@@ -1654,13 +1654,13 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 
 func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query string, args []interface{}) {
 	var sb strings.Builder
-	sb.WriteString("SELECT nre.id, nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
+	sb.WriteString("SELECT nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
 	if req.ValidAt != nil {
 		sb.WriteString(" INNER JOIN attested_node_entries ane ON nre.spiffe_id=ane.spiffe_id WHERE ane.expires_at > ?")
 		args = append(args, time.Unix(req.ValidAt.Seconds, 0))
 	}
 
-	sb.WriteString(" ORDER BY nre.id ASC")
+	sb.WriteString(" ORDER BY nre.spiffe_id ASC")
 
 	return sb.String(), args
 }
@@ -2791,7 +2791,6 @@ func fillNodeFromRow(node *common.AttestedNode, r *nodeRow) error {
 }
 
 type nodeSelectorRow struct {
-	EId      uint64
 	SpiffeID sql.NullString
 	Type     sql.NullString
 	Value    sql.NullString
@@ -2799,7 +2798,6 @@ type nodeSelectorRow struct {
 
 func scanNodeSelectorRow(rs *sql.Rows, r *nodeSelectorRow) error {
 	return sqlError.Wrap(rs.Scan(
-		&r.EId,
 		&r.SpiffeID,
 		&r.Type,
 		&r.Value,

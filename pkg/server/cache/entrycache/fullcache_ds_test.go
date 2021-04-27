@@ -3,6 +3,7 @@ package entrycache
 import (
 	"context"
 	"errors"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -140,9 +141,44 @@ func TestAgentIteratorDS(t *testing.T) {
 		// it.Next() returns false after encountering an error on previous call to Next()
 		assert.False(t, it.Next(ctx))
 	})
+
+	t.Run("agent split across multiple results", func(t *testing.T) {
+		it := makeAgentIteratorDS(fixedNodeSelectors{
+			{SpiffeId: "spiffe://example.org/node3", Selectors: []*common.Selector{{Type: "A", Value: "a"}}},
+			{SpiffeId: "spiffe://example.org/node2", Selectors: []*common.Selector{{Type: "B", Value: "b"}}},
+			{SpiffeId: "spiffe://example.org/node3", Selectors: []*common.Selector{{Type: "C", Value: "c"}}},
+			{SpiffeId: "spiffe://example.org/node1", Selectors: []*common.Selector{{Type: "D", Value: "d"}}},
+			{SpiffeId: "spiffe://example.org/node2", Selectors: []*common.Selector{{Type: "E", Value: "e"}}},
+			{SpiffeId: "spiffe://example.org/node3", Selectors: []*common.Selector{{Type: "F", Value: "f"}}},
+		})
+
+		var agents []Agent
+		for it.Next(ctx) {
+			agents = append(agents, it.Agent())
+		}
+
+		sort.Slice(agents, func(i, j int) bool {
+			return agents[i].ID.String() < agents[j].ID.String()
+		})
+
+		require.NoError(t, it.Err())
+		require.ElementsMatch(t, []Agent{
+			{ID: spiffeid.RequireFromString("spiffe://example.org/node1"), Selectors: []*types.Selector{{Type: "D", Value: "d"}}},
+			{ID: spiffeid.RequireFromString("spiffe://example.org/node2"), Selectors: []*types.Selector{{Type: "B", Value: "b"}, {Type: "E", Value: "e"}}},
+			{ID: spiffeid.RequireFromString("spiffe://example.org/node3"), Selectors: []*types.Selector{{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}}},
+		}, agents)
+	})
 }
 
 func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.AttestedNode) {
 	_, err := ds.CreateAttestedNode(context.Background(), node)
 	require.NoError(t, err)
+}
+
+type fixedNodeSelectors []*datastore.NodeSelectors
+
+func (fixed fixedNodeSelectors) ListNodeSelectors(ctx context.Context, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
+	return &datastore.ListNodeSelectorsResponse{
+		Selectors: fixed,
+	}, nil
 }
