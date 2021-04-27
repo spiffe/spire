@@ -741,11 +741,9 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 
 			var entryID string
 			if tt.entry != nil {
-				r, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-					Entry: tt.entry,
-				})
+				registrationEntry, err := test.ds.CreateRegistrationEntry(ctx, tt.entry)
 				require.NoError(t, err)
-				entryID = r.Entry.EntryId
+				entryID = registrationEntry.EntryId
 			}
 
 			// Set datastore error after creating the test bundles
@@ -783,19 +781,16 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			require.Equal(t, tt.expectDSBundles, dsBundles)
 
 			if entryID != "" {
-				fetchEntryResp, err := test.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
-					EntryId: entryID,
-				})
+				registrationEntry, err := test.ds.FetchRegistrationEntry(ctx, entryID)
 				require.NoError(t, err)
-				entry := fetchEntryResp.Entry
 
 				switch tt.mode {
 				case bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT:
-					require.Equal(t, []string{td1.IDString()}, entry.FederatesWith)
+					require.Equal(t, []string{td1.IDString()}, registrationEntry.FederatesWith)
 				case bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE:
-					require.Empty(t, entry.FederatesWith)
+					require.Empty(t, registrationEntry.FederatesWith)
 				case bundlev1.BatchDeleteFederatedBundleRequest_DELETE:
-					require.Nil(t, fetchEntryResp.Entry)
+					require.Nil(t, registrationEntry)
 				}
 			}
 		})

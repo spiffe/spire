@@ -267,11 +267,9 @@ func TestAgentAuthorizer(t *testing.T) {
 }
 
 func createEntry(t testing.TB, ds datastore.DataStore, entryIn *common.RegistrationEntry) *types.Entry {
-	resp, err := ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entryIn,
-	})
+	registrationEntry, err := ds.CreateRegistrationEntry(context.Background(), entryIn)
 	require.NoError(t, err)
-	entryOut, err := api.RegistrationEntryToProto(resp.Entry)
+	entryOut, err := api.RegistrationEntryToProto(registrationEntry)
 	require.NoError(t, err)
 	return entryOut
 }

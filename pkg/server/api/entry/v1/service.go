@@ -158,18 +158,16 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing ID", nil)
 	}
 	log = log.WithField(telemetry.RegistrationID, req.Id)
-	dsResp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
-		EntryId: req.Id,
-	})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch entry", err)
 	}
 
-	if dsResp.Entry == nil {
+	if registrationEntry == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "entry not found", nil)
 	}
 
-	entry, err := api.RegistrationEntryToProto(dsResp.Entry)
+	entry, err := api.RegistrationEntryToProto(registrationEntry)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert entry", err)
 	}
@@ -214,15 +212,12 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	if existingEntry == nil {
 		// Create entry
-		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-			Entry: cEntry,
-		})
+		regEntry, err = s.ds.CreateRegistrationEntry(ctx, cEntry)
 		if err != nil {
 			return &entryv1.BatchCreateEntryResponse_Result{
 				Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
 			}
 		}
-		regEntry = resp.Entry
 	} else {
 		resultStatus = api.CreateStatus(codes.AlreadyExists, "similar entry already exists")
 	}
@@ -280,9 +275,7 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entryv1.BatchDele
 
 	log = log.WithField(telemetry.RegistrationID, id)
 
-	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
-		EntryId: id,
-	})
+	_, err := s.ds.DeleteRegistrationEntry(ctx, id)
 	switch status.Code(err) {
 	case codes.OK:
 		return &entryv1.BatchDeleteEntryResponse_Result{
