@@ -2496,22 +2496,22 @@ WHERE id IN (
 				case bySelectorSubsetOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case bySelectorSubsetMany:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case bySelectorExactOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case bySelectorExactMany:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case byAttestationType:
 					req.ByAttestationType = "type1"

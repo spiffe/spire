@@ -110,16 +110,13 @@ func (h *Handler) DeleteEntry(ctx context.Context, request *registration.Registr
 	log := h.Log.WithField(telemetry.Method, telemetry.DeleteRegistrationEntry)
 
 	ds := h.getDataStore()
-	req := &datastore.DeleteRegistrationEntryRequest{
-		EntryId: request.Id,
-	}
-	resp, err := ds.DeleteRegistrationEntry(ctx, req)
+	registrationEntry, err := ds.DeleteRegistrationEntry(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Error deleting registration entry")
 		return &common.RegistrationEntry{}, status.Error(codes.Internal, err.Error())
 	}
 
-	return resp.Entry, nil
+	return registrationEntry, nil
 }
 
 // FetchEntry Retrieves a specific registered entry
@@ -130,18 +127,16 @@ func (h *Handler) FetchEntry(ctx context.Context, request *registration.Registra
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntry)
 
 	ds := h.getDataStore()
-	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
-		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
-	)
+	registrationEntry, err := ds.FetchRegistrationEntry(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Error trying to fetch entry")
 		return nil, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
 	}
-	if fetchResponse.Entry == nil {
+	if registrationEntry == nil {
 		log.Error("No such registration entry")
 		return nil, status.Error(codes.NotFound, "no such registration entry")
 	}
-	return fetchResponse.Entry, nil
+	return registrationEntry, nil
 }
 
 // FetchEntries retrieves all registered entries
@@ -365,9 +360,7 @@ func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registrati
 	}
 
 	ds := h.getDataStore()
-	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	}); err != nil {
+	if _, err := ds.CreateBundle(ctx, bundle); err != nil {
 		log.WithError(err).Error("Failed to create bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -393,20 +386,18 @@ func (h *Handler) FetchFederatedBundle(ctx context.Context, request *registratio
 	}
 
 	ds := h.getDataStore()
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: request.Id,
-	})
+	bundle, err := ds.FetchBundle(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		log.Error("Bundle not found")
 		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.FederatedBundle{
-		Bundle: resp.Bundle,
+		Bundle: bundle,
 	}, nil
 }
 
@@ -495,10 +486,7 @@ func (h *Handler) DeleteFederatedBundle(ctx context.Context, request *registrati
 	}
 
 	ds := h.getDataStore()
-	if _, err := ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: request.Id,
-		Mode:          mode,
-	}); err != nil {
+	if err := ds.DeleteBundle(ctx, request.Id, mode); err != nil {
 		log.WithError(err).Error("Failed to delete federated bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -550,20 +538,18 @@ func (h *Handler) FetchBundle(ctx context.Context, request *common.Empty) (_ *re
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchBundle)
 
 	ds := h.getDataStore()
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.IDString(),
-	})
+	bundle, err := ds.FetchBundle(ctx, h.TrustDomain.IDString())
 	if err != nil {
 		log.WithError(err).Error("Failed to get bundle from datastore")
 		return nil, status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		log.Error("Bundle not found")
 		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.Bundle{
-		Bundle: resp.Bundle,
+		Bundle: bundle,
 	}, nil
 }
 
@@ -645,14 +631,12 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.IDString(),
-	})
+	bundle, err := h.getDataStore().FetchBundle(ctx, h.TrustDomain.IDString())
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch bundle from datastore")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		log.Error("Bundle not found")
 		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
 	}
@@ -663,7 +647,7 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 	}
 
 	var rootCAs [][]byte
-	for _, rootCA := range resp.Bundle.RootCas {
+	for _, rootCA := range bundle.RootCas {
 		rootCAs = append(rootCAs, rootCA.DerBytes)
 	}
 
@@ -731,16 +715,12 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	}
 
 	ds := h.Catalog.GetDataStore()
-	req := &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: agentID,
-	}
-
-	resp, err := ds.DeleteAttestedNode(ctx, req)
+	attestedNode, err := ds.DeleteAttestedNode(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	return resp.Node, nil
+	return attestedNode, nil
 }
 
 func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, error) {
@@ -774,7 +754,7 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 			Value: entry.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{
-			Match:     datastore.BySelectors_MATCH_EXACT,
+			Match:     datastore.Exact,
 			Selectors: entry.Selectors,
 		},
 	}
@@ -813,14 +793,12 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 		return existingEntry, true, nil
 	}
 
-	createResponse, err := ds.CreateRegistrationEntry(ctx,
-		&datastore.CreateRegistrationEntryRequest{Entry: requestedEntry},
-	)
+	registrationEntry, err := ds.CreateRegistrationEntry(ctx, requestedEntry)
 	if err != nil {
 		return nil, false, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
-	return createResponse.Entry, false, nil
+	return registrationEntry, false, nil
 }
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
 	original := entry
@@ -887,16 +865,16 @@ func cloneRegistrationEntry(entry *common.RegistrationEntry) *common.Registratio
 	return proto.Clone(entry).(*common.RegistrationEntry)
 }
 
-func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) (datastore.DeleteBundleRequest_Mode, error) {
+func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) (datastore.DeleteMode, error) {
 	switch in {
 	case registration.DeleteFederatedBundleRequest_RESTRICT:
-		return datastore.DeleteBundleRequest_RESTRICT, nil
+		return datastore.Restrict, nil
 	case registration.DeleteFederatedBundleRequest_DISSOCIATE:
-		return datastore.DeleteBundleRequest_DISSOCIATE, nil
+		return datastore.Dissociate, nil
 	case registration.DeleteFederatedBundleRequest_DELETE:
-		return datastore.DeleteBundleRequest_DELETE, nil
+		return datastore.Delete, nil
 	}
-	return datastore.DeleteBundleRequest_RESTRICT, fmt.Errorf("unhandled delete mode %q", in)
+	return datastore.Restrict, fmt.Errorf("unhandled delete mode %q", in)
 }
 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {

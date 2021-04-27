@@ -6,6 +6,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // WithMetrics wraps a datastore interface and provides per-call metrics. The
@@ -26,16 +27,16 @@ func (w metricsWrapper) AppendBundle(ctx context.Context, req *datastore.AppendB
 	return w.ds.AppendBundle(ctx, req)
 }
 
-func (w metricsWrapper) CreateAttestedNode(ctx context.Context, req *datastore.CreateAttestedNodeRequest) (_ *datastore.CreateAttestedNodeResponse, err error) {
+func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (_ *common.AttestedNode, err error) {
 	callCounter := StartCreateNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateAttestedNode(ctx, req)
+	return w.ds.CreateAttestedNode(ctx, node)
 }
 
-func (w metricsWrapper) CreateBundle(ctx context.Context, req *datastore.CreateBundleRequest) (_ *datastore.CreateBundleResponse, err error) {
+func (w metricsWrapper) CreateBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
 	callCounter := StartCreateBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateBundle(ctx, req)
+	return w.ds.CreateBundle(ctx, bundle)
 }
 
 func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
@@ -44,22 +45,22 @@ func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.Jo
 	return w.ds.CreateJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (_ *datastore.CreateRegistrationEntryResponse, err error) {
+func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartCreateRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateRegistrationEntry(ctx, req)
+	return w.ds.CreateRegistrationEntry(ctx, entry)
 }
 
-func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, req *datastore.DeleteAttestedNodeRequest) (_ *datastore.DeleteAttestedNodeResponse, err error) {
+func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteAttestedNode(ctx, req)
+	return w.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
-func (w metricsWrapper) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (_ *datastore.DeleteBundleResponse, err error) {
+func (w metricsWrapper) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) (err error) {
 	callCounter := StartDeleteBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteBundle(ctx, req)
+	return w.ds.DeleteBundle(ctx, trustDomain, mode)
 }
 
 func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
@@ -68,22 +69,22 @@ func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err 
 	return w.ds.DeleteJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, req *datastore.DeleteRegistrationEntryRequest) (_ *datastore.DeleteRegistrationEntryResponse, err error) {
+func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, entryID string) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartDeleteRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteRegistrationEntry(ctx, req)
+	return w.ds.DeleteRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) FetchAttestedNode(ctx context.Context, req *datastore.FetchAttestedNodeRequest) (_ *datastore.FetchAttestedNodeResponse, err error) {
+func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartFetchNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchAttestedNode(ctx, req)
+	return w.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
-func (w metricsWrapper) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (_ *datastore.FetchBundleResponse, err error) {
+func (w metricsWrapper) FetchBundle(ctx context.Context, trustDomain string) (_ *common.Bundle, err error) {
 	callCounter := StartFetchBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchBundle(ctx, req)
+	return w.ds.FetchBundle(ctx, trustDomain)
 }
 
 func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *datastore.JoinToken, err error) {
@@ -92,10 +93,10 @@ func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *da
 	return w.ds.FetchJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, req *datastore.FetchRegistrationEntryRequest) (_ *datastore.FetchRegistrationEntryResponse, err error) {
+func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID string) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartFetchRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchRegistrationEntry(ctx, req)
+	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
 func (w metricsWrapper) GetNodeSelectors(ctx context.Context, req *datastore.GetNodeSelectorsRequest) (_ *datastore.GetNodeSelectorsResponse, err error) {

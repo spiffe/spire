@@ -14,7 +14,7 @@ orbs:
   aws-s3: circleci/aws-s3@1.1.1
 parameters:
   go-version:
-    default: 1.15.5
+    default: 1.16.3
     description: The Go version.
     type: string
   resource-class:
@@ -126,7 +126,6 @@ jobs:
             # CircleCI is silly and doesn't provide this incredibly helpful
             # environment variable. Requests for it go back years. For shame.
             CIRCLE_TARGET_BRANCH=$(.circleci/determine-target-branch.sh)
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             cd test/integration
             circleci tests glob "suites/*" | circleci tests split | CICD_TARGET_BRANCH="${CIRCLE_TARGET_BRANCH}" xargs ./test.sh
 

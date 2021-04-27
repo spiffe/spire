@@ -95,14 +95,12 @@ func (u *bundleUpdater) newClient(localBundleOrNil *bundleutil.Bundle) (Client, 
 
 func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain spiffeid.TrustDomain) (*bundleutil.Bundle, error) {
 	// Load the current bundle and extract the root CA certificates
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomain.IDString(),
-	})
+	bundle, err := ds.FetchBundle(ctx, trustDomain.IDString())
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		return nil, nil
 	}
-	return bundleutil.BundleFromProto(resp.Bundle)
+	return bundleutil.BundleFromProto(bundle)
 }

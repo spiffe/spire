@@ -14,9 +14,9 @@ type DataStore interface {
 	// Bundles
 	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
 	CountBundles(context.Context) (int32, error)
-	CreateBundle(context.Context, *CreateBundleRequest) (*CreateBundleResponse, error)
-	DeleteBundle(context.Context, *DeleteBundleRequest) (*DeleteBundleResponse, error)
-	FetchBundle(context.Context, *FetchBundleRequest) (*FetchBundleResponse, error)
+	CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error)
+	DeleteBundle(ctx context.Context, trustDomainID string, mode DeleteMode) error
+	FetchBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
 	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
 	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
@@ -24,18 +24,18 @@ type DataStore interface {
 
 	// Entries
 	CountRegistrationEntries(context.Context) (int32, error)
-	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	CreateRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, error)
+	DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
+	FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
 
 	// Nodes
 	CountAttestedNodes(context.Context) (int32, error)
-	CreateAttestedNode(context.Context, *CreateAttestedNodeRequest) (*CreateAttestedNodeResponse, error)
-	DeleteAttestedNode(context.Context, *DeleteAttestedNodeRequest) (*DeleteAttestedNodeResponse, error)
-	FetchAttestedNode(context.Context, *FetchAttestedNodeRequest) (*FetchAttestedNodeResponse, error)
+	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
+	DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error)
+	FetchAttestedNode(context.Context, string) (*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
 
@@ -51,44 +51,36 @@ type DataStore interface {
 	PruneJoinTokens(context.Context, time.Time) error
 }
 
-// Mode controls the delete behavior if there are other records
-// associated with the bundle (e.g. registration entries).
-type DeleteBundleRequest_Mode int32 //nolint: golint
+// DeleteMode defines delete behavior if associated records exist.
+type DeleteMode int32
 
 const (
-	// RESTRICT prevents the bundle from being deleted in the presence of associated entries
-	DeleteBundleRequest_RESTRICT DeleteBundleRequest_Mode = iota //nolint: golint
-	// DELETE deletes the bundle and associated entries
-	DeleteBundleRequest_DELETE //nolint: golint
-	// DISSOCIATE deletes the bundle and dissociates associated entries
-	DeleteBundleRequest_DISSOCIATE //nolint: golint
+	// Restrict the bundle from being deleted in the presence of associated entries
+	Restrict DeleteMode = iota
+	// Delete the bundle and associated entries
+	Delete
+	// Dissociate deletes the bundle and dissociates associated entries
+	Dissociate
 )
 
-func (mode DeleteBundleRequest_Mode) String() string {
+func (mode DeleteMode) String() string {
 	switch mode {
-	case DeleteBundleRequest_RESTRICT:
+	case Restrict:
 		return "RESTRICT"
-	case DeleteBundleRequest_DELETE:
+	case Delete:
 		return "DELETE"
-	case DeleteBundleRequest_DISSOCIATE:
+	case Dissociate:
 		return "DISSOCIATE"
 	default:
 		return "UNKNOWN"
 	}
 }
 
-type BySelectors_MatchBehavior int32 //nolint: golint
+type MatchBehavior int32
 
 const (
-	BySelectors_MATCH_EXACT  BySelectors_MatchBehavior = 0 //nolint: golint
-	BySelectors_MATCH_SUBSET BySelectors_MatchBehavior = 1 //nolint: golint
-)
-
-type ByFederatesWith_MatchBehavior int32 //nolint: golint
-
-const (
-	ByFederatesWith_MATCH_EXACT  ByFederatesWith_MatchBehavior = 0 //nolint: golint
-	ByFederatesWith_MATCH_SUBSET ByFederatesWith_MatchBehavior = 1 //nolint: golint
+	Exact  MatchBehavior = 0
+	Subset MatchBehavior = 1
 )
 
 type AppendBundleRequest struct {
@@ -101,85 +93,12 @@ type AppendBundleResponse struct {
 
 type ByFederatesWith struct {
 	TrustDomains []string
-	Match        ByFederatesWith_MatchBehavior
+	Match        MatchBehavior
 }
 
 type BySelectors struct {
 	Selectors []*common.Selector
-	Match     BySelectors_MatchBehavior
-}
-
-type CreateAttestedNodeRequest struct {
-	Node *common.AttestedNode
-}
-
-type CreateAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type CreateBundleRequest struct {
-	Bundle *common.Bundle
-}
-
-type CreateBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type CreateRegistrationEntryRequest struct {
-	Entry *common.RegistrationEntry
-}
-
-type CreateRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
-}
-
-type DeleteAttestedNodeRequest struct {
-	SpiffeId string //nolint: golint
-}
-
-type DeleteAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type DeleteBundleRequest struct {
-	TrustDomainId string //nolint: golint
-	Mode          DeleteBundleRequest_Mode
-}
-
-type DeleteBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type DeleteRegistrationEntryRequest struct {
-	EntryId string //nolint: golint
-}
-
-type DeleteRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
-}
-
-type FetchAttestedNodeRequest struct {
-	SpiffeId string //nolint: golint
-}
-
-type FetchAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type FetchBundleRequest struct {
-	TrustDomainId string //nolint: golint
-}
-
-type FetchBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type FetchRegistrationEntryRequest struct {
-	EntryId string //nolint: golint
-}
-
-type FetchRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
+	Match     MatchBehavior
 }
 
 type GetNodeSelectorsRequest struct {

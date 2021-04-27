@@ -10,6 +10,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -246,52 +247,52 @@ func (ds *fakeDataStore) CountRegistrationEntries(context.Context) (int32, error
 	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CreateAttestedNode(context.Context, *datastore.CreateAttestedNodeRequest) (*datastore.CreateAttestedNodeResponse, error) {
-	return &datastore.CreateAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateBundle(context.Context, *datastore.CreateBundleRequest) (*datastore.CreateBundleResponse, error) {
-	return &datastore.CreateBundleResponse{}, ds.err
+func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
-	return &datastore.CreateRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteAttestedNode(context.Context, *datastore.DeleteAttestedNodeRequest) (*datastore.DeleteAttestedNodeResponse, error) {
-	return &datastore.DeleteAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteBundle(context.Context, *datastore.DeleteBundleRequest) (*datastore.DeleteBundleResponse, error) {
-	return &datastore.DeleteBundleResponse{}, ds.err
+func (ds *fakeDataStore) DeleteBundle(context.Context, string, datastore.DeleteMode) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-	return &datastore.DeleteRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, string) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchAttestedNode(context.Context, *datastore.FetchAttestedNodeRequest) (*datastore.FetchAttestedNodeResponse, error) {
-	return &datastore.FetchAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchBundle(context.Context, *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
-	return &datastore.FetchBundleResponse{}, ds.err
+func (ds *fakeDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {
 	return &datastore.JoinToken{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	return &datastore.FetchRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
 
 func (ds *fakeDataStore) GetNodeSelectors(context.Context, *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {

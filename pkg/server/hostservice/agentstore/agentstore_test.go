@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -16,10 +15,8 @@ import (
 
 func TestAgentStore(t *testing.T) {
 	ds := fakedatastore.New(t)
-	_, err := ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId: "spiffe://domain.test/spire/agent/test/foo",
-		},
+	_, err := ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+		SpiffeId: "spiffe://domain.test/spire/agent/test/foo",
 	})
 	require.NoError(t, err)
 

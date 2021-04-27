@@ -38,7 +38,7 @@ import (
 const (
 	invalidTrustDomainAttestedNode = "An attested node with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. Agents may need to be reconfigured to use new trust domain"
-	invalidTrustDomainRegistrationEntry = "A registration entry with trust domain '%v' has been detected, " +
+	invalidTrustDomainRegistrationEntry = "a registration entry with trust domain '%v' has been detected, " +
 		"which does not match the configured trust domain of '%v'. If you want to change the trust domain, " +
 		"please delete all existing registration entries"
 	invalidSpiffeIDRegistrationEntry = "registration entry with id %v is malformed because invalid SPIFFE ID: %v"
@@ -108,18 +108,18 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(s.config.HealthChecks, s.config.Log)
+	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
 		return err
 	}
 
-	serverCA := s.newCA(metrics)
+	serverCA := s.newCA(metrics, healthChecker)
 
 	// CA manager needs to be initialized before the rotator, otherwise the
 	// server CA plugin won't be able to sign CSRs
-	caManager, err := s.newCAManager(ctx, cat, metrics, serverCA)
+	caManager, err := s.newCAManager(ctx, cat, metrics, serverCA, healthChecker)
 	if err != nil {
 		return err
 	}
@@ -160,7 +160,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
-	if err := healthChecks.AddCheck("server", s); err != nil {
+	if err := healthChecker.AddCheck("server", s); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %v", err)
 	}
 
@@ -171,7 +171,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		metrics.ListenAndServe,
 		bundleManager.Run,
 		registrationManager.Run,
-		util.SerialRun(s.waitForTestDial, healthChecks.ListenAndServe),
+		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	)
 	if err == context.Canceled {
@@ -249,18 +249,19 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 	})
 }
 
-func (s *Server) newCA(metrics telemetry.Metrics) *ca.CA {
+func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
-		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
-		Metrics:     metrics,
-		X509SVIDTTL: s.config.SVIDTTL,
-		JWTIssuer:   s.config.JWTIssuer,
-		TrustDomain: s.config.TrustDomain,
-		CASubject:   s.config.CASubject,
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
+		Metrics:       metrics,
+		X509SVIDTTL:   s.config.SVIDTTL,
+		JWTIssuer:     s.config.JWTIssuer,
+		TrustDomain:   s.config.TrustDomain,
+		CASubject:     s.config.CASubject,
+		HealthChecker: healthChecker,
 	})
 }
 
-func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA) (*ca.Manager, error) {
+func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, healthChecker health.Checker) (*ca.Manager, error) {
 	caManager := ca.NewManager(ca.ManagerConfig{
 		CA:            serverCA,
 		Catalog:       cat,
@@ -272,6 +273,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		Dir:           s.config.DataDir,
 		X509CAKeyType: s.config.CAKeyType,
 		JWTKeyType:    s.config.JWTKeyType,
+		HealthChecker: healthChecker,
 	})
 	if err := caManager.Initialize(ctx); err != nil {
 		return nil, err
@@ -391,11 +393,30 @@ func (s *Server) waitForTestDial(ctx context.Context) error {
 	return nil
 }
 
-// Status is used as a top-level health check for the Server.
-func (s *Server) Status() (interface{}, error) {
+// CheckHealth is used as a top-level health check for the Server.
+func (s *Server) CheckHealth() health.State {
+	err := s.tryGetBundle()
+
+	// The API is served only after the server CA has been
+	// signed by upstream. Hence, both live and ready checks
+	// are determined by whether the bundles are received or not.
+	// TODO: Better live check for server.
+	return health.State{
+		Ready: err == nil,
+		Live:  err == nil,
+		ReadyDetails: serverHealthDetails{
+			GetBundleErr: errString(err),
+		},
+		LiveDetails: serverHealthDetails{
+			GetBundleErr: errString(err),
+		},
+	}
+}
+
+func (s *Server) tryGetBundle() error {
 	client, err := server_util.NewServerClient(s.config.BindUDSAddress.Name)
 	if err != nil {
-		return nil, errors.New("cannot create registration client")
+		return errors.New("cannot create registration client")
 	}
 	defer client.Release()
 
@@ -406,10 +427,18 @@ func (s *Server) Status() (interface{}, error) {
 	// As currently coded however, the API isn't served until after
 	// the server CA has been signed by upstream.
 	if _, err := bundleClient.GetBundle(context.Background(), &bundlev1.GetBundleRequest{}); err != nil {
-		return nil, errors.New("unable to fetch bundle")
+		return errors.New("unable to fetch bundle")
 	}
+	return nil
+}
 
-	return health.Details{
-		Message: "successfully fetched bundle",
-	}, nil
+type serverHealthDetails struct {
+	GetBundleErr string `json:"get_bundle_err,omitempty"`
+}
+
+func errString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
 }

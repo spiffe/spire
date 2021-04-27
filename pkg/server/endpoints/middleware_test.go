@@ -212,9 +212,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			ds := fakedatastore.New(t)
 
 			if tt.node != nil {
-				_, err := ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-					Node: tt.node,
-				})
+				_, err := ds.CreateAttestedNode(context.Background(), tt.node)
 				require.NoError(t, err)
 			}
 
@@ -260,22 +258,18 @@ func TestAgentAuthorizer(t *testing.T) {
 			}
 
 			// Assert the new SVID serial number (if existed) is now set as current
-			resp, err := ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
-				SpiffeId: tt.node.SpiffeId,
-			})
+			attestedNode, err := ds.FetchAttestedNode(context.Background(), tt.node.SpiffeId)
 			require.NoError(t, err)
-			require.Equal(t, agentSVID.SerialNumber.String(), resp.Node.CertSerialNumber)
-			require.Empty(t, resp.Node.NewCertSerialNumber)
+			require.Equal(t, agentSVID.SerialNumber.String(), attestedNode.CertSerialNumber)
+			require.Empty(t, attestedNode.NewCertSerialNumber)
 		})
 	}
 }
 
 func createEntry(t testing.TB, ds datastore.DataStore, entryIn *common.RegistrationEntry) *types.Entry {
-	resp, err := ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entryIn,
-	})
+	registrationEntry, err := ds.CreateRegistrationEntry(context.Background(), entryIn)
 	require.NoError(t, err)
-	entryOut, err := api.RegistrationEntryToProto(resp.Entry)
+	entryOut, err := api.RegistrationEntryToProto(registrationEntry)
 	require.NoError(t, err)
 	return entryOut
 }
@@ -291,11 +285,7 @@ func setNodeSelectors(t testing.TB, ds datastore.DataStore, id spiffeid.ID, sele
 }
 
 func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.AttestedNode) {
-	req := &datastore.CreateAttestedNodeRequest{
-		Node: node,
-	}
-
-	_, err := ds.CreateAttestedNode(context.Background(), req)
+	_, err := ds.CreateAttestedNode(context.Background(), node)
 	require.NoError(t, err)
 }
 

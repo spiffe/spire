@@ -19,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/debug/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -385,9 +384,7 @@ func TestGetInfo(t *testing.T) {
 			}
 			test.so.state = tt.state
 			for _, bundle := range tt.bundles {
-				_, err := test.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-					Bundle: bundle,
-				})
+				_, err := test.ds.CreateBundle(ctx, bundle)
 				require.NoError(t, err)
 			}
 
@@ -399,16 +396,12 @@ func TestGetInfo(t *testing.T) {
 			test.clk.Add(tt.addToClk)
 
 			// Init datastore
-			for _, attestedNode := range tt.attestedNodes {
-				_, err := test.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{
-					Node: attestedNode,
-				})
+			for _, node := range tt.attestedNodes {
+				_, err := test.ds.CreateAttestedNode(ctx, node)
 				require.NoError(t, err)
 			}
 			for _, entry := range tt.registrationEntries {
-				_, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-					Entry: entry,
-				})
+				_, err := test.ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
 			}
 
