@@ -19,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/debug/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -402,9 +401,7 @@ func TestGetInfo(t *testing.T) {
 				require.NoError(t, err)
 			}
 			for _, entry := range tt.registrationEntries {
-				_, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-					Entry: entry,
-				})
+				_, err := test.ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
 			}
 

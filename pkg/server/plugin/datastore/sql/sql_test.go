@@ -535,7 +535,7 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 		SpiffeId:  "spiffe://example.org/foo",
 		Selectors: []*common.Selector{{Type: "a", Value: "1"}},
 	}
-	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
 
 	entry2 := &common.RegistrationEntry{
@@ -543,7 +543,7 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 		SpiffeId:  "spiffe://example.org/bar",
 		Selectors: []*common.Selector{{Type: "a", Value: "2"}},
 	}
-	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry2)
 	s.Require().NoError(err)
 
 	// Count all
@@ -1502,13 +1502,12 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
+		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
 		s.Require().NoError(err)
-		s.NotNil(resp)
-		s.Require().NotNil(resp.Entry)
-		s.NotEmpty(resp.Entry.EntryId)
-		resp.Entry.EntryId = ""
-		s.RequireProtoEqual(resp.Entry, validRegistrationEntry)
+		s.Require().NotNil(registrationEntry)
+		s.NotEmpty(registrationEntry.EntryId)
+		registrationEntry.EntryId = ""
+		s.RequireProtoEqual(registrationEntry, validRegistrationEntry)
 	}
 }
 
@@ -1517,16 +1516,16 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
-		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: invalidRegistrationEntry})
+		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
 		s.Require().Error(err)
-		s.Require().Nil(createRegistrationEntryResponse)
+		s.Require().Nil(registrationEntry)
 	}
 
 	// TODO: Check that no entries have been created
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
-	registeredEntry := &common.RegistrationEntry{
+	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1541,20 +1540,17 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		},
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-	createdEntry := createRegistrationEntryResponse.Entry
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.RequireProtoEqual(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.RequireProtoEqual(createdRegistrationEntry, fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
 	now := time.Now().Unix()
-	registeredEntry := &common.RegistrationEntry{
+	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1566,10 +1562,8 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		EntryExpiry: now,
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-	createdEntry := createRegistrationEntryResponse.Entry
 
 	// Ensure we don't prune valid entries, wind clock back 10s
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
@@ -1577,10 +1571,9 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	})
 	s.Require().NoError(err)
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
 
 	// Ensure we don't prune on the exact ExpiresBefore
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
@@ -1588,10 +1581,9 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	})
 	s.Require().NoError(err)
 
-	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
 
 	// Ensure we prune old entries
 	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
@@ -1599,15 +1591,15 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	})
 	s.Require().NoError(err)
 
-	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Nil(fetchRegistrationEntryResponse.Entry)
+	s.Nil(fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: "INEXISTENT"})
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "INEXISTENT")
 	s.Require().NoError(err)
-	s.Require().Nil(fetchRegistrationEntryResponse.Entry)
+	s.Require().Nil(fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
@@ -1949,17 +1941,15 @@ func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
-	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			Selectors: []*common.Selector{
-				{Type: "TYPE", Value: "VALUE"},
-			},
-			SpiffeId: "SpiffeId",
-			ParentId: "ParentId",
-			DnsNames: []string{
-				"abcd.efg",
-				"somehost",
-			},
+	_, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "TYPE", Value: "VALUE"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+		DnsNames: []string{
+			"abcd.efg",
+			"somehost",
 		},
 	})
 	s.Require().NoError(err)
@@ -2001,11 +1991,10 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	s.Require().NoError(err)
 	s.Require().NotNil(updateRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
-	s.RequireProtoEqual(updateRegistrationEntryResponse.Entry, fetchRegistrationEntryResponse.Entry)
+	s.Require().NotNil(registrationEntry)
+	s.RequireProtoEqual(updateRegistrationEntryResponse.Entry, registrationEntry)
 
 	entry.EntryId = "badid"
 	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
@@ -2176,8 +2165,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	} {
 		tt := testcase
 		s.Run(tt.name, func() {
-			entry := s.createRegistrationEntry(oldEntry)
-			id := entry.EntryId
+			registrationEntry := s.createRegistrationEntry(oldEntry)
+			id := registrationEntry.EntryId
 
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
@@ -2201,19 +2190,18 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			s.RequireProtoEqual(expectedResult, updateRegistrationEntryResponse.Entry)
 
 			// Fetch and check the results match expectations
-			fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: id})
+			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
 			s.Require().NoError(err)
-			s.Require().NotNil(fetchRegistrationEntryResponse)
-			s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
+			s.Require().NotNil(registrationEntry)
 
-			s.RequireProtoEqual(expectedResult, fetchRegistrationEntryResponse.Entry)
+			s.RequireProtoEqual(expectedResult, registrationEntry)
 		})
 	}
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	// delete non-existing
-	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
+	_, err := s.ds.DeleteRegistrationEntry(ctx, "badid")
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -2244,9 +2232,9 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	s.Require().Len(entriesResp.Entries, 2)
 
 	// Make sure we deleted the right one
-	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
+	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
 	s.Require().NoError(err)
-	s.Require().Equal(entry1, delRes.Entry)
+	s.Require().Equal(entry1, deletedEntry)
 
 	// Make sure we have now only one registration entry
 	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -2254,9 +2242,9 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	s.Require().Len(entriesResp.Entries, 1)
 
 	// Delete again must fails with Not Found
-	delRes, err = s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
+	deletedEntry, err = s.ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
 	s.Require().EqualError(err, "rpc error: code = NotFound desc = datastore-sql: record not found")
-	s.Require().Nil(delRes)
+	s.Require().Nil(deletedEntry)
 }
 
 func (s *PluginSuite) TestListParentIDEntries() {
@@ -2287,11 +2275,10 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				require.NotNil(t, r.Entry)
-				entry.EntryId = r.Entry.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				ByParentId: &wrapperspb.StringValue{
@@ -2337,11 +2324,10 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				require.NotNil(t, r.Entry)
-				entry.EntryId = r.Entry.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
@@ -2392,11 +2378,10 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				require.NotNil(t, r.Entry)
-				entry.EntryId = r.Entry.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
@@ -2414,9 +2399,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 
 func (s *PluginSuite) TestRegistrationEntriesFederatesWithAgainstMissingBundle() {
 	// cannot federate with a trust bundle that does not exist
-	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: makeFederatedRegistrationEntry(),
-	})
+	_, err := s.ds.CreateRegistrationEntry(ctx, makeFederatedRegistrationEntry())
 	s.RequireErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
 }
 
@@ -2460,11 +2443,9 @@ func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// verify that the registeration entry has been deleted
-	resp, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
-		EntryId: entry.EntryId,
-	})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
 	s.Require().NoError(err)
-	s.Require().Nil(resp.Entry)
+	s.Require().Nil(registrationEntry)
 
 	// make sure the unrelated entry still exists
 	s.fetchRegistrationEntry(unrelated.EntryId)
@@ -2851,23 +2832,17 @@ func (s *PluginSuite) createBundle(trustDomainID string) {
 }
 
 func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.Entry)
-	return resp.Entry
+	s.Require().NotNil(registrationEntry)
+	return registrationEntry
 }
 
 func (s *PluginSuite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
-	resp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
-		EntryId: entryID,
-	})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entryID)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.Entry)
-	return resp.Entry
+	s.Require().NotNil(registrationEntry)
+	return registrationEntry
 }
 
 func makeFederatedRegistrationEntry() *common.RegistrationEntry {

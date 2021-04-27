@@ -328,24 +328,20 @@ func prepareDataStore(t *testing.T, ds datastore.DataStore, ca *testca.CA, agent
 	require.NoError(t, err)
 
 	// Create an admin entry
-	_, err = ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId:  agentID.String(),
-			SpiffeId:  adminID.String(),
-			Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-			Admin:     true,
-		},
+	_, err = ds.CreateRegistrationEntry(context.Background(), &common.RegistrationEntry{
+		ParentId:  agentID.String(),
+		SpiffeId:  adminID.String(),
+		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
+		Admin:     true,
 	})
 	require.NoError(t, err)
 
 	// Create a downstream entry
-	_, err = ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId:   agentID.String(),
-			SpiffeId:   downstreamID.String(),
-			Selectors:  []*common.Selector{{Type: "not", Value: "relevant"}},
-			Downstream: true,
-		},
+	_, err = ds.CreateRegistrationEntry(context.Background(), &common.RegistrationEntry{
+		ParentId:   agentID.String(),
+		SpiffeId:   downstreamID.String(),
+		Selectors:  []*common.Selector{{Type: "not", Value: "relevant"}},
+		Downstream: true,
 	})
 	require.NoError(t, err)
 }

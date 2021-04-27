@@ -58,9 +58,7 @@ func (s *ManagerSuite) TestPruning() {
 		EntryExpiry: expiry.Unix(),
 	}
 
-	createResp1, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry1,
-	})
+	registrationEntry1, err := s.ds.CreateRegistrationEntry(context.Background(), entry1)
 
 	s.NoError(err)
 
@@ -78,9 +76,7 @@ func (s *ManagerSuite) TestPruning() {
 		EntryExpiry: expiry.Add(time.Minute).Unix(),
 	}
 
-	createResp2, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry2,
-	})
+	registrationEntry2, err := s.ds.CreateRegistrationEntry(context.Background(), entry2)
 
 	s.NoError(err)
 
@@ -98,9 +94,7 @@ func (s *ManagerSuite) TestPruning() {
 		EntryExpiry: expiry.Add(2 * time.Minute).Unix(),
 	}
 
-	createResp3, err := s.ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: entry3,
-	})
+	registrationEntry3, err := s.ds.CreateRegistrationEntry(context.Background(), entry3)
 
 	s.NoError(err)
 
@@ -108,21 +102,21 @@ func (s *ManagerSuite) TestPruning() {
 	s.NoError(s.m.prune(context.Background()))
 	listResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
-	s.Equal([]*common.RegistrationEntry{createResp1.Entry, createResp2.Entry, createResp3.Entry}, listResp.Entries)
+	s.Equal([]*common.RegistrationEntry{registrationEntry1, registrationEntry2, registrationEntry3}, listResp.Entries)
 
 	// prune first entry
 	s.clock.Add(_pruningCandence + time.Second)
 	s.NoError(s.m.prune(context.Background()))
 	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
-	s.Equal([]*common.RegistrationEntry{createResp2.Entry, createResp3.Entry}, listResp.Entries)
+	s.Equal([]*common.RegistrationEntry{registrationEntry2, registrationEntry3}, listResp.Entries)
 
 	// prune second entry
 	s.clock.Add(time.Minute)
 	s.NoError(s.m.prune(context.Background()))
 	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	s.NoError(err)
-	s.Equal([]*common.RegistrationEntry{createResp3.Entry}, listResp.Entries)
+	s.Equal([]*common.RegistrationEntry{registrationEntry3}, listResp.Entries)
 
 	// prune third entry
 	s.clock.Add(time.Minute)

@@ -9,7 +9,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/suite"
@@ -89,11 +88,9 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.server.config.TrustDomain = trustDomain
 
 	// Create a registration entry with original trust domain
-	entryResp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			SpiffeId:  "spiffe://test.com/foo",
-			Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-		},
+	registrationEntry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId:  "spiffe://test.com/foo",
+		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
 	})
 	suite.NoError(err)
 
@@ -107,28 +104,22 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
 
 	// Create a registration entry with an invalid url
-	_, err = ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
-		EntryId: entryResp.Entry.EntryId,
-	})
+	_, err = ds.DeleteRegistrationEntry(ctx, registrationEntry.EntryId)
 	suite.NoError(err)
 	suite.server.config.TrustDomain = trustDomain
-	entryResp, err = ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			SpiffeId:  "spiffe://inv%ild/test",
-			Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-		},
+	registrationEntry, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId:  "spiffe://inv%ild/test",
+		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
 	})
 	suite.NoError(err)
 	err = suite.server.validateTrustDomain(ctx, ds)
-	expectedError := fmt.Sprintf(invalidSpiffeIDRegistrationEntry, entryResp.Entry.EntryId, "")
+	expectedError := fmt.Sprintf(invalidSpiffeIDRegistrationEntry, registrationEntry.EntryId, "")
 	if suite.Error(err) {
 		suite.Contains(err.Error(), expectedError)
 	}
 
 	// remove entry to solve error
-	_, err = ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
-		EntryId: entryResp.Entry.EntryId,
-	})
+	_, err = ds.DeleteRegistrationEntry(ctx, registrationEntry.EntryId)
 	suite.NoError(err)
 
 	// create attested node with current trust domain

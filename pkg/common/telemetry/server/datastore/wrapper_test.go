@@ -259,8 +259,8 @@ func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) 
 	return ds.err
 }
 
-func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
-	return &datastore.CreateRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
 
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
@@ -275,8 +275,8 @@ func (ds *fakeDataStore) DeleteJoinToken(context.Context, string) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
-	return &datastore.DeleteRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, string) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
@@ -291,8 +291,8 @@ func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.Joi
 	return &datastore.JoinToken{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
-	return &datastore.FetchRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
 
 func (ds *fakeDataStore) GetNodeSelectors(context.Context, *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {

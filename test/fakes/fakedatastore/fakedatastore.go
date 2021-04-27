@@ -190,18 +190,18 @@ func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error)
 	return s.ds.CountRegistrationEntries(ctx)
 }
 
-func (s *DataStore) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+func (s *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateRegistrationEntry(ctx, req)
+	return s.ds.CreateRegistrationEntry(ctx, entry)
 }
 
-func (s *DataStore) FetchRegistrationEntry(ctx context.Context, req *datastore.FetchRegistrationEntryRequest) (*datastore.FetchRegistrationEntryResponse, error) {
+func (s *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchRegistrationEntry(ctx, req)
+	return s.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
 func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
@@ -223,11 +223,11 @@ func (s *DataStore) UpdateRegistrationEntry(ctx context.Context, req *datastore.
 	return s.ds.UpdateRegistrationEntry(ctx, req)
 }
 
-func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, req *datastore.DeleteRegistrationEntryRequest) (*datastore.DeleteRegistrationEntryResponse, error) {
+func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.DeleteRegistrationEntry(ctx, req)
+	return s.ds.DeleteRegistrationEntry(ctx, entryID)
 }
 
 func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {

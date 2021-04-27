@@ -24,9 +24,9 @@ type DataStore interface {
 
 	// Entries
 	CountRegistrationEntries(context.Context) (int32, error)
-	CreateRegistrationEntry(context.Context, *CreateRegistrationEntryRequest) (*CreateRegistrationEntryResponse, error)
-	DeleteRegistrationEntry(context.Context, *DeleteRegistrationEntryRequest) (*DeleteRegistrationEntryResponse, error)
-	FetchRegistrationEntry(context.Context, *FetchRegistrationEntryRequest) (*FetchRegistrationEntryResponse, error)
+	CreateRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, error)
+	DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
+	FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
 	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
@@ -99,30 +99,6 @@ type ByFederatesWith struct {
 type BySelectors struct {
 	Selectors []*common.Selector
 	Match     MatchBehavior
-}
-
-type CreateRegistrationEntryRequest struct {
-	Entry *common.RegistrationEntry
-}
-
-type CreateRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
-}
-
-type DeleteRegistrationEntryRequest struct {
-	EntryId string //nolint: golint
-}
-
-type DeleteRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
-}
-
-type FetchRegistrationEntryRequest struct {
-	EntryId string //nolint: golint
-}
-
-type FetchRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
 }
 
 type GetNodeSelectorsRequest struct {

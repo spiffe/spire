@@ -45,10 +45,10 @@ func (w metricsWrapper) CreateJoinToken(ctx context.Context, token *datastore.Jo
 	return w.ds.CreateJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (_ *datastore.CreateRegistrationEntryResponse, err error) {
+func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartCreateRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CreateRegistrationEntry(ctx, req)
+	return w.ds.CreateRegistrationEntry(ctx, entry)
 }
 
 func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
@@ -69,10 +69,10 @@ func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err 
 	return w.ds.DeleteJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, req *datastore.DeleteRegistrationEntryRequest) (_ *datastore.DeleteRegistrationEntryResponse, err error) {
+func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, entryID string) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartDeleteRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.DeleteRegistrationEntry(ctx, req)
+	return w.ds.DeleteRegistrationEntry(ctx, entryID)
 }
 
 func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
@@ -93,10 +93,10 @@ func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *da
 	return w.ds.FetchJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, req *datastore.FetchRegistrationEntryRequest) (_ *datastore.FetchRegistrationEntryResponse, err error) {
+func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID string) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartFetchRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchRegistrationEntry(ctx, req)
+	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
 func (w metricsWrapper) GetNodeSelectors(ctx context.Context, req *datastore.GetNodeSelectorsRequest) (_ *datastore.GetNodeSelectorsResponse, err error) {
