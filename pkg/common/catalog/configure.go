@@ -49,6 +49,9 @@ func (repo *configurerRepo) Versions() []Version {
 }
 
 func (repo *configurerRepo) Clear() {
+	// This function is only for conforming to the Repo interface and isn't
+	// expected to be called, but just in case, we'll do the right thing
+	// and clear out the configurer that has been bound.
 	repo.configurer = nil
 }
 

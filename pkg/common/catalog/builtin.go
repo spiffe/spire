@@ -137,7 +137,7 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 	go func() {
 		defer wg.Done()
 		if err := server.Serve(pipeNet); err != nil && err != grpc.ErrServerStopped {
-			log.WithError(err).Warn("Pipe server unexpectedly failed to serve")
+			log.WithError(err).Error("Pipe server unexpectedly failed to serve")
 		}
 	}()
 

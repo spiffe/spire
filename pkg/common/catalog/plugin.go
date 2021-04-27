@@ -19,10 +19,10 @@ type Plugin interface {
 	io.Closer
 
 	// Bind binds the given facades to the plugin. It also returns a Configurer
-	// that can be used to configure the plugin. If the plugin does not a given
-	// facade, an error will be returned. This function is designed only for use by
-	// unit-tests for built-in plugin implementations or fake facade
-	// implementations that rely on built-ins.
+	// that can be used to configure the plugin. If the plugin does not support
+	// a given facade, an error will be returned. This function is designed
+	// only for use by unit-tests for built-in plugin implementations or fake
+	// facade implementations that rely on built-ins.
 	Bind(facades ...Facade) (Configurer, error)
 }
 
