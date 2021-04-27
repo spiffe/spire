@@ -5,13 +5,16 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
 	goplugin "github.com/hashicorp/go-plugin"
+	"github.com/spiffe/spire-plugin-sdk/pluginmain"
 	"github.com/spiffe/spire-plugin-sdk/private/proto/test"
+	"github.com/spiffe/spire/pkg/common/catalog/testplugin"
 	"github.com/spiffe/spire/proto/private/test/legacyplugin"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -20,34 +23,72 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	// the ID used to dial host services
-	hostServicesID = 1
+var (
+	modeFlag           = flag.String("mode", "good", "plugin mode to use (one of [good, bad, legacy])")
+	registerConfigFlag = flag.Bool("registerConfig", false, "register the configuration service")
 )
 
 func main() {
-	plugin := new(Plugin)
+	flag.Parse()
 
-	logger := hclog.New(&hclog.LoggerOptions{
-		Level:      hclog.Trace,
-		Output:     os.Stderr,
-		JSONFormat: true,
-	})
-	goplugin.Serve(&goplugin.ServeConfig{
-		HandshakeConfig: goplugin.HandshakeConfig{
-			ProtocolVersion:  1,
-			MagicCookieKey:   "SomePlugin",
-			MagicCookieValue: "SomePlugin",
-		},
-		Plugins: map[string]goplugin.Plugin{
-			"LEGACY": &hcServerPlugin{
-				logger: logger,
-				plugin: plugin,
+	switch *modeFlag {
+	case "good":
+		flag.Parse()
+		builtIn := testplugin.BuiltIn(*registerConfigFlag)
+		pluginmain.Serve(
+			builtIn.Plugin,
+			builtIn.Services...,
+		)
+	case "bad":
+		goplugin.Serve(&goplugin.ServeConfig{
+			HandshakeConfig: goplugin.HandshakeConfig{
+				ProtocolVersion:  99,
+				MagicCookieKey:   "BAD",
+				MagicCookieValue: "BAD",
 			},
-		},
-		Logger:     logger,
-		GRPCServer: goplugin.DefaultGRPCServer,
-	})
+			Plugins: map[string]goplugin.Plugin{
+				"BAD": &badHCServerPlugin{},
+			},
+			GRPCServer: goplugin.DefaultGRPCServer,
+		})
+	case "legacy":
+		plugin := new(Plugin)
+		logger := hclog.New(&hclog.LoggerOptions{
+			Level:      hclog.Trace,
+			Output:     os.Stderr,
+			JSONFormat: true,
+		})
+		goplugin.Serve(&goplugin.ServeConfig{
+			HandshakeConfig: goplugin.HandshakeConfig{
+				ProtocolVersion:  1,
+				MagicCookieKey:   "SomePlugin",
+				MagicCookieValue: "SomePlugin",
+			},
+			Plugins: map[string]goplugin.Plugin{
+				"LEGACY": &hcServerPlugin{
+					logger: logger,
+					plugin: plugin,
+				},
+			},
+			Logger:     logger,
+			GRPCServer: goplugin.DefaultGRPCServer,
+		})
+	default:
+		fmt.Fprintln(os.Stderr, "bad value for mode: must be one of [good,bad,legacy]")
+		os.Exit(1)
+	}
+}
+
+type badHCServerPlugin struct {
+	goplugin.NetRPCUnsupportedPlugin
+}
+
+func (p *badHCServerPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) (err error) {
+	return nil
+}
+
+func (p *badHCServerPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+	return nil, errors.New("unimplemented")
 }
 
 // HostServiceBroker is used by plugins that implement the NeedsHostBroker
@@ -146,7 +187,8 @@ type grpcBrokerDialer struct {
 }
 
 func (d grpcBrokerDialer) DialHost() (*grpc.ClientConn, error) {
-	return d.b.Dial(hostServicesID)
+	const legacyHostServicesID = 1
+	return d.b.Dial(legacyHostServicesID)
 }
 
 type initServer struct {

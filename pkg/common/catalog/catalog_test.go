@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	log_test "github.com/sirupsen/logrus/hooks/test"
@@ -45,7 +46,7 @@ func TestBuiltInPlugin(t *testing.T) {
 }
 
 func TestExternalPlugin(t *testing.T) {
-	pluginPath := buildTestPlugin(t, "./testplugin/good.go")
+	pluginPath := buildTestPlugin(t, "./testplugin/main.go")
 
 	testPlugin(t, pluginPath)
 
@@ -81,8 +82,8 @@ func TestExternalPlugin(t *testing.T) {
 	})
 
 	t.Run("not a plugin", func(t *testing.T) {
-		badPluginPath := buildTestPlugin(t, "./testplugin/bad.go")
-		testLoad(t, badPluginPath, loadTest{
+		testLoad(t, pluginPath, loadTest{
+			pluginMode: "bad",
 			expectErr: `failed to load plugin "test": failed to launch plugin: Unrecognized remote plugin message: 
 
 This usually means that the plugin is either invalid or simply
@@ -91,10 +92,9 @@ needs to be recompiled to support the latest protocol.`,
 	})
 
 	t.Run("legacy", func(t *testing.T) {
-		legacyPluginPath := buildTestPlugin(t, "./testplugin/legacy.go")
-
 		t.Run("success with configure", func(t *testing.T) {
-			testLoad(t, legacyPluginPath, loadTest{
+			testLoad(t, pluginPath, loadTest{
+				pluginMode: "legacy",
 				mutateConfig: func(config *catalog.Config) {
 					config.PluginConfigs[0].Data = `GOOD`
 				},
@@ -103,12 +103,14 @@ needs to be recompiled to support the latest protocol.`,
 			})
 		})
 		t.Run("configures even without configuration", func(t *testing.T) {
-			testLoad(t, legacyPluginPath, loadTest{
-				expectErr: `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
+			testLoad(t, pluginPath, loadTest{
+				pluginMode: "legacy",
+				expectErr:  `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
 			})
 		})
 		t.Run("failure to configure", func(t *testing.T) {
-			testLoad(t, legacyPluginPath, loadTest{
+			testLoad(t, pluginPath, loadTest{
+				pluginMode: "legacy",
 				mutateConfig: func(config *catalog.Config) {
 					config.PluginConfigs[0].Data = `BAD`
 				},
@@ -116,7 +118,8 @@ needs to be recompiled to support the latest protocol.`,
 			})
 		})
 		t.Run("no legacy version", func(t *testing.T) {
-			testLoad(t, legacyPluginPath, loadTest{
+			testLoad(t, pluginPath, loadTest{
+				pluginMode: "legacy",
 				mutatePluginRepo: func(pluginRepo *PluginRepo) {
 					pluginRepo.legacyVersion = nil
 				},
@@ -127,6 +130,7 @@ needs to be recompiled to support the latest protocol.`,
 }
 
 type loadTest struct {
+	pluginMode            string
 	registerConfigService bool
 	mutateConfig          func(*catalog.Config)
 	mutateRepo            func(*Repo)
@@ -350,9 +354,14 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 	var builtIns []catalog.BuiltIn
 	if pluginPath == "" {
 		builtIns = append(builtIns, testplugin.BuiltIn(tt.registerConfigService))
-	} else if tt.registerConfigService {
-		config.PluginConfigs[0].Args = []string{"--registerConfig=true"}
+	} else {
 		config.PluginConfigs[0].Checksum = calculateChecksum(t, pluginPath)
+		if tt.registerConfigService {
+			config.PluginConfigs[0].Args = append(config.PluginConfigs[0].Args, "--registerConfig=true")
+		}
+		if tt.pluginMode != "" {
+			config.PluginConfigs[0].Args = append(config.PluginConfigs[0].Args, "--mode", tt.pluginMode)
+		}
 	}
 
 	var somePlugin SomePlugin
@@ -443,11 +452,13 @@ func buildTestPlugin(t *testing.T, srcPath string) string {
 
 	pluginPath := filepath.Join(dir, "test")
 
+	now := time.Now()
 	buildOutput, err := exec.Command("go", "build", "-o", pluginPath, srcPath).CombinedOutput() //nolint: gosec // false positive
 	if err != nil {
 		t.Logf("build output:\n%s\n", string(buildOutput))
 		t.Fatal("failed to build test plugin")
 	}
+	t.Logf("Elapsed time to build plugin: %s", time.Since(now).Truncate(time.Millisecond))
 
 	return pluginPath
 }
