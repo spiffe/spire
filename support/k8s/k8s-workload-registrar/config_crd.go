@@ -107,6 +107,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		err = controllers.NewNodeReconciler(controllers.NodeReconcilerConfig{
 			Client:    mgr.GetClient(),
 			Ctx:       ctx,
+			E:         entryClient,
 			Log:       log,
 			Namespace: myNamespace,
 		}).SetupWithManager(mgr)

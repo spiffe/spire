@@ -19,6 +19,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +33,7 @@ import (
 type NodeReconcilerConfig struct {
 	Client    client.Client
 	Ctx       context.Context
+	E         entryv1.EntryClient
 	Log       logrus.FieldLogger
 	Namespace string
 }
@@ -71,6 +73,24 @@ func (n *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		return ctrl.Result{}, err
+	}
+
+	// Get all entries with this node as a parent. Until the pod reconciler reparents everything
+	// and the list is empty, we will requeue.
+	parentID, err := spiffeIDFromString(spiffeID.Spec.SpiffeId)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	resp, err := n.c.E.ListEntries(n.c.Ctx, &entryv1.ListEntriesRequest{
+		Filter: &entryv1.ListEntriesRequest_Filter{
+			ByParentId: parentID,
+		},
+	})
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(resp.Entries) != 0 {
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	return ctrl.Result{}, n.Delete(n.c.Ctx, &spiffeID)

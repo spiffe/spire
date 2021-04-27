@@ -50,6 +50,7 @@ func (s *NodeControllerTestSuite) TestNodeSpiffeIDCleanup() {
 	n := NewNodeReconciler(NodeReconcilerConfig{
 		Client:    s.k8sClient,
 		Ctx:       s.ctx,
+		E:         s.entryClient,
 		Log:       s.log,
 		Namespace: NodeNamespace,
 	})
