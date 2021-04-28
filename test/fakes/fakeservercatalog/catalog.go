@@ -22,7 +22,7 @@ type Catalog struct {
 	upstreamAuthorityRepository
 }
 
-// We need distinct type names to embed in the Catalog above, since they types
+// We need distinct type names to embed in the Catalog above, since the types
 // we want to actually embed are all named the same.
 type dataStoreRepository struct{ datastore.Repository }
 type keyManagerRepository struct{ keymanager.Repository }

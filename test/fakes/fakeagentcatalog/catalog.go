@@ -16,7 +16,7 @@ type Catalog struct {
 	workloadAttestorRepository
 }
 
-// We need distinct type names to embed in the Catalog above, since they types
+// We need distinct type names to embed in the Catalog above, since the types
 // we want to actually embed are all named the same.
 type keyManagerRepository struct{ keymanager.Repository }
 type nodeAttestorRepository struct{ nodeattestor.Repository }
