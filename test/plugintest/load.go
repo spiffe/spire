@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Loads a built-in plugin for testing with the given options. The plugin
+// Load loads a built-in plugin for testing with the given options. The plugin
 // facade can be nil. If one of the Configure* options is given, the plugin
 // will also be configured. The plugin will unload when the test is over. The
 // returned closer may be called to unload the built-in before then, but can

@@ -110,9 +110,18 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		},
 		PluginConfigs: pluginConfigs,
 		HostServices: []catalog.HostServiceServer{
-			{ServiceServer: identityproviderv0.IdentityProviderServiceServer(config.IdentityProvider), LegacyType: "IdentityProvider"},
-			{ServiceServer: agentstorev0.AgentStoreServiceServer(config.AgentStore), LegacyType: "AgentStore"},
-			{ServiceServer: metricsv0.MetricsServiceServiceServer(config.MetricsService), LegacyType: "MetricsService"},
+			{
+				ServiceServer: identityproviderv0.IdentityProviderServiceServer(config.IdentityProvider),
+				LegacyType:    "IdentityProvider",
+			},
+			{
+				ServiceServer: agentstorev0.AgentStoreServiceServer(config.AgentStore),
+				LegacyType:    "AgentStore",
+			},
+			{
+				ServiceServer: metricsv0.MetricsServiceServiceServer(config.MetricsService),
+				LegacyType:    "MetricsService",
+			},
 		},
 	}, repo)
 	if err != nil {
