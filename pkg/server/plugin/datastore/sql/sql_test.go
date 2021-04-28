@@ -1387,7 +1387,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	s.T().Run("no selectors exist", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{}
 		resp := s.listNodeSelectors(req)
-		s.Assert().Empty(resp.Selectors)
+		assertSelectorsEqual(t, nil, resp.Selectors)
 	})
 
 	const numNonExpiredAttNodes = 3
@@ -1444,7 +1444,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	s.T().Run("list all", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{}
 		resp := s.listNodeSelectors(req)
-		s.Require().Len(resp.Selectors, len(selectorMap))
+		assertSelectorsEqual(t, selectorMap, resp.Selectors)
 	})
 
 	s.T().Run("list unexpired", func(t *testing.T) {
@@ -1453,14 +1453,8 @@ func (s *PluginSuite) TestListNodeSelectors() {
 				Seconds: now.Unix(),
 			},
 		}
-
 		resp := s.listNodeSelectors(req)
-		s.Assert().Len(resp.Selectors, len(nonExpiredSelectorsMap))
-		for spiffeID, selectors := range resp.Selectors {
-			expectedSelectors, ok := nonExpiredSelectorsMap[spiffeID]
-			s.Assert().True(ok)
-			s.AssertProtoListEqual(expectedSelectors, selectors)
-		}
+		assertSelectorsEqual(t, nonExpiredSelectorsMap, resp.Selectors)
 	})
 }
 
@@ -1481,24 +1475,11 @@ func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
 	insertSelector(6, "spiffe://example.org/node3", "F", "f")
 
 	resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
-
-	type selector struct {
-		Type  string
-		Value string
-	}
-
-	actual := map[string][]selector{}
-	for spiffeID, selectors := range resp.Selectors {
-		for _, s := range selectors {
-			actual[spiffeID] = append(actual[spiffeID], selector{Type: s.Type, Value: s.Value})
-		}
-	}
-
-	s.Equal(map[string][]selector{
+	assertSelectorsEqual(s.T(), map[string][]*common.Selector{
 		"spiffe://example.org/node1": {{Type: "D", Value: "d"}},
 		"spiffe://example.org/node2": {{Type: "B", Value: "b"}, {Type: "E", Value: "e"}},
 		"spiffe://example.org/node3": {{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}},
-	}, actual)
+	}, resp.Selectors)
 }
 
 func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
@@ -9011,4 +8992,25 @@ func dropTablesInRows(t *testing.T, db *sql.DB, rows *sql.Rows) {
 
 func cloneAttestedNode(aNode *common.AttestedNode) *common.AttestedNode {
 	return proto.Clone(aNode).(*common.AttestedNode)
+}
+
+// assertSelectorsEqual compares two selector maps for equality
+// TODO: replace this with calls to Equal when we replace common.Selector with
+// a normal struct that doesn't require special comparison (i.e. not a
+// protobuf)
+func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector) {
+	type selector struct {
+		Type  string
+		Value string
+	}
+	convert := func(in map[string][]*common.Selector) map[string][]selector {
+		out := make(map[string][]selector)
+		for spiffeID, selectors := range in {
+			for _, s := range selectors {
+				out[spiffeID] = append(out[spiffeID], selector{Type: s.Type, Value: s.Value})
+			}
+		}
+		return out
+	}
+	assert.Equal(t, convert(expected), convert(actual))
 }
