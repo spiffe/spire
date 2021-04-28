@@ -1621,7 +1621,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		case spiffeID != currentID:
 			resp.Selectors[currentID] = append(resp.Selectors[currentID], selectors...)
 			currentID = spiffeID
-			selectors = nil
+			selectors = selectors[:0]
 		}
 		selectors = append(selectors, selector)
 	}
