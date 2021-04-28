@@ -10,6 +10,8 @@ services:
       - PG_REP_PASSWORD=pass
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
   postgres-9-readonly:
@@ -24,6 +26,8 @@ services:
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "10000:5432"
   postgres-10-readwrite:
@@ -36,6 +40,8 @@ services:
       - PG_REP_PASSWORD=pass
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
   postgres-10-readonly:
@@ -50,6 +56,8 @@ services:
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "10000:5432"
   postgres-11-readwrite:
@@ -76,6 +84,8 @@ services:
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "10000:5432"
   postgres-12-readwrite:
@@ -88,6 +98,8 @@ services:
       - PG_REP_PASSWORD=pass
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
   postgres-12-readonly:
@@ -102,5 +114,7 @@ services:
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
       - ./replica/v12/docker-entrypoint.sh:/docker-entrypoint.sh
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "10000:5432"
