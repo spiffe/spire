@@ -1607,7 +1607,9 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 	}
 	defer rows.Close()
 
-	resp := new(datastore.ListNodeSelectorsResponse)
+	resp := &datastore.ListNodeSelectorsResponse{
+		Selectors: make(map[string][]*common.Selector),
+	}
 
 	var currentID string
 	selectors := make([]*common.Selector, 0, 64)
@@ -1617,10 +1619,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		case currentID == "":
 			currentID = spiffeID
 		case spiffeID != currentID:
-			resp.Selectors = append(resp.Selectors, &datastore.NodeSelectors{
-				SpiffeId:  currentID,
-				Selectors: selectors,
-			})
+			resp.Selectors[currentID] = append(resp.Selectors[currentID], selectors...)
 			currentID = spiffeID
 			selectors = nil
 		}
@@ -1660,6 +1659,11 @@ func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query
 		args = append(args, time.Unix(req.ValidAt.Seconds, 0))
 	}
 
+	// This ordering is required to make listNodeSelectors efficient but not
+	// needed for correctness. Since the query can be wholly satisfied using
+	// the node_resolver_map_entries unique index over (spiffe_id,type,value)
+	// it is unlikely to impact database performance as that index is already
+	// ordered primarily by spiffe_id.
 	sb.WriteString(" ORDER BY nre.spiffe_id ASC")
 
 	return sb.String(), args

@@ -1456,26 +1456,29 @@ func (s *PluginSuite) TestListNodeSelectors() {
 
 		resp := s.listNodeSelectors(req)
 		s.Assert().Len(resp.Selectors, len(nonExpiredSelectorsMap))
-		for _, n := range resp.Selectors {
-			expectedSelectors, ok := nonExpiredSelectorsMap[n.SpiffeId]
+		for spiffeID, selectors := range resp.Selectors {
+			expectedSelectors, ok := nonExpiredSelectorsMap[spiffeID]
 			s.Assert().True(ok)
-			s.AssertProtoListEqual(expectedSelectors, n.Selectors)
+			s.AssertProtoListEqual(expectedSelectors, selectors)
 		}
 	})
 }
 
 func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
-	insertSelector := func(spiffeID, selectorType, selectorValue string) {
-		query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(spiffe_id, type, value) VALUES (?, ?, ?)")
-		_, err := s.ds.db.raw.Exec(query, spiffeID, selectorType, selectorValue)
+	insertSelector := func(id int, spiffeID, selectorType, selectorValue string) {
+		query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(id, spiffe_id, type, value) VALUES (?, ?, ?, ?)")
+		_, err := s.ds.db.raw.Exec(query, id, spiffeID, selectorType, selectorValue)
 		s.Require().NoError(err)
 	}
-	insertSelector("spiffe://example.org/node3", "A", "a")
-	insertSelector("spiffe://example.org/node2", "B", "b")
-	insertSelector("spiffe://example.org/node3", "C", "c")
-	insertSelector("spiffe://example.org/node1", "D", "d")
-	insertSelector("spiffe://example.org/node2", "E", "e")
-	insertSelector("spiffe://example.org/node3", "F", "f")
+
+	// Insert selectors out of order in respect to the SPIFFE ID so
+	// that we can assert that the datastore aggregates the results correctly.
+	insertSelector(1, "spiffe://example.org/node3", "A", "a")
+	insertSelector(2, "spiffe://example.org/node2", "B", "b")
+	insertSelector(3, "spiffe://example.org/node3", "C", "c")
+	insertSelector(4, "spiffe://example.org/node1", "D", "d")
+	insertSelector(5, "spiffe://example.org/node2", "E", "e")
+	insertSelector(6, "spiffe://example.org/node3", "F", "f")
 
 	resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
 
@@ -1485,9 +1488,9 @@ func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
 	}
 
 	actual := map[string][]selector{}
-	for _, agent := range resp.Selectors {
-		for _, s := range agent.Selectors {
-			actual[agent.SpiffeId] = append(actual[agent.SpiffeId], selector{Type: s.Type, Value: s.Value})
+	for spiffeID, selectors := range resp.Selectors {
+		for _, s := range selectors {
+			actual[spiffeID] = append(actual[spiffeID], selector{Type: s.Type, Value: s.Value})
 		}
 	}
 
