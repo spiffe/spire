@@ -145,14 +145,14 @@ func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
 	}
 
 	agents := make([]Agent, 0, len(resp.Selectors))
-	for _, selector := range resp.Selectors {
-		agentID, err := spiffeid.FromString(selector.SpiffeId)
+	for spiffeID, selectors := range resp.Selectors {
+		agentID, err := spiffeid.FromString(spiffeID)
 		if err != nil {
 			return nil, err
 		}
 		agents = append(agents, Agent{
 			ID:        agentID,
-			Selectors: api.ProtoFromSelectors(selector.Selectors),
+			Selectors: api.ProtoFromSelectors(selectors),
 		})
 	}
 	return agents, nil
