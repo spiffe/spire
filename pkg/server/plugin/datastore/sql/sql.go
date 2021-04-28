@@ -1033,6 +1033,13 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttest
 			return resp, nil
 		}
 
+		if resp.Pagination.Token == req.Pagination.Token {
+			// We've filtered out all of the results and are on the last page.
+			// Clear the pagination token and return the empty results.
+			resp.Pagination.Token = ""
+			return resp, nil
+		}
+
 		req.Pagination = resp.Pagination
 	}
 }
@@ -2027,6 +2034,13 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.List
 
 		resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
 		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
+			return resp, nil
+		}
+
+		if resp.Pagination.Token == req.Pagination.Token {
+			// We've filtered out all of the results and are on the last page.
+			// Clear the pagination token and return the empty results.
+			resp.Pagination.Token = ""
 			return resp, nil
 		}
 

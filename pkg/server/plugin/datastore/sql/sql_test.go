@@ -739,6 +739,12 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		CertSerialNumber: "",
 		CertNotAfter:     now.Add(-time.Hour).Unix(),
 	}
+	aNode6 := &common.AttestedNode{
+		SpiffeId:            "node6",
+		AttestationDataType: "t6",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        now.Add(time.Hour).Unix(),
+	}
 
 	_, err := s.ds.CreateAttestedNode(ctx, aNode1)
 	s.Require().NoError(err)
@@ -755,32 +761,51 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 	_, err = s.ds.CreateAttestedNode(ctx, aNode5)
 	s.Require().NoError(err)
 
-	aNode1WithSelectors := cloneAttestedNode(aNode1)
-	aNode1WithSelectors.Selectors = []*common.Selector{
-		{Type: "a", Value: "1"},
-		{Type: "b", Value: "2"},
+	_, err = s.ds.CreateAttestedNode(ctx, aNode6)
+	s.Require().NoError(err)
+
+	selectorsAB := []*common.Selector{
+		{Type: "A", Value: "1"},
+		{Type: "B", Value: "2"},
 	}
+
+	selectorsB := []*common.Selector{
+		{Type: "B", Value: "2"},
+	}
+
+	selectorsAC := []*common.Selector{
+		{Type: "A", Value: "1"},
+		{Type: "C", Value: "3"},
+	}
+
+	selectorsBC := []*common.Selector{
+		{Type: "B", Value: "2"},
+		{Type: "C", Value: "3"},
+	}
+
+	selectorsC := []*common.Selector{
+		{Type: "C", Value: "3"},
+	}
+
+	aNode1WithSelectors := cloneAttestedNode(aNode1)
+	aNode1WithSelectors.Selectors = selectorsAB
 	s.setNodeSelectors("node1", aNode1WithSelectors.Selectors)
 
 	aNode2WithSelectors := cloneAttestedNode(aNode2)
-	aNode2WithSelectors.Selectors = []*common.Selector{
-		{Type: "b", Value: "2"},
-	}
+	aNode2WithSelectors.Selectors = selectorsB
 	s.setNodeSelectors("node2", aNode2WithSelectors.Selectors)
 
 	aNode3WithSelectors := cloneAttestedNode(aNode3)
-	aNode3WithSelectors.Selectors = []*common.Selector{
-		{Type: "a", Value: "1"},
-		{Type: "c", Value: "3"},
-	}
+	aNode3WithSelectors.Selectors = selectorsAC
 	s.setNodeSelectors("node3", aNode3WithSelectors.Selectors)
 
 	aNode4WithSelectors := cloneAttestedNode(aNode4)
-	aNode4WithSelectors.Selectors = []*common.Selector{
-		{Type: "a", Value: "1"},
-		{Type: "b", Value: "2"},
-	}
+	aNode4WithSelectors.Selectors = selectorsAB
 	s.setNodeSelectors("node4", aNode4WithSelectors.Selectors)
+
+	aNode6WithSelectors := cloneAttestedNode(aNode6)
+	aNode6WithSelectors.Selectors = selectorsBC
+	s.setNodeSelectors("node6", aNode6WithSelectors.Selectors)
 
 	tests := []struct {
 		name               string
@@ -792,7 +817,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 		{
 			name:         "fetch without pagination",
 			req:          &datastore.ListAttestedNodesRequest{},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode4, aNode5},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode4, aNode5, aNode6},
 		},
 		{
 			name: "pagination without token",
@@ -830,7 +855,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			},
 			expectedList: []*common.AttestedNode{
 				aNode1WithSelectors, aNode2WithSelectors, aNode3WithSelectors,
-				aNode4WithSelectors, aNode5,
+				aNode4WithSelectors, aNode5, aNode6WithSelectors,
 			},
 		},
 		{
@@ -878,9 +903,9 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 3,
 				},
 			},
-			expectedList: []*common.AttestedNode{aNode4, aNode5},
+			expectedList: []*common.AttestedNode{aNode4, aNode5, aNode6},
 			expectedPagination: &datastore.Pagination{
-				Token:    "5",
+				Token:    "6",
 				PageSize: 3,
 			},
 		},
@@ -889,7 +914,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			expectedList: []*common.AttestedNode{},
 			req: &datastore.ListAttestedNodesRequest{
 				Pagination: &datastore.Pagination{
-					Token:    "5",
+					Token:    "6",
 					PageSize: 3,
 				},
 			},
@@ -1001,10 +1026,10 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				},
 				ByBanned: &wrapperspb.BoolValue{Value: false},
 			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode6},
 			expectedPagination: &datastore.Pagination{
 				PageSize: 4,
-				Token:    "3",
+				Token:    "6",
 			},
 		},
 		{
@@ -1012,7 +1037,7 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			req: &datastore.ListAttestedNodesRequest{
 				ByBanned: &wrapperspb.BoolValue{Value: false},
 			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
+			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode6},
 		},
 		{
 			name: "banned",
@@ -1037,11 +1062,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Exact,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Exact,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode4WithSelectors},
@@ -1058,11 +1080,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 2,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Exact,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Exact,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{},
@@ -1075,11 +1094,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "by selector match exact no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Exact,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Exact,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode4WithSelectors},
@@ -1092,11 +1108,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 					PageSize: 4,
 				},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Subset,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Subset,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode2WithSelectors, aNode4WithSelectors},
@@ -1109,14 +1122,65 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 			name: "by selector match subset no pagination",
 			req: &datastore.ListAttestedNodesRequest{
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Subset,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Subset,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode2WithSelectors, aNode4WithSelectors},
+		},
+		{
+			name: "by selector match exact filtered result in first page",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Match:     datastore.Exact,
+					Selectors: selectorsB,
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode2WithSelectors},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "2",
+			},
+		},
+		{
+			name: "by selector match exact filtered result in last page",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Match:     datastore.Exact,
+					Selectors: selectorsBC,
+				},
+			},
+			expectedList: []*common.AttestedNode{aNode6WithSelectors},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "6",
+			},
+		},
+		{
+			name: "by selector match exact no result after filtering",
+			req: &datastore.ListAttestedNodesRequest{
+				Pagination: &datastore.Pagination{
+					Token:    "",
+					PageSize: 2,
+				},
+				BySelectorMatch: &datastore.BySelectors{
+					Match:     datastore.Exact,
+					Selectors: selectorsC,
+				},
+			},
+			expectedList: []*common.AttestedNode{},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+				Token:    "",
+			},
 		},
 		{
 			name: "multiple filters",
@@ -1128,11 +1192,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByAttestationType: "t1",
 				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Exact,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Exact,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1WithSelectors},
@@ -1147,11 +1208,8 @@ func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
 				ByAttestationType: "t1",
 				ByBanned:          &wrapperspb.BoolValue{Value: false},
 				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.Exact,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Match:     datastore.Exact,
+					Selectors: selectorsAB,
 				},
 			},
 			expectedList: []*common.AttestedNode{aNode1WithSelectors},
@@ -1659,44 +1717,61 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
-	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
-		},
-		SpiffeId: "spiffe://example.org/foo",
-		ParentId: "spiffe://example.org/bar",
-		Ttl:      1,
-	})
-
-	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type3", Value: "Value3"},
-			{Type: "Type4", Value: "Value4"},
-			{Type: "Type5", Value: "Value5"},
-		},
-		SpiffeId: "spiffe://example.org/baz",
-		ParentId: "spiffe://example.org/bat",
-		Ttl:      2,
-	})
-
-	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
-		},
-		SpiffeId: "spiffe://example.org/tez",
-		ParentId: "spiffe://example.org/taz",
-		Ttl:      2,
-	})
-
-	selectors := []*common.Selector{
+	selectors123 := []*common.Selector{
 		{Type: "Type1", Value: "Value1"},
 		{Type: "Type2", Value: "Value2"},
 		{Type: "Type3", Value: "Value3"},
 	}
+
+	selectors345 := []*common.Selector{
+		{Type: "Type3", Value: "Value3"},
+		{Type: "Type4", Value: "Value4"},
+		{Type: "Type5", Value: "Value5"},
+	}
+
+	selectors45 := []*common.Selector{
+		{Type: "Type4", Value: "Value4"},
+		{Type: "Type5", Value: "Value5"},
+	}
+
+	selectors56 := []*common.Selector{
+		{Type: "Type5", Value: "Value5"},
+		{Type: "Type6", Value: "Value6"},
+	}
+
+	selectors7 := []*common.Selector{
+		{Type: "Type7", Value: "Value7"},
+	}
+
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: selectors123,
+		SpiffeId:  "spiffe://example.org/1",
+		ParentId:  "spiffe://example.org/spire/server",
+	})
+
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: selectors345,
+		SpiffeId:  "spiffe://example.org/2",
+		ParentId:  "spiffe://example.org/spire/server",
+	})
+
+	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: selectors123,
+		SpiffeId:  "spiffe://example.org/3",
+		ParentId:  "spiffe://example.org/spire/server",
+	})
+
+	entry4 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: selectors45,
+		SpiffeId:  "spiffe://example.org/4",
+		ParentId:  "spiffe://example.org/spire/server",
+	})
+
+	entry5 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: selectors56,
+		SpiffeId:  "spiffe://example.org/5",
+		ParentId:  "spiffe://example.org/spire/server",
+	})
 
 	tests := []ListRegistrationReq{
 		{
@@ -1724,7 +1799,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				Token:    "0",
 				PageSize: 2,
 			},
-			expectedList: []*common.RegistrationEntry{entry2, entry1},
+			expectedList: []*common.RegistrationEntry{entry1, entry2},
 			expectedPagination: &datastore.Pagination{
 				Token:    "2",
 				PageSize: 2,
@@ -1736,16 +1811,28 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				Token:    "2",
 				PageSize: 2,
 			},
-			expectedList: []*common.RegistrationEntry{entry3},
+			expectedList: []*common.RegistrationEntry{entry3, entry4},
 			expectedPagination: &datastore.Pagination{
-				Token:    "3",
+				Token:    "4",
 				PageSize: 2,
 			},
 		},
 		{
-			name: "get_all_entries_third_page_no_results",
+			name: "get_all_entries_third_page",
 			pagination: &datastore.Pagination{
-				Token:    "3",
+				Token:    "4",
+				PageSize: 2,
+			},
+			expectedList: []*common.RegistrationEntry{entry5},
+			expectedPagination: &datastore.Pagination{
+				Token:    "5",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_all_entries_fourth_page_no_results",
+			pagination: &datastore.Pagination{
+				Token:    "5",
 				PageSize: 2,
 			},
 			expectedPagination: &datastore.Pagination{
@@ -1755,10 +1842,10 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 		{
 			name: "get_entries_by_selector_get_only_page_first_page",
 			pagination: &datastore.Pagination{
-				Token:    "0",
+				Token:    "",
 				PageSize: 2,
 			},
-			selectors:    selectors,
+			selectors:    selectors123,
 			expectedList: []*common.RegistrationEntry{entry1, entry3},
 			expectedPagination: &datastore.Pagination{
 				Token:    "3",
@@ -1771,7 +1858,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				Token:    "3",
 				PageSize: 2,
 			},
-			selectors: selectors,
+			selectors: selectors123,
 			expectedPagination: &datastore.Pagination{
 				PageSize: 2,
 			},
@@ -1779,10 +1866,10 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 		{
 			name: "get_entries_by_selector_first_page",
 			pagination: &datastore.Pagination{
-				Token:    "0",
+				Token:    "",
 				PageSize: 1,
 			},
-			selectors:    selectors,
+			selectors:    selectors123,
 			expectedList: []*common.RegistrationEntry{entry1},
 			expectedPagination: &datastore.Pagination{
 				Token:    "1",
@@ -1795,7 +1882,7 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				Token:    "1",
 				PageSize: 1,
 			},
-			selectors:    selectors,
+			selectors:    selectors123,
 			expectedList: []*common.RegistrationEntry{entry3},
 			expectedPagination: &datastore.Pagination{
 				Token:    "3",
@@ -1808,9 +1895,47 @@ func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
 				Token:    "3",
 				PageSize: 1,
 			},
-			selectors: selectors,
+			selectors: selectors123,
 			expectedPagination: &datastore.Pagination{
 				PageSize: 1,
+			},
+		},
+		{
+			name: "get_entries_by_selector_filtered_with_one_result_in_first_page",
+			pagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+			selectors:    selectors345,
+			expectedList: []*common.RegistrationEntry{entry2},
+			expectedPagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_filtered_with_one_result_in_last_page",
+			pagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+			selectors:    selectors56,
+			expectedList: []*common.RegistrationEntry{entry5},
+			expectedPagination: &datastore.Pagination{
+				Token:    "5",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "get_entries_by_selector_filtered_with_no_results",
+			pagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+			selectors:    selectors7,
+			expectedList: []*common.RegistrationEntry{},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
 			},
 		},
 	}
