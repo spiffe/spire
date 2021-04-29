@@ -32,13 +32,13 @@ var (
 	pluginErr = errs.Class("gcp-iit")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *IITAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		nodeattestorv0.PluginServer(p),
+func builtin(p *IITAttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 

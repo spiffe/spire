@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -24,7 +26,7 @@ func TestMSIAttestorPlugin(t *testing.T) {
 type MSIAttestorSuite struct {
 	spiretest.Suite
 
-	attestor nodeattestorv0.Plugin
+	attestor nodeattestorv0.NodeAttestorPluginClient
 
 	expectedResource string
 	token            string
@@ -110,8 +112,8 @@ func (s *MSIAttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *MSIAttestorSuite) newAttestor() {
-	attestor := New()
-	attestor.hooks.fetchMSIToken = func(ctx context.Context, httpClient azure.HTTPClient, resource string) (string, error) {
+	p := New()
+	p.hooks.fetchMSIToken = func(ctx context.Context, httpClient azure.HTTPClient, resource string) (string, error) {
 		if httpClient != http.DefaultClient {
 			return "", errors.New("unexpected http client")
 		}
@@ -121,7 +123,10 @@ func (s *MSIAttestorSuite) newAttestor() {
 		s.T().Logf("RETURNING %v %v", s.token, s.tokenErr)
 		return s.token, s.tokenErr
 	}
-	s.LoadPlugin(builtin(attestor), &s.attestor)
+
+	attestor := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(p), attestor)
+	s.attestor = attestor.NodeAttestorPluginClient
 }
 
 func (s *MSIAttestorSuite) requireFetchError(contains string) {

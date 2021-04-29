@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -128,11 +129,11 @@ func TestV0(t *testing.T) {
 }
 
 func loadV0Plugin(t *testing.T, fake *fakeV0Plugin) nodeattestor.NodeAttestor {
-	server := nodeattestorv0.PluginServer(fake)
+	server := nodeattestorv0.NodeAttestorPluginServer(fake)
 
-	var plugin nodeattestor.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test", server), &plugin)
-	return plugin
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), v0)
+	return v0
 }
 
 type fakeV0Plugin struct {

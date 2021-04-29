@@ -192,7 +192,7 @@ func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundl
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 
-	attestor := nodeattestor.JoinToken(a.c.JoinToken)
+	attestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
 		attestor = a.c.Catalog.GetNodeAttestor()
 	}

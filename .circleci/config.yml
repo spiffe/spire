@@ -42,17 +42,8 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  # Ensure generated protocol buffers are up to date
-  lint-protogen:
-    docker:
-      - image: circleci/golang:<< pipeline.parameters.go-version >>
-    resource_class: << pipeline.parameters.resource-class >>
-    steps:
-      - checkout
-      - run: make protogen-check
-
-  # Ensure generated plugin interface code is up to date
-  lint-plugingen:
+  # Ensure generated code is up to date
+  lint-generate:
     docker:
       - image: circleci/golang:<< pipeline.parameters.go-version >>
     resource_class: << pipeline.parameters.resource-class >>
@@ -61,7 +52,7 @@ jobs:
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
-      - run: make plugingen-check
+      - run: make generate-check
 
   # Run unit tests on Linux
   unit-test-linux:
@@ -189,24 +180,18 @@ workflows:
   all:
     jobs:
       # Unless otherwise specified, all workflows are triggered on all
-      # branches. In contrast, tags do not trigger _any_ worfklows. Therefore,
-      # worfklows with a tag "only" will run both on branch pushes AND tag
+      # branches. In contrast, tags do not trigger _any_ workflows. Therefore,
+      # workflows with a tag "only" will run both on branch pushes AND tag
       # pushes that match.
       #
-      # Some expensive workflows are configured to depend on `lint-plugingen`
+      # Some expensive workflows are configured to depend on `lint-generate`
       # when they don't _actually_ depend on it. The purpose of this
-      # dependency is to save a few bucks in case `lint-plugingen` fails
+      # dependency is to save a few bucks in case `lint-generate` fails
       - cache-go-modules:
           filters:
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
-      - lint-protogen:
-          filters:
-            tags:
-              only: /^v[0-9]+(\.[0-9]+)*$/
-          requires:
-            - cache-go-modules  # Push this job to the same step as its friend
-      - lint-plugingen:
+      - lint-generate:
           filters:
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
@@ -218,20 +203,20 @@ workflows:
               only: /^v[0-9]+(\.[0-9]+)*$/
           requires:
             - cache-go-modules
-            - lint-plugingen
+            - lint-generate
       - build-artifacts-linux:
           filters:
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
           requires:
             - cache-go-modules
-            - lint-plugingen
+            - lint-generate
       - build-docker-images:
           filters:
             tags:
               only: /^v[0-9]+(\.[0-9]+)*$/
           requires:
-            - lint-plugingen
+            - lint-generate
       - integration-test:
           filters:
             tags:

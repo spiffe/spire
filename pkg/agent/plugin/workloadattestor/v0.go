@@ -10,12 +10,11 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin workloadattestorv0.WorkloadAttestor
+	workloadattestorv0.WorkloadAttestorPluginClient
 }
 
-func (v0 V0) Attest(ctx context.Context, pid int) ([]*common.Selector, error) {
-	resp, err := v0.Plugin.Attest(ctx, &workloadattestorv0.AttestRequest{
+func (v0 *V0) Attest(ctx context.Context, pid int) ([]*common.Selector, error) {
+	resp, err := v0.WorkloadAttestorPluginClient.Attest(ctx, &workloadattestorv0.AttestRequest{
 		Pid: int32(pid),
 	})
 	if err != nil {

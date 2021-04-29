@@ -13,12 +13,11 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin keymanagerv0.KeyManager
+	keymanagerv0.KeyManagerPluginClient
 }
 
-func (v0 V0) GenerateKey(ctx context.Context) (crypto.Signer, error) {
-	resp, err := v0.Plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
+func (v0 *V0) GenerateKey(ctx context.Context) (crypto.Signer, error) {
+	resp, err := v0.KeyManagerPluginClient.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
 	if err != nil {
 		return nil, v0.WrapErr(err)
 	}
@@ -35,8 +34,8 @@ func (v0 V0) GenerateKey(ctx context.Context) (crypto.Signer, error) {
 	return ecKey, nil
 }
 
-func (v0 V0) GetKey(ctx context.Context) (crypto.Signer, error) {
-	resp, err := v0.Plugin.FetchPrivateKey(ctx, &keymanagerv0.FetchPrivateKeyRequest{})
+func (v0 *V0) GetKey(ctx context.Context) (crypto.Signer, error) {
+	resp, err := v0.KeyManagerPluginClient.FetchPrivateKey(ctx, &keymanagerv0.FetchPrivateKeyRequest{})
 	if err != nil {
 		return nil, v0.WrapErr(err)
 	}
@@ -53,7 +52,7 @@ func (v0 V0) GetKey(ctx context.Context) (crypto.Signer, error) {
 	return ecKey, nil
 }
 
-func (v0 V0) SetKey(ctx context.Context, key crypto.Signer) error {
+func (v0 *V0) SetKey(ctx context.Context, key crypto.Signer) error {
 	ecKey, ok := key.(*ecdsa.PrivateKey)
 	if !ok {
 		return v0.Error(codes.Internal, "v0 key manager only supports ECDSA keys")
@@ -64,7 +63,7 @@ func (v0 V0) SetKey(ctx context.Context, key crypto.Signer) error {
 		return v0.Errorf(codes.Internal, "failed unexpectedly to marshal private key: %v", err)
 	}
 
-	if _, err := v0.Plugin.StorePrivateKey(context.Background(), &keymanagerv0.StorePrivateKeyRequest{
+	if _, err := v0.KeyManagerPluginClient.StorePrivateKey(context.Background(), &keymanagerv0.StorePrivateKeyRequest{
 		PrivateKey: keyBytes,
 	}); err != nil {
 		return v0.WrapErr(err)

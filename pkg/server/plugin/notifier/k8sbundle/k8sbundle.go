@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -45,13 +46,13 @@ const (
 	defaultConfigMapKey = "bundle.crt"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtIn(New())
 }
 
-func builtIn(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("k8sbundle",
-		notifierv0.PluginServer(p),
+func builtIn(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("k8sbundle",
+		notifierv0.NotifierPluginServer(p),
 	)
 }
 
@@ -70,7 +71,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProvider
+	identityProvider identityproviderv0.IdentityProviderServiceClient
 	cancelWatcher    func()
 
 	hooks struct {
@@ -88,12 +89,8 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(identityproviderv0.HostServiceClient(&p.identityProvider))
-	if err != nil {
-		return err
-	}
-	if !has {
+func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
+	if !broker.BrokerClient(&p.identityProvider) {
 		return k8sErr.New("IdentityProvider host service is required")
 	}
 	return nil
@@ -130,10 +127,6 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndA
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
-	if p.identityProvider == nil {
-		return nil, errors.New("required IdentityProvider host service not available")
-	}
-
 	config := new(pluginConfig)
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
 		return nil, k8sErr.New("unable to decode configuration: %v", err)

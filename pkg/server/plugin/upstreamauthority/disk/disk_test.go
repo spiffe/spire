@@ -12,9 +12,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +44,7 @@ type DiskSuite struct {
 
 	clock     *clock.Mock
 	rawPlugin *Plugin
-	p         upstreamauthorityv0.Plugin
+	p         upstreamauthorityv0.UpstreamAuthorityClient
 }
 
 func (s *DiskSuite) SetupTest() {
@@ -57,7 +59,11 @@ func (s *DiskSuite) SetupTest() {
 	// all the cert and key material for tests on the fly to avoid this problem.
 	p._testOnlyShouldVerify = false
 	s.rawPlugin = p
-	s.LoadPlugin(builtin(p), &s.p)
+
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(s.T(), builtin(p), v0)
+	s.p = v0.UpstreamAuthorityClient
+
 	s.configure()
 }
 

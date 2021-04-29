@@ -34,13 +34,13 @@ var (
 	satError = errs.Class("k8s-sat")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *AttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin("k8s_sat",
-		nodeattestorv0.PluginServer(p),
+func builtin(p *AttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("k8s_sat",
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 

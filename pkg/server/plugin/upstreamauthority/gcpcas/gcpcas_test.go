@@ -14,9 +14,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
@@ -25,9 +24,6 @@ import (
 )
 
 func TestInvalidConfigs(t *testing.T) {
-	p := New()
-	var upplugin upstreamauthorityv0.Plugin
-	spiretest.LoadPlugin(t, builtin(p), &upplugin)
 	// ctx := context.Background()
 	for i, config := range []string{
 		// Missing project_name
@@ -83,9 +79,11 @@ func TestInvalidConfigs(t *testing.T) {
 			label_value = ""
 		    }`,
 	} {
-		_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{Configuration: config})
+		var err error
+		plugintest.Load(t, BuiltIn(), new(upstreamauthority.V0),
+			plugintest.Configure(config),
+			plugintest.CaptureConfigureError(&err))
 		t.Logf("\ntestcase[%d] and err:%+v\n", i, err)
-		require.NotNil(t, err)
 		require.Equal(t, codes.InvalidArgument, status.Code(err))
 	}
 }
@@ -129,24 +127,22 @@ func TestGcpCAS(t *testing.T) {
 		cas := [][]*x509.Certificate{{caX}, {caZ, caY}, {caM}}
 		return &fakeClient{cas, t, &pkeyCAx}, nil
 	}
-	var upplugin upstreamauthorityv0.Plugin
-	spiretest.LoadPlugin(t, builtin(p), &upplugin)
 
-	ctx := context.Background()
-	_, err := p.Configure(ctx, &plugin.ConfigureRequest{Configuration: `
-    root_cert_spec {
-        project_name = "proj1"
-        region_name = "us-central1"
-        label_key = "proj-signer"
-        label_value = "true"
-    }
-    `})
-	require.NoError(t, err)
+	upplugin := new(upstreamauthority.V0)
+	plugintest.Load(t, builtin(p), upplugin, plugintest.Configure(`
+		root_cert_spec {
+			project_name = "proj1"
+			region_name = "us-central1"
+			label_key = "proj-signer"
+			label_value = "true"
+		}
+    `))
 
 	priv := testkey.NewEC384(t)
 	csr, err := commonutil.MakeCSRWithoutURISAN(priv)
 	require.NoError(t, err)
 
+	ctx := context.Background()
 	resp, err := p.mintX509CA(ctx, csr, 30)
 	require.NoError(t, err)
 	require.NotNil(t, resp)

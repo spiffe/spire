@@ -13,6 +13,7 @@ import (
 	pcaapi "cloud.google.com/go/security/privateca/apiv1beta1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -32,7 +33,7 @@ const (
 )
 
 // BuiltIn constructs a catalog Plugin using a new instance of this plugin.
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
@@ -78,7 +79,7 @@ type Plugin struct {
 // These are compile time assertions that the plugin matches the interfaces the
 // catalog requires to provide the plugin with a logger and host service
 // broker as well as the UpstreamAuthority itself.
-var _ catalog.NeedsLogger = (*Plugin)(nil)
+var _ pluginsdk.NeedsLogger = (*Plugin)(nil)
 var _ upstreamauthorityv0.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
@@ -332,8 +333,8 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	}, nil
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName, upstreamauthorityv0.UpstreamAuthorityPluginServer(p))
 }
 
 func getClient(ctx context.Context) (CAClient, error) {

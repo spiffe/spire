@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )
@@ -23,7 +25,7 @@ type AttestorSuite struct {
 	spiretest.Suite
 
 	dir      string
-	attestor nodeattestorv0.Plugin
+	attestor nodeattestorv0.NodeAttestorClient
 }
 
 func (s *AttestorSuite) SetupTest() {
@@ -116,7 +118,9 @@ func (s *AttestorSuite) TestGetPluginInfo() {
 }
 
 func (s *AttestorSuite) newAttestor() {
-	s.LoadPlugin(BuiltIn(), &s.attestor)
+	attestor := new(nodeattestor.V0)
+	plugintest.Load(s.T(), BuiltIn(), attestor)
+	s.attestor = attestor.NodeAttestorPluginClient
 }
 
 func (s *AttestorSuite) configure(config AttestorConfig) {

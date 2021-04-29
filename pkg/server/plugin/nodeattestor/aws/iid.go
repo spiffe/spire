@@ -77,13 +77,13 @@ C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
 -----END CERTIFICATE-----`
 
 // BuiltIn creates a new built-in plugin
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *IIDAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(caws.PluginName,
-		nodeattestorv0.PluginServer(p),
+func builtin(p *IIDAttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(caws.PluginName,
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 

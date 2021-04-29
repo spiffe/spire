@@ -3,7 +3,6 @@ package spiretest
 import (
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
@@ -23,11 +22,6 @@ func (s *Suite) Cleanup(cleanup func()) {
 
 func (s *Suite) TempDir() string {
 	return TempDir(s.T())
-}
-
-func (s *Suite) LoadPlugin(builtin catalog.Plugin, x interface{}, opts ...PluginOption) {
-	s.T().Helper()
-	LoadPlugin(s.T(), builtin, x, opts...)
 }
 
 func (s *Suite) RequireErrorContains(err error, contains string) {

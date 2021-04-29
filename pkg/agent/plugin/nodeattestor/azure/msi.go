@@ -24,12 +24,12 @@ var (
 	msiError = errs.Class("azure-msi")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *MSIAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
+func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName, nodeattestorv0.NodeAttestorPluginServer(p))
 }
 
 type MSIAttestorConfig struct {
