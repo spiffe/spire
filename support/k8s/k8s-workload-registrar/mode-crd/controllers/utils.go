@@ -26,12 +26,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, webhookPort int) (ctrl.Manager, error) {
@@ -53,23 +50,6 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	}
 
 	return mgr, nil
-}
-
-// setOwnerRef sets the owner object as owner of a new SPIFFE ID resource locally
-func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme *runtime.Scheme) error {
-	err := controllerutil.SetControllerReference(owner, spiffeID, scheme)
-	if err != nil {
-		return err
-	}
-
-	// Make owner reference non-blocking, so object can be deleted if registrar is down
-	ownerRef := metav1.GetControllerOfNoCopy(spiffeID)
-	if ownerRef == nil {
-		return err
-	}
-	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
-
-	return nil
 }
 
 // deleteRegistrationEntry deletes an entry on the SPIRE Server

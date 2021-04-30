@@ -26,8 +26,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
@@ -123,7 +125,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 			},
 		},
 	}
-	err = setOwnerRef(pod, spiffeID, r.c.Scheme)
+	err = r.setOwnerRef(pod, spiffeID)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -206,4 +208,21 @@ func (r *PodReconciler) nodeNameToUID(ctx context.Context, nodeName string) (typ
 		return "", err
 	}
 	return node.UID, nil
+}
+
+// setOwnerRef sets the pod as owner of a new SPIFFE ID resource locally
+func (r *PodReconciler) setOwnerRef(pod *corev1.Pod, spiffeID *spiffeidv1beta1.SpiffeID) error {
+	err := controllerutil.SetControllerReference(pod, spiffeID, r.c.Scheme)
+	if err != nil {
+		return err
+	}
+
+	// Make owner reference non-blocking, so object can be deleted if registrar is down
+	ownerRef := metav1.GetControllerOfNoCopy(spiffeID)
+	if ownerRef == nil {
+		return err
+	}
+	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
+
+	return nil
 }
