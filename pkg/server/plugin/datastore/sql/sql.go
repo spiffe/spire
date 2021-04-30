@@ -111,36 +111,36 @@ func (ds *Plugin) CreateBundle(ctx context.Context, b *common.Bundle) (bundle *c
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (ds *Plugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
+func (ds *Plugin) UpdateBundle(ctx context.Context, b *common.Bundle, mask *common.BundleMask) (bundle *common.Bundle, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateBundle(tx, req)
+		bundle, err = updateBundle(tx, b, mask)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
-func (ds *Plugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+func (ds *Plugin) SetBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = setBundle(tx, req)
+		bundle, err = setBundle(tx, b)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
-func (ds *Plugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
+func (ds *Plugin) AppendBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = appendBundle(tx, req)
+		bundle, err = appendBundle(tx, b)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
@@ -188,15 +188,15 @@ func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesReq
 }
 
 // PruneBundle removes expired certs and keys from a bundle
-func (ds *Plugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
+func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (changed bool, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneBundle(tx, req, ds.log)
+		changed, err = pruneBundle(tx, trustDomainID, expiresBefore, ds.log)
 		return err
 	}); err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return resp, nil
+	return changed, nil
 }
 
 // CreateAttestedNode stores the given attested node
@@ -250,15 +250,14 @@ func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 }
 
 // UpdateAttestedNode updates the given node's cert serial and expiration.
-func (ds *Plugin) UpdateAttestedNode(ctx context.Context,
-	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
+func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode, mask *common.AttestedNodeMask) (node *common.AttestedNode, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateAttestedNode(tx, req)
+		node, err = updateAttestedNode(tx, n, mask)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return node, nil
 }
 
 // DeleteAttestedNode deletes the given attested node
@@ -350,15 +349,14 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
-func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context,
-	req *datastore.UpdateRegistrationEntryRequest) (resp *datastore.UpdateRegistrationEntryResponse, err error) {
+func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (entry *common.RegistrationEntry, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateRegistrationEntry(tx, req)
+		entry, err = updateRegistrationEntry(tx, e, mask)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return entry, nil
 }
 
 // DeleteRegistrationEntry deletes the given registration
@@ -375,14 +373,14 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
-func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
+func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneRegistrationEntries(tx, req)
+		err = pruneRegistrationEntries(tx, expiresBefore)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -682,8 +680,7 @@ func createBundle(tx *gorm.DB, bundle *common.Bundle) (*common.Bundle, error) {
 	return bundle, nil
 }
 
-func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
-	newBundle := req.Bundle
+func updateBundle(tx *gorm.DB, newBundle *common.Bundle, mask *common.BundleMask) (*common.Bundle, error) {
 	newModel, err := bundleToModel(newBundle)
 	if err != nil {
 		return nil, err
@@ -694,7 +691,7 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, sqlError.Wrap(err)
 	}
 
-	model.Data, newBundle, err = applyBundleMask(model, newBundle, req.InputMask)
+	model.Data, newBundle, err = applyBundleMask(model, newBundle, mask)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -703,9 +700,7 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.UpdateBundleResponse{
-		Bundle: newBundle,
-	}, nil
+	return newBundle, nil
 }
 
 func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.BundleMask) ([]byte, *common.Bundle, error) {
@@ -738,8 +733,8 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 	return newModel.Data, bundle, nil
 }
 
-func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
-	newModel, err := bundleToModel(req.Bundle)
+func setBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
+	newModel, err := bundleToModel(b)
 	if err != nil {
 		return nil, err
 	}
@@ -748,28 +743,24 @@ func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBund
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		bundle, err := createBundle(tx, req.Bundle)
+		bundle, err := createBundle(tx, b)
 		if err != nil {
 			return nil, err
 		}
-		return &datastore.SetBundleResponse{
-			Bundle: bundle,
-		}, nil
+		return bundle, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
 	}
 
-	resp, err := updateBundle(tx, &datastore.UpdateBundleRequest{Bundle: req.Bundle})
+	bundle, err := updateBundle(tx, b, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &datastore.SetBundleResponse{
-		Bundle: resp.Bundle,
-	}, nil
+	return bundle, nil
 }
 
-func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
-	newModel, err := bundleToModel(req.Bundle)
+func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
+	newModel, err := bundleToModel(b)
 	if err != nil {
 		return nil, err
 	}
@@ -778,13 +769,11 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		bundle, err := createBundle(tx, req.Bundle)
+		bundle, err := createBundle(tx, b)
 		if err != nil {
 			return nil, err
 		}
-		return &datastore.AppendBundleResponse{
-			Bundle: bundle,
-		}, nil
+		return bundle, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
 	}
@@ -795,7 +784,7 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 		return nil, err
 	}
 
-	bundle, changed := bundleutil.MergeBundles(bundle, req.Bundle)
+	bundle, changed := bundleutil.MergeBundles(bundle, b)
 	if changed {
 		newModel, err := bundleToModel(bundle)
 		if err != nil {
@@ -807,9 +796,7 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 		}
 	}
 
-	return &datastore.AppendBundleResponse{
-		Bundle: bundle,
-	}, nil
+	return bundle, nil
 }
 
 func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) error {
@@ -940,35 +927,33 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	return resp, nil
 }
 
-func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.FieldLogger) (*datastore.PruneBundleResponse, error) {
+func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus.FieldLogger) (bool, error) {
 	// Get current bundle
-	currentBundle, err := fetchBundle(tx, req.TrustDomainId)
+	currentBundle, err := fetchBundle(tx, trustDomainID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch current bundle: %v", err)
+		return false, fmt.Errorf("unable to fetch current bundle: %v", err)
 	}
 
 	if currentBundle == nil {
 		// No bundle to prune
-		return &datastore.PruneBundleResponse{}, nil
+		return false, nil
 	}
 
 	// Prune
-	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, time.Unix(req.ExpiresBefore, 0), log)
+	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, expiry, log)
 	if err != nil {
-		return nil, fmt.Errorf("prune failed: %v", err)
+		return false, fmt.Errorf("prune failed: %v", err)
 	}
 
 	// Update only if bundle was modified
 	if changed {
-		_, err := updateBundle(tx, &datastore.UpdateBundleRequest{
-			Bundle: newBundle,
-		})
+		_, err := updateBundle(tx, newBundle, nil)
 		if err != nil {
-			return nil, fmt.Errorf("unable to write new bundle: %v", err)
+			return false, fmt.Errorf("unable to write new bundle: %v", err)
 		}
 	}
 
-	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
+	return changed, nil
 }
 
 func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
@@ -1487,37 +1472,35 @@ FROM attested_node_entries N
 	return builder.String(), args, nil
 }
 
-func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
+func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.AttestedNodeMask) (*common.AttestedNode, error) {
 	var model AttestedNode
-	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
+	if err := tx.Find(&model, "spiffe_id = ?", n.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	if req.InputMask == nil {
-		req.InputMask = protoutil.AllTrueCommonAgentMask
+	if mask == nil {
+		mask = protoutil.AllTrueCommonAgentMask
 	}
 
 	updates := make(map[string]interface{})
-	if req.InputMask.CertNotAfter {
-		updates["expires_at"] = time.Unix(req.CertNotAfter, 0)
+	if mask.CertNotAfter {
+		updates["expires_at"] = time.Unix(n.CertNotAfter, 0)
 	}
-	if req.InputMask.CertSerialNumber {
-		updates["serial_number"] = req.CertSerialNumber
+	if mask.CertSerialNumber {
+		updates["serial_number"] = n.CertSerialNumber
 	}
-	if req.InputMask.NewCertNotAfter {
-		updates["new_expires_at"] = nullableUnixTimeToDBTime(req.NewCertNotAfter)
+	if mask.NewCertNotAfter {
+		updates["new_expires_at"] = nullableUnixTimeToDBTime(n.NewCertNotAfter)
 	}
-	if req.InputMask.NewCertSerialNumber {
-		updates["new_serial_number"] = req.NewCertSerialNumber
+	if mask.NewCertSerialNumber {
+		updates["new_serial_number"] = n.NewCertSerialNumber
 	}
 
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.UpdateAttestedNodeResponse{
-		Node: modelToAttestedNode(model),
-	}, nil
+	return modelToAttestedNode(model), nil
 }
 
 func deleteAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
@@ -2917,25 +2900,24 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 	return entryTx, nil
 }
 
-func updateRegistrationEntry(tx *gorm.DB,
-	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-	if err := validateRegistrationEntryForUpdate(req.Entry, req.Mask); err != nil {
+func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
+	if err := validateRegistrationEntryForUpdate(e, mask); err != nil {
 		return nil, err
 	}
 
 	// Get the existing entry
 	entry := RegisteredEntry{}
-	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
+	if err := tx.Find(&entry, "entry_id = ?", e.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
-	if req.Mask == nil || req.Mask.Selectors {
+	if mask == nil || mask.Selectors {
 		// Delete existing selectors - we will write new ones
 		if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 			return nil, sqlError.Wrap(err)
 		}
 
 		selectors := []Selector{}
-		for _, s := range req.Entry.Selectors {
+		for _, s := range e.Selectors {
 			selector := Selector{
 				Type:  s.Type,
 				Value: s.Value,
@@ -2946,14 +2928,14 @@ func updateRegistrationEntry(tx *gorm.DB,
 		entry.Selectors = selectors
 	}
 
-	if req.Mask == nil || req.Mask.DnsNames {
+	if mask == nil || mask.DnsNames {
 		// Delete existing DNSs - we will write new ones
 		if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 			return nil, sqlError.Wrap(err)
 		}
 
 		dnsList := []DNSName{}
-		for _, d := range req.Entry.DnsNames {
+		for _, d := range e.DnsNames {
 			dns := DNSName{
 				Value: d,
 			}
@@ -2963,23 +2945,23 @@ func updateRegistrationEntry(tx *gorm.DB,
 		entry.DNSList = dnsList
 	}
 
-	if req.Mask == nil || req.Mask.SpiffeId {
-		entry.SpiffeID = req.Entry.SpiffeId
+	if mask == nil || mask.SpiffeId {
+		entry.SpiffeID = e.SpiffeId
 	}
-	if req.Mask == nil || req.Mask.ParentId {
-		entry.ParentID = req.Entry.ParentId
+	if mask == nil || mask.ParentId {
+		entry.ParentID = e.ParentId
 	}
-	if req.Mask == nil || req.Mask.Ttl {
-		entry.TTL = req.Entry.Ttl
+	if mask == nil || mask.Ttl {
+		entry.TTL = e.Ttl
 	}
-	if req.Mask == nil || req.Mask.Admin {
-		entry.Admin = req.Entry.Admin
+	if mask == nil || mask.Admin {
+		entry.Admin = e.Admin
 	}
-	if req.Mask == nil || req.Mask.Downstream {
-		entry.Downstream = req.Entry.Downstream
+	if mask == nil || mask.Downstream {
+		entry.Downstream = e.Downstream
 	}
-	if req.Mask == nil || req.Mask.EntryExpiry {
-		entry.Expiry = req.Entry.EntryExpiry
+	if mask == nil || mask.EntryExpiry {
+		entry.Expiry = e.EntryExpiry
 	}
 
 	// Revision number is increased by 1 on every update call
@@ -2989,8 +2971,8 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	if req.Mask == nil || req.Mask.FederatesWith {
-		federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	if mask == nil || mask.FederatesWith {
+		federatesWith, err := makeFederatesWith(tx, e.FederatesWith)
 		if err != nil {
 			return nil, err
 		}
@@ -3006,9 +2988,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, err
 	}
 
-	return &datastore.UpdateRegistrationEntryResponse{
-		Entry: returnEntry,
-	}, nil
+	return returnEntry, nil
 }
 
 func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationEntry, error) {
@@ -3047,19 +3027,19 @@ func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
 	return nil
 }
 
-func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time) error {
 	var registrationEntries []RegisteredEntry
-	if err := tx.Where("expiry != 0").Where("expiry < ?", req.ExpiresBefore).Find(&registrationEntries).Error; err != nil {
-		return nil, err
+	if err := tx.Where("expiry != 0").Where("expiry < ?", expiresBefore.Unix()).Find(&registrationEntries).Error; err != nil {
+		return err
 	}
 
 	for _, entry := range registrationEntries {
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return &datastore.PruneRegistrationEntriesResponse{}, nil
+	return nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {

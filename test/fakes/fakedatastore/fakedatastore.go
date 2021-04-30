@@ -51,25 +51,25 @@ func (s *DataStore) CreateBundle(ctx context.Context, bundle *common.Bundle) (*c
 	return s.ds.CreateBundle(ctx, bundle)
 }
 
-func (s *DataStore) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
+func (s *DataStore) UpdateBundle(ctx context.Context, bundle *common.Bundle, mask *common.BundleMask) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.UpdateBundle(ctx, req)
+	return s.ds.UpdateBundle(ctx, bundle, mask)
 }
 
-func (s *DataStore) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
+func (s *DataStore) SetBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.SetBundle(ctx, req)
+	return s.ds.SetBundle(ctx, bundle)
 }
 
-func (s *DataStore) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
+func (s *DataStore) AppendBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.AppendBundle(ctx, req)
+	return s.ds.AppendBundle(ctx, bundle)
 }
 
 func (s *DataStore) CountBundles(ctx context.Context) (int32, error) {
@@ -108,11 +108,11 @@ func (s *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesR
 	return resp, err
 }
 
-func (s *DataStore) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (*datastore.PruneBundleResponse, error) {
+func (s *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (bool, error) {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return false, err
 	}
-	return s.ds.PruneBundle(ctx, req)
+	return s.ds.PruneBundle(ctx, trustDomainID, expiresBefore)
 }
 
 func (s *DataStore) CountAttestedNodes(ctx context.Context) (int32, error) {
@@ -143,11 +143,11 @@ func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAt
 	return s.ds.ListAttestedNodes(ctx, req)
 }
 
-func (s *DataStore) UpdateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
+func (s *DataStore) UpdateAttestedNode(ctx context.Context, node *common.AttestedNode, mask *common.AttestedNodeMask) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.UpdateAttestedNode(ctx, req)
+	return s.ds.UpdateAttestedNode(ctx, node, mask)
 }
 
 func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
@@ -216,11 +216,11 @@ func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.
 	return resp, err
 }
 
-func (s *DataStore) UpdateRegistrationEntry(ctx context.Context, req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
+func (s *DataStore) UpdateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.UpdateRegistrationEntry(ctx, req)
+	return s.ds.UpdateRegistrationEntry(ctx, entry, mask)
 }
 
 func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
@@ -230,11 +230,11 @@ func (s *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string)
 	return s.ds.DeleteRegistrationEntry(ctx, entryID)
 }
 
-func (s *DataStore) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+func (s *DataStore) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
-	return s.ds.PruneRegistrationEntries(ctx, req)
+	return s.ds.PruneRegistrationEntries(ctx, expiresBefore)
 }
 
 func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {

@@ -71,8 +71,6 @@ func (m *Manager) prune(ctx context.Context) (err error) {
 	counter := telemetry_server.StartRegistrationManagerPruneEntryCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	_, err = m.c.DataStore.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: m.c.Clock.Now().Unix(),
-	})
+	err = m.c.DataStore.PruneRegistrationEntries(ctx, m.c.Clock.Now())
 	return err
 }

@@ -414,12 +414,12 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 		}
 	}
 
-	resp, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey})
+	bundle, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey})
 	if err != nil {
 		return nil, err
 	}
 
-	return resp.Bundle.JwtSigningKeys, nil
+	return bundle.JwtSigningKeys, nil
 }
 
 func (m *Manager) activateJWTKey() {
@@ -455,16 +455,13 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	ds := m.c.Catalog.GetDataStore()
 	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
 
-	resp, err := ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: m.c.TrustDomain.IDString(),
-		ExpiresBefore: expiresBefore.Unix(),
-	})
+	changed, err := ds.PruneBundle(ctx, m.c.TrustDomain.IDString(), expiresBefore)
 
 	if err != nil {
 		return fmt.Errorf("unable to prune bundle: %v", err)
 	}
 
-	if resp.BundleChanged {
+	if changed {
 		telemetry_server.IncrManagerPrunedBundleCounter(m.c.Metrics)
 		m.c.Log.Debug("Expired certificates were successfully pruned from bundle")
 		m.bundleUpdated()
@@ -473,7 +470,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) (*datastore.AppendBundleResponse, error) {
+func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) (*common.Bundle, error) {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -482,12 +479,10 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 	}
 
 	ds := m.c.Catalog.GetDataStore()
-	res, err := ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId:  m.c.TrustDomain.IDString(),
-			RootCas:        rootCAs,
-			JwtSigningKeys: jwtSigningKeys,
-		},
+	res, err := ds.AppendBundle(ctx, &common.Bundle{
+		TrustDomainId:  m.c.TrustDomain.IDString(),
+		RootCas:        rootCAs,
+		JwtSigningKeys: jwtSigningKeys,
 	})
 	if err != nil {
 		return nil, err
@@ -883,14 +878,12 @@ func (u *bundleUpdater) LogError(err error, msg string) {
 }
 
 func (u *bundleUpdater) appendBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
-	resp, err := u.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle,
-	})
+	dsBundle, err := u.ds.AppendBundle(ctx, bundle)
 	if err != nil {
 		return nil, err
 	}
 	u.updated()
-	return resp.Bundle, nil
+	return dsBundle, nil
 }
 
 func x509CAKmKeyID(id string) string {

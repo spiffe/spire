@@ -483,10 +483,8 @@ func TestAppendBundle(t *testing.T) {
 			test.ds.SetNextError(tt.dsError)
 
 			if tt.invalidEntry {
-				_, err := test.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-					Bundle: &common.Bundle{
-						TrustDomainId: "malformed",
-					},
+				_, err := test.ds.AppendBundle(ctx, &common.Bundle{
+					TrustDomainId: "malformed",
 				})
 				require.NoError(t, err)
 			}
@@ -1924,11 +1922,7 @@ func assertBundleWithMask(t *testing.T, expected, actual *types.Bundle, m *types
 }
 
 func (c *serviceTest) setBundle(t *testing.T, b *common.Bundle) {
-	req := &datastore.SetBundleRequest{
-		Bundle: b,
-	}
-
-	_, err := c.ds.SetBundle(context.Background(), req)
+	_, err := c.ds.SetBundle(context.Background(), b)
 	require.NoError(t, err)
 }
 

@@ -221,7 +221,7 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().Nil(fb)
 
 	// update non-existent
-	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
@@ -257,38 +257,29 @@ func (s *PluginSuite) TestBundleCRUD() {
 		[]*x509.Certificate{s.cert, s.cacert})
 
 	// append
-	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle2,
-	})
+	ab, err := s.ds.AppendBundle(ctx, bundle2)
 	s.Require().NoError(err)
-	s.Require().NotNil(aresp.Bundle)
-	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
+	s.Require().NotNil(ab)
+	s.AssertProtoEqual(appendedBundle, ab)
 
 	// append identical
-	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle2,
-	})
+	ab, err = s.ds.AppendBundle(ctx, bundle2)
 	s.Require().NoError(err)
-	s.Require().NotNil(aresp.Bundle)
-	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
+	s.Require().NotNil(ab)
+	s.AssertProtoEqual(appendedBundle, ab)
 
 	// append on a new bundle
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
-	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle3,
-	})
+	ab, err = s.ds.AppendBundle(ctx, bundle3)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle3, anresp.Bundle)
+	s.AssertProtoEqual(bundle3, ab)
 
 	// update with mask: RootCas
-	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-		InputMask: &common.BundleMask{
-			RootCas: true,
-		},
+	updatedBundle, err := s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		RootCas: true,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, uresp.Bundle)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -296,14 +287,11 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	// update with mask: RefreshHint
 	bundle.RefreshHint = 60
-	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-		InputMask: &common.BundleMask{
-			RefreshHint: true,
-		},
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		RefreshHint: true,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, uresp.Bundle)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -311,25 +299,20 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	// update with mask: JwtSingingKeys
 	bundle.JwtSigningKeys = []*common.PublicKey{{Kid: "jwt-key-1"}}
-	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-		InputMask: &common.BundleMask{
-			JwtSigningKeys: true,
-		},
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		JwtSigningKeys: true,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, uresp.Bundle)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
 
 	// update without mask
-	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle2,
-	})
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle2, nil)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle2, uresp.Bundle)
+	s.AssertProtoEqual(bundle2, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -562,16 +545,12 @@ func (s *PluginSuite) TestSetBundle() {
 	s.Require().Nil(s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is created
-	_, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: bundle,
-	})
+	_, err := s.ds.SetBundle(ctx, bundle)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is updated
-	_, err = s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.SetBundle(ctx, bundle2)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
 }
@@ -603,31 +582,21 @@ func (s *PluginSuite) TestBundlePrune() {
 
 	// Prune
 	// prune non existent bundle should not return error, no bundle to prune
-	expiration := time.Now().Unix()
-	presp, err := s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: "spiffe://notexistent",
-		ExpiresBefore: expiration,
-	})
+	expiration := time.Now()
+	changed, err := s.ds.PruneBundle(ctx, "spiffe://notexistent", expiration)
 	s.NoError(err)
-	s.Equal(presp, &datastore.PruneBundleResponse{})
+	s.False(changed)
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
-	expiration = time.Now().Unix()
-	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-		ExpiresBefore: expiration,
-	})
+	expiration = time.Now()
+	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, expiration)
 	s.AssertGRPCStatus(err, codes.Unknown, "prune failed: would prune all certificates")
-	s.Nil(presp)
+	s.False(changed)
 
 	// prune should remove expired certs
-	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-		ExpiresBefore: middleTime.Unix(),
-	})
+	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, middleTime)
 	s.NoError(err)
-	s.NotNil(presp)
-	s.True(presp.BundleChanged)
+	s.True(changed)
 
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
@@ -1200,14 +1169,15 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 
 	for _, tt := range []struct {
 		name           string
-		updateReq      *datastore.UpdateAttestedNodeRequest
+		updateNode     *common.AttestedNode
+		updateNodeMask *common.AttestedNodeMask
 		expUpdatedNode *common.AttestedNode
 		expCode        codes.Code
 		expMsg         string
 	}{
 		{
 			name: "update non-existing attested node",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:         "non-existent-node-id",
 				CertSerialNumber: updatedSerial,
 				CertNotAfter:     updatedExpires,
@@ -1217,14 +1187,14 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		},
 		{
 			name: "update attested node with all false mask",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				CertSerialNumber:    updatedSerial,
 				CertNotAfter:        updatedExpires,
 				NewCertNotAfter:     updatedNewExpires,
 				NewCertSerialNumber: updatedNewSerial,
-				InputMask:           &common.AttestedNodeMask{},
 			},
+			updateNodeMask: &common.AttestedNodeMask{},
 			expUpdatedNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				AttestationDataType: attestationType,
@@ -1236,16 +1206,16 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		},
 		{
 			name: "update attested node with mask set only some fields: 'CertSerialNumber', 'NewCertNotAfter'",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				CertSerialNumber:    updatedSerial,
 				CertNotAfter:        updatedExpires,
 				NewCertNotAfter:     updatedNewExpires,
 				NewCertSerialNumber: updatedNewSerial,
-				InputMask: &common.AttestedNodeMask{
-					CertSerialNumber: true,
-					NewCertNotAfter:  true,
-				},
+			},
+			updateNodeMask: &common.AttestedNodeMask{
+				CertSerialNumber: true,
+				NewCertNotAfter:  true,
 			},
 			expUpdatedNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
@@ -1258,7 +1228,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		},
 		{
 			name: "update attested node with nil mask",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				CertSerialNumber:    updatedSerial,
 				CertNotAfter:        updatedExpires,
@@ -1291,18 +1261,18 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.Require().NoError(err)
 
 			// Update attested node
-			uresp, err := s.ds.UpdateAttestedNode(ctx, tt.updateReq)
+			updatedNode, err := s.ds.UpdateAttestedNode(ctx, tt.updateNode, tt.updateNodeMask)
 			s.RequireGRPCStatus(err, tt.expCode, tt.expMsg)
 			if tt.expCode != codes.OK {
-				s.Require().Nil(uresp)
+				s.Require().Nil(updatedNode)
 				return
 			}
 			s.Require().NoError(err)
-			s.Require().NotNil(uresp)
-			s.RequireProtoEqual(tt.expUpdatedNode, uresp.Node)
+			s.Require().NotNil(updatedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, updatedNode)
 
 			// Check a fresh fetch shows the updated attested node
-			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateReq.SpiffeId)
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateNode.SpiffeId)
 			s.Require().NoError(err)
 			s.Require().NotNil(attestedNode)
 			s.RequireProtoEqual(tt.expUpdatedNode, attestedNode)
@@ -1549,7 +1519,7 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
-	now := time.Now().Unix()
+	now := time.Now()
 	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
@@ -1559,16 +1529,14 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		SpiffeId:    "SpiffeId",
 		ParentId:    "ParentId",
 		Ttl:         1,
-		EntryExpiry: now,
+		EntryExpiry: now.Unix(),
 	}
 
 	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid entries, wind clock back 10s
-	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: now - 10,
-	})
+	err = s.ds.PruneRegistrationEntries(ctx, now.Add(-10*time.Second))
 	s.Require().NoError(err)
 
 	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
@@ -1576,9 +1544,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: now,
-	})
+	err = s.ds.PruneRegistrationEntries(ctx, now)
 	s.Require().NoError(err)
 
 	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
@@ -1586,9 +1552,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
 
 	// Ensure we prune old entries
-	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: now + 10,
-	})
+	err = s.ds.PruneRegistrationEntries(ctx, now.Add(10*time.Second))
 	s.Require().NoError(err)
 
 	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
@@ -1985,21 +1949,16 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.Admin = true
 	entry.Downstream = true
 
-	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().NoError(err)
-	s.Require().NotNil(updateRegistrationEntryResponse)
 
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
 	s.Require().NotNil(registrationEntry)
-	s.RequireProtoEqual(updateRegistrationEntryResponse.Entry, registrationEntry)
+	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
 
 	entry.EntryId = "badid"
-	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 }
 
@@ -2171,10 +2130,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
 			updateEntry.EntryId = id
-			updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-				Entry: updateEntry,
-				Mask:  tt.mask,
-			})
+			updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, updateEntry, tt.mask)
 
 			if tt.err != nil {
 				s.Require().Error(tt.err)
@@ -2182,12 +2138,11 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			}
 
 			s.Require().NoError(err)
-			s.Require().NotNil(updateRegistrationEntryResponse)
 			expectedResult := proto.Clone(oldEntry).(*common.RegistrationEntry)
 			tt.result(expectedResult)
 			expectedResult.EntryId = id
 			expectedResult.RevisionNumber++
-			s.RequireProtoEqual(expectedResult, updateRegistrationEntryResponse.Entry)
+			s.RequireProtoEqual(expectedResult, updatedRegistrationEntry)
 
 			// Fetch and check the results match expectations
 			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
@@ -2664,9 +2619,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().False(resp.Entries[0].Admin)
 
 			resp.Entries[0].Admin = true
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2680,9 +2633,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().False(resp.Entries[0].Downstream)
 
 			resp.Entries[0].Downstream = true
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2698,9 +2649,7 @@ func (s *PluginSuite) TestMigration() {
 
 			expiryVal := time.Now().Unix()
 			resp.Entries[0].EntryExpiry = expiryVal
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2715,9 +2664,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Empty(resp.Entries[0].DnsNames)
 
 			resp.Entries[0].DnsNames = []string{"abcd.efg"}
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
