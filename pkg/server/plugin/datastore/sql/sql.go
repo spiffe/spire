@@ -1661,7 +1661,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 	}
 	defer rows.Close()
 
-	resp := new(datastore.ListNodeSelectorsResponse)
+	selectorsById := make(map[string][]*common.Selector)
 
 	var currentID string
 	selectors := make([]*common.Selector, 0, 64)
@@ -1671,12 +1671,9 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		case currentID == "":
 			currentID = spiffeID
 		case spiffeID != currentID:
-			resp.Selectors = append(resp.Selectors, &datastore.NodeSelectors{
-				SpiffeId:  currentID,
-				Selectors: selectors,
-			})
+			selectorsById[currentID] = append(selectorsById[currentID], selectors...)
 			currentID = spiffeID
-			selectors = nil
+			selectors = selectors[:0]
 		}
 		selectors = append(selectors, selector)
 	}
@@ -1703,18 +1700,30 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		return nil, sqlError.Wrap(err)
 	}
 
+	resp := new(datastore.ListNodeSelectorsResponse)
+	for spiffeID, selectors := range selectorsById {
+		resp.Selectors = append(resp.Selectors, &datastore.NodeSelectors{
+			SpiffeId:  spiffeID,
+			Selectors: selectors,
+		})
+	}
 	return resp, nil
 }
 
 func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query string, args []interface{}) {
 	var sb strings.Builder
-	sb.WriteString("SELECT nre.id, nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
+	sb.WriteString("SELECT nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
 	if req.ValidAt != nil {
 		sb.WriteString(" INNER JOIN attested_node_entries ane ON nre.spiffe_id=ane.spiffe_id WHERE ane.expires_at > ?")
 		args = append(args, time.Unix(req.ValidAt.Seconds, 0))
 	}
 
-	sb.WriteString(" ORDER BY nre.id ASC")
+	// This ordering is required to make listNodeSelectors efficient but not
+	// needed for correctness. Since the query can be wholly satisfied using
+	// the node_resolver_map_entries unique index over (spiffe_id,type,value)
+	// it is unlikely to impact database performance as that index is already
+	// ordered primarily by spiffe_id.
+	sb.WriteString(" ORDER BY nre.spiffe_id ASC")
 
 	return sb.String(), args
 }
@@ -2783,7 +2792,6 @@ func fillNodeFromRow(node *common.AttestedNode, r *nodeRow) error {
 }
 
 type nodeSelectorRow struct {
-	EId      uint64
 	SpiffeID sql.NullString
 	Type     sql.NullString
 	Value    sql.NullString
@@ -2791,7 +2799,6 @@ type nodeSelectorRow struct {
 
 func scanNodeSelectorRow(rs *sql.Rows, r *nodeSelectorRow) error {
 	return sqlError.Wrap(rs.Scan(
-		&r.EId,
 		&r.SpiffeID,
 		&r.Type,
 		&r.Value,
