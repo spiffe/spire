@@ -2,7 +2,7 @@
 
 The `k8sbundle` plugin responds to bundle loaded/updated events by fetching and
 pushing the latest root CA certificates from the trust bundle to a Kubernetes
-ConfigMap.
+ConfigMap, Webhook, and/or APIService.
 
 The certificates in the ConfigMap can be used to bootstrap SPIRE agents.
 
@@ -13,6 +13,7 @@ The plugin accepts the following configuration options:
 | namespace             | The namespace containing the ConfigMap      | `spire`         |
 | config_map            | The name of the ConfigMap                   | `spire-bundle`  |
 | config_map_key        | The key within the ConfigMap for the bundle | `bundle.crt`    |
+| config_map_enable     | Enable rotating bundle in ConfigMap         | `true`          |
 | kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. | |
 | api_service_label     | If set, rotate the CA Bundle in API services with this label set to `true`. | |
 | webhook_label         | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`. | |
@@ -21,11 +22,13 @@ The plugin accepts the following configuration options:
 
 The following actions are required to set up the plugin.
 
-- Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account
+- Bind ClusterRole or Role to Service Account
     - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE server
     - In the case of out-of-cluster SPIRE server, it is Service Account that interacts with the Kubernetes API server
-    - In the case of setting `webhook_label`, the ClusterRole additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
-- Create the ConfigMap that the plugin pushes
+    - If `config_map_enable` is `true` the ClusterRole or Role needs permissions to `get` and `patch` the ConfigMap
+    - In the case of setting `webhook_label`, the ClusterRole or Role needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
+    - In the case of setting `api_service_label`, the ClusterRole or Role needs permissions to `get`, `list`, `patch`, and `watch` `apiservices`.
+- Create the ConfigMap that the plugin pushes if `config_map_enable` is `true`
 
 For example:
 
@@ -117,7 +120,7 @@ the credentials found in the `/path/to/kubeconfig` file.
     }
 ```
 
-### Default In-Cluster with Webhook and APIService Rotation
+### Default In-Cluster with ConfigMap, Webhook, and APIService Rotation
 
 The following configuration pushes bundle contents from an in-cluster SPIRE
 server to
@@ -130,6 +133,20 @@ server to
         plugin_data {
             webhook_label    = "spiffe.io/webhook"
             api_service_label = "spiffe.io/api_service"
+        }
+    }
+```
+
+### Default In-Cluster with only Webhook Rotation
+
+The following configuration pushes bundle contents from an in-cluster SPIRE
+server to validating and mutating webhooks with a label of `spiffe.io/webhook: true`
+
+```
+    Notifier "k8sbundle" {
+        plugin_data {
+            config_map_enable = false
+            webhook_label    = "spiffe.io/webhook"
         }
     }
 ```

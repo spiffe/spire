@@ -41,9 +41,10 @@ var (
 )
 
 const (
-	defaultNamespace    = "spire"
-	defaultConfigMap    = "spire-bundle"
-	defaultConfigMapKey = "bundle.crt"
+	defaultNamespace       = "spire"
+	defaultConfigMap       = "spire-bundle"
+	defaultConfigMapKey    = "bundle.crt"
+	defaultConfigMapEnable = true
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -60,6 +61,7 @@ type pluginConfig struct {
 	Namespace          string `hcl:"namespace"`
 	ConfigMap          string `hcl:"config_map"`
 	ConfigMapKey       string `hcl:"config_map_key"`
+	ConfigMapEnable    bool   `hcl:"config_map_enable"`
 	WebhookLabel       string `hcl:"webhook_label"`
 	APIServiceLabel    string `hcl:"api_service_label"`
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
@@ -128,6 +130,7 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndA
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
 	config := new(pluginConfig)
+	config.ConfigMapEnable = defaultConfigMapEnable
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
 		return nil, k8sErr.New("unable to decode configuration: %v", err)
 	}
@@ -285,7 +288,12 @@ func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 		return nil, k8sErr.Wrap(err)
 	}
 
-	clients := []kubeClient{configMapClient{Clientset: clientset}}
+	clients := []kubeClient{}
+	if c.ConfigMapEnable {
+		clients = append(clients,
+			configMapClient{Clientset: clientset},
+		)
+	}
 	if c.WebhookLabel != "" {
 		clients = append(clients,
 			mutatingWebhookClient{Clientset: clientset},
