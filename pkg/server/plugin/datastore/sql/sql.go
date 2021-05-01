@@ -1661,7 +1661,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 	}
 	defer rows.Close()
 
-	selectorsById := make(map[string][]*common.Selector)
+	selectorsByID := make(map[string][]*common.Selector)
 
 	var currentID string
 	selectors := make([]*common.Selector, 0, 64)
@@ -1671,7 +1671,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 		case currentID == "":
 			currentID = spiffeID
 		case spiffeID != currentID:
-			selectorsById[currentID] = append(selectorsById[currentID], selectors...)
+			selectorsByID[currentID] = append(selectorsByID[currentID], selectors...)
 			currentID = spiffeID
 			selectors = selectors[:0]
 		}
@@ -1701,7 +1701,7 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 	}
 
 	resp := new(datastore.ListNodeSelectorsResponse)
-	for spiffeID, selectors := range selectorsById {
+	for spiffeID, selectors := range selectorsByID {
 		resp.Selectors = append(resp.Selectors, &datastore.NodeSelectors{
 			SpiffeId:  spiffeID,
 			Selectors: selectors,
