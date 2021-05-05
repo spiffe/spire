@@ -71,15 +71,6 @@ type PluginSuite struct {
 	staleDelay time.Duration
 }
 
-type ListRegistrationReq struct {
-	name               string
-	pagination         *datastore.Pagination
-	selectors          []*common.Selector
-	expectedList       []*common.RegistrationEntry
-	expectedPagination *datastore.Pagination
-	err                string
-}
-
 func (s *PluginSuite) SetupSuite() {
 	clk := clock.NewMock(s.T())
 
@@ -918,12 +909,13 @@ func (s *PluginSuite) TestListAttestedNodes() {
 				for _, node := range tt.nodes {
 					_, err := s.ds.CreateAttestedNode(ctx, node)
 					require.NoError(t, err)
-					s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+					_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
 						Selectors: &datastore.NodeSelectors{
 							SpiffeId:  node.SpiffeId,
 							Selectors: node.Selectors,
 						},
 					})
+					require.NoError(t, err)
 				}
 
 				var pagination *datastore.Pagination
@@ -1897,7 +1889,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 				entryIDMap[entryOut.EntryId] = entryIn.EntryId
 			}
 
-			// Optionally sleep to give time for the entries to propogate to
+			// Optionally sleep to give time for the entries to propagate to
 			// the replicas.
 			if tolerateStale && s.staleDelay > 0 {
 				time.Sleep(s.staleDelay)
@@ -9004,10 +8996,6 @@ func dropTables(t *testing.T, db *sql.DB, tableNames []string) {
 		_, err := db.Exec("DROP TABLE IF EXISTS " + tableName + " CASCADE")
 		require.NoError(t, err)
 	}
-}
-
-func cloneAttestedNode(aNode *common.AttestedNode) *common.AttestedNode {
-	return proto.Clone(aNode).(*common.AttestedNode)
 }
 
 // assertSelectorsEqual compares two selector maps for equality
