@@ -246,16 +246,16 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenSta
 	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
-func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenClaim() {
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowListedFromTokenClaim() {
 	token := s.signToken(s.fooSigner, "NS1", "NO-WHITHELISTED-SA")
-	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:NO-WHITHELISTED-SA" is not an allowed service account`)
 }
 
-func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenStatus() {
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowListedFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
 	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not an allowed service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
@@ -331,7 +331,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: configuration must have at least one cluster")
 	s.Require().Nil(resp)
 
-	// cluster missing service account whitelist (local validation config)
+	// cluster missing service account allow list (local validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO" = {
@@ -340,10 +340,10 @@ func (s *AttestorSuite) TestConfigure() {
 		}`, s.fooCertPath()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration must have at least one service account whitelisted`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration must have at least one service account allowed`)
 	s.Require().Nil(resp)
 
-	// cluster missing service account whitelist (token review validation config)
+	// cluster missing service account allow list (token review validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `clusters = {
 				"BAR" = {
@@ -352,7 +352,7 @@ func (s *AttestorSuite) TestConfigure() {
 			}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account whitelisted`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account allowed`)
 	s.Require().Nil(resp)
 
 	// unable to load cluster service account keys
@@ -360,7 +360,7 @@ func (s *AttestorSuite) TestConfigure() {
 		Configuration: fmt.Sprintf(`clusters = {
 				"FOO" = {
 					service_account_key_file = %q
-					service_account_whitelist = ["A"]
+					service_account_allow_list = ["A"]
 				}
 			}`, filepath.Join(s.dir, "missing.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -374,7 +374,7 @@ func (s *AttestorSuite) TestConfigure() {
 		Configuration: fmt.Sprintf(`clusters = {
 				"FOO" = {
 					service_account_key_file = %q
-					service_account_whitelist = ["A"]
+					service_account_allow_list = ["A"]
 				}
 			}`, filepath.Join(s.dir, "nokeys.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -414,15 +414,15 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO-PKCS1" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["A"]
+				service_account_allow_list = ["A"]
 			}
 			"FOO-PKIX" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["A"]
+				service_account_allow_list = ["A"]
 			}
 			"BAR-PKIX" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["A"]
+				service_account_allow_list = ["A"]
 			}
 		}`, fooPKCS1KeyPath, fooPKIXKeyPath, barPKIXKeyPath),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -477,11 +477,11 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.NodeAttestorClient {
 		clusters = {
 			"FOO" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["NS1:SA1"]
+				service_account_allow_list = ["NS1:SA1"]
 			}
 			"BAR" = {
 				use_token_review_api_validation = true
-				service_account_whitelist = ["NS2:SA2"]
+				service_account_allow_list = ["NS2:SA2"]
 			}
 		}
 		`, s.fooCertPath()),

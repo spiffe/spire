@@ -37,7 +37,7 @@ A sample configuration with the default token path:
 
 At this time, the service account token does not contain claims that could be
 used to strongly identify the node/daemonset/pod running the agent. This means
-that any container running in a whitelisted service account can masquerade as
+that any container running in an allowed service account can masquerade as
 an agent, giving it access to any identity the agent is capable of issuing. It
 is **STRONGLY** recommended that agents run under a dedicated service account.
 

@@ -136,7 +136,7 @@ data:
         plugin_data {
           clusters = {
             "example-cluster" = {
-              service_account_whitelist = ["spire:spire-agent"]
+              service_account_allow_list = ["spire:spire-agent"]
             }
           }
         }
