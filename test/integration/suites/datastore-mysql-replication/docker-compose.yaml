@@ -8,8 +8,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "9999:3306"
     container_name: mysql-5-5-readwrite
@@ -26,8 +24,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "10000:3306"
     container_name: mysql-5-5-readonly
@@ -47,8 +43,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "9999:3306"
     container_name: mysql-5-6-readwrite
@@ -65,8 +59,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "10000:3306"
     container_name: mysql-5-6-readonly
@@ -86,8 +78,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "9999:3306"
     container_name: mysql-5-7-readwrite
@@ -117,8 +107,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "10000:3306"
     container_name: mysql-5-7-readonly
@@ -152,8 +140,6 @@ services:
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
     restart: unless-stopped
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "9999:3306"
     command: 
@@ -182,8 +168,6 @@ services:
       - MYSQL_DATABASE=spire
       - MYSQL_USER=spire
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
     ports:
       - "10000:3306"
     container_name: mysql-8-0-readonly
