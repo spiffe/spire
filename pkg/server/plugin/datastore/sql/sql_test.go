@@ -656,31 +656,12 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	expired := now.Add(-time.Hour)
 	unexpired := now.Add(time.Hour)
 
-	makeSelectors := func(vs ...string) []*common.Selector {
-		var ss []*common.Selector
-		for _, v := range vs {
-			ss = append(ss, &common.Selector{Type: v, Value: v})
-		}
-		return ss
-	}
-
-	makeID := func(suffix string) string {
-		return "spiffe://example.org/" + suffix
-	}
-
 	byBanned := func(value bool) *wrapperspb.BoolValue {
 		return &wrapperspb.BoolValue{Value: value}
 	}
 
 	byExpiresBefore := func(t time.Time) *wrapperspb.Int64Value {
 		return &wrapperspb.Int64Value{Value: t.Unix()}
-	}
-
-	bySelectors := func(match datastore.MatchBehavior, ss ...string) *datastore.BySelectors {
-		return &datastore.BySelectors{
-			Match:     match,
-			Selectors: makeSelectors(ss...),
-		}
 	}
 
 	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, selectors ...string) *common.AttestedNode {
@@ -709,18 +690,17 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		test                string
 		nodes               []*common.AttestedNode
 		pageSize            int32
-		pageToken           string
 		byExpiresBefore     *wrapperspb.Int64Value
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
 		byBanned            *wrapperspb.BoolValue
-		expectNodesOut      [][]*common.AttestedNode
+		expectNodesOut      []*common.AttestedNode
 		expectPagedTokensIn []string
 		expectPagedNodesOut [][]*common.AttestedNode
 	}{
 		{
 			test:                "without attested nodes",
-			expectNodesOut:      [][]*common.AttestedNode{{}},
+			expectNodesOut:      []*common.AttestedNode{},
 			expectPagedTokensIn: []string{""},
 			expectPagedNodesOut: [][]*common.AttestedNode{{}},
 		},
@@ -728,7 +708,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "with partial page",
 			nodes:               []*common.AttestedNode{nodeA},
 			pageSize:            2,
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA}},
+			expectNodesOut:      []*common.AttestedNode{nodeA},
 			expectPagedTokensIn: []string{"", "1"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
 		},
@@ -736,7 +716,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "with full page",
 			nodes:               []*common.AttestedNode{nodeA, nodeB},
 			pageSize:            2,
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
 			expectPagedTokensIn: []string{"", "2"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA, nodeB}, {}},
 		},
@@ -744,7 +724,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "with page and a half",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC},
 			pageSize:            2,
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB, nodeC}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
 			expectPagedTokensIn: []string{"", "2", "3"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA, nodeB}, {nodeC}, {}},
 		},
@@ -753,7 +733,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by expires before",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeB, nodeF, nodeG, nodeC},
 			byExpiresBefore:     byExpiresBefore(now),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB, nodeC}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
 			expectPagedTokensIn: []string{"", "1", "3", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeC}, {}},
 		},
@@ -762,7 +742,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by attestation type",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE},
 			byAttestationType:   "T1",
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeC, nodeE}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeC, nodeE},
 			expectPagedTokensIn: []string{"", "1", "3", "5"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeC}, {nodeE}, {}},
 		},
@@ -771,7 +751,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by banned",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
 			byBanned:            byBanned(true),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeE, nodeF}},
+			expectNodesOut:      []*common.AttestedNode{nodeE, nodeF},
 			expectPagedTokensIn: []string{"", "2", "3"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {nodeF}, {}},
 		},
@@ -779,7 +759,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by unbanned",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
 			byBanned:            byBanned(false),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
 			expectPagedTokensIn: []string{"", "1", "4"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
 		},
@@ -788,7 +768,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by selector subset",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
 			bySelectors:         bySelectors(datastore.Subset, "S1"),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
 			expectPagedTokensIn: []string{"", "1", "2"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
 		},
@@ -796,7 +776,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by selectors subset",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
 			bySelectors:         bySelectors(datastore.Subset, "S1", "S3"),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB, nodeF}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeF},
 			expectPagedTokensIn: []string{"", "1", "2", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeF}, {}},
 		},
@@ -805,7 +785,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by selector exact",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
 			bySelectors:         bySelectors(datastore.Exact, "S1"),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA, nodeB}},
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
 			expectPagedTokensIn: []string{"", "1", "2"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
 		},
@@ -813,7 +793,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			test:                "by selectors exact",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
 			bySelectors:         bySelectors(datastore.Exact, "S1", "S3"),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeF}},
+			expectNodesOut:      []*common.AttestedNode{nodeF},
 			expectPagedTokensIn: []string{"", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeF}, {}},
 		},
@@ -825,7 +805,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE},
 			byAttestationType:   "T1",
 			bySelectors:         bySelectors(datastore.Subset, "S1"),
-			expectNodesOut:      [][]*common.AttestedNode{{nodeA}},
+			expectNodesOut:      []*common.AttestedNode{nodeA},
 			expectPagedTokensIn: []string{"", "1"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
 		},
@@ -867,7 +847,6 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					var pagination *datastore.Pagination
 					if withPagination {
 						pagination = &datastore.Pagination{
-							Token:    tt.pageToken,
 							PageSize: tt.pageSize,
 						}
 						if pagination.PageSize == 0 {
@@ -890,7 +869,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					// Don't loop forever if there is a bug
 					for i := 0; ; i++ {
 						if i > len(tt.nodes) {
-							require.FailNowf(t, "Exhaused paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
+							require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
 						}
 						if req.Pagination != nil {
 							tokensIn = append(tokensIn, req.Pagination.Token)
@@ -918,9 +897,9 @@ func (s *PluginSuite) TestListAttestedNodes() {
 						req.Pagination = resp.Pagination
 					}
 
-					expectNodesOut := tt.expectNodesOut
-					if withPagination {
-						expectNodesOut = tt.expectPagedNodesOut
+					expectNodesOut := tt.expectPagedNodesOut
+					if !withPagination {
+						expectNodesOut = [][]*common.AttestedNode{tt.expectNodesOut}
 					}
 
 					var expectIDsOut [][]string
@@ -1392,7 +1371,6 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
-			Token:    "",
 			PageSize: 0,
 		},
 	})
@@ -1416,25 +1394,6 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 }
 
 func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
-	makeSelectors := func(vs ...string) []*common.Selector {
-		var ss []*common.Selector
-		for _, v := range vs {
-			ss = append(ss, &common.Selector{Type: v, Value: v})
-		}
-		return ss
-	}
-
-	bySelectors := func(match datastore.MatchBehavior, ss ...string) *datastore.BySelectors {
-		return &datastore.BySelectors{
-			Match:     match,
-			Selectors: makeSelectors(ss...),
-		}
-	}
-
-	makeID := func(suffix string) string {
-		return "spiffe://example.org/" + suffix
-	}
-
 	byID := func(suffix string) *wrapperspb.StringValue {
 		return &wrapperspb.StringValue{Value: makeID(suffix)}
 	}
@@ -1455,28 +1414,28 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		}
 	}
 
-	foobarAB := makeEntry("foo", "bar", "A", "B")
-	foobarAB.FederatesWith = []string{"spiffe://federated1.test"}
-	foobarAD := makeEntry("foo", "bar", "A", "D")
-	foobarAD.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	foobarCB := makeEntry("foo", "bar", "C", "B")
-	foobarCB.FederatesWith = []string{"spiffe://federated2.test"}
-	foobarCD := makeEntry("foo", "bar", "C", "D")
-	foobarCD.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	foobarAB1 := makeEntry("foo", "bar", "A", "B")
+	foobarAB1.FederatesWith = []string{"spiffe://federated1.test"}
+	foobarAD12 := makeEntry("foo", "bar", "A", "D")
+	foobarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	foobarCB2 := makeEntry("foo", "bar", "C", "B")
+	foobarCB2.FederatesWith = []string{"spiffe://federated2.test"}
+	foobarCD12 := makeEntry("foo", "bar", "C", "D")
+	foobarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 
 	foobarB := makeEntry("foo", "bar", "B")
 
 	foobuzAD := makeEntry("foo", "buz", "A", "D")
 	foobuzCD := makeEntry("foo", "buz", "C", "D")
 
-	bazbarAB := makeEntry("baz", "bar", "A", "B")
-	bazbarAB.FederatesWith = []string{"spiffe://federated1.test"}
-	bazbarAD := makeEntry("baz", "bar", "A", "D")
-	bazbarAD.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarCB := makeEntry("baz", "bar", "C", "B")
-	bazbarCB.FederatesWith = []string{"spiffe://federated2.test"}
-	bazbarCD := makeEntry("baz", "bar", "C", "D")
-	bazbarCD.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	bazbarAB1 := makeEntry("baz", "bar", "A", "B")
+	bazbarAB1.FederatesWith = []string{"spiffe://federated1.test"}
+	bazbarAD12 := makeEntry("baz", "bar", "A", "D")
+	bazbarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	bazbarCB2 := makeEntry("baz", "bar", "C", "B")
+	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
+	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
+	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 
 	bazbuzAB := makeEntry("baz", "buz", "A", "B")
 	bazbuzB := makeEntry("baz", "buz", "B")
@@ -1488,232 +1447,231 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		test                  string
 		entries               []*common.RegistrationEntry
 		pageSize              int32
-		pageToken             string
 		byParentID            *wrapperspb.StringValue
 		bySpiffeID            *wrapperspb.StringValue
 		bySelectors           *datastore.BySelectors
 		byFederatesWith       *datastore.ByFederatesWith
-		expectEntriesOut      [][]*common.RegistrationEntry
+		expectEntriesOut      []*common.RegistrationEntry
 		expectPagedTokensIn   []string
 		expectPagedEntriesOut [][]*common.RegistrationEntry
 	}{
 		{
 			test:                  "without entries",
-			expectEntriesOut:      [][]*common.RegistrationEntry{{}},
+			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
 		{
 			test:                  "with partial page",
-			entries:               []*common.RegistrationEntry{foobarAB},
+			entries:               []*common.RegistrationEntry{foobarAB1},
 			pageSize:              2,
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "1"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		{
 			test:                  "with full page",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarCB},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			pageSize:              2,
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB, foobarCB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "2"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB, foobarCB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1, foobarCB2}, {}},
 		},
 		{
 			test:                  "with page and a half",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarCB, foobarAD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarCB2, foobarAD12},
 			pageSize:              2,
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB, foobarCB, foobarAD}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2, foobarAD12},
 			expectPagedTokensIn:   []string{"", "2", "3"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB, foobarCB}, {foobarAD}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1, foobarCB2}, {foobarAD12}, {}},
 		},
 		// by parent ID
 		{
 			test:                  "by parent ID",
-			entries:               []*common.RegistrationEntry{foobarAB, bazbarAD, foobarCB, bazbarCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
 			byParentID:            byID("foo"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB, foobarCB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {foobarCB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
 		},
 		// by SPIFFE ID
 		{
 			test:                  "by SPIFFE ID",
-			entries:               []*common.RegistrationEntry{foobarAB, foobuzAD, foobarCB, foobuzCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, foobarCB2, foobuzCD},
 			bySpiffeID:            byID("bar"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB, foobarCB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {foobarCB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
 		},
 		// by federates with
 		{
 			test:                  "by federatesWith one subset",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "1"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		{
 			test:                  "by federatesWith many subset",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarCB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarCB2},
 			expectPagedTokensIn:   []string{"", "3"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarCB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarCB2}, {}},
 		},
 		{
 			test:                  "by federatesWith one exact",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "1"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		{
 			test:                  "by federatesWith many exact",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAD, foobarCD}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12, foobarCD12},
 			expectPagedTokensIn:   []string{"", "2", "4"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD}, {foobarCD}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {}},
 		},
 		// by parent ID and spiffe ID
 		{
 			test:                  "by parent ID and SPIFFE ID",
-			entries:               []*common.RegistrationEntry{foobarAB, foobuzAD, bazbarCB, bazbuzCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, bazbarCB2, bazbuzCD},
 			byParentID:            byID("foo"),
 			bySpiffeID:            byID("bar"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "1"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		// by parent ID and selector
 		{
 			test:                  "by parent ID and exact selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
 			byParentID:            byID("foo"),
 			bySelectors:           bySelectors(datastore.Exact, "B"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
 		},
 		{
 			test:                  "by parent ID and exact selectors",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
 			byParentID:            byID("foo"),
 			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "2"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		{
 			test:                  "by parent ID and subset selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
 			byParentID:            byID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "B"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
 		},
 		{
 			test:                  "by parent ID and subset selectors",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbarCB, bazbuzCD},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
 			byParentID:            byID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "A", "B", "Z"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarB, foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
 			expectPagedTokensIn:   []string{"", "1", "2"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {}},
 		},
 		{
 			test:                  "by parent ID and subset selectors no match",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbarCB, bazbuzCD},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
 			byParentID:            byID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "C", "Z"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{}},
+			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
 		// by parent ID and federates with
 		{
 			test:                  "by parentID and federatesWith one subset",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX, bazbarAB, bazbarAD, bazbarCB, bazbarCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
 			byParentID:            byID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{bazbarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1},
 			expectPagedTokensIn:   []string{"", "6"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {}},
 		},
 		{
 			test:                  "by parentID and federatesWith many subset",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX, bazbarAB, bazbarAD, bazbarCB, bazbarCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
 			byParentID:            byID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{bazbarCB}},
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarCB2},
 			expectPagedTokensIn:   []string{"", "8"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarCB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarCB2}, {}},
 		},
 		{
 			test:                  "by parentID and federatesWith one exact",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX, bazbarAB, bazbarAD, bazbarCB, bazbarCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
 			byParentID:            byID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{bazbarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1},
 			expectPagedTokensIn:   []string{"", "6"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {}},
 		},
 		{
 			test:                  "by parentID and federatesWith many exact",
-			entries:               []*common.RegistrationEntry{foobarAB, foobarAD, foobarCB, foobarCD, zizzazX, bazbarAB, bazbarAD, bazbarCB, bazbarCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
 			byParentID:            byID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{bazbarAD, bazbarCD}},
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
 			expectPagedTokensIn:   []string{"", "7", "9"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAD}, {bazbarCD}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAD12}, {bazbarCD12}, {}},
 		},
 		// by SPIFFE ID and selector
 		{
 			test:                  "by SPIFFE ID and exact selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
 			bySpiffeID:            byID("bar"),
 			bySelectors:           bySelectors(datastore.Exact, "B"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
 		},
 		{
 			test:                  "by SPIFFE ID and exact selectors",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
 			bySpiffeID:            byID("bar"),
 			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "2"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		{
 			test:                  "by SPIFFE ID and subset selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
 			bySpiffeID:            byID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "B"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
 		},
 		{
 			test:                  "by SPIFFE ID and subset selectors",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbarCB, bazbuzCD},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
 			bySpiffeID:            byID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "A", "B", "Z"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{foobarB, foobarAB}},
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
 			expectPagedTokensIn:   []string{"", "1", "2"},
-			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB}, {}},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {}},
 		},
 		{
 			test:                  "by SPIFFE ID and subset selectors no match",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB, bazbarCB, bazbuzCD},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
 			bySpiffeID:            byID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "C", "Z"),
-			expectEntriesOut:      [][]*common.RegistrationEntry{{}},
+			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
@@ -1755,7 +1713,6 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 				var pagination *datastore.Pagination
 				if withPagination {
 					pagination = &datastore.Pagination{
-						Token:    tt.pageToken,
 						PageSize: tt.pageSize,
 					}
 					if pagination.PageSize == 0 {
@@ -1776,7 +1733,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 				// Don't loop forever if there is a bug
 				for i := 0; ; i++ {
 					if i > len(tt.entries) {
-						require.FailNowf(t, "Exhaused paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
+						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
 					}
 					if req.Pagination != nil {
 						tokensIn = append(tokensIn, req.Pagination.Token)
@@ -1805,9 +1762,9 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 					req.Pagination = resp.Pagination
 				}
 
-				expectEntriesOut := tt.expectEntriesOut
-				if withPagination {
-					expectEntriesOut = tt.expectPagedEntriesOut
+				expectEntriesOut := tt.expectPagedEntriesOut
+				if !withPagination {
+					expectEntriesOut = [][]*common.RegistrationEntry{tt.expectEntriesOut}
 				}
 
 				var expectIDsOut [][]string
@@ -8889,4 +8846,23 @@ func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Se
 		return out
 	}
 	assert.Equal(t, convert(expected), convert(actual), msgAndArgs...)
+}
+
+func makeSelectors(vs ...string) []*common.Selector {
+	var ss []*common.Selector
+	for _, v := range vs {
+		ss = append(ss, &common.Selector{Type: v, Value: v})
+	}
+	return ss
+}
+
+func bySelectors(match datastore.MatchBehavior, ss ...string) *datastore.BySelectors {
+	return &datastore.BySelectors{
+		Match:     match,
+		Selectors: makeSelectors(ss...),
+	}
+}
+
+func makeID(suffix string) string {
+	return "spiffe://example.org/" + suffix
 }

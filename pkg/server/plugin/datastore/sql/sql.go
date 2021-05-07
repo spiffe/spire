@@ -1046,7 +1046,7 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 			// correct, a request with a given token should never yield that
 			// same token. Just in case, we don't want the server to loop
 			// indefinitely.
-			log.Warn("Filtered pagination would recurse. Please report this bug.")
+			log.Warn("Filtered attested node pagination would recurse. Please report this bug.")
 			resp.Pagination.Token = ""
 			return resp, nil
 		}
@@ -2059,7 +2059,7 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 			// correct, a request with a given token should never yield that
 			// same token. Just in case, we don't want the server to loop
 			// indefinitely.
-			log.Warn("Filtered pagination would recurse. Please report this bug.")
+			log.Warn("Filtered registration entry pagination would recurse. Please report this bug.")
 			resp.Pagination.Token = ""
 			return resp, nil
 		}
