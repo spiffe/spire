@@ -59,6 +59,7 @@ This may be useful for templating configuration files, for example across differ
 | `ca_ttl`                    | The default CA/signing key TTL                                                                   | 24h                           |
 | `data_dir`                  | A directory the server can use for its runtime                                                   |                               |
 | `default_svid_ttl`          | The default SVID TTL                                                                             | 1h                            |
+| `experimental`              | Experimental configurables (see below)
 | `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)          |                               |
 | `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                     |                               |
 | `log_file`                  | File to write logs to                                                                            |                               |
@@ -73,6 +74,10 @@ This may be useful for templating configuration files, for example across differ
 | `country`                   | Array of `Country` values      |                |
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
+
+| experimental                | Description                    | Default        |
+|:----------------------------|--------------------------------|----------------|
+| `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s |
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|

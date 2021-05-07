@@ -16,7 +16,7 @@ func listEntries(ctx context.Context, client entry.EntryClient, filter *entry.Li
 	nextPageToken := ""
 	var entries []*spiretypes.Entry
 	for {
-		listResponse, err := client.ListEntries(ctx, &entry.ListEntriesRequest{Filter: filter, PageToken: nextPageToken})
+		listResponse, err := client.ListEntries(ctx, &entry.ListEntriesRequest{Filter: filter, PageToken: nextPageToken, PageSize: 1000})
 		if err != nil {
 			return nil, err
 		}

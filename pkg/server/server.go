@@ -320,6 +320,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		RateLimit:                   s.config.RateLimit,
 		Uptime:                      uptime.Uptime,
 		Clock:                       clock.New(),
+		CacheReloadInterval:         s.config.CacheReloadInterval,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

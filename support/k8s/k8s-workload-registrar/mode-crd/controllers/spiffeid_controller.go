@@ -284,10 +284,11 @@ func entryFromCRD(crd *spiffeidv1beta1.SpiffeID) (*types.Entry, error) {
 		return nil, errs.New("malformed CRD SPIFFE ID: %v", err)
 	}
 	return &types.Entry{
-		ParentId:  parentID,
-		SpiffeId:  spiffeID,
-		Selectors: crd.TypesSelector(),
-		DnsNames:  crd.Spec.DnsNames,
+		ParentId:      parentID,
+		SpiffeId:      spiffeID,
+		Selectors:     crd.TypesSelector(),
+		DnsNames:      crd.Spec.DnsNames,
+		FederatesWith: crd.Spec.FederatesWith,
 	}, nil
 }
 

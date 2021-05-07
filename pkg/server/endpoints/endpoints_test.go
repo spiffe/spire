@@ -190,7 +190,7 @@ func TestListenAndServe(t *testing.T) {
 		return entrycache.BuildFromDataStore(ctx, ds)
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
 	endpoints := Endpoints{
