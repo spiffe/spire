@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.3] - 2021-05-14
+
+### Added
+- The `k8s-workload-registrar` now supports federation (#2160)
+- The `k8s_bundle` notifier plugin can now keep API service CA bundles up to date (#2193)
+- SPIRE Server internal cache reload timing can now be tuned (experimental) (#2169)
+
+### Changed
+- Prometheus metrics that are emitted infrequently will no longer disappear after emission (#2239)
+- The `k8s-workload-registrar` now uses paging to support very large deployments of 10,000+ pods (#2227)
+
+### Fixed
+- Fixed a bug that sometimes caused newly attested agents to not receive their full set of selectors (#2242)
+- Fixed several bugs related to the handling of SPIRE Server API paging (#2251)
+
 ## [0.12.2] - 2021-04-14
 
 ### Added
