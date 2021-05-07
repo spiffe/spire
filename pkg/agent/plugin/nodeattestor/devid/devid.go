@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/devid/tpm"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/devid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/devid"
 	spc "github.com/spiffe/spire/proto/spire/common"
@@ -38,9 +38,6 @@ type Config struct {
 	DevIDPubPath  string `hcl:"devid_pub_path"`
 	DevIDCertPath string `hcl:"devid_cert_path"`
 
-	AKPrivPath string `hcl:"ak_priv_path"`
-	AKPubPath  string `hcl:"ak_pub_path"`
-
 	DevicePath string `hcl:"tpm_device_path"`
 }
 
@@ -51,10 +48,6 @@ type config struct {
 	devIDCert *x509.Certificate
 	devIDPub  []byte
 	devIDPriv []byte
-
-	checkDevIDResidency bool
-	akPub               []byte
-	akPriv              []byte
 }
 
 type Plugin struct {
@@ -66,7 +59,9 @@ type Plugin struct {
 }
 
 func New() *Plugin {
-	return &Plugin{}
+	return &Plugin{
+		c: newDefaultConfig(),
+	}
 }
 
 func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
@@ -75,25 +70,48 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 		return status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	// Open TPM connection and loads keys
-	tpm, err := loadTPMContext(conf, p.log)
+	// Open TPM connection and load DevID keys
+	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
+		DevicePath: conf.devicePath,
+		DevIDPriv:  conf.devIDPriv,
+		DevIDPub:   conf.devIDPub,
+		Log:        p.log,
+	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to load context: %v", err)
+		return status.Errorf(codes.Internal, "unable start a new TPM session: %v", err)
 	}
 	defer tpm.Close()
+
+	// Get endorsement certificate from TPM NV index
+	ekCert, err := tpm.GetEKCert()
+	if err != nil {
+		return fmt.Errorf("unable to get endorsement certificate: %w", err)
+	}
+
+	// Get regenerated endorsement public key
+	ekPub, err := tpm.GetEKPublic()
+	if err != nil {
+		return fmt.Errorf("unable to get endorsement public key: %w", err)
+	}
+
+	// Certify DevID in in the same TPM than AK
+	id, sig, err := tpm.CertifyDevIDKey()
+	if err != nil {
+		return fmt.Errorf("unable to certify DevID key: %w", err)
+	}
 
 	// Marshal attestation data
 	marshaledAttData, err := json.Marshal(common_devid.AttestationRequest{
 		DevIDCert: conf.devIDCert.Raw,
 		DevIDPub:  conf.devIDPub,
 
-		EKCert: tpm.EKCert,
-		EKPub:  tpm.EKPub,
+		EKCert: ekCert,
+		EKPub:  ekPub,
 
-		AKPub: conf.akPub,
+		AKPub: tpm.GetAKPublic(),
 
-		CertifiedDevID:         tpm.CertifiedDevID,
-		CertificationSignature: tpm.CertificationSignature,
+		CertifiedDevID:         id,
+		CertificationSignature: sig,
 	})
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
@@ -129,16 +147,17 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 		return status.Errorf(codes.Internal, "unable to solve DevID challenge: %v", err)
 	}
 
-	// If DevID residency verification configured
+	// Solve Credential Activation challenge
 	var credActChallengeResp []byte
-	if conf.checkDevIDResidency && challenges.CredActivation != nil {
-		// Solve Credential Activation challenge
-		credActChallengeResp, err = tpm.SolveCredActivationChallenge(
-			challenges.CredActivation.Credential,
-			challenges.CredActivation.Secret)
-		if err != nil {
-			return status.Errorf(codes.Internal, "unable to solve credential activation challenge: %v", err)
-		}
+	if challenges.CredActivation == nil {
+		return status.Errorf(codes.Internal, "received empty credential activation challenge from server")
+	}
+
+	credActChallengeResp, err = tpm.SolveCredActivationChallenge(
+		challenges.CredActivation.Credential,
+		challenges.CredActivation.Secret)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to solve credential activation challenge: %v", err)
 	}
 
 	// Marshal challenges responses
@@ -173,37 +192,23 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	p.setPluginConfigDefaults(extConf)
-
 	err = validatePluginConfig(extConf)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "missing configurable: %v", err)
 	}
 
-	// Create initial internal configuration
-	intConf := &config{
-		trustDomain: req.GlobalConfig.TrustDomain,
-		devicePath:  extConf.DevicePath,
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.c.trustDomain = req.GlobalConfig.TrustDomain
 
-		// If Attestation Key is configured, it is assumed that the user wants to verify DevID residency
-		checkDevIDResidency: akConfigured(extConf),
+	if extConf.DevicePath != "" {
+		p.c.devicePath = extConf.DevicePath
 	}
 
-	// Load DevID files
-	err = loadDevIDFiles(extConf, intConf)
+	err = p.loadDevIDFiles(extConf)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to load DevID files: %v", err)
 	}
-
-	// Load Attestation Key files (if configured)
-	if intConf.checkDevIDResidency {
-		err = loadAKFiles(extConf, intConf)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to load attestation key files: %v", err)
-		}
-	}
-
-	p.setConfig(intConf)
 
 	return &plugin.ConfigureResponse{}, nil
 }
@@ -222,16 +227,33 @@ func (p *Plugin) getConfig() *config {
 	return p.c
 }
 
-func (p *Plugin) setConfig(c *config) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.c = c
+func (p *Plugin) loadDevIDFiles(c *Config) error {
+	devIDCertBytes, err := ioutil.ReadFile(c.DevIDCertPath)
+	if err != nil {
+		return fmt.Errorf("cannot load certificate: %w", err)
+	}
+
+	p.c.devIDCert, err = x509.ParseCertificate(devIDCertBytes)
+	if err != nil {
+		return fmt.Errorf("cannot parse certificate: %w", err)
+	}
+
+	p.c.devIDPriv, err = ioutil.ReadFile(c.DevIDPrivPath)
+	if err != nil {
+		return fmt.Errorf("cannot load private key: %w", err)
+	}
+
+	p.c.devIDPub, err = ioutil.ReadFile(c.DevIDPubPath)
+	if err != nil {
+		return fmt.Errorf("cannot load public key: %w", err)
+	}
+
+	return nil
 }
 
-func (p *Plugin) setPluginConfigDefaults(config *Config) {
-	if config.DevicePath == "" {
-		config.DevicePath = defaultDevicePath
-		p.log.Info("tpm_device_path is not set, using default: %q", defaultDevicePath)
+func newDefaultConfig() *config {
+	return &config{
+		devicePath: defaultDevicePath,
 	}
 }
 
@@ -257,120 +279,5 @@ func validatePluginConfig(c *Config) error {
 		return fmt.Errorf("devid_pub_path is required")
 	}
 
-	// Attestation private and public keys are not required but if one is
-	// provided the other one is also needed.
-	switch {
-	case c.AKPrivPath == "" && c.AKPubPath == "":
-		return nil
-
-	case c.AKPrivPath == "":
-		return fmt.Errorf("ak_priv_path is required if ak_pub_path is provided")
-
-	case c.AKPubPath == "":
-		return fmt.Errorf("ak_pub_path is required if ak_priv_path is provided")
-	}
-
 	return nil
-}
-
-func akConfigured(c *Config) bool {
-	return c.AKPubPath != "" && c.AKPrivPath != ""
-}
-
-func loadDevIDFiles(c *Config, info *config) error {
-	devIDCertBytes, err := ioutil.ReadFile(c.DevIDCertPath)
-	if err != nil {
-		return fmt.Errorf("cannot load certificate: %w", err)
-	}
-
-	info.devIDCert, err = x509.ParseCertificate(devIDCertBytes)
-	if err != nil {
-		return fmt.Errorf("cannot parse certificate: %w", err)
-	}
-
-	info.devIDPriv, err = ioutil.ReadFile(c.DevIDPrivPath)
-	if err != nil {
-		return fmt.Errorf("cannot load private key: %w", err)
-	}
-
-	info.devIDPub, err = ioutil.ReadFile(c.DevIDPubPath)
-	if err != nil {
-		return fmt.Errorf("cannot load public key: %w", err)
-	}
-
-	return nil
-}
-
-func loadAKFiles(c *Config, info *config) error {
-	var err error
-
-	info.akPub, err = ioutil.ReadFile(c.AKPubPath)
-	if err != nil {
-		return fmt.Errorf("cannot load public key: %w", err)
-	}
-
-	info.akPriv, err = ioutil.ReadFile(c.AKPrivPath)
-	if err != nil {
-		return fmt.Errorf("cannot load private key: %w", err)
-	}
-
-	return nil
-}
-
-func loadTPMContext(intConf *config, log hclog.Logger) (*tpm.Context, error) {
-	// Open TPM connection
-	tpmCtx, err := tpm.Open(intConf.devicePath, log)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open TPM at %q: %w", intConf.devicePath, err)
-	}
-
-	// Clean context in case of error
-	defer func() {
-		if err != nil {
-			tpmCtx.Close()
-		}
-	}()
-
-	// Load DevID
-	tpmCtx.DevID, err = tpmCtx.LoadKey(intConf.devIDPub, intConf.devIDPriv)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load DevID: %w", err)
-	}
-
-	// If DevID residency verification is not configured
-	if !intConf.checkDevIDResidency {
-		return tpmCtx, nil
-	}
-
-	// Load Attestation Key
-	tpmCtx.AK, err = tpmCtx.LoadKey(intConf.akPub, intConf.akPriv)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load attestation key: %w", err)
-	}
-
-	// Regenerate Endorsement Key
-	tpmCtx.EK, err = tpmCtx.RegenerateEK()
-	if err != nil {
-		return nil, fmt.Errorf("cannot create endorsement key: %w", err)
-	}
-
-	// Encode public part of the Endorsement Key
-	tpmCtx.EKPub, err = tpmCtx.EncodePublicEK()
-	if err != nil {
-		return nil, fmt.Errorf("cannot encode public EK: %w", err)
-	}
-
-	// Read Endorsement Certificate
-	tpmCtx.EKCert, err = tpmCtx.GetEKCert()
-	if err != nil {
-		return nil, fmt.Errorf("cannot retrieve endorsement certificate: %w", err)
-	}
-
-	// Certify that DevID is in the same TPM than Attestation Key
-	tpmCtx.CertifiedDevID, tpmCtx.CertificationSignature, err = tpmCtx.AK.Certify(tpmCtx.DevID.Handle)
-	if err != nil {
-		return nil, fmt.Errorf("cannot to certify DevID: %w", err)
-	}
-
-	return tpmCtx, nil
 }

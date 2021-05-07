@@ -10,7 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	na_aws_iid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/aws"
 	na_azure_msi "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/azure"
-	na_devid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/devid"
+	na_tpm_devid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/devid"
 	na_gcp_iit "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/gcp"
 	na_join_token "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
 	na_k8s_psat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/psat"
@@ -63,7 +63,7 @@ func BuiltIns() []catalog.Plugin {
 		na_azure_msi.BuiltIn(),
 		na_k8s_sat.BuiltIn(),
 		na_k8s_psat.BuiltIn(),
-		na_devid.BuiltIn(),
+		na_tpm_devid.BuiltIn(),
 		wa_k8s.BuiltIn(),
 		wa_unix.BuiltIn(),
 		wa_docker.BuiltIn(),

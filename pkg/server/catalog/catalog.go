@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	na_aws_iid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
 	na_azure_msi "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
-	na_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/devid"
+	na_tpm_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/devid"
 	na_gcp_iit "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
 	na_join_token "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	na_k8s_psat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
@@ -66,7 +66,7 @@ var (
 		na_k8s_sat.BuiltIn(),
 		na_k8s_psat.BuiltIn(),
 		na_join_token.BuiltIn(),
-		na_devid.BuiltIn(),
+		na_tpm_devid.BuiltIn(),
 		// NodeResolvers
 		nr_azure_msi.BuiltIn(),
 		// UpstreamAuthorities

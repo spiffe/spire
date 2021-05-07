@@ -3,8 +3,10 @@ package devid
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
 	"crypto/x509"
 	"encoding/asn1"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +17,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/devid"
-	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	spc "github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -157,7 +158,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 
 	// Create SPIFFE ID and selectors
 	certSelectors := selectorsFromCertificate(common_devid.PluginName, "certificate", devIDCert)
-	fingerprint := x509pop.Fingerprint(devIDCert)
+	fingerprint := fingerprint(devIDCert)
 	certSelectors = append(certSelectors, &spc.Selector{
 		Type:  common_devid.PluginName,
 		Value: fmt.Sprintf("fingerprint:%s", fingerprint),
@@ -347,17 +348,15 @@ func verifyEKSignature(ekCert *x509.Certificate, roots *x509.CertPool) error {
 	// Check UnhandledCriticalExtensions for OIDs that we know what to do about
 	// it (e.g. it's safe to ignore)
 	subjectAlternativeNameOID := asn1.ObjectIdentifier{2, 5, 29, 17}
-	if len(ekCert.UnhandledCriticalExtensions) > 0 {
-		unhandledExtensions := []asn1.ObjectIdentifier{}
-		for _, oid := range ekCert.UnhandledCriticalExtensions {
-			if oid.Equal(subjectAlternativeNameOID) {
-				// Subject Alternative Name is not processed at the time.
-				continue
-			}
+	unhandledExtensions := []asn1.ObjectIdentifier{}
+	for _, oid := range ekCert.UnhandledCriticalExtensions {
+		// Endorsement certificate's SAN is not fully processed by x509 package
+		if !oid.Equal(subjectAlternativeNameOID) {
+			unhandledExtensions = append(unhandledExtensions, oid)
 		}
-
-		ekCert.UnhandledCriticalExtensions = unhandledExtensions
 	}
+
+	ekCert.UnhandledCriticalExtensions = unhandledExtensions
 
 	_, err := ekCert.Verify(x509.VerifyOptions{
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
@@ -484,4 +483,9 @@ func getSignatureScheme(pub tpm2.Public) (*tpm2.SigScheme, error) {
 	default:
 		return nil, fmt.Errorf("unsupported key type 0x%04x", pub.Type)
 	}
+}
+
+func fingerprint(cert *x509.Certificate) string {
+	sum := sha1.Sum(cert.Raw) //nolint: gosec // SHA1 use is according to specification
+	return hex.EncodeToString(sum[:])
 }

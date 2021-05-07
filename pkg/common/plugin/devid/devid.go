@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const PluginName = "devid"
+const PluginName = "tpm_devid"
 
 type AttestationRequest struct {
 	DevIDCert []byte
