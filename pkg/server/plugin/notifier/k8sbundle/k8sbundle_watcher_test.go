@@ -319,7 +319,7 @@ func (a *fakeAPIService) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (a *fakeAPIService) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (a *fakeAPIService) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	webhook, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, k8sErr.New("wrong type, expecting API service")

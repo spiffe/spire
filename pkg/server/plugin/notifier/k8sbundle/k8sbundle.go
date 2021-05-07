@@ -409,7 +409,7 @@ func (c apiServiceClient) GetList(ctx context.Context, config *pluginConfig) (ru
 	})
 }
 
-func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *hostservices.FetchX509IdentityResponse) (runtime.Object, error) {
 	apiService, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting APIService")
