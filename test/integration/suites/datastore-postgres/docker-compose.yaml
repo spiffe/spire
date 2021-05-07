@@ -4,23 +4,31 @@ services:
     image: postgres:9
     environment:
       - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
   postgres-10:
     image: postgres:10
     environment:
       - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
   postgres-11:
     image: postgres:11
     environment:
       - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
   postgres-12:
     image: postgres:12
     environment:
       - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
     ports:
       - "9999:5432"
