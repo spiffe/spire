@@ -846,7 +846,9 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	} {
 		tt := tt
 		for _, withPagination := range []bool{true, false} {
+			withPagination := withPagination // suppress scopelint false negative
 			for _, withSelectors := range []bool{true, false} {
+				withSelectors := withSelectors // suppress scopelint false negative
 				name := tt.test
 				if withSelectors {
 					name += " with selectors"
@@ -1635,6 +1637,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 	} {
 		tt := tt
 		for _, withPagination := range []bool{true, false} {
+			withPagination := withPagination // suppress scopelint false negative
 			name := tt.test
 			if withPagination {
 				name += " with pagination"
@@ -6578,7 +6581,7 @@ func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Se
 		}
 		return out
 	}
-	assert.Equal(t, convert(expected), convert(actual))
+	assert.Equal(t, convert(expected), convert(actual), msgAndArgs...)
 }
 
 func makeSelectors(vs ...string) []*common.Selector {
