@@ -32,13 +32,13 @@ const (
 	defaultCASigningTemplateArn = "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *PCAPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		upstreamauthorityv0.PluginServer(p),
+func builtin(p *PCAPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		upstreamauthorityv0.UpstreamAuthorityPluginServer(p),
 	)
 }
 

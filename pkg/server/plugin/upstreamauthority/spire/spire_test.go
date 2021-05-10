@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -20,13 +19,16 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/util"
@@ -559,7 +561,7 @@ func TestSpirePlugin_PublishJWTKey(t *testing.T) {
 	require.EqualError(t, err, "rpc error: code = Unknown desc = some error")
 }
 
-func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthorityv0.Plugin, *clock.Mock) {
+func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamauthorityv0.UpstreamAuthorityClient, *clock.Mock) {
 	host, port, _ := net.SplitHostPort(addr)
 
 	config := Configuration{
@@ -568,23 +570,17 @@ func newWithDefault(t *testing.T, addr string, socketPath string) (upstreamautho
 		WorkloadAPISocket: socketPath,
 	}
 
-	jsonConfig, err := json.Marshal(config)
-	require.NoError(t, err)
-
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: trustDomain.String()},
-	}
-
-	var plugin upstreamauthorityv0.Plugin
-	spiretest.LoadPlugin(t, BuiltIn(), &plugin)
-	if _, err = plugin.Configure(ctx, pluginConfig); err != nil {
-		require.NoError(t, err)
-	}
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(t, BuiltIn(), v0,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: trustDomain,
+		}),
+		plugintest.ConfigureJSON(config),
+	)
 
 	mockClock := clock.NewMock(t)
 
 	clk = mockClock
 
-	return plugin, mockClock
+	return v0.UpstreamAuthorityClient, mockClock
 }

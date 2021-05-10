@@ -11,9 +11,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -31,7 +32,7 @@ type Suite struct {
 	spiretest.Suite
 
 	dir     string
-	p       workloadattestorv0.Plugin
+	p       workloadattestorv0.WorkloadAttestorClient
 	logHook *test.Hook
 }
 
@@ -46,7 +47,10 @@ func (s *Suite) SetupTest() {
 	p.hooks.lookupGroupByID = fakeLookupGroupByID
 	log, hook := test.NewNullLogger()
 	s.logHook = hook
-	s.LoadPlugin(builtin(p), &s.p, spiretest.Logger(log))
+
+	v0 := new(workloadattestor.V0)
+	plugintest.Load(s.T(), builtin(p), v0, plugintest.Log(log))
+	s.p = v0.WorkloadAttestorPluginClient
 
 	s.configure("")
 }
@@ -83,9 +87,8 @@ func (s *Suite) TestAttest() {
 					Level:   logrus.WarnLevel,
 					Message: "Failed to lookup user name by uid",
 					Data: logrus.Fields{
-						"uid":                   "1999",
-						logrus.ErrorKey:         "no user with UID 1999",
-						telemetry.SubsystemName: "built-in_plugin.unix",
+						"uid":           "1999",
+						logrus.ErrorKey: "no user with UID 1999",
 					},
 				},
 			},
@@ -113,9 +116,8 @@ func (s *Suite) TestAttest() {
 					Level:   logrus.WarnLevel,
 					Message: "Failed to lookup group name by gid",
 					Data: logrus.Fields{
-						"gid":                   "2999",
-						logrus.ErrorKey:         "no group with GID 2999",
-						telemetry.SubsystemName: "built-in_plugin.unix",
+						"gid":           "2999",
+						logrus.ErrorKey: "no group with GID 2999",
 					},
 				},
 			},

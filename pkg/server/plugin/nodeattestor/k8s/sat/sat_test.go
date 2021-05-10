@@ -20,12 +20,14 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
@@ -73,7 +75,7 @@ type AttestorSuite struct {
 	barKey     *ecdsa.PrivateKey
 	barSigner  jose.Signer
 	bazSigner  jose.Signer
-	attestor   nodeattestorv0.Plugin
+	attestor   nodeattestorv0.NodeAttestorClient
 	agentStore *fakeagentstore.AgentStore
 	mockCtrl   *gomock.Controller
 	mockClient *k8s_apiserver_mock.MockClient
@@ -244,16 +246,16 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenSta
 	s.requireAttestError(makeAttestRequest("BAR", token), "fail to parse username from token review status")
 }
 
-func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenClaim() {
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowListedFromTokenClaim() {
 	token := s.signToken(s.fooSigner, "NS1", "NO-WHITHELISTED-SA")
-	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:NO-WHITHELISTED-SA" is not an allowed service account`)
 }
 
-func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelistedFromTokenStatus() {
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowListedFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
 	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("BAR", token), `"NS2:NO-WHITHELISTED-SA" is not an allowed service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenSignatureCannotBeVerifiedByCluster() {
@@ -329,7 +331,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: configuration must have at least one cluster")
 	s.Require().Nil(resp)
 
-	// cluster missing service account whitelist (local validation config)
+	// cluster missing service account allow list (local validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO" = {
@@ -338,10 +340,10 @@ func (s *AttestorSuite) TestConfigure() {
 		}`, s.fooCertPath()),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration must have at least one service account whitelisted`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "FOO" configuration must have at least one service account allowed`)
 	s.Require().Nil(resp)
 
-	// cluster missing service account whitelist (token review validation config)
+	// cluster missing service account allow list (token review validation config)
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `clusters = {
 				"BAR" = {
@@ -350,7 +352,7 @@ func (s *AttestorSuite) TestConfigure() {
 			}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account whitelisted`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-sat: cluster "BAR" configuration must have at least one service account allowed`)
 	s.Require().Nil(resp)
 
 	// unable to load cluster service account keys
@@ -358,7 +360,7 @@ func (s *AttestorSuite) TestConfigure() {
 		Configuration: fmt.Sprintf(`clusters = {
 				"FOO" = {
 					service_account_key_file = %q
-					service_account_whitelist = ["A"]
+					service_account_allow_list = ["A"]
 				}
 			}`, filepath.Join(s.dir, "missing.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -372,7 +374,7 @@ func (s *AttestorSuite) TestConfigure() {
 		Configuration: fmt.Sprintf(`clusters = {
 				"FOO" = {
 					service_account_key_file = %q
-					service_account_whitelist = ["A"]
+					service_account_allow_list = ["A"]
 				}
 			}`, filepath.Join(s.dir, "nokeys.pem")),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -412,15 +414,15 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 		Configuration: fmt.Sprintf(`clusters = {
 			"FOO-PKCS1" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["A"]
+				service_account_allow_list = ["A"]
 			}
 			"FOO-PKIX" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["A"]
+				service_account_allow_list = ["A"]
 			}
 			"BAR-PKIX" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["A"]
+				service_account_allow_list = ["A"]
 			}
 		}`, fooPKCS1KeyPath, fooPKIXKeyPath, barPKIXKeyPath),
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -452,19 +454,19 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 	return token
 }
 
-func (s *AttestorSuite) newAttestor() nodeattestorv0.Plugin {
+func (s *AttestorSuite) newAttestor() nodeattestorv0.NodeAttestorClient {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
 	}
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(attestor), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
-func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
+func (s *AttestorSuite) configureAttestor() nodeattestorv0.NodeAttestorClient {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
@@ -475,11 +477,11 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
 		clusters = {
 			"FOO" = {
 				service_account_key_file = %q
-				service_account_whitelist = ["NS1:SA1"]
+				service_account_allow_list = ["NS1:SA1"]
 			}
 			"BAR" = {
 				use_token_review_api_validation = true
-				service_account_whitelist = ["NS2:SA2"]
+				service_account_allow_list = ["NS2:SA2"]
 			}
 		}
 		`, s.fooCertPath()),
@@ -491,18 +493,18 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.Plugin {
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
 	attestor.config.clusters["BAR"].client = s.mockClient
 
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(attestor), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
 func (s *AttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.Plugin, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
+func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestorClient, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 

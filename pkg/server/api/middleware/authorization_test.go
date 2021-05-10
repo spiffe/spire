@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/spiretest"
@@ -84,7 +85,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "Authorizer called",
 					Data: logrus.Fields{
-						"caller-addr": "1.1.1.1:1",
+						telemetry.CallerAddr: "1.1.1.1:1",
 					},
 				},
 			},
@@ -99,8 +100,8 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "Authorizer called",
 					Data: logrus.Fields{
-						"caller-addr": "2.2.2.2:2",
-						"caller-id":   "spiffe://example.org/workload",
+						telemetry.CallerAddr: "2.2.2.2:2",
+						telemetry.CallerID:   "spiffe://example.org/workload",
 					},
 				},
 			},

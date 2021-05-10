@@ -11,15 +11,14 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin nodeattestorv0.NodeAttestor
+	nodeattestorv0.NodeAttestorPluginClient
 }
 
-func (v0 V0) Attest(ctx context.Context, serverStream ServerStream) error {
+func (v0 *V0) Attest(ctx context.Context, serverStream ServerStream) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	pluginStream, err := v0.Plugin.FetchAttestationData(ctx)
+	pluginStream, err := v0.NodeAttestorPluginClient.FetchAttestationData(ctx)
 	if err != nil {
 		return v0.WrapErr(err)
 	}

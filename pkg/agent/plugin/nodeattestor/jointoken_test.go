@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,8 @@ import (
 )
 
 func TestJoinToken(t *testing.T) {
-	attestor := nodeattestor.JoinToken("foo")
+	log, _ := test.NewNullLogger()
+	attestor := nodeattestor.JoinToken(log, "foo")
 
 	t.Run("success", func(t *testing.T) {
 		err := attestor.Attest(context.Background(), &fakeStream{

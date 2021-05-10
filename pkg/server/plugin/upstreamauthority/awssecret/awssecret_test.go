@@ -3,7 +3,6 @@ package awssecret
 import (
 	"context"
 	"crypto/x509"
-	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -11,11 +10,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"google.golang.org/grpc/codes"
@@ -34,7 +37,7 @@ type Suite struct {
 
 	clock  *clock.Mock
 	client secretsManagerClient
-	plugin upstreamauthorityv0.Plugin
+	plugin upstreamauthorityv0.UpstreamAuthorityClient
 }
 
 func (as *Suite) SetupTest() {
@@ -118,7 +121,7 @@ func (as *Suite) TestMintX509CAUsesPreferredTTLIfSet() {
 	as.testCSRTTL(awsUpstreamAuthority, 0, x509svid.DefaultUpstreamCATTL)
 }
 
-func (as *Suite) testCSRTTL(plugin upstreamauthorityv0.Plugin, preferredTTL int32, expectedTTL time.Duration) {
+func (as *Suite) testCSRTTL(plugin upstreamauthorityv0.UpstreamAuthorityClient, preferredTTL int32, expectedTTL time.Duration) {
 	validSpiffeID := "spiffe://localhost"
 	csr, _, err := util.NewCSRTemplate(validSpiffeID)
 	as.Require().NoError(err)
@@ -143,17 +146,15 @@ func (as *Suite) TestFailConfiguration() {
 		SecretAccessKey: "accesskey",
 	}
 
-	jsonConfig, _ := json.Marshal(config)
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	}
-
 	m := newPlugin(newFakeSecretsManagerClient)
 
-	var plugin upstreamauthorityv0.Plugin
-	as.LoadPlugin(builtin(m), &plugin)
-	_, err := plugin.Configure(ctx, pluginConfig)
+	var err error
+	plugintest.Load(as.T(), builtin(m), new(upstreamauthority.V0),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
+		}),
+		plugintest.ConfigureJSON(config),
+		plugintest.CaptureConfigureError(&err))
 	as.Require().Error(err)
 }
 
@@ -163,7 +164,7 @@ func (as *Suite) TestAWSSecret_GetPluginInfo() {
 	as.Require().NotNil(res)
 }
 
-func (as *Suite) newAWSUpstreamAuthority() upstreamauthorityv0.Plugin {
+func (as *Suite) newAWSUpstreamAuthority() upstreamauthorityv0.UpstreamAuthorityClient {
 	config := Config{
 		KeyFileARN:      "key",
 		CertFileARN:     "cert",
@@ -171,25 +172,21 @@ func (as *Suite) newAWSUpstreamAuthority() upstreamauthorityv0.Plugin {
 		SecretAccessKey: "accesskey",
 	}
 
-	jsonConfig, err := json.Marshal(config)
-	as.Require().NoError(err)
-	pluginConfig := &spi.ConfigureRequest{
-		Configuration: string(jsonConfig),
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	}
-
+	var err error
 	as.client, err = newFakeSecretsManagerClient(nil, "region")
 	as.Require().NoError(err)
 
 	m := newPlugin(newFakeSecretsManagerClient)
 	m.hooks.clock = as.clock
 
-	var plugin upstreamauthorityv0.Plugin
-	as.LoadPlugin(builtin(m), &plugin)
-	_, err = plugin.Configure(ctx, pluginConfig)
-	as.Require().NoError(err)
-
-	return plugin
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(as.T(), builtin(m), v0,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
+		}),
+		plugintest.ConfigureJSON(config),
+	)
+	return v0.UpstreamAuthorityClient
 }
 
 func (as *Suite) TestPublishJWTKey() {
@@ -202,7 +199,7 @@ func (as *Suite) TestPublishJWTKey() {
 	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
 }
 
-func (as *Suite) mintX509CA(plugin upstreamauthorityv0.Plugin, req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
+func (as *Suite) mintX509CA(plugin upstreamauthorityv0.UpstreamAuthorityClient, req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 

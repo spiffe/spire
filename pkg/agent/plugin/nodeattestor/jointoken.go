@@ -3,13 +3,14 @@ package nodeattestor
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"google.golang.org/grpc/codes"
 )
 
-func JoinToken(token string) NodeAttestor {
+func JoinToken(log logrus.FieldLogger, token string) NodeAttestor {
 	return joinToken{
-		Facade: plugin.FixedFacade("join_token", "NodeAttestor"),
+		Facade: plugin.FixedFacade("join_token", "NodeAttestor", log),
 		token:  token,
 	}
 }

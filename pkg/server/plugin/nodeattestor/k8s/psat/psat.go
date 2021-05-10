@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
@@ -25,13 +26,13 @@ var (
 	psatError       = errs.Class("k8s-psat")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *AttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		nodeattestorv0.PluginServer(p),
+func builtin(p *AttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 
@@ -42,9 +43,12 @@ type AttestorConfig struct {
 
 // ClusterConfig holds a single cluster configuration
 type ClusterConfig struct {
-	// Array of whitelisted service accounts names
+	// Array of allowed service accounts names
 	// Attestation is denied if coming from a service account that is not in the list
-	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
+	ServiceAccountAllowList []string `hcl:"service_account_allow_list"`
+
+	// TODO: Remove this in 1.1.0
+	ServiceAccountAllowListDeprecated []string `hcl:"service_account_whitelist"`
 
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
@@ -81,6 +85,7 @@ type AttestorPlugin struct {
 
 	mu     sync.RWMutex
 	config *attestorConfig
+	log    hclog.Logger
 }
 
 // New creates a new PSAT node attestor plugin
@@ -89,6 +94,11 @@ func New() *AttestorPlugin {
 }
 
 var _ nodeattestorv0.NodeAttestorServer = (*AttestorPlugin)(nil)
+
+// SetLogger sets up plugin logging
+func (p *AttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
+}
 
 func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
@@ -147,7 +157,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer)
 	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
 
 	if !cluster.serviceAccounts[fullServiceAccountName] {
-		return psatError.New("%q is not a whitelisted service account", fullServiceAccountName)
+		return psatError.New("%q is not an allowed service account", fullServiceAccountName)
 	}
 
 	podName, err := k8s.GetPodNameFromTokenStatus(tokenStatus)
@@ -226,12 +236,18 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 
 	for name, cluster := range hclConfig.Clusters {
-		if len(cluster.ServiceAccountWhitelist) == 0 {
-			return nil, psatError.New("cluster %q configuration must have at least one service account whitelisted", name)
+		// TODO: Remove this in 1.1.0
+		if len(cluster.ServiceAccountAllowListDeprecated) > 0 {
+			p.log.Warn("The `service_account_whitelist` configurable is deprecated and will be removed in a future release. Please use `service_account_allow_list` instead.")
+			cluster.ServiceAccountAllowList = cluster.ServiceAccountAllowListDeprecated
+		}
+
+		if len(cluster.ServiceAccountAllowList) == 0 {
+			return nil, psatError.New("cluster %q configuration must have at least one service account allowed", name)
 		}
 
 		serviceAccounts := make(map[string]bool)
-		for _, serviceAccount := range cluster.ServiceAccountWhitelist {
+		for _, serviceAccount := range cluster.ServiceAccountAllowList {
 			serviceAccounts[serviceAccount] = true
 		}
 

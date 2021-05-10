@@ -1,8 +1,13 @@
 package plugin
 
-import "github.com/sirupsen/logrus"
+import (
+	"io/ioutil"
 
-// Log provides a plugin logger to version shim implementations.
-type Log struct {
-	logrus.FieldLogger
+	"github.com/sirupsen/logrus"
+)
+
+func NullLogger() logrus.FieldLogger {
+	logger := logrus.New()
+	logger.Out = ioutil.Discard
+	return logger
 }

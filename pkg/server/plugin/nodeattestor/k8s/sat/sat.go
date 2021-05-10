@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/gofrs/uuid"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
@@ -34,13 +35,13 @@ var (
 	satError = errs.Class("k8s-sat")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *AttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin("k8s_sat",
-		nodeattestorv0.PluginServer(p),
+func builtin(p *AttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("k8s_sat",
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 
@@ -49,9 +50,12 @@ type ClusterConfig struct {
 	// If use_token_review_api_validation is true, then this path is ignored and TokenReview API is used for validation
 	ServiceAccountKeyFile string `hcl:"service_account_key_file"`
 
-	// ServiceAccountWhitelist is a list of service account names, qualified by
+	// ServiceAccountAllowList is a list of service account names, qualified by
 	// namespace (for example, "default:blog" or "production:web") to allow for node attestation
-	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
+	ServiceAccountAllowList []string `hcl:"service_account_allow_list"`
+
+	// TODO: Remove this in 1.1.0
+	ServiceAccountAllowListDeprecated []string `hcl:"service_account_whitelist"`
 
 	// UseTokenReviewAPI
 	//   If true token review API will be used for token validation
@@ -84,6 +88,7 @@ type AttestorPlugin struct {
 
 	mu     sync.RWMutex
 	config *attestorConfig
+	log    hclog.Logger
 
 	hooks struct {
 		newUUID func() (string, error)
@@ -102,6 +107,11 @@ func New() *AttestorPlugin {
 		return u.String(), nil
 	}
 	return p
+}
+
+// SetLogger sets up plugin logging
+func (p *AttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
@@ -210,7 +220,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer)
 
 	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
 	if !cluster.serviceAccounts[fullServiceAccountName] {
-		return satError.New("%q is not a whitelisted service account", fullServiceAccountName)
+		return satError.New("%q is not an allowed service account", fullServiceAccountName)
 	}
 
 	return stream.Send(&nodeattestorv0.AttestResponse{
@@ -265,12 +275,18 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 			}
 		}
 
-		if len(cluster.ServiceAccountWhitelist) == 0 {
-			return nil, satError.New("cluster %q configuration must have at least one service account whitelisted", name)
+		// TODO: Remove this in 1.1.0
+		if len(cluster.ServiceAccountAllowListDeprecated) > 0 {
+			p.log.Warn("The `service_account_whitelist` configurable is deprecated and will be removed in a future release. Please use `service_account_allow_list` instead.")
+			cluster.ServiceAccountAllowList = cluster.ServiceAccountAllowListDeprecated
+		}
+
+		if len(cluster.ServiceAccountAllowList) == 0 {
+			return nil, satError.New("cluster %q configuration must have at least one service account allowed", name)
 		}
 
 		serviceAccounts := make(map[string]bool)
-		for _, serviceAccount := range cluster.ServiceAccountWhitelist {
+		for _, serviceAccount := range cluster.ServiceAccountAllowList {
 			serviceAccounts[serviceAccount] = true
 		}
 

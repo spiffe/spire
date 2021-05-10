@@ -9,7 +9,7 @@ import (
 	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
 )
 
@@ -26,9 +26,9 @@ func New(t *testing.T) keymanager.KeyManager {
 		}),
 	}
 
-	var km keymanager.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("fake", keymanagerv0.PluginServer(plugin)), &km)
-	return km
+	v0 := new(keymanager.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("fake", keymanagerv0.KeyManagerPluginServer(plugin)), v0)
+	return v0
 }
 
 type keyManager struct {

@@ -20,6 +20,7 @@ func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
 	}
 	TYPE2 "NAME2" {
 		plugin_cmd = "CMD2"
+		plugin_args = ["foo", "bar", "baz"]
 		plugin_checksum = "CHECKSUM2"
 		plugin_data = "DATA2"
 		enabled = true
@@ -44,6 +45,7 @@ func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
 			Name:     "NAME2",
 			Type:     "TYPE2",
 			Path:     "CMD2",
+			Args:     []string{"foo", "bar", "baz"},
 			Checksum: "CHECKSUM2",
 			Data:     `"DATA2"`,
 			Disabled: false,

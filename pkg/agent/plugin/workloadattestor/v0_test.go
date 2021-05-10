@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -43,10 +44,10 @@ func TestV0(t *testing.T) {
 
 func makeFakeV0Plugin(t *testing.T, selectors map[int][]*common.Selector) workloadattestor.WorkloadAttestor {
 	fake := &fakePluginV0{selectors: selectors}
-	server := workloadattestorv0.PluginServer(fake)
+	server := workloadattestorv0.WorkloadAttestorPluginServer(fake)
 
-	var plugin workloadattestor.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test", server), &plugin)
+	plugin := new(workloadattestor.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), plugin)
 	return plugin
 }
 

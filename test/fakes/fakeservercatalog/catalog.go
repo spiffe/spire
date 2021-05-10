@@ -1,7 +1,6 @@
 package fakeservercatalog
 
 import (
-	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -10,39 +9,24 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 )
 
-type Catalog struct {
-	catalog.Plugins
-}
-
 func New() *Catalog {
-	return &Catalog{
-		Plugins: catalog.Plugins{
-			NodeAttestors: make(map[string]nodeattestor.NodeAttestor),
-			NodeResolvers: make(map[string]noderesolver.NodeResolver),
-		},
-	}
+	return new(Catalog)
 }
 
-func (c *Catalog) SetDataStore(dataStore datastore.DataStore) {
-	c.DataStore = dataStore
+type Catalog struct {
+	dataStoreRepository
+	keyManagerRepository
+	nodeAttestorRepository
+	nodeResolverRepository
+	notifierRepository
+	upstreamAuthorityRepository
 }
 
-func (c *Catalog) AddNodeAttestor(nodeAttestor nodeattestor.NodeAttestor) {
-	c.NodeAttestors[nodeAttestor.Name()] = nodeAttestor
-}
-
-func (c *Catalog) AddNodeResolverNamed(nodeResolver noderesolver.NodeResolver) {
-	c.NodeResolvers[nodeResolver.Name()] = nodeResolver
-}
-
-func (c *Catalog) SetUpstreamAuthority(upstreamAuthority upstreamauthority.UpstreamAuthority) {
-	c.UpstreamAuthority = upstreamAuthority
-}
-
-func (c *Catalog) SetKeyManager(keyManager keymanager.KeyManager) {
-	c.KeyManager = keyManager
-}
-
-func (c *Catalog) AddNotifier(notifier notifier.Notifier) {
-	c.Notifiers = append(c.Notifiers, notifier)
-}
+// We need distinct type names to embed in the Catalog above, since the types
+// we want to actually embed are all named the same.
+type dataStoreRepository struct{ datastore.Repository }
+type keyManagerRepository struct{ keymanager.Repository }
+type nodeAttestorRepository struct{ nodeattestor.Repository }
+type nodeResolverRepository struct{ noderesolver.Repository }
+type notifierRepository struct{ notifier.Repository }
+type upstreamAuthorityRepository struct{ upstreamauthority.Repository }

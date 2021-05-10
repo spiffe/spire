@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
 	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -54,10 +55,10 @@ func TestV0(t *testing.T) {
 }
 
 func loadV0Plugin(t *testing.T) noderesolver.NodeResolver {
-	server := noderesolverv0.PluginServer(&v0Plugin{})
+	server := noderesolverv0.NodeResolverPluginServer(&v0Plugin{})
 
-	var v0 noderesolver.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test", server), &v0)
+	v0 := new(noderesolver.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), v0)
 	return v0
 }
 

@@ -18,14 +18,11 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,23 +58,14 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	metricsService := metricsservice.New(metricsservice.Config{
-		Metrics: metrics,
-	})
-
 	telemetry.EmitVersion(metrics)
 	uptime.ReportMetrics(ctx, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
-		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: a.c.TrustDomain.String(),
-		},
+		Log:          a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		Metrics:      metrics,
+		TrustDomain:  a.c.TrustDomain,
 		PluginConfig: a.c.PluginConfigs,
-		HostServices: []common_catalog.HostServiceServer{
-			metricsv0.HostServiceServer(metricsService),
-		},
-		Metrics: metrics,
 	})
 	if err != nil {
 		return err

@@ -13,9 +13,14 @@ type PluginConfig struct {
 	Name     string
 	Type     string
 	Path     string
+	Args     []string
 	Checksum string
 	Data     string
 	Disabled bool
+}
+
+func (c *PluginConfig) IsExternal() bool {
+	return c.Path != ""
 }
 
 // HCLPluginConfig serves as an intermediary struct. We pass this to the
@@ -23,6 +28,7 @@ type PluginConfig struct {
 // as a string.
 type HCLPluginConfig struct {
 	PluginCmd      string   `hcl:"plugin_cmd"`
+	PluginArgs     []string `hcl:"plugin_args"`
 	PluginChecksum string   `hcl:"plugin_checksum"`
 	PluginData     ast.Node `hcl:"plugin_data"`
 	Enabled        *bool    `hcl:"enabled"`
@@ -70,6 +76,7 @@ func PluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig HCLPlugi
 		Name:     pluginName,
 		Type:     pluginType,
 		Path:     hclPluginConfig.PluginCmd,
+		Args:     hclPluginConfig.PluginArgs,
 		Checksum: hclPluginConfig.PluginChecksum,
 		Data:     data.String(),
 		Disabled: !hclPluginConfig.IsEnabled(),

@@ -140,7 +140,7 @@ type ListNodeSelectorsRequest struct {
 }
 
 type ListNodeSelectorsResponse struct {
-	Selectors []*NodeSelectors
+	Selectors map[string][]*common.Selector
 }
 
 type ListRegistrationEntriesRequest struct {

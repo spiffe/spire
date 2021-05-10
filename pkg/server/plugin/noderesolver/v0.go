@@ -10,12 +10,11 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin noderesolverv0.NodeResolver
+	noderesolverv0.NodeResolverPluginClient
 }
 
-func (v0 V0) Resolve(ctx context.Context, agentID string) ([]*common.Selector, error) {
-	resp, err := v0.Plugin.Resolve(ctx, &noderesolverv0.ResolveRequest{
+func (v0 *V0) Resolve(ctx context.Context, agentID string) ([]*common.Selector, error) {
+	resp, err := v0.NodeResolverPluginClient.Resolve(ctx, &noderesolverv0.ResolveRequest{
 		BaseSpiffeIdList: []string{agentID},
 	})
 	if err != nil {

@@ -57,15 +57,13 @@ help:
 	@echo "$(bold)Code generation:$(reset)"
 	@echo "  $(cyan)generate$(reset)                              - generate protocol buffers and plugin interface code"
 	@echo "  $(cyan)generate-check$(reset)                        - ensure generated code is up to date"
-	@echo "  $(cyan)protogen$(reset)                              - compile protocol buffers"
-	@echo "  $(cyan)protogen-check$(reset)                        - ensure generated protocol buffers are up to date"
-	@echo "  $(cyan)plugingen$(reset)                             - generate plugin interface code"
-	@echo "  $(cyan)plugingen-check$(reset)                       - ensure generated plugin interface code is up to date"
 	@echo "  $(cyan)mockgen$(reset)                               - generate test mocks"
 	@echo
 	@echo "For verbose output set V=1"
 	@echo "  for example: $(cyan)make V=1 build$(reset)"
 
+# Used to force some rules to run every time
+FORCE: ;
 
 ############################################################################
 # OS/ARCH detection
@@ -127,6 +125,11 @@ protoc_gen_go_grpc_base_dir := $(build_dir)/protoc-gen-go-grpc
 protoc_gen_go_grpc_dir := $(protoc_gen_go_grpc_base_dir)/$(protoc_gen_go_grpc_version)-go$(go_version)
 protoc_gen_go_grpc_bin := $(protoc_gen_go_grpc_dir)/protoc-gen-go-grpc
 
+protoc_gen_go_spire_version := $(shell grep github.com/spiffe/spire-plugin-sdk go.mod | awk '{print $$2}')
+protoc_gen_go_spire_base_dir := $(build_dir)/protoc-gen-go-spire
+protoc_gen_go_spire_dir := $(protoc_gen_go_spire_base_dir)/$(protoc_gen_go_spire_version)-go$(go_version)
+protoc_gen_go_spire_bin := $(protoc_gen_go_spire_dir)/protoc-gen-go-spire
+
 mockgen_version := $(shell grep github.com/golang/mock go.mod | awk '{print $$2}')
 mockgen_base_dir := $(build_dir)/mockgen
 mockgen_dir := $(mockgen_base_dir)/$(mockgen_version)-go$(go_version)
@@ -142,16 +145,15 @@ protos := \
 	proto/private/server/journal/journal.proto \
 	proto/spire/common/common.proto \
 
-serviceprotos := \
-	proto/private/test/catalogtest/test.proto \
+api-protos := \
 	proto/spire/api/registration/registration.proto \
+
+plugin-protos := \
+	proto/private/test/legacyplugin/someplugin.proto \
 	proto/spire/common/plugin/plugin.proto \
-	proto/spire/hostservice/server/agentstore/v0/agentstore.proto \
-	proto/spire/hostservice/server/identityprovider/v0/identityprovider.proto \
-	proto/spire/hostservice/common/metrics/v0/metrics.proto \
 	proto/spire/plugin/agent/keymanager/v0/keymanager.proto \
 	proto/spire/plugin/agent/nodeattestor/v0/nodeattestor.proto \
-	proto/spire/plugin/agent/svidstore/v0/svidstore.proto \
+	proto/spire/plugin/agent/svidstore/v1/svidstore.proto \
 	proto/spire/plugin/agent/workloadattestor/v0/workloadattestor.proto \
 	proto/spire/plugin/server/keymanager/v0/keymanager.proto \
 	proto/spire/plugin/server/nodeattestor/v0/nodeattestor.proto \
@@ -159,34 +161,10 @@ serviceprotos := \
 	proto/spire/plugin/server/notifier/v0/notifier.proto \
 	proto/spire/plugin/server/upstreamauthority/v0/upstreamauthority.proto \
 
-
-# The following three variables define the plugin, service, and hostservice
-# interfaces. The syntax of each entry is as follows:
-#
-# proto-path,out-path,interface-name[,shared]
-#
-# "shared" means that the interface shares a package with other interfaces, which
-# impacts the code generation (adds stutter to disambiguate names)
-plugingen_plugins = \
-	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Plugin,shared \
-	proto/spire/plugin/agent/keymanager/v0/keymanager.proto,proto/spire/plugin/agent/keymanager/v0,KeyManager \
-	proto/spire/plugin/agent/nodeattestor/v0/nodeattestor.proto,proto/spire/plugin/agent/nodeattestor/v0,NodeAttestor \
-	proto/spire/plugin/agent/svidstore/v0/svidstore.proto,pkg/agent/plugin/svidstore,SVIDStore \
-	proto/spire/plugin/agent/workloadattestor/v0/workloadattestor.proto,proto/spire/plugin/agent/workloadattestor/v0,WorkloadAttestor \
-	proto/spire/plugin/server/keymanager/v0/keymanager.proto,proto/spire/plugin/server/keymanager/v0,KeyManager \
-	proto/spire/plugin/server/nodeattestor/v0/nodeattestor.proto,proto/spire/plugin/server/nodeattestor/v0,NodeAttestor \
-	proto/spire/plugin/server/noderesolver/v0/noderesolver.proto,proto/spire/plugin/server/noderesolver/v0,NodeResolver \
-	proto/spire/plugin/server/notifier/v0/notifier.proto,proto/spire/plugin/server/notifier/v0,Notifier \
-	proto/spire/plugin/server/upstreamauthority/v0/upstreamauthority.proto,proto/spire/plugin/server/upstreamauthority/v0,UpstreamAuthority \
-
-plugingen_services = \
-	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,Service,shared \
-
-plugingen_hostservices = \
-	proto/private/test/catalogtest/test.proto,proto/private/test/catalogtest,HostService,shared \
-	proto/spire/hostservice/common/metrics/v0/metrics.proto,proto/spire/hostservice/common/metrics/v0,MetricsService \
-	proto/spire/hostservice/server/agentstore/v0/agentstore.proto,proto/spire/hostservice/server/agentstore/v0,AgentStore \
-	proto/spire/hostservice/server/identityprovider/v0/identityprovider.proto,proto/spire/hostservice/server/identityprovider/v0,IdentityProvider \
+service-protos := \
+	proto/spire/hostservice/common/metrics/v0/metrics.proto \
+	proto/spire/hostservice/server/agentstore/v0/agentstore.proto \
+	proto/spire/hostservice/server/identityprovider/v0/identityprovider.proto \
 
 # The following are the mock interfaces generated by mockgen. The syntax of each
 # entry is as follows:
@@ -283,9 +261,6 @@ $(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
 $(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
 $(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
 $(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
-
-# utilities
-$(eval $(call binary_rule,bin/spire-plugingen,./tools/spire-plugingen))
 
 bin/:
 	@mkdir -p $@
@@ -434,81 +409,56 @@ lint-code: $(golangci_lint_bin) | go-check
 # Code Generation
 #############################################################################
 
-.PHONY: generate generate-check protogen protogen-check plugingen plugingen-check mocks
+.PHONY: generate generate-check
 
-generate: protogen plugingen
+generate: $(protos:.proto=.pb.go) \
+	$(api-protos:.proto=.pb.go) \
+	$(api-protos:.proto=_grpc.pb.go) \
+	$(plugin-protos:.proto=.pb.go) \
+	$(plugin-protos:.proto=_grpc.pb.go) \
+	$(plugin-protos:.proto=_spire_plugin.pb.go) \
+	$(service-protos:.proto=.pb.go) \
+	$(service-protos:.proto=_grpc.pb.go) \
+	$(service-protos:.proto=_spire_service.pb.go)
 
-generate-check: protogen-check plugingen-check
+%_spire_plugin.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_spire_bin) FORCE | bin/protoc-gen-go-spire
+	@echo "generating $@..."
+	$(E) PATH="$(protoc_gen_go_spire_dir):$(PATH)" $(protoc_bin) \
+		-I proto \
+		--go-spire_out=. \
+		--go-spire_opt=module=github.com/spiffe/spire \
+		--go-spire_opt=mode=plugin \
+		$<
 
-protogen: $(protos:.proto=.pb.go) $(serviceprotos:.proto=.pb.go) $(serviceprotos:.proto=_grpc.pb.go)
+%_spire_service.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_spire_bin) FORCE | bin/protoc-gen-go-spire
+	@echo "generating $@..."
+	$(E) PATH="$(protoc_gen_go_spire_dir):$(PATH)" $(protoc_bin) \
+		-I proto \
+		--go-spire_out=. \
+		--go-spire_opt=module=github.com/spiffe/spire \
+		--go-spire_opt=mode=service \
+		$<
 
-%_grpc.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_grpc_bin)
-	@echo "(proto) compiling service $<..."
-	$(E)cd proto && \
-		PATH="$(protoc_gen_go_grpc_dir):$(PATH)" \
-		$(protoc_bin) \
-		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
-		$(<:proto/%=%)
+%_grpc.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_grpc_bin) FORCE
+	@echo "generating $@..."
+	$(E) PATH="$(protoc_gen_go_grpc_dir):$(PATH)" $(protoc_bin) \
+		-I proto \
+		--go-grpc_out=. --go-grpc_opt=module=github.com/spiffe/spire \
+		$<
 
-%.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin)
-	@echo "(proto) compiling $<..."
-	$(E)cd proto && \
-		PATH="$(protoc_gen_go_dir):$(PATH)" \
-		$(protoc_bin) \
-		--go_out=. --go_opt=paths=source_relative \
-		$(<:proto/%=%)
+%.pb.go: %.proto $(protoc_bin) $(protoc_gen_go_bin) FORCE
+	@echo "generating $@..."
+	$(E) PATH="$(protoc_gen_go_dir):$(PATH)" $(protoc_bin) \
+		-I proto \
+		--go_out=. --go_opt=module=github.com/spiffe/spire \
+		$<
 
-protogen-check:
+generate-check:
 ifneq ($(git_dirty),)
 	$(error protogen-check must be invoked on a clean repository)
 endif
-	$(E)find . -type f -name "*.proto" -exec touch {} \;
 	@echo "Compiling protocol buffers..."
-	$(E)$(MAKE) protogen
-	@echo "Ensuring git repository is clean..."
-	$(E)$(MAKE) git-clean-check
-
-plugingen-proto = $(word 1,$(subst $(comma),$(space),$1))
-plugingen-grpc-pbgo = $(subst .proto,_grpc.pb.go,$(call plugingen-proto,$1))
-plugingen-pbgo = $(subst .proto,_grpc.pb.go,$(call plugingen-proto,$1))
-plugingen-proto-dir = $(dir $(call plugingen-proto, $1))
-plugingen-out-dir = $(word 2,$(subst $(comma),$(space),$1))
-plugingen-type = $(word 3,$(subst $(comma),$(space),$1))
-plugingen-shared = $(word 4,$(subst $(comma),$(space),$1))
-plugingen-shared-opt = $(subst shared,-shared,$(call plugingen-shared,$1))
-plugingen-out = $(call plugingen-out-dir,$1)/$(call tolower,$(call plugingen-type,$1)).go
-
-# plugingen-rule is a template for invoking spire-plugingen and is invoked with a plugingen_* entry
-define plugingen-rule
-$(call plugingen-out,$1): $(call plugingen-grpc-pbgo,$1) $(call plugingen-pbgo,$1) | bin/spire-plugingen
-	@echo "($2) generating $$@..."
-	$(E)PATH="$$(go_bin_dir):$$(PATH)" $$(DIR)/bin/spire-plugingen $(call plugingen-shared-opt,$1) -mode $2 -out $(call plugingen-out-dir,$1) $(call plugingen-proto-dir,$1) $(call plugingen-type,$1)
-endef
-
-# generate rules for plugins
-$(foreach x,$(plugingen_plugins),$(eval $(call plugingen-rule,$(x),plugin)))
-#
-# generate rules for services
-$(foreach x,$(plugingen_services),$(eval $(call plugingen-rule,$(x),service)))
-
-# generate rules for hostservices
-$(foreach x,$(plugingen_hostservices),$(eval $(call plugingen-rule,$(x),hostservice)))
-
-plugingen-plugins: $(foreach x,$(plugingen_plugins),$(call plugingen-out,$x))
-
-plugingen-services: $(foreach x,$(plugingen_services),$(call plugingen-out,$x))
-
-plugingen-hostservices: $(foreach x,$(plugingen_hostservices),$(call plugingen-out,$x))
-
-plugingen: protogen plugingen-plugins plugingen-services plugingen-hostservices
-
-plugingen-check:
-ifneq ($(git_dirty),)
-	$(error plugingen-check must be invoked on a clean repository)
-endif
-	$(E)find . -type f -name "*.pb.go" -exec touch {} \;
-	@echo "Generating plugin interface code..."
-	$(E)$(MAKE) plugingen
+	$(E)$(MAKE) generate
 	@echo "Ensuring git repository is clean..."
 	$(E)$(MAKE) git-clean-check
 
@@ -597,6 +547,15 @@ $(protoc_gen_go_grpc_bin): | go-check
 	$(E)mkdir -p $(protoc_gen_go_grpc_dir)
 	$(E)echo "module tools" > $(protoc_gen_go_grpc_dir)/go.mod
 	$(E)cd $(protoc_gen_go_grpc_dir) && GOBIN=$(protoc_gen_go_grpc_dir) $(go_path) go get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
+
+install-protoc-gen-go-spire: $(protoc_gen_go_spire_bin)
+
+$(protoc_gen_go_spire_bin): | go-check
+	@echo "Installing protoc-gen-go-spire $(protoc_gen_go_spire_version)..."
+	$(E)rm -rf $(protoc_gen_go_spire_base_dir)
+	$(E)mkdir -p $(protoc_gen_go_spire_dir)
+	$(E)echo "module tools" > $(protoc_gen_go_spire_dir)/go.mod
+	$(E)cd $(protoc_gen_go_spire_dir) && GOBIN=$(protoc_gen_go_spire_dir) $(go_path) go get github.com/spiffe/spire-plugin-sdk/cmd/protoc-gen-go-spire@$(protoc_gen_go_spire_version)
 
 install-mockgen: $(mockgen_bin)
 

@@ -35,8 +35,8 @@ type Configuration struct {
 	WorkloadAPISocket string `hcl:"workload_api_socket" json:"workload_api_socket"`
 }
 
-func BuiltIn() catalog.Plugin {
-	return catalog.MakePlugin(pluginName, upstreamauthorityv0.PluginServer(New()))
+func BuiltIn() catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName, upstreamauthorityv0.UpstreamAuthorityPluginServer(New()))
 }
 
 type Plugin struct {

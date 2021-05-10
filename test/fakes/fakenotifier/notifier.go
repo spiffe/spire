@@ -8,7 +8,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 )
 
 type Config struct {
@@ -17,10 +17,10 @@ type Config struct {
 }
 
 func New(t *testing.T, config Config) notifier.Notifier {
-	server := notifierv0.PluginServer(&fakeNotifer{config: config})
+	server := notifierv0.NotifierPluginServer(&fakeNotifer{config: config})
 
-	var v0 notifier.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("fake", server), &v0)
+	v0 := new(notifier.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("fake", server), v0)
 	return v0
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/zeebo/errs"
 )
 
@@ -57,9 +57,9 @@ func New(t *testing.T, name string, config Config) nodeattestor.NodeAttestor {
 		config: config,
 	}
 
-	var na nodeattestor.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin(name, nodeattestorv0.PluginServer(plugin)), &na)
-	return na
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn(name, nodeattestorv0.NodeAttestorPluginServer(plugin)), v0)
+	return v0
 }
 
 type nodeAttestor struct {

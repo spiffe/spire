@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 )
@@ -26,7 +28,7 @@ func TestX509PoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p nodeattestorv0.Plugin
+	p nodeattestorv0.NodeAttestorClient
 
 	rootCertPath     string
 	leafBundle       [][]byte
@@ -46,7 +48,9 @@ func (s *Suite) SetupTest() {
 	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
 	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
 
-	s.LoadPlugin(BuiltIn(), &s.p)
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), BuiltIn(), v0)
+	s.p = v0.NodeAttestorClient
 
 	kp, err := tls.LoadX509KeyPair(leafCertPath, leafKeyPath)
 	require.NoError(err)
