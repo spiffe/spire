@@ -209,13 +209,12 @@ func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*
 
 	// The agent "Banned" state is pointed out by setting its
 	// serial numbers (current and new) to empty strings.
-	_, err = s.ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-		SpiffeId: id.String(),
-		InputMask: &common.AttestedNodeMask{
-			CertSerialNumber:    true,
-			NewCertSerialNumber: true,
-		},
-	})
+	banned := &common.AttestedNode{SpiffeId: id.String()}
+	mask := &common.AttestedNodeMask{
+		CertSerialNumber:    true,
+		NewCertSerialNumber: true,
+	}
+	_, err = s.ds.UpdateAttestedNode(ctx, banned, mask)
 
 	switch status.Code(err) {
 	case codes.OK:
@@ -320,12 +319,12 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			return api.MakeErr(log, codes.Internal, "failed to create attested agent", err)
 		}
 	} else {
-		req := &datastore.UpdateAttestedNodeRequest{
+		node := &common.AttestedNode{
 			SpiffeId:         agentID,
 			CertNotAfter:     svid[0].NotAfter.Unix(),
 			CertSerialNumber: svid[0].SerialNumber.String(),
 		}
-		if _, err := s.ds.UpdateAttestedNode(ctx, req); err != nil {
+		if _, err := s.ds.UpdateAttestedNode(ctx, node, nil); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to update attested agent", err)
 		}
 	}
@@ -372,15 +371,16 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 		return nil, err
 	}
 
-	if err := s.updateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-		InputMask: &common.AttestedNodeMask{
-			NewCertNotAfter:     true,
-			NewCertSerialNumber: true,
-		},
+	update := &common.AttestedNode{
 		SpiffeId:            callerID.String(),
 		NewCertNotAfter:     agentSVID[0].NotAfter.Unix(),
 		NewCertSerialNumber: agentSVID[0].SerialNumber.String(),
-	}, log); err != nil {
+	}
+	mask := &common.AttestedNodeMask{
+		NewCertNotAfter:     true,
+		NewCertSerialNumber: true,
+	}
+	if err := s.updateAttestedNode(ctx, update, mask, log); err != nil {
 		return nil, err
 	}
 
@@ -461,8 +461,8 @@ func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token st
 	return nil
 }
 
-func (s *Service) updateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest, log logrus.FieldLogger) error {
-	_, err := s.ds.UpdateAttestedNode(ctx, req)
+func (s *Service) updateAttestedNode(ctx context.Context, node *common.AttestedNode, mask *common.AttestedNodeMask, log logrus.FieldLogger) error {
+	_, err := s.ds.UpdateAttestedNode(ctx, node, mask)
 	switch status.Code(err) {
 	case codes.OK:
 		return nil

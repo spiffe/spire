@@ -411,23 +411,22 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
-	var resp *datastore.UpdateRegistrationEntryResponse
+	var dsEntry *common.RegistrationEntry
 	if inputMask != nil {
-		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-			Entry: convEntry,
-			Mask: &common.RegistrationEntryMask{
-				SpiffeId:      inputMask.SpiffeId,
-				ParentId:      inputMask.ParentId,
-				Ttl:           inputMask.Ttl,
-				FederatesWith: inputMask.FederatesWith,
-				Admin:         inputMask.Admin,
-				Downstream:    inputMask.Downstream,
-				EntryExpiry:   inputMask.ExpiresAt,
-				DnsNames:      inputMask.DnsNames,
-				Selectors:     inputMask.Selectors,
-			}})
+		mask := &common.RegistrationEntryMask{
+			SpiffeId:      inputMask.SpiffeId,
+			ParentId:      inputMask.ParentId,
+			Ttl:           inputMask.Ttl,
+			FederatesWith: inputMask.FederatesWith,
+			Admin:         inputMask.Admin,
+			Downstream:    inputMask.Downstream,
+			EntryExpiry:   inputMask.ExpiresAt,
+			DnsNames:      inputMask.DnsNames,
+			Selectors:     inputMask.Selectors,
+		}
+		dsEntry, err = s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
 	} else {
-		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{Entry: convEntry})
+		dsEntry, err = s.ds.UpdateRegistrationEntry(ctx, convEntry, nil)
 	}
 
 	if err != nil {
@@ -436,7 +435,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
-	tEntry, err := api.RegistrationEntryToProto(resp.Entry)
+	tEntry, err := api.RegistrationEntryToProto(dsEntry)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry in updateEntry", err),

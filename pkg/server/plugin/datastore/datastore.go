@@ -9,18 +9,18 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-// DataStore is the data storage interface.
+// DataStore defines the data storage interface.
 type DataStore interface {
 	// Bundles
-	AppendBundle(context.Context, *AppendBundleRequest) (*AppendBundleResponse, error)
+	AppendBundle(context.Context, *common.Bundle) (*common.Bundle, error)
 	CountBundles(context.Context) (int32, error)
 	CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error)
 	DeleteBundle(ctx context.Context, trustDomainID string, mode DeleteMode) error
 	FetchBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error)
 	ListBundles(context.Context, *ListBundlesRequest) (*ListBundlesResponse, error)
-	PruneBundle(context.Context, *PruneBundleRequest) (*PruneBundleResponse, error)
-	SetBundle(context.Context, *SetBundleRequest) (*SetBundleResponse, error)
-	UpdateBundle(context.Context, *UpdateBundleRequest) (*UpdateBundleResponse, error)
+	PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (changed bool, err error)
+	SetBundle(context.Context, *common.Bundle) (*common.Bundle, error)
+	UpdateBundle(context.Context, *common.Bundle, *common.BundleMask) (*common.Bundle, error)
 
 	// Entries
 	CountRegistrationEntries(context.Context) (int32, error)
@@ -28,16 +28,16 @@ type DataStore interface {
 	DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
 	FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
-	PruneRegistrationEntries(context.Context, *PruneRegistrationEntriesRequest) (*PruneRegistrationEntriesResponse, error)
-	UpdateRegistrationEntry(context.Context, *UpdateRegistrationEntryRequest) (*UpdateRegistrationEntryResponse, error)
+	PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) error
+	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
 
 	// Nodes
 	CountAttestedNodes(context.Context) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
-	DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error)
-	FetchAttestedNode(context.Context, string) (*common.AttestedNode, error)
+	DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
+	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
-	UpdateAttestedNode(context.Context, *UpdateAttestedNodeRequest) (*UpdateAttestedNodeResponse, error)
+	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
 	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
@@ -46,8 +46,8 @@ type DataStore interface {
 
 	// Tokens
 	CreateJoinToken(context.Context, *JoinToken) error
-	DeleteJoinToken(context.Context, string) error
-	FetchJoinToken(context.Context, string) (*JoinToken, error)
+	DeleteJoinToken(ctx context.Context, token string) error
+	FetchJoinToken(ctx context.Context, token string) (*JoinToken, error)
 	PruneJoinTokens(context.Context, time.Time) error
 }
 
@@ -82,14 +82,6 @@ const (
 	Exact  MatchBehavior = 0
 	Subset MatchBehavior = 1
 )
-
-type AppendBundleRequest struct {
-	Bundle *common.Bundle
-}
-
-type AppendBundleResponse struct {
-	Bundle *common.Bundle
-}
 
 type ByFederatesWith struct {
 	TrustDomains []string
@@ -178,65 +170,9 @@ type Pagination struct {
 	PageSize int32
 }
 
-type PruneBundleRequest struct {
-	// Trust domain of the bundle to prune
-	TrustDomainId string //nolint: golint
-	// Expiration time
-	ExpiresBefore int64
-}
-type PruneBundleResponse struct {
-	BundleChanged bool
-}
-
-type PruneRegistrationEntriesRequest struct {
-	ExpiresBefore int64
-}
-
-type PruneRegistrationEntriesResponse struct {
-}
-
-type SetBundleRequest struct {
-	Bundle *common.Bundle
-}
-
-type SetBundleResponse struct {
-	Bundle *common.Bundle
-}
-
 type SetNodeSelectorsRequest struct {
 	Selectors *NodeSelectors
 }
 
 type SetNodeSelectorsResponse struct {
-}
-
-type UpdateAttestedNodeRequest struct {
-	SpiffeId            string //nolint: golint
-	CertSerialNumber    string
-	CertNotAfter        int64
-	NewCertSerialNumber string
-	NewCertNotAfter     int64
-	InputMask           *common.AttestedNodeMask
-}
-
-type UpdateAttestedNodeResponse struct {
-	Node *common.AttestedNode
-}
-
-type UpdateBundleRequest struct {
-	Bundle    *common.Bundle
-	InputMask *common.BundleMask
-}
-
-type UpdateBundleResponse struct {
-	Bundle *common.Bundle
-}
-
-type UpdateRegistrationEntryRequest struct {
-	Entry *common.RegistrationEntry
-	Mask  *common.RegistrationEntryMask
-}
-
-type UpdateRegistrationEntryResponse struct {
-	Entry *common.RegistrationEntry
 }
