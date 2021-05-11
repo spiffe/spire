@@ -6,36 +6,37 @@ package mock_apiserver
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/authentication/v1"
 	v10 "k8s.io/api/core/v1"
-	reflect "reflect"
 )
 
-// MockClient is a mock of Client interface
+// MockClient is a mock of Client interface.
 type MockClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockClientMockRecorder
 }
 
-// MockClientMockRecorder is the mock recorder for MockClient
+// MockClientMockRecorder is the mock recorder for MockClient.
 type MockClientMockRecorder struct {
 	mock *MockClient
 }
 
-// NewMockClient creates a new mock instance
+// NewMockClient creates a new mock instance.
 func NewMockClient(ctrl *gomock.Controller) *MockClient {
 	mock := &MockClient{ctrl: ctrl}
 	mock.recorder = &MockClientMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// GetNode mocks base method
+// GetNode mocks base method.
 func (m *MockClient) GetNode(arg0 context.Context, arg1 string) (*v10.Node, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetNode", arg0, arg1)
@@ -44,13 +45,13 @@ func (m *MockClient) GetNode(arg0 context.Context, arg1 string) (*v10.Node, erro
 	return ret0, ret1
 }
 
-// GetNode indicates an expected call of GetNode
+// GetNode indicates an expected call of GetNode.
 func (mr *MockClientMockRecorder) GetNode(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNode", reflect.TypeOf((*MockClient)(nil).GetNode), arg0, arg1)
 }
 
-// GetPod mocks base method
+// GetPod mocks base method.
 func (m *MockClient) GetPod(arg0 context.Context, arg1, arg2 string) (*v10.Pod, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPod", arg0, arg1, arg2)
@@ -59,13 +60,13 @@ func (m *MockClient) GetPod(arg0 context.Context, arg1, arg2 string) (*v10.Pod, 
 	return ret0, ret1
 }
 
-// GetPod indicates an expected call of GetPod
+// GetPod indicates an expected call of GetPod.
 func (mr *MockClientMockRecorder) GetPod(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPod", reflect.TypeOf((*MockClient)(nil).GetPod), arg0, arg1, arg2)
 }
 
-// ValidateToken mocks base method
+// ValidateToken mocks base method.
 func (m *MockClient) ValidateToken(arg0 context.Context, arg1 string, arg2 []string) (*v1.TokenReviewStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateToken", arg0, arg1, arg2)
@@ -74,7 +75,7 @@ func (m *MockClient) ValidateToken(arg0 context.Context, arg1 string, arg2 []str
 	return ret0, ret1
 }
 
-// ValidateToken indicates an expected call of ValidateToken
+// ValidateToken indicates an expected call of ValidateToken.
 func (mr *MockClientMockRecorder) ValidateToken(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockClient)(nil).ValidateToken), arg0, arg1, arg2)

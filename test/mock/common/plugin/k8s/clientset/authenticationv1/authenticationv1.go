@@ -5,36 +5,37 @@
 package mock_authenticationv1
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
 	rest "k8s.io/client-go/rest"
-	reflect "reflect"
 )
 
-// MockAuthenticationV1Interface is a mock of AuthenticationV1Interface interface
+// MockAuthenticationV1Interface is a mock of AuthenticationV1Interface interface.
 type MockAuthenticationV1Interface struct {
 	ctrl     *gomock.Controller
 	recorder *MockAuthenticationV1InterfaceMockRecorder
 }
 
-// MockAuthenticationV1InterfaceMockRecorder is the mock recorder for MockAuthenticationV1Interface
+// MockAuthenticationV1InterfaceMockRecorder is the mock recorder for MockAuthenticationV1Interface.
 type MockAuthenticationV1InterfaceMockRecorder struct {
 	mock *MockAuthenticationV1Interface
 }
 
-// NewMockAuthenticationV1Interface creates a new mock instance
+// NewMockAuthenticationV1Interface creates a new mock instance.
 func NewMockAuthenticationV1Interface(ctrl *gomock.Controller) *MockAuthenticationV1Interface {
 	mock := &MockAuthenticationV1Interface{ctrl: ctrl}
 	mock.recorder = &MockAuthenticationV1InterfaceMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockAuthenticationV1Interface) EXPECT() *MockAuthenticationV1InterfaceMockRecorder {
 	return m.recorder
 }
 
-// RESTClient mocks base method
+// RESTClient mocks base method.
 func (m *MockAuthenticationV1Interface) RESTClient() rest.Interface {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RESTClient")
@@ -42,13 +43,13 @@ func (m *MockAuthenticationV1Interface) RESTClient() rest.Interface {
 	return ret0
 }
 
-// RESTClient indicates an expected call of RESTClient
+// RESTClient indicates an expected call of RESTClient.
 func (mr *MockAuthenticationV1InterfaceMockRecorder) RESTClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RESTClient", reflect.TypeOf((*MockAuthenticationV1Interface)(nil).RESTClient))
 }
 
-// TokenReviews mocks base method
+// TokenReviews mocks base method.
 func (m *MockAuthenticationV1Interface) TokenReviews() v1.TokenReviewInterface {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "TokenReviews")
@@ -56,7 +57,7 @@ func (m *MockAuthenticationV1Interface) TokenReviews() v1.TokenReviewInterface {
 	return ret0
 }
 
-// TokenReviews indicates an expected call of TokenReviews
+// TokenReviews indicates an expected call of TokenReviews.
 func (mr *MockAuthenticationV1InterfaceMockRecorder) TokenReviews() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TokenReviews", reflect.TypeOf((*MockAuthenticationV1Interface)(nil).TokenReviews))

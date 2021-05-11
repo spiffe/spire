@@ -66,9 +66,9 @@ func (n *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile creates a SPIFFE ID for each node, used to parent SPIFFE IDs for pods
 // running on that node
-func (n *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (n *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	node := corev1.Node{}
-	ctx := n.c.Ctx
+	ctx = n.c.Ctx
 
 	if err := n.Get(ctx, req.NamespacedName, &node); err != nil {
 		if !errors.IsNotFound(err) {

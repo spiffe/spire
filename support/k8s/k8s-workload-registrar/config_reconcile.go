@@ -59,9 +59,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 	// controller-runtime uses the logr interface for its logging. We could write a wrapper around logrus, but
 	// controller-runtime also ships with a zap encoder for k8s objects. This allows safe logging of k8s
 	// objects. Rather than reimplement all of that for logrus, we instead use zap throughout this controller.
-	ctrl.SetLogger(zap.New(func(o *zap.Options) {
-		o.Development = true
-	}))
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 	setupLog := ctrl.Log.WithName("setup")
 
 	// Connect to Spire Server
