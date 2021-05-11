@@ -22,14 +22,14 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -51,14 +51,15 @@ const (
 	containerNotInPod
 )
 
-var k8sErr = errs.Class("k8s")
-
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, workloadattestorv0.WorkloadAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		workloadattestorv1.WorkloadAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 // HCLConfig holds the configuration parsed from HCL
@@ -135,7 +136,8 @@ type k8sConfig struct {
 }
 
 type Plugin struct {
-	workloadattestorv0.UnsafeWorkloadAttestorServer
+	workloadattestorv1.UnsafeWorkloadAttestorServer
+	configv1.UnsafeConfigServer
 
 	log    hclog.Logger
 	fs     cgroups.FileSystem
@@ -158,7 +160,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -171,7 +173,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &workloadattestorv0.AttestResponse{}, nil
+		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
 	log := p.log.With(telemetry.ContainerID, containerID)
@@ -191,8 +193,8 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
-				return &workloadattestorv0.AttestResponse{
-					Selectors: getSelectorsFromPodInfo(&item, status),
+				return &workloadattestorv1.AttestResponse{
+					SelectorValues: getSelectorValuesFromPodInfo(&item, status),
 				}, nil
 			case containerNotInPod:
 			}
@@ -201,7 +203,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 		// if the container was not located after the maximum number of attempts then the search is over.
 		if attempt >= config.MaxPollAttempts {
 			log.Warn("Container id not found; giving up")
-			return nil, k8sErr.New("no selectors found")
+			return nil, status.Error(codes.DeadlineExceeded, "no selectors found after max poll attempts")
 		}
 
 		// wait a bit for containers to initialize before trying again.
@@ -210,16 +212,16 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 		select {
 		case <-p.clock.After(config.PollRetryInterval):
 		case <-ctx.Done():
-			return nil, k8sErr.New("no selectors found: %v", ctx.Err())
+			return nil, status.Errorf(codes.Canceled, "no selectors found: %v", ctx.Err())
 		}
 	}
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	// Parse HCL config payload into config struct
 	config := new(HCLConfig)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, k8sErr.New("unable to decode configuration: %v", err)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	// Determine max poll attempts with default
@@ -233,7 +235,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	if config.PollRetryInterval != "" {
 		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
 		if err != nil {
-			return nil, k8sErr.New("unable to parse poll retry interval: %v", err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to parse poll retry interval: %v", err)
 		}
 	}
 	if pollRetryInterval <= 0 {
@@ -245,7 +247,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	if config.ReloadInterval != "" {
 		reloadInterval, err = time.ParseDuration(config.ReloadInterval)
 		if err != nil {
-			return nil, k8sErr.New("unable to parse reload interval: %v", err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to parse reload interval: %v", err)
 		}
 	}
 	if reloadInterval <= 0 {
@@ -257,7 +259,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	// config value has always been required, so it should already be set in
 	// existing configurations that rely on it).
 	if config.KubeletSecurePort > 0 && config.KubeletReadOnlyPort > 0 {
-		return nil, k8sErr.New("cannot use both the read-only and secure port")
+		return nil, status.Error(codes.InvalidArgument, "cannot use both the read-only and secure port")
 	}
 	port := config.KubeletReadOnlyPort
 	secure := false
@@ -293,11 +295,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 
 	// Set the config
 	p.setConfig(c)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) setConfig(config *k8sConfig) {
@@ -311,7 +309,7 @@ func (p *Plugin) getConfig() (*k8sConfig, error) {
 	defer p.mu.RUnlock()
 
 	if p.config == nil {
-		return nil, k8sErr.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	if err := p.reloadKubeletClient(p.config); err != nil {
 		p.log.Warn("Unable to load kubelet client", "err", err)
@@ -322,7 +320,7 @@ func (p *Plugin) getConfig() (*k8sConfig, error) {
 func (p *Plugin) getContainerIDFromCGroups(pid int32) (string, error) {
 	cgroups, err := cgroups.GetCgroups(pid, p.fs)
 	if err != nil {
-		return "", k8sErr.Wrap(err)
+		return "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 	}
 
 	return getContainerIDFromCGroups(cgroups)
@@ -402,9 +400,9 @@ func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
 		}
 		tlsConfig.Certificates = append(tlsConfig.Certificates, *kp)
 	case config.CertificatePath != "" && config.PrivateKeyPath == "":
-		return k8sErr.New("the private key path is required with the certificate path")
+		return status.Error(codes.InvalidArgument, "the private key path is required with the certificate path")
 	case config.CertificatePath == "" && config.PrivateKeyPath != "":
-		return k8sErr.New("the certificate path is required with the private key path")
+		return status.Error(codes.InvalidArgument, "the certificate path is required with the private key path")
 	case config.CertificatePath == "" && config.PrivateKeyPath == "":
 		token, err = p.loadToken(config.TokenPath)
 		if err != nil {
@@ -437,11 +435,11 @@ func (p *Plugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 	}
 	caPEM, err := p.readFile(path)
 	if err != nil {
-		return nil, k8sErr.New("unable to load kubelet CA: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load kubelet CA: %v", err)
 	}
 	certs, err := pemutil.ParseCertificates(caPEM)
 	if err != nil {
-		return nil, k8sErr.New("unable to parse kubelet CA: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to parse kubelet CA: %v", err)
 	}
 
 	return newCertPool(certs), nil
@@ -450,15 +448,15 @@ func (p *Plugin) loadKubeletCA(path string) (*x509.CertPool, error) {
 func (p *Plugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
 	certPEM, err := p.readFile(cert)
 	if err != nil {
-		return nil, k8sErr.New("unable to load certificate: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load certificate: %v", err)
 	}
 	keyPEM, err := p.readFile(key)
 	if err != nil {
-		return nil, k8sErr.New("unable to load private key: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load private key: %v", err)
 	}
 	kp, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, k8sErr.New("unable to load keypair: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
 	}
 	return &kp, nil
 }
@@ -469,7 +467,7 @@ func (p *Plugin) loadToken(path string) (string, error) {
 	}
 	token, err := p.readFile(path)
 	if err != nil {
-		return "", k8sErr.New("unable to load token: %v", err)
+		return "", status.Errorf(codes.InvalidArgument, "unable to load token: %v", err)
 	}
 	return strings.TrimSpace(string(token)), nil
 }
@@ -506,7 +504,7 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	url.Path = "/pods"
 	req, err := http.NewRequest("GET", url.String(), nil)
 	if err != nil {
-		return nil, k8sErr.New("unable to create request: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to create request: %v", err)
 	}
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
@@ -518,17 +516,17 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, k8sErr.New("unable to perform request: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to perform request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, k8sErr.New("unexpected status code on pods response: %d %s", resp.StatusCode, tryRead(resp.Body))
+		return nil, status.Errorf(codes.Internal, "unexpected status code on pods response: %d %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
 	out := new(corev1.PodList)
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return nil, k8sErr.New("unable to decode kubelet response: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to decode kubelet response: %v", err)
 	}
 
 	return out, nil
@@ -547,7 +545,7 @@ func getContainerIDFromCGroups(cgroups []cgroups.Cgroup) (string, error) {
 			containerID = candidate
 		case containerID != candidate:
 			// More than one container ID found in the cgroups.
-			return "", k8sErr.New("multiple container IDs found in cgroups (%s, %s)",
+			return "", status.Errorf(codes.FailedPrecondition, "multiple container IDs found in cgroups (%s, %s)",
 				containerID, candidate)
 		}
 	}
@@ -646,48 +644,41 @@ func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[s
 	return podImages
 }
 
-func getSelectorsFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []*common.Selector {
+func getSelectorValuesFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []string {
 	podImageIdentifiers := getPodImageIdentifiers(pod.Status.ContainerStatuses)
 	podInitImageIdentifiers := getPodImageIdentifiers(pod.Status.InitContainerStatuses)
 	containerImageIdentifiers := getPodImageIdentifiers([]corev1.ContainerStatus{*status})
 
-	selectors := []*common.Selector{
-		makeSelector("sa:%s", pod.Spec.ServiceAccountName),
-		makeSelector("ns:%s", pod.Namespace),
-		makeSelector("node-name:%s", pod.Spec.NodeName),
-		makeSelector("pod-uid:%s", pod.UID),
-		makeSelector("pod-name:%s", pod.Name),
-		makeSelector("container-name:%s", status.Name),
-		makeSelector("pod-image-count:%s", strconv.Itoa(len(pod.Status.ContainerStatuses))),
-		makeSelector("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
+	selectorValues := []string{
+		fmt.Sprintf("sa:%s", pod.Spec.ServiceAccountName),
+		fmt.Sprintf("ns:%s", pod.Namespace),
+		fmt.Sprintf("node-name:%s", pod.Spec.NodeName),
+		fmt.Sprintf("pod-uid:%s", pod.UID),
+		fmt.Sprintf("pod-name:%s", pod.Name),
+		fmt.Sprintf("container-name:%s", status.Name),
+		fmt.Sprintf("pod-image-count:%s", strconv.Itoa(len(pod.Status.ContainerStatuses))),
+		fmt.Sprintf("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
 	}
 
 	for containerImage := range containerImageIdentifiers {
-		selectors = append(selectors, makeSelector("container-image:%s", containerImage))
+		selectorValues = append(selectorValues, fmt.Sprintf("container-image:%s", containerImage))
 	}
 	for podImage := range podImageIdentifiers {
-		selectors = append(selectors, makeSelector("pod-image:%s", podImage))
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-image:%s", podImage))
 	}
 	for podInitImage := range podInitImageIdentifiers {
-		selectors = append(selectors, makeSelector("pod-init-image:%s", podInitImage))
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-init-image:%s", podInitImage))
 	}
 
 	for k, v := range pod.Labels {
-		selectors = append(selectors, makeSelector("pod-label:%s:%s", k, v))
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-label:%s:%s", k, v))
 	}
 	for _, ownerReference := range pod.OwnerReferences {
-		selectors = append(selectors, makeSelector("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
-		selectors = append(selectors, makeSelector("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
 	}
 
-	return selectors
-}
-
-func makeSelector(format string, args ...interface{}) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf(format, args...),
-	}
+	return selectorValues
 }
 
 func tryRead(r io.Reader) string {

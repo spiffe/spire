@@ -18,19 +18,15 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/shirou/gopsutil/process"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
 	pluginName = "unix"
-)
-
-var (
-	unixErr = errs.Class("unix")
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -38,7 +34,10 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, workloadattestorv0.WorkloadAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		workloadattestorv1.WorkloadAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 type processInfo interface {
@@ -101,7 +100,8 @@ type Configuration struct {
 }
 
 type Plugin struct {
-	workloadattestorv0.UnsafeWorkloadAttestorServer
+	workloadattestorv1.UnsafeWorkloadAttestorServer
+	configv1.UnsafeConfigServer
 
 	mu     sync.Mutex
 	config *Configuration
@@ -127,7 +127,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -135,41 +135,41 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 
 	proc, err := p.hooks.newProcess(req.Pid)
 	if err != nil {
-		return nil, unixErr.New("getting process: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get process: %v", err)
 	}
 
-	var selectors []*common.Selector
+	var selectorValues []string
 
 	uid, err := p.getUID(proc)
 	if err != nil {
 		return nil, err
 	}
-	selectors = append(selectors, makeSelector("uid", uid))
+	selectorValues = append(selectorValues, makeSelectorValue("uid", uid))
 
 	if user, ok := p.getUserName(uid); ok {
-		selectors = append(selectors, makeSelector("user", user))
+		selectorValues = append(selectorValues, makeSelectorValue("user", user))
 	}
 
 	gid, err := p.getGID(proc)
 	if err != nil {
 		return nil, err
 	}
-	selectors = append(selectors, makeSelector("gid", gid))
+	selectorValues = append(selectorValues, makeSelectorValue("gid", gid))
 
 	if group, ok := p.getGroupName(gid); ok {
-		selectors = append(selectors, makeSelector("group", group))
+		selectorValues = append(selectorValues, makeSelectorValue("group", group))
 	}
 
 	sgIDs, err := proc.Groups()
 	if err != nil {
-		return nil, unixErr.New("supplementary GIDs lookup: %v", err)
+		return nil, status.Errorf(codes.Internal, "supplementary GIDs lookup: %v", err)
 	}
 
 	for _, sgID := range sgIDs {
-		selectors = append(selectors, makeSelector("supplementary_gid", sgID))
+		selectorValues = append(selectorValues, makeSelectorValue("supplementary_gid", sgID))
 
 		if sGroup, ok := p.getGroupName(sgID); ok {
-			selectors = append(selectors, makeSelector("supplementary_group", sGroup))
+			selectorValues = append(selectorValues, makeSelectorValue("supplementary_group", sGroup))
 		}
 	}
 
@@ -181,7 +181,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 		if err != nil {
 			return nil, err
 		}
-		selectors = append(selectors, makeSelector("path", processPath))
+		selectorValues = append(selectorValues, makeSelectorValue("path", processPath))
 
 		if config.WorkloadSizeLimit >= 0 {
 			exePath := p.getNamespacedPath(proc)
@@ -190,26 +190,22 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 				return nil, err
 			}
 
-			selectors = append(selectors, makeSelector("sha256", sha256Digest))
+			selectorValues = append(selectorValues, makeSelectorValue("sha256", sha256Digest))
 		}
 	}
 
-	return &workloadattestorv0.AttestResponse{
-		Selectors: selectors,
+	return &workloadattestorv1.AttestResponse{
+		SelectorValues: selectorValues,
 	}, nil
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(Configuration)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, unixErr.Wrap(err)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
 	}
 	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) getConfig() (*Configuration, error) {
@@ -217,7 +213,7 @@ func (p *Plugin) getConfig() (*Configuration, error) {
 	config := p.config
 	p.mu.Unlock()
 	if config == nil {
-		return nil, unixErr.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return config, nil
 }
@@ -231,12 +227,12 @@ func (p *Plugin) setConfig(config *Configuration) {
 func (p *Plugin) getUID(proc processInfo) (string, error) {
 	uids, err := proc.Uids()
 	if err != nil {
-		return "", unixErr.New("UIDs lookup: %v", err)
+		return "", status.Errorf(codes.Internal, "UIDs lookup: %v", err)
 	}
 
 	switch len(uids) {
 	case 0:
-		return "", unixErr.New("UIDs lookup: no UIDs for process")
+		return "", status.Error(codes.Internal, "UIDs lookup: no UIDs for process")
 	case 1:
 		return fmt.Sprint(uids[0]), nil
 	default:
@@ -256,12 +252,12 @@ func (p *Plugin) getUserName(uid string) (string, bool) {
 func (p *Plugin) getGID(proc processInfo) (string, error) {
 	gids, err := proc.Gids()
 	if err != nil {
-		return "", unixErr.New("GIDs lookup: %v", err)
+		return "", status.Errorf(codes.Internal, "GIDs lookup: %v", err)
 	}
 
 	switch len(gids) {
 	case 0:
-		return "", unixErr.New("GIDs lookup: no GIDs for process")
+		return "", status.Error(codes.Internal, "GIDs lookup: no GIDs for process")
 	case 1:
 		return fmt.Sprint(gids[0]), nil
 	default:
@@ -281,7 +277,7 @@ func (p *Plugin) getGroupName(gid string) (string, bool) {
 func (p *Plugin) getPath(proc processInfo) (string, error) {
 	path, err := proc.Exe()
 	if err != nil {
-		return "", unixErr.New("path lookup: %v", err)
+		return "", status.Errorf(codes.Internal, "path lookup: %v", err)
 	}
 
 	return path, nil
@@ -294,32 +290,29 @@ func (p *Plugin) getNamespacedPath(proc processInfo) string {
 func getSHA256Digest(path string, limit int64) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", unixErr.New("SHA256 digest: %v", err)
+		return "", status.Errorf(codes.Internal, "SHA256 digest: %v", err)
 	}
 	defer f.Close()
 
 	if limit > 0 {
 		fi, err := f.Stat()
 		if err != nil {
-			return "", unixErr.New("SHA256 digest: %v", err)
+			return "", status.Errorf(codes.Internal, "SHA256 digest: %v", err)
 		}
 		if fi.Size() > limit {
-			return "", unixErr.New("SHA256 digest: workload %s exceeds size limit (%d > %d)", path, fi.Size(), limit)
+			return "", status.Errorf(codes.Internal, "SHA256 digest: workload %s exceeds size limit (%d > %d)", path, fi.Size(), limit)
 		}
 	}
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return "", unixErr.New("SHA256 digest: %v", err)
+		return "", status.Errorf(codes.Internal, "SHA256 digest: %v", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func makeSelector(kind, value string) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", kind, value),
-	}
+func makeSelectorValue(kind, value string) string {
+	return fmt.Sprintf("%s:%s", kind, value)
 }
 
 func getProcPath(pID int32, lastPath string) string {
