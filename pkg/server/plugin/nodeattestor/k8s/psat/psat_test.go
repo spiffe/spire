@@ -253,7 +253,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod UID from token review status")
 }
 
-func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
+func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowed() {
 	tokenData := &TokenData{
 		namespace:          "NS1",
 		serviceAccountName: "SERVICEACCOUNTNAME",
@@ -262,7 +262,7 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotWhitelisted() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:SERVICEACCOUNTNAME" is not a whitelisted service account`)
+	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:SERVICEACCOUNTNAME" is not an allowed service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
@@ -393,14 +393,14 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: configuration must have at least one cluster")
 	s.Require().Nil(resp)
 
-	// cluster missing service account whitelist
+	// cluster missing service account allow list
 	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `clusters = {
 			"FOO" = {}
 		}`,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.RequireGRPCStatus(err, codes.Unknown, `k8s-psat: cluster "FOO" configuration must have at least one service account whitelisted`)
+	s.RequireGRPCStatus(err, codes.Unknown, `k8s-psat: cluster "FOO" configuration must have at least one service account allowed`)
 	s.Require().Nil(resp)
 
 	// success with two CERT based key files
@@ -456,13 +456,13 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.NodeAttestorClient {
 		Configuration: `
 		clusters = {
 			"FOO" = {
-				service_account_whitelist = ["NS1:SA1"]
+				service_account_allow_list = ["NS1:SA1"]
 				kube_config_file = ""
 				allowed_pod_label_keys = ["PODLABEL-A"]
 				allowed_node_label_keys = ["NODELABEL-B"]
 			}
 			"BAR" = {
-				service_account_whitelist = ["NS2:SA2"]
+				service_account_allow_list = ["NS2:SA2"]
 				kube_config_file= ""
 				audience = ["AUDIENCE"]
 			}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,10 +42,10 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 
 	fields := make(logrus.Fields)
 	if !rpccontext.CallerIsLocal(ctx) {
-		fields["caller-addr"] = rpccontext.CallerAddr(ctx).String()
+		fields[telemetry.CallerAddr] = rpccontext.CallerAddr(ctx).String()
 	}
 	if id, ok := rpccontext.CallerID(ctx); ok {
-		fields["caller-id"] = id.String()
+		fields[telemetry.CallerID] = id.String()
 	}
 	if len(fields) > 0 {
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))

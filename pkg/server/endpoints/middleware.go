@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -136,11 +137,11 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 		case attestedNode.NewCertSerialNumber == agentSVID.SerialNumber.String():
 			// AgentSVID matches the new serial number, access granted
 			// Also update the attested node agent serial number from 'new' to 'current'
-			_, err := ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
+			_, err := ds.UpdateAttestedNode(ctx, &common.AttestedNode{
 				SpiffeId:         attestedNode.SpiffeId,
 				CertNotAfter:     attestedNode.NewCertNotAfter,
 				CertSerialNumber: attestedNode.NewCertSerialNumber,
-			})
+			}, nil)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),

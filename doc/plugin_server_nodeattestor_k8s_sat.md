@@ -31,7 +31,7 @@ Each cluster in the main configuration requires the following configuration:
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| `service_account_whitelist` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the whitelist. | |
+| `service_account_allow_list` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the allow list. | |
 | `use_token_review_api_validation` | Specifies how the service account token is validated. If false, validation is done locally using the provided key. If true, validation is done using token review API.  | false |
 | `service_account_key_file` | It is only used if `use_token_review_api_validation` is set to `false`. Path on disk to a PEM encoded file containing public keys used in validating tokens for that cluster. RSA and ECDSA keys are supported. For RSA, X509 certificates, PKCS1, and PKIX encoded public keys are accepted. For ECDSA, X509 certificates, and PKIX encoded public keys are accepted. | |
 | `kube_config_file` | It is only used if `use_token_review_api_validation` is set to `true`. Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used. | "" |
@@ -43,7 +43,7 @@ A sample configuration for SPIRE server running inside or outside of a Kubernete
         plugin_data {
             clusters = {
                 "MyCluster" = {
-                    service_account_whitelist = ["production:spire-agent"]
+                    service_account_allow_list = ["production:spire-agent"]
                     service_account_key_file = "/run/k8s-certs/sa.pub"
                 }
         }
@@ -56,7 +56,7 @@ A sample configuration for SPIRE server running inside of a Kubernetes cluster a
         plugin_data {
             clusters = {
                 "MyCluster" = {
-                    service_account_whitelist = ["production:spire-agent"]
+                    service_account_allow_list = ["production:spire-agent"]
                     use_token_review_api_validation = true
                 }
         }
@@ -69,7 +69,7 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster 
         plugin_data {
             clusters = {
                 "MyCluster" = {
-                    service_account_whitelist = ["production:spire-agent"]
+                    service_account_allow_list = ["production:spire-agent"]
                     use_token_review_api_validation = true
                     kube_config_file = "path/to/kubeconfig/file"
                 }
@@ -89,7 +89,7 @@ In addition, this plugin generates the following selectors:
 
 At this time, the service account token does not contain claims that could be
 used to strongly identify the node/daemonset/pod running the agent. This means
-that any container running in a whitelisted service account can masquerade as
+that any container running in an allowed service account can masquerade as
 an agent, giving it access to any identity the agent is capable of issuing. It
 is **STRONGLY** recommended that agents run under a dedicated service account.
 

@@ -111,36 +111,36 @@ func (ds *Plugin) CreateBundle(ctx context.Context, b *common.Bundle) (bundle *c
 
 // UpdateBundle updates an existing bundle with the given CAs. Overwrites any
 // existing certificates.
-func (ds *Plugin) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
+func (ds *Plugin) UpdateBundle(ctx context.Context, b *common.Bundle, mask *common.BundleMask) (bundle *common.Bundle, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateBundle(tx, req)
+		bundle, err = updateBundle(tx, b, mask)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
-func (ds *Plugin) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
+func (ds *Plugin) SetBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = setBundle(tx, req)
+		bundle, err = setBundle(tx, b)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
-func (ds *Plugin) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
+func (ds *Plugin) AppendBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = appendBundle(tx, req)
+		bundle, err = appendBundle(tx, b)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return bundle, nil
 }
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
@@ -188,15 +188,15 @@ func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesReq
 }
 
 // PruneBundle removes expired certs and keys from a bundle
-func (ds *Plugin) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
+func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (changed bool, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneBundle(tx, req, ds.log)
+		changed, err = pruneBundle(tx, trustDomainID, expiresBefore, ds.log)
 		return err
 	}); err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return resp, nil
+	return changed, nil
 }
 
 // CreateAttestedNode stores the given attested node
@@ -241,7 +241,7 @@ func (ds *Plugin) CountAttestedNodes(ctx context.Context) (count int32, err erro
 func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodes(ctx, ds.db, req)
+		resp, err = listAttestedNodes(ctx, ds.db, ds.log, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -250,15 +250,14 @@ func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 }
 
 // UpdateAttestedNode updates the given node's cert serial and expiration.
-func (ds *Plugin) UpdateAttestedNode(ctx context.Context,
-	req *datastore.UpdateAttestedNodeRequest) (resp *datastore.UpdateAttestedNodeResponse, err error) {
+func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode, mask *common.AttestedNodeMask) (node *common.AttestedNode, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateAttestedNode(tx, req)
+		node, err = updateAttestedNode(tx, n, mask)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return node, nil
 }
 
 // DeleteAttestedNode deletes the given attested node
@@ -344,21 +343,20 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, er
 func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
 	if req.TolerateStale && ds.roDb != nil {
-		return listRegistrationEntries(ctx, ds.roDb, req)
+		return listRegistrationEntries(ctx, ds.roDb, ds.log, req)
 	}
-	return listRegistrationEntries(ctx, ds.db, req)
+	return listRegistrationEntries(ctx, ds.db, ds.log, req)
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
-func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context,
-	req *datastore.UpdateRegistrationEntryRequest) (resp *datastore.UpdateRegistrationEntryResponse, err error) {
+func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (entry *common.RegistrationEntry, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = updateRegistrationEntry(tx, req)
+		entry, err = updateRegistrationEntry(tx, e, mask)
 		return err
 	}); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return entry, nil
 }
 
 // DeleteRegistrationEntry deletes the given registration
@@ -375,14 +373,14 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
-func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (resp *datastore.PruneRegistrationEntriesResponse, err error) {
+func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = pruneRegistrationEntries(tx, req)
+		err = pruneRegistrationEntries(tx, expiresBefore)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -682,8 +680,7 @@ func createBundle(tx *gorm.DB, bundle *common.Bundle) (*common.Bundle, error) {
 	return bundle, nil
 }
 
-func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
-	newBundle := req.Bundle
+func updateBundle(tx *gorm.DB, newBundle *common.Bundle, mask *common.BundleMask) (*common.Bundle, error) {
 	newModel, err := bundleToModel(newBundle)
 	if err != nil {
 		return nil, err
@@ -694,7 +691,7 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, sqlError.Wrap(err)
 	}
 
-	model.Data, newBundle, err = applyBundleMask(model, newBundle, req.InputMask)
+	model.Data, newBundle, err = applyBundleMask(model, newBundle, mask)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -703,9 +700,7 @@ func updateBundle(tx *gorm.DB, req *datastore.UpdateBundleRequest) (*datastore.U
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.UpdateBundleResponse{
-		Bundle: newBundle,
-	}, nil
+	return newBundle, nil
 }
 
 func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.BundleMask) ([]byte, *common.Bundle, error) {
@@ -738,8 +733,8 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 	return newModel.Data, bundle, nil
 }
 
-func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
-	newModel, err := bundleToModel(req.Bundle)
+func setBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
+	newModel, err := bundleToModel(b)
 	if err != nil {
 		return nil, err
 	}
@@ -748,28 +743,24 @@ func setBundle(tx *gorm.DB, req *datastore.SetBundleRequest) (*datastore.SetBund
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		bundle, err := createBundle(tx, req.Bundle)
+		bundle, err := createBundle(tx, b)
 		if err != nil {
 			return nil, err
 		}
-		return &datastore.SetBundleResponse{
-			Bundle: bundle,
-		}, nil
+		return bundle, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
 	}
 
-	resp, err := updateBundle(tx, &datastore.UpdateBundleRequest{Bundle: req.Bundle})
+	bundle, err := updateBundle(tx, b, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &datastore.SetBundleResponse{
-		Bundle: resp.Bundle,
-	}, nil
+	return bundle, nil
 }
 
-func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
-	newModel, err := bundleToModel(req.Bundle)
+func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
+	newModel, err := bundleToModel(b)
 	if err != nil {
 		return nil, err
 	}
@@ -778,13 +769,11 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 	model := &Bundle{}
 	result := tx.Find(model, "trust_domain = ?", newModel.TrustDomain)
 	if result.RecordNotFound() {
-		bundle, err := createBundle(tx, req.Bundle)
+		bundle, err := createBundle(tx, b)
 		if err != nil {
 			return nil, err
 		}
-		return &datastore.AppendBundleResponse{
-			Bundle: bundle,
-		}, nil
+		return bundle, nil
 	} else if result.Error != nil {
 		return nil, sqlError.Wrap(result.Error)
 	}
@@ -795,7 +784,7 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 		return nil, err
 	}
 
-	bundle, changed := bundleutil.MergeBundles(bundle, req.Bundle)
+	bundle, changed := bundleutil.MergeBundles(bundle, b)
 	if changed {
 		newModel, err := bundleToModel(bundle)
 		if err != nil {
@@ -807,9 +796,7 @@ func appendBundle(tx *gorm.DB, req *datastore.AppendBundleRequest) (*datastore.A
 		}
 	}
 
-	return &datastore.AppendBundleResponse{
-		Bundle: bundle,
-	}, nil
+	return bundle, nil
 }
 
 func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) error {
@@ -940,35 +927,33 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	return resp, nil
 }
 
-func pruneBundle(tx *gorm.DB, req *datastore.PruneBundleRequest, log logrus.FieldLogger) (*datastore.PruneBundleResponse, error) {
+func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus.FieldLogger) (bool, error) {
 	// Get current bundle
-	currentBundle, err := fetchBundle(tx, req.TrustDomainId)
+	currentBundle, err := fetchBundle(tx, trustDomainID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch current bundle: %v", err)
+		return false, fmt.Errorf("unable to fetch current bundle: %v", err)
 	}
 
 	if currentBundle == nil {
 		// No bundle to prune
-		return &datastore.PruneBundleResponse{}, nil
+		return false, nil
 	}
 
 	// Prune
-	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, time.Unix(req.ExpiresBefore, 0), log)
+	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, expiry, log)
 	if err != nil {
-		return nil, fmt.Errorf("prune failed: %v", err)
+		return false, fmt.Errorf("prune failed: %v", err)
 	}
 
 	// Update only if bundle was modified
 	if changed {
-		_, err := updateBundle(tx, &datastore.UpdateBundleRequest{
-			Bundle: newBundle,
-		})
+		_, err := updateBundle(tx, newBundle, nil)
 		if err != nil {
-			return nil, fmt.Errorf("unable to write new bundle: %v", err)
+			return false, fmt.Errorf("unable to write new bundle: %v", err)
 		}
 	}
 
-	return &datastore.PruneBundleResponse{BundleChanged: changed}, nil
+	return changed, nil
 }
 
 func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
@@ -1009,7 +994,7 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 	return int32(count), nil
 }
 
-func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
+func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -1029,7 +1014,25 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, req *datastore.ListAttest
 
 		resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
 
+		// Now that we've filtered the nodes based on selectors, prune off
+		// selectors from the response if they were not requested.
+		if !req.FetchSelectors {
+			for _, node := range resp.Nodes {
+				node.Selectors = nil
+			}
+		}
+
 		if len(resp.Nodes) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
+			return resp, nil
+		}
+
+		if resp.Pagination.Token == req.Pagination.Token {
+			// This check is purely defensive. Assuming the pagination code is
+			// correct, a request with a given token should never yield that
+			// same token. Just in case, we don't want the server to loop
+			// indefinitely.
+			log.Warn("Filtered attested node pagination would recurse. Please report this bug.")
+			resp.Pagination.Token = ""
 			return resp, nil
 		}
 
@@ -1219,7 +1222,7 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 	// Add expected fields
 	builder.WriteString(`
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1277,9 +1280,13 @@ SELECT
 				switch dbType {
 				// MySQL does not support INTERSECT, so use INNER JOIN instead
 				case MySQL:
-					builder.WriteString("\t\t(")
+					if len(req.BySelectorMatch.Selectors) > 1 {
+						builder.WriteString("\t\t(")
+					}
 					builder.WriteString(query)
-					builder.WriteString(fmt.Sprintf(") c_%d\n", i))
+					if len(req.BySelectorMatch.Selectors) > 1 {
+						builder.WriteString(fmt.Sprintf(") c_%d\n", i))
+					}
 					// First subquery does not need USING(ID)
 					if i > 0 {
 						builder.WriteString("\t\tUSING(id)\n")
@@ -1305,7 +1312,7 @@ SELECT
 			args = append(args, selector.Type, selector.Value)
 		}
 
-		builder.WriteString("\n\t) ")
+		builder.WriteString("\n\t)")
 	} else {
 		// Prevent duplicate IDs when fetching selectors
 		if fetchSelectors {
@@ -1318,9 +1325,11 @@ SELECT
 	}
 
 	if dbType == PostgreSQL ||
-		(req.BySelectorMatch != nil && req.BySelectorMatch.Match == datastore.Subset) {
+		(req.BySelectorMatch != nil &&
+			(req.BySelectorMatch.Match == datastore.Subset || len(req.BySelectorMatch.Selectors) == 1)) {
 		builder.WriteString(" AS result_nodes")
 	}
+
 	if req.Pagination != nil {
 		builder.WriteString(" ORDER BY id ASC LIMIT ")
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
@@ -1331,7 +1340,7 @@ SELECT
 		}
 	}
 
-	builder.WriteString("\n)\n")
+	builder.WriteString("\n) ORDER BY id ASC\n")
 
 	return builder.String(), args, nil
 }
@@ -1346,7 +1355,7 @@ func buildListAttestedNodesQueryMySQL(req *datastore.ListAttestedNodesRequest) (
 	// Add expected fields
 	builder.WriteString(`
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1487,37 +1496,35 @@ FROM attested_node_entries N
 	return builder.String(), args, nil
 }
 
-func updateAttestedNode(tx *gorm.DB, req *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
+func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.AttestedNodeMask) (*common.AttestedNode, error) {
 	var model AttestedNode
-	if err := tx.Find(&model, "spiffe_id = ?", req.SpiffeId).Error; err != nil {
+	if err := tx.Find(&model, "spiffe_id = ?", n.SpiffeId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	if req.InputMask == nil {
-		req.InputMask = protoutil.AllTrueCommonAgentMask
+	if mask == nil {
+		mask = protoutil.AllTrueCommonAgentMask
 	}
 
 	updates := make(map[string]interface{})
-	if req.InputMask.CertNotAfter {
-		updates["expires_at"] = time.Unix(req.CertNotAfter, 0)
+	if mask.CertNotAfter {
+		updates["expires_at"] = time.Unix(n.CertNotAfter, 0)
 	}
-	if req.InputMask.CertSerialNumber {
-		updates["serial_number"] = req.CertSerialNumber
+	if mask.CertSerialNumber {
+		updates["serial_number"] = n.CertSerialNumber
 	}
-	if req.InputMask.NewCertNotAfter {
-		updates["new_expires_at"] = nullableUnixTimeToDBTime(req.NewCertNotAfter)
+	if mask.NewCertNotAfter {
+		updates["new_expires_at"] = nullableUnixTimeToDBTime(n.NewCertNotAfter)
 	}
-	if req.InputMask.NewCertSerialNumber {
-		updates["new_serial_number"] = req.NewCertSerialNumber
+	if mask.NewCertSerialNumber {
+		updates["new_serial_number"] = n.NewCertSerialNumber
 	}
 
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.UpdateAttestedNodeResponse{
-		Node: modelToAttestedNode(model),
-	}, nil
+	return modelToAttestedNode(model), nil
 }
 
 func deleteAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
@@ -1788,7 +1795,7 @@ WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -1847,7 +1854,7 @@ WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id = $1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -1940,7 +1947,7 @@ WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -2002,7 +2009,7 @@ func countRegistrationEntries(tx *gorm.DB) (int32, error) {
 	return int32(count), nil
 }
 
-func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -2027,6 +2034,16 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, req *datastore.List
 
 		resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
 		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
+			return resp, nil
+		}
+
+		if resp.Pagination.Token == req.Pagination.Token {
+			// This check is purely defensive. Assuming the pagination code is
+			// correct, a request with a given token should never yield that
+			// same token. Just in case, we don't want the server to loop
+			// indefinitely.
+			log.Warn("Filtered registration entry pagination would recurse. Please report this bug.")
+			resp.Pagination.Token = ""
 			return resp, nil
 		}
 
@@ -2167,7 +2184,7 @@ func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEnt
 
 	builder.WriteString(`
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -2186,7 +2203,7 @@ FROM
 	registered_entries
 `)
 	if filtered {
-		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2201,7 +2218,7 @@ ON
 	B.id = F.bundle_id
 `)
 	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2212,7 +2229,7 @@ FROM
 	dns_names
 `)
 	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2223,7 +2240,7 @@ FROM
 	selectors
 `)
 	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 ORDER BY e_id, selector_id, dns_name_id
@@ -2245,7 +2262,7 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 
 	builder.WriteString(`
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -2264,7 +2281,7 @@ FROM
 	registered_entries
 `)
 	if filtered {
-		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2279,7 +2296,7 @@ ON
 	B.id = F.bundle_id
 `)
 	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2290,7 +2307,7 @@ FROM
 	dns_names
 `)
 	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2301,7 +2318,7 @@ FROM
 	selectors
 `)
 	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 ORDER BY e_id, selector_id, dns_name_id
@@ -2381,7 +2398,7 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 
 	builder.WriteString(`
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -2400,7 +2417,7 @@ FROM
 	registered_entries
 `)
 	if filtered {
-		builder.WriteString("WHERE id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2415,7 +2432,7 @@ ON
 	B.id = F.bundle_id
 `)
 	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2426,7 +2443,7 @@ FROM
 	dns_names
 `)
 	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 UNION
@@ -2437,7 +2454,7 @@ FROM
 	selectors
 `)
 	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT id FROM listing)\n")
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
 ORDER BY e_id, selector_id, dns_name_id
@@ -2447,6 +2464,8 @@ ORDER BY e_id, selector_id, dns_name_id
 }
 
 type idFilterNode struct {
+	idColumn string
+
 	// mutually exclusive with children
 	// supports multiline query
 	query []string
@@ -2494,7 +2513,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 	needsName := true
 	switch {
 	case n.union:
-		builder.WriteString("SELECT id FROM (\n")
+		builder.WriteString("SELECT e_id FROM (\n")
 		for i, child := range n.children {
 			if i > 0 {
 				indent(builder, indentation+1)
@@ -2503,7 +2522,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 			child.render(builder, dbType, i, indentation+1, true, true)
 		}
 	case dbType != MySQL:
-		builder.WriteString("SELECT id FROM (\n")
+		builder.WriteString("SELECT e_id FROM (\n")
 		for i, child := range n.children {
 			if i > 0 {
 				indent(builder, indentation+1)
@@ -2513,7 +2532,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 		}
 	default:
 		needsName = false
-		builder.WriteString("SELECT DISTINCT id FROM (\n")
+		builder.WriteString("SELECT DISTINCT e_id FROM (\n")
 		for i, child := range n.children {
 			if i > 0 {
 				indent(builder, indentation+1)
@@ -2528,7 +2547,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 			builder.WriteString("\n")
 			if i > 0 {
 				indent(builder, indentation+1)
-				builder.WriteString("USING(id)\n")
+				builder.WriteString("USING(e_id)\n")
 			}
 		}
 	}
@@ -2569,11 +2588,11 @@ func indent(builder *strings.Builder, indentation int) {
 func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings.Builder, dbType string, req *datastore.ListRegistrationEntriesRequest) (bool, []interface{}, error) {
 	var args []interface{}
 
-	var root idFilterNode
+	root := idFilterNode{idColumn: "id"}
 
 	if req.ByParentId != nil || req.BySpiffeId != nil {
 		subquery := new(strings.Builder)
-		subquery.WriteString("SELECT id FROM registered_entries WHERE ")
+		subquery.WriteString("SELECT id AS e_id FROM registered_entries WHERE ")
 		if req.ByParentId != nil {
 			subquery.WriteString("parent_id = ?")
 			args = append(args, req.ByParentId.Value)
@@ -2586,7 +2605,8 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 			args = append(args, req.BySpiffeId.Value)
 		}
 		root.children = append(root.children, idFilterNode{
-			query: []string{subquery.String()},
+			idColumn: "id",
+			query:    []string{subquery.String()},
 		})
 	}
 
@@ -2595,21 +2615,31 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		case datastore.Subset:
 			// subset needs a union, so we need to group them and add the group
 			// as a child to the root.
-			group := idFilterNode{
-				union: true,
-			}
-			for range req.BySelectors.Selectors {
-				group.children = append(group.children, idFilterNode{
-					query: []string{"SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?"},
+			if len(req.BySelectors.Selectors) < 2 {
+				root.children = append(root.children, idFilterNode{
+					idColumn: "registered_entry_id",
+					query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
 				})
+			} else {
+				group := idFilterNode{
+					idColumn: "e_id",
+					union:    true,
+				}
+				for range req.BySelectors.Selectors {
+					group.children = append(group.children, idFilterNode{
+						idColumn: "registered_entry_id",
+						query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
+					})
+				}
+				root.children = append(root.children, group)
 			}
-			root.children = append(root.children, group)
 		case datastore.Exact:
 			// exact match does uses an intersection, so we can just add these
 			// directly to the root idFilterNode, since it is already an intersection
 			for range req.BySelectors.Selectors {
 				root.children = append(root.children, idFilterNode{
-					query: []string{"SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?"},
+					idColumn: "registered_entry_id",
+					query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
 				})
 			}
 		default:
@@ -2633,8 +2663,10 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 
 		// Exact/subset federates-with matching requires filtering out all registration
 		// entries whose federated trust domains are not fully represented in the request
-		filterNode := idFilterNode{}
-		filterNode.query = append(filterNode.query, "SELECT E.id")
+		filterNode := idFilterNode{
+			idColumn: "E.id",
+		}
+		filterNode.query = append(filterNode.query, "SELECT E.id AS e_id")
 		filterNode.query = append(filterNode.query, "FROM registered_entries E")
 		filterNode.query = append(filterNode.query, "INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id")
 		filterNode.query = append(filterNode.query, "INNER JOIN bundles B ON B.id = FE.bundle_id")
@@ -2681,7 +2713,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 	indentation := 1
 	if req.Pagination != nil && dbType == MySQL {
 		filter()
-		builder.WriteString("\tSELECT id FROM (\n")
+		builder.WriteString("\tSELECT e_id FROM (\n")
 		indentation = 2
 	}
 
@@ -2692,23 +2724,35 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 
 	if req.Pagination != nil {
 		filter()
-		if len(root.children) == 0 {
+		var idColumn string
+		switch len(root.children) {
+		case 0:
+			idColumn = "id"
 			indent(builder, indentation)
-			builder.WriteString("SELECT id FROM registered_entries")
+			builder.WriteString("SELECT id AS e_id FROM registered_entries")
+		case 1:
+			idColumn = root.children[0].idColumn
+		default:
+			idColumn = "e_id"
 		}
+
 		if len(req.Pagination.Token) > 0 {
 			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
 			if err != nil {
 				return false, nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 			}
-			if len(root.children) == 1 {
-				builder.WriteString(" AND id > ?")
+			if len(root.children) == 1 && len(root.children[0].children) == 0 {
+				builder.WriteString(" AND ")
 			} else {
-				builder.WriteString(" WHERE id > ?")
+				builder.WriteString(" WHERE ")
 			}
+			builder.WriteString(idColumn)
+			builder.WriteString(" > ?")
 			args = append(args, token)
 		}
-		builder.WriteString(" ORDER BY id ASC LIMIT ")
+		builder.WriteString(" ORDER BY ")
+		builder.WriteString(idColumn)
+		builder.WriteString(" ASC LIMIT ")
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
 		builder.WriteString("\n")
 
@@ -2919,25 +2963,24 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 	return entryTx, nil
 }
 
-func updateRegistrationEntry(tx *gorm.DB,
-	req *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-	if err := validateRegistrationEntryForUpdate(req.Entry, req.Mask); err != nil {
+func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
+	if err := validateRegistrationEntryForUpdate(e, mask); err != nil {
 		return nil, err
 	}
 
 	// Get the existing entry
 	entry := RegisteredEntry{}
-	if err := tx.Find(&entry, "entry_id = ?", req.Entry.EntryId).Error; err != nil {
+	if err := tx.Find(&entry, "entry_id = ?", e.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
-	if req.Mask == nil || req.Mask.Selectors {
+	if mask == nil || mask.Selectors {
 		// Delete existing selectors - we will write new ones
 		if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 			return nil, sqlError.Wrap(err)
 		}
 
 		selectors := []Selector{}
-		for _, s := range req.Entry.Selectors {
+		for _, s := range e.Selectors {
 			selector := Selector{
 				Type:  s.Type,
 				Value: s.Value,
@@ -2948,14 +2991,14 @@ func updateRegistrationEntry(tx *gorm.DB,
 		entry.Selectors = selectors
 	}
 
-	if req.Mask == nil || req.Mask.DnsNames {
+	if mask == nil || mask.DnsNames {
 		// Delete existing DNSs - we will write new ones
 		if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 			return nil, sqlError.Wrap(err)
 		}
 
 		dnsList := []DNSName{}
-		for _, d := range req.Entry.DnsNames {
+		for _, d := range e.DnsNames {
 			dns := DNSName{
 				Value: d,
 			}
@@ -2965,23 +3008,23 @@ func updateRegistrationEntry(tx *gorm.DB,
 		entry.DNSList = dnsList
 	}
 
-	if req.Mask == nil || req.Mask.SpiffeId {
-		entry.SpiffeID = req.Entry.SpiffeId
+	if mask == nil || mask.SpiffeId {
+		entry.SpiffeID = e.SpiffeId
 	}
-	if req.Mask == nil || req.Mask.ParentId {
-		entry.ParentID = req.Entry.ParentId
+	if mask == nil || mask.ParentId {
+		entry.ParentID = e.ParentId
 	}
-	if req.Mask == nil || req.Mask.Ttl {
-		entry.TTL = req.Entry.Ttl
+	if mask == nil || mask.Ttl {
+		entry.TTL = e.Ttl
 	}
-	if req.Mask == nil || req.Mask.Admin {
-		entry.Admin = req.Entry.Admin
+	if mask == nil || mask.Admin {
+		entry.Admin = e.Admin
 	}
-	if req.Mask == nil || req.Mask.Downstream {
-		entry.Downstream = req.Entry.Downstream
+	if mask == nil || mask.Downstream {
+		entry.Downstream = e.Downstream
 	}
-	if req.Mask == nil || req.Mask.EntryExpiry {
-		entry.Expiry = req.Entry.EntryExpiry
+	if mask == nil || mask.EntryExpiry {
+		entry.Expiry = e.EntryExpiry
 	}
 
 	// Revision number is increased by 1 on every update call
@@ -2991,8 +3034,8 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, sqlError.Wrap(err)
 	}
 
-	if req.Mask == nil || req.Mask.FederatesWith {
-		federatesWith, err := makeFederatesWith(tx, req.Entry.FederatesWith)
+	if mask == nil || mask.FederatesWith {
+		federatesWith, err := makeFederatesWith(tx, e.FederatesWith)
 		if err != nil {
 			return nil, err
 		}
@@ -3008,9 +3051,7 @@ func updateRegistrationEntry(tx *gorm.DB,
 		return nil, err
 	}
 
-	return &datastore.UpdateRegistrationEntryResponse{
-		Entry: returnEntry,
-	}, nil
+	return returnEntry, nil
 }
 
 func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationEntry, error) {
@@ -3049,19 +3090,19 @@ func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
 	return nil
 }
 
-func pruneRegistrationEntries(tx *gorm.DB, req *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
+func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time) error {
 	var registrationEntries []RegisteredEntry
-	if err := tx.Where("expiry != 0").Where("expiry < ?", req.ExpiresBefore).Find(&registrationEntries).Error; err != nil {
-		return nil, err
+	if err := tx.Where("expiry != 0").Where("expiry < ?", expiresBefore.Unix()).Find(&registrationEntries).Error; err != nil {
+		return err
 	}
 
 	for _, entry := range registrationEntries {
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return &datastore.PruneRegistrationEntriesResponse{}, nil
+	return nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {

@@ -25,7 +25,7 @@ Each cluster in the main configuration requires the following configuration:
 
 | Configuration | Description | Default                 |
 | ------------- | ----------- | ----------------------- |
-| `service_account_whitelist` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the whitelist. | |
+| `service_account_allow_list` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the allow list. | |
 | `audience` | Audience for token validation. If it is set to an empty array (`[]`), Kubernetes API server audience is used | ["spire-server"] |
 | `kube_config_file` | Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used. | ""|
 | `allowed_node_label_keys` | Node label keys considered for selectors | |
@@ -38,7 +38,7 @@ A sample configuration for SPIRE server running inside of a kubernetes cluster:
         plugin_data {
             clusters = {
                 "MyCluster" = {
-                    service_account_whitelist = ["production:spire-agent"]
+                    service_account_allow_list = ["production:spire-agent"]
                 }
         }
     }
@@ -51,7 +51,7 @@ A sample configuration for SPIRE server running outside of a kubernetes cluster:
         plugin_data {
             clusters = {
                 "MyCluster" = {
-                    service_account_whitelist = ["production:spire-agent"]
+                    service_account_allow_list = ["production:spire-agent"]
                     kube_config_file = "path/to/kubeconfig/file"
                 }
         }

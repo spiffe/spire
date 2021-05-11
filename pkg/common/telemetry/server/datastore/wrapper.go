@@ -21,10 +21,10 @@ type metricsWrapper struct {
 	m  telemetry.Metrics
 }
 
-func (w metricsWrapper) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (_ *datastore.AppendBundleResponse, err error) {
+func (w metricsWrapper) AppendBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
 	callCounter := StartAppendBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.AppendBundle(ctx, req)
+	return w.ds.AppendBundle(ctx, bundle)
 }
 
 func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (_ *common.AttestedNode, err error) {
@@ -147,10 +147,10 @@ func (w metricsWrapper) CountRegistrationEntries(ctx context.Context) (_ int32, 
 	return w.ds.CountRegistrationEntries(ctx)
 }
 
-func (w metricsWrapper) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (_ *datastore.PruneBundleResponse, err error) {
+func (w metricsWrapper) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (_ bool, err error) {
 	callCounter := StartPruneBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.PruneBundle(ctx, req)
+	return w.ds.PruneBundle(ctx, trustDomainID, expiresBefore)
 }
 
 func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) (err error) {
@@ -159,16 +159,16 @@ func (w metricsWrapper) PruneJoinTokens(ctx context.Context, expiresBefore time.
 	return w.ds.PruneJoinTokens(ctx, expiresBefore)
 }
 
-func (w metricsWrapper) PruneRegistrationEntries(ctx context.Context, req *datastore.PruneRegistrationEntriesRequest) (_ *datastore.PruneRegistrationEntriesResponse, err error) {
+func (w metricsWrapper) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
 	callCounter := StartPruneRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.PruneRegistrationEntries(ctx, req)
+	return w.ds.PruneRegistrationEntries(ctx, expiresBefore)
 }
 
-func (w metricsWrapper) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (_ *datastore.SetBundleResponse, err error) {
+func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
 	callCounter := StartSetBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.SetBundle(ctx, req)
+	return w.ds.SetBundle(ctx, bundle)
 }
 
 func (w metricsWrapper) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (_ *datastore.SetNodeSelectorsResponse, err error) {
@@ -177,20 +177,20 @@ func (w metricsWrapper) SetNodeSelectors(ctx context.Context, req *datastore.Set
 	return w.ds.SetNodeSelectors(ctx, req)
 }
 
-func (w metricsWrapper) UpdateAttestedNode(ctx context.Context, req *datastore.UpdateAttestedNodeRequest) (_ *datastore.UpdateAttestedNodeResponse, err error) {
+func (w metricsWrapper) UpdateAttestedNode(ctx context.Context, node *common.AttestedNode, mask *common.AttestedNodeMask) (_ *common.AttestedNode, err error) {
 	callCounter := StartUpdateNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.UpdateAttestedNode(ctx, req)
+	return w.ds.UpdateAttestedNode(ctx, node, mask)
 }
 
-func (w metricsWrapper) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (_ *datastore.UpdateBundleResponse, err error) {
+func (w metricsWrapper) UpdateBundle(ctx context.Context, bundle *common.Bundle, mask *common.BundleMask) (_ *common.Bundle, err error) {
 	callCounter := StartUpdateBundleCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.UpdateBundle(ctx, req)
+	return w.ds.UpdateBundle(ctx, bundle, mask)
 }
 
-func (w metricsWrapper) UpdateRegistrationEntry(ctx context.Context, req *datastore.UpdateRegistrationEntryRequest) (_ *datastore.UpdateRegistrationEntryResponse, err error) {
+func (w metricsWrapper) UpdateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) (_ *common.RegistrationEntry, err error) {
 	callCounter := StartUpdateRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.UpdateRegistrationEntry(ctx, req)
+	return w.ds.UpdateRegistrationEntry(ctx, entry, mask)
 }

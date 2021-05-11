@@ -115,18 +115,16 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundlev1.AppendBundleRe
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to convert X.509 authority", err)
 	}
 
-	resp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId:  s.td.IDString(),
-			JwtSigningKeys: jwtAuth,
-			RootCas:        x509Auth,
-		},
+	dsBundle, err := s.ds.AppendBundle(ctx, &common.Bundle{
+		TrustDomainId:  s.td.IDString(),
+		JwtSigningKeys: jwtAuth,
+		RootCas:        x509Auth,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to append bundle", err)
 	}
 
-	bundle, err := api.BundleToProto(resp.Bundle)
+	bundle, err := api.BundleToProto(dsBundle)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert bundle", err)
 	}
@@ -328,9 +326,7 @@ func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outpu
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert bundle", err),
 		}
 	}
-	resp, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: commonBundle,
-	})
+	dsBundle, err := s.ds.SetBundle(ctx, commonBundle)
 
 	if err != nil {
 		return &bundlev1.BatchSetFederatedBundleResponse_Result{
@@ -338,7 +334,7 @@ func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outpu
 		}
 	}
 
-	protoBundle, err := api.BundleToProto(resp.Bundle)
+	protoBundle, err := api.BundleToProto(dsBundle)
 	if err != nil {
 		return &bundlev1.BatchSetFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert bundle", err),
@@ -387,10 +383,7 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert bundle", err),
 		}
 	}
-	resp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle:    commonBundle,
-		InputMask: api.ProtoToBundleMask(inputMask),
-	})
+	dsBundle, err := s.ds.UpdateBundle(ctx, commonBundle, api.ProtoToBundleMask(inputMask))
 
 	switch status.Code(err) {
 	case codes.OK:
@@ -404,7 +397,7 @@ func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, in
 		}
 	}
 
-	protoBundle, err := api.BundleToProto(resp.Bundle)
+	protoBundle, err := api.BundleToProto(dsBundle)
 	if err != nil {
 		return &bundlev1.BatchUpdateFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert bundle", err),
