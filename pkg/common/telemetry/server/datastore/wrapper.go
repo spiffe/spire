@@ -99,10 +99,10 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) GetNodeSelectors(ctx context.Context, req *datastore.GetNodeSelectorsRequest) (_ *datastore.GetNodeSelectorsResponse, err error) {
+func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (_ *datastore.NodeSelectors, err error) {
 	callCounter := StartGetNodeSelectorsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.GetNodeSelectors(ctx, req)
+	return w.ds.GetNodeSelectors(ctx, spiffeID, tolerateStale)
 }
 
 func (w metricsWrapper) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (_ *datastore.ListAttestedNodesResponse, err error) {
@@ -171,7 +171,7 @@ func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_
 	return w.ds.SetBundle(ctx, bundle)
 }
 
-func (w metricsWrapper) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (_ *datastore.SetNodeSelectorsResponse, err error) {
+func (w metricsWrapper) SetNodeSelectors(ctx context.Context, req *datastore.NodeSelectors) (err error) {
 	callCounter := StartSetNodeSelectorsCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.SetNodeSelectors(ctx, req)

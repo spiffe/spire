@@ -1511,11 +1511,9 @@ func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) 
 }
 
 func (s *HandlerSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
-	_, err := s.ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  spiffeID,
-			Selectors: selectors,
-		},
+	err := s.ds.SetNodeSelectors(context.Background(), &datastore.NodeSelectors{
+		SpiffeID:  spiffeID,
+		Selectors: selectors,
 	})
 	s.Require().NoError(err)
 }

@@ -20,7 +20,7 @@ func TestNodeSelectorsToProto(t *testing.T) {
 		{
 			name: "success",
 			nodeSelectors: &datastore.NodeSelectors{
-				SpiffeId: "spiffe://example.org/agent",
+				SpiffeID: "spiffe://example.org/agent",
 				Selectors: []*common.Selector{
 					{
 						Type:  "type",

@@ -157,9 +157,9 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*c
 	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
-func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
+func (s *DataStore) SetNodeSelectors(ctx context.Context, req *datastore.NodeSelectors) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.SetNodeSelectors(ctx, req)
 }
@@ -171,16 +171,16 @@ func (s *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListNo
 	return s.ds.ListNodeSelectors(ctx, req)
 }
 
-func (s *DataStore) GetNodeSelectors(ctx context.Context, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (*datastore.NodeSelectors, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	resp, err := s.ds.GetNodeSelectors(ctx, req)
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, tolerateStale)
 	if err == nil {
 		// Sorting helps unit-tests have deterministic assertions.
-		util.SortSelectors(resp.Selectors.Selectors)
+		util.SortSelectors(selectors.Selectors)
 	}
-	return resp, err
+	return selectors, err
 }
 
 func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error) {

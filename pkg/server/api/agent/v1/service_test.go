@@ -66,7 +66,7 @@ var (
 
 	testNodeSelectors = map[string]*datastore.NodeSelectors{
 		agent1: {
-			SpiffeId: agent1,
+			SpiffeID: agent1,
 			Selectors: []*common.Selector{
 				{
 					Type:  "node-selector-type-1",
@@ -75,7 +75,7 @@ var (
 			},
 		},
 		agent2: {
-			SpiffeId: agent2,
+			SpiffeID: agent2,
 			Selectors: []*common.Selector{
 				{
 					Type:  "node-selector-type-2",
@@ -226,10 +226,9 @@ func TestListAgents(t *testing.T) {
 	}
 	_, err := test.ds.CreateAttestedNode(ctx, node1)
 	require.NoError(t, err)
-	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  node1.SpiffeId,
-			Selectors: node1.Selectors},
+	err = test.ds.SetNodeSelectors(ctx, &datastore.NodeSelectors{
+		SpiffeID:  node1.SpiffeId,
+		Selectors: node1.Selectors,
 	})
 	require.NoError(t, err)
 
@@ -248,10 +247,9 @@ func TestListAgents(t *testing.T) {
 	}
 	_, err = test.ds.CreateAttestedNode(ctx, node2)
 	require.NoError(t, err)
-	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  node2.SpiffeId,
-			Selectors: node2.Selectors},
+	err = test.ds.SetNodeSelectors(ctx, &datastore.NodeSelectors{
+		SpiffeID:  node2.SpiffeId,
+		Selectors: node2.Selectors,
 	})
 	require.NoError(t, err)
 
@@ -1974,7 +1972,7 @@ func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 		require.NoError(t, err)
 
 		// set selectors to the test node
-		_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{Selectors: testNodeSelectors[testNode.SpiffeId]})
+		err = s.ds.SetNodeSelectors(ctx, testNodeSelectors[testNode.SpiffeId])
 		require.NoError(t, err)
 	}
 }
@@ -2003,12 +2001,10 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	require.NotNil(t, attestedAgent)
 	require.Equal(t, expectedID, attestedAgent.SpiffeId)
 
-	agentSelectors, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: expectedID,
-	})
+	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, false)
 	require.NoError(t, err)
-	require.NotNil(t, agentSelectors.Selectors)
-	require.EqualValues(t, expectedSelectors, agentSelectors.Selectors.Selectors)
+	require.NotNil(t, agentSelectors)
+	require.EqualValues(t, expectedSelectors, agentSelectors.Selectors)
 }
 
 type fakeRateLimiter struct {

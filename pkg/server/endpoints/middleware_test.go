@@ -275,11 +275,9 @@ func createEntry(t testing.TB, ds datastore.DataStore, entryIn *common.Registrat
 }
 
 func setNodeSelectors(t testing.TB, ds datastore.DataStore, id spiffeid.ID, selectors []*common.Selector) {
-	_, err := ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  id.String(),
-			Selectors: selectors,
-		},
+	err := ds.SetNodeSelectors(context.Background(), &datastore.NodeSelectors{
+		SpiffeID:  id.String(),
+		Selectors: selectors,
 	})
 	require.NoError(t, err)
 }

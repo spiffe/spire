@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/proto/spire/common"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // DataStore defines the data storage interface.
@@ -40,9 +38,9 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
-	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
+	GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (*NodeSelectors, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
-	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+	SetNodeSelectors(context.Context, *NodeSelectors) error
 
 	// Tokens
 	CreateJoinToken(context.Context, *JoinToken) error
@@ -93,30 +91,28 @@ type BySelectors struct {
 	Match     MatchBehavior
 }
 
-type GetNodeSelectorsRequest struct {
-	SpiffeId string //nolint: golint
-	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
-	TolerateStale bool
-}
-
-type GetNodeSelectorsResponse struct {
-	Selectors *NodeSelectors
-}
-
 type JoinToken struct {
-	// Token value
-	Token string
-	// Expiration in seconds since unix epoch
+	Token  string
 	Expiry time.Time
 }
 
+type NodeSelectors struct {
+	SpiffeID  string
+	Selectors []*common.Selector
+}
+
+type Pagination struct {
+	Token    string
+	PageSize int32
+}
+
 type ListAttestedNodesRequest struct {
-	ByExpiresBefore   *wrapperspb.Int64Value
-	Pagination        *Pagination
 	ByAttestationType string
+	ByBanned          *bool
+	ByExpiresBefore   *time.Time
 	BySelectorMatch   *BySelectors
-	ByBanned          *wrapperspb.BoolValue
 	FetchSelectors    bool
+	Pagination        *Pagination
 }
 
 type ListAttestedNodesResponse struct {
@@ -136,7 +132,7 @@ type ListBundlesResponse struct {
 type ListNodeSelectorsRequest struct {
 	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
 	TolerateStale bool
-	ValidAt       *timestamppb.Timestamp
+	ValidAt       *time.Time
 }
 
 type ListNodeSelectorsResponse struct {
@@ -144,9 +140,9 @@ type ListNodeSelectorsResponse struct {
 }
 
 type ListRegistrationEntriesRequest struct {
-	ByParentId  *wrapperspb.StringValue //nolint: golint
+	ByParentID  string
 	BySelectors *BySelectors
-	BySpiffeId  *wrapperspb.StringValue //nolint: golint
+	BySpiffeID  string
 	Pagination  *Pagination
 	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
 	TolerateStale   bool
@@ -156,23 +152,4 @@ type ListRegistrationEntriesRequest struct {
 type ListRegistrationEntriesResponse struct {
 	Entries    []*common.RegistrationEntry
 	Pagination *Pagination
-}
-
-type NodeSelectors struct {
-	// Node SPIFFE ID
-	SpiffeId string //nolint: golint
-	// Node selectors
-	Selectors []*common.Selector
-}
-
-type Pagination struct {
-	Token    string
-	PageSize int32
-}
-
-type SetNodeSelectorsRequest struct {
-	Selectors *NodeSelectors
-}
-
-type SetNodeSelectorsResponse struct {
 }
