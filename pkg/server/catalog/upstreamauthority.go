@@ -24,7 +24,11 @@ func (repo *upstreamAuthorityRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *upstreamAuthorityRepository) Versions() []catalog.Version {
-	return []catalog.Version{upstreamAuthorityV0{}}
+	return []catalog.Version{
+		upstreamAuthorityV1{},
+		// TODO: remove v0 once all of the built-ins have been migrated to v1
+		upstreamAuthorityV0{},
+	}
 }
 
 func (repo *upstreamAuthorityRepository) LegacyVersion() (catalog.Version, bool) {
@@ -42,7 +46,12 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 	}
 }
 
+type upstreamAuthorityV1 struct{}
+
+func (upstreamAuthorityV1) New() catalog.Facade { return new(upstreamauthority.V1) }
+func (upstreamAuthorityV1) Deprecated() bool    { return false }
+
 type upstreamAuthorityV0 struct{}
 
 func (upstreamAuthorityV0) New() catalog.Facade { return new(upstreamauthority.V0) }
-func (upstreamAuthorityV0) Deprecated() bool    { return false }
+func (upstreamAuthorityV0) Deprecated() bool    { return true }

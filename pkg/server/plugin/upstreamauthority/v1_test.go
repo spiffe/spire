@@ -13,11 +13,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -28,54 +30,44 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
-const (
-	csr          = "CSR"
-	preferredTTL = time.Minute
-)
-
-var (
-	jwtKeyPKIX, _ = x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
-	jwtKey        = &common.PublicKey{Kid: "KEYID", PkixBytes: jwtKeyPKIX, NotAfter: 12345}
-)
-
-func TestV0MintX509CA(t *testing.T) {
+func TestV1MintX509CA(t *testing.T) {
 	upstreamCA := testca.New(t, spiffeid.RequireTrustDomainFromString("example.org"))
 	x509CA := upstreamCA.ChildCA()
 
 	expectedX509CAChain := x509CA.X509Authorities()
 	expectedUpstreamX509Roots := upstreamCA.X509Authorities()
 
-	validX509CAChain := x509util.RawCertsFromCertificates(expectedX509CAChain)
-	validUpstreamX509Roots := x509util.RawCertsFromCertificates(expectedUpstreamX509Roots)
-	malformedX509CAChain := [][]byte{[]byte("OHNO")}
-	malformedUpstreamX509Roots := [][]byte{[]byte("OHNO")}
+	validX509CAChain := x509certificate.RequireToPluginProtos(expectedX509CAChain)
+	validUpstreamX509Roots := x509certificate.RequireToPluginProtos(expectedUpstreamX509Roots)
+	malformedX509CAChain := []*types.X509Certificate{{Asn1: []byte("OHNO")}}
+	malformedUpstreamX509Roots := []*types.X509Certificate{{Asn1: []byte("OHNO")}}
 
-	withoutX509CAChain := &upstreamauthorityv0.MintX509CAResponse{
+	withoutX509CAChain := &upstreamauthorityv1.MintX509CAResponse{
 		X509CaChain:       nil,
 		UpstreamX509Roots: validUpstreamX509Roots,
 	}
-	withoutUpstreamX509Roots := &upstreamauthorityv0.MintX509CAResponse{
+	withoutUpstreamX509Roots := &upstreamauthorityv1.MintX509CAResponse{
 		X509CaChain:       validX509CAChain,
 		UpstreamX509Roots: nil,
 	}
-	withMalformedX509CAChain := &upstreamauthorityv0.MintX509CAResponse{
+	withMalformedX509CAChain := &upstreamauthorityv1.MintX509CAResponse{
 		X509CaChain:       malformedX509CAChain,
 		UpstreamX509Roots: validUpstreamX509Roots,
 	}
-	withMalformedUpstreamX509Roots := &upstreamauthorityv0.MintX509CAResponse{
+	withMalformedUpstreamX509Roots := &upstreamauthorityv1.MintX509CAResponse{
 		X509CaChain:       validX509CAChain,
 		UpstreamX509Roots: malformedUpstreamX509Roots,
 	}
-	withX509CAChainAndUpstreamX509Roots := &upstreamauthorityv0.MintX509CAResponse{
+	withX509CAChainAndUpstreamX509Roots := &upstreamauthorityv1.MintX509CAResponse{
 		X509CaChain:       validX509CAChain,
 		UpstreamX509Roots: validUpstreamX509Roots,
 	}
 
-	builder := BuildV0()
+	builder := BuildV1()
 
 	for _, tt := range []struct {
 		test                string
-		builder             *V0Builder
+		builder             *V1Builder
 		expectCode          codes.Code
 		expectMessage       string
 		expectStreamUpdates bool
@@ -203,7 +195,7 @@ func TestV0MintX509CA(t *testing.T) {
 	}
 }
 
-func TestV0PublishJWTKey(t *testing.T) {
+func TestV1PublishJWTKey(t *testing.T) {
 	key := testkey.NewEC256(t)
 	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
 	require.NoError(t, err)
@@ -215,30 +207,30 @@ func TestV0PublishJWTKey(t *testing.T) {
 		},
 	}
 
-	withoutID := &upstreamauthorityv0.PublishJWTKeyResponse{
-		UpstreamJwtKeys: []*common.PublicKey{
-			{PkixBytes: pkixBytes},
+	withoutID := &upstreamauthorityv1.PublishJWTKeyResponse{
+		UpstreamJwtKeys: []*types.JWTKey{
+			{PublicKey: pkixBytes},
 		},
 	}
-	withoutPKIXData := &upstreamauthorityv0.PublishJWTKeyResponse{
-		UpstreamJwtKeys: []*common.PublicKey{
-			{Kid: "UPSTREAM KEY"},
+	withoutPKIXData := &upstreamauthorityv1.PublishJWTKeyResponse{
+		UpstreamJwtKeys: []*types.JWTKey{
+			{KeyId: "UPSTREAM KEY"},
 		},
 	}
-	withMalformedPKIXData := &upstreamauthorityv0.PublishJWTKeyResponse{
-		UpstreamJwtKeys: []*common.PublicKey{
-			{Kid: "UPSTREAM KEY", PkixBytes: []byte("JUNK")},
+	withMalformedPKIXData := &upstreamauthorityv1.PublishJWTKeyResponse{
+		UpstreamJwtKeys: []*types.JWTKey{
+			{KeyId: "UPSTREAM KEY", PublicKey: []byte("JUNK")},
 		},
 	}
-	withIDAndPKIXData := &upstreamauthorityv0.PublishJWTKeyResponse{
-		UpstreamJwtKeys: expectedUpstreamJWTKeys,
+	withIDAndPKIXData := &upstreamauthorityv1.PublishJWTKeyResponse{
+		UpstreamJwtKeys: jwtkey.RequireToPluginFromCommonProtos(expectedUpstreamJWTKeys),
 	}
 
-	builder := BuildV0()
+	builder := BuildV1()
 
 	for _, tt := range []struct {
 		test                string
-		builder             *V0Builder
+		builder             *V1Builder
 		expectCode          codes.Code
 		expectMessage       string
 		expectStreamUpdates bool
@@ -262,19 +254,19 @@ func TestV0PublishJWTKey(t *testing.T) {
 			test:          "plugin response missing JWT key ID",
 			builder:       builder.WithPublishJWTKeyResponse(withoutID),
 			expectCode:    codes.Internal,
-			expectMessage: "upstreamauthority(test): plugin response missing ID for JWT key",
+			expectMessage: "upstreamauthority(test): invalid plugin response: missing key ID for JWT key",
 		},
 		{
 			test:          "plugin response missing PKIX data",
 			builder:       builder.WithPublishJWTKeyResponse(withoutPKIXData),
 			expectCode:    codes.Internal,
-			expectMessage: `upstreamauthority(test): plugin response missing PKIX data for JWT key "UPSTREAM KEY"`,
+			expectMessage: `upstreamauthority(test): invalid plugin response: missing public key for JWT key "UPSTREAM KEY"`,
 		},
 		{
 			test:          "plugin response has malformed PKIX data",
 			builder:       builder.WithPublishJWTKeyResponse(withMalformedPKIXData),
 			expectCode:    codes.Internal,
-			expectMessage: `upstreamauthority(test): plugin response has malformed PKIX data for JWT key "UPSTREAM KEY"`,
+			expectMessage: `upstreamauthority(test): invalid plugin response: failed to unmarshal public key for JWT key "UPSTREAM KEY"`,
 		},
 		{
 			test:          "success but plugin does not support streaming updates",
@@ -308,7 +300,7 @@ func TestV0PublishJWTKey(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Failed to parse a JWT key update from the upstream authority plugin. Please report this bug.",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = Internal desc = upstreamauthority(test): plugin response missing ID for JWT key",
+						logrus.ErrorKey: "rpc error: code = Internal desc = upstreamauthority(test): invalid plugin response: missing key ID for JWT key",
 					},
 				},
 			},
@@ -359,75 +351,75 @@ func TestV0PublishJWTKey(t *testing.T) {
 	}
 }
 
-type V0Builder struct {
-	p   *v0Plugin
+type V1Builder struct {
+	p   *v1Plugin
 	log logrus.FieldLogger
 }
 
-func BuildV0() *V0Builder {
-	return new(V0Builder)
+func BuildV1() *V1Builder {
+	return new(V1Builder)
 }
 
-func (b *V0Builder) WithLog(log logrus.FieldLogger) *V0Builder {
+func (b *V1Builder) WithLog(log logrus.FieldLogger) *V1Builder {
 	b = b.clone()
 	b.log = log
 	return b
 }
 
-func (b *V0Builder) WithPreSendError(err error) *V0Builder {
+func (b *V1Builder) WithPreSendError(err error) *V1Builder {
 	b = b.clone()
 	b.p.preSendErr = &err
 	return b
 }
 
-func (b *V0Builder) WithPostSendError(err error) *V0Builder {
+func (b *V1Builder) WithPostSendError(err error) *V1Builder {
 	b = b.clone()
 	b.p.postSendErr = err
 	return b
 }
 
-func (b *V0Builder) WithMintX509CAResponse(response *upstreamauthorityv0.MintX509CAResponse) *V0Builder {
+func (b *V1Builder) WithMintX509CAResponse(response *upstreamauthorityv1.MintX509CAResponse) *V1Builder {
 	b = b.clone()
 	b.p.mintX509CAResponses = append(b.p.mintX509CAResponses, response)
 	return b
 }
 
-func (b *V0Builder) WithPublishJWTKeyResponse(response *upstreamauthorityv0.PublishJWTKeyResponse) *V0Builder {
+func (b *V1Builder) WithPublishJWTKeyResponse(response *upstreamauthorityv1.PublishJWTKeyResponse) *V1Builder {
 	b = b.clone()
 	b.p.publishJWTKeyResponses = append(b.p.publishJWTKeyResponses, response)
 	return b
 }
 
-func (b *V0Builder) clone() *V0Builder {
-	return &V0Builder{
+func (b *V1Builder) clone() *V1Builder {
+	return &V1Builder{
 		p:   b.p.clone(),
 		log: b.log,
 	}
 }
 
-func (b *V0Builder) Load(t *testing.T) upstreamauthority.UpstreamAuthority {
-	server := upstreamauthorityv0.UpstreamAuthorityPluginServer(b.clone().p)
+func (b *V1Builder) Load(t *testing.T) upstreamauthority.UpstreamAuthority {
+	server := upstreamauthorityv1.UpstreamAuthorityPluginServer(b.clone().p)
 
 	var opts []plugintest.Option
 	if b.log != nil {
 		opts = append(opts, plugintest.Log(b.log))
 	}
 
-	ua := new(upstreamauthority.V0)
+	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("test", server), ua, opts...)
 	return ua
 }
 
-type v0Plugin struct {
-	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
+type v1Plugin struct {
+	upstreamauthorityv1.UnimplementedUpstreamAuthorityServer
 
 	preSendErr             *error
 	postSendErr            error
-	mintX509CAResponses    []*upstreamauthorityv0.MintX509CAResponse
-	publishJWTKeyResponses []*upstreamauthorityv0.PublishJWTKeyResponse
+	mintX509CAResponses    []*upstreamauthorityv1.MintX509CAResponse
+	publishJWTKeyResponses []*upstreamauthorityv1.PublishJWTKeyResponse
 }
 
-func (v0 *v0Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (v1 *v1Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	if string(req.Csr) != string(csr) {
 		return errors.New("unexpected CSR")
 	}
@@ -435,41 +427,41 @@ func (v0 *v0Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, strea
 		return errors.New("unexpected preferred TTL")
 	}
 
-	if v0.preSendErr != nil {
-		return *v0.preSendErr
+	if v1.preSendErr != nil {
+		return *v1.preSendErr
 	}
 
-	for _, response := range v0.mintX509CAResponses {
+	for _, response := range v1.mintX509CAResponses {
 		if err := stream.Send(response); err != nil {
 			return err
 		}
 	}
 
-	return v0.postSendErr
+	return v1.postSendErr
 }
 
-func (v0 *v0Plugin) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
-	if diff := cmp.Diff(jwtKey, req.JwtKey, protocmp.Transform()); diff != "" {
+func (v1 *v1Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKeyRequest, stream upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+	if diff := cmp.Diff(jwtkey.RequireToPluginFromCommonProto(jwtKey), req.JwtKey, protocmp.Transform()); diff != "" {
 		return fmt.Errorf("unexpected public key: %s", diff)
 	}
 
-	if v0.preSendErr != nil {
-		return *v0.preSendErr
+	if v1.preSendErr != nil {
+		return *v1.preSendErr
 	}
 
-	for _, response := range v0.publishJWTKeyResponses {
+	for _, response := range v1.publishJWTKeyResponses {
 		if err := stream.Send(response); err != nil {
 			return err
 		}
 	}
 
-	return v0.postSendErr
+	return v1.postSendErr
 }
 
-func (v0 *v0Plugin) clone() *v0Plugin {
-	if v0 == nil {
-		return &v0Plugin{}
+func (v1 *v1Plugin) clone() *v1Plugin {
+	if v1 == nil {
+		return &v1Plugin{}
 	}
-	clone := *v0
+	clone := *v1
 	return &clone
 }
