@@ -88,7 +88,7 @@ func testGenerateKey(t *testing.T, create CreateFunc) {
 		// Signing with key1 should fail since it has been overwritten.
 		digest := sha256.Sum256([]byte("DATA"))
 		_, err := key1.Sign(rand.Reader, digest[:], crypto.SHA256)
-		spiretest.AssertGRPCStatusContains(t, err, codes.Internal, "does not match")
+		spiretest.AssertGRPCStatusContains(t, err, codes.Internal, "does not match", "signing with an overwritten key did not fail as expected")
 	})
 }
 

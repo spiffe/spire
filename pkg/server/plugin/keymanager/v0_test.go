@@ -75,11 +75,11 @@ func TestV0GenerateKey(t *testing.T) {
 			}
 			km := loadV0Plugin(t, plugin)
 			key, err := km.GenerateKey(context.Background(), "foo", keymanager.RSA2048)
+			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMessage)
 			if tt.expectCode != codes.OK {
-				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMessage)
+				assert.Nil(t, key)
 				return
 			}
-			require.NoError(t, err)
 			require.NotNil(t, key)
 			assert.Equal(t, "foo", key.ID())
 			assert.Equal(t, testKey.Public(), key.Public())
@@ -200,14 +200,14 @@ func TestV0GetKeys(t *testing.T) {
 			km := loadV0Plugin(t, plugin)
 			keys, err := km.GetKeys(context.Background())
 			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMessage)
-			if tt.expectCode != codes.OK {
-				return
-			}
-			if tt.publicKey != nil {
+			switch {
+			case tt.expectCode != codes.OK:
+				require.Empty(t, keys, "expecting no keys in response because it failed")
+			case tt.publicKey != nil:
 				require.Len(t, keys, 1, "expecting key in response")
 				assert.Equal(t, "foo", keys[0].ID())
 				assert.Equal(t, testKey.Public(), keys[0].Public())
-			} else {
+			default:
 				require.Empty(t, keys, "expecting no keys in response")
 			}
 		})
