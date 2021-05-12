@@ -52,7 +52,7 @@ func (s *NodeControllerTestSuite) SetupTest() {
 
 	s.ctrl = mockCtrl
 
-	s.k8sClient = fake.NewFakeClientWithScheme(scheme.Scheme)
+	s.k8sClient = fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 
 	s.log = zap.New()
 }

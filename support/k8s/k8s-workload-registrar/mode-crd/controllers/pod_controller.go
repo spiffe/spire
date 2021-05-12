@@ -66,13 +66,13 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Reconcile creates a new SPIFFE ID when pods are created
-func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *PodReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if containsString(r.c.DisabledNamespaces, req.NamespacedName.Namespace) {
 		return ctrl.Result{}, nil
 	}
 
 	pod := corev1.Pod{}
-	ctx = r.c.Ctx
+	ctx := r.c.Ctx
 
 	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
 		if !errors.IsNotFound(err) {

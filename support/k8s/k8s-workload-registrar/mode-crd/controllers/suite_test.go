@@ -54,10 +54,11 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 
 	log, _ := test.NewNullLogger()
 	c := CommonControllerTestSuite{
-		cluster:     Cluster,
-		ctx:         context.Background(),
-		log:         log,
-		k8sClient:   fake.NewFakeClientWithScheme(scheme.Scheme),
+		cluster:   Cluster,
+		ctx:       context.Background(),
+		log:       log,
+		k8sClient: fake.NewClientBuilder().WithScheme(scheme.Scheme).Build(),
+
 		entryClient: fakeentryclient.New(t, spiffeid.RequireTrustDomainFromString(TrustDomain), nil, nil),
 		scheme:      scheme.Scheme,
 		trustDomain: TrustDomain,

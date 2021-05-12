@@ -88,7 +88,6 @@ func (r *BaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if !r.shouldProcess(req) {
 		return ctrl.Result{}, nil
 	}
-	ctx = context.Background()
 	reqLogger := r.Log.WithValues("request", req.NamespacedName)
 
 	obj := r.getObject()
