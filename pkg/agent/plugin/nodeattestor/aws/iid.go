@@ -10,11 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,16 +23,14 @@ const (
 	sigPath = "instance-identity/signature"
 )
 
-var (
-	iidError = caws.IidErrorClass
-)
-
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
 func builtin(p *IIDAttestorPlugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(caws.PluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(caws.PluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
@@ -43,7 +40,8 @@ type IIDAttestorConfig struct {
 
 // IIDAttestorPlugin implements aws nodeattestation in the agent.
 type IIDAttestorPlugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	log    hclog.Logger
 	config *IIDAttestorConfig
@@ -59,9 +57,8 @@ func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-// FetchAttestationData fetches attestation data from the aws metadata server and sends an attestation response
-// on given stream.
-func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
+// AidAttestation implements the NodeAttestor interface method of the same name
+func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
@@ -77,10 +74,9 @@ func (p *IIDAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttes
 		return caws.AttestationStepError("marshaling the attested data", err)
 	}
 
-	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		AttestationData: &common.AttestationData{
-			Type: caws.PluginName,
-			Data: respData,
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: respData,
 		},
 	})
 }
@@ -113,11 +109,11 @@ func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
 	}, nil
 }
 
-// Configure configures the IIDAttestorPlugin.
-func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+// Configure implements the Config interface method of the same name
+func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &IIDAttestorConfig{}
-	if err := hcl.Decode(config, req.Configuration); err != nil {
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
@@ -126,12 +122,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 
 	p.config = config
 
-	return &spi.ConfigureResponse{}, nil
-}
-
-// GetPluginInfo returns the version and other metadata of the plugin.
-func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
@@ -139,7 +130,7 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 	defer p.mtx.RUnlock()
 
 	if p.config == nil {
-		return nil, iidError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }
