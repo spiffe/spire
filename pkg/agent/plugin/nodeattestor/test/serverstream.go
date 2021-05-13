@@ -55,6 +55,15 @@ func (b *ServerStreamBuilder) ExpectThenChallenge(payloadOrChallengeResponse, ch
 	})
 }
 
+// IgnoreThenChallenge adds an intermediate handler that ignores the payload or
+// challenge response and then issues the given challenge. It returns a new
+// builder with that handler added.
+func (b *ServerStreamBuilder) IgnoreThenChallenge(challenge []byte) *ServerStreamBuilder {
+	return b.Handle(func(actual []byte) ([]byte, error) {
+		return challenge, nil
+	})
+}
+
 // ExpectAndBuild adds a final handler wherein the server stream expects to
 // receive the given payload or challenge response. It returns a built server
 // stream, since the stream does not issue another challenge at this point and

@@ -9,8 +9,9 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/hcl"
-	"github.com/zeebo/errs"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -25,9 +26,6 @@ const (
 var (
 	// DefaultAgentPathTemplate is the default text/template.
 	DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
-
-	// sshpop-specific error class
-	errClass = errs.Class(PluginName)
 )
 
 // agentPathTemplateData is used to hydrate the agent path template used in generating spiffe ids.
@@ -40,9 +38,8 @@ type agentPathTemplateData struct {
 
 // Client is a factory for generating client handshake objects.
 type Client struct {
-	cert        *ssh.Certificate
-	signer      ssh.Signer
-	trustDomain string
+	cert   *ssh.Certificate
+	signer ssh.Signer
 }
 
 // Server is a factory for generating server handshake objects.
@@ -69,32 +66,28 @@ type ServerConfig struct {
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
-func NewClient(trustDomain, configString string) (*Client, error) {
-	if trustDomain == "" {
-		return nil, Errorf("trust_domain global configuration is required")
-	}
+func NewClient(configString string) (*Client, error) {
 	config := new(ClientConfig)
 	if err := hcl.Decode(config, configString); err != nil {
-		return nil, Errorf("failed to decode configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
 	}
 	config.HostKeyPath = stringOrDefault(config.HostKeyPath, defaultHostKeyPath)
 	config.HostCertPath = stringOrDefault(config.HostCertPath, defaultHostCertPath)
 	keyBytes, err := ioutil.ReadFile(config.HostKeyPath)
 	if err != nil {
-		return nil, Errorf("failed to read host key file: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to read host key file: %v", err)
 	}
 	certBytes, err := ioutil.ReadFile(config.HostCertPath)
 	if err != nil {
-		return nil, Errorf("failed to read host cert file: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to read host cert file: %v", err)
 	}
 	cert, signer, err := getCertAndSignerFromBytes(certBytes, keyBytes)
 	if err != nil {
-		return nil, Errorf("failed to get cert and signer from pem: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to get cert and signer from pem: %v", err)
 	}
 	return &Client{
-		cert:        cert,
-		signer:      signer,
-		trustDomain: trustDomain,
+		cert:   cert,
+		signer: signer,
 	}, nil
 }
 
@@ -123,14 +116,14 @@ func getCertAndSignerFromBytes(certBytes, keyBytes []byte) (*ssh.Certificate, ss
 
 func NewServer(trustDomain, configString string) (*Server, error) {
 	if trustDomain == "" {
-		return nil, Errorf("trust_domain global configuration is required")
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain global configuration is required")
 	}
 	config := new(ServerConfig)
 	if err := hcl.Decode(config, configString); err != nil {
-		return nil, Errorf("failed to decode configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
 	}
 	if config.CertAuthorities == nil && config.CertAuthoritiesPath == "" {
-		return nil, Errorf("missing required config value for \"cert_authorities\" or \"cert_authorities_path\"")
+		return nil, status.Errorf(codes.InvalidArgument, "missing required config value for \"cert_authorities\" or \"cert_authorities_path\"")
 	}
 	var certAuthorities []string
 	if config.CertAuthorities != nil {
@@ -139,19 +132,19 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	if config.CertAuthoritiesPath != "" {
 		fileCertAuthorities, err := pubkeysFromPath(config.CertAuthoritiesPath)
 		if err != nil {
-			return nil, Errorf("failed to get cert authorities from file: %v", err)
+			return nil, status.Errorf(codes.InvalidArgument, "failed to get cert authorities from file: %v", err)
 		}
 		certAuthorities = append(certAuthorities, fileCertAuthorities...)
 	}
 	certChecker, err := certCheckerFromPubkeys(certAuthorities)
 	if err != nil {
-		return nil, Errorf("failed to create cert checker: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create cert checker: %v", err)
 	}
 	agentPathTemplate := DefaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
 		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}
 		agentPathTemplate = tmpl
 	}
@@ -211,9 +204,4 @@ func (s *Server) NewHandshake() *ServerHandshake {
 	return &ServerHandshake{
 		s: s,
 	}
-}
-
-// Errorf is a ssh plugin specific error.
-func Errorf(format string, a ...interface{}) error {
-	return errClass.New(format, a...)
 }
