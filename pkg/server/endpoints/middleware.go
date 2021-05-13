@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -104,6 +105,9 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 	return middleware.AgentAuthorizerFunc(func(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 		id := agentID.String()
 		log := log.WithField(telemetry.AgentID, id)
+		if !rpccontext.CallerIsLocal(ctx) {
+			log = log.WithField(telemetry.CallerAddr, rpccontext.CallerAddr(ctx))
+		}
 
 		permissionDenied := func(reason types.PermissionDeniedDetails_Reason, format string, args ...interface{}) error {
 			st := status.Newf(codes.PermissionDenied, format, args...)
