@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -50,14 +49,210 @@ type MSIResolverSuite struct {
 	spiretest.Suite
 
 	api *fakeAPIClient
-
-	resolver noderesolver.V0
 }
 
 func (s *MSIResolverSuite) SetupTest() {
 	// set up the API with an initial view of the virtual machine
 	s.api = newFakeAPIClient(s.T())
+}
 
+func (s *MSIResolverSuite) TestResolveWithNonAgentID() {
+	nr := s.loadPluginWithTenant()
+	s.assertResolveFailure(nr, "spiffe://example.org/spire/server/whatever",
+		codes.InvalidArgument,
+		`noderesolver(azure_msi): invalid agent ID: "spiffe://example.org/spire/server/whatever" is not a valid agent SPIFFE ID`)
+}
+
+func (s *MSIResolverSuite) TestResolveWithNonAzureAgentID() {
+	nr := s.loadPluginWithTenant()
+	// agent ID's that aren't recognized by the resolver are simply ignored
+	selectors, err := nr.Resolve(context.Background(), "spiffe://example.org/spire/agent/whatever")
+	s.Require().NoError(err)
+	s.Require().Empty(selectors)
+}
+
+func (s *MSIResolverSuite) TestResolveWithUnrecognizedTenant() {
+	nr := s.loadPluginWithTenant()
+	s.assertResolveFailure(nr, "spiffe://example.org/spire/agent/azure_msi/SOMEOTHERTENANT/PRINCIPAL",
+		codes.InvalidArgument,
+		`noderesolver(azure_msi): not configured for tenant "SOMEOTHERTENANT"`)
+}
+
+func (s *MSIResolverSuite) TestResolveWithNoVirtualMachineResource() {
+	s.api.SetVirtualMachineResourceID("PRINCIPAL", "")
+
+	nr := s.loadPluginWithTenant()
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): unable to get resource for principal "PRINCIPAL": not found`)
+}
+
+func (s *MSIResolverSuite) TestResolveWithMalformedResourceID() {
+	s.api.SetVirtualMachineResourceID("PRINCIPAL", malformedResourceID)
+
+	nr := s.loadPluginWithTenant()
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): malformed virtual machine ID "MALFORMEDRESOURCEID"`)
+}
+
+func (s *MSIResolverSuite) TestResolveWithNoVirtualMachineInfo() {
+	s.api.SetVirtualMachineResourceID("PRINCIPAL", vmResourceID)
+
+	nr := s.loadPluginWithTenant()
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): unable to get virtual machine "RESOURCEGROUP:VIRTUALMACHINE"`)
+}
+
+func (s *MSIResolverSuite) TestResolveVirtualMachine() {
+	nr := s.loadPluginWithTenant()
+
+	vm := &compute.VirtualMachine{
+		VirtualMachineProperties: &compute.VirtualMachineProperties{},
+	}
+	s.setVirtualMachine(vm)
+
+	// no network profile
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network profile with no interfaces
+	vm.NetworkProfile = &compute.NetworkProfile{}
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network profile with empty interface
+	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{}}
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network profile with interface with malformed ID
+	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{ID: &malformedResourceID}}
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): malformed network interface ID "MALFORMEDRESOURCEID"`)
+
+	// network profile with interface with no interface info
+	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{ID: &niResourceID}}
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): unable to get network interface "RESOURCEGROUP:NETWORKINTERFACE"`)
+
+	// network interface with no security group or ip config
+	ni := &network.Interface{
+		InterfacePropertiesFormat: &network.InterfacePropertiesFormat{},
+	}
+	s.setNetworkInterface(ni)
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network interface with malformed security group
+	ni.NetworkSecurityGroup = &network.SecurityGroup{ID: &malformedResourceID}
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): malformed network security group ID "MALFORMEDRESOURCEID"`)
+	ni.NetworkSecurityGroup = nil
+
+	// network interface with no ip configuration
+	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{}
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network interface with empty ip configuration
+	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{{}}
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network interface with empty ip configuration properties
+	props := new(network.InterfaceIPConfigurationPropertiesFormat)
+	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{{InterfaceIPConfigurationPropertiesFormat: props}}
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network interface with subnet with no ID
+	props.Subnet = &network.Subnet{}
+	s.assertResolveSuccess(nr, vmSelectors)
+
+	// network interface with subnet with malformed ID
+	props.Subnet.ID = &malformedResourceID
+	s.assertResolveFailure(nr, azureAgentID,
+		codes.Internal,
+		`noderesolver(azure_msi): malformed virtual network subnet ID "MALFORMEDRESOURCEID"`)
+
+	// network interface with good subnet and security group
+	ni.NetworkSecurityGroup = &network.SecurityGroup{ID: &nsgResourceID}
+	props.Subnet.ID = &subnetResourceID
+	s.assertResolveSuccess(nr, vmSelectors, niSelectors)
+}
+
+func (s *MSIResolverSuite) TestConfigure() {
+	var err error
+
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure("blah"),
+	)
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
+
+	// no tenants (not using MSI)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(""),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration must have at least one tenant when not using MSI")
+
+	// tenant missing subscription id
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`tenants = {
+			TENANT = {
+				app_id = "APPID"
+				app_secret = "APPSECRET"
+			}
+		}`),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, `misconfigured tenant "TENANT": missing subscription id`)
+
+	// tenant missing app id
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`tenants = {
+			TENANT = {
+				subscription_id = "SUBSCRIPTION"
+				app_secret = "APPSECRET"
+			}
+		}`),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, `misconfigured tenant "TENANT": missing app id`)
+
+	// tenant missing app secret
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`tenants = {
+			TENANT = {
+				subscription_id = "SUBSCRIPTION"
+				app_id = "APPID"
+			}
+		}`),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, `misconfigured tenant "TENANT": missing app secret`)
+
+	// both MSI and tenant
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`
+			use_msi = true
+			tenants = {
+				TENANT = {}
+			}
+		`),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration cannot have tenants when using MSI")
+
+	// MSI only
+	s.loadPlugin(plugintest.Configure(`use_msi = true`))
+}
+
+func (s *MSIResolverSuite) loadPluginWithTenant() noderesolver.NodeResolver {
+	return s.loadPlugin(plugintest.Configure(`
+		tenants = {
+			TENANT = {
+				subscription_id = "SUBSCRIPTION"
+				app_id = "APPID"
+				app_secret = "APPSECRET"
+			}
+		}`))
+}
+
+func (s *MSIResolverSuite) loadPlugin(options ...plugintest.Option) noderesolver.NodeResolver {
 	resolver := New()
 	resolver.hooks.newClient = func(string, autorest.Authorizer) apiClient {
 		return s.api
@@ -69,203 +264,12 @@ func (s *MSIResolverSuite) SetupTest() {
 			},
 		}, nil
 	}
-	plugintest.Load(s.T(), builtin(resolver), &s.resolver)
-	s.configureResolverWithTenant()
+	nr := new(noderesolver.V1)
+	plugintest.Load(s.T(), builtin(resolver), nr, options...)
+	return nr
 }
 
-func (s *MSIResolverSuite) TestResolveWithNonAgentID() {
-	s.assertResolveFailure("spiffe://example.org/spire/server/whatever",
-		`azure-msi: "spiffe://example.org/spire/server/whatever" is not a valid agent SPIFFE ID`)
-}
-
-func (s *MSIResolverSuite) TestResolveWithNonAzureAgentID() {
-	// agent ID's that aren't recognized by the resolver are simply ignored
-	selectors, err := s.resolver.Resolve(context.Background(), "spiffe://example.org/spire/agent/whatever")
-	s.Require().NoError(err)
-	s.Require().Empty(selectors)
-}
-
-func (s *MSIResolverSuite) TestResolveWithUnrecognizedTenant() {
-	s.assertResolveFailure("spiffe://example.org/spire/agent/azure_msi/SOMEOTHERTENANT/PRINCIPAL",
-		`azure-msi: not configured for tenant "SOMEOTHERTENANT"`)
-}
-
-func (s *MSIResolverSuite) TestResolveWithNoVirtualMachineResource() {
-	s.api.SetVirtualMachineResourceID("PRINCIPAL", "")
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: unable to get resource for principal "PRINCIPAL": not found`)
-}
-
-func (s *MSIResolverSuite) TestResolveWithMalformedResourceID() {
-	s.api.SetVirtualMachineResourceID("PRINCIPAL", malformedResourceID)
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: malformed virtual machine ID "MALFORMEDRESOURCEID"`)
-}
-
-func (s *MSIResolverSuite) TestResolveWithNoVirtualMachineInfo() {
-	s.api.SetVirtualMachineResourceID("PRINCIPAL", vmResourceID)
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: unable to get virtual machine "RESOURCEGROUP:VIRTUALMACHINE"`)
-}
-
-func (s *MSIResolverSuite) TestResolveVirtualMachine() {
-	vm := &compute.VirtualMachine{
-		VirtualMachineProperties: &compute.VirtualMachineProperties{},
-	}
-	s.setVirtualMachine(vm)
-
-	// no network profile
-	s.assertResolveSuccess(vmSelectors)
-
-	// network profile with no interfaces
-	vm.NetworkProfile = &compute.NetworkProfile{}
-	s.assertResolveSuccess(vmSelectors)
-
-	// network profile with empty interface
-	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{}}
-	s.assertResolveSuccess(vmSelectors)
-
-	// network profile with interface with malformed ID
-	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{ID: &malformedResourceID}}
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: malformed network interface ID "MALFORMEDRESOURCEID"`)
-
-	// network profile with interface with no interface info
-	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{ID: &niResourceID}}
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: unable to get network interface "RESOURCEGROUP:NETWORKINTERFACE"`)
-
-	// network interface with no security group or ip config
-	ni := &network.Interface{
-		InterfacePropertiesFormat: &network.InterfacePropertiesFormat{},
-	}
-	s.setNetworkInterface(ni)
-	s.assertResolveSuccess(vmSelectors)
-
-	// network interface with malformed security group
-	ni.NetworkSecurityGroup = &network.SecurityGroup{ID: &malformedResourceID}
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: malformed network security group ID "MALFORMEDRESOURCEID"`)
-	ni.NetworkSecurityGroup = nil
-
-	// network interface with no ip configuration
-	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{}
-	s.assertResolveSuccess(vmSelectors)
-
-	// network interface with empty ip configuration
-	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{{}}
-	s.assertResolveSuccess(vmSelectors)
-
-	// network interface with empty ip configuration properties
-	props := new(network.InterfaceIPConfigurationPropertiesFormat)
-	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{{InterfaceIPConfigurationPropertiesFormat: props}}
-	s.assertResolveSuccess(vmSelectors)
-
-	// network interface with subnet with no ID
-	props.Subnet = &network.Subnet{}
-	s.assertResolveSuccess(vmSelectors)
-
-	// network interface with subnet with malformed ID
-	props.Subnet.ID = &malformedResourceID
-	s.assertResolveFailure(azureAgentID,
-		`azure-msi: malformed virtual network subnet ID "MALFORMEDRESOURCEID"`)
-
-	// network interface with good subnet and security group
-	ni.NetworkSecurityGroup = &network.SecurityGroup{ID: &nsgResourceID}
-	props.Subnet.ID = &subnetResourceID
-	s.assertResolveSuccess(vmSelectors, niSelectors)
-}
-
-func (s *MSIResolverSuite) TestConfigure() {
-	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: "blah",
-	})
-	s.RequireErrorContains(err, "azure-msi: unable to decode configuration")
-	s.Require().Nil(resp)
-
-	// no tenants (not using MSI)
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireGRPCStatus(err, codes.Unknown, "azure-msi: configuration must have at least one tenant when not using MSI")
-	s.Require().Nil(resp)
-
-	// tenant missing subscription id
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `tenants = {
-			TENANT = {
-				app_id = "APPID"
-				app_secret = "APPSECRET"
-			}
-		}`})
-	s.RequireGRPCStatus(err, codes.Unknown, `azure-msi: misconfigured tenant "TENANT": missing subscription id`)
-	s.Require().Nil(resp)
-
-	// tenant missing app id
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `tenants = {
-			TENANT = {
-				subscription_id = "SUBSCRIPTION"
-				app_secret = "APPSECRET"
-			}
-		}`})
-	s.RequireGRPCStatus(err, codes.Unknown, `azure-msi: misconfigured tenant "TENANT": missing app id`)
-	s.Require().Nil(resp)
-
-	// tenant missing app secret
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `tenants = {
-			TENANT = {
-				subscription_id = "SUBSCRIPTION"
-				app_id = "APPID"
-			}
-		}`})
-	s.RequireGRPCStatus(err, codes.Unknown, `azure-msi: misconfigured tenant "TENANT": missing app secret`)
-	s.Require().Nil(resp)
-
-	// success with tenant configuration
-	s.configureResolverWithTenant()
-
-	// both MSI and tenant
-	resp, err = s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		use_msi = true
-		tenants = {
-			TENANT = {}
-		}`})
-	s.RequireGRPCStatus(err, codes.Unknown, "azure-msi: configuration cannot have tenants when using MSI")
-	s.Require().Nil(resp)
-
-	// success using MSI configuration
-	s.configureResolverWithMSI()
-}
-
-func (s *MSIResolverSuite) TestGetPluginInfo() {
-	resp, err := s.resolver.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *MSIResolverSuite) configureResolverWithTenant() {
-	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `tenants = {
-			TENANT = {
-				subscription_id = "SUBSCRIPTION"
-				app_id = "APPID"
-				app_secret = "APPSECRET"
-			}
-		}`})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
-}
-
-func (s *MSIResolverSuite) configureResolverWithMSI() {
-	resp, err := s.resolver.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `use_msi = true`,
-	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
-}
-
-func (s *MSIResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
+func (s *MSIResolverSuite) assertResolveSuccess(nr noderesolver.NodeResolver, selectorValueSets ...[]string) {
 	var selectorValues []string
 	for _, values := range selectorValueSets {
 		selectorValues = append(selectorValues, values...)
@@ -280,19 +284,15 @@ func (s *MSIResolverSuite) assertResolveSuccess(selectorValueSets ...[]string) {
 		})
 	}
 
-	actual, err := s.doResolve(azureAgentID)
+	actual, err := nr.Resolve(context.Background(), azureAgentID)
 	s.Require().NoError(err)
 	s.RequireProtoListEqual(expected, actual)
 }
 
-func (s *MSIResolverSuite) assertResolveFailure(spiffeID, containsErr string) {
-	selectors, err := s.doResolve(spiffeID)
-	s.RequireErrorContains(err, containsErr)
+func (s *MSIResolverSuite) assertResolveFailure(nr noderesolver.NodeResolver, agentID string, code codes.Code, containsMsg string) {
+	selectors, err := nr.Resolve(context.Background(), agentID)
+	s.RequireGRPCStatusContains(err, code, containsMsg)
 	s.Require().Empty(selectors)
-}
-
-func (s *MSIResolverSuite) doResolve(spiffeID string) ([]*common.Selector, error) {
-	return s.resolver.Resolve(context.Background(), spiffeID)
 }
 
 func (s *MSIResolverSuite) setVirtualMachine(vm *compute.VirtualMachine) {
