@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/test/clock"
 	mock_docker "github.com/spiffe/spire/test/mock/agent/plugin/workloadattestor/docker"
 	"github.com/spiffe/spire/test/plugintest"
@@ -31,57 +31,43 @@ const (
 
 func TestDockerSelectors(t *testing.T) {
 	tests := []struct {
-		desc                string
-		mockContainerLabels map[string]string
-		mockEnv             []string
-		mockImageID         string
-		requireResult       func(*testing.T, *workloadattestorv0.AttestResponse)
+		desc                 string
+		mockContainerLabels  map[string]string
+		mockEnv              []string
+		mockImageID          string
+		expectSelectorValues []string
 	}{
 		{
 			desc:                "single label; single env",
 			mockContainerLabels: map[string]string{"this": "that"},
 			mockEnv:             []string{"VAR=val"},
-			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
-				require.Len(t, res.Selectors, 2)
-				require.Equal(t, "docker", res.Selectors[0].Type)
-				require.Equal(t, "label:this:that", res.Selectors[0].Value)
-				require.Equal(t, "docker", res.Selectors[1].Type)
-				require.Equal(t, "env:VAR=val", res.Selectors[1].Value)
+			expectSelectorValues: []string{
+				"env:VAR=val",
+				"label:this:that",
 			},
 		},
 		{
 			desc:                "many labels; many env",
 			mockContainerLabels: map[string]string{"this": "that", "here": "there", "up": "down"},
 			mockEnv:             []string{"VAR=val", "VAR2=val"},
-			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
-				require.Len(t, res.Selectors, 5)
-				expectedSelectors := map[string]struct{}{
-					"label:this:that":  {},
-					"label:here:there": {},
-					"label:up:down":    {},
-					"env:VAR=val":      {},
-					"env:VAR2=val":     {},
-				}
-				for _, selector := range res.Selectors {
-					require.Equal(t, "docker", selector.Type)
-					require.Contains(t, expectedSelectors, selector.Value)
-				}
+			expectSelectorValues: []string{
+				"env:VAR2=val",
+				"env:VAR=val",
+				"label:here:there",
+				"label:this:that",
+				"label:up:down",
 			},
 		},
 		{
-			desc:                "no labels or env for container",
-			mockContainerLabels: map[string]string{},
-			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
-				require.Len(t, res.Selectors, 0)
-			},
+			desc:                 "no labels or env for container",
+			mockContainerLabels:  map[string]string{},
+			expectSelectorValues: nil,
 		},
 		{
 			desc:        "image id",
 			mockImageID: "my-docker-image",
-			requireResult: func(t *testing.T, res *workloadattestorv0.AttestResponse) {
-				require.Len(t, res.Selectors, 1)
-				require.Equal(t, "docker", res.Selectors[0].Type)
-				require.Equal(t, "image_id:my-docker-image", res.Selectors[0].Value)
+			expectSelectorValues: []string{
+				"image_id:my-docker-image",
 			},
 		},
 	}
@@ -98,7 +84,6 @@ func TestDockerSelectors(t *testing.T) {
 
 			p := newTestPlugin(t, withMockDocker(mockDocker), withFileSystem(fs))
 
-			ctx := context.Background()
 			container := types.ContainerJSON{
 				Config: &container.Config{
 					Labels: tt.mockContainerLabels,
@@ -108,10 +93,10 @@ func TestDockerSelectors(t *testing.T) {
 			}
 			mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
 
-			res, err := p.Attest(ctx, &workloadattestorv0.AttestRequest{Pid: 123})
+			selectorValues, err := doAttest(t, p)
 			require.NoError(t, err)
-			require.NotNil(t, res)
-			tt.requireResult(t, res)
+
+			require.Equal(t, tt.expectSelectorValues, selectorValues)
 		})
 	}
 }
@@ -194,21 +179,19 @@ func TestContainerExtraction(t *testing.T) {
 				}
 				mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
 			}
-			res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
+			selectorValues, err := doAttest(t, p)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
-				require.Nil(t, res)
+				require.Nil(t, selectorValues)
 				return
 			}
 
 			require.NoError(t, err)
-			require.NotNil(t, res)
-
 			if tt.hasMatch {
-				require.Len(t, res.Selectors, 1)
+				require.Len(t, selectorValues, 1)
 			} else {
-				require.Len(t, res.Selectors, 0)
+				require.Len(t, selectorValues, 0)
 			}
 		})
 	}
@@ -217,10 +200,10 @@ func TestContainerExtraction(t *testing.T) {
 func TestCgroupFileNotFound(t *testing.T) {
 	p := newTestPlugin(t, withFileSystem(FakeFileSystem{}))
 
-	res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
+	selectorValues, err := doAttest(t, p)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "file does not exist")
-	require.Nil(t, res)
+	require.Nil(t, selectorValues)
 }
 
 func TestDockerError(t *testing.T) {
@@ -241,10 +224,10 @@ func TestDockerError(t *testing.T) {
 		ContainerInspect(gomock.Any(), testContainerID).
 		Return(types.ContainerJSON{}, errors.New("docker error"))
 
-	res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
+	selectorValues, err := doAttest(t, p)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "docker error")
-	require.Nil(t, res)
+	require.Nil(t, selectorValues)
 }
 
 func TestDockerErrorRetries(t *testing.T) {
@@ -276,10 +259,10 @@ func TestDockerErrorRetries(t *testing.T) {
 		mockClock.Add(400 * time.Millisecond)
 	}()
 
-	res, err := doAttest(t, p, &workloadattestorv0.AttestRequest{Pid: 123})
+	selectorValues, err := doAttest(t, p)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "docker error")
-	require.Nil(t, res)
+	require.Nil(t, selectorValues)
 }
 
 func TestDockerErrorContextCancel(t *testing.T) {
@@ -309,7 +292,7 @@ func TestDockerErrorContextCancel(t *testing.T) {
 		cancel()
 	}()
 
-	res, err := doAttestWithContext(ctx, t, p, &workloadattestorv0.AttestRequest{Pid: 123})
+	res, err := doAttestWithContext(ctx, t, p)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context canceled")
 	require.Nil(t, res)
@@ -363,19 +346,29 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.Equal(t, &defaultContainerIDFinder{}, p.containerIDFinder)
 }
 
-func doAttest(t *testing.T, p *Plugin, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
-	return doAttestWithContext(context.Background(), t, p, req)
+func doAttest(t *testing.T, p *Plugin) ([]string, error) {
+	return doAttestWithContext(context.Background(), t, p)
 }
 
-func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
-	wp := new(workloadattestor.V0)
+func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin) ([]string, error) {
+	wp := new(workloadattestor.V1)
 	plugintest.Load(t, builtin(p), wp)
-	return wp.WorkloadAttestorPluginClient.Attest(ctx, req)
+	selectors, err := wp.Attest(ctx, 123)
+	if err != nil {
+		return nil, err
+	}
+	var selectorValues []string
+	for _, selector := range selectors {
+		require.Equal(t, pluginName, selector.Type)
+		selectorValues = append(selectorValues, selector.Value)
+	}
+	sort.Strings(selectorValues)
+	return selectorValues, nil
 }
 
 func doConfigure(t *testing.T, p *Plugin, cfg string) error {
 	var err error
-	plugintest.Load(t, builtin(p), new(workloadattestor.V0),
+	plugintest.Load(t, builtin(p), new(workloadattestor.V1),
 		plugintest.Configure(cfg),
 		plugintest.CaptureConfigureError(&err))
 	return err

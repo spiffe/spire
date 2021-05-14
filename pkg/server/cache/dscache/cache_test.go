@@ -34,9 +34,7 @@ func TestFetchBundleCache(t *testing.T) {
 	require.Nil(t, bundle)
 
 	// Add bundle
-	_, err = ds.SetBundle(ctxWithCache, &datastore.SetBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err = ds.SetBundle(ctxWithCache, bundle1)
 	require.NoError(t, err)
 
 	// Assert that we didn't cache the bundle miss and that the newly added
@@ -46,9 +44,7 @@ func TestFetchBundleCache(t *testing.T) {
 	spiretest.RequireProtoEqual(t, bundle1, bundle)
 
 	// Change bundle
-	_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = ds.SetBundle(context.Background(), bundle2)
 	require.NoError(t, err)
 
 	// Assert bundle contents unchanged since cache is still valid
@@ -63,9 +59,7 @@ func TestFetchBundleCache(t *testing.T) {
 	spiretest.RequireProtoEqual(t, bundle2, bundle)
 
 	// Change bundle
-	_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err = ds.SetBundle(context.Background(), bundle1)
 	require.NoError(t, err)
 
 	// If a context without cache is used, FetchBundle must fetch a fresh bundle
@@ -90,52 +84,40 @@ func TestBundleInvalidations(t *testing.T) {
 		{
 			name: "UpdateBundle invalidates cache if succeeds",
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.UpdateBundle(context.Background(), &datastore.UpdateBundleRequest{
-					Bundle: bundle1,
-				})
+				_, _ = cache.UpdateBundle(context.Background(), bundle1, nil)
 			},
 		},
 		{
 			name:      "UpdateBundle keeps cache if fails",
 			dsFailure: true,
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.UpdateBundle(context.Background(), &datastore.UpdateBundleRequest{
-					Bundle: bundle1,
-				})
+				_, _ = cache.UpdateBundle(context.Background(), bundle1, nil)
 			},
 		},
 		{
 			name: "AppendBundle invalidates cache if succeeds",
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.AppendBundle(context.Background(), &datastore.AppendBundleRequest{
-					Bundle: bundle1,
-				})
+				_, _ = cache.AppendBundle(context.Background(), bundle1)
 			},
 		},
 		{
 			name:      "AppendBundle keeps cache if fails",
 			dsFailure: true,
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.AppendBundle(context.Background(), &datastore.AppendBundleRequest{
-					Bundle: bundle1,
-				})
+				_, _ = cache.AppendBundle(context.Background(), bundle1)
 			},
 		},
 		{
 			name: "PruneBundle invalidates cache if succeeds",
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.PruneBundle(context.Background(), &datastore.PruneBundleRequest{
-					TrustDomainId: td,
-				})
+				_, _ = cache.PruneBundle(context.Background(), td, time.Now().Add(-time.Hour))
 			},
 		},
 		{
 			name:      "PruneBundle keeps cache if fails",
 			dsFailure: true,
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.PruneBundle(context.Background(), &datastore.PruneBundleRequest{
-					TrustDomainId: td,
-				})
+				_, _ = cache.PruneBundle(context.Background(), td, time.Now())
 			},
 		},
 		{
@@ -154,18 +136,14 @@ func TestBundleInvalidations(t *testing.T) {
 		{
 			name: "SetBundle invalidates cache if succeeds",
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.SetBundle(context.Background(), &datastore.SetBundleRequest{
-					Bundle: bundle1,
-				})
+				_, _ = cache.SetBundle(context.Background(), bundle1)
 			},
 		},
 		{
 			name:      "SetBundle keeps cache if fails",
 			dsFailure: true,
 			invalidatingFunc: func(cache *DatastoreCache) {
-				_, _ = cache.SetBundle(context.Background(), &datastore.SetBundleRequest{
-					Bundle: bundle1,
-				})
+				_, _ = cache.SetBundle(context.Background(), bundle1)
 			},
 		},
 	} {
@@ -177,7 +155,7 @@ func TestBundleInvalidations(t *testing.T) {
 			ctxWithCache := WithCache(context.Background())
 
 			// Add bundle (bundle1)
-			_, err := ds.SetBundle(context.Background(), &datastore.SetBundleRequest{Bundle: bundle1})
+			_, err := ds.SetBundle(context.Background(), bundle1)
 			require.NoError(t, err)
 
 			// Make an initial fetch call to store the bundle in cache
@@ -192,7 +170,7 @@ func TestBundleInvalidations(t *testing.T) {
 			tt.invalidatingFunc(cache)
 
 			// Change the bundle (bundle1 -> bundle2)
-			_, err = ds.SetBundle(context.Background(), &datastore.SetBundleRequest{Bundle: bundle2})
+			_, err = ds.SetBundle(context.Background(), bundle2)
 			require.NoError(t, err)
 
 			// If invalidatingFunc fails, we keep the current cache value,

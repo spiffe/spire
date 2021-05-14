@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-logr/logr"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
@@ -120,7 +119,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				},
 			}
 
-			_, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{Bundle: &common.Bundle{TrustDomainId: "spiffe://example.io"}})
+			_, err := s.ds.AppendBundle(ctx, &common.Bundle{TrustDomainId: "spiffe://example.io"})
 			s.Assert().NoError(err)
 
 			err = s.k8sClient.Create(ctx, &pod)

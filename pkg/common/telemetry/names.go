@@ -125,6 +125,9 @@ const (
 	// Audience tags some audience for a token
 	Audience = "audience"
 
+	// CallerAddr labels an API caller address
+	CallerAddr = "caller_addr"
+
 	// CallerID tags an API caller; should be used with other tags
 	// to add clarity
 	CallerID = "caller_id"

@@ -176,9 +176,7 @@ func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateE
 	}
 
 	ds := h.getDataStore()
-	resp, err := ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-		Entry: request.Entry,
-	})
+	entry, err := ds.UpdateRegistrationEntry(ctx, request.Entry, nil)
 	if err != nil {
 		log.WithError(err).Error("Failed to update registration entry")
 		return nil, status.Errorf(codes.Internal, "failed to update registration entry: %v", err)
@@ -186,11 +184,11 @@ func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateE
 
 	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
 	log.WithFields(logrus.Fields{
-		telemetry.ParentID: resp.Entry.ParentId,
-		telemetry.SPIFFEID: resp.Entry.SpiffeId,
+		telemetry.ParentID: entry.ParentId,
+		telemetry.SPIFFEID: entry.SpiffeId,
 	}).Debug("Workload registration successfully updated")
 
-	return resp.Entry, nil
+	return entry, nil
 }
 
 // ListByParentID Returns all the Entries associated with the ParentID value
@@ -452,9 +450,7 @@ func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registrati
 	}
 
 	ds := h.getDataStore()
-	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-	}); err != nil {
+	if _, err := ds.UpdateBundle(ctx, bundle, nil); err != nil {
 		log.WithError(err).Error("Failed to update federated bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}

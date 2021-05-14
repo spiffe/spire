@@ -66,9 +66,7 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *
 		return localBundleOrNil, nil, nil
 	}
 
-	_, err = u.c.DataStore.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: endpointBundle.Proto(),
-	})
+	_, err = u.c.DataStore.SetBundle(ctx, endpointBundle.Proto())
 	if err != nil {
 		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %v", err)
 	}

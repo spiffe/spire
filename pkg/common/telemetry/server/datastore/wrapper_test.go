@@ -231,8 +231,8 @@ func (ds *fakeDataStore) SetError(err error) {
 	ds.err = err
 }
 
-func (ds *fakeDataStore) AppendBundle(context.Context, *datastore.AppendBundleRequest) (*datastore.AppendBundleResponse, error) {
-	return &datastore.AppendBundleResponse{}, ds.err
+func (ds *fakeDataStore) AppendBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
 func (ds *fakeDataStore) CountAttestedNodes(context.Context) (int32, error) {
@@ -315,34 +315,34 @@ func (ds *fakeDataStore) ListRegistrationEntries(context.Context, *datastore.Lis
 	return &datastore.ListRegistrationEntriesResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneBundle(context.Context, *datastore.PruneBundleRequest) (*datastore.PruneBundleResponse, error) {
-	return &datastore.PruneBundleResponse{}, ds.err
+func (ds *fakeDataStore) PruneBundle(context.Context, string, time.Time) (bool, error) {
+	return false, ds.err
 }
 
 func (ds *fakeDataStore) PruneJoinTokens(context.Context, time.Time) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, *datastore.PruneRegistrationEntriesRequest) (*datastore.PruneRegistrationEntriesResponse, error) {
-	return &datastore.PruneRegistrationEntriesResponse{}, ds.err
+func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, time.Time) error {
+	return ds.err
 }
 
-func (ds *fakeDataStore) SetBundle(context.Context, *datastore.SetBundleRequest) (*datastore.SetBundleResponse, error) {
-	return &datastore.SetBundleResponse{}, ds.err
+func (ds *fakeDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
 func (ds *fakeDataStore) SetNodeSelectors(context.Context, *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
 	return &datastore.SetNodeSelectorsResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) UpdateAttestedNode(context.Context, *datastore.UpdateAttestedNodeRequest) (*datastore.UpdateAttestedNodeResponse, error) {
-	return &datastore.UpdateAttestedNodeResponse{}, ds.err
+func (ds *fakeDataStore) UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error) {
+	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) UpdateBundle(context.Context, *datastore.UpdateBundleRequest) (*datastore.UpdateBundleResponse, error) {
-	return &datastore.UpdateBundleResponse{}, ds.err
+func (ds *fakeDataStore) UpdateBundle(context.Context, *common.Bundle, *common.BundleMask) (*common.Bundle, error) {
+	return &common.Bundle{}, ds.err
 }
 
-func (ds *fakeDataStore) UpdateRegistrationEntry(context.Context, *datastore.UpdateRegistrationEntryRequest) (*datastore.UpdateRegistrationEntryResponse, error) {
-	return &datastore.UpdateRegistrationEntryResponse{}, ds.err
+func (ds *fakeDataStore) UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
+	return &common.RegistrationEntry{}, ds.err
 }
