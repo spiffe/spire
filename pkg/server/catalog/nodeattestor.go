@@ -26,7 +26,11 @@ func (repo *nodeAttestorRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *nodeAttestorRepository) Versions() []catalog.Version {
-	return []catalog.Version{nodeAttestorV1{}}
+	return []catalog.Version{
+		nodeAttestorV1{},
+		// TODO: remove v0 once all of the built-ins have been migrated to v1
+		nodeAttestorV0{},
+	}
 }
 
 func (repo *nodeAttestorRepository) LegacyVersion() (catalog.Version, bool) {
