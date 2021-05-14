@@ -84,6 +84,7 @@ webhook_label = "WEBHOOK_LABEL"
 api_service_label = "API_SERVICE_LABEL"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 	s.Require().Eventually(func() bool {
 		return w.getWatchLabel() == "WEBHOOK_LABEL"
 	}, testTimeout, time.Second)
@@ -97,6 +98,7 @@ webhook_label = "WEBHOOK_LABEL2"
 api_service_label = "API_SERVICE_LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 	s.Require().Eventually(func() bool {
 		return w.getWatchLabel() == "WEBHOOK_LABEL2"
 	}, testTimeout, time.Second)
@@ -114,6 +116,7 @@ func (s *Suite) TestBundleWatcherAddWebhookEvent() {
 webhook_label = "WEBHOOK_LABEL"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 
 	webhook := newWebhook()
 	s.r.AppendBundle(testBundle)
@@ -144,6 +147,7 @@ func (s *Suite) TestBundleWatcherAddAPIServiceEvent() {
 api_service_label = "API_SERVICE_LABEL"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 	s.r.AppendBundle(testBundle)
 
 	apiService := newAPIService()
