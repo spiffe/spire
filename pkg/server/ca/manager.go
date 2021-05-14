@@ -45,7 +45,7 @@ const (
 	preparationThresholdCap = thirtyDays
 
 	sevenDays              = 7 * 24 * time.Hour
-	activationThresholdCap = sevenDays
+	ActivationThresholdCap = sevenDays
 
 	publishJWKTimeout = 5 * time.Second
 )
@@ -1043,8 +1043,8 @@ func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 func KeyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
 	threshold := lifetime / 6
-	if threshold > activationThresholdCap {
-		threshold = activationThresholdCap
+	if threshold > ActivationThresholdCap {
+		threshold = ActivationThresholdCap
 	}
 	return notAfter.Add(-threshold)
 }

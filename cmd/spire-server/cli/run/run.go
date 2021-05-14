@@ -459,7 +459,13 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if !hasExpectedTTLs(sc.CATTL, sc.SVIDTTL) {
-		sc.Log.Warnf("The configured SVID TTL cannot be guaranteed in all cases - SVIDs with shorter TTLs may be issued if the signing key is expiring soon. Set a CA TTL of at least 6x or reduce SVID TTL below 6x to avoid issuing SVIDs with a smaller TTL than specified")
+		sc.Log.Warnf("The default_svid_ttl is too high for the configured ca_ttl value. SVIDs with shorter lifetimes may be issued. "+
+			"Please set default_svid_ttl to %v or less, or ca_ttl to %v or more, to guarantee the default_svid_ttl lifetime.",
+			calcSVIDTTL(sc.CATTL), calcCATTL(sc.SVIDTTL))
+	}
+
+	if sc.SVIDTTL > ca.ActivationThresholdCap {
+		sc.Log.Warn("The SVID TTL cannot be guaranteed in all cass - SVIDs with shorter TTLs may be issued if the signing key is expiring soon")
 	}
 
 	if c.Server.CAKeyType != "" {
@@ -706,8 +712,38 @@ func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
 		svidTTL = ca.DefaultX509SVIDTTL
 	}
 
-	thresh := ca.KeyActivationThreshold(time.Now(), time.Now().Add(caTTL))
-	return caTTL-time.Until(thresh) >= svidTTL
+	notAfter := time.Now().Add(caTTL)
+	lifetime := time.Until(time.Now().Add(caTTL))
+	threshold := notAfter.Add(-(lifetime / 6))
+
+	return caTTL-time.Until(threshold) >= svidTTL
+}
+
+// calcSVIDTTLValue calculates the sufficient default_svid_ttl value
+func calcSVIDTTL(caTTL time.Duration) string {
+	if caTTL == 0 {
+		caTTL = ca.DefaultCATTL
+	}
+	return shortTimeDurationString(caTTL / 6)
+}
+
+// calcCATTLValue calculates the sufficient ca_ttl value
+func calcCATTL(svidTTL time.Duration) string {
+	if svidTTL == 0 {
+		svidTTL = ca.DefaultX509SVIDTTL
+	}
+	return shortTimeDurationString(svidTTL * 6)
+}
+
+func shortTimeDurationString(d time.Duration) string {
+	s := d.Truncate(time.Second).String()
+	if strings.HasSuffix(s, "m0s") {
+		s = s[:len(s)-2]
+	}
+	if strings.HasSuffix(s, "h0m") {
+		s = s[:len(s)-2]
+	}
+	return s
 }
 
 func isPKIXNameEmpty(name pkix.Name) bool {

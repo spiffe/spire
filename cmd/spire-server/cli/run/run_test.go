@@ -1443,6 +1443,12 @@ func TestHasExpectedTTLs(t *testing.T) {
 			svidTTL:         time.Hour * 10,
 			hasExpectedTTLs: true,
 		},
+		{
+			msg:             "ca_ttl is 1152h and default_svid_ttl is 192h",
+			caTTL:           time.Hour * 1152,
+			svidTTL:         time.Hour * 192,
+			hasExpectedTTLs: true,
+		},
 		// ca_ttl is less than default_svid_ttl * 6
 		{
 			msg:             "ca_ttl is 5h and default_svid_ttl is default value 1h",
@@ -1470,6 +1476,66 @@ func TestHasExpectedTTLs(t *testing.T) {
 		t.Run(testCase.msg, func(t *testing.T) {
 			require.Equal(t, testCase.hasExpectedTTLs, hasExpectedTTLs(testCase.caTTL, testCase.svidTTL))
 		})
+	}
+}
+
+func TestCalcCATTL(t *testing.T) {
+	for _, v := range []struct {
+		svidTTL time.Duration
+		expect  string
+	}{
+		{
+			svidTTL: 10 * time.Second,
+			expect:  "1m",
+		},
+		{
+			svidTTL: 15 * time.Second,
+			expect:  "1m30s",
+		},
+		{
+			svidTTL: 10 * time.Minute,
+			expect:  "1h",
+		},
+		{
+			svidTTL: 22 * time.Minute,
+			expect:  "2h12m",
+		},
+		{
+			svidTTL: 24 * time.Hour,
+			expect:  "144h",
+		},
+	} {
+		assert.Equal(t, v.expect, calcCATTL(v.svidTTL))
+	}
+}
+
+func TestCalcSVIDTTL(t *testing.T) {
+	for _, v := range []struct {
+		caTTL  time.Duration
+		expect string
+	}{
+		{
+			caTTL:  10 * time.Second,
+			expect: "1s",
+		},
+		{
+			caTTL:  15 * time.Second,
+			expect: "2s",
+		},
+		{
+			caTTL:  10 * time.Minute,
+			expect: "1m40s",
+		},
+		{
+			caTTL:  22 * time.Minute,
+			expect: "3m40s",
+		},
+		{
+			caTTL:  24 * time.Hour,
+			expect: "4h",
+		},
+	} {
+		assert.Equal(t, v.expect, calcSVIDTTL(v.caTTL))
 	}
 }
 
