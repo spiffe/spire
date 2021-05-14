@@ -576,11 +576,6 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		checkJWTKey       func(*testing.T, crypto.Signer)
 	}{
 		{
-			name:        "self-signed with defaults",
-			checkX509CA: expectEC256,
-			checkJWTKey: expectEC256,
-		},
-		{
 			name:          "self-signed with RSA 2048",
 			x509CAKeyType: keymanager.RSA2048,
 			jwtKeyType:    keymanager.RSA2048,
@@ -614,12 +609,6 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 			jwtKeyType:    keymanager.RSA2048,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectRSA2048,
-		},
-		{
-			name:              "upstream-signed with defaults",
-			upstreamAuthority: upstreamAuthority,
-			checkX509CA:       expectEC256,
-			checkJWTKey:       expectEC256,
 		},
 		{
 			name:              "upstream-signed with RSA 2048",
@@ -697,7 +686,7 @@ func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
 }
 
 func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
-	return s.selfSignedConfigWithKeyTypes(0, 0)
+	return s.selfSignedConfigWithKeyTypes(keymanager.ECP256, keymanager.ECP256)
 }
 
 func (s *ManagerSuite) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType keymanager.KeyType) ManagerConfig {

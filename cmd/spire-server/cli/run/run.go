@@ -469,6 +469,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.CAKeyType = keyType
 		sc.JWTKeyType = keyType
+	} else {
+		sc.CAKeyType = keymanager.ECP256
+		sc.JWTKeyType = keymanager.ECP256
 	}
 
 	if c.Server.JWTKeyType != "" {

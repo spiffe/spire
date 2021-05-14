@@ -97,12 +97,6 @@ func NewManager(c ManagerConfig) *Manager {
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
-	if c.X509CAKeyType == keymanager.KeyTypeUnset {
-		c.X509CAKeyType = keymanager.ECP256
-	}
-	if c.JWTKeyType == keymanager.KeyTypeUnset {
-		c.JWTKeyType = keymanager.ECP256
-	}
 
 	m := &Manager{
 		c:               c,
