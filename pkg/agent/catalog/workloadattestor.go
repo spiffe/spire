@@ -21,7 +21,7 @@ func (repo *workloadAttestorRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *workloadAttestorRepository) Versions() []catalog.Version {
-	return []catalog.Version{workloadAttestorV0{}}
+	return []catalog.Version{workloadAttestorV1{}}
 }
 
 func (repo *workloadAttestorRepository) LegacyVersion() (catalog.Version, bool) {
@@ -36,7 +36,12 @@ func (repo *workloadAttestorRepository) BuiltIns() []catalog.BuiltIn {
 	}
 }
 
+type workloadAttestorV1 struct{}
+
+func (workloadAttestorV1) New() catalog.Facade { return new(workloadattestor.V1) }
+func (workloadAttestorV1) Deprecated() bool    { return false }
+
 type workloadAttestorV0 struct{}
 
 func (workloadAttestorV0) New() catalog.Facade { return new(workloadattestor.V0) }
-func (workloadAttestorV0) Deprecated() bool    { return false }
+func (workloadAttestorV0) Deprecated() bool    { return true }
