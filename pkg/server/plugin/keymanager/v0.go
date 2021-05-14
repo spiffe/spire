@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type V0 struct {
@@ -43,7 +44,7 @@ func (v0 *V0) GetKey(ctx context.Context, id string) (Key, error) {
 	case err != nil:
 		return nil, v0.WrapErr(err)
 	case resp.PublicKey == nil:
-		return nil, v0.Errorf(codes.NotFound, "private key %q not found", id)
+		return nil, v0.Errorf(codes.NotFound, "key %q not found", id)
 	default:
 		return v0.makeKey(id, resp.PublicKey)
 	}
@@ -72,16 +73,16 @@ func (v0 *V0) GetKeys(ctx context.Context) ([]Key, error) {
 func (v0 *V0) makeKey(id string, pb *keymanagerv0.PublicKey) (Key, error) {
 	switch {
 	case pb == nil:
-		return nil, v0.Errorf(codes.Internal, "plugin response missing public key for public key %q", id)
+		return nil, v0.Errorf(codes.Internal, "plugin response empty for key %q", id)
 	case pb.Id != id:
-		return nil, v0.Errorf(codes.Internal, "plugin response has unexpected key id %q for public key %q", pb.Id, id)
+		return nil, v0.Errorf(codes.Internal, "plugin response has unexpected key id %q for key %q", pb.Id, id)
 	case len(pb.PkixData) == 0:
-		return nil, v0.Errorf(codes.Internal, "plugin response missing public key PKIX data for public key %q", id)
+		return nil, v0.Errorf(codes.Internal, "plugin response missing public key PKIX data for key %q", id)
 	}
 
 	publicKey, err := x509.ParsePKIXPublicKey(pb.PkixData)
 	if err != nil {
-		return nil, v0.Errorf(codes.Internal, "unable to parse public key PKIX data for public key %q: %v", id, err)
+		return nil, v0.Errorf(codes.Internal, "unable to parse public key PKIX data for key %q: %v", id, err)
 	}
 
 	return &v0Key{
@@ -128,6 +129,8 @@ func (s *v0Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 				HashAlgorithm: v0HashAlgorithm(opts.Hash),
 			},
 		}
+	case nil:
+		return nil, status.Error(codes.InvalidArgument, "signer opts cannot be nil")
 	default:
 		req.SignerOpts = &keymanagerv0.SignDataRequest_HashAlgorithm{
 			HashAlgorithm: v0HashAlgorithm(opts.HashFunc()),
@@ -139,7 +142,7 @@ func (s *v0Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 		return nil, s.v0.WrapErr(err)
 	}
 	if len(resp.Signature) == 0 {
-		return nil, s.v0.Error(codes.Internal, "key manager returned empty signature data")
+		return nil, s.v0.Error(codes.Internal, "plugin returned empty signature data")
 	}
 	return resp.Signature, nil
 }
