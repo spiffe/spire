@@ -271,7 +271,10 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-svidStream.Changes():
-			s := svidStream.Next().(svid.State)
+			s, ok := svidStream.Next().(svid.State)
+			if !ok {
+				return errors.New("wrong type State expected")
+			}
 
 			err := m.storePrivateKey(ctx, s.Key)
 			if err != nil {

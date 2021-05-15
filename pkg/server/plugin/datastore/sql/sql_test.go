@@ -1985,7 +1985,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			}
 
 			s.Require().NoError(err)
-			expectedResult := proto.Clone(oldEntry).(*common.RegistrationEntry)
+			expectedResult, ok := proto.Clone(oldEntry).(*common.RegistrationEntry)
+			s.Require().True(ok)
 			tt.result(expectedResult)
 			expectedResult.EntryId = id
 			expectedResult.RevisionNumber++

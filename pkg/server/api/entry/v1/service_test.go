@@ -1332,7 +1332,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 	}{
 		{
 			name:           "success",
-			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)}, // nolint: forcetypeassert // clone will return expected type
 			expectEntries:  []*types.Entry{&entry1, &entry2},
 		},
 		{
@@ -1342,7 +1342,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		},
 		{
 			name:           "success with output mask",
-			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)}, // nolint: forcetypeassert // clone will return expected type
 			expectEntries: []*types.Entry{
 				{
 					Id:        entry1.Id,
@@ -1365,7 +1365,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		},
 		{
 			name:           "success with output mask all false",
-			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
+			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)}, // nolint: forcetypeassert // clone will return expected type
+
 			expectEntries: []*types.Entry{
 				{
 					Id: entry1.Id,
@@ -1576,7 +1577,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.ParentId = &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}
 				modifiedEntry.RevisionNumber = 1
@@ -1605,7 +1607,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.SpiffeId = &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}
 				modifiedEntry.RevisionNumber = 1
@@ -1636,7 +1639,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				// Annoying -- the selectors switch order inside api.ProtoToRegistrationEntry, so the
 				// datastore won't return them in order
@@ -1704,7 +1708,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.Ttl = 1000
 				modifiedEntry.RevisionNumber = 1
@@ -1734,7 +1739,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.FederatesWith = []string{}
 				modifiedEntry.RevisionNumber = 1
@@ -1764,7 +1770,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.Admin = false
 				modifiedEntry.RevisionNumber = 1
@@ -1794,7 +1801,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.Downstream = false
 				modifiedEntry.RevisionNumber = 1
@@ -1824,7 +1832,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.ExpiresAt = 999
 				modifiedEntry.RevisionNumber = 1
@@ -1854,7 +1863,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.DnsNames = []string{"dnsUpdated"}
 				modifiedEntry.RevisionNumber = 1
@@ -1884,7 +1894,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(m string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = m
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
@@ -2086,7 +2097,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 			// Try to update all fields (all should be successfully updated)
 			updateEntries: []*types.Entry{updateEverythingEntry},
 			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(updateEverythingEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(updateEverythingEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = id
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
@@ -2158,7 +2170,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 			// Try to update all fields (none will be updated)
 			updateEntries: []*types.Entry{updateEverythingEntry},
 			expectDsEntries: func(m string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = m
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
@@ -2186,7 +2199,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				},
 			},
 			expectDsEntries: func(m string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry, ok := proto.Clone(initialEntry).(*types.Entry)
+				require.True(t, ok)
 				modifiedEntry.Id = m
 				modifiedEntry.Ttl = 500000
 				modifiedEntry.RevisionNumber = 1

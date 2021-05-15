@@ -525,7 +525,8 @@ func (s *HandlerSuite) TestUpdateEntry() {
 		s.T().Run(testCase.Name, func(t *testing.T) {
 			var entry *common.RegistrationEntry
 			if testCase.PrepareEntry != nil {
-				entry = proto.Clone(original).(*common.RegistrationEntry)
+				entry, ok := proto.Clone(original).(*common.RegistrationEntry)
+				s.Require().True(ok)
 				testCase.PrepareEntry(entry)
 			}
 			updatedEntry, err := s.handler.UpdateEntry(context.Background(), &registration.UpdateEntryRequest{

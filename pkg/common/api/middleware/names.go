@@ -50,7 +50,9 @@ func withNames(ctx context.Context, fullMethod string) (context.Context, api.Nam
 
 	cached, ok := namesCache.Load(fullMethod)
 	if ok {
-		names = cached.(api.Names)
+		if n, ok := cached.(api.Names); ok {
+			names = n
+		}
 	} else {
 		names = makeNames(fullMethod)
 		namesCache.Store(fullMethod, names)

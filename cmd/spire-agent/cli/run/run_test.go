@@ -707,7 +707,8 @@ func TestNewAgentConfig(t *testing.T) {
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.Log)
 
-				l := c.Log.(*log.Logger)
+				l, ok := c.Log.(*log.Logger)
+				require.True(t, ok)
 				require.Equal(t, logrus.WarnLevel, l.Level)
 				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
 			},
@@ -721,7 +722,8 @@ func TestNewAgentConfig(t *testing.T) {
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.Log)
 
-				l := c.Log.(*log.Logger)
+				l, ok := c.Log.(*log.Logger)
+				require.True(t, ok)
 				require.Equal(t, logrus.WarnLevel, l.Level)
 				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
 			},

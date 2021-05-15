@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -95,8 +96,14 @@ func newTestPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner, err := newPrometheusRunner(c)
 
 	if runner != nil && runner.isConfigured() {
-		pr := runner.(*prometheusRunner)
-		sink := pr.sink.(*prommetrics.PrometheusSink)
+		pr, ok := runner.(*prometheusRunner)
+		if !ok {
+			return nil, errors.New("wrong type prometheusRunner expected")
+		}
+		sink, ok := pr.sink.(*prommetrics.PrometheusSink)
+		if !ok {
+			return nil, errors.New("wrong type PrometheusSink expected")
+		}
 		prometheus.Unregister(sink)
 	}
 

@@ -68,7 +68,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 // shouldRotate returns a boolean informing the caller of whether or not the
 // SVID should be rotated.
 func (r *Rotator) shouldRotate() bool {
-	s := r.state.Value().(State)
+	s, _ := r.state.Value().(State)
 
 	if len(s.SVID) == 0 {
 		return true

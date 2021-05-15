@@ -36,7 +36,8 @@ var (
 type stringSet map[string]struct{}
 
 func allocStringSet(ss ...string) (stringSet, func()) {
-	set := stringSetPool.Get().(stringSet)
+	set, _ := stringSetPool.Get().(stringSet)
+
 	set.Merge(ss...)
 	return set, func() {
 		clearStringSet(set)
@@ -60,7 +61,7 @@ func (set stringSet) Merge(ss ...string) {
 type subscriberSet map[*subscriber]struct{}
 
 func allocSubscriberSet() (subscriberSet, func()) {
-	set := subscriberSetPool.Get().(subscriberSet)
+	set, _ := subscriberSetPool.Get().(subscriberSet)
 	return set, func() {
 		clearSubscriberSet(set)
 		subscriberSetPool.Put(set)
@@ -89,7 +90,7 @@ func makeSelector(s *common.Selector) selector {
 type selectorSet map[selector]struct{}
 
 func allocSelectorSet(ss ...*common.Selector) (selectorSet, func()) {
-	set := selectorSetPool.Get().(selectorSet)
+	set, _ := selectorSetPool.Get().(selectorSet)
 	set.Merge(ss...)
 	return set, func() {
 		clearSelectorSet(set)
@@ -128,7 +129,7 @@ func (set selectorSet) In(ss ...*common.Selector) bool {
 type recordSet map[*cacheRecord]struct{}
 
 func allocRecordSet() (recordSet, func()) {
-	set := recordSetPool.Get().(recordSet)
+	set, _ := recordSetPool.Get().(recordSet)
 	return set, func() {
 		clearRecordSet(set)
 		recordSetPool.Put(set)

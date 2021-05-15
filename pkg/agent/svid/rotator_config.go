@@ -65,7 +65,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 		Addr:        c.ServerAddr,
 		RotMtx:      rotMtx,
 		KeysAndBundle: func() ([]*x509.Certificate, crypto.Signer, []*x509.Certificate) {
-			s := state.Value().(State)
+			s, _ := state.Value().(State)
 
 			bsm.RLock()
 			bundles := c.BundleStream.Value()

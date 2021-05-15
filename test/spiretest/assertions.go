@@ -124,8 +124,15 @@ func AssertProtoListEqual(tb testing.TB, expected, actual interface{}) bool {
 		return false
 	}
 	for i := 0; i < ev.Len(); i++ {
-		e := ev.Index(i).Interface().(proto.Message)
-		a := av.Index(i).Interface().(proto.Message)
+		var e proto.Message
+		if m, ok := ev.Index(i).Interface().(proto.Message); ok {
+			e = m
+		}
+
+		var a proto.Message
+		if m, ok := av.Index(i).Interface().(proto.Message); ok {
+			a = m
+		}
 		if !AssertProtoEqual(tb, e, a, "proto %d in list is not equal", i) {
 			return false
 		}

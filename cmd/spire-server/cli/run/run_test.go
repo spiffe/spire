@@ -624,7 +624,8 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.NotNil(t, c.Log)
 
-				l := c.Log.(*log.Logger)
+				l, ok := c.Log.(*log.Logger)
+				require.True(t, ok)
 				require.Equal(t, logrus.WarnLevel, l.Level)
 				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
 			},
@@ -638,7 +639,8 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.NotNil(t, c.Log)
 
-				l := c.Log.(*log.Logger)
+				l, ok := c.Log.(*log.Logger)
+				require.True(t, ok)
 				require.Equal(t, logrus.WarnLevel, l.Level)
 				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
 			},
@@ -1401,14 +1403,18 @@ func TestLogOptions(t *testing.T) {
 	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions, false)
 	require.NoError(t, err)
 
-	logger := agentConfig.Log.(*log.Logger).Logger
+	l, ok := agentConfig.Log.(*log.Logger)
+	require.True(t, ok)
+	logger := l.Logger
 
 	// defaultConfig() sets level to info,  which should override DEBUG set above
 	require.Equal(t, logrus.InfoLevel, logger.Level)
 
 	// JSON Formatter and output file should be set from above
 	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
-	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
+	f, ok := logger.Out.(*os.File)
+	require.True(t, ok)
+	require.Equal(t, fd.Name(), f.Name())
 }
 
 func TestHasExpectedTTLs(t *testing.T) {

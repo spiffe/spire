@@ -43,7 +43,8 @@ func TestChallengeResponse(t *testing.T) {
 	require.NotNil(pemBlock)
 	privateKey, err := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
 	require.NoError(err)
-	rsaPrivateKey := privateKey.(*rsa.PrivateKey)
+	rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey)
+	require.True(ok)
 	rsaPublicKey := &rsaPrivateKey.PublicKey
 	rsaCert, err := createCertificate(rsaPrivateKey, rsaPublicKey)
 	require.NoError(err)
@@ -61,7 +62,8 @@ func TestChallengeResponse(t *testing.T) {
 	require.NotNil(pemBlock)
 	privateKey, err = x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
 	require.NoError(err)
-	ecdsaPrivateKey := privateKey.(*ecdsa.PrivateKey)
+	ecdsaPrivateKey, ok := privateKey.(*ecdsa.PrivateKey)
+	require.True(ok)
 	ecdsaPublicKey := &ecdsaPrivateKey.PublicKey
 	ecdsaCert, err := createCertificate(ecdsaPrivateKey, ecdsaPublicKey)
 	require.NoError(err)

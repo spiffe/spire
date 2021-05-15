@@ -122,7 +122,8 @@ func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
 	s.Assert().False(stream.HasNext())
 
 	// Should be equal to the fixture
-	state = stream.Value().(State)
+	state, ok := stream.Value().(State)
+	s.Require().True(ok)
 	s.Require().Len(state.SVID, 1)
 	s.Assert().Equal(goodCert, state.SVID[0])
 	s.Assert().Equal(key, state.Key)
@@ -181,7 +182,8 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	case <-time.After(time.Second):
 		s.T().Error("timed out while waiting for expected SVID rotation")
 	case <-stream.Changes():
-		state = stream.Next().(State)
+		state, ok := stream.Next().(State)
+		s.Require().True(ok)
 		s.Require().Len(state.SVID, 1)
 		s.Assert().Equal(goodCert, state.SVID[0])
 	}
@@ -215,7 +217,8 @@ func (s *RotatorTestSuite) TestRotateSVID() {
 	s.Assert().NoError(err)
 	s.Require().True(stream.HasNext())
 
-	state = stream.Next().(State)
+	state, ok := stream.Next().(State)
+	s.Require().True(ok)
 	s.Require().Len(state.SVID, 1)
 	s.Assert().True(goodCert.Equal(state.SVID[0]))
 }

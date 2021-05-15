@@ -202,7 +202,8 @@ func getBundles(t *testing.T, td string) (*common.Bundle, *common.Bundle) {
 		JwtSigningKeys: keys,
 	}
 
-	bundle2 := proto.Clone(bundle1).(*common.Bundle)
+	bundle2, ok := proto.Clone(bundle1).(*common.Bundle)
+	require.True(t, ok)
 	bundle2.RefreshHint = 2
 
 	return bundle1, bundle2

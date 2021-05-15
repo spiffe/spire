@@ -357,7 +357,10 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 	if err != nil {
 		return nil, err
 	}
-	configMap := obj.(*corev1.ConfigMap)
+	configMap, ok := obj.(*corev1.ConfigMap)
+	if !ok {
+		return nil, status.Error(codes.Internal, "wrong type, expecting ConfigMap")
+	}
 	return &corev1.ConfigMapList{
 		Items: []corev1.ConfigMap{*configMap},
 	}, nil
