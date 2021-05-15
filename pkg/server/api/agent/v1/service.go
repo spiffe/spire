@@ -496,7 +496,7 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 		SpiffeId: agentID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get node selectors: %v", err)
+		return nil, fmt.Errorf("failed to get node selectors: %w", err)
 	}
 
 	return api.NodeSelectorsToProto(resp.Selectors)

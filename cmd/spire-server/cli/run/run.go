@@ -257,7 +257,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		return nil, fmt.Errorf(msg, absPath)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
+		return nil, fmt.Errorf("unable to read configuration at %q: %w", path, err)
 	}
 	data := string(byteData)
 
@@ -267,7 +267,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	}
 
 	if err := hcl.Decode(&c, data); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
+		return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 	}
 
 	return c, nil
@@ -338,7 +338,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("could not start logger: %s", err)
+		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
 
@@ -445,7 +445,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.DefaultSVIDTTL != "" {
 		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse default SVID ttl %q: %v", c.Server.DefaultSVIDTTL, err)
+			return nil, fmt.Errorf("could not parse default SVID ttl %q: %w", c.Server.DefaultSVIDTTL, err)
 		}
 		sc.SVIDTTL = ttl
 	}
@@ -453,7 +453,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.CATTL != "" {
 		ttl, err := time.ParseDuration(c.Server.CATTL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse default CA ttl %q: %v", c.Server.CATTL, err)
+			return nil, fmt.Errorf("could not parse default CA ttl %q: %w", c.Server.CATTL, err)
 		}
 		sc.CATTL = ttl
 	}
@@ -465,7 +465,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.CAKeyType != "" {
 		keyType, err := keyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing ca_key_type: %v", err)
+			return nil, fmt.Errorf("error parsing ca_key_type: %w", err)
 		}
 		sc.CAKeyType = keyType
 		sc.JWTKeyType = keyType
@@ -474,7 +474,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.JWTKeyType != "" {
 		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing jwt_key_type: %v", err)
+			return nil, fmt.Errorf("error parsing jwt_key_type: %w", err)
 		}
 	}
 
@@ -514,7 +514,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.Experimental.CacheReloadInterval != "" {
 		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse cache reload interval: %v", err)
+			return nil, fmt.Errorf("could not parse cache reload interval: %w", err)
 		}
 		sc.CacheReloadInterval = interval
 	}

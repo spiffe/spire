@@ -36,19 +36,19 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 
 	spiffeID, err := spiffeid.FromString(e.SpiffeId)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SPIFFE ID: %v", err)
+		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
 	parentID, err := spiffeid.FromString(e.ParentId)
 	if err != nil {
-		return nil, fmt.Errorf("invalid parent ID: %v", err)
+		return nil, fmt.Errorf("invalid parent ID: %w", err)
 	}
 
 	federatesWith := make([]string, 0, len(e.FederatesWith))
 	for _, trustDomainID := range e.FederatesWith {
 		td, err := spiffeid.TrustDomainFromString(trustDomainID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid federated trust domain: %v", err)
+			return nil, fmt.Errorf("invalid federated trust domain: %w", err)
 		}
 		federatesWith = append(federatesWith, td.String())
 	}
@@ -91,11 +91,11 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 	if mask.ParentId {
 		parentID, err := TrustDomainMemberIDFromProto(td, e.ParentId)
 		if err != nil {
-			return nil, fmt.Errorf("invalid parent ID: %v", err)
+			return nil, fmt.Errorf("invalid parent ID: %w", err)
 		}
 		parentIDString = parentID.String()
 		if err := idutil.CheckIDProtoNormalization(e.ParentId); err != nil {
-			return nil, fmt.Errorf("parent ID is malformed: %v", err)
+			return nil, fmt.Errorf("parent ID is malformed: %w", err)
 		}
 	}
 
@@ -103,11 +103,11 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 	if mask.SpiffeId {
 		spiffeID, err := TrustDomainWorkloadIDFromProto(td, e.SpiffeId)
 		if err != nil {
-			return nil, fmt.Errorf("invalid spiffe ID: %v", err)
+			return nil, fmt.Errorf("invalid spiffe ID: %w", err)
 		}
 		spiffeIDString = spiffeID.String()
 		if err := idutil.CheckIDProtoNormalization(e.SpiffeId); err != nil {
-			return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
+			return nil, fmt.Errorf("spiffe ID is malformed: %w", err)
 		}
 	}
 
@@ -121,7 +121,7 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		dnsNames = make([]string, 0, len(e.DnsNames))
 		for _, dnsName := range e.DnsNames {
 			if err := x509util.ValidateDNS(dnsName); err != nil {
-				return nil, fmt.Errorf("invalid DNS name: %v", err)
+				return nil, fmt.Errorf("invalid DNS name: %w", err)
 			}
 			dnsNames = append(dnsNames, dnsName)
 		}
@@ -143,7 +143,7 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 		for _, trustDomainName := range e.FederatesWith {
 			td, err := spiffeid.TrustDomainFromString(trustDomainName)
 			if err != nil {
-				return nil, fmt.Errorf("invalid federated trust domain: %v", err)
+				return nil, fmt.Errorf("invalid federated trust domain: %w", err)
 			}
 			federatesWith = append(federatesWith, td.IDString())
 		}

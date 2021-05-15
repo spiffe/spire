@@ -95,7 +95,7 @@ func newFakeTask() (chan error, chan error, func(context.Context) error) {
 		}()
 		select {
 		case err = <-in:
-			if err == errPanic {
+			if errors.Is(err, errPanic) {
 				panic(err)
 			}
 			return err
@@ -119,7 +119,7 @@ func assertErrorChan(t *testing.T, ch chan error, expected error) {
 	case <-timer.C:
 		t.Fatalf("timed out waiting for result")
 	case actual := <-ch:
-		if actual != expected {
+		if !errors.Is(actual, expected) {
 			t.Fatalf("expected %v; got %v", expected, actual)
 		}
 	}

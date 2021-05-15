@@ -2,6 +2,7 @@ package nodeattestor
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
@@ -77,7 +78,7 @@ func (v0 *V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 }
 
 func (v0 *V0) streamError(err error) error {
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return v0.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v0.WrapErr(err)
