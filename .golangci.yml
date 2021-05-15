@@ -18,6 +18,7 @@ linters:
     - golint
     - gosec
     - misspell
+    - nolintlint
     - nakedret
     - unconvert
     - unparam

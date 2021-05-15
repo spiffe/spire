@@ -282,7 +282,7 @@ func (a *Agent) checkWorkloadAPI() error {
 
 	err := <-errCh
 	if status.Code(err) == codes.Unavailable {
-		return errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+		return errors.New("workload api is unavailable")
 	}
 
 	return nil
