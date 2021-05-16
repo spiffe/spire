@@ -252,14 +252,11 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 	}
 	trustDomainBundleChanged := bundleChanged[c.trustDomain]
 
-	// Allocate a set of selectors that
-	notifySet, selSetDone := allocSelectorSet()
-	defer selSetDone()
-
 	// Allocate sets from the pool to track changes to selectors and
 	// federatesWith declarations. These sets must be cleared after EACH use
 	// and returned to their respective pools when done processing the
 	// updates.
+	notifySets := make([]selectorSet, 0)
 	selAdd, selAddDone := allocSelectorSet()
 	defer selAddDone()
 	selRem, selRemDone := allocSelectorSet()
@@ -283,7 +280,10 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			clearSelectorSet(selRem)
 			selRem.Merge(record.entry.Selectors...)
 			c.delSelectorIndicesRecord(selRem, record)
+			notifySet, selSetDone := allocSelectorSet()
+			defer selSetDone()
 			notifySet.MergeSet(selRem)
+			notifySets = append(notifySets, notifySet)
 			delete(c.records, id)
 			// Remove stale entry since, registration entry is no longer on cache.
 			delete(c.staleEntries, id)
@@ -305,8 +305,6 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		c.diffSelectors(existingEntry, newEntry, selAdd, selRem)
 		c.addSelectorIndicesRecord(selAdd, record)
 		c.delSelectorIndicesRecord(selRem, record)
-		notifySet.MergeSet(selAdd)
-		notifySet.MergeSet(selRem)
 
 		// Determine if there were changes to FederatesWith declarations or
 		// if any federated bundles related to the entry were updated.
@@ -332,8 +330,19 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		// Determine if something related to this record changed outside of the
 		// selectors and if so, make sure subscribers for all entry selectors
 		// are notified.
-		if federatedBundlesChanged {
-			notifySet.Merge(newEntry.Selectors...)
+		if federatedBundlesChanged || c.selectorsDifferent(existingEntry, newEntry) {
+			if existingEntry != nil {
+				notifySet, selSetDone := allocSelectorSet()
+				defer selSetDone()
+				notifySet.Merge(existingEntry.Selectors...)
+				notifySets = append(notifySets, notifySet)
+			}
+			if newEntry != nil {
+				notifySet, selSetDone := allocSelectorSet()
+				defer selSetDone()
+				notifySet.Merge(newEntry.Selectors...)
+				notifySets = append(notifySets, notifySet)
+			}
 		}
 
 		// Invoke the svid checker callback for this record
@@ -377,7 +386,9 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 	if trustDomainBundleChanged {
 		c.notifyAll()
 	} else {
-		c.notifyBySelectors(notifySet)
+		for _, notifySet := range notifySets {
+			c.notifyBySelectorSet(notifySet)
+		}
 	}
 }
 
@@ -407,9 +418,10 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 
 		// Registration entry is updated, remove it from stale map
 		delete(c.staleEntries, entryID)
+		c.notifyBySelectorSet(notifySet)
+		clearSelectorSet(notifySet)
 	}
 
-	c.notifyBySelectors(notifySet)
 }
 
 // GetStaleEntries obtains a list of stale entries
@@ -474,6 +486,30 @@ func (c *Cache) diffSelectors(existingEntry, newEntry *common.RegistrationEntry,
 	}
 }
 
+func (c *Cache) selectorsDifferent(existingEntry, newEntry *common.RegistrationEntry) bool {
+	if newEntry == nil || existingEntry == nil || len(existingEntry.Selectors) != len(newEntry.Selectors) {
+		return true
+	}
+
+	set := make(selectorSet)
+	set.Merge(newEntry.Selectors...)
+	for _, selector := range existingEntry.Selectors {
+		s := makeSelector(selector)
+		if _, ok := set[s]; ok {
+			// selector already exists in entry
+			delete(set, s)
+		} else {
+			// selector has been removed from entry
+			return true
+		}
+	}
+
+	if len(set) == 0 {
+		return false
+	}
+
+	return true
+}
 func (c *Cache) diffFederatesWith(existingEntry, newEntry *common.RegistrationEntry, added, removed stringSet) {
 	// Make a set of all the selectors being added
 	if newEntry != nil {
@@ -557,10 +593,26 @@ func (c *Cache) notifyAll() {
 }
 
 func (c *Cache) notifyBySelectors(set selectorSet) {
+	c.log.WithFields(logrus.Fields{
+		"set": set,
+	}).Debug("notifyBySelectors")
 	subs, subsDone := c.getSubscribers(set)
 	defer subsDone()
 	for sub := range subs {
 		c.notify(sub)
+	}
+}
+
+func (c *Cache) notifyBySelectorSet(set selectorSet) {
+	c.log.WithFields(logrus.Fields{
+		"set": set,
+	}).Debug("notifyBySelectorSet")
+	subs, subsDone := c.getSubscribers(set)
+	defer subsDone()
+	for sub := range subs {
+		if sub.set.SuperSetOf(set) {
+			c.notify(sub)
+		}
 	}
 }
 
