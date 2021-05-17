@@ -79,7 +79,7 @@ func (p *prometheusRunner) run(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		err := p.server.ListenAndServe()
-		if errors.Is(err, http.ErrServerClosed) {
+		if !errors.Is(err, http.ErrServerClosed) {
 			p.log.Warnf("Prometheus listener stopped unexpectedly: %v", err)
 		}
 	}()

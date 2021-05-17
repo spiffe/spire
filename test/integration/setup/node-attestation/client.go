@@ -335,7 +335,7 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 		return nil, err
 	}
 
-	if _, err := stream.Recv(); errors.Is(err, io.EOF) {
+	if _, err := stream.Recv(); !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("expect stream to close after challenge complete: %w", err)
 	}
 
