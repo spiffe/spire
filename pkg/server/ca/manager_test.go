@@ -889,7 +889,7 @@ func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *common.Bundle
 	}
 }
 
-func (s *ManagerSuite) countLogEntries(level logrus.Level, message string) int { //nolint
+func (s *ManagerSuite) countLogEntries(level logrus.Level, message string) int {
 	count := 0
 	for _, e := range s.logHook.AllEntries() {
 		if e.Message == message && level == e.Level {

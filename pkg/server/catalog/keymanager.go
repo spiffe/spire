@@ -22,7 +22,7 @@ func (repo *keyManagerRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *keyManagerRepository) Versions() []catalog.Version {
-	return []catalog.Version{keyManagerV0{}}
+	return []catalog.Version{keyManagerV1{}}
 }
 
 func (repo *keyManagerRepository) LegacyVersion() (catalog.Version, bool) {
@@ -37,7 +37,12 @@ func (repo *keyManagerRepository) BuiltIns() []catalog.BuiltIn {
 	}
 }
 
+type keyManagerV1 struct{}
+
+func (keyManagerV1) New() catalog.Facade { return new(keymanager.V1) }
+func (keyManagerV1) Deprecated() bool    { return false }
+
 type keyManagerV0 struct{}
 
 func (keyManagerV0) New() catalog.Facade { return new(keymanager.V0) }
-func (keyManagerV0) Deprecated() bool    { return false }
+func (keyManagerV0) Deprecated() bool    { return true }

@@ -337,7 +337,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 		keyData, err := x509.MarshalPKCS8PrivateKey(identity.PrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("marshal key for %v: %v", id, err)
+			return nil, fmt.Errorf("marshal key for %v: %w", id, err)
 		}
 
 		svid := &workload.X509SVID{

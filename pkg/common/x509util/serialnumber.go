@@ -19,7 +19,7 @@ func NewSerialNumber() (*big.Int, error) {
 	// Creates random integer in range [0,MaxUint128)
 	s, err := rand.Int(rand.Reader, maxUint128)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create random number: %v", err)
+		return nil, fmt.Errorf("cannot create random number: %w", err)
 	}
 
 	// Adds 1 to return serial number [1,MaxUint128]

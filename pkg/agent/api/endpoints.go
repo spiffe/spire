@@ -69,10 +69,10 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 
 	l, err := e.unixListener.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
 	if err != nil {
-		return nil, fmt.Errorf("create UDS listener: %s", err)
+		return nil, fmt.Errorf("create UDS listener: %w", err)
 	}
 	if err := os.Chmod(e.c.BindAddr.String(), 0770); err != nil {
-		return nil, fmt.Errorf("unable to change UDS permissions: %v", err)
+		return nil, fmt.Errorf("unable to change UDS permissions: %w", err)
 	}
 	return l, nil
 }
