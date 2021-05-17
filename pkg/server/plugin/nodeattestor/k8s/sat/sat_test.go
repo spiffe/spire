@@ -206,7 +206,7 @@ func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", false)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
-	s.requireAttestError(makePayload("BAR", token), codes.InvalidArgument, "token not authenticated")
+	s.requireAttestError(makePayload("BAR", token), codes.PermissionDenied, "token not authenticated")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {

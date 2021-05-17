@@ -169,7 +169,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 		}
 
 		if !tokenStatus.Authenticated {
-			return status.Error(codes.InvalidArgument, "token not authenticated according to TokenReview API")
+			return status.Error(codes.PermissionDenied, "token not authenticated according to TokenReview API")
 		}
 
 		namespace, serviceAccountName, err = k8s.GetNamesFromTokenStatus(tokenStatus)
