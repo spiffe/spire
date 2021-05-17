@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type V0 struct {
@@ -16,6 +17,13 @@ type V0 struct {
 }
 
 func (v0 *V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)) (*AttestResult, error) {
+	switch {
+	case len(payload) == 0:
+		return nil, status.Error(codes.InvalidArgument, "payload cannot be empty")
+	case challengeFn == nil:
+		return nil, status.Error(codes.Internal, "challenge function cannot be nil")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

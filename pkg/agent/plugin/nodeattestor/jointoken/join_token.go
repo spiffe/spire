@@ -1,12 +1,10 @@
 package jointoken
 
 import (
-	"context"
-	"errors"
-
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -18,25 +16,17 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName, nodeattestorv1.NodeAttestorPluginServer(p))
 }
 
 type Plugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
 }
 
 func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
-	return errors.New("join token attestation is currently implemented within the agent")
-}
-
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
+	return status.Error(codes.Internal, "join token attestation is currently implemented within the agent")
 }
