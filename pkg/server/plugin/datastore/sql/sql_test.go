@@ -797,10 +797,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					for _, node := range tt.nodes {
 						_, err := s.ds.CreateAttestedNode(ctx, node)
 						require.NoError(t, err)
-						err = s.ds.SetNodeSelectors(ctx, &datastore.NodeSelectors{
-							SpiffeID:  node.SpiffeId,
-							Selectors: node.Selectors,
-						})
+						err = s.ds.SetNodeSelectors(ctx, node.SpiffeId, node.Selectors)
 						require.NoError(t, err)
 					}
 
@@ -1075,7 +1072,7 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
-	s.setNodeSelectors("foo", nil)
+	s.setNodeSelectors("foo", []*common.Selector{})
 	selectors = s.getNodeSelectors("foo", datastore.ReadOnly)
 	s.Require().Empty(selectors)
 	selectors = s.getNodeSelectors("foo", datastore.ReadWrite)
@@ -1200,10 +1197,7 @@ func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 		go func() {
 			id := fmt.Sprintf("ID%d", atomic.AddInt32(&nextID, 1))
 			for j := 0; j < 10; j++ {
-				err := s.ds.SetNodeSelectors(ctx, &datastore.NodeSelectors{
-					SpiffeID:  id,
-					Selectors: selectors,
-				})
+				err := s.ds.SetNodeSelectors(ctx, id, selectors)
 				if err != nil {
 					resultCh <- err
 				}
@@ -2400,8 +2394,7 @@ func (s *PluginSuite) TestMigration() {
 				FederatesWith: []string{"spiffe://otherdomain.org"},
 			})
 		case 2:
-			// assert that SPIFFE IDs in bundles, attested nodes, node selectors, and registration entries
-			// are all normalized.
+			// assert that SPIFFE IDs in bundles, attested nodes, and registration entries are all normalized.
 			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(bundlesResp.Bundles, 2)
@@ -2412,11 +2405,6 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().NoError(err)
 			s.Require().Len(attestedNodesResp.Nodes, 1)
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
-
-			nodeSelectors, err := s.ds.GetNodeSelectors(context.Background(), "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", datastore.ReadOnly)
-			s.Require().NoError(err)
-			s.Require().NotNil(nodeSelectors)
-			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", nodeSelectors.SpiffeID)
 
 			entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
@@ -2633,9 +2621,7 @@ func (s *PluginSuite) getNodeSelectors(spiffeID string, dbPreference datastore.D
 	}
 	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
 	s.Require().NoError(err)
-	s.Require().NotNil(selectors)
-	s.Require().Equal(spiffeID, selectors.SpiffeID)
-	return selectors.Selectors
+	return selectors
 }
 
 func (s *PluginSuite) listNodeSelectors(req *datastore.ListNodeSelectorsRequest) *datastore.ListNodeSelectorsResponse {
@@ -2646,10 +2632,7 @@ func (s *PluginSuite) listNodeSelectors(req *datastore.ListNodeSelectorsRequest)
 }
 
 func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
-	err := s.ds.SetNodeSelectors(ctx, &datastore.NodeSelectors{
-		SpiffeID:  spiffeID,
-		Selectors: selectors,
-	})
+	err := s.ds.SetNodeSelectors(ctx, spiffeID, selectors)
 	s.Require().NoError(err)
 }
 

@@ -303,10 +303,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
-	err = s.ds.SetNodeSelectors(ctx, &datastore.NodeSelectors{
-		SpiffeID:  agentID,
-		Selectors: append(attestResult.Selectors, resolvedSelectors...),
-	})
+	err = s.ds.SetNodeSelectors(ctx, agentID, append(attestResult.Selectors, resolvedSelectors...))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -501,7 +498,7 @@ func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) (
 		return nil, fmt.Errorf("failed to get node selectors: %v", err)
 	}
 
-	return api.NodeSelectorsToProto(selectors)
+	return api.ProtoFromSelectors(selectors), nil
 }
 
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {

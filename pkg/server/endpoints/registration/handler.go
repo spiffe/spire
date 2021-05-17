@@ -691,8 +691,8 @@ func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNod
 	}
 	return &registration.GetNodeSelectorsResponse{
 		Selectors: &registration.NodeSelectors{
-			SpiffeId:  selectors.SpiffeID,
-			Selectors: selectors.Selectors,
+			SpiffeId:  req.SpiffeId,
+			Selectors: selectors,
 		},
 	}, nil
 }

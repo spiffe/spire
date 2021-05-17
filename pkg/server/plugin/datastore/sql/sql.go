@@ -272,13 +272,9 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
-func (ds *Plugin) SetNodeSelectors(ctx context.Context, selectors *datastore.NodeSelectors) (err error) {
-	if selectors == nil {
-		return errors.New("invalid request: missing selectors")
-	}
-
+func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = setNodeSelectors(tx, selectors)
+		err = setNodeSelectors(tx, spiffeID, selectors)
 		return err
 	}); err != nil {
 		return err
@@ -288,7 +284,7 @@ func (ds *Plugin) SetNodeSelectors(ctx context.Context, selectors *datastore.Nod
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string,
-	dbPreference datastore.DatabasePreference) (selectors *datastore.NodeSelectors, err error) {
+	dbPreference datastore.DatabasePreference) (selectors []*common.Selector, err error) {
 	if dbPreference == datastore.ReadOnly && ds.roDb != nil {
 		return getNodeSelectors(ctx, ds.roDb, spiffeID)
 	}
@@ -1540,7 +1536,7 @@ func deleteAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, err
 	return modelToAttestedNode(model), nil
 }
 
-func setNodeSelectors(tx *gorm.DB, selectors *datastore.NodeSelectors) error {
+func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector) error {
 	// Previously the deletion of the previous set of node selectors was
 	// implemented via query like DELETE FROM node_resolver_map_entries WHERE
 	// spiffe_id = ?, but unfortunately this triggered some pessimistic gap
@@ -1553,7 +1549,7 @@ func setNodeSelectors(tx *gorm.DB, selectors *datastore.NodeSelectors) error {
 	// deleted and delete them from separate queries, which does not trigger
 	// gap locks on the index.
 	var ids []int64
-	if err := tx.Model(&NodeSelector{}).Where("spiffe_id = ?", selectors.SpiffeID).Pluck("id", &ids).Error; err != nil {
+	if err := tx.Model(&NodeSelector{}).Where("spiffe_id = ?", spiffeID).Pluck("id", &ids).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	if len(ids) > 0 {
@@ -1562,9 +1558,9 @@ func setNodeSelectors(tx *gorm.DB, selectors *datastore.NodeSelectors) error {
 		}
 	}
 
-	for _, selector := range selectors.Selectors {
+	for _, selector := range selectors {
 		model := &NodeSelector{
-			SpiffeID: selectors.SpiffeID,
+			SpiffeID: spiffeID,
 			Type:     selector.Type,
 			Value:    selector.Value,
 		}
@@ -1576,7 +1572,7 @@ func setNodeSelectors(tx *gorm.DB, selectors *datastore.NodeSelectors) error {
 	return nil
 }
 
-func getNodeSelectors(ctx context.Context, db *sqlDB, spiffeID string) (*datastore.NodeSelectors, error) {
+func getNodeSelectors(ctx context.Context, db *sqlDB, spiffeID string) ([]*common.Selector, error) {
 	query := maybeRebind(db.databaseType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
 	rows, err := db.QueryContext(ctx, query, spiffeID)
 	if err != nil {
@@ -1597,10 +1593,7 @@ func getNodeSelectors(ctx context.Context, db *sqlDB, spiffeID string) (*datasto
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.NodeSelectors{
-		SpiffeID:  spiffeID,
-		Selectors: selectors,
-	}, nil
+	return selectors, nil
 }
 
 func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {

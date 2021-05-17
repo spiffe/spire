@@ -38,9 +38,9 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
-	GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference DatabasePreference) (*NodeSelectors, error)
+	GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference DatabasePreference) ([]*common.Selector, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
-	SetNodeSelectors(context.Context, *NodeSelectors) error
+	SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error
 
 	// Tokens
 	CreateJoinToken(context.Context, *JoinToken) error
@@ -108,11 +108,6 @@ type BySelectors struct {
 type JoinToken struct {
 	Token  string
 	Expiry time.Time
-}
-
-type NodeSelectors struct {
-	SpiffeID  string
-	Selectors []*common.Selector
 }
 
 type Pagination struct {
