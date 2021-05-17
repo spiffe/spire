@@ -296,6 +296,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
 		Metrics:     metrics,
 		TrustDomain: s.config.TrustDomain,
+		KeyType:     s.config.CAKeyType,
 	})
 	if err := svidRotator.Initialize(ctx); err != nil {
 		return nil, err
