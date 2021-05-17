@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.3] - 2021-05-14
+## [0.12.3] - 2021-05-17
 
 ### Added
 - The `k8s-workload-registrar` now supports federation (#2160)
