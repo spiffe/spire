@@ -144,7 +144,7 @@ func getDBCodeVersion(migration Migration) (dbCodeVersion semver.Version, err er
 	if migration.CodeVersion != "" {
 		dbCodeVersion, err = semver.Parse(migration.CodeVersion)
 		if err != nil {
-			return dbCodeVersion, fmt.Errorf("unable to parse code version from DB: %v", err)
+			return dbCodeVersion, fmt.Errorf("unable to parse code version from DB: %w", err)
 		}
 	}
 	return dbCodeVersion, nil

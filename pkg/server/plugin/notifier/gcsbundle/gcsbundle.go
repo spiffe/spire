@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"sync"
 
@@ -205,7 +206,7 @@ func newGCSBucketClient(ctx context.Context, serviceAccountFile string) (bucketC
 func (c *gcsBucketClient) GetObjectGeneration(ctx context.Context, bucket, object string) (int64, error) {
 	attrs, err := c.client.Bucket(bucket).Object(object).Attrs(ctx)
 	if err != nil {
-		if err == storage.ErrObjectNotExist {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			return 0, nil
 		}
 		return 0, errs.Wrap(err)
@@ -252,7 +253,9 @@ func bundleData(bundle *common.Bundle) []byte {
 }
 
 func isConditionNotMetError(err error) bool {
-	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusPreconditionFailed {
+	var e *googleapi.Error
+	ok := errors.As(err, &e)
+	if ok && e.Code == http.StatusPreconditionFailed {
 		for _, errorItem := range e.Errors {
 			if errorItem.Reason == "conditionNotMet" {
 				return true

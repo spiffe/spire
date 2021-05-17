@@ -807,7 +807,7 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	for _, dns := range entry.DnsNames {
 		err = validateDNS(dns)
 		if err != nil {
-			return nil, fmt.Errorf("dns name %v failed validation: %v", dns, err)
+			return nil, fmt.Errorf("dns name %v failed validation: %w", dns, err)
 		}
 	}
 
@@ -823,11 +823,11 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	}
 
 	if err := idutil.CheckIDStringNormalization(original.ParentId); err != nil {
-		return nil, fmt.Errorf("parent ID is malformed: %v", err)
+		return nil, fmt.Errorf("parent ID is malformed: %w", err)
 	}
 
 	if err := idutil.CheckIDStringNormalization(original.SpiffeId); err != nil {
-		return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
+		return nil, fmt.Errorf("spiffe ID is malformed: %w", err)
 	}
 
 	// Validate Selectors
@@ -878,7 +878,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 		return "", errors.New("no SPIFFE ID in certificate")
 	}
 	if err := idutil.CheckIDURLNormalization(cert.URIs[0]); err != nil {
-		return "", fmt.Errorf("SPIFFE ID is malformed: %v", err)
+		return "", fmt.Errorf("SPIFFE ID is malformed: %w", err)
 	}
 	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
 	if err != nil {

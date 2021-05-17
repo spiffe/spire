@@ -19,7 +19,7 @@ func protoToX509SVIDs(protoSVIDs *workload.X509SVIDResponse) (*X509SVIDs, error)
 		svid, err := protoToX509SVID(protoSVID)
 		if err != nil {
 			// TODO(tjulian): Probably support partial success
-			return nil, fmt.Errorf("failed to parse svid for spiffe id %q: %v", protoSVID.GetSpiffeId(), err)
+			return nil, fmt.Errorf("failed to parse svid for spiffe id %q: %w", protoSVID.GetSpiffeId(), err)
 		}
 		svids.SVIDs = append(svids.SVIDs, svid)
 	}

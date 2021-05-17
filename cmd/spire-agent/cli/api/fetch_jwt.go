@@ -76,7 +76,7 @@ func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadC
 	defer cancel()
 	stream, err := client.FetchJWTBundles(ctx, &workload.JWTBundlesRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive JWT bundles: %v", err)
+		return nil, fmt.Errorf("failed to receive JWT bundles: %w", err)
 	}
 	return stream.Recv()
 }
