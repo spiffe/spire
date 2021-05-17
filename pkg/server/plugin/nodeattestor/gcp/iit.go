@@ -54,6 +54,8 @@ type computeEngineClient interface {
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv0.UnsafeNodeAttestorServer
+
 	config            *IITAttestorConfig
 	log               hclog.Logger
 	mtx               sync.Mutex
