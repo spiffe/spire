@@ -71,7 +71,7 @@ func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 
 	respData, err := json.Marshal(attestationData)
 	if err != nil {
-		return caws.AttestationStepError("marshaling the attested data", err)
+		return status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
 	}
 
 	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
