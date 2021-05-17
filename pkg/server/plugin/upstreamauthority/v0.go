@@ -3,6 +3,7 @@ package upstreamauthority
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"io"
 	"time"
 
@@ -131,7 +132,7 @@ func (v0 *V0) validateJWTKeys(jwtKeys []*common.PublicKey) error {
 }
 
 func (v0 *V0) streamError(err error) error {
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return v0.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v0.WrapErr(err)
@@ -147,7 +148,7 @@ func (s *v0UpstreamX509AuthorityStream) RecvUpstreamX509Authorities() ([]*x509.C
 	for {
 		resp, err := s.stream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			// This is expected if the plugin does not support streaming
 			// authority updates.
 			return nil, err
@@ -178,7 +179,7 @@ func (s *v0UpstreamJWTAuthorityStream) RecvUpstreamJWTAuthorities() ([]*common.P
 	for {
 		resp, err := s.stream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			// This is expected if the plugin does not support streaming
 			// authority updates.
 			return nil, io.EOF

@@ -94,7 +94,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load upstream CA: %v", err)
+		return nil, fmt.Errorf("failed to load upstream CA: %w", err)
 	}
 
 	// Set local vars from config struct
@@ -148,7 +148,7 @@ func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 		upstreamCA = p.upstreamCA
 		upstreamCerts = p.certs
 	default:
-		return nil, nil, fmt.Errorf("no cached CA and failed to load CA: %v", err)
+		return nil, nil, fmt.Errorf("no cached CA and failed to load CA: %w", err)
 	}
 
 	return upstreamCA, upstreamCerts, nil

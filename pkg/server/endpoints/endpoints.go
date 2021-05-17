@@ -177,7 +177,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	}
 
 	err := util.RunTasks(ctx, tasks...)
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err
@@ -293,7 +293,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
 	bundle, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), e.TrustDomain.IDString())
 	if err != nil {
-		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
+		return nil, nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
 	if bundle == nil {
 		return nil, nil, errors.New("bundle not found")
@@ -303,7 +303,7 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 	for _, rootCA := range bundle.RootCas {
 		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse bundle: %v", err)
+			return nil, nil, fmt.Errorf("parse bundle: %w", err)
 		}
 		caCerts = append(caCerts, rootCACerts...)
 	}

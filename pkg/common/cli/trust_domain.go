@@ -16,7 +16,7 @@ const maxTrustDomainLength = 255
 func ParseTrustDomain(trustDomain string, logger logrus.FieldLogger) (spiffeid.TrustDomain, error) {
 	td, err := spiffeid.TrustDomainFromString(trustDomain)
 	if err != nil {
-		return td, fmt.Errorf("could not parse trust_domain %q: %v", trustDomain, err)
+		return td, fmt.Errorf("could not parse trust_domain %q: %w", trustDomain, err)
 	}
 
 	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility

@@ -122,7 +122,7 @@ func NewX509SVIDClient(watcher X509SVIDWatcher, opts ...Option) (*X509SVIDClient
 // Stop() is not supported.
 func (c *X509SVIDClient) Start(ctx context.Context) error {
 	if err := c.stateManager.StartIfStartable(); err != nil {
-		return fmt.Errorf("spiffe/workload: %v", err)
+		return fmt.Errorf("spiffe/workload: %w", err)
 	}
 	c.wg.Add(1)
 	go c.run()
@@ -214,7 +214,7 @@ func (c *X509SVIDClient) handleX509SVIDStream(stream workload.SpiffeWorkloadAPI_
 // Stop stops the client and waits for the watch loop to end.
 func (c *X509SVIDClient) Stop(ctx context.Context) error {
 	if err := c.stateManager.StopIfStoppable(); err != nil {
-		return fmt.Errorf("spiffe/workload: %v", err)
+		return fmt.Errorf("spiffe/workload: %w", err)
 	}
 	c.cancelFn()
 	done := make(chan struct{})

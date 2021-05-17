@@ -17,7 +17,7 @@ func NewRenew(client *vapi.Client, secret *vapi.Secret, logger hclog.Logger) (*R
 		Secret: secret,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Renewer: %v", err)
+		return nil, fmt.Errorf("failed to initialize Renewer: %w", err)
 	}
 	return &Renew{
 		Logger:  logger,

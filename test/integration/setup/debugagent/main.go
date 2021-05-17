@@ -53,20 +53,20 @@ func run() error {
 func agentEndpoints(ctx context.Context) error {
 	conn, err := grpc.Dial(*socketPathFlag, grpc.WithInsecure())
 	if err != nil {
-		return fmt.Errorf("failed to connect server: %v", err)
+		return fmt.Errorf("failed to connect server: %w", err)
 	}
 	defer conn.Close()
 
 	client := agent_debugv1.NewDebugClient(conn)
 	resp, err := client.GetInfo(ctx, &agent_debugv1.GetInfoRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to get info: %v", err)
+		return fmt.Errorf("failed to get info: %w", err)
 	}
 
 	m := protojson.MarshalOptions{Indent: " "}
 	s, err := m.Marshal(resp)
 	if err != nil {
-		return fmt.Errorf("failed to parse proto: %v", err)
+		return fmt.Errorf("failed to parse proto: %w", err)
 	}
 
 	log.Printf("Debug info: %s", string(s))
@@ -99,6 +99,6 @@ func validateError(err error) error {
 		log.Print("success!")
 		return nil
 	default:
-		return fmt.Errorf("unexpected error: %v", err)
+		return fmt.Errorf("unexpected error: %w", err)
 	}
 }

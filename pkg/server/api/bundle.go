@@ -63,12 +63,12 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 
 	rootCas, err := ParseX509Authorities(b.X509Authorities)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse X.509 authority: %v", err)
+		return nil, fmt.Errorf("unable to parse X.509 authority: %w", err)
 	}
 
 	jwtSigningKeys, err := ParseJWTAuthorities(b.JwtAuthorities)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse JWT authority: %v", err)
+		return nil, fmt.Errorf("unable to parse JWT authority: %w", err)
 	}
 
 	commonBundle := &common.Bundle{

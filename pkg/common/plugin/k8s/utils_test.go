@@ -45,10 +45,9 @@ func TestAgentID(t *testing.T) {
 	require.Equal(t, "spiffe://example.org/spire/agent/k8s_sat/production/1234", AgentID("k8s_sat", "example.org", "production", "1234"))
 }
 
-func TestMakeSelector(t *testing.T) {
-	s := MakeSelector("k8s_sat", "agent_ns", "spire")
-	assert.Equal(t, "k8s_sat", s.Type)
-	assert.Equal(t, "agent_ns:spire", s.Value)
+func TestMakeSelectorValue(t *testing.T) {
+	s := MakeSelectorValue("agent_ns", "spire")
+	assert.Equal(t, "agent_ns:spire", s)
 }
 
 func TestGetNamesFromTokenStatusFailIfUsernameIsEmpty(t *testing.T) {
