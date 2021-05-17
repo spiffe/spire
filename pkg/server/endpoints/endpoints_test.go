@@ -20,7 +20,7 @@ import (
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -359,7 +359,13 @@ func testRegistrationAPI(ctx context.Context, t *testing.T, s *registrationServe
 
 	t.Run("UDS", func(t *testing.T) {
 		peer := call(t, udsConn)
-		require.Equal(t, auth.UntrackedUDSAuthInfo{}, peer.AuthInfo)
+		peerInfo, ok := peer.AuthInfo.(peertracker.AuthInfo)
+		require.True(t, ok, "peer does not have tracker info")
+		require.NotEmpty(t, peerInfo.Caller.Addr)
+		require.NotEmpty(t, peerInfo.Caller.BinaryAddr)
+		require.NotEmpty(t, peerInfo.Caller.GID)
+		require.NotEmpty(t, peerInfo.Caller.PID)
+		require.NotEmpty(t, peerInfo.Caller.UID)
 	})
 	t.Run("TLS", func(t *testing.T) {
 		peer := call(t, noauthConn)
