@@ -2490,7 +2490,7 @@ WHERE id IN (
 				switch by {
 				case noFilter:
 				case byExpiresBefore:
-					req.ByExpiresBefore = &expiresBefore
+					req.ByExpiresBefore = expiresBefore
 				case bySelectorSubsetOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},

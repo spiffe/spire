@@ -92,7 +92,6 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 	if req.Filter != nil {
 		filter := req.Filter
 
-		// TODO should this be a helper function?
 		var byBanned *bool
 		if filter.ByBanned != nil {
 			byBanned = &filter.ByBanned.Value

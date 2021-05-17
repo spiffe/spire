@@ -1178,9 +1178,9 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 	}
 
 	// Filter by expiration
-	if req.ByExpiresBefore != nil {
+	if !req.ByExpiresBefore.IsZero() {
 		builder.WriteString("\t\tAND expires_at < ?\n")
-		args = append(args, *req.ByExpiresBefore)
+		args = append(args, req.ByExpiresBefore)
 	}
 
 	// Filter by Attestation type
@@ -1395,9 +1395,9 @@ FROM attested_node_entries N
 		}
 
 		// Filter by expiration
-		if req.ByExpiresBefore != nil {
+		if !req.ByExpiresBefore.IsZero() {
 			builder.WriteString(" AND N.expires_at < ?")
-			args = append(args, *req.ByExpiresBefore)
+			args = append(args, req.ByExpiresBefore)
 		}
 
 		// Filter by Attestation type
@@ -1658,9 +1658,9 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query string, args []interface{}) {
 	var sb strings.Builder
 	sb.WriteString("SELECT nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
-	if req.ValidAt != nil {
+	if !req.ValidAt.IsZero() {
 		sb.WriteString(" INNER JOIN attested_node_entries ane ON nre.spiffe_id=ane.spiffe_id WHERE ane.expires_at > ?")
-		args = append(args, *req.ValidAt)
+		args = append(args, req.ValidAt)
 	}
 
 	// This ordering is required to make listNodeSelectors efficient but not

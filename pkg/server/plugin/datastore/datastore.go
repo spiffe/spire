@@ -109,7 +109,7 @@ type Pagination struct {
 type ListAttestedNodesRequest struct {
 	ByAttestationType string
 	ByBanned          *bool
-	ByExpiresBefore   *time.Time
+	ByExpiresBefore   time.Time
 	BySelectorMatch   *BySelectors
 	FetchSelectors    bool
 	Pagination        *Pagination
@@ -132,7 +132,7 @@ type ListBundlesResponse struct {
 type ListNodeSelectorsRequest struct {
 	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
 	TolerateStale bool
-	ValidAt       *time.Time
+	ValidAt       time.Time
 }
 
 type ListNodeSelectorsResponse struct {

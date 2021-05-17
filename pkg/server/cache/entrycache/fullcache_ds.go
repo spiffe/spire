@@ -136,7 +136,7 @@ func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
 	now := time.Now()
 	resp, err := it.ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{
 		TolerateStale: true,
-		ValidAt:       &now,
+		ValidAt:       now,
 	})
 	if err != nil {
 		return nil, err

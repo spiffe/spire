@@ -652,7 +652,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		test                string
 		nodes               []*common.AttestedNode
 		pageSize            int32
-		byExpiresBefore     *time.Time
+		byExpiresBefore     time.Time
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
 		byBanned            *bool
@@ -694,7 +694,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		{
 			test:                "by expires before",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeB, nodeF, nodeG, nodeC},
-			byExpiresBefore:     &now,
+			byExpiresBefore:     now,
 			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
 			expectPagedTokensIn: []string{"", "1", "3", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeC}, {}},
@@ -1155,7 +1155,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 
 	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
-			ValidAt: &now,
+			ValidAt: now,
 		}
 		resp := s.listNodeSelectors(req)
 		assertSelectorsEqual(t, nonExpiredSelectorsMap, resp.Selectors)
