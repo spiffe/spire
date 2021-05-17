@@ -192,7 +192,7 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 		p.cancelWatcher()
 		p.cancelWatcher = nil
 	}
-	if config.WebhookLabel != "" {
+	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		p.cancelWatcher = cancelWatcher
 	}
 
