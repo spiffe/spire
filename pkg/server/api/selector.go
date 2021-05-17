@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -40,4 +41,13 @@ func ProtoFromSelectors(in []*common.Selector) []*types.Selector {
 		})
 	}
 	return out
+}
+
+func SelectorFieldFromProto(proto []*types.Selector) string {
+	selectors := []string{}
+	for _, s := range proto {
+		selectors = append(selectors, fmt.Sprintf("%s:%s", s.Type, s.Value))
+	}
+
+	return strings.Join(selectors, ",")
 }
