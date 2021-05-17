@@ -171,11 +171,11 @@ func (s *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListNo
 	return s.ds.ListNodeSelectors(ctx, req)
 }
 
-func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (*datastore.NodeSelectors, error) {
+func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DatabasePreference) (*datastore.NodeSelectors, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, tolerateStale)
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
 	if err == nil {
 		// Sorting helps unit-tests have deterministic assertions.
 		util.SortSelectors(selectors.Selectors)

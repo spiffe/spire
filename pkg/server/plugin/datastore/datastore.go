@@ -38,7 +38,7 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
-	GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (*NodeSelectors, error)
+	GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference DatabasePreference) (*NodeSelectors, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	SetNodeSelectors(context.Context, *NodeSelectors) error
 
@@ -49,14 +49,28 @@ type DataStore interface {
 	PruneJoinTokens(context.Context, time.Time) error
 }
 
+// DatabasePreference indicates a preferred database instance.
+type DatabasePreference int32
+
+const (
+	// Require data from a primary read-write database instance (default)
+	ReadWrite DatabasePreference = iota
+
+	// Allow access from a read-only database instance, if available
+	// Some data staleness may be observed
+	ReadOnly
+)
+
 // DeleteMode defines delete behavior if associated records exist.
 type DeleteMode int32
 
 const (
 	// Restrict the bundle from being deleted in the presence of associated entries
 	Restrict DeleteMode = iota
+
 	// Delete the bundle and associated entries
 	Delete
+
 	// Dissociate deletes the bundle and dissociates associated entries
 	Dissociate
 )
@@ -130,9 +144,8 @@ type ListBundlesResponse struct {
 }
 
 type ListNodeSelectorsRequest struct {
-	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
-	TolerateStale bool
-	ValidAt       time.Time
+	DatabasePreference
+	ValidAt time.Time
 }
 
 type ListNodeSelectorsResponse struct {
@@ -140,12 +153,11 @@ type ListNodeSelectorsResponse struct {
 }
 
 type ListRegistrationEntriesRequest struct {
-	ByParentID  string
-	BySelectors *BySelectors
-	BySpiffeID  string
-	Pagination  *Pagination
-	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
-	TolerateStale   bool
+	DatabasePreference
+	ByParentID      string
+	BySelectors     *BySelectors
+	BySpiffeID      string
+	Pagination      *Pagination
 	ByFederatesWith *ByFederatesWith
 }
 

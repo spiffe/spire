@@ -41,8 +41,8 @@ var (
 	TestConnString   string
 	TestROConnString string
 	// Replication to replica can take some time,
-	// if specified, this configuration setting tells the duration to wait before running queries in stale databases
-	TestStaleDelay string
+	// if specified, this configuration setting tells the duration to wait before running queries in read-only databases
+	TestReadOnlyDelay string
 )
 
 const (
@@ -67,7 +67,7 @@ type PluginSuite struct {
 	nextID int
 	ds     *Plugin
 
-	staleDelay time.Duration
+	readOnlyDelay time.Duration
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -99,10 +99,10 @@ func (s *PluginSuite) SetupSuite() {
 	s.cacert = cacert
 	s.cert = cert
 
-	if TestStaleDelay != "" {
-		delay, err := time.ParseDuration(TestStaleDelay)
-		s.Require().NoError(err, "failed to parse stale delay")
-		s.staleDelay = delay
+	if TestReadOnlyDelay != "" {
+		delay, err := time.ParseDuration(TestReadOnlyDelay)
+		s.Require().NoError(err, "failed to parse read-only delay")
+		s.readOnlyDelay = delay
 	}
 }
 
@@ -1052,9 +1052,9 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo", true)
+	selectors := s.getNodeSelectors("foo", datastore.ReadOnly)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.ReadWrite)
 	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
@@ -1062,30 +1062,30 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo", true)
+	selectors = s.getNodeSelectors("foo", datastore.ReadOnly)
 	s.RequireProtoListEqual(foo1, selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.ReadWrite)
 	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo", true)
+	selectors = s.getNodeSelectors("foo", datastore.ReadOnly)
 	s.RequireProtoListEqual(foo2, selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.ReadWrite)
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", nil)
-	selectors = s.getNodeSelectors("foo", true)
+	selectors = s.getNodeSelectors("foo", datastore.ReadOnly)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.ReadWrite)
 	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", true)
+	selectors = s.getNodeSelectors("bar", datastore.ReadOnly)
 	s.RequireProtoListEqual(bar, selectors)
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", false)
+	selectors = s.getNodeSelectors("bar", datastore.ReadWrite)
 	s.RequireProtoListEqual(bar, selectors)
 }
 
@@ -1317,8 +1317,8 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
-	s.testListRegistrationEntries(false)
-	s.testListRegistrationEntries(true)
+	s.testListRegistrationEntries(datastore.ReadWrite)
+	s.testListRegistrationEntries(datastore.ReadOnly)
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
@@ -1344,7 +1344,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	s.Require().Nil(resp)
 }
 
-func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
+func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DatabasePreference) {
 	byFederatesWith := func(match datastore.MatchBehavior, trustDomainIDs ...string) *datastore.ByFederatesWith {
 		return &datastore.ByFederatesWith{
 			TrustDomains: trustDomainIDs,
@@ -1631,8 +1631,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 			} else {
 				name += " without pagination"
 			}
-			if tolerateStale {
-				name += " stale"
+			if dbPreference == datastore.ReadOnly {
+				name += " read-only"
 			}
 			s.T().Run(name, func(t *testing.T) {
 				s.ds = s.newPlugin()
@@ -1653,8 +1653,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 
 				// Optionally sleep to give time for the entries to propagate to
 				// the replicas.
-				if tolerateStale && s.staleDelay > 0 {
-					time.Sleep(s.staleDelay)
+				if dbPreference == datastore.ReadOnly && s.readOnlyDelay > 0 {
+					time.Sleep(s.readOnlyDelay)
 				}
 
 				var pagination *datastore.Pagination
@@ -2413,7 +2413,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Len(attestedNodesResp.Nodes, 1)
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
 
-			nodeSelectors, err := s.ds.GetNodeSelectors(context.Background(), "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", true)
+			nodeSelectors, err := s.ds.GetNodeSelectors(context.Background(), "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", datastore.ReadOnly)
 			s.Require().NoError(err)
 			s.Require().NotNil(nodeSelectors)
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", nodeSelectors.SpiffeID)
@@ -2627,11 +2627,11 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
-	if tolerateStale && TestStaleDelay != "" {
-		time.Sleep(s.staleDelay)
+func (s *PluginSuite) getNodeSelectors(spiffeID string, dbPreference datastore.DatabasePreference) []*common.Selector {
+	if dbPreference == datastore.ReadOnly && TestReadOnlyDelay != "" {
+		time.Sleep(s.readOnlyDelay)
 	}
-	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, tolerateStale)
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
 	s.Require().NoError(err)
 	s.Require().NotNil(selectors)
 	s.Require().Equal(spiffeID, selectors.SpiffeID)

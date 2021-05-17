@@ -2001,7 +2001,7 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	require.NotNil(t, attestedAgent)
 	require.Equal(t, expectedID, attestedAgent.SpiffeId)
 
-	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, false)
+	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.ReadWrite)
 	require.NoError(t, err)
 	require.NotNil(t, agentSelectors)
 	require.EqualValues(t, expectedSelectors, agentSelectors.Selectors)

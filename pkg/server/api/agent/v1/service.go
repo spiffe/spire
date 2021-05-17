@@ -496,7 +496,7 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 }
 
 func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) ([]*types.Selector, error) {
-	selectors, err := s.ds.GetNodeSelectors(ctx, agentID, false)
+	selectors, err := s.ds.GetNodeSelectors(ctx, agentID, datastore.ReadWrite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node selectors: %v", err)
 	}

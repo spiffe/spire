@@ -287,8 +287,9 @@ func (ds *Plugin) SetNodeSelectors(ctx context.Context, selectors *datastore.Nod
 }
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
-func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (selectors *datastore.NodeSelectors, err error) {
-	if tolerateStale && ds.roDb != nil {
+func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string,
+	dbPreference datastore.DatabasePreference) (selectors *datastore.NodeSelectors, err error) {
+	if dbPreference == datastore.ReadOnly && ds.roDb != nil {
 		return getNodeSelectors(ctx, ds.roDb, spiffeID)
 	}
 	return getNodeSelectors(ctx, ds.db, spiffeID)
@@ -297,7 +298,7 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string, tolerat
 // ListNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *Plugin) ListNodeSelectors(ctx context.Context,
 	req *datastore.ListNodeSelectorsRequest) (resp *datastore.ListNodeSelectorsResponse, err error) {
-	if req.TolerateStale && ds.roDb != nil {
+	if req.DatabasePreference == datastore.ReadOnly && ds.roDb != nil {
 		return listNodeSelectors(ctx, ds.roDb, req)
 	}
 	return listNodeSelectors(ctx, ds.db, req)
@@ -341,7 +342,7 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, er
 // ListRegistrationEntries lists all registrations (pagination available)
 func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
-	if req.TolerateStale && ds.roDb != nil {
+	if req.DatabasePreference == datastore.ReadOnly && ds.roDb != nil {
 		return listRegistrationEntries(ctx, ds.roDb, ds.log, req)
 	}
 	return listRegistrationEntries(ctx, ds.db, ds.log, req)

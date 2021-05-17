@@ -99,10 +99,10 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, tolerateStale bool) (_ *datastore.NodeSelectors, err error) {
+func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DatabasePreference) (_ *datastore.NodeSelectors, err error) {
 	callCounter := StartGetNodeSelectorsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.GetNodeSelectors(ctx, spiffeID, tolerateStale)
+	return w.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
 }
 
 func (w metricsWrapper) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (_ *datastore.ListAttestedNodesResponse, err error) {

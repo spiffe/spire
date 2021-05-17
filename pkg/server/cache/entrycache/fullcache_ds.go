@@ -41,7 +41,7 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 	}
 	if it.entries == nil {
 		req := &datastore.ListRegistrationEntriesRequest{
-			TolerateStale: true,
+			DatabasePreference: datastore.ReadOnly,
 		}
 
 		resp, err := it.ds.ListRegistrationEntries(ctx, req)
@@ -135,8 +135,8 @@ func (it *agentIteratorDS) Err() error {
 func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
 	now := time.Now()
 	resp, err := it.ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{
-		TolerateStale: true,
-		ValidAt:       now,
+		DatabasePreference: datastore.ReadOnly,
+		ValidAt:            now,
 	})
 	if err != nil {
 		return nil, err
