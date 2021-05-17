@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -127,4 +129,13 @@ func ParseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
 	}
 
 	return jwtKeys, nil
+}
+
+func HashByte(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:])
 }

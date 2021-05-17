@@ -26,6 +26,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -202,7 +203,7 @@ func (e *Endpoints) createUDSServer(unaryInterceptor grpc.UnaryServerInterceptor
 	return grpc.NewServer(
 		grpc.UnaryInterceptor(unaryInterceptor),
 		grpc.StreamInterceptor(streamInterceptor),
-		grpc.Creds(auth.UntrackedUDSCredentials()))
+		grpc.Creds(peertracker.NewCredentials()))
 }
 
 // runTCPServer will start the server and block until it exits or we are dying.
@@ -234,7 +235,10 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.UDSAddr.String())
-	l, err := net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+	unixListener := &peertracker.ListenerFactory{
+		Log: e.Log,
+	}
+	l, err := unixListener.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
 	if err != nil {
 		return err
 	}
