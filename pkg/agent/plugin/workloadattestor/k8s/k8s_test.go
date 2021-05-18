@@ -24,8 +24,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -133,8 +131,8 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 )
 
 type attestResult struct {
-	resp *workloadattestorv0.AttestResponse
-	err  error
+	selectors []*common.Selector
+	err       error
 }
 
 func TestPlugin(t *testing.T) {
@@ -146,7 +144,6 @@ type Suite struct {
 
 	dir   string
 	clock *clock.Mock
-	p     workloadattestorv0.WorkloadAttestorClient
 
 	podList [][]byte
 	env     map[string]string
@@ -164,7 +161,6 @@ func (s *Suite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.server = nil
 
-	_, s.p = s.newPlugin()
 	s.podList = nil
 	s.env = map[string]string{}
 }
@@ -176,42 +172,42 @@ func (s *Suite) TearDownTest() {
 
 func (s *Suite) TestAttestWithPidInPod() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 
-	s.requireAttestSuccessWithPod()
+	s.requireAttestSuccessWithPod(p)
 }
 
 func (s *Suite) TestAttestWithPidInKindPod() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 
-	s.requireAttestSuccessWithKindPod()
+	s.requireAttestSuccessWithKindPod(p)
 }
 
 func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 
-	s.requireAttestSuccessWithPodSystemdCgroups()
+	s.requireAttestSuccessWithPodSystemdCgroups(p)
 }
 
 func (s *Suite) TestAttestWithInitPidInPod() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 
-	s.requireAttestSuccessWithInitPod()
+	s.requireAttestSuccessWithInitPod(p)
 }
 
 func (s *Suite) TestAttestWithPidInPodAfterRetry() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 
-	resultCh := s.goAttest()
+	resultCh := s.goAttest(p)
 
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
 	s.clock.Add(time.Second)
@@ -221,7 +217,7 @@ func (s *Suite) TestAttestWithPidInPodAfterRetry() {
 	select {
 	case result := <-resultCh:
 		s.Require().Nil(result.err)
-		s.requireSelectorsEqual(testPodSelectors, result.resp.Selectors)
+		s.requireSelectorsEqual(testPodSelectors, result.selectors)
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for attest response")
 	}
@@ -229,23 +225,21 @@ func (s *Suite) TestAttestWithPidInPodAfterRetry() {
 
 func (s *Suite) TestAttestWithPidNotInPodCancelsEarly() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	resp, err := s.p.Attest(ctx, &workloadattestorv0.AttestRequest{
-		Pid: int32(pid),
-	})
-	s.RequireGRPCStatus(err, codes.Canceled, "context canceled")
-	s.Require().Nil(resp)
+	selectors, err := p.Attest(ctx, pid)
+	s.RequireGRPCStatus(err, codes.Canceled, "workloadattestor(k8s): context canceled")
+	s.Require().Nil(selectors)
 }
 
 func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addPodListResponse(podListNotRunningFilePath)
@@ -253,7 +247,7 @@ func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 	s.addPodListResponse(podListNotRunningFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 
-	resultCh := s.goAttest()
+	resultCh := s.goAttest(p)
 
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
 	s.clock.Add(time.Second)
@@ -266,8 +260,8 @@ func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 
 	select {
 	case result := <-resultCh:
-		s.Require().Nil(result.resp)
-		s.RequireErrorContains(result.err, "k8s: no selectors found")
+		s.Require().Nil(result.selectors)
+		s.RequireGRPCStatusContains(result.err, codes.DeadlineExceeded, "no selectors found after max poll attempts")
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for attest response")
 	}
@@ -275,14 +269,12 @@ func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 
 func (s *Suite) TestAttestWithPidNotInPod() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 	s.addCgroupsResponse(cgPidNotInPodFilePath)
 
-	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
-		Pid: int32(pid),
-	})
+	selectors, err := p.Attest(context.Background(), pid)
 	s.Require().NoError(err)
-	s.Require().Empty(resp.Selectors)
+	s.Require().Empty(selectors)
 }
 
 func (s *Suite) TestAttestOverSecurePortViaTokenAuth() {
@@ -290,14 +282,14 @@ func (s *Suite) TestAttestOverSecurePortViaTokenAuth() {
 	s.startSecureKubelet(true, "default-token")
 
 	// use the service account token for auth
-	s.configureSecure(``)
+	p := s.loadSecurePlugin(``)
 
-	s.requireAttestSuccessWithPod()
+	s.requireAttestSuccessWithPod(p)
 
 	// write out a different token and make sure it is picked up on reload
 	s.writeFile(defaultTokenPath, "bad-token")
 	s.clock.Add(defaultReloadInterval)
-	s.requireAttestFailure(`expected "Bearer default-token", got "Bearer bad-token"`)
+	s.requireAttestFailure(p, codes.Internal, `expected "Bearer default-token", got "Bearer bad-token"`)
 }
 
 func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
@@ -305,19 +297,19 @@ func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
 	s.startSecureKubelet(true, "")
 
 	// use client certificate for auth
-	s.configureSecure(`
+	p := s.loadSecurePlugin(`
 		certificate_path = "cert.pem"
 		private_key_path = "key.pem"
 	`)
 
-	s.requireAttestSuccessWithPod()
+	s.requireAttestSuccessWithPod(p)
 
 	// write out a different client cert and make sure it is picked up on reload
 	clientCert := s.createClientCert()
 	s.writeCert(certPath, clientCert)
 
 	s.clock.Add(defaultReloadInterval)
-	s.requireAttestFailure("tls: bad certificate")
+	s.requireAttestFailure(p, codes.Internal, "tls: bad certificate")
 }
 
 func (s *Suite) TestAttestReachingKubeletViaNodeName() {
@@ -326,34 +318,29 @@ func (s *Suite) TestAttestReachingKubeletViaNodeName() {
 
 	// pick up the node name from the default env value
 	s.env["MY_NODE_NAME"] = "localhost"
-	s.configureSecure(``)
-	s.requireAttestSuccessWithPod()
+	s.requireAttestSuccessWithPod(s.loadSecurePlugin(``))
 
 	// pick up the node name from explicit config (should override env)
 	s.env["MY_NODE_NAME"] = "bad-node-name"
-	s.configureSecure(`
+	s.requireAttestSuccessWithPod(s.loadSecurePlugin(`
 		node_name = "localhost"
-	`)
-	s.requireAttestSuccessWithPod()
+	`))
 
 	// pick up the node name from the overridden env value
 	s.env["OVERRIDDEN_NODE_NAME"] = "localhost"
-	s.configureSecure(`
+	s.requireAttestSuccessWithPod(s.loadSecurePlugin(`
 		node_name_env = "OVERRIDDEN_NODE_NAME"
-	`)
-	s.requireAttestSuccessWithPod()
+	`))
 }
 
 func (s *Suite) TestAttestAgainstNodeOverride() {
 	s.startInsecureKubelet()
-	s.configureInsecure()
+	p := s.loadInsecurePlugin()
 	s.addCgroupsResponse(cgPidNotInPodFilePath)
 
-	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
-		Pid: int32(pid),
-	})
+	selectors, err := p.Attest(context.Background(), pid)
 	s.Require().NoError(err)
-	s.Require().Empty(resp.Selectors)
+	s.Require().Empty(selectors)
 }
 
 func (s *Suite) TestConfigure() {
@@ -578,18 +565,19 @@ func (s *Suite) TestConfigure() {
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
-			p, wp := s.newPlugin()
-			resp, err := wp.Configure(context.Background(), &spi.ConfigureRequest{
-				Configuration: testCase.hcl,
-			})
+			p := s.newPlugin()
+
+			var err error
+			plugintest.Load(s.T(), builtin(p), nil,
+				plugintest.Configure(testCase.hcl),
+				plugintest.CaptureConfigureError(&err))
+
 			if testCase.err != "" {
 				s.AssertErrorContains(err, testCase.err)
 				return
 			}
 			require.NotNil(t, testCase.config, "test case missing expected config")
-
 			assert.NoError(t, err)
-			spiretest.AssertProtoEqual(t, &spi.ConfigureResponse{}, resp)
 
 			c, err := p.getConfig()
 			require.NoError(t, err)
@@ -622,23 +610,14 @@ func (s *Suite) TestConfigure() {
 	}
 }
 
-func (s *Suite) TestGetPluginInfo() {
-	resp, err := s.p.GetPluginInfo(context.Background(), &spi.GetPluginInfoRequest{})
-	s.NoError(err)
-	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
-}
-
-func (s *Suite) newPlugin() (*Plugin, workloadattestorv0.WorkloadAttestorClient) {
+func (s *Suite) newPlugin() *Plugin {
 	p := New()
 	p.fs = testFS(s.dir)
 	p.clock = s.clock
 	p.getenv = func(key string) string {
 		return s.env[key]
 	}
-
-	v0 := new(workloadattestor.V0)
-	plugintest.Load(s.T(), builtin(p), v0)
-	return p, v0.WorkloadAttestorPluginClient
+	return p
 }
 
 func (s *Suite) setServer(server *httptest.Server) {
@@ -672,15 +651,16 @@ func (s *Suite) kubeletPort() int {
 	return tcpAddr.Port
 }
 
-func (s *Suite) configure(configuration string) {
-	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: configuration,
-	})
-	s.Require().NoError(err)
+func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttestor {
+	v1 := new(workloadattestor.V1)
+	plugintest.Load(s.T(), builtin(s.newPlugin()), v1,
+		plugintest.Configure(configuration),
+	)
+	return v1
 }
 
-func (s *Suite) configureInsecure() {
-	s.configure(fmt.Sprintf(`
+func (s *Suite) loadInsecurePlugin() workloadattestor.WorkloadAttestor {
+	return s.loadPlugin(fmt.Sprintf(`
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
@@ -750,13 +730,11 @@ func (s *Suite) startSecureKubelet(hostNetworking bool, token string) {
 	s.setServer(server)
 }
 
-func (s *Suite) configureSecure(extraConfig string) {
-	configuration := fmt.Sprintf(`
+func (s *Suite) loadSecurePlugin(extraConfig string) workloadattestor.WorkloadAttestor {
+	return s.loadPlugin(fmt.Sprintf(`
 		kubelet_secure_port = %d
-	`, s.kubeletPort())
-	configuration += extraConfig
-
-	s.configure(configuration)
+		%s
+	`, s.kubeletPort(), extraConfig))
 }
 
 func (s *Suite) createKubeletCert(dnsName string) *x509.Certificate {
@@ -802,44 +780,40 @@ func (s *Suite) writeKey(path string, key *ecdsa.PrivateKey) {
 	s.writeFile(path, string(pemBytes))
 }
 
-func (s *Suite) requireAttestSuccessWithPod() {
+func (s *Suite) requireAttestSuccessWithPod(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
-	s.requireAttestSuccess(testPodSelectors)
+	s.requireAttestSuccess(p, testPodSelectors)
 }
 
-func (s *Suite) requireAttestSuccessWithKindPod() {
+func (s *Suite) requireAttestSuccessWithKindPod(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(kindPodListFilePath)
 	s.addCgroupsResponse(cgPidInKindPodFilePath)
-	s.requireAttestSuccess(testKindPodSelectors)
+	s.requireAttestSuccess(p, testKindPodSelectors)
 }
 
-func (s *Suite) requireAttestSuccessWithPodSystemdCgroups() {
+func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
-	s.requireAttestSuccess(testPodSelectors)
+	s.requireAttestSuccess(p, testPodSelectors)
 }
 
-func (s *Suite) requireAttestSuccessWithInitPod() {
+func (s *Suite) requireAttestSuccessWithInitPod(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgInitPidInPodFilePath)
-	s.requireAttestSuccess(testInitPodSelectors)
+	s.requireAttestSuccess(p, testInitPodSelectors)
 }
 
-func (s *Suite) requireAttestSuccess(expectedSelectors []*common.Selector) {
-	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
-		Pid: int32(pid),
-	})
+func (s *Suite) requireAttestSuccess(p workloadattestor.WorkloadAttestor, expectedSelectors []*common.Selector) {
+	selectors, err := p.Attest(context.Background(), pid)
 	s.Require().NoError(err)
-	s.requireSelectorsEqual(expectedSelectors, resp.Selectors)
+	s.requireSelectorsEqual(expectedSelectors, selectors)
 }
 
-func (s *Suite) requireAttestFailure(contains string) {
-	resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
-		Pid: int32(pid),
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, contains)
-	s.Require().Nil(resp)
+func (s *Suite) requireAttestFailure(p workloadattestor.WorkloadAttestor, code codes.Code, contains string) {
+	selectors, err := p.Attest(context.Background(), pid)
+	s.RequireGRPCStatusContains(err, code, contains)
+	s.Require().Nil(selectors)
 }
 
 func (s *Suite) requireSelectorsEqual(expected, actual []*common.Selector) {
@@ -848,15 +822,13 @@ func (s *Suite) requireSelectorsEqual(expected, actual []*common.Selector) {
 	s.RequireProtoListEqual(expected, actual)
 }
 
-func (s *Suite) goAttest() <-chan attestResult {
+func (s *Suite) goAttest(p workloadattestor.WorkloadAttestor) <-chan attestResult {
 	resultCh := make(chan attestResult, 1)
 	go func() {
-		resp, err := s.p.Attest(context.Background(), &workloadattestorv0.AttestRequest{
-			Pid: int32(pid),
-		})
+		selectors, err := p.Attest(context.Background(), pid)
 		resultCh <- attestResult{
-			resp: resp,
-			err:  err,
+			selectors: selectors,
+			err:       err,
 		}
 	}()
 	return resultCh
@@ -893,13 +865,14 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 		name        string
 		cgroupPaths []string
 		containerID string
-		err         string
+		expectCode  codes.Code
+		expectMsg   string
 	}{
 		{
 			name:        "no cgroups",
 			cgroupPaths: []string{},
 			containerID: "",
-			err:         "",
+			expectCode:  codes.OK,
 		},
 		{
 			name: "no container ID in cgroups",
@@ -907,7 +880,7 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 				"/user.slice",
 			},
 			containerID: "",
-			err:         "",
+			expectCode:  codes.OK,
 		},
 		{
 			name: "one container ID in cgroups",
@@ -916,7 +889,7 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 				"/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
 			},
 			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
-			err:         "",
+			expectCode:  codes.OK,
 		},
 		{
 			name: "more than one container ID in cgroups",
@@ -926,18 +899,18 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 				"/kubepods/kubepods/besteffort/pod6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
 			},
 			containerID: "",
-			err:         "k8s: multiple container IDs found in cgroups (9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961, a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38)",
+			expectCode:  codes.FailedPrecondition,
+			expectMsg:   "multiple container IDs found in cgroups (9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961, a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38)",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			containerID, err := getContainerIDFromCGroups(makeCGroups(tt.cgroupPaths))
-			if tt.err != "" {
-				assert.EqualError(t, err, tt.err)
+			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+			if tt.expectCode != codes.OK {
 				assert.Empty(t, containerID)
 				return
 			}
-			assert.NoError(t, err)
 			assert.Equal(t, tt.containerID, containerID)
 		})
 	}

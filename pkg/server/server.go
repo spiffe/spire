@@ -146,14 +146,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 			}, nil
 		}),
 	}); err != nil {
-		return fmt.Errorf("failed setting IdentityProvider deps: %v", err)
+		return fmt.Errorf("failed setting IdentityProvider deps: %w", err)
 	}
 
 	// Set the agent store dependencies
 	if err := agentStore.SetDeps(agentstore.Deps{
 		DataStore: cat.GetDataStore(),
 	}); err != nil {
-		return fmt.Errorf("failed setting AgentStore deps: %v", err)
+		return fmt.Errorf("failed setting AgentStore deps: %w", err)
 	}
 
 	bundleManager := s.newBundleManager(cat, metrics)
@@ -161,7 +161,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
 	if err := healthChecker.AddCheck("server", s); err != nil {
-		return fmt.Errorf("failed adding healthcheck: %v", err)
+		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
 
 	err = util.RunTasks(ctx,
@@ -174,7 +174,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	)
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err
@@ -296,6 +296,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
 		Metrics:     metrics,
 		TrustDomain: s.config.TrustDomain,
+		KeyType:     s.config.CAKeyType,
 	})
 	if err := svidRotator.Initialize(ctx); err != nil {
 		return nil, err

@@ -3,6 +3,11 @@ package keymanager
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"fmt"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 )
@@ -41,4 +46,20 @@ type KeyManager interface {
 
 	// GetKeys returns all keys managed by the KeyManager.
 	GetKeys(ctx context.Context) ([]Key, error)
+}
+
+func (keyType KeyType) GenerateSigner() (crypto.Signer, error) {
+	switch keyType {
+	case ECP256:
+		return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	case ECP384:
+		return ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	case RSA1024:
+		return nil, fmt.Errorf("unsupported key type %q", keyType)
+	case RSA2048:
+		return rsa.GenerateKey(rand.Reader, 2048)
+	case RSA4096:
+		return rsa.GenerateKey(rand.Reader, 4096)
+	}
+	return nil, fmt.Errorf("unknown key type %q", keyType)
 }

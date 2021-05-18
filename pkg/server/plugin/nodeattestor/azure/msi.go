@@ -55,6 +55,7 @@ type MSIAttestorConfig struct {
 
 type MSIAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	mu     sync.RWMutex
 	config *MSIAttestorConfig

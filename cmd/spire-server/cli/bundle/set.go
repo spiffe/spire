@@ -70,14 +70,14 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 
 	bundleBytes, err := loadParamData(env.Stdin, c.path)
 	if err != nil {
-		return fmt.Errorf("unable to load bundle data: %v", err)
+		return fmt.Errorf("unable to load bundle data: %w", err)
 	}
 
 	switch format {
 	case formatPEM:
 		rootCAs, err := pemutil.ParseCertificates(bundleBytes)
 		if err != nil {
-			return fmt.Errorf("unable to parse bundle data: %v", err)
+			return fmt.Errorf("unable to parse bundle data: %w", err)
 		}
 
 		federatedBundles = append(federatedBundles, bundleProtoFromX509Authorities(id, rootCAs))
@@ -89,12 +89,12 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 
 		spiffeBundle, err := spiffebundle.Parse(td, bundleBytes)
 		if err != nil {
-			return fmt.Errorf("unable to parse to spiffe bundle: %v", err)
+			return fmt.Errorf("unable to parse to spiffe bundle: %w", err)
 		}
 
 		typeBundle, err := protoFromSpiffeBundle(spiffeBundle)
 		if err != nil {
-			return fmt.Errorf("unable to parse to type bundle: %v", err)
+			return fmt.Errorf("unable to parse to type bundle: %w", err)
 		}
 
 		federatedBundles = append(federatedBundles, typeBundle)
@@ -105,7 +105,7 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		Bundle: federatedBundles,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to set federated bundle: %v", err)
+		return fmt.Errorf("failed to set federated bundle: %w", err)
 	}
 
 	result := resp.Results[0]

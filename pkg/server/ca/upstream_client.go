@@ -3,6 +3,7 @@ package ca
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"io"
 	"sync"
 	"time"
@@ -145,7 +146,7 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, tt
 		x509Roots, err := x509RootsStream.RecvUpstreamX509Authorities()
 		if err != nil {
 			switch {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				// This is normal if the plugin does not support streaming
 				// bundle updates.
 			case status.Code(err) == codes.Canceled:
@@ -183,7 +184,7 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, jwtKey *com
 		jwtKeys, err := jwtKeysStream.RecvUpstreamJWTAuthorities()
 		if err != nil {
 			switch {
-			case err == io.EOF:
+			case errors.Is(err, io.EOF):
 				// This is normal if the plugin does not support streaming
 				// bundle updates.
 			case status.Code(err) == codes.Canceled:

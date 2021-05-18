@@ -7,13 +7,13 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -22,16 +22,14 @@ const (
 	defaultTokenPath = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 )
 
-var (
-	satError = errs.Class("k8s-sat")
-)
-
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
 func builtin(p *AttestorPlugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
 type AttestorConfig struct {
@@ -40,13 +38,13 @@ type AttestorConfig struct {
 }
 
 type attestorConfig struct {
-	trustDomain spiffeid.TrustDomain
-	cluster     string
-	tokenPath   string
+	cluster   string
+	tokenPath string
 }
 
 type AttestorPlugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	mu     sync.RWMutex
 	config *attestorConfig
@@ -56,7 +54,7 @@ func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
 
-func (p *AttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
+func (p *AttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -64,68 +62,51 @@ func (p *AttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor
 
 	token, err := loadTokenFromFile(config.tokenPath)
 	if err != nil {
-		return satError.New("unable to load token from %s: %v", config.tokenPath, err)
+		return status.Errorf(codes.InvalidArgument, "unable to load token from %s: %v", config.tokenPath, err)
 	}
 
-	data, err := json.Marshal(k8s.SATAttestationData{
+	payload, err := json.Marshal(k8s.SATAttestationData{
 		Cluster: config.cluster,
 		Token:   token,
 	})
 	if err != nil {
-		return satError.Wrap(err)
+		return status.Errorf(codes.Internal, "unable to marshal SAT token data: %v", err)
 	}
 
-	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		AttestationData: &common.AttestationData{
-			Type: pluginName,
-			Data: data,
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: payload,
 		},
 	})
 }
 
-func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	hclConfig := new(AttestorConfig)
-	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
-		return nil, satError.New("unable to decode configuration: %v", err)
+	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if req.GlobalConfig == nil {
-		return nil, satError.New("global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, satError.New("global configuration missing trust domain")
-	}
 	if hclConfig.Cluster == "" {
-		return nil, satError.New("configuration missing cluster")
-	}
-
-	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
-	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.InvalidArgument, "configuration missing cluster")
 	}
 
 	config := &attestorConfig{
-		trustDomain: td,
-		cluster:     hclConfig.Cluster,
-		tokenPath:   hclConfig.TokenPath,
+		cluster:   hclConfig.Cluster,
+		tokenPath: hclConfig.TokenPath,
 	}
 	if config.tokenPath == "" {
 		config.tokenPath = defaultTokenPath
 	}
 
 	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *AttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, satError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }

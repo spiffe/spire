@@ -37,7 +37,7 @@ func AttestedNodeToProto(node *common.AttestedNode, selectors []*types.Selector)
 
 	spiffeID, err := spiffeid.FromString(node.SpiffeId)
 	if err != nil {
-		return nil, fmt.Errorf("node has malformed SPIFFE ID: %v", err)
+		return nil, fmt.Errorf("node has malformed SPIFFE ID: %w", err)
 	}
 
 	return &types.Agent{

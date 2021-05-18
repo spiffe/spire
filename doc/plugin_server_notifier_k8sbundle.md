@@ -2,7 +2,7 @@
 
 The `k8sbundle` plugin responds to bundle loaded/updated events by fetching and
 pushing the latest root CA certificates from the trust bundle to a Kubernetes
-ConfigMap.
+ConfigMap, and optionally Webhooks and APIServices.
 
 The certificates in the ConfigMap can be used to bootstrap SPIRE agents.
 
@@ -24,7 +24,8 @@ The following actions are required to set up the plugin.
 - Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account
     - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE server
     - In the case of out-of-cluster SPIRE server, it is Service Account that interacts with the Kubernetes API server
-    - In the case of setting `webhook_label`, the ClusterRole additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
+    - In the case of setting `webhook_label`, the ClusterRole or Role additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
+    - In the case of setting `api_service_label`, the ClusterRole or Role additonally needs permissions to `get`, `list`, `patch`, and `watch` `apiservices`.
 - Create the ConfigMap that the plugin pushes
 
 For example:
@@ -88,7 +89,7 @@ rules:
 
 ## Sample configurations
 
-### Default In-Cluster
+### Default In-Cluster with only ConfigMap Rotation
 
 The following configuration pushes bundle contents from an in-cluster SPIRE
 server to the `bundle.crt` key in the `spire:spire-bundle` ConfigMap.
@@ -117,7 +118,7 @@ the credentials found in the `/path/to/kubeconfig` file.
     }
 ```
 
-### Default In-Cluster with Webhook and APIService Rotation
+### Default In-Cluster with ConfigMap, Webhook, and APIService Rotation
 
 The following configuration pushes bundle contents from an in-cluster SPIRE
 server to
