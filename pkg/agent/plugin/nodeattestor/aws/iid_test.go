@@ -7,19 +7,18 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -42,6 +41,8 @@ LuiJGxLzxUjc4NF8Gb8e8CLXJxG0IxVmTXUCMQDSPJAG5rgYoUHrVPGEZU8llSLp
 99J2GUFw5Z3f0nprIukKqqA606RxdjdKeoAwLDkCMCptc0jZR3VM4w1wnwvAe0FL
 t61Ol/Q+OqWFX74JwsUU56FqPFm3Y9k7HxDILdedoQ==
 -----END RSA PRIVATE KEY-----`)
+
+	streamBuilder = nodeattestortest.ServerStream(aws.PluginName)
 )
 
 func TestIIDAttestorPlugin(t *testing.T) {
@@ -51,7 +52,7 @@ func TestIIDAttestorPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p       nodeattestorv0.NodeAttestorClient
+	p       nodeattestor.NodeAttestor
 	server  *httptest.Server
 	status  int
 	docBody string
@@ -79,15 +80,9 @@ func (s *Suite) SetupTest() {
 		}
 	}))
 
-	s.p = s.newPlugin()
-
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`ec2_metadata_endpoint = "http://%s/latest"`, s.server.Listener.Addr().String()),
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-	})
-	s.Require().NoError(err)
+	s.p = s.loadPlugin(
+		plugintest.Configuref(`ec2_metadata_endpoint = "http://%s/latest"`, s.server.Listener.Addr()),
+	)
 
 	s.status = http.StatusOK
 }
@@ -97,21 +92,16 @@ func (s *Suite) TearDownTest() {
 }
 
 func (s *Suite) TestErrorWhenNotConfigured() {
-	p := s.newPlugin()
-	stream, err := p.FetchAttestationData(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-	resp, err := stream.Recv()
-	s.RequireErrorContains(err, "not configured")
-	s.Require().Nil(resp)
+	p := s.loadPlugin()
+
+	err := p.Attest(context.Background(), nil)
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(aws_iid): not configured")
 }
 
 func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.docBody = ""
-	_, err := s.fetchAttestationData()
+	err := s.p.Attest(context.Background(), streamBuilder.Build())
 	s.RequireErrorContains(err, "status code: 502")
 }
 
@@ -119,61 +109,37 @@ func (s *Suite) TestSuccessfulIdentityProcessing() {
 	doc, sig := s.buildDefaultIIDDocAndSig()
 	s.docBody = string(doc)
 	s.sigBody = string(sig)
+
 	require := s.Require()
 
-	resp, err := s.fetchAttestationData()
-	require.NoError(err)
-	require.NotNil(resp)
-	require.Equal(aws.PluginName, resp.AttestationData.Type)
-	expectedBytes, err := json.Marshal(aws.IIDAttestationData{
+	expectPayload, err := json.Marshal(aws.IIDAttestationData{
 		Document:  string(doc),
 		Signature: string(sig),
 	})
 	require.NoError(err)
-	require.Equal(string(expectedBytes), string(resp.AttestationData.Data))
+
+	err = s.p.Attest(context.Background(), streamBuilder.ExpectAndBuild(expectPayload))
+	require.NoError(err)
 }
 
 func (s *Suite) TestConfigure() {
 	require := s.Require()
 
-	// malformed
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
-		Configuration: `trust_domain`,
-	})
+	var err error
+	s.loadPlugin(
+		plugintest.CaptureConfigureError(&err),
+		plugintest.Configure("malformed"),
+	)
 	require.Error(err)
-	require.Nil(resp)
 
 	// success
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-	})
-	require.NoError(err)
-	require.NotNil(resp)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
+	s.loadPlugin(plugintest.Configure(""))
 }
 
-func (s *Suite) TestGetPluginInfo() {
-	require := s.Require()
-	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	require.NoError(err)
-	require.NotNil(resp)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
-	na := new(nodeattestor.V0)
-	plugintest.Load(s.T(), BuiltIn(), na)
-	return na.NodeAttestorPluginClient
-}
-
-func (s *Suite) fetchAttestationData() (*nodeattestorv0.FetchAttestationDataResponse, error) {
-	stream, err := s.p.FetchAttestationData(context.Background())
-	s.NoError(err)
-	s.NoError(stream.CloseSend())
-	return stream.Recv()
+func (s *Suite) loadPlugin(opts ...plugintest.Option) nodeattestor.NodeAttestor {
+	na := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), na, opts...)
+	return na
 }
 
 func (s *Suite) buildDefaultIIDDocAndSig() (docBytes []byte, sigBytes []byte) {
