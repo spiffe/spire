@@ -48,6 +48,9 @@ A sample configuration:
 	}
 ```
 
+If `tpm_device_path` is unset, the plugin will try to auto-detect the TPM in
+the node.
+
 ### Compatibility considerations
 
 + This plugin is designed to work with TPM 2.0, TPM 1.2 is not supported.

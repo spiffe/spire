@@ -22,11 +22,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	// defaultDevicePath is the value used when tpm_device_path is not set
-	defaultDevicePath = "/dev/tpmrm0"
-)
-
 func BuiltIn() catalog.Plugin {
 	return builtin(New())
 }
@@ -62,7 +57,7 @@ type Plugin struct {
 
 func New() *Plugin {
 	return &Plugin{
-		c: newDefaultConfig(),
+		c: &config{},
 	}
 }
 
@@ -205,6 +200,12 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 
 	if extConf.DevicePath != "" {
 		p.c.devicePath = extConf.DevicePath
+	} else {
+		tpmPath, err := tpmutil.AutoDetectTPMPath()
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		p.c.devicePath = tpmPath
 	}
 
 	err = p.loadDevIDFiles(extConf)
@@ -251,12 +252,6 @@ func (p *Plugin) loadDevIDFiles(c *Config) error {
 	}
 
 	return nil
-}
-
-func newDefaultConfig() *config {
-	return &config{
-		devicePath: defaultDevicePath,
-	}
 }
 
 func decodePluginConfig(hclConf string) (*Config, error) {
