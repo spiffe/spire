@@ -250,7 +250,7 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	case c.clientParams.ClientCertPath != "" && c.clientParams.ClientKeyPath != "":
 		c, err := tls.LoadX509KeyPair(c.clientParams.ClientCertPath, c.clientParams.ClientKeyPath)
 		if err != nil {
-			return fmt.Errorf("failed to parse client cert and private-key: %v", err)
+			return fmt.Errorf("failed to parse client cert and private-key: %w", err)
 		}
 		clientCert = c
 		foundClientCert = true
@@ -261,7 +261,7 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	if c.clientParams.CACertPath != "" {
 		certs, err := pemutil.LoadCertificates(c.clientParams.CACertPath)
 		if err != nil {
-			return fmt.Errorf("failed to load CA certificate: %v", err)
+			return fmt.Errorf("failed to load CA certificate: %w", err)
 		}
 		pool := x509.NewCertPool()
 		for _, cert := range certs {
@@ -293,12 +293,12 @@ func (c *Client) Auth(path string, body map[string]interface{}) (*vapi.Secret, e
 	c.vaultClient.ClearToken()
 	secret, err := c.vaultClient.Logical().Write(path, body)
 	if err != nil {
-		return nil, fmt.Errorf("authentication failed %v: %v", path, err)
+		return nil, fmt.Errorf("authentication failed %v: %w", path, err)
 	}
 
 	tokenID, err := secret.TokenID()
 	if err != nil {
-		return nil, fmt.Errorf("authentication is successful, but could not get token: %v", err)
+		return nil, fmt.Errorf("authentication is successful, but could not get token: %w", err)
 	}
 	c.vaultClient.SetToken(tokenID)
 	return secret, nil
@@ -312,7 +312,7 @@ func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
 
 	secret, err := c.vaultClient.Logical().Read("auth/token/lookup-self")
 	if err != nil {
-		return nil, fmt.Errorf("token lookup failed: %v", err)
+		return nil, fmt.Errorf("token lookup failed: %w", err)
 	}
 
 	id, err := secret.TokenID()
