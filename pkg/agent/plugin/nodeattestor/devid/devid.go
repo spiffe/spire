@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/devid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/devid"
+	"github.com/spiffe/spire/pkg/common/util"
 	spc "github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
@@ -228,15 +230,15 @@ func (p *Plugin) getConfig() *config {
 }
 
 func (p *Plugin) loadDevIDFiles(c *Config) error {
-	devIDCertBytes, err := ioutil.ReadFile(c.DevIDCertPath)
+	certs, err := util.LoadCertificates(c.DevIDCertPath)
 	if err != nil {
 		return fmt.Errorf("cannot load certificate: %w", err)
 	}
 
-	p.c.devIDCert, err = x509.ParseCertificate(devIDCertBytes)
-	if err != nil {
-		return fmt.Errorf("cannot parse certificate: %w", err)
+	if len(certs) != 1 {
+		return errors.New("only one certificate is expected")
 	}
+	p.c.devIDCert = certs[0]
 
 	p.c.devIDPriv, err = ioutil.ReadFile(c.DevIDPrivPath)
 	if err != nil {
