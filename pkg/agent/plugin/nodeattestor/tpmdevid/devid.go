@@ -22,12 +22,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(common_devid.PluginName, nodeattestorv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(common_devid.PluginName, nodeattestorv0.NodeAttestorPluginServer(p))
 }
 
 type Config struct {

@@ -38,6 +38,8 @@ require (
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.1
 	github.com/google/go-cmp v0.5.5
+	github.com/google/go-tpm v0.3.2
+	github.com/google/go-tpm-tools v0.2.1
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/hashicorp/go-plugin v1.4.0
 	github.com/hashicorp/golang-lru v0.5.1
