@@ -83,6 +83,12 @@ func TestV1(t *testing.T) {
 		spiretest.AssertGRPCStatus(t, err, codes.FailedPrecondition, "notifier(test): ohno")
 	})
 
+	t.Run("notify and advise bundle loaded with invalid bundle", func(t *testing.T) {
+		notifier := loadV1Plugin(t, bundleUpdated, nil)
+		err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{})
+		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, "notifier(test): bundle is invalid: spiffeid: trust domain is empty")
+	})
+
 	t.Run("notify bundle updated success", func(t *testing.T) {
 		notifier := loadV1Plugin(t, bundleUpdated, nil)
 		err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
@@ -93,6 +99,12 @@ func TestV1(t *testing.T) {
 		notifier := loadV1Plugin(t, bundleUpdated, status.Error(codes.FailedPrecondition, "ohno"))
 		err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 		spiretest.AssertGRPCStatus(t, err, codes.FailedPrecondition, "notifier(test): ohno")
+	})
+
+	t.Run("notify bundle updated with invalid bundle", func(t *testing.T) {
+		notifier := loadV1Plugin(t, bundleUpdated, nil)
+		err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{})
+		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, "notifier(test): bundle is invalid: spiffeid: trust domain is empty")
 	})
 }
 

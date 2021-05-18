@@ -19,7 +19,7 @@ type V1 struct {
 func (v1 *V1) NotifyAndAdviseBundleLoaded(ctx context.Context, bundle *common.Bundle) error {
 	pluginBundle, err := bundleFromCommonProto(bundle)
 	if err != nil {
-		return v1.Errorf(codes.InvalidArgument, "bundle is malformed: %v", err)
+		return v1.Errorf(codes.InvalidArgument, "bundle is invalid: %v", err)
 	}
 	_, err = v1.NotifierPluginClient.NotifyAndAdvise(ctx, &notifierv1.NotifyAndAdviseRequest{
 		Event: &notifierv1.NotifyAndAdviseRequest_BundleLoaded{
@@ -34,7 +34,7 @@ func (v1 *V1) NotifyAndAdviseBundleLoaded(ctx context.Context, bundle *common.Bu
 func (v1 *V1) NotifyBundleUpdated(ctx context.Context, bundle *common.Bundle) error {
 	pluginBundle, err := bundleFromCommonProto(bundle)
 	if err != nil {
-		return v1.Errorf(codes.InvalidArgument, "bundle is malformed: %v", err)
+		return v1.Errorf(codes.InvalidArgument, "bundle is invalid: %v", err)
 	}
 	_, err = v1.NotifierPluginClient.Notify(ctx, &notifierv1.NotifyRequest{
 		Event: &notifierv1.NotifyRequest_BundleUpdated{
