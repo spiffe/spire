@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
@@ -136,7 +137,7 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := server.Serve(pipeNet); err != nil && err != grpc.ErrServerStopped {
+		if err := server.Serve(pipeNet); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			log.WithError(err).Error("Pipe server unexpectedly failed to serve")
 		}
 	}()

@@ -65,12 +65,14 @@ func (my mysqlDB) supportsCTE(gormDB *gorm.DB) (bool, error) {
 }
 
 func (my mysqlDB) isParseError(err error) bool {
-	e, ok := err.(*mysql.MySQLError)
+	var e *mysql.MySQLError
+	ok := errors.As(err, &e)
 	return ok && e.Number == 1064 // ER_PARSE_ERROR
 }
 
 func (my mysqlDB) isConstraintViolation(err error) bool {
-	e, ok := err.(*mysql.MySQLError)
+	var e *mysql.MySQLError
+	ok := errors.As(err, &e)
 	return ok && e.Number == 1062 // ER_DUP_ENTRY
 }
 

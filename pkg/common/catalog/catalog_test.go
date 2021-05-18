@@ -453,7 +453,7 @@ func buildTestPlugin(t *testing.T, srcPath string) string {
 	pluginPath := filepath.Join(dir, "test")
 
 	now := time.Now()
-	buildOutput, err := exec.Command("go", "build", "-o", pluginPath, srcPath).CombinedOutput() //nolint: gosec // false positive
+	buildOutput, err := exec.Command("go", "build", "-o", pluginPath, srcPath).CombinedOutput()
 	if err != nil {
 		t.Logf("build output:\n%s\n", string(buildOutput))
 		t.Fatal("failed to build test plugin")

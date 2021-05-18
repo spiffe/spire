@@ -55,13 +55,13 @@ func (c *client) GetPod(ctx context.Context, namespace, podName string) (*v1.Pod
 	// Reload config
 	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get clientset: %v", err)
+		return nil, fmt.Errorf("unable to get clientset: %w", err)
 	}
 
 	// Get pod
 	pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("unable to query pods API: %v", err)
+		return nil, fmt.Errorf("unable to query pods API: %w", err)
 	}
 
 	if pod == nil {
@@ -80,13 +80,13 @@ func (c *client) GetNode(ctx context.Context, nodeName string) (*v1.Node, error)
 	// Reload config
 	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get clientset: %v", err)
+		return nil, fmt.Errorf("unable to get clientset: %w", err)
 	}
 
 	// Get node
 	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("unable to query nodes API: %v", err)
+		return nil, fmt.Errorf("unable to query nodes API: %w", err)
 	}
 
 	if node == nil {
@@ -100,7 +100,7 @@ func (c *client) ValidateToken(ctx context.Context, token string, audiences []st
 	// Reload config
 	clientset, err := c.loadClientHook(c.kubeConfigFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get clientset: %v", err)
+		return nil, fmt.Errorf("unable to get clientset: %w", err)
 	}
 
 	// Create token review request
@@ -114,7 +114,7 @@ func (c *client) ValidateToken(ctx context.Context, token string, audiences []st
 	// Do request
 	resp, err := clientset.AuthenticationV1().TokenReviews().Create(ctx, req, metav1.CreateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("unable to query token review API: %v", err)
+		return nil, fmt.Errorf("unable to query token review API: %w", err)
 	}
 
 	// Evaluate token review response (review server will populate TokenReview.Status field)
@@ -139,12 +139,12 @@ func loadClient(kubeConfigFilePath string) (kubernetes.Interface, error) {
 		config, err = clientcmd.BuildConfigFromFlags("", kubeConfigFilePath)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to create client config: %v", err)
+		return nil, fmt.Errorf("unable to create client config: %w", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create clientset for the given config: %v", err)
+		return nil, fmt.Errorf("unable to create clientset for the given config: %w", err)
 	}
 
 	return clientset, nil

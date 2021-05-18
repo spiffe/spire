@@ -88,7 +88,7 @@ func (m *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	// Create trust domain
 	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
 	if err != nil {
-		return nil, fmt.Errorf("malformed trustdomain: %v", err)
+		return nil, fmt.Errorf("malformed trustdomain: %w", err)
 	}
 	m.trustDomain = td
 
@@ -286,7 +286,7 @@ func (m *Plugin) startPolling(streamCtx context.Context) error {
 	pollCtx, m.stopPolling = context.WithCancel(context.Background())
 
 	if err := m.serverClient.start(streamCtx); err != nil {
-		return fmt.Errorf("failed to start server client: %v", err)
+		return fmt.Errorf("failed to start server client: %w", err)
 	}
 
 	go m.pollBundleUpdates(pollCtx)

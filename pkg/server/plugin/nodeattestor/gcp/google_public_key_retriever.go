@@ -75,7 +75,7 @@ func (r *googlePublicKeyRetriever) downloadCertificates() error {
 
 	var data map[string]string
 	if err := json.Unmarshal(bytes, &data); err != nil {
-		return fmt.Errorf("unable to unmarshal certificate response: %v", err)
+		return fmt.Errorf("unable to unmarshal certificate response: %w", err)
 	}
 
 	certificates := make(map[string]*x509.Certificate)

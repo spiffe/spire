@@ -30,7 +30,7 @@ type cacheValue struct {
 func NewFetchX509SVIDCache(cacheSize int) (*FetchRegistrationEntriesCache, error) {
 	cache, err := lru.New(cacheSize)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create lru cache: %v", err)
+		return nil, fmt.Errorf("failed to create lru cache: %w", err)
 	}
 	return &FetchRegistrationEntriesCache{
 		Cache:   cache,

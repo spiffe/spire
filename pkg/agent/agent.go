@@ -87,7 +87,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	endpoints := a.newEndpoints(cat, metrics, manager)
 
 	if err := healthChecker.AddCheck("agent", a); err != nil {
-		return fmt.Errorf("failed adding healthcheck: %v", err)
+		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
 
 	tasks := []func(context.Context) error{
@@ -103,7 +103,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	err = util.RunTasks(ctx, tasks...)
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err
@@ -282,7 +282,7 @@ func (a *Agent) checkWorkloadAPI() error {
 
 	err := <-errCh
 	if status.Code(err) == codes.Unavailable {
-		return errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+		return errors.New("workload api is unavailable")
 	}
 
 	return nil

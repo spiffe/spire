@@ -110,7 +110,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 
 	err := m.storePrivateKey(ctx, m.c.SVIDKey)
 	if err != nil {
-		return fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("failed to store private key: %w", err)
 	}
 
 	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
@@ -133,7 +133,7 @@ func (m *manager) Run(ctx context.Context) error {
 		m.svid.Run)
 
 	switch {
-	case err == nil || err == context.Canceled:
+	case err == nil || errors.Is(err, context.Canceled):
 		m.c.Log.Info("Cache manager stopped")
 		return nil
 	case nodeutil.ShouldAgentReattest(err):
@@ -202,7 +202,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 	case cachedSVID == nil:
 		return nil, err
 	case rotationutil.JWTSVIDExpired(cachedSVID, now):
-		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
+		return nil, fmt.Errorf("unable to renew JWT for %q (err=%w)", spiffeID, err)
 	default:
 		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("Unable to renew JWT; returning cached copy")
 		return cachedSVID, nil

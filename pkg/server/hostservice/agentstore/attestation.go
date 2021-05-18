@@ -32,6 +32,6 @@ func IsAttested(ctx context.Context, store agentstorev0.AgentStoreClient, agentI
 	case codes.NotFound:
 		return false, nil
 	default:
-		return false, fmt.Errorf("unable to get agent info: %v", err)
+		return false, fmt.Errorf("unable to get agent info: %w", err)
 	}
 }

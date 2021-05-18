@@ -49,7 +49,7 @@ func LoadCertificates(path string) ([]*x509.Certificate, error) {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse certificate in block %d: %v", blockno, err)
+			return nil, fmt.Errorf("unable to parse certificate in block %d: %w", blockno, err)
 		}
 		certs = append(certs, cert)
 	}

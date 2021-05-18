@@ -2,6 +2,7 @@ package spiretest
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 
@@ -36,7 +37,7 @@ func NewAPIServer(t *testing.T, registerFn func(s *grpc.Server), contextFn func(
 		server.Stop()
 		err := <-errCh
 		switch {
-		case err == nil, err == grpc.ErrServerStopped:
+		case err == nil, errors.Is(err, grpc.ErrServerStopped):
 		default:
 			t.Fatal(err)
 		}
