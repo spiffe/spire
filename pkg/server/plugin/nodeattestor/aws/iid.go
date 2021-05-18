@@ -90,6 +90,7 @@ func builtin(p *IIDAttestorPlugin) catalog.BuiltIn {
 // IIDAttestorPlugin implements node attestation for agents running in aws.
 type IIDAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv0.UnsafeNodeAttestorServer
 
 	config  *IIDAttestorConfig
 	mtx     sync.RWMutex

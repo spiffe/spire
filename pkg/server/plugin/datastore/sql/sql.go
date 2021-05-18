@@ -644,7 +644,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	if cfg.ConnMaxLifetime != nil {
 		connMaxLifetime, err := time.ParseDuration(*cfg.ConnMaxLifetime)
 		if err != nil {
-			return nil, "", false, nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %v", *cfg.ConnMaxLifetime, err)
+			return nil, "", false, nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *cfg.ConnMaxLifetime, err)
 		}
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
@@ -856,7 +856,7 @@ func fetchBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
 	model := new(Bundle)
 	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
 	switch {
-	case err == gorm.ErrRecordNotFound:
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
@@ -931,7 +931,7 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	// Get current bundle
 	currentBundle, err := fetchBundle(tx, trustDomainID)
 	if err != nil {
-		return false, fmt.Errorf("unable to fetch current bundle: %v", err)
+		return false, fmt.Errorf("unable to fetch current bundle: %w", err)
 	}
 
 	if currentBundle == nil {
@@ -942,14 +942,14 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	// Prune
 	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, expiry, log)
 	if err != nil {
-		return false, fmt.Errorf("prune failed: %v", err)
+		return false, fmt.Errorf("prune failed: %w", err)
 	}
 
 	// Update only if bundle was modified
 	if changed {
 		_, err := updateBundle(tx, newBundle, nil)
 		if err != nil {
-			return false, fmt.Errorf("unable to write new bundle: %v", err)
+			return false, fmt.Errorf("unable to write new bundle: %w", err)
 		}
 	}
 
@@ -977,7 +977,7 @@ func fetchAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, erro
 	var model AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", spiffeID).Error
 	switch {
-	case err == gorm.ErrRecordNotFound:
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
@@ -3121,7 +3121,7 @@ func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
 func fetchJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
 	var model JoinToken
 	err := tx.Find(&model, "token = ?", token).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	} else if err != nil {
 		return nil, sqlError.Wrap(err)

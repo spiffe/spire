@@ -7,7 +7,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/spiffe/spire/proto/spire/common"
 	"gopkg.in/square/go-jose.v2/jwt"
 	authv1 "k8s.io/api/authentication/v1"
 )
@@ -90,11 +89,8 @@ func AgentID(pluginName, trustDomain, cluster, uuid string) string {
 	return u.String()
 }
 
-func MakeSelector(pluginName, kind string, values ...string) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", kind, strings.Join(values, ":")),
-	}
+func MakeSelectorValue(kind string, values ...string) string {
+	return fmt.Sprintf("%s:%s", kind, strings.Join(values, ":"))
 }
 
 // GetNamesFromTokenStatus parses a fully qualified k8s username like: 'system:serviceaccount:spire:spire-agent'

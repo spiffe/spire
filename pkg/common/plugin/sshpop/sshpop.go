@@ -183,7 +183,7 @@ func certCheckerFromPubkeys(certAuthorities []string) (*ssh.CertChecker, error) 
 	for _, certAuthority := range certAuthorities {
 		authority, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certAuthority))
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse public key %q: %v", certAuthority, err)
+			return nil, fmt.Errorf("failed to parse public key %q: %w", certAuthority, err)
 		}
 		authorities[ssh.FingerprintSHA256(authority)] = true
 	}

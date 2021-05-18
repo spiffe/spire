@@ -220,7 +220,7 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 
 	cert, err := ca.SignCSR(ctx, req.Csr, 0)
 	if err != nil {
-		return nil, fmt.Errorf("unable to sign CSR: %v", err)
+		return nil, fmt.Errorf("unable to sign CSR: %w", err)
 	}
 
 	var bundles [][]byte

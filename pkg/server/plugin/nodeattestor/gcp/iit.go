@@ -54,6 +54,8 @@ type computeEngineClient interface {
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv0.UnsafeNodeAttestorServer
+
 	config            *IITAttestorConfig
 	log               hclog.Logger
 	mtx               sync.Mutex
@@ -356,11 +358,11 @@ type googleComputeEngineClient struct {
 func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	service, err := c.getService(ctx, serviceAccountFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compute service client: %v", err)
+		return nil, fmt.Errorf("failed to create compute service client: %w", err)
 	}
 	instance, err := service.Instances.Get(projectID, zone, instanceName).Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch instance metadata: %v", err)
+		return nil, fmt.Errorf("failed to fetch instance metadata: %w", err)
 	}
 	return instance, nil
 }

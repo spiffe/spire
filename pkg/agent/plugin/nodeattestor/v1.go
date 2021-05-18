@@ -2,6 +2,7 @@ package nodeattestor
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
@@ -25,7 +26,7 @@ func (v1 *V1) Attest(ctx context.Context, serverStream ServerStream) error {
 
 	payloadOrChallengeResponse, err := pluginStream.Recv()
 	switch {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		return v1.Error(codes.Internal, "plugin closed stream before returning attestation data")
 	case err != nil:
 		return v1.WrapErr(err)
@@ -53,7 +54,7 @@ func (v1 *V1) Attest(ctx context.Context, serverStream ServerStream) error {
 			Challenge: challenge,
 		})
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return v1.Error(codes.Internal, "plugin closed stream before handling the challenge")
 		case err != nil:
 			return v1.WrapErr(err)
@@ -61,7 +62,7 @@ func (v1 *V1) Attest(ctx context.Context, serverStream ServerStream) error {
 
 		payloadOrChallengeResponse, err := pluginStream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return v1.Error(codes.Internal, "plugin closed stream before handling the challenge")
 		case err != nil:
 			return v1.WrapErr(err)
