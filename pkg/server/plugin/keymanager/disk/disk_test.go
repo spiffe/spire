@@ -33,7 +33,7 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestGenerateKeyBeforeConfigure(t *testing.T) {
-	km := new(keymanager.V0)
+	km := new(keymanager.V1)
 	plugintest.Load(t, disk.BuiltIn(), km)
 
 	_, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
@@ -79,7 +79,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 }
 
 func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
-	km := new(keymanager.V0)
+	km := new(keymanager.V1)
 	var configErr error
 	plugintest.Load(t, disk.BuiltIn(), km,
 		plugintest.Configuref(configFmt, configArgs...),

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -15,102 +16,105 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 func TestV0(t *testing.T) {
-	attestationData := nodeattestor.AttestationData{Type: "test", Payload: []byte("test")}
-	attestationDataMissingType := nodeattestor.AttestationData{Payload: []byte("test")}
+	streamBuilder := nodeattestortest.ServerStream("test")
+	payload := []byte("payload")
+	challenge := []byte("challenge")
+	challengeResponse := []byte("challengeResponse")
+	attestationData := nodeattestor.AttestationData{Type: "test", Payload: payload}
+	attestationDataMissingType := nodeattestor.AttestationData{Payload: payload}
 	attestationDataMissingPayload := nodeattestor.AttestationData{Type: "test"}
 
 	for _, tt := range []struct {
 		test          string
 		pluginImpl    *fakeV0Plugin
-		streamImpl    *fakeStream
+		streamImpl    nodeattestor.ServerStream
 		expectCode    codes.Code
 		expectMessage string
 	}{
 		{
 			test:          "plugin closes stream without returning attestation data",
 			pluginImpl:    &fakeV0Plugin{closeStream: true},
-			streamImpl:    &fakeStream{},
+			streamImpl:    streamBuilder.Build(),
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream before returning attestation data",
 		},
 		{
 			test:          "plugin fails fetching attestation data",
 			pluginImpl:    &fakeV0Plugin{attestationDataErr: errors.New("ohno")},
-			streamImpl:    &fakeStream{},
+			streamImpl:    streamBuilder.Build(),
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
 		{
 			test:          "plugin does not return attestation data",
 			pluginImpl:    &fakeV0Plugin{},
-			streamImpl:    &fakeStream{},
+			streamImpl:    streamBuilder.Build(),
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin response missing attestation data",
 		},
 		{
 			test:          "plugin does not return attestation data type",
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationDataMissingType},
-			streamImpl:    &fakeStream{},
+			streamImpl:    streamBuilder.Build(),
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin response missing attestation data type",
 		},
 		{
 			test:          "plugin does not return attestation data payload",
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationDataMissingPayload},
-			streamImpl:    &fakeStream{},
+			streamImpl:    streamBuilder.Build(),
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin response missing attestation data payload",
 		},
 		{
 			test:          "server stream fails sending attestation data",
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData},
-			streamImpl:    &fakeStream{attestationErr: errors.New("ohno")},
+			streamImpl:    streamBuilder.FailAndBuild(errors.New("ohno")),
 			expectCode:    codes.Unknown,
 			expectMessage: "ohno",
 		},
 		{
 			test:          "server stream issues no challenge",
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData},
-			streamImpl:    &fakeStream{expectData: attestationData},
+			streamImpl:    streamBuilder.ExpectAndBuild(payload),
 			expectCode:    codes.OK,
 			expectMessage: "",
 		},
 		{
 			test:          "plugin ignores server stream issued challenge",
 			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData},
-			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
+			streamImpl:    streamBuilder.ExpectThenChallenge(payload, challenge).ExpectAndBuild(challengeResponse),
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream before handling the challenge",
 		},
 		{
 			test:          "plugin fails responding to challenge",
-			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses("echo", "echo"), challengeResponseErr: errors.New("ohno")},
-			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
+			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses(challenge, challengeResponse), challengeResponseErr: errors.New("ohno")},
+			streamImpl:    streamBuilder.ExpectThenChallenge(payload, challenge).ExpectAndBuild(challengeResponse),
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
 		{
 			test:          "plugin answers server stream issued challenge correctly",
-			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses("echo", "echo")},
-			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
+			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses(challenge, challengeResponse)},
+			streamImpl:    streamBuilder.ExpectThenChallenge(payload, challenge).ExpectAndBuild(challengeResponse),
 			expectCode:    codes.OK,
 			expectMessage: "",
 		},
 		{
 			test:          "plugin answers server stream issued challenge incorrectly",
-			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses("echo", "foo")},
-			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
+			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses(challenge, []byte("foo"))},
+			streamImpl:    streamBuilder.ExpectThenChallenge(payload, challenge).ExpectAndBuild(challengeResponse),
 			expectCode:    codes.InvalidArgument,
-			expectMessage: "stream received invalid challenge response",
+			expectMessage: `expected attestation payload "challengeResponse"; got "foo"`,
 		},
 		{
 			test:          "plugin response with empty challenge response",
-			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses("echo", "")},
-			streamImpl:    &fakeStream{expectData: attestationData, challenges: challenges("echo")},
+			pluginImpl:    &fakeV0Plugin{attestationData: &attestationData, challengeResponses: challengeResponses(challenge, nil)},
+			streamImpl:    streamBuilder.ExpectThenChallenge(payload, challenge).ExpectAndBuild(challengeResponse),
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin response missing challenge response",
 		},
@@ -192,46 +196,6 @@ func (plugin *fakeV0Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoReq
 	return &spi.GetPluginInfoResponse{}, nil
 }
 
-type fakeStream struct {
-	attestationErr error
-	expectData     nodeattestor.AttestationData
-	challenges     []string
-}
-
-func (ss *fakeStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
-	switch {
-	case ss.attestationErr != nil:
-		return nil, ss.attestationErr
-	case ss.expectData.Type != attestationData.Type:
-		return nil, fmt.Errorf("expected attestation type %q; got %q", ss.expectData.Type, attestationData.Type)
-	case string(ss.expectData.Payload) != string(attestationData.Payload):
-		return nil, fmt.Errorf("expected attestation payload %q; got %q", string(ss.expectData.Payload), string(attestationData.Payload))
-	default:
-		return ss.nextChallenge(), nil
-	}
-}
-
-func (ss *fakeStream) SendChallengeResponse(ctx context.Context, response []byte) ([]byte, error) {
-	switch {
-	case len(ss.challenges) == 0:
-		// This shouldn't happen unless there is a problem in the shim since
-		// it shouldn't be issuing challenge responses for challenges that
-		// were never issued.
-		return nil, errors.New("stream received unexpected challenge response")
-	case ss.challenges[0] != string(response):
-		return nil, status.Error(codes.InvalidArgument, "stream received invalid challenge response")
-	}
-	ss.challenges = ss.challenges[1:]
-	return ss.nextChallenge(), nil
-}
-
-func (ss *fakeStream) nextChallenge() []byte {
-	if len(ss.challenges) > 0 {
-		return []byte(ss.challenges[0])
-	}
-	return nil
-}
-
 func v0AttestationData(attestationData *nodeattestor.AttestationData) *common.AttestationData {
 	if attestationData == nil {
 		return nil
@@ -242,14 +206,10 @@ func v0AttestationData(attestationData *nodeattestor.AttestationData) *common.At
 	}
 }
 
-func challenges(ss ...string) []string {
-	return ss
-}
-
-func challengeResponses(ss ...string) map[string]string {
+func challengeResponses(ss ...[]byte) map[string]string {
 	set := make(map[string]string)
 	for i := 0; i < len(ss); i += 2 {
-		set[ss[i]] = ss[i+1]
+		set[string(ss[i])] = string(ss[i+1])
 	}
 	return set
 }

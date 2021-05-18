@@ -112,7 +112,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := new(PluginConfig)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, fmt.Errorf("failed to decode configuration file: %v", err)
+		return nil, fmt.Errorf("failed to decode configuration file: %w", err)
 	}
 
 	p.mtx.Lock()
@@ -144,7 +144,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 	if p.vc == nil || !p.reuseToken {
 		vc, reusable, err := p.cc.NewAuthenticatedClient(p.authMethod)
 		if err != nil {
-			return fmt.Errorf("failed to prepare authenticated client: %v", err)
+			return fmt.Errorf("failed to prepare authenticated client: %w", err)
 		}
 		p.vc = vc
 		p.reuseToken = reusable
@@ -159,12 +159,12 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 
 	csr, err := x509.ParseCertificateRequest(req.GetCsr())
 	if err != nil {
-		return fmt.Errorf("failed to parse CSR data: %v", err)
+		return fmt.Errorf("failed to parse CSR data: %w", err)
 	}
 
 	signResp, err := p.vc.SignIntermediate(ttl, csr)
 	if err != nil {
-		return fmt.Errorf("failed to request signing the intermediate certificate: %v", err)
+		return fmt.Errorf("failed to request signing the intermediate certificate: %w", err)
 	}
 	if signResp == nil {
 		return errors.New("unexpected empty response from UpstreamAuthority")
@@ -173,7 +173,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 	// Parse PEM format data to get DER format data
 	certificate, err := pemutil.ParseCertificate([]byte(signResp.CertPEM))
 	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %v", err)
+		return fmt.Errorf("failed to parse certificate: %w", err)
 	}
 	certChain := [][]byte{certificate.Raw}
 
@@ -185,7 +185,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 	}
 	upstreamRoot, err := pemutil.ParseCertificate([]byte(upstreamRootPEM))
 	if err != nil {
-		return fmt.Errorf("failed to parse Root CA certificate: %v", err)
+		return fmt.Errorf("failed to parse Root CA certificate: %w", err)
 	}
 	bundles := [][]byte{upstreamRoot.Raw}
 
@@ -196,7 +196,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 
 		b, err := pemutil.ParseCertificate([]byte(c))
 		if err != nil {
-			return fmt.Errorf("failed to parse upstream bundle certificates: %v", err)
+			return fmt.Errorf("failed to parse upstream bundle certificates: %w", err)
 		}
 		certChain = append(certChain, b.Raw)
 	}

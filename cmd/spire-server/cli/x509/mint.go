@@ -77,7 +77,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	key, err := c.generateKey()
 	if err != nil {
-		return fmt.Errorf("unable to generate key: %v", err)
+		return fmt.Errorf("unable to generate key: %w", err)
 	}
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
@@ -85,7 +85,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		DNSNames: c.dnsNames,
 	}, key)
 	if err != nil {
-		return fmt.Errorf("unable to generate CSR: %v", err)
+		return fmt.Errorf("unable to generate CSR: %w", err)
 	}
 
 	client := serverClient.NewSVIDClient()
@@ -94,7 +94,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		Ttl: ttlToSeconds(c.ttl),
 	})
 	if err != nil {
-		return fmt.Errorf("unable to mint SVID: %v", err)
+		return fmt.Errorf("unable to mint SVID: %w", err)
 	}
 
 	if len(resp.Svid.CertChain) == 0 {
@@ -104,7 +104,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	bundleClient := serverClient.NewBundleClient()
 	ca, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
-		return fmt.Errorf("unable to get bundle: %v", err)
+		return fmt.Errorf("unable to get bundle: %w", err)
 	}
 
 	if len(ca.X509Authorities) == 0 {
@@ -161,21 +161,21 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	bundlePath := env.JoinPath(c.write, "bundle.pem")
 
 	if err := ioutil.WriteFile(svidPath, svidPEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
-		return fmt.Errorf("unable to write SVID: %v", err)
+		return fmt.Errorf("unable to write SVID: %w", err)
 	}
 	if err := env.Printf("X509-SVID written to %s\n", svidPath); err != nil {
 		return err
 	}
 
 	if err := ioutil.WriteFile(keyPath, keyPEM.Bytes(), 0600); err != nil {
-		return fmt.Errorf("unable to write key: %v", err)
+		return fmt.Errorf("unable to write key: %w", err)
 	}
 	if err := env.Printf("Private key written to %s\n", keyPath); err != nil {
 		return err
 	}
 
 	if err := ioutil.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
-		return fmt.Errorf("unable to write bundle: %v", err)
+		return fmt.Errorf("unable to write bundle: %w", err)
 	}
 	if err := env.Printf("Root CAs written to %s\n", bundlePath); err != nil {
 		return err
