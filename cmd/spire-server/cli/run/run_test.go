@@ -756,6 +756,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "ca_key_type and jwt_key_type are set as default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
+			},
+		},
+		{
 			msg: "rsa-2048 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
@@ -811,7 +820,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
 			},
 		},
@@ -821,7 +830,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
 			},
 		},
@@ -831,7 +840,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
@@ -841,7 +850,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
 			},
 		},

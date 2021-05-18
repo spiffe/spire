@@ -108,7 +108,7 @@ func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 	// Send() will either succeed or return EOF if the gRPC stream has already
 	// been torn down due to the plugin-side failure.
 	err = stream.Send(&nodeattestorv0.AttestRequest{})
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		s.Require().NoError(err)
 	}
 

@@ -3,6 +3,7 @@
 package sql
 
 import (
+	"errors"
 	"net/url"
 
 	"github.com/jinzhu/gorm"
@@ -40,7 +41,8 @@ func (s sqliteDB) isConstraintViolation(err error) bool {
 	if err == nil {
 		return false
 	}
-	e, ok := err.(sqlite3.Error)
+	var e sqlite3.Error
+	ok := errors.As(err, &e)
 	return ok && e.Code == sqlite3.ErrConstraint
 }
 

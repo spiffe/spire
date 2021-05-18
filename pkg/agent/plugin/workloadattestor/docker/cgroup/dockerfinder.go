@@ -49,7 +49,7 @@ func newContainerIDFinder(pattern string) (ContainerIDFinder, error) {
 	pattern = "^" + strings.Join(elems, "/") + "$"
 	re, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create container id fetcher: %v", err)
+		return nil, fmt.Errorf("failed to create container id fetcher: %w", err)
 	}
 	return &containerIDFinder{
 		re: re,
