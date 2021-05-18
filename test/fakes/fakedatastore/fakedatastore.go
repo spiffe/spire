@@ -171,7 +171,7 @@ func (s *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListNo
 	return s.ds.ListNodeSelectors(ctx, req)
 }
 
-func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DatabasePreference) ([]*common.Selector, error) {
+func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DataCurrency) ([]*common.Selector, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}

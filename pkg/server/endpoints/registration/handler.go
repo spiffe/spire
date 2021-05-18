@@ -684,7 +684,7 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNodeSelectorsRequest) (*registration.GetNodeSelectorsResponse, error) {
 	log := h.Log.WithField(telemetry.Method, telemetry.GetNodeSelectors)
 	ds := h.Catalog.GetDataStore()
-	selectors, err := ds.GetNodeSelectors(ctx, req.SpiffeId, datastore.ReadWrite)
+	selectors, err := ds.GetNodeSelectors(ctx, req.SpiffeId, datastore.Current)
 	if err != nil {
 		log.WithError(err).Error("Failed to get node selectors")
 		return nil, err

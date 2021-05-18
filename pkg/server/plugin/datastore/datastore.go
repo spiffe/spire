@@ -38,7 +38,7 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
-	GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference DatabasePreference) ([]*common.Selector, error)
+	GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference DataCurrency) ([]*common.Selector, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error
 
@@ -49,16 +49,16 @@ type DataStore interface {
 	PruneJoinTokens(context.Context, time.Time) error
 }
 
-// DatabasePreference indicates a preferred database instance.
-type DatabasePreference int32
+// DataCurrency indicates a preferred database instance.
+type DataCurrency int32
 
 const (
-	// Require data from a primary read-write database instance (default)
-	ReadWrite DatabasePreference = iota
+	// Require data from a primary database instance (default)
+	Current DataCurrency = iota
 
-	// Allow access from a read-only database instance, if available
+	// Allow access from a secondary database instance, if available
 	// Some data staleness may be observed
-	ReadOnly
+	PotentiallyStale
 )
 
 // DeleteMode defines delete behavior if associated records exist.
@@ -139,8 +139,8 @@ type ListBundlesResponse struct {
 }
 
 type ListNodeSelectorsRequest struct {
-	DatabasePreference
-	ValidAt time.Time
+	DataCurrency DataCurrency
+	ValidAt      time.Time
 }
 
 type ListNodeSelectorsResponse struct {
@@ -148,7 +148,7 @@ type ListNodeSelectorsResponse struct {
 }
 
 type ListRegistrationEntriesRequest struct {
-	DatabasePreference
+	DataCurrency    DataCurrency
 	ByParentID      string
 	BySelectors     *BySelectors
 	BySpiffeID      string
