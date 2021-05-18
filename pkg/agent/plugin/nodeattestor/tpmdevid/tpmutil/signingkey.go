@@ -1,6 +1,7 @@
 package tpmutil
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -175,6 +176,5 @@ func SRKTemplateHighRSA() tpm2.Public {
 
 // isRetry returns true if the given error is a tpm2.Warning that request retry.
 func isRetry(err error) bool {
-	warn, ok := err.(tpm2.Warning)
-	return ok && warn.Code == tpm2.RCRetry
+	return errors.As(err, &tpm2.Warning{Code: tpm2.RCRetry})
 }
