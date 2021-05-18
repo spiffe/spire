@@ -130,7 +130,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 	template := &x509.CertificateRequest{URIs: []*url.URL{id.URL()}}
 	csr, err := x509.CreateCertificateRequest(rand.Reader, template, key)
 	if err != nil {
-		return fmt.Errorf("failed to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	// Call mint
@@ -154,14 +154,14 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 	// Validate certificate
 	cert, err := x509.ParseCertificate(resp.Svid.CertChain[0])
 	if err != nil {
-		return fmt.Errorf("unable to parse cert: %v", err)
+		return fmt.Errorf("unable to parse cert: %w", err)
 	}
 
 	certPool := x509.NewCertPool()
 	for _, chain := range resp.Svid.CertChain {
 		b, err := x509.ParseCertificate(chain)
 		if err != nil {
-			return fmt.Errorf("unable to parse bundle: %v", err)
+			return fmt.Errorf("unable to parse bundle: %w", err)
 		}
 		certPool.AddCert(b)
 	}
@@ -193,12 +193,12 @@ func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 	// Parse token
 	token, err := jwt.ParseSigned(resp.Svid.Token)
 	if err != nil {
-		return fmt.Errorf("failed to parse token: %v", err)
+		return fmt.Errorf("failed to parse token: %w", err)
 	}
 	claimsMap := make(map[string]interface{})
 	err = token.UnsafeClaimsWithoutVerification(&claimsMap)
 	if err != nil {
-		return fmt.Errorf("claims verification failed: %v", err)
+		return fmt.Errorf("claims verification failed: %w", err)
 	}
 
 	// Validate token
@@ -686,7 +686,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 	// Create CSR
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		return fmt.Errorf("failed to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	// Attest using generated token
@@ -798,7 +798,7 @@ func banAgent(ctx context.Context, c *itclient.Client) error {
 		Id: agentID,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get agent: %v", err)
+		return fmt.Errorf("failed to get agent: %w", err)
 	}
 	if !r.Banned {
 		return errors.New("agent is not banned")
@@ -834,7 +834,7 @@ func validatePermissionError(err error) error {
 	case err == nil:
 		return errors.New("no error returned")
 	case status.Code(err) != codes.PermissionDenied:
-		return fmt.Errorf("unnexpected error returned: %v", err)
+		return fmt.Errorf("unnexpected error returned: %w", err)
 	default:
 		return nil
 	}

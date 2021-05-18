@@ -86,7 +86,7 @@ func (wla *attestor) invokeAttestor(ctx context.Context, a workloadattestor.Work
 
 	selectors, err := a.Attest(ctx, pid)
 	if err != nil {
-		return nil, fmt.Errorf("workload attestor %q failed: %v", a.Name(), err)
+		return nil, fmt.Errorf("workload attestor %q failed: %w", a.Name(), err)
 	}
 	return selectors, nil
 }

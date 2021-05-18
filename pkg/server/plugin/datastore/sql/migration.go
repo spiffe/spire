@@ -144,7 +144,7 @@ func getDBCodeVersion(migration Migration) (dbCodeVersion semver.Version, err er
 	if migration.CodeVersion != "" {
 		dbCodeVersion, err = semver.Parse(migration.CodeVersion)
 		if err != nil {
-			return dbCodeVersion, fmt.Errorf("unable to parse code version from DB: %v", err)
+			return dbCodeVersion, fmt.Errorf("unable to parse code version from DB: %w", err)
 		}
 	}
 	return dbCodeVersion, nil
@@ -287,7 +287,7 @@ func migrateToV1(tx *gorm.DB) error {
 	// easily because that operation is not supported by all dialects (thanks,
 	// sqlite3).
 	for _, table := range v0tables {
-		stmt := fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL;", table) //nolint: gosec // table source is controlled
+		stmt := fmt.Sprintf("DELETE FROM %s WHERE deleted_at IS NOT NULL;", table)
 		if err := tx.Exec(stmt).Error; err != nil {
 			return sqlError.Wrap(err)
 		}

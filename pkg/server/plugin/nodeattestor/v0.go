@@ -2,12 +2,14 @@ package nodeattestor
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/proto/spire/common"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type V0 struct {
@@ -16,6 +18,13 @@ type V0 struct {
 }
 
 func (v0 *V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)) (*AttestResult, error) {
+	switch {
+	case len(payload) == 0:
+		return nil, status.Error(codes.InvalidArgument, "payload cannot be empty")
+	case challengeFn == nil:
+		return nil, status.Error(codes.Internal, "challenge function cannot be nil")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -69,7 +78,7 @@ func (v0 *V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 }
 
 func (v0 *V0) streamError(err error) error {
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return v0.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v0.WrapErr(err)

@@ -90,12 +90,12 @@ func LoadPEM(path string) (*pem.Block, error) {
 func LoadBundle(path string) ([]*x509.Certificate, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("error reading bundle at %s: %s", path, err)
+		return nil, fmt.Errorf("error reading bundle at %s: %w", path, err)
 	}
 
 	bundle, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing bundle at %s: %s", path, err)
+		return nil, fmt.Errorf("error parsing bundle at %s: %w", path, err)
 	}
 	return bundle, nil
 }

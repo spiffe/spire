@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -17,7 +17,7 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestV0(t *testing.T) {
+func TestV1(t *testing.T) {
 	var nilErr error
 	ohnoErr := errors.New("ohno")
 	agentID := "spiffe://example.org/spire/agent/test/foo"
@@ -25,13 +25,14 @@ func TestV0(t *testing.T) {
 		"without-challenge": nil,
 		"with-challenge":    {"one", "two", "three"},
 	}
-	selectors := []*common.Selector{{Type: "type", Value: "value"}}
+	selectors := []*common.Selector{{Type: "test", Value: "value"}}
+	selectorValues := []string{"value"}
 	resultWithoutSelectors := &nodeattestor.AttestResult{AgentID: agentID}
 	resultWithSelectors := &nodeattestor.AttestResult{AgentID: agentID, Selectors: selectors}
 
 	for _, tt := range []struct {
 		test          string
-		plugin        *fakeV0Plugin
+		plugin        *fakeV1Plugin
 		payload       string
 		responseErr   error
 		expectCode    codes.Code
@@ -40,55 +41,55 @@ func TestV0(t *testing.T) {
 	}{
 		{
 			test:          "payload cannot be empty",
-			plugin:        &fakeV0Plugin{},
+			plugin:        &fakeV1Plugin{},
 			expectCode:    codes.InvalidArgument,
 			expectMessage: "payload cannot be empty",
 		},
 		{
 			test:          "plugin closes stream immediately",
-			plugin:        &fakeV0Plugin{preRecvError: &nilErr},
+			plugin:        &fakeV1Plugin{preRecvError: &nilErr},
 			payload:       "unused",
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
 		},
 		{
 			test:          "plugin fails immediately",
-			plugin:        &fakeV0Plugin{preRecvError: &ohnoErr},
+			plugin:        &fakeV1Plugin{preRecvError: &ohnoErr},
 			payload:       "unused",
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
 		{
 			test:          "plugin closes stream after receiving data but before responding",
-			plugin:        &fakeV0Plugin{postRecvError: &nilErr},
+			plugin:        &fakeV1Plugin{postRecvError: &nilErr},
 			payload:       "unused",
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
 		},
 		{
 			test:          "plugin fails after receiving data but before responding",
-			plugin:        &fakeV0Plugin{postRecvError: &ohnoErr},
+			plugin:        &fakeV1Plugin{postRecvError: &ohnoErr},
 			payload:       "unused",
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
 		{
 			test:          "attestation fails",
-			plugin:        &fakeV0Plugin{},
+			plugin:        &fakeV1Plugin{},
 			payload:       "bad",
 			expectCode:    codes.InvalidArgument,
 			expectMessage: "nodeattestor(test): attestation failed by test",
 		},
 		{
 			test:          "challenge response",
-			plugin:        &fakeV0Plugin{},
+			plugin:        &fakeV1Plugin{},
 			payload:       "unused",
 			expectCode:    codes.InvalidArgument,
 			expectMessage: "nodeattestor(test): attestation failed by test",
 		},
 		{
 			test:          "attestation succeeds with no challenges or selectors",
-			plugin:        &fakeV0Plugin{challenges: challenges, agentID: agentID},
+			plugin:        &fakeV1Plugin{challenges: challenges, agentID: agentID},
 			payload:       "without-challenge",
 			expectCode:    codes.OK,
 			expectMessage: "",
@@ -96,7 +97,7 @@ func TestV0(t *testing.T) {
 		},
 		{
 			test:          "attestation succeeds with challenges and selectors",
-			plugin:        &fakeV0Plugin{challenges: challenges, agentID: agentID, selectors: selectors},
+			plugin:        &fakeV1Plugin{challenges: challenges, agentID: agentID, selectorValues: selectorValues},
 			payload:       "with-challenge",
 			expectCode:    codes.OK,
 			expectMessage: "",
@@ -104,7 +105,7 @@ func TestV0(t *testing.T) {
 		},
 		{
 			test:       "attestation fails if plugin response missing agent ID",
-			plugin:     &fakeV0Plugin{challenges: challenges},
+			plugin:     &fakeV1Plugin{challenges: challenges},
 			payload:    "with-challenge",
 			expectCode: codes.Internal,
 			// errors returned by the callback are returned verbatim
@@ -112,7 +113,7 @@ func TestV0(t *testing.T) {
 		},
 		{
 			test:        "attestation fails if challenge response fails",
-			plugin:      &fakeV0Plugin{challenges: challenges},
+			plugin:      &fakeV1Plugin{challenges: challenges},
 			payload:     "with-challenge",
 			responseErr: errors.New("response error"),
 			expectCode:  codes.Unknown,
@@ -122,7 +123,7 @@ func TestV0(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
-			nodeattestor := loadV0Plugin(t, tt.plugin)
+			nodeattestor := loadV1Plugin(t, tt.plugin)
 			result, err := nodeattestor.Attest(context.Background(), []byte(tt.payload),
 				func(ctx context.Context, challenge []byte) ([]byte, error) {
 					// echo the challenge back
@@ -140,30 +141,30 @@ func TestV0(t *testing.T) {
 	}
 }
 
-func loadV0Plugin(t *testing.T, plugin *fakeV0Plugin) nodeattestor.NodeAttestor {
-	server := nodeattestorv0.NodeAttestorPluginServer(plugin)
+func loadV1Plugin(t *testing.T, plugin *fakeV1Plugin) nodeattestor.NodeAttestor {
+	server := nodeattestorv1.NodeAttestorPluginServer(plugin)
 
-	na := new(nodeattestor.V0)
+	na := new(nodeattestor.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
 	return na
 }
 
-type fakeV0Plugin struct {
-	nodeattestorv0.UnimplementedNodeAttestorServer
+type fakeV1Plugin struct {
+	nodeattestorv1.UnimplementedNodeAttestorServer
 
-	preRecvError  *error
-	postRecvError *error
-	challenges    map[string][]string
-	agentID       string
-	selectors     []*common.Selector
+	preRecvError   *error
+	postRecvError  *error
+	challenges     map[string][]string
+	agentID        string
+	selectorValues []string
 }
 
-func (plugin *fakeV0Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+func (plugin *fakeV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	if plugin.preRecvError != nil {
 		return *plugin.preRecvError
 	}
 
-	resp, err := stream.Recv()
+	req, err := stream.Recv()
 	if err != nil {
 		return err
 	}
@@ -172,36 +173,44 @@ func (plugin *fakeV0Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServ
 		return *plugin.postRecvError
 	}
 
-	switch {
-	case resp.AttestationData == nil:
-		return errors.New("shim passed no attestation data")
-	case resp.AttestationData.Type != "test":
-		return errors.New("shim passed the wrong attestation type")
+	payload := req.GetPayload()
+	if payload == nil {
+		return errors.New("shim passed no payload")
 	}
 
-	challenges, ok := plugin.challenges[string(resp.AttestationData.Data)]
+	challenges, ok := plugin.challenges[string(payload)]
 	if !ok {
 		return status.Error(codes.InvalidArgument, "attestation failed by test")
 	}
 
 	for _, challenge := range challenges {
-		if err := stream.Send(&nodeattestorv0.AttestResponse{
-			Challenge: []byte(challenge),
+		if err := stream.Send(&nodeattestorv1.AttestResponse{
+			Response: &nodeattestorv1.AttestResponse_Challenge{
+				Challenge: []byte(challenge),
+			},
 		}); err != nil {
 			return err
 		}
 
-		resp, err = stream.Recv()
+		req, err := stream.Recv()
 		if err != nil {
 			return err
 		}
-		if string(resp.Response) != challenge {
-			return status.Errorf(codes.InvalidArgument, "expected response %q; got %q", challenge, string(resp.Response))
+		challengeResponse := req.GetChallengeResponse()
+		if challengeResponse == nil {
+			return errors.New("shim passed no challenge response")
+		}
+		if string(challengeResponse) != challenge {
+			return status.Errorf(codes.InvalidArgument, "expected response %q; got %q", challenge, string(challengeResponse))
 		}
 	}
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId:   plugin.agentID,
-		Selectors: plugin.selectors,
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId:       plugin.agentID,
+				SelectorValues: plugin.selectorValues,
+			},
+		},
 	})
 }

@@ -52,7 +52,7 @@ func (p *nodeAttestor) FetchAttestationData(stream nodeattestorv0.NodeAttestor_F
 	for {
 		req, err := stream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			if len(responsesLeft) > 0 {
 				return fmt.Errorf("unused responses remaining: %q", responsesLeft)
 			}
@@ -69,7 +69,7 @@ func (p *nodeAttestor) FetchAttestationData(stream nodeattestorv0.NodeAttestor_F
 			}
 			responsesLeft = responsesLeft[1:]
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 	}
