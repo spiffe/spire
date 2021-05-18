@@ -1,4 +1,4 @@
-package devid
+package tpmdevid
 
 import (
 	"crypto/x509"

@@ -1,4 +1,4 @@
-package devid
+package tpmdevid
 
 import (
 	"github.com/spiffe/spire/proto/spire/common/plugin"

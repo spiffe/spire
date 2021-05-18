@@ -15,7 +15,7 @@ import (
 	na_k8s_psat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/psat"
 	na_k8s_sat "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/k8s/sat"
 	na_sshpop "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/sshpop"
-	na_tpm_devid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpm_devid"
+	na_tpm_devid "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid"
 	na_x509pop "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	wa_docker "github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker"

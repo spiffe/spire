@@ -26,7 +26,7 @@ import (
 	na_k8s_psat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
 	na_k8s_sat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/sat"
 	na_sshpop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
-	na_tpm_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpm_devid"
+	na_tpm_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	na_x509pop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"

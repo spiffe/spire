@@ -1,4 +1,4 @@
-package tpm_devid
+package tpmdevid
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpm_devid/tpmutil"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpm_devid"
+	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/common/util"
 	spc "github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
