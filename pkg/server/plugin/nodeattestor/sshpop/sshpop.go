@@ -8,6 +8,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Plugin struct {
@@ -34,7 +36,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	defer p.mu.RUnlock()
 
 	if p.sshserver == nil {
-		return sshpop.Errorf("not configured")
+		return status.Error(codes.FailedPrecondition, "not configured")
 	}
 	req, err := stream.Recv()
 	if err != nil {
@@ -43,7 +45,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	handshaker := p.sshserver.NewHandshake()
 
 	if pluginName := req.AttestationData.Type; pluginName != sshpop.PluginName {
-		return sshpop.Errorf("expected attestation type %q but got %q", sshpop.PluginName, pluginName)
+		return status.Errorf(codes.InvalidArgument, "expected attestation type %q but got %q", sshpop.PluginName, pluginName)
 	}
 	if err := handshaker.VerifyAttestationData(req.AttestationData.Data); err != nil {
 		return err

@@ -65,7 +65,7 @@ func (s *Suite) configure() {
 	clientConfig := fmt.Sprintf(`
 		host_key_path = %q
 		host_cert_path = %q`, privateKeyPath, certificatePath)
-	sshclient, err := sshpop.NewClient("example.org", clientConfig)
+	sshclient, err := sshpop.NewClient(clientConfig)
 	require.NoError(err)
 	s.sshclient = sshclient
 }
@@ -162,17 +162,17 @@ func (s *Suite) TestAttestFailure() {
 		require.NoError(stream.CloseSend())
 	}()
 	resp, err := stream.Recv()
-	s.RequireGRPCStatus(err, codes.Unknown, "sshpop: not configured")
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "not configured")
 	require.Nil(resp)
 
 	// unexpected data type
-	attestFails(&common.AttestationData{Type: "foo"}, "sshpop: expected attestation type \"sshpop\" but got \"foo\"")
+	attestFails(&common.AttestationData{Type: "foo"}, "expected attestation type \"sshpop\" but got \"foo\"")
 
 	// malformed challenge response
-	challengeResponseFails("", "sshpop: failed to unmarshal challenge response")
+	challengeResponseFails("", "failed to unmarshal challenge response")
 
 	// invalid response
-	challengeResponseFails("{}", "sshpop: failed to combine nonces")
+	challengeResponseFails("{}", "failed to combine nonces")
 }
 
 func (s *Suite) TestGetPluginInfo() {
