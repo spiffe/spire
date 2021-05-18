@@ -295,7 +295,7 @@ func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*commo
 	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) GetNodeSelectors(context.Context, string, datastore.DataCurrency) ([]*common.Selector, error) {
+func (ds *fakeDataStore) GetNodeSelectors(context.Context, string, datastore.DataConsistency) ([]*common.Selector, error) {
 	return []*common.Selector{}, ds.err
 }
 

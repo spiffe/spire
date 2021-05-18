@@ -1049,9 +1049,9 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo", datastore.PotentiallyStale)
+	selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", datastore.Current)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
@@ -1059,30 +1059,30 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo", datastore.PotentiallyStale)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.RequireProtoListEqual(foo1, selectors)
-	selectors = s.getNodeSelectors("foo", datastore.Current)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo", datastore.PotentiallyStale)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.RequireProtoListEqual(foo2, selectors)
-	selectors = s.getNodeSelectors("foo", datastore.Current)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", []*common.Selector{})
-	selectors = s.getNodeSelectors("foo", datastore.PotentiallyStale)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", datastore.Current)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", datastore.PotentiallyStale)
+	selectors = s.getNodeSelectors("bar", datastore.TolerateStale)
 	s.RequireProtoListEqual(bar, selectors)
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", datastore.Current)
+	selectors = s.getNodeSelectors("bar", datastore.RequireCurrent)
 	s.RequireProtoListEqual(bar, selectors)
 }
 
@@ -1311,8 +1311,8 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
-	s.testListRegistrationEntries(datastore.Current)
-	s.testListRegistrationEntries(datastore.PotentiallyStale)
+	s.testListRegistrationEntries(datastore.RequireCurrent)
+	s.testListRegistrationEntries(datastore.TolerateStale)
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
@@ -1338,7 +1338,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	s.Require().Nil(resp)
 }
 
-func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCurrency) {
+func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataConsistency) {
 	byFederatesWith := func(match datastore.MatchBehavior, trustDomainIDs ...string) *datastore.ByFederatesWith {
 		return &datastore.ByFederatesWith{
 			TrustDomains: trustDomainIDs,
@@ -1625,7 +1625,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCur
 			} else {
 				name += " without pagination"
 			}
-			if dbPreference == datastore.PotentiallyStale {
+			if dbPreference == datastore.TolerateStale {
 				name += " read-only"
 			}
 			s.T().Run(name, func(t *testing.T) {
@@ -1647,7 +1647,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCur
 
 				// Optionally sleep to give time for the entries to propagate to
 				// the replicas.
-				if dbPreference == datastore.PotentiallyStale && s.readOnlyDelay > 0 {
+				if dbPreference == datastore.TolerateStale && s.readOnlyDelay > 0 {
 					time.Sleep(s.readOnlyDelay)
 				}
 
@@ -2615,8 +2615,8 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string, dbPreference datastore.DataCurrency) []*common.Selector {
-	if dbPreference == datastore.PotentiallyStale && TestReadOnlyDelay != "" {
+func (s *PluginSuite) getNodeSelectors(spiffeID string, dbPreference datastore.DataConsistency) []*common.Selector {
+	if dbPreference == datastore.TolerateStale && TestReadOnlyDelay != "" {
 		time.Sleep(s.readOnlyDelay)
 	}
 	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)

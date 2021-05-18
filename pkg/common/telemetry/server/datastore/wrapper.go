@@ -99,7 +99,7 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DataCurrency) (_ []*common.Selector, err error) {
+func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DataConsistency) (_ []*common.Selector, err error) {
 	callCounter := StartGetNodeSelectorsCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
