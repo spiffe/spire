@@ -104,10 +104,7 @@ func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
 func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
 	return middleware.AgentAuthorizerFunc(func(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 		id := agentID.String()
-		log := log.WithField(telemetry.AgentID, id)
-		if !rpccontext.CallerIsLocal(ctx) {
-			log = log.WithField(telemetry.CallerAddr, rpccontext.CallerAddr(ctx))
-		}
+		log := rpccontext.Logger(ctx)
 
 		permissionDenied := func(reason types.PermissionDeniedDetails_Reason, format string, args ...interface{}) error {
 			st := status.Newf(codes.PermissionDenied, format, args...)

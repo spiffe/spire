@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -95,7 +94,7 @@ func TestAgentAuthorizer(t *testing.T) {
 					Message: "Unable to look up agent information",
 					Data: map[string]interface{}{
 						logrus.ErrorKey:      "fetch failed",
-						telemetry.AgentID:    agentID.String(),
+						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
@@ -116,7 +115,7 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent SVID is expired",
 					Data: map[string]interface{}{
-						telemetry.AgentID:    agentID.String(),
+						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
@@ -132,7 +131,7 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent is not attested",
 					Data: map[string]interface{}{
-						telemetry.AgentID:    agentID.String(),
+						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
@@ -151,7 +150,7 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent is banned",
 					Data: map[string]interface{}{
-						telemetry.AgentID:    agentID.String(),
+						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
@@ -171,7 +170,7 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent SVID is not active",
 					Data: map[string]interface{}{
-						telemetry.AgentID:          agentID.String(),
+						telemetry.CallerID:         agentID.String(),
 						telemetry.CallerAddr:       "127.0.0.1",
 						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
 						telemetry.SerialNumber:     "NEW",
@@ -203,7 +202,7 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Unable to activate the new agent SVID",
 					Data: map[string]interface{}{
-						telemetry.AgentID:          agentID.String(),
+						telemetry.CallerID:         agentID.String(),
 						telemetry.CallerAddr:       "127.0.0.1",
 						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
 						telemetry.SerialNumber:     "CURRENT",
@@ -244,7 +243,10 @@ func TestAgentAuthorizer(t *testing.T) {
 			}
 			authorizer := AgentAuthorizer(log, ds, clk)
 			ctx := context.Background()
-			ctx = rpccontext.WithCallerAddr(ctx, &net.IPAddr{IP: net.IPv4(127, 0, 0, 1), Zone: ""})
+			ctx = rpccontext.WithLogger(ctx, log.WithFields(logrus.Fields{
+				telemetry.CallerAddr: "127.0.0.1",
+				telemetry.CallerID:   agentID,
+			}))
 			err := authorizer.AuthorizeAgent(ctx, agentID, agentSVID)
 			spiretest.RequireGRPCStatus(t, err, tt.expectedCode, tt.expectedMsg)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectedLogs)
