@@ -17,12 +17,12 @@ type Plugin struct {
 	sshserver *sshpop.Server
 }
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(sshpop.PluginName, nodeattestorv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(sshpop.PluginName, nodeattestorv0.NodeAttestorPluginServer(p))
 }
 
 func New() *Plugin {

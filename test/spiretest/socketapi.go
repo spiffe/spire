@@ -1,6 +1,7 @@
 package spiretest
 
 import (
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -81,7 +82,7 @@ func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.L
 		server.Stop()
 		err := <-errCh
 		switch {
-		case err == nil, err == grpc.ErrServerStopped:
+		case err == nil, errors.Is(err, grpc.ErrServerStopped):
 		default:
 			t.Fatal(err)
 		}

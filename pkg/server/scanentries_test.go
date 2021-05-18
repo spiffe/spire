@@ -6,7 +6,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
@@ -104,9 +103,7 @@ func TestScanForBadEntries(t *testing.T) {
 			ds := fakedatastore.New(t)
 
 			for _, entry := range tt.entries {
-				_, err := ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-					Entry: entry,
-				})
+				_, err := ds.CreateRegistrationEntry(context.Background(), entry)
 				require.NoError(t, err)
 			}
 

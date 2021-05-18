@@ -147,7 +147,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	}
 
 	_, err := ReadSVID(c.SVIDCachePath)
-	if err != ErrNotCached {
+	if !errors.Is(err, ErrNotCached) {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
 
@@ -1030,6 +1030,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: h.getGRPCServerConfig,
+		MinVersion:         tls.VersionTLS12,
 	}
 
 	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
@@ -1046,7 +1047,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	go func() {
 		errCh <- server.Serve(listener)
 		if err != nil {
-			panic(fmt.Errorf("error starting mock server: %v", err))
+			panic(fmt.Errorf("error starting mock server: %w", err))
 		}
 	}()
 
@@ -1157,6 +1158,7 @@ func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, 
 		ClientAuth:   tls.VerifyClientCertIfGiven,
 		Certificates: certs,
 		ClientCAs:    roots,
+		MinVersion:   tls.VersionTLS12,
 	}, nil
 }
 

@@ -36,8 +36,8 @@ var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchStri
 
 const defaultListEntriesPageSize = 50
 
-//Handler service is used to register SPIFFE IDs, and the attestation logic that should
-//be performed on a workload before those IDs can be issued.
+// Handler service is used to register SPIFFE IDs, and the attestation logic that should
+// be performed on a workload before those IDs can be issued.
 type Handler struct {
 	registration.UnsafeRegistrationServer
 
@@ -48,8 +48,8 @@ type Handler struct {
 	ServerCA    ca.ServerCA
 }
 
-//CreateEntry creates an entry in the Registration table,
-//used to assign SPIFFE IDs to nodes and workloads.
+// CreateEntry creates an entry in the Registration table,
+// used to assign SPIFFE IDs to nodes and workloads.
 func (h *Handler) CreateEntry(ctx context.Context, request *common.RegistrationEntry) (_ *registration.RegistrationEntryID, err error) {
 	counter := telemetry_registrationapi.StartCreateEntryCall(h.Metrics)
 	defer counter.Done(&err)
@@ -102,7 +102,7 @@ func (h *Handler) CreateEntryIfNotExists(ctx context.Context, request *common.Re
 	return resp, nil
 }
 
-//DeleteEntry deletes an entry in the Registration table
+// DeleteEntry deletes an entry in the Registration table
 func (h *Handler) DeleteEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartDeleteEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -110,19 +110,16 @@ func (h *Handler) DeleteEntry(ctx context.Context, request *registration.Registr
 	log := h.Log.WithField(telemetry.Method, telemetry.DeleteRegistrationEntry)
 
 	ds := h.getDataStore()
-	req := &datastore.DeleteRegistrationEntryRequest{
-		EntryId: request.Id,
-	}
-	resp, err := ds.DeleteRegistrationEntry(ctx, req)
+	registrationEntry, err := ds.DeleteRegistrationEntry(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Error deleting registration entry")
 		return &common.RegistrationEntry{}, status.Error(codes.Internal, err.Error())
 	}
 
-	return resp.Entry, nil
+	return registrationEntry, nil
 }
 
-//FetchEntry Retrieves a specific registered entry
+// FetchEntry Retrieves a specific registered entry
 func (h *Handler) FetchEntry(ctx context.Context, request *registration.RegistrationEntryID) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartFetchEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -130,21 +127,19 @@ func (h *Handler) FetchEntry(ctx context.Context, request *registration.Registra
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchRegistrationEntry)
 
 	ds := h.getDataStore()
-	fetchResponse, err := ds.FetchRegistrationEntry(ctx,
-		&datastore.FetchRegistrationEntryRequest{EntryId: request.Id},
-	)
+	registrationEntry, err := ds.FetchRegistrationEntry(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Error trying to fetch entry")
 		return nil, status.Errorf(codes.Internal, "error trying to fetch entry: %v", err)
 	}
-	if fetchResponse.Entry == nil {
+	if registrationEntry == nil {
 		log.Error("No such registration entry")
 		return nil, status.Error(codes.NotFound, "no such registration entry")
 	}
-	return fetchResponse.Entry, nil
+	return registrationEntry, nil
 }
 
-//FetchEntries retrieves all registered entries
+// FetchEntries retrieves all registered entries
 func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -162,7 +157,7 @@ func (h *Handler) FetchEntries(ctx context.Context, request *common.Empty) (_ *c
 	}, nil
 }
 
-//UpdateEntry updates a specific registered entry
+// UpdateEntry updates a specific registered entry
 func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateEntryRequest) (_ *common.RegistrationEntry, err error) {
 	counter := telemetry_registrationapi.StartUpdateEntryCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -181,9 +176,7 @@ func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateE
 	}
 
 	ds := h.getDataStore()
-	resp, err := ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-		Entry: request.Entry,
-	})
+	entry, err := ds.UpdateRegistrationEntry(ctx, request.Entry, nil)
 	if err != nil {
 		log.WithError(err).Error("Failed to update registration entry")
 		return nil, status.Errorf(codes.Internal, "failed to update registration entry: %v", err)
@@ -191,14 +184,14 @@ func (h *Handler) UpdateEntry(ctx context.Context, request *registration.UpdateE
 
 	telemetry_registrationapi.IncrRegistrationAPIUpdatedEntryCounter(h.Metrics)
 	log.WithFields(logrus.Fields{
-		telemetry.ParentID: resp.Entry.ParentId,
-		telemetry.SPIFFEID: resp.Entry.SpiffeId,
+		telemetry.ParentID: entry.ParentId,
+		telemetry.SPIFFEID: entry.SpiffeId,
 	}).Debug("Workload registration successfully updated")
 
-	return resp.Entry, nil
+	return entry, nil
 }
 
-//ListByParentID Returns all the Entries associated with the ParentID value
+// ListByParentID Returns all the Entries associated with the ParentID value
 func (h *Handler) ListByParentID(ctx context.Context, request *registration.ParentID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -228,7 +221,7 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	}, nil
 }
 
-//ListBySelector returns all the Entries associated with the Selector
+// ListBySelector returns all the Entries associated with the Selector
 func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -252,7 +245,7 @@ func (h *Handler) ListBySelector(ctx context.Context, request *common.Selector) 
 	}, nil
 }
 
-//ListBySelectors returns all the Entries associated with the Selectors
+// ListBySelectors returns all the Entries associated with the Selectors
 func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -276,7 +269,7 @@ func (h *Handler) ListBySelectors(ctx context.Context, request *common.Selectors
 	}, nil
 }
 
-//ListBySpiffeID returns all the Entries associated with the SPIFFE ID
+// ListBySpiffeID returns all the Entries associated with the SPIFFE ID
 func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.SpiffeID) (_ *common.RegistrationEntries, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -306,7 +299,7 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 	}, nil
 }
 
-//ListAllEntriesWithPages retrieves all registered entries with pagination.
+// ListAllEntriesWithPages retrieves all registered entries with pagination.
 func (h *Handler) ListAllEntriesWithPages(ctx context.Context, request *registration.ListAllEntriesRequest) (_ *registration.ListAllEntriesResponse, err error) {
 	counter := telemetry_registrationapi.StartListEntriesCall(h.Metrics)
 	telemetry_common.AddCallerID(counter, getCallerID(ctx))
@@ -365,9 +358,7 @@ func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registrati
 	}
 
 	ds := h.getDataStore()
-	if _, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	}); err != nil {
+	if _, err := ds.CreateBundle(ctx, bundle); err != nil {
 		log.WithError(err).Error("Failed to create bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -393,20 +384,18 @@ func (h *Handler) FetchFederatedBundle(ctx context.Context, request *registratio
 	}
 
 	ds := h.getDataStore()
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: request.Id,
-	})
+	bundle, err := ds.FetchBundle(ctx, request.Id)
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		log.Error("Bundle not found")
 		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.FederatedBundle{
-		Bundle: resp.Bundle,
+		Bundle: bundle,
 	}, nil
 }
 
@@ -461,9 +450,7 @@ func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registrati
 	}
 
 	ds := h.getDataStore()
-	if _, err := ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-	}); err != nil {
+	if _, err := ds.UpdateBundle(ctx, bundle, nil); err != nil {
 		log.WithError(err).Error("Failed to update federated bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -495,10 +482,7 @@ func (h *Handler) DeleteFederatedBundle(ctx context.Context, request *registrati
 	}
 
 	ds := h.getDataStore()
-	if _, err := ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: request.Id,
-		Mode:          mode,
-	}); err != nil {
+	if err := ds.DeleteBundle(ctx, request.Id, mode); err != nil {
 		log.WithError(err).Error("Failed to delete federated bundle")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -528,13 +512,11 @@ func (h *Handler) CreateJoinToken(ctx context.Context, request *registration.Joi
 	}
 
 	ds := h.getDataStore()
-	expiry := time.Now().Unix() + int64(request.Ttl)
+	expiry := time.Now().Add(time.Second * time.Duration(request.Ttl))
 
-	_, err = ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  request.Token,
-			Expiry: expiry,
-		},
+	err = ds.CreateJoinToken(ctx, &datastore.JoinToken{
+		Token:  request.Token,
+		Expiry: expiry,
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to register token")
@@ -552,24 +534,22 @@ func (h *Handler) FetchBundle(ctx context.Context, request *common.Empty) (_ *re
 	log := h.Log.WithField(telemetry.Method, telemetry.FetchBundle)
 
 	ds := h.getDataStore()
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.IDString(),
-	})
+	bundle, err := ds.FetchBundle(ctx, h.TrustDomain.IDString())
 	if err != nil {
 		log.WithError(err).Error("Failed to get bundle from datastore")
 		return nil, status.Errorf(codes.Internal, "get bundle from datastore: %v", err)
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		log.Error("Bundle not found")
 		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 
 	return &registration.Bundle{
-		Bundle: resp.Bundle,
+		Bundle: bundle,
 	}, nil
 }
 
-//EvictAgent removes a node from the attested nodes store
+// EvictAgent removes a node from the attested nodes store
 func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.EvictAgentRequest) (*registration.EvictAgentResponse, error) {
 	spiffeID := evictRequest.GetSpiffeID()
 	log := h.Log.WithFields(logrus.Fields{
@@ -589,7 +569,7 @@ func (h *Handler) EvictAgent(ctx context.Context, evictRequest *registration.Evi
 	}, nil
 }
 
-//ListAgents returns the list of attested nodes
+// ListAgents returns the list of attested nodes
 func (h *Handler) ListAgents(ctx context.Context, listReq *registration.ListAgentsRequest) (*registration.ListAgentsResponse, error) {
 	log := h.Log.WithField(telemetry.Method, telemetry.ListAgents)
 	ds := h.Catalog.GetDataStore()
@@ -647,14 +627,12 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	resp, err := h.getDataStore().FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: h.TrustDomain.IDString(),
-	})
+	bundle, err := h.getDataStore().FetchBundle(ctx, h.TrustDomain.IDString())
 	if err != nil {
 		log.WithError(err).Error("Failed to fetch bundle from datastore")
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		log.Error("Bundle not found")
 		return nil, status.Error(codes.FailedPrecondition, "bundle not found")
 	}
@@ -665,7 +643,7 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *registration.MintX509SV
 	}
 
 	var rootCAs [][]byte
-	for _, rootCA := range resp.Bundle.RootCas {
+	for _, rootCA := range bundle.RootCas {
 		rootCAs = append(rootCAs, rootCA.DerBytes)
 	}
 
@@ -733,16 +711,12 @@ func (h *Handler) deleteAttestedNode(ctx context.Context, agentID string) (*comm
 	}
 
 	ds := h.Catalog.GetDataStore()
-	req := &datastore.DeleteAttestedNodeRequest{
-		SpiffeId: agentID,
-	}
-
-	resp, err := ds.DeleteAttestedNode(ctx, req)
+	attestedNode, err := ds.DeleteAttestedNode(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	return resp.Node, nil
+	return attestedNode, nil
 }
 
 func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, error) {
@@ -776,7 +750,7 @@ func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, ent
 			Value: entry.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{
-			Match:     datastore.BySelectors_MATCH_EXACT,
+			Match:     datastore.Exact,
 			Selectors: entry.Selectors,
 		},
 	}
@@ -815,14 +789,12 @@ func (h *Handler) createRegistrationEntry(ctx context.Context, requestedEntry *c
 		return existingEntry, true, nil
 	}
 
-	createResponse, err := ds.CreateRegistrationEntry(ctx,
-		&datastore.CreateRegistrationEntryRequest{Entry: requestedEntry},
-	)
+	registrationEntry, err := ds.CreateRegistrationEntry(ctx, requestedEntry)
 	if err != nil {
 		return nil, false, status.Errorf(codes.Internal, "error trying to create entry: %v", err)
 	}
 
-	return createResponse.Entry, false, nil
+	return registrationEntry, false, nil
 }
 func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forUpdate bool) (*common.RegistrationEntry, error) {
 	original := entry
@@ -835,7 +807,7 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	for _, dns := range entry.DnsNames {
 		err = validateDNS(dns)
 		if err != nil {
-			return nil, fmt.Errorf("dns name %v failed validation: %v", dns, err)
+			return nil, fmt.Errorf("dns name %v failed validation: %w", dns, err)
 		}
 	}
 
@@ -851,11 +823,11 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	}
 
 	if err := idutil.CheckIDStringNormalization(original.ParentId); err != nil {
-		return nil, fmt.Errorf("parent ID is malformed: %v", err)
+		return nil, fmt.Errorf("parent ID is malformed: %w", err)
 	}
 
 	if err := idutil.CheckIDStringNormalization(original.SpiffeId); err != nil {
-		return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
+		return nil, fmt.Errorf("spiffe ID is malformed: %w", err)
 	}
 
 	// Validate Selectors
@@ -889,16 +861,16 @@ func cloneRegistrationEntry(entry *common.RegistrationEntry) *common.Registratio
 	return proto.Clone(entry).(*common.RegistrationEntry)
 }
 
-func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) (datastore.DeleteBundleRequest_Mode, error) {
+func convertDeleteBundleMode(in registration.DeleteFederatedBundleRequest_Mode) (datastore.DeleteMode, error) {
 	switch in {
 	case registration.DeleteFederatedBundleRequest_RESTRICT:
-		return datastore.DeleteBundleRequest_RESTRICT, nil
+		return datastore.Restrict, nil
 	case registration.DeleteFederatedBundleRequest_DISSOCIATE:
-		return datastore.DeleteBundleRequest_DISSOCIATE, nil
+		return datastore.Dissociate, nil
 	case registration.DeleteFederatedBundleRequest_DELETE:
-		return datastore.DeleteBundleRequest_DELETE, nil
+		return datastore.Delete, nil
 	}
-	return datastore.DeleteBundleRequest_RESTRICT, fmt.Errorf("unhandled delete mode %q", in)
+	return datastore.Restrict, fmt.Errorf("unhandled delete mode %q", in)
 }
 
 func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
@@ -906,7 +878,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 		return "", errors.New("no SPIFFE ID in certificate")
 	}
 	if err := idutil.CheckIDURLNormalization(cert.URIs[0]); err != nil {
-		return "", fmt.Errorf("SPIFFE ID is malformed: %v", err)
+		return "", fmt.Errorf("SPIFFE ID is malformed: %w", err)
 	}
 	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
 	if err != nil {

@@ -19,7 +19,7 @@ func NewSerialNumber() (*big.Int, error) {
 	// Creates random integer in range [0,MaxUint128)
 	s, err := rand.Int(rand.Reader, maxUint128)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create random number: %v", err)
+		return nil, fmt.Errorf("cannot create random number: %w", err)
 	}
 
 	// Adds 1 to return serial number [1,MaxUint128]
@@ -27,7 +27,7 @@ func NewSerialNumber() (*big.Int, error) {
 }
 
 func getMaxUint128() *big.Int {
-	max, ok := new(big.Int).SetString("340282366920938463463374607431768211455", 10) //(2^128 − 1)
+	max, ok := new(big.Int).SetString("340282366920938463463374607431768211455", 10) // (2^128 − 1)
 	if !ok {
 		panic("cannot parse value for max unsigned int 128")
 	}

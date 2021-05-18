@@ -2,10 +2,12 @@ package keymanagertest
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"math/big"
 	"testing"
@@ -78,10 +80,15 @@ func testGenerateKey(t *testing.T, create CreateFunc) {
 
 	t.Run("key id can be overwritten", func(t *testing.T) {
 		km := create(t)
-		key := requireGenerateKey(t, km, "id", keymanager.ECP256)
-		testECKey(t, key, "id", elliptic.P256())
-		key = requireGenerateKey(t, km, "id", keymanager.RSA1024)
-		testRSAKey(t, key, "id", 1024)
+		key1 := requireGenerateKey(t, km, "id", keymanager.ECP256)
+		testECKey(t, key1, "id", elliptic.P256())
+		key2 := requireGenerateKey(t, km, "id", keymanager.RSA1024)
+		testRSAKey(t, key2, "id", 1024)
+
+		// Signing with key1 should fail since it has been overwritten.
+		digest := sha256.Sum256([]byte("DATA"))
+		_, err := key1.Sign(rand.Reader, digest[:], crypto.SHA256)
+		spiretest.AssertGRPCStatusContains(t, err, codes.Internal, "does not match", "signing with an overwritten key did not fail as expected")
 	})
 }
 
@@ -125,7 +132,7 @@ func testGetKey(t *testing.T, create CreateFunc) {
 
 	t.Run("no such key", func(t *testing.T) {
 		_, err := km.GetKey(ctx, "nope")
-		spiretest.AssertGRPCStatus(t, err, codes.NotFound, plugin.PrefixMessage(km, `private key "nope" not found`))
+		spiretest.AssertGRPCStatus(t, err, codes.NotFound, plugin.PrefixMessage(km, `key "nope" not found`))
 	})
 }
 

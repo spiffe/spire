@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
@@ -16,25 +17,32 @@ var (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatalf("Debug server client fails: %v", err)
+	}
+}
+
+func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	conn, err := grpc.DialContext(ctx, *socketPathFlag, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("Failed to connect server: %v", err)
+		return fmt.Errorf("failed to connect server: %w", err)
 	}
 	defer conn.Close()
 
 	client := debugv1.NewDebugClient(conn)
 	resp, err := client.GetInfo(ctx, &debugv1.GetInfoRequest{})
 	if err != nil {
-		log.Fatalf("Failed to get info: %v", err)
+		return fmt.Errorf("failed to get info: %w", err)
 	}
 
 	m := protojson.MarshalOptions{Indent: " "}
 	s, err := m.Marshal(resp)
 	if err != nil {
-		log.Fatalf("Failed to parse proto: %v", err)
+		return fmt.Errorf("failed to parse proto: %w", err)
 	}
 	log.Printf("Debug info: %s", string(s))
+	return nil
 }

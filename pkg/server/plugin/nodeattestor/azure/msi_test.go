@@ -11,11 +11,13 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -50,7 +52,7 @@ func TestMSIAttestorPlugin(t *testing.T) {
 type MSIAttestorSuite struct {
 	spiretest.Suite
 
-	attestor   nodeattestorv0.Plugin
+	attestor   nodeattestorv0.NodeAttestorClient
 	key        *rsa.PrivateKey
 	jwks       *jose.JSONWebKeySet
 	now        time.Time
@@ -319,7 +321,7 @@ func (s *MSIAttestorSuite) addKey() {
 	})
 }
 
-func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.Plugin {
+func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.NodeAttestorClient {
 	attestor := New()
 	attestor.hooks.now = func() time.Time {
 		return s.now
@@ -327,11 +329,11 @@ func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.Plugin {
 	attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) {
 		return s.jwks, nil
 	})
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(attestor), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(attestor), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
 func (s *MSIAttestorSuite) configureAttestor() {
@@ -354,7 +356,7 @@ func (s *MSIAttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeatt
 	return s.doAttestOnAttestor(s.attestor, req)
 }
 
-func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestor, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
+func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestorClient, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
 	stream, err := attestor.Attest(context.Background())
 	s.Require().NoError(err)
 

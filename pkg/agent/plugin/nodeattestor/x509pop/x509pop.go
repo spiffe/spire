@@ -24,12 +24,12 @@ const (
 	pluginName = "x509pop"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, nodeattestorv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName, nodeattestorv0.NodeAttestorPluginServer(p))
 }
 
 type configData struct {
@@ -76,18 +76,18 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 
 	challenge := new(x509pop.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
-		return fmt.Errorf("x509pop: unable to unmarshal challenge: %v", err)
+		return fmt.Errorf("x509pop: unable to unmarshal challenge: %w", err)
 	}
 
 	// calculate and send the challenge response
 	response, err := x509pop.CalculateResponse(data.privateKey, challenge)
 	if err != nil {
-		return fmt.Errorf("x509pop: failed to calculate challenge response: %v", err)
+		return fmt.Errorf("x509pop: failed to calculate challenge response: %w", err)
 	}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return fmt.Errorf("x509pop: unable to marshal challenge response: %v", err)
+		return fmt.Errorf("x509pop: unable to marshal challenge response: %w", err)
 	}
 
 	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
@@ -103,7 +103,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	// Parse HCL config payload into config struct
 	config := new(Config)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, fmt.Errorf("x509pop: unable to decode configuration: %v", err)
+		return nil, fmt.Errorf("x509pop: unable to decode configuration: %w", err)
 	}
 
 	if req.GlobalConfig == nil {
@@ -163,7 +163,7 @@ func (p *Plugin) loadConfigData() (*configData, error) {
 func loadConfigData(config *Config) (*configData, error) {
 	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("x509pop: unable to load keypair: %v", err)
+		return nil, fmt.Errorf("x509pop: unable to load keypair: %w", err)
 	}
 
 	certificates := certificate.Certificate
@@ -172,7 +172,7 @@ func loadConfigData(config *Config) (*configData, error) {
 	if strings.TrimSpace(config.IntermediatesPath) != "" {
 		intermediates, err := util.LoadCertificates(config.IntermediatesPath)
 		if err != nil {
-			return nil, fmt.Errorf("x509pop: unable to load intermediate certificates: %v", err)
+			return nil, fmt.Errorf("x509pop: unable to load intermediate certificates: %w", err)
 		}
 
 		for _, cert := range intermediates {
@@ -184,7 +184,7 @@ func loadConfigData(config *Config) (*configData, error) {
 		Certificates: certificates,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("x509pop: unable to marshal attestation data: %v", err)
+		return nil, fmt.Errorf("x509pop: unable to marshal attestation data: %w", err)
 	}
 
 	return &configData{

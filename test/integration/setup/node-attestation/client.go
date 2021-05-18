@@ -7,11 +7,12 @@ import (
 	x509 "crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	mathrand "math/rand"
+	"math/big"
 	"time"
 
 	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -34,44 +35,57 @@ var (
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-	flag.Parse()
-	switch *testStep {
-	case "jointoken":
-		doJoinTokenStep(ctx)
-	case "jointokenattest":
-		doJoinTokenAttestStep(ctx, *tokenName)
-	case "ban":
-		doBanStep(ctx)
-	case "renew":
-		doRenewStep(ctx)
-	case "x509pop":
-		doX509popStep(ctx)
-	default:
-		log.Fatalf("error: unknown test step\n")
+	if err := run(); err != nil {
+		log.Fatalf("Node attestation client failed: %v\n", err)
 	}
 }
 
-func doJoinTokenStep(ctx context.Context) {
+func run() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	flag.Parse()
+
+	var err error
+	switch *testStep {
+	case "jointoken":
+		err = doJoinTokenStep(ctx)
+	case "jointokenattest":
+		err = doJoinTokenAttestStep(ctx, *tokenName)
+	case "ban":
+		err = doBanStep(ctx)
+	case "renew":
+		err = doRenewStep(ctx)
+	case "x509pop":
+		err = doX509popStep(ctx)
+	default:
+		err = errors.New("error: unknown test step")
+	}
+
+	return err
+}
+
+func doJoinTokenStep(ctx context.Context) error {
 	c := itclient.NewLocalServerClient(ctx)
 	defer c.Release()
 
-	s1 := mathrand.NewSource(time.Now().UnixNano())
-	tokenID := mathrand.New(s1).Intn(1000000)
+	tokenID, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return err
+	}
 	tokenName := fmt.Sprintf("test_token_%v", tokenID)
 
 	// Create a join token using the local socket connection (simulating the CLI running on the spire-server)
 	agentClient := c.AgentClient()
-	_, err := agentClient.CreateJoinToken(ctx, &agent.CreateJoinTokenRequest{Ttl: 1000, Token: tokenName})
+	_, err = agentClient.CreateJoinToken(ctx, &agent.CreateJoinTokenRequest{Ttl: 1000, Token: tokenName})
 	if err != nil {
-		log.Fatalf("unable to create join token: %v", err)
+		return fmt.Errorf("unable to create join token: %w", err)
 	}
 	// Print the join token so it can be easily used in the subsequent test
 	fmt.Printf("%v\n", tokenName)
+	return nil
 }
 
-func doJoinTokenAttestStep(ctx context.Context, tokenName string) {
+func doJoinTokenAttestStep(ctx context.Context, tokenName string) error {
 	// Now do agent attestation using the join token and save the resulting SVID to a file. This will give us an SVID
 	agentRemoteConn := itclient.NewInsecure(ctx)
 	defer agentRemoteConn.Release()
@@ -79,12 +93,12 @@ func doJoinTokenAttestStep(ctx context.Context, tokenName string) {
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		log.Fatalf("failed to create CSR: %v\n", err)
+		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	stream, err := agentRemoteClient.AttestAgent(ctx)
 	if err != nil {
-		log.Fatalf("failed to open stream to attest agent: %v\n", err)
+		return fmt.Errorf("failed to open stream to attest agent: %w", err)
 	}
 
 	err = stream.Send(&agent.AttestAgentRequest{
@@ -96,35 +110,36 @@ func doJoinTokenAttestStep(ctx context.Context, tokenName string) {
 		},
 	})
 	if err != nil {
-		log.Fatalf("failed to send to stream to attest agent: %v\n", err)
+		return fmt.Errorf("failed to send to stream to attest agent: %w", err)
 	}
 
 	response, err := stream.Recv()
 	if err != nil {
-		log.Fatalf("failed receive response to AttestAgent: %v\n", err)
+		return fmt.Errorf("failed receive response to AttestAgent: %w", err)
 	}
 
 	result := response.Step.(*agent.AttestAgentResponse_Result_).Result
 	svid := result.Svid.CertChain[0]
 	_, err = x509.ParseCertificate(svid)
 	if err != nil {
-		log.Fatalf("failed to parse cert: %v\n", err)
+		return fmt.Errorf("failed to parse cert: %w", err)
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: svid})
 
 	// Print the SVID so it can easily be used in the next step
 	fmt.Printf("%s\n\n", certPEM)
+	return nil
 }
 
-func doRenewStep(ctx context.Context) {
+func doRenewStep(ctx context.Context) error {
 	block, _ := pem.Decode([]byte(*certificate))
 	if block == nil || block.Type != "CERTIFICATE" {
-		log.Fatalf("failed to decode PEM block containing public key, %v\n", *certificate)
+		return fmt.Errorf("failed to decode PEM block containing public key, %v", *certificate)
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		log.Fatalf("failed to parse cert: %v\n", err)
+		return fmt.Errorf("failed to parse cert: %w", err)
 	}
 
 	agentRemoteConn := itclient.NewWithCert(ctx, cert, key)
@@ -133,7 +148,7 @@ func doRenewStep(ctx context.Context) {
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		log.Fatalf("failed to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	// Now renew the agent cert
@@ -141,22 +156,24 @@ func doRenewStep(ctx context.Context) {
 		Params: &agent.AgentX509SVIDParams{Csr: csr},
 	})
 	if err != nil {
-		log.Fatalf("failed to RenewAgent: %v", err)
+		return fmt.Errorf("failed to RenewAgent: %w", err)
 	}
 	svid := response.Svid.CertChain[0]
 	_, err = x509.ParseCertificate(svid)
 	if err != nil {
-		log.Fatalf("failed to parse cert: %v\n", err)
+		return fmt.Errorf("failed to parse cert: %w", err)
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: svid})
 	if string(certPEM) == *certificate {
-		log.Fatalf("renewed agent successfully, but the old cert and the new cert are identical\n")
+		return fmt.Errorf("renewed agent successfully, but the old cert and the new cert are identical")
 	}
+
 	// Print the certificate so it can easily be used in the next step
 	fmt.Printf("%s\n\n", certPEM)
+	return nil
 }
 
-func doBanStep(ctx context.Context) {
+func doBanStep(ctx context.Context) error {
 	c := itclient.NewLocalServerClient(ctx)
 	defer c.Release()
 
@@ -164,9 +181,9 @@ func doBanStep(ctx context.Context) {
 	// Now ban the agent using the local connection
 	_, err := agentClient.BanAgent(ctx, &agent.BanAgentRequest{Id: &types.SPIFFEID{TrustDomain: "domain.test", Path: "spire/agent/join_token/" + *tokenName}})
 	if err != nil {
-		log.Fatalf("failed to ban agent: %v", err)
+		return fmt.Errorf("failed to ban agent: %w", err)
 	}
-	// This doesn't return anything
+	return nil
 }
 
 // doX509popStep tests attestation using x509pop
@@ -179,7 +196,7 @@ func doBanStep(ctx context.Context) {
 // - Reattest banned agent (must fail because it is banned)
 // - Delete agent
 // - Reattest deleted agent (must succeed after removing)
-func doX509popStep(ctx context.Context) {
+func doX509popStep(ctx context.Context) error {
 	c := itclient.New(ctx)
 	// Create an admin client to ban/delete agent
 	defer c.Release()
@@ -188,53 +205,54 @@ func doX509popStep(ctx context.Context) {
 	// Attest agent
 	svidResp, err := x509popAttest(ctx)
 	if err != nil {
-		log.Fatalf("Failed to attest: %v", err)
+		return fmt.Errorf("failed to attest: %w", err)
 	}
 
 	// Renew agent
 	if err := x509popRenew(ctx, svidResp); err != nil {
-		log.Fatalf("failed to renew agent: %v", err)
+		return fmt.Errorf("failed to renew agent: %w", err)
 	}
 
 	// Delete agent
 	if err := deleteAgent(ctx, client, svidResp.Id); err != nil {
-		log.Fatalf("Failed to delete agent: %v", err)
+		return fmt.Errorf("failed to delete agent: %w", err)
 	}
 
 	// Reattest deleted agent
 	svidResp, err = x509popAttest(ctx)
 	if err != nil {
-		log.Fatalf("Failed to attest deleted agent: %v", err)
+		return fmt.Errorf("failed to attest deleted agent: %w", err)
 	}
 
 	// Ban agent
 	if err := banAgent(ctx, client, svidResp.Id); err != nil {
-		log.Fatalf("Failed to ban agent")
+		return errors.New("failed to ban agent")
 	}
 
 	// Reattest banned agent, it MUST fail
 	_, err = x509popAttest(ctx)
 	switch status.Code(err) {
 	case codes.OK:
-		log.Fatal("Error expected when attesting banned agent")
+		return errors.New("error expected when attesting banned agent")
 	case codes.PermissionDenied:
 		if status.Convert(err).Message() != "failed to attest: agent is banned" {
-			log.Fatalf("Unexpected error returned: %v", err)
+			return fmt.Errorf("unexpected error returned: %w", err)
 		}
 	default:
-		log.Fatalf("Unexpected error returned: %v", err)
+		return fmt.Errorf("unexpected error returned: %w", err)
 	}
 
 	// Delete banned agent
 	if err := deleteAgent(ctx, client, svidResp.Id); err != nil {
-		log.Fatalf("Failed to delete agent: %v", err)
+		return fmt.Errorf("failed to delete agent: %w", err)
 	}
 
 	// Reattest deleted agent, now MUST be successful
 	_, err = x509popAttest(ctx)
 	if err != nil {
-		log.Fatalf("Failed to attest deleted agent: %v", err)
+		return fmt.Errorf("failed to attest deleted agent: %w", err)
 	}
+	return nil
 }
 
 // x509popAttest attests agent using x509pop
@@ -248,12 +266,12 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CSR: %v", err)
+		return nil, fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	pair, err := tls.LoadX509KeyPair(*popCert, *popKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load key pair: %v", err)
+		return nil, fmt.Errorf("failed to load key pair: %w", err)
 	}
 
 	data := &x509pop.AttestationData{
@@ -261,12 +279,12 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 	}
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %v", err)
+		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
 	stream, err := client.AttestAgent(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create stream: %v", err)
+		return nil, fmt.Errorf("failed to create stream: %w", err)
 	}
 	if err := stream.Send(&agent.AttestAgentRequest{
 		Step: &agent.AttestAgentRequest_Params_{
@@ -281,27 +299,27 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 			},
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("failed to send attestation request: %v", err)
+		return nil, fmt.Errorf("failed to send attestation request: %w", err)
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to call stream: %v", err)
+		return nil, fmt.Errorf("failed to call stream: %w", err)
 	}
 
 	challenge := new(x509pop.Challenge)
 	if err := json.Unmarshal(resp.GetChallenge(), challenge); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal challenge: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal challenge: %w", err)
 	}
 
 	response, err := x509pop.CalculateResponse(pair.PrivateKey, challenge)
 	if err != nil {
-		return nil, fmt.Errorf("failed to calculate challenge response: %v", err)
+		return nil, fmt.Errorf("failed to calculate challenge response: %w", err)
 	}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal challenge response: %v", err)
+		return nil, fmt.Errorf("failed to marshal challenge response: %w", err)
 	}
 
 	if err := stream.Send(&agent.AttestAgentRequest{
@@ -309,7 +327,7 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 			ChallengeResponse: responseBytes,
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("failed to send challenge: %v", err)
+		return nil, fmt.Errorf("failed to send challenge: %w", err)
 	}
 
 	resp, err = stream.Recv()
@@ -317,8 +335,8 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 		return nil, err
 	}
 
-	if _, err := stream.Recv(); err != io.EOF {
-		return nil, fmt.Errorf("expect stream to close after challenge complete: %v", err)
+	if _, err := stream.Recv(); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("expect stream to close after challenge complete: %w", err)
 	}
 
 	return resp.GetResult().Svid, nil
@@ -330,12 +348,12 @@ func x509popRenew(ctx context.Context, x509Svid *types.X509SVID) error {
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		return fmt.Errorf("failed to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	cert, err := x509.ParseCertificate(x509Svid.CertChain[0])
 	if err != nil {
-		return fmt.Errorf("failed to parse cert: %v", err)
+		return fmt.Errorf("failed to parse cert: %w", err)
 	}
 
 	conn := itclient.NewWithCert(ctx, cert, key)
@@ -348,7 +366,7 @@ func x509popRenew(ctx context.Context, x509Svid *types.X509SVID) error {
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to renew agent: %v", err)
+		return fmt.Errorf("failed to renew agent: %w", err)
 	}
 
 	if !proto.Equal(resp.Svid.Id, x509Svid.Id) {

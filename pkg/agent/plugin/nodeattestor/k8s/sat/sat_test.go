@@ -2,17 +2,20 @@ package sat
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
+)
+
+var (
+	streamBuilder = nodeattestortest.ServerStream(pluginName)
 )
 
 func TestAttestorPlugin(t *testing.T) {
@@ -22,113 +25,65 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir      string
-	attestor nodeattestorv0.Plugin
+	dir string
 }
 
 func (s *AttestorSuite) SetupTest() {
 	s.dir = s.TempDir()
-
-	s.newAttestor()
-	s.configure(AttestorConfig{})
 }
 
-func (s *AttestorSuite) TearDownTest() {
-	os.RemoveAll(s.dir)
+func (s *AttestorSuite) TestAttestNotConfigured() {
+	na := s.loadPlugin()
+	err := na.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(k8s_sat): not configured")
 }
 
-func (s *AttestorSuite) TestFetchAttestationDataNotConfigured() {
-	s.newAttestor()
-	s.requireFetchError("k8s-sat: not configured")
+func (s *AttestorSuite) TestAttestNoToken() {
+	na := s.loadPluginWithTokenPath(s.joinPath("token"))
+	err := na.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "nodeattestor(k8s_sat): unable to load token from")
 }
 
-func (s *AttestorSuite) TestFetchAttestationDataNoToken() {
-	s.configure(AttestorConfig{
-		TokenPath: s.joinPath("token"),
-	})
-	s.requireFetchError("unable to load token from")
+func (s *AttestorSuite) TestAttestEmptyToken() {
+	na := s.loadPluginWithTokenPath(s.writeValue("token", ""))
+	err := na.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "nodeattestor(k8s_sat): unable to load token from")
 }
 
-func (s *AttestorSuite) TestFetchAttestationDataSuccess() {
-	s.configure(AttestorConfig{
-		TokenPath: s.writeValue("token", "TOKEN"),
-	})
+func (s *AttestorSuite) TestAttestSuccess() {
+	na := s.loadPluginWithTokenPath(s.writeValue("token", "TOKEN"))
 
-	stream, err := s.attestor.FetchAttestationData(context.Background())
+	err := na.Attest(context.Background(), streamBuilder.ExpectAndBuild([]byte(`{"cluster":"production","token":"TOKEN"}`)))
 	s.Require().NoError(err)
-	s.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-
-	// assert attestation data
-	s.Require().NotNil(resp.AttestationData)
-	s.Require().Equal("k8s_sat", resp.AttestationData.Type)
-	s.Require().JSONEq(`{
-		"cluster": "production",
-		"token": "TOKEN"
-	}`, string(resp.AttestationData.Data))
-
-	// node attestor should return EOF now
-	_, err = stream.Recv()
-	s.Require().Equal(io.EOF, err)
 }
 
 func (s *AttestorSuite) TestConfigure() {
+	var err error
+
 	// malformed configuration
-	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
-		Configuration: "blah",
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-sat: unable to decode configuration")
-	s.Require().Nil(resp)
-
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-sat: global configuration is required")
-	s.Require().Nil(resp)
-
-	// missing trust domain
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: global configuration missing trust domain")
-	s.Require().Nil(resp)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure("malformed"))
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
 	// missing cluster
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-sat: configuration missing cluster")
-	s.Require().Nil(resp)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure(""))
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration missing cluster")
 
 	// success
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-		Configuration: `cluster = "production"`,
-	})
+	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure(`cluster = "production"`))
 	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
-func (s *AttestorSuite) TestGetPluginInfo() {
-	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *AttestorSuite) newAttestor() {
-	s.LoadPlugin(BuiltIn(), &s.attestor)
-}
-
-func (s *AttestorSuite) configure(config AttestorConfig) {
-	_, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-		Configuration: fmt.Sprintf(`
+func (s *AttestorSuite) loadPluginWithTokenPath(tokenPath string) nodeattestor.NodeAttestor {
+	return s.loadPlugin(plugintest.Configuref(`
 			cluster = "production"
-			token_path = %q`, config.TokenPath),
-	})
-	s.Require().NoError(err)
+			token_path = %q
+	`, tokenPath))
+}
+
+func (s *AttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {
+	na := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), na, options...)
+	return na
 }
 
 func (s *AttestorSuite) joinPath(path string) string {
@@ -142,14 +97,4 @@ func (s *AttestorSuite) writeValue(path, data string) string {
 	err = ioutil.WriteFile(valuePath, []byte(data), 0600)
 	s.Require().NoError(err)
 	return valuePath
-}
-
-func (s *AttestorSuite) requireFetchError(contains string) {
-	stream, err := s.attestor.FetchAttestationData(context.Background())
-	s.Require().NoError(err)
-	s.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	s.RequireErrorContains(err, contains)
-	s.Require().Nil(resp)
 }

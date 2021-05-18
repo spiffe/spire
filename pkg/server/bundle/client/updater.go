@@ -49,7 +49,7 @@ func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
 	localBundleOrNil, err := fetchBundleIfExists(ctx, u.c.DataStore, u.c.TrustDomain)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch local bundle: %v", err)
+		return nil, nil, fmt.Errorf("failed to fetch local bundle: %w", err)
 	}
 
 	client, err := u.newClient(localBundleOrNil)
@@ -59,18 +59,16 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *
 
 	endpointBundle, err := client.FetchBundle(ctx)
 	if err != nil {
-		return localBundleOrNil, nil, fmt.Errorf("failed to fetch endpoint bundle: %v", err)
+		return localBundleOrNil, nil, fmt.Errorf("failed to fetch endpoint bundle: %w", err)
 	}
 
 	if localBundleOrNil != nil && endpointBundle.EqualTo(localBundleOrNil) {
 		return localBundleOrNil, nil, nil
 	}
 
-	_, err = u.c.DataStore.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: endpointBundle.Proto(),
-	})
+	_, err = u.c.DataStore.SetBundle(ctx, endpointBundle.Proto())
 	if err != nil {
-		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %v", err)
+		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %w", err)
 	}
 
 	return localBundleOrNil, endpointBundle, nil
@@ -95,14 +93,12 @@ func (u *bundleUpdater) newClient(localBundleOrNil *bundleutil.Bundle) (Client, 
 
 func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain spiffeid.TrustDomain) (*bundleutil.Bundle, error) {
 	// Load the current bundle and extract the root CA certificates
-	resp, err := ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomain.IDString(),
-	})
+	bundle, err := ds.FetchBundle(ctx, trustDomain.IDString())
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		return nil, nil
 	}
-	return bundleutil.BundleFromProto(resp.Bundle)
+	return bundleutil.BundleFromProto(bundle)
 }

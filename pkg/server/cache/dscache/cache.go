@@ -6,6 +6,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"golang.org/x/net/context"
 )
 
@@ -20,9 +21,9 @@ func WithCache(ctx context.Context) context.Context {
 }
 
 type bundleEntry struct {
-	mu   sync.Mutex
-	ts   time.Time
-	resp *datastore.FetchBundleResponse
+	mu     sync.Mutex
+	ts     time.Time
+	bundle *common.Bundle
 }
 
 type DatastoreCache struct {
@@ -41,63 +42,63 @@ func New(ds datastore.DataStore, clock clock.Clock) *DatastoreCache {
 	}
 }
 
-func (ds *DatastoreCache) FetchBundle(ctx context.Context, req *datastore.FetchBundleRequest) (*datastore.FetchBundleResponse, error) {
+func (ds *DatastoreCache) FetchBundle(ctx context.Context, trustDomain string) (*common.Bundle, error) {
 	ds.bundlesMu.Lock()
-	entry, ok := ds.bundles[req.TrustDomainId]
+	entry, ok := ds.bundles[trustDomain]
 	if !ok {
 		entry = &bundleEntry{}
-		ds.bundles[req.TrustDomainId] = entry
+		ds.bundles[trustDomain] = entry
 	}
 	ds.bundlesMu.Unlock()
 
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
 	if entry.ts.IsZero() || ds.clock.Now().Sub(entry.ts) >= datastoreCacheExpiry || ctx.Value(useCache{}) == nil {
-		resp, err := ds.DataStore.FetchBundle(ctx, req)
+		bundle, err := ds.DataStore.FetchBundle(ctx, trustDomain)
 		if err != nil {
 			return nil, err
 		}
 		// Don't cache bundle "misses"
-		if resp.Bundle == nil {
-			return resp, nil
+		if bundle == nil {
+			return nil, nil
 		}
-		entry.resp = resp
+		entry.bundle = bundle
 		entry.ts = ds.clock.Now()
 	}
-	return entry.resp, nil
+	return entry.bundle, nil
 }
 
-func (ds *DatastoreCache) PruneBundle(ctx context.Context, req *datastore.PruneBundleRequest) (resp *datastore.PruneBundleResponse, err error) {
-	if resp, err = ds.DataStore.PruneBundle(ctx, req); err == nil {
-		ds.invalidateBundleEntry(req.TrustDomainId)
+func (ds *DatastoreCache) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (changed bool, err error) {
+	if changed, err = ds.DataStore.PruneBundle(ctx, trustDomainID, expiresBefore); err == nil {
+		ds.invalidateBundleEntry(trustDomainID)
 	}
 	return
 }
 
-func (ds *DatastoreCache) AppendBundle(ctx context.Context, req *datastore.AppendBundleRequest) (resp *datastore.AppendBundleResponse, err error) {
-	if resp, err = ds.DataStore.AppendBundle(ctx, req); err == nil {
-		ds.invalidateBundleEntry(req.Bundle.TrustDomainId)
+func (ds *DatastoreCache) AppendBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
+	if bundle, err = ds.DataStore.AppendBundle(ctx, b); err == nil {
+		ds.invalidateBundleEntry(b.TrustDomainId)
 	}
 	return
 }
 
-func (ds *DatastoreCache) UpdateBundle(ctx context.Context, req *datastore.UpdateBundleRequest) (resp *datastore.UpdateBundleResponse, err error) {
-	if resp, err = ds.DataStore.UpdateBundle(ctx, req); err == nil {
-		ds.invalidateBundleEntry(req.Bundle.TrustDomainId)
+func (ds *DatastoreCache) UpdateBundle(ctx context.Context, b *common.Bundle, mask *common.BundleMask) (bundle *common.Bundle, err error) {
+	if bundle, err = ds.DataStore.UpdateBundle(ctx, b, mask); err == nil {
+		ds.invalidateBundleEntry(b.TrustDomainId)
 	}
 	return
 }
 
-func (ds *DatastoreCache) DeleteBundle(ctx context.Context, req *datastore.DeleteBundleRequest) (resp *datastore.DeleteBundleResponse, err error) {
-	if resp, err = ds.DataStore.DeleteBundle(ctx, req); err == nil {
-		ds.invalidateBundleEntry(req.TrustDomainId)
+func (ds *DatastoreCache) DeleteBundle(ctx context.Context, td string, mode datastore.DeleteMode) (err error) {
+	if err = ds.DataStore.DeleteBundle(ctx, td, mode); err == nil {
+		ds.invalidateBundleEntry(td)
 	}
 	return
 }
 
-func (ds *DatastoreCache) SetBundle(ctx context.Context, req *datastore.SetBundleRequest) (resp *datastore.SetBundleResponse, err error) {
-	if resp, err = ds.DataStore.SetBundle(ctx, req); err == nil {
-		ds.invalidateBundleEntry(req.Bundle.TrustDomainId)
+func (ds *DatastoreCache) SetBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
+	if bundle, err = ds.DataStore.SetBundle(ctx, b); err == nil {
+		ds.invalidateBundleEntry(b.TrustDomainId)
 	}
 	return
 }

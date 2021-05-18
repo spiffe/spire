@@ -3,17 +3,14 @@ package disk_test
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -36,8 +33,8 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestGenerateKeyBeforeConfigure(t *testing.T) {
-	var km keymanager.V0
-	spiretest.LoadPlugin(t, disk.BuiltIn(), &km)
+	km := new(keymanager.V1)
+	plugintest.Load(t, disk.BuiltIn(), km)
 
 	_, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
 	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): not configured")
@@ -82,22 +79,13 @@ func TestGenerateKeyPersistence(t *testing.T) {
 }
 
 func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
-	// This little workaround to get at the configuration interface
-	// won't be required after the catalog system refactor
-	km := struct {
-		plugin.Facade
-		keymanagerv0.Plugin
-	}{}
-
-	spiretest.LoadPlugin(t, disk.BuiltIn(), &km)
-
-	_, err := km.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: fmt.Sprintf(configFmt, configArgs...),
-	})
-	return keymanager.V0{
-		Facade: km.Facade,
-		Plugin: km.Plugin,
-	}, err
+	km := new(keymanager.V1)
+	var configErr error
+	plugintest.Load(t, disk.BuiltIn(), km,
+		plugintest.Configuref(configFmt, configArgs...),
+		plugintest.CaptureConfigureError(&configErr),
+	)
+	return km, configErr
 }
 
 func mkdir(t *testing.T, dir string) {

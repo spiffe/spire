@@ -220,7 +220,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		return nil, fmt.Errorf(msg, absPath)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
+		return nil, fmt.Errorf("unable to read configuration at %q: %w", path, err)
 	}
 	data := string(byteData)
 
@@ -230,7 +230,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	}
 
 	if err := hcl.Decode(&c, data); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
+		return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 	}
 
 	return c, nil
@@ -293,7 +293,7 @@ func downloadTrustBundle(trustBundleURL string) ([]*x509.Certificate, error) {
 	/* #nosec G107 */
 	resp, err := http.Get(trustBundleURL)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %v", trustBundleURL, err)
+		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
 	}
 
 	defer resp.Body.Close()
@@ -303,7 +303,7 @@ func downloadTrustBundle(trustBundleURL string) ([]*x509.Certificate, error) {
 	}
 	pemBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %v", trustBundleURL, err)
+		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %w", trustBundleURL, err)
 	}
 
 	bundle, err := pemutil.ParseCertificates(pemBytes)
@@ -329,7 +329,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 	case c.Agent.TrustBundlePath != "":
 		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
 		if err != nil {
-			return fmt.Errorf("could not parse trust bundle: %v", err)
+			return fmt.Errorf("could not parse trust bundle: %w", err)
 		}
 		ac.TrustBundle = bundle
 	}
@@ -348,7 +348,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		var err error
 		ac.SyncInterval, err = time.ParseDuration(c.Agent.Experimental.SyncInterval)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse synchronization interval: %v", err)
+			return nil, fmt.Errorf("could not parse synchronization interval: %w", err)
 		}
 	}
 
@@ -362,7 +362,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("could not start logger: %s", err)
+		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	ac.Log = logger
 
@@ -380,11 +380,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if c.Agent.AdminSocketPath != "" {
 		socketPathAbs, err := filepath.Abs(c.Agent.SocketPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for socket_path: %v", err)
+			return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
 		}
 		adminSocketPathAbs, err := filepath.Abs(c.Agent.AdminSocketPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %v", err)
+			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
 		}
 
 		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
@@ -459,7 +459,7 @@ func validateConfig(c *Config) error {
 	if c.Agent.TrustBundleURL != "" {
 		u, err := url.Parse(c.Agent.TrustBundleURL)
 		if err != nil {
-			return fmt.Errorf("unable to parse trust bundle URL: %v", err)
+			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
 		}
 		if u.Scheme != "https" {
 			return errors.New("trust bundle URL must start with https://")
@@ -492,9 +492,9 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
-	//if len(c.Telemetry.UnusedKeys) != 0 {
+	// if len(c.Telemetry.UnusedKeys) != 0 {
 	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
-	//}
+	// }
 
 	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
 		detectedUnknown("Prometheus", p.UnusedKeys)

@@ -3,6 +3,7 @@ package upstreamauthority
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"io"
 	"time"
 
@@ -15,14 +16,12 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Log    plugin.Log
-	Plugin upstreamauthorityv0.UpstreamAuthority
+	upstreamauthorityv0.UpstreamAuthorityPluginClient
 }
 
 // MintX509CA provides the V0 implementation of the UpstreamAuthority
 // interface method of the same name.
-func (v0 V0) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (_, _ []*x509.Certificate, _ UpstreamX509AuthorityStream, err error) {
+func (v0 *V0) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (_, _ []*x509.Certificate, _ UpstreamX509AuthorityStream, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		// Only cancel the context if the function fails. Otherwise the
@@ -32,7 +31,7 @@ func (v0 V0) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Durat
 		}
 	}()
 
-	stream, err := v0.Plugin.MintX509CA(ctx, &upstreamauthorityv0.MintX509CARequest{
+	stream, err := v0.UpstreamAuthorityPluginClient.MintX509CA(ctx, &upstreamauthorityv0.MintX509CARequest{
 		Csr:          csr,
 		PreferredTtl: int32(preferredTTL / time.Second),
 	})
@@ -55,7 +54,7 @@ func (v0 V0) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Durat
 
 // PublishJWTKey provides the V0 implementation of the UpstreamAuthority
 // interface method of the same name.
-func (v0 V0) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []*common.PublicKey, _ UpstreamJWTAuthorityStream, err error) {
+func (v0 *V0) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []*common.PublicKey, _ UpstreamJWTAuthorityStream, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		// Only cancel the context if the function fails. Otherwise the
@@ -65,7 +64,7 @@ func (v0 V0) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []*
 		}
 	}()
 
-	stream, err := v0.Plugin.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{
+	stream, err := v0.UpstreamAuthorityPluginClient.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{
 		JwtKey: jwtKey,
 	})
 	if err != nil {
@@ -84,7 +83,7 @@ func (v0 V0) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []*
 	return resp.UpstreamJwtKeys, &v0UpstreamJWTAuthorityStream{v0: v0, stream: stream, cancel: cancel}, nil
 }
 
-func (v0 V0) parseMintX509CAFirstResponse(resp *upstreamauthorityv0.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
+func (v0 *V0) parseMintX509CAFirstResponse(resp *upstreamauthorityv0.MintX509CAResponse) ([]*x509.Certificate, []*x509.Certificate, error) {
 	x509CA, err := x509util.RawCertsToCertificates(resp.X509CaChain)
 	if err != nil {
 		return nil, nil, v0.Errorf(codes.Internal, "plugin response has malformed X.509 CA chain: %v", err)
@@ -99,14 +98,14 @@ func (v0 V0) parseMintX509CAFirstResponse(resp *upstreamauthorityv0.MintX509CARe
 	return x509CA, x509Authorities, nil
 }
 
-func (v0 V0) parseMintX509CABundleUpdate(resp *upstreamauthorityv0.MintX509CAResponse) ([]*x509.Certificate, error) {
+func (v0 *V0) parseMintX509CABundleUpdate(resp *upstreamauthorityv0.MintX509CAResponse) ([]*x509.Certificate, error) {
 	if len(resp.X509CaChain) > 0 {
 		return nil, v0.Error(codes.Internal, "plugin response has an X.509 CA chain after the first response")
 	}
 	return v0.parseX509Authorities(resp.UpstreamX509Roots)
 }
 
-func (v0 V0) parseX509Authorities(rawX509Authorities [][]byte) ([]*x509.Certificate, error) {
+func (v0 *V0) parseX509Authorities(rawX509Authorities [][]byte) ([]*x509.Certificate, error) {
 	x509Authorities, err := x509util.RawCertsToCertificates(rawX509Authorities)
 	if err != nil {
 		return nil, v0.Errorf(codes.Internal, "plugin response has malformed upstream X.509 roots: %v", err)
@@ -117,7 +116,7 @@ func (v0 V0) parseX509Authorities(rawX509Authorities [][]byte) ([]*x509.Certific
 	return x509Authorities, nil
 }
 
-func (v0 V0) validateJWTKeys(jwtKeys []*common.PublicKey) error {
+func (v0 *V0) validateJWTKeys(jwtKeys []*common.PublicKey) error {
 	for _, jwtKey := range jwtKeys {
 		if jwtKey.Kid == "" {
 			return v0.Error(codes.Internal, "plugin response missing ID for JWT key")
@@ -132,15 +131,15 @@ func (v0 V0) validateJWTKeys(jwtKeys []*common.PublicKey) error {
 	return nil
 }
 
-func (v0 V0) streamError(err error) error {
-	if err == io.EOF {
+func (v0 *V0) streamError(err error) error {
+	if errors.Is(err, io.EOF) {
 		return v0.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v0.WrapErr(err)
 }
 
 type v0UpstreamX509AuthorityStream struct {
-	v0     V0
+	v0     *V0
 	stream upstreamauthorityv0.UpstreamAuthority_MintX509CAClient
 	cancel context.CancelFunc
 }
@@ -149,7 +148,7 @@ func (s *v0UpstreamX509AuthorityStream) RecvUpstreamX509Authorities() ([]*x509.C
 	for {
 		resp, err := s.stream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			// This is expected if the plugin does not support streaming
 			// authority updates.
 			return nil, err
@@ -171,7 +170,7 @@ func (s *v0UpstreamX509AuthorityStream) Close() {
 }
 
 type v0UpstreamJWTAuthorityStream struct {
-	v0     V0
+	v0     *V0
 	stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyClient
 	cancel context.CancelFunc
 }
@@ -180,7 +179,7 @@ func (s *v0UpstreamJWTAuthorityStream) RecvUpstreamJWTAuthorities() ([]*common.P
 	for {
 		resp, err := s.stream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			// This is expected if the plugin does not support streaming
 			// authority updates.
 			return nil, io.EOF

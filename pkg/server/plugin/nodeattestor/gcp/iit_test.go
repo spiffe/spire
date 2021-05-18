@@ -11,11 +11,13 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
@@ -53,7 +55,7 @@ type IITAttestorSuite struct {
 	spiretest.Suite
 
 	agentStore *fakeagentstore.AgentStore
-	p          nodeattestorv0.Plugin
+	p          nodeattestorv0.NodeAttestorClient
 
 	client *fakeComputeEngineClient
 }
@@ -156,7 +158,7 @@ func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 		Data: s.signToken(token),
 	}
 	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the whitelist`)
+	s.RequireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the allow list`)
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
@@ -176,7 +178,7 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 func (s *IITAttestorSuite) TestErrorOnBadSVIDTemplate() {
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["test-project"]
+projectid_allow_list = ["test-project"]
 agent_path_template = "{{ .InstanceID "
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -189,7 +191,7 @@ func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
 	s.client.setInstance(&compute.Instance{})
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["test-project"]
+projectid_allow_list = ["test-project"]
 use_instance_metadata = true
 service_account_file = "error_sa.json"
 `,
@@ -341,7 +343,7 @@ func (s *IITAttestorSuite) TestAttestFailureDueToMissingInstanceMetadata() {
 func (s *IITAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["test-project"]
+projectid_allow_list = ["test-project"]
 agent_path_template = "{{ .InstanceID }}"
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
@@ -375,7 +377,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 	// missing global configuration
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["bar"]
+projectid_allow_list = ["bar"]
 `})
 	s.RequireErrorContains(err, "gcp-iit: global configuration is required")
 	require.Nil(resp)
@@ -383,23 +385,23 @@ projectid_whitelist = ["bar"]
 	// missing trust domain
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["bar"]
+projectid_allow_list = ["bar"]
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
 	s.RequireErrorContains(err, "gcp-iit: trust_domain is required")
 	require.Nil(resp)
 
-	// missing projectID whitelist
+	// missing projectID allow list
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: ``,
 		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
-	s.RequireErrorContains(err, "gcp-iit: projectid_whitelist is required")
+	s.RequireErrorContains(err, "gcp-iit: projectid_allow_list is required")
 	require.Nil(resp)
 	// success
 	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["bar"]
+projectid_allow_list = ["bar"]
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})
 	require.NoError(err)
@@ -420,22 +422,22 @@ func (s *IITAttestorSuite) TestFailToRecvStream() {
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
-func (s *IITAttestorSuite) newPlugin() nodeattestorv0.Plugin {
+func (s *IITAttestorSuite) newPlugin() nodeattestorv0.NodeAttestorClient {
 	p := New()
 	p.tokenKeyRetriever = testKeyRetriever{}
 	p.client = s.client
 
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(p), &plugin,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(p), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
-	return plugin
+	return v0.NodeAttestorClient
 }
 
 func (s *IITAttestorSuite) configure() {
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["test-project"]
+projectid_allow_list = ["test-project"]
 `,
 		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
 	})
@@ -463,7 +465,7 @@ func (s *IITAttestorSuite) configureForInstanceMetadata(instance *compute.Instan
 	s.client.setInstance(instance)
 	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
 		Configuration: `
-projectid_whitelist = ["test-project"]
+projectid_allow_list = ["test-project"]
 use_instance_metadata = true
 allowed_label_keys = ["allowed", "allowed-no-value"]
 allowed_metadata_keys = ["allowed", "allowed-no-value"]

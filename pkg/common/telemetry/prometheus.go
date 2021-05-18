@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -30,7 +31,7 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 
 	var err error
-	runner.sink, err = prommetrics.NewPrometheusSink()
+	runner.sink, err = prommetrics.NewPrometheusSinkFrom(prommetrics.PrometheusOpts{})
 	if err != nil {
 		return runner, err
 	}
@@ -78,7 +79,7 @@ func (p *prometheusRunner) run(ctx context.Context) error {
 	go func() {
 		defer wg.Done()
 		err := p.server.ListenAndServe()
-		if err != http.ErrServerClosed {
+		if !errors.Is(err, http.ErrServerClosed) {
 			p.log.Warnf("Prometheus listener stopped unexpectedly: %v", err)
 		}
 	}()

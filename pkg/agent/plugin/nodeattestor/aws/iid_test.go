@@ -13,10 +13,12 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 )
 
@@ -49,7 +51,7 @@ func TestIIDAttestorPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p       nodeattestorv0.Plugin
+	p       nodeattestorv0.NodeAttestorClient
 	server  *httptest.Server
 	status  int
 	docBody string
@@ -161,10 +163,10 @@ func (s *Suite) TestGetPluginInfo() {
 	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) newPlugin() nodeattestorv0.Plugin {
-	var p nodeattestorv0.Plugin
-	s.LoadPlugin(BuiltIn(), &p)
-	return p
+func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
+	na := new(nodeattestor.V0)
+	plugintest.Load(s.T(), BuiltIn(), na)
+	return na.NodeAttestorPluginClient
 }
 
 func (s *Suite) fetchAttestationData() (*nodeattestorv0.FetchAttestationDataResponse, error) {

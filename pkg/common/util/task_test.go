@@ -86,10 +86,6 @@ func TestRunTaskCancelsTasksIfContextCanceled(t *testing.T) {
 	assertErrorChan(t, out2, context.Canceled)
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// Helpers
-/////////////////////////////////////////////////////////////////////////////
-
 func newFakeTask() (chan error, chan error, func(context.Context) error) {
 	in := make(chan error)
 	out := make(chan error, 1)
@@ -99,7 +95,7 @@ func newFakeTask() (chan error, chan error, func(context.Context) error) {
 		}()
 		select {
 		case err = <-in:
-			if err == errPanic {
+			if errors.Is(err, errPanic) {
 				panic(err)
 			}
 			return err
@@ -123,7 +119,7 @@ func assertErrorChan(t *testing.T, ch chan error, expected error) {
 	case <-timer.C:
 		t.Fatalf("timed out waiting for result")
 	case actual := <-ch:
-		if actual != expected {
+		if !errors.Is(actual, expected) {
 			t.Fatalf("expected %v; got %v", expected, actual)
 		}
 	}

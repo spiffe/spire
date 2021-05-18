@@ -12,12 +12,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	corev1 "k8s.io/api/core/v1"
@@ -60,7 +61,7 @@ type Suite struct {
 	k *fakeKubeClient
 
 	raw *Plugin
-	p   notifierv0.Plugin
+	p   notifier.V0
 }
 
 func (s *Suite) SetupTest() {
@@ -68,10 +69,10 @@ func (s *Suite) SetupTest() {
 	s.k = newFakeKubeClient()
 
 	s.raw = New()
-	s.LoadPlugin(builtIn(s.raw), &s.p,
-		spiretest.HostService(identityproviderv0.HostServiceServer(s.r)))
+	plugintest.Load(s.T(), builtIn(s.raw), &s.p,
+		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(s.r)))
 
-	s.withKubeClient(s.k, "")
+	s.withKubeClient([]kubeClient{s.k}, "")
 }
 
 func (s *Suite) TestNotifyFailsIfNotConfigured() {
@@ -216,7 +217,7 @@ func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 }
 
 func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
-	s.withKubeClient(s.k, "/some/file/path")
+	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
 
 	s.k.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -370,7 +371,7 @@ func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 }
 
 func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
-	s.withKubeClient(s.k, "/some/file/path")
+	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
 
 	s.k.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -424,21 +425,19 @@ func (s *Suite) TestGetPluginInfo() {
 }
 
 func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
-	p, err := catalog.LoadBuiltInPlugin(context.Background(), catalog.BuiltInPlugin{
-		Plugin: BuiltIn(),
-	})
-	if !s.AssertGRPCStatusContains(err, codes.Unknown, "k8s-bundle: IdentityProvider host service is required") {
-		p.Close()
-	}
+	var err error
+	plugintest.Load(s.T(), BuiltIn(), nil,
+		plugintest.CaptureLoadError(&err))
+	s.AssertGRPCStatusContains(err, codes.Unknown, "k8s-bundle: IdentityProvider host service is required")
 }
 
-func (s *Suite) withKubeClient(client kubeClient, expectedConfigPath string) {
+func (s *Suite) withKubeClient(client []kubeClient, expectedConfigPath string) {
 	s.raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
 		s.Equal(expectedConfigPath, c.KubeConfigFilePath)
 		if client == nil {
 			return nil, errors.New("kube client not configured")
 		}
-		return []kubeClient{client}, nil
+		return client, nil
 	}
 }
 

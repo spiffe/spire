@@ -354,15 +354,16 @@ func defaultReqHandler(code int, resp []byte) func(w http.ResponseWriter, r *htt
 func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr string, err error) {
 	cert, err := tls.LoadX509KeyPair(v.ServerCertificatePemPath, v.ServerKeyPemPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to load key-pair: %v", err)
+		return nil, "", fmt.Errorf("failed to load key-pair: %w", err)
 	}
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
 	}
 
 	l, err := tls.Listen("tcp", v.ListenAddr, config)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to listen test server: %v", err)
+		return nil, "", fmt.Errorf("failed to listen test server: %w", err)
 	}
 
 	mux := http.NewServeMux()

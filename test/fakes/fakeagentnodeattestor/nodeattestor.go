@@ -10,7 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
-	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/plugintest"
 )
 
 type Config struct {
@@ -22,13 +22,13 @@ type Config struct {
 	Responses []string
 }
 
-func New(t *testing.T, config Config) nodeattestor.V0 {
-	plugin := &nodeAttestor{
+func New(t *testing.T, config Config) nodeattestor.NodeAttestor {
+	server := nodeattestorv0.NodeAttestorPluginServer(&nodeAttestor{
 		config: config,
-	}
+	})
 
-	var na nodeattestor.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("fake", nodeattestorv0.PluginServer(plugin)), &na)
+	na := new(nodeattestor.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("fake", server), na)
 	return na
 }
 
@@ -52,7 +52,7 @@ func (p *nodeAttestor) FetchAttestationData(stream nodeattestorv0.NodeAttestor_F
 	for {
 		req, err := stream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			if len(responsesLeft) > 0 {
 				return fmt.Errorf("unused responses remaining: %q", responsesLeft)
 			}
@@ -69,7 +69,7 @@ func (p *nodeAttestor) FetchAttestationData(stream nodeattestorv0.NodeAttestor_F
 			}
 			responsesLeft = responsesLeft[1:]
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 	}

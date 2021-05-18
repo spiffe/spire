@@ -205,7 +205,7 @@ func RootCAsFromBundleProto(b *common.Bundle) (out []*x509.Certificate, err erro
 	for i, rootCA := range b.RootCas {
 		cert, err := x509.ParseCertificate(rootCA.DerBytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse root CA %d: %v", i, err)
+			return nil, fmt.Errorf("unable to parse root CA %d: %w", i, err)
 		}
 		out = append(out, cert)
 	}
@@ -217,7 +217,7 @@ func JWTSigningKeysFromBundleProto(b *common.Bundle) (map[string]crypto.PublicKe
 	for i, publicKey := range b.JwtSigningKeys {
 		jwtSigningKey, err := x509.ParsePKIXPublicKey(publicKey.PkixBytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse JWT signing key %d: %v", i, err)
+			return nil, fmt.Errorf("unable to parse JWT signing key %d: %w", i, err)
 		}
 		out[publicKey.Kid] = jwtSigningKey
 	}
@@ -273,7 +273,7 @@ pruneRootCA:
 	for _, rootCA := range bundle.RootCas {
 		certs, err := x509.ParseCertificates(rootCA.DerBytes)
 		if err != nil {
-			return nil, false, fmt.Errorf("cannot parse certificates: %v", err)
+			return nil, false, fmt.Errorf("cannot parse certificates: %w", err)
 		}
 		// if any cert in the chain has expired, throw the whole chain out
 		for _, cert := range certs {

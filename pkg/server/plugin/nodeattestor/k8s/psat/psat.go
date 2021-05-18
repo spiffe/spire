@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"sync"
 
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -22,16 +23,16 @@ const (
 
 var (
 	defaultAudience = []string{"spire-server"}
-	psatError       = errs.Class("k8s-psat")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *AttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		nodeattestorv0.PluginServer(p),
+func builtin(p *AttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -42,9 +43,12 @@ type AttestorConfig struct {
 
 // ClusterConfig holds a single cluster configuration
 type ClusterConfig struct {
-	// Array of whitelisted service accounts names
+	// Array of allowed service accounts names
 	// Attestation is denied if coming from a service account that is not in the list
-	ServiceAccountWhitelist []string `hcl:"service_account_whitelist"`
+	ServiceAccountAllowList []string `hcl:"service_account_allow_list"`
+
+	// TODO: Remove this in 1.1.0
+	ServiceAccountAllowListDeprecated []string `hcl:"service_account_whitelist"`
 
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
@@ -75,12 +79,14 @@ type clusterConfig struct {
 	allowedPodLabelKeys  map[string]bool
 }
 
-//AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
+// AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
 type AttestorPlugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	mu     sync.RWMutex
 	config *attestorConfig
+	log    hclog.Logger
 }
 
 // New creates a new PSAT node attestor plugin
@@ -88,150 +94,158 @@ func New() *AttestorPlugin {
 	return &AttestorPlugin{}
 }
 
-var _ nodeattestorv0.NodeAttestorServer = (*AttestorPlugin)(nil)
+var _ nodeattestorv1.NodeAttestorServer = (*AttestorPlugin)(nil)
 
-func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+// SetLogger sets up plugin logging
+func (p *AttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
+}
+
+func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
-		return psatError.Wrap(err)
+		return err
 	}
 
 	config, err := p.getConfig()
 	if err != nil {
-		return psatError.Wrap(err)
+		return err
 	}
 
-	if req.AttestationData == nil {
-		return psatError.New("missing attestation data")
-	}
-
-	if dataType := req.AttestationData.Type; dataType != pluginName {
-		return psatError.New("unexpected attestation data type %q", dataType)
-	}
-
-	if req.AttestationData.Data == nil {
-		return psatError.New("missing attestation data payload")
+	payload := req.GetPayload()
+	if payload == nil {
+		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	attestationData := new(k8s.PSATAttestationData)
-	if err := json.Unmarshal(req.AttestationData.Data, attestationData); err != nil {
-		return psatError.New("failed to unmarshal data payload: %v", err)
+	if err := json.Unmarshal(payload, attestationData); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data payload: %v", err)
 	}
 
 	if attestationData.Cluster == "" {
-		return psatError.New("missing cluster in attestation data")
+		return status.Error(codes.InvalidArgument, "missing cluster in attestation data")
 	}
 
 	if attestationData.Token == "" {
-		return psatError.New("missing token in attestation data")
+		return status.Error(codes.InvalidArgument, "missing token in attestation data")
 	}
 
 	cluster := config.clusters[attestationData.Cluster]
 	if cluster == nil {
-		return psatError.New("not configured for cluster %q", attestationData.Cluster)
+		return status.Errorf(codes.InvalidArgument, "not configured for cluster %q", attestationData.Cluster)
 	}
 
 	tokenStatus, err := cluster.client.ValidateToken(stream.Context(), attestationData.Token, cluster.audience)
 	if err != nil {
-		return psatError.New("unable to validate token with TokenReview API: %v", err)
+		return status.Errorf(codes.Internal, "unable to validate token with TokenReview API: %v", err)
 	}
 
 	if !tokenStatus.Authenticated {
-		return psatError.New("token not authenticated according to TokenReview API")
+		return status.Error(codes.PermissionDenied, "token not authenticated according to TokenReview API")
 	}
 
 	namespace, serviceAccountName, err := k8s.GetNamesFromTokenStatus(tokenStatus)
 	if err != nil {
-		return psatError.New("fail to parse username from token review status: %v", err)
+		return status.Errorf(codes.Internal, "fail to parse username from token review status: %v", err)
 	}
 	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
 
 	if !cluster.serviceAccounts[fullServiceAccountName] {
-		return psatError.New("%q is not a whitelisted service account", fullServiceAccountName)
+		return status.Errorf(codes.PermissionDenied, "%q is not an allowed service account", fullServiceAccountName)
 	}
 
 	podName, err := k8s.GetPodNameFromTokenStatus(tokenStatus)
 	if err != nil {
-		return psatError.New("fail to get pod name from token review status: %v", err)
+		return status.Errorf(codes.Internal, "fail to get pod name from token review status: %v", err)
 	}
 
 	podUID, err := k8s.GetPodUIDFromTokenStatus(tokenStatus)
 	if err != nil {
-		return psatError.New("fail to get pod UID from token review status: %v", err)
+		return status.Errorf(codes.Internal, "fail to get pod UID from token review status: %v", err)
 	}
 
 	pod, err := cluster.client.GetPod(stream.Context(), namespace, podName)
 	if err != nil {
-		return psatError.New("fail to get pod from k8s API server: %v", err)
+		return status.Errorf(codes.Internal, "fail to get pod from k8s API server: %v", err)
 	}
 
 	node, err := cluster.client.GetNode(stream.Context(), pod.Spec.NodeName)
 	if err != nil {
-		return psatError.New("fail to get node from k8s API server: %v", err)
+		return status.Errorf(codes.Internal, "fail to get node from k8s API server: %v", err)
 	}
 
 	nodeUID := string(node.UID)
 	if nodeUID == "" {
-		return psatError.New("node UID is empty")
+		return status.Errorf(codes.Internal, "node UID is empty")
 	}
 
-	selectors := []*common.Selector{
-		k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
-		k8s.MakeSelector(pluginName, "agent_ns", namespace),
-		k8s.MakeSelector(pluginName, "agent_sa", serviceAccountName),
-		k8s.MakeSelector(pluginName, "agent_pod_name", podName),
-		k8s.MakeSelector(pluginName, "agent_pod_uid", podUID),
-		k8s.MakeSelector(pluginName, "agent_node_ip", pod.Status.HostIP),
-		k8s.MakeSelector(pluginName, "agent_node_name", pod.Spec.NodeName),
-		k8s.MakeSelector(pluginName, "agent_node_uid", nodeUID),
+	selectorValues := []string{
+		k8s.MakeSelectorValue("cluster", attestationData.Cluster),
+		k8s.MakeSelectorValue("agent_ns", namespace),
+		k8s.MakeSelectorValue("agent_sa", serviceAccountName),
+		k8s.MakeSelectorValue("agent_pod_name", podName),
+		k8s.MakeSelectorValue("agent_pod_uid", podUID),
+		k8s.MakeSelectorValue("agent_node_ip", pod.Status.HostIP),
+		k8s.MakeSelectorValue("agent_node_name", pod.Spec.NodeName),
+		k8s.MakeSelectorValue("agent_node_uid", nodeUID),
 	}
 
 	for key, value := range node.Labels {
 		if cluster.allowedNodeLabelKeys[key] {
-			selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_node_label", key, value))
+			selectorValues = append(selectorValues, k8s.MakeSelectorValue("agent_node_label", key, value))
 		}
 	}
 
 	for key, value := range pod.Labels {
 		if cluster.allowedPodLabelKeys[key] {
-			selectors = append(selectors, k8s.MakeSelector(pluginName, "agent_pod_label", key, value))
+			selectorValues = append(selectorValues, k8s.MakeSelectorValue("agent_pod_label", key, value))
 		}
 	}
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId:   k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
-		Selectors: selectors,
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId:       k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
+				SelectorValues: selectorValues,
+			},
+		},
 	})
 }
 
-func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	hclConfig := new(AttestorConfig)
-	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
-		return nil, psatError.New("unable to decode configuration: %v", err)
+	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-	if req.GlobalConfig == nil {
-		return nil, psatError.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, psatError.New("global configuration missing trust domain")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
 	}
 
 	if len(hclConfig.Clusters) == 0 {
-		return nil, psatError.New("configuration must have at least one cluster")
+		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one cluster")
 	}
 
 	config := &attestorConfig{
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: req.CoreConfiguration.TrustDomain,
 		clusters:    make(map[string]*clusterConfig),
 	}
 
 	for name, cluster := range hclConfig.Clusters {
-		if len(cluster.ServiceAccountWhitelist) == 0 {
-			return nil, psatError.New("cluster %q configuration must have at least one service account whitelisted", name)
+		// TODO: Remove this in 1.1.0
+		if len(cluster.ServiceAccountAllowListDeprecated) > 0 {
+			p.log.Warn("The `service_account_whitelist` configurable is deprecated and will be removed in a future release. Please use `service_account_allow_list` instead.")
+			cluster.ServiceAccountAllowList = cluster.ServiceAccountAllowListDeprecated
+		}
+
+		if len(cluster.ServiceAccountAllowList) == 0 {
+			return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration must have at least one service account allowed", name)
 		}
 
 		serviceAccounts := make(map[string]bool)
-		for _, serviceAccount := range cluster.ServiceAccountWhitelist {
+		for _, serviceAccount := range cluster.ServiceAccountAllowList {
 			serviceAccounts[serviceAccount] = true
 		}
 
@@ -262,18 +276,14 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 
 	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *AttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, psatError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }

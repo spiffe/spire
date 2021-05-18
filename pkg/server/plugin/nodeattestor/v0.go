@@ -2,25 +2,33 @@ package nodeattestor
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/proto/spire/common"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin nodeattestorv0.NodeAttestor
+	nodeattestorv0.NodeAttestorPluginClient
 }
 
-func (v0 V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)) (*AttestResult, error) {
+func (v0 *V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)) (*AttestResult, error) {
+	switch {
+	case len(payload) == 0:
+		return nil, status.Error(codes.InvalidArgument, "payload cannot be empty")
+	case challengeFn == nil:
+		return nil, status.Error(codes.Internal, "challenge function cannot be nil")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	stream, err := v0.Plugin.Attest(ctx)
+	stream, err := v0.NodeAttestorPluginClient.Attest(ctx)
 	if err != nil {
 		return nil, v0.WrapErr(err)
 	}
@@ -69,8 +77,8 @@ func (v0 V0) Attest(ctx context.Context, payload []byte, challengeFn func(ctx co
 	}, nil
 }
 
-func (v0 V0) streamError(err error) error {
-	if err == io.EOF {
+func (v0 *V0) streamError(err error) error {
+	if errors.Is(err, io.EOF) {
 		return v0.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v0.WrapErr(err)

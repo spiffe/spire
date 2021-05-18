@@ -5,7 +5,7 @@ with the physical node.  This data will be used when attesting to the server.
 
 syntax = "proto3";
 package spire.agent.nodeattestor;
-option go_package = "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestorv0;nodeattestorv0";
+option go_package = "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0;nodeattestorv0";
 
 import "spire/common/common.proto";
 import "spire/common/plugin/plugin.proto";

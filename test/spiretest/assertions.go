@@ -52,18 +52,26 @@ func AssertGRPCStatus(tb testing.TB, err error, code codes.Code, message string)
 	return true
 }
 
-func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) {
+func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...interface{}) {
 	tb.Helper()
-	if !AssertGRPCStatusContains(tb, err, code, contains) {
+	if !AssertGRPCStatusContains(tb, err, code, contains, msgAndArgs...) {
 		tb.FailNow()
 	}
 }
 
-func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) bool {
+func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
+
+	if code == codes.OK {
+		if contains != "" {
+			return assert.Fail(tb, "cannot assert that an OK status has message %q", contains)
+		}
+		return AssertGRPCStatus(tb, err, code, "")
+	}
+
 	st := status.Convert(err)
 	if code != st.Code() || !strings.Contains(st.Message(), contains) {
-		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q with message containing %q", st.Code(), st.Message(), code, contains))
+		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q with message containing %q", st.Code(), st.Message(), code, contains), msgAndArgs...)
 	}
 	return true
 }
@@ -113,15 +121,13 @@ func AssertProtoListEqual(tb testing.TB, expected, actual interface{}) bool {
 	}
 
 	if !assert.Equal(tb, ev.Len(), av.Len(), "expected %d elements in list; got %d", ev.Len(), av.Len()) {
-		// get the nice output
-		return assert.Equal(tb, expected, actual)
+		return false
 	}
 	for i := 0; i < ev.Len(); i++ {
 		e := ev.Index(i).Interface().(proto.Message)
 		a := av.Index(i).Interface().(proto.Message)
 		if !AssertProtoEqual(tb, e, a, "proto %d in list is not equal", i) {
-			// get the nice output
-			return assert.Equal(tb, expected, actual)
+			return false
 		}
 	}
 

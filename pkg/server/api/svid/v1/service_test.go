@@ -1014,21 +1014,17 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			test.logHook.Reset()
 			test.ef.err = tt.fetcherErr
 			if !tt.failDataStore {
-				_, err := test.ds.AppendBundle(context.Background(), &datastore.AppendBundleRequest{
-					Bundle: &common.Bundle{
-						// The SPIFFE ID of the bundle in the datastore needs to match the SPIFFE ID
-						// provided by the client
-						TrustDomainId: td.IDString(),
-						RootCas: []*common.Certificate{
-							{DerBytes: []byte("RootCa1")},
-						},
+				_, err := test.ds.AppendBundle(context.Background(), &common.Bundle{
+					// The SPIFFE ID of the bundle in the datastore needs to match the SPIFFE ID
+					// provided by the client
+					TrustDomainId: td.IDString(),
+					RootCas: []*common.Certificate{
+						{DerBytes: []byte("RootCa1")},
 					},
 				})
 				require.NoError(t, err)
 			} else {
-				_, err := test.ds.DeleteBundle(context.Background(),
-					&datastore.DeleteBundleRequest{TrustDomainId: td.IDString()},
-				)
+				err := test.ds.DeleteBundle(context.Background(), td.IDString(), datastore.Restrict)
 				require.NoError(t, err)
 			}
 

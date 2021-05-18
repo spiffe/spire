@@ -71,15 +71,6 @@ type PluginSuite struct {
 	staleDelay time.Duration
 }
 
-type ListRegistrationReq struct {
-	name               string
-	pagination         *datastore.Pagination
-	selectors          []*common.Selector
-	expectedList       []*common.RegistrationEntry
-	expectedPagination *datastore.Pagination
-	err                string
-}
-
 func (s *PluginSuite) SetupSuite() {
 	clk := clock.NewMock(s.T())
 
@@ -216,40 +207,35 @@ func (s *PluginSuite) TestBundleCRUD() {
 	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existent
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.Require().NotNil(fresp)
-	s.Require().Nil(fresp.Bundle)
+	s.Require().Nil(fb)
 
 	// update non-existent
-	_, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{Bundle: bundle})
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
-	_, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{TrustDomainId: "spiffe://foo"})
+	err = s.ds.DeleteBundle(ctx, "spiffe://foo", datastore.Restrict)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// create
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Require().NoError(err)
 
 	// create again (constraint violation)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Equal(status.Code(err), codes.AlreadyExists)
 
 	// fetch
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fresp.Bundle)
+	s.AssertProtoEqual(bundle, fb)
 
 	// fetch (with denormalized id)
-	fresp, err = s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://fOO"})
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://fOO")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fresp.Bundle)
+	s.AssertProtoEqual(bundle, fb)
 
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
@@ -262,38 +248,29 @@ func (s *PluginSuite) TestBundleCRUD() {
 		[]*x509.Certificate{s.cert, s.cacert})
 
 	// append
-	aresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle2,
-	})
+	ab, err := s.ds.AppendBundle(ctx, bundle2)
 	s.Require().NoError(err)
-	s.Require().NotNil(aresp.Bundle)
-	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
+	s.Require().NotNil(ab)
+	s.AssertProtoEqual(appendedBundle, ab)
 
 	// append identical
-	aresp, err = s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle2,
-	})
+	ab, err = s.ds.AppendBundle(ctx, bundle2)
 	s.Require().NoError(err)
-	s.Require().NotNil(aresp.Bundle)
-	s.AssertProtoEqual(appendedBundle, aresp.Bundle)
+	s.Require().NotNil(ab)
+	s.AssertProtoEqual(appendedBundle, ab)
 
 	// append on a new bundle
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
-	anresp, err := s.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-		Bundle: bundle3,
-	})
+	ab, err = s.ds.AppendBundle(ctx, bundle3)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle3, anresp.Bundle)
+	s.AssertProtoEqual(bundle3, ab)
 
 	// update with mask: RootCas
-	uresp, err := s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-		InputMask: &common.BundleMask{
-			RootCas: true,
-		},
+	updatedBundle, err := s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		RootCas: true,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, uresp.Bundle)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -301,14 +278,11 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	// update with mask: RefreshHint
 	bundle.RefreshHint = 60
-	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-		InputMask: &common.BundleMask{
-			RefreshHint: true,
-		},
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		RefreshHint: true,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, uresp.Bundle)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -316,36 +290,28 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	// update with mask: JwtSingingKeys
 	bundle.JwtSigningKeys = []*common.PublicKey{{Kid: "jwt-key-1"}}
-	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle,
-		InputMask: &common.BundleMask{
-			JwtSigningKeys: true,
-		},
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		JwtSigningKeys: true,
 	})
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, uresp.Bundle)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
 
 	// update without mask
-	uresp, err = s.ds.UpdateBundle(ctx, &datastore.UpdateBundleRequest{
-		Bundle: bundle2,
-	})
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle2, nil)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle2, uresp.Bundle)
+	s.AssertProtoEqual(bundle2, updatedBundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
 	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	dresp, err := s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-	})
+	err = s.ds.DeleteBundle(ctx, bundle.TrustDomainId, datastore.Restrict)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle2, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -353,11 +319,8 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 
 	// delete (with denormalized id)
-	dresp, err = s.ds.DeleteBundle(ctx, &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://bAR",
-	})
+	err = s.ds.DeleteBundle(ctx, "spiffe://bAR", datastore.Restrict)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle3, dresp.Bundle)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -366,27 +329,19 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 func (s *PluginSuite) TestListBundlesWithPagination() {
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err := s.ds.CreateBundle(ctx, bundle1)
 	s.Require().NoError(err)
 
 	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle2)
 	s.Require().NoError(err)
 
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle3,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle3)
 	s.Require().NoError(err)
 
 	bundle4 := bundleutil.BundleProtoFromRootCA("spiffe://baz", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle4,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle4)
 	s.Require().NoError(err)
 
 	tests := []struct {
@@ -488,40 +443,34 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 
 func (s *PluginSuite) TestCountBundles() {
 	// Count empty bundles
-	resp, err := s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err := s.ds.CountBundles(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create bundles
 	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle1,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle1)
 	s.Require().NoError(err)
 
 	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle2)
 	s.Require().NoError(err)
 
 	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundle3,
-	})
+	_, err = s.ds.CreateBundle(ctx, bundle3)
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountBundles(ctx, &datastore.CountBundlesRequest{})
+	count, err = s.ds.CountBundles(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountBundlesResponse{Bundles: 3}, resp)
+	s.Require().Equal(int32(3), count)
 }
 
 func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
-	resp, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err := s.ds.CountAttestedNodes(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	node := &common.AttestedNode{
@@ -530,7 +479,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 		CertSerialNumber:    "1234",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	_, err = s.ds.CreateAttestedNode(ctx, node)
 	s.Require().NoError(err)
 
 	node2 := &common.AttestedNode{
@@ -539,20 +488,20 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 		CertSerialNumber:    "5678",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node2})
+	_, err = s.ds.CreateAttestedNode(ctx, node2)
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	count, err = s.ds.CountAttestedNodes(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountAttestedNodesResponse{Nodes: 2}, resp)
+	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
-	resp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err := s.ds.CountRegistrationEntries(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 0}, resp)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	entry := &common.RegistrationEntry{
@@ -560,7 +509,7 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 		SpiffeId:  "spiffe://example.org/foo",
 		Selectors: []*common.Selector{{Type: "a", Value: "1"}},
 	}
-	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
 
 	entry2 := &common.RegistrationEntry{
@@ -568,13 +517,13 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 		SpiffeId:  "spiffe://example.org/bar",
 		Selectors: []*common.Selector{{Type: "a", Value: "2"}},
 	}
-	_, err = s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry2})
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry2)
 	s.Require().NoError(err)
 
 	// Count all
-	resp, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err = s.ds.CountRegistrationEntries(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(&datastore.CountRegistrationEntriesResponse{Entries: 2}, resp)
+	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestSetBundle() {
@@ -587,16 +536,12 @@ func (s *PluginSuite) TestSetBundle() {
 	s.Require().Nil(s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is created
-	_, err := s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: bundle,
-	})
+	_, err := s.ds.SetBundle(ctx, bundle)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is updated
-	_, err = s.ds.SetBundle(ctx, &datastore.SetBundleRequest{
-		Bundle: bundle2,
-	})
+	_, err = s.ds.SetBundle(ctx, bundle2)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
 }
@@ -623,43 +568,33 @@ func (s *PluginSuite) TestBundlePrune() {
 	}
 
 	// Store bundle in datastore
-	_, err = s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{Bundle: bundle})
+	_, err = s.ds.CreateBundle(ctx, bundle)
 	s.Require().NoError(err)
 
 	// Prune
 	// prune non existent bundle should not return error, no bundle to prune
-	expiration := time.Now().Unix()
-	presp, err := s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: "spiffe://notexistent",
-		ExpiresBefore: expiration,
-	})
+	expiration := time.Now()
+	changed, err := s.ds.PruneBundle(ctx, "spiffe://notexistent", expiration)
 	s.NoError(err)
-	s.Equal(presp, &datastore.PruneBundleResponse{})
+	s.False(changed)
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
-	expiration = time.Now().Unix()
-	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-		ExpiresBefore: expiration,
-	})
+	expiration = time.Now()
+	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, expiration)
 	s.AssertGRPCStatus(err, codes.Unknown, "prune failed: would prune all certificates")
-	s.Nil(presp)
+	s.False(changed)
 
 	// prune should remove expired certs
-	presp, err = s.ds.PruneBundle(ctx, &datastore.PruneBundleRequest{
-		TrustDomainId: bundle.TrustDomainId,
-		ExpiresBefore: middleTime.Unix(),
-	})
+	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, middleTime)
 	s.NoError(err)
-	s.NotNil(presp)
-	s.True(presp.BundleChanged)
+	s.True(changed)
 
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
-	fresp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{TrustDomainId: "spiffe://foo"})
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
-	s.AssertProtoEqual(expectedPrunedBundle, fresp.Bundle)
+	s.AssertProtoEqual(expectedPrunedBundle, fb)
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
@@ -670,540 +605,296 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	cresp, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+	attestedNode, err := s.ds.CreateAttestedNode(ctx, node)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, cresp.Node)
+	s.AssertProtoEqual(node, attestedNode)
 
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+	attestedNode, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(node, fresp.Node)
-
-	expiration := time.Now().Unix()
-	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-		ByExpiresBefore: &wrapperspb.Int64Value{
-			Value: expiration,
-		},
-	})
-	s.Require().NoError(err)
-	s.Empty(sresp.Nodes)
+	s.AssertProtoEqual(node, attestedNode)
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: "missing"})
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
 	s.Require().NoError(err)
-	s.Require().Nil(fresp.Node)
+	s.Require().Nil(attestedNode)
 }
 
-func (s *PluginSuite) TestFetchStaleNodes() {
-	efuture := &common.AttestedNode{
-		SpiffeId:            "foo",
-		AttestationDataType: "aws-tag",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+func (s *PluginSuite) TestListAttestedNodes() {
+	now := time.Now()
+	expired := now.Add(-time.Hour)
+	unexpired := now.Add(time.Hour)
+
+	byBanned := func(value bool) *wrapperspb.BoolValue {
+		return &wrapperspb.BoolValue{Value: value}
 	}
 
-	epast := &common.AttestedNode{
-		SpiffeId:            "bar",
-		AttestationDataType: "aws-tag",
-		CertSerialNumber:    "deadbeef",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+	byExpiresBefore := func(t time.Time) *wrapperspb.Int64Value {
+		return &wrapperspb.Int64Value{Value: t.Unix()}
 	}
 
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: efuture})
-	s.Require().NoError(err)
-
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: epast})
-	s.Require().NoError(err)
-
-	expiration := time.Now().Unix()
-	sresp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-		ByExpiresBefore: &wrapperspb.Int64Value{
-			Value: expiration,
-		},
-	})
-	s.Require().NoError(err)
-	s.RequireProtoListEqual([]*common.AttestedNode{epast}, sresp.Nodes)
-}
-
-func (s *PluginSuite) TestFetchAttestedNodesWithPagination() {
-	// Create all necessary nodes
-	aNode1 := &common.AttestedNode{
-		SpiffeId:            "node1",
-		AttestationDataType: "t1",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
+	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, selectors ...string) *common.AttestedNode {
+		return &common.AttestedNode{
+			SpiffeId:            makeID(spiffeIDSuffix),
+			AttestationDataType: attestationType,
+			CertSerialNumber:    sn,
+			CertNotAfter:        notAfter.Unix(),
+			Selectors:           makeSelectors(selectors...),
+		}
 	}
 
-	aNode2 := &common.AttestedNode{
-		SpiffeId:            "node2",
-		AttestationDataType: "t2",
-		CertSerialNumber:    "deadbeef",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
-	}
+	banned := ""
+	unbanned := "IRRELEVANT"
 
-	aNode3 := &common.AttestedNode{
-		SpiffeId:            "node3",
-		AttestationDataType: "t3",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(-time.Hour).Unix(),
-	}
+	nodeA := makeAttestedNode("A", "T1", expired, unbanned, "S1")
+	nodeB := makeAttestedNode("B", "T2", expired, unbanned, "S1")
+	nodeC := makeAttestedNode("C", "T1", expired, unbanned, "S2")
+	nodeD := makeAttestedNode("D", "T2", expired, unbanned, "S2")
+	nodeE := makeAttestedNode("E", "T1", unexpired, banned, "S1", "S2")
+	nodeF := makeAttestedNode("F", "T2", unexpired, banned, "S1", "S3")
+	nodeG := makeAttestedNode("G", "T1", unexpired, banned, "S2", "S3")
+	nodeH := makeAttestedNode("H", "T2", unexpired, banned, "S2", "S3")
 
-	aNode4 := &common.AttestedNode{
-		SpiffeId:            "node4",
-		AttestationDataType: "t1",
-		// Banned
-		CertSerialNumber: "",
-		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
-	}
-	aNode5 := &common.AttestedNode{
-		SpiffeId:            "node5",
-		AttestationDataType: "t4",
-		// Banned
-		CertSerialNumber: "",
-		CertNotAfter:     time.Now().Add(-time.Hour).Unix(),
-	}
-
-	_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode1})
-	s.Require().NoError(err)
-
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode2})
-	s.Require().NoError(err)
-
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode3})
-	s.Require().NoError(err)
-
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode4})
-	s.Require().NoError(err)
-
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: aNode5})
-	s.Require().NoError(err)
-
-	aNode1WithSelectors := cloneAttestedNode(aNode1)
-	aNode1WithSelectors.Selectors = []*common.Selector{
-		{Type: "a", Value: "1"},
-		{Type: "b", Value: "2"},
-	}
-	s.setNodeSelectors("node1", aNode1WithSelectors.Selectors)
-
-	aNode2WithSelectors := cloneAttestedNode(aNode2)
-	aNode2WithSelectors.Selectors = []*common.Selector{
-		{Type: "b", Value: "2"},
-	}
-	s.setNodeSelectors("node2", aNode2WithSelectors.Selectors)
-
-	aNode3WithSelectors := cloneAttestedNode(aNode3)
-	aNode3WithSelectors.Selectors = []*common.Selector{
-		{Type: "a", Value: "1"},
-		{Type: "c", Value: "3"},
-	}
-	s.setNodeSelectors("node3", aNode3WithSelectors.Selectors)
-
-	aNode4WithSelectors := cloneAttestedNode(aNode4)
-	aNode4WithSelectors.Selectors = []*common.Selector{
-		{Type: "a", Value: "1"},
-		{Type: "b", Value: "2"},
-	}
-	s.setNodeSelectors("node4", aNode4WithSelectors.Selectors)
-
-	tests := []struct {
-		name               string
-		req                *datastore.ListAttestedNodesRequest
-		expectedList       []*common.AttestedNode
-		expectedPagination *datastore.Pagination
-		expectedErr        string
+	for _, tt := range []struct {
+		test                string
+		nodes               []*common.AttestedNode
+		pageSize            int32
+		byExpiresBefore     *wrapperspb.Int64Value
+		byAttestationType   string
+		bySelectors         *datastore.BySelectors
+		byBanned            *wrapperspb.BoolValue
+		expectNodesOut      []*common.AttestedNode
+		expectPagedTokensIn []string
+		expectPagedNodesOut [][]*common.AttestedNode
 	}{
 		{
-			name:         "fetch without pagination",
-			req:          &datastore.ListAttestedNodesRequest{},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3, aNode4, aNode5},
+			test:                "without attested nodes",
+			expectNodesOut:      []*common.AttestedNode{},
+			expectPagedTokensIn: []string{""},
+			expectPagedNodesOut: [][]*common.AttestedNode{{}},
 		},
 		{
-			name: "pagination without token",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					PageSize: 2,
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2},
-			expectedPagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
-			},
+			test:                "with partial page",
+			nodes:               []*common.AttestedNode{nodeA},
+			pageSize:            2,
+			expectNodesOut:      []*common.AttestedNode{nodeA},
+			expectPagedTokensIn: []string{"", "1"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
 		},
 		{
-			name: "pagination without token and fetch selectors",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					PageSize: 3,
-				},
-				FetchSelectors: true,
-			},
-			expectedList: []*common.AttestedNode{
-				aNode1WithSelectors, aNode2WithSelectors, aNode3WithSelectors,
-			},
-			expectedPagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 3,
-			},
+			test:                "with full page",
+			nodes:               []*common.AttestedNode{nodeA, nodeB},
+			pageSize:            2,
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
+			expectPagedTokensIn: []string{"", "2"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA, nodeB}, {}},
 		},
 		{
-			name: "list without pagination and fetch selectors",
-			req: &datastore.ListAttestedNodesRequest{
-				FetchSelectors: true,
-			},
-			expectedList: []*common.AttestedNode{
-				aNode1WithSelectors, aNode2WithSelectors, aNode3WithSelectors,
-				aNode4WithSelectors, aNode5,
-			},
+			test:                "with page and a half",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC},
+			pageSize:            2,
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
+			expectPagedTokensIn: []string{"", "2", "3"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA, nodeB}, {nodeC}, {}},
+		},
+		// By expiration
+		{
+			test:                "by expires before",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeB, nodeF, nodeG, nodeC},
+			byExpiresBefore:     byExpiresBefore(now),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
+			expectPagedTokensIn: []string{"", "1", "3", "6"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeC}, {}},
+		},
+		// By attestation type
+		{
+			test:                "by attestation type",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE},
+			byAttestationType:   "T1",
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeC, nodeE},
+			expectPagedTokensIn: []string{"", "1", "3", "5"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeC}, {nodeE}, {}},
+		},
+		// By banned
+		{
+			test:                "by banned",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
+			byBanned:            byBanned(true),
+			expectNodesOut:      []*common.AttestedNode{nodeE, nodeF},
+			expectPagedTokensIn: []string{"", "2", "3"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {nodeF}, {}},
 		},
 		{
-			name: "pagination not null but page size is zero",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 0,
-				},
-			},
-			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
+			test:                "by unbanned",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
+			byBanned:            byBanned(false),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
+			expectPagedTokensIn: []string{"", "1", "4"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
+		},
+		// By selector subset
+		{
+			test:                "by selector subset",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.Subset, "S1"),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
+			expectPagedTokensIn: []string{"", "1", "2"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
 		},
 		{
-			name: "by selector match but empty selectors",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 2,
-				},
-				BySelectorMatch: &datastore.BySelectors{
-					Selectors: []*common.Selector{},
-				},
-			},
-			expectedErr: "rpc error: code = InvalidArgument desc = cannot list by empty selectors set",
+			test:                "by selectors subset",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.Subset, "S1", "S3"),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeF},
+			expectPagedTokensIn: []string{"", "1", "2", "6"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeF}, {}},
+		},
+		// By exact selector match
+		{
+			test:                "by selector exact",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.Exact, "S1"),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
+			expectPagedTokensIn: []string{"", "1", "2"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
 		},
 		{
-			name: "get all nodes first page",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 3,
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
-			expectedPagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 3,
-			},
+			test:                "by selectors exact",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.Exact, "S1", "S3"),
+			expectNodesOut:      []*common.AttestedNode{nodeF},
+			expectPagedTokensIn: []string{"", "6"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeF}, {}},
 		},
+		// By attestation type and selector subset. This is to exercise some
+		// of the logic that combines these parts of the queries together to
+		// make sure they glom well.
 		{
-			name: "get all nodes second page",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "3",
-					PageSize: 3,
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode4, aNode5},
-			expectedPagination: &datastore.Pagination{
-				Token:    "5",
-				PageSize: 3,
-			},
+			test:                "by attestation type and selector subset",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE},
+			byAttestationType:   "T1",
+			bySelectors:         bySelectors(datastore.Subset, "S1"),
+			expectNodesOut:      []*common.AttestedNode{nodeA},
+			expectPagedTokensIn: []string{"", "1"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
 		},
-		{
-			name:         "get all nodes third page no results",
-			expectedList: []*common.AttestedNode{},
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "5",
-					PageSize: 3,
-				},
-			},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 3,
-			},
-		},
-		{
-			name: "get nodes by expire no pagination",
-			req: &datastore.ListAttestedNodesRequest{
-				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode3, aNode4, aNode5},
-		},
-		{
-			name: "get nodes by expire before get only page first page",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 2,
-				},
-				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode3},
-			expectedPagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get nodes by expire before get only page second page",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "3",
-					PageSize: 2,
-				},
-				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode4, aNode5},
-			expectedPagination: &datastore.Pagination{
-				Token:    "5",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get nodes by expire before get only page third page no results",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "5",
-					PageSize: 2,
-				},
-				ByExpiresBefore: &wrapperspb.Int64Value{
-					Value: time.Now().Unix(),
-				},
-			},
-			expectedList: []*common.AttestedNode{},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-			},
-		},
-		{
-			name: "by attestation type",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 3,
-				},
-				ByAttestationType: "t1",
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode4},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 3,
-				Token:    "4",
-			},
-		},
-		{
-			name: "by attestation type no pagination",
-			req: &datastore.ListAttestedNodesRequest{
-				ByAttestationType: "t1",
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode4},
-		},
-		{
-			name: "by attestation type no results",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 10,
-				},
-				ByAttestationType: "invalid type",
-			},
-			expectedList: []*common.AttestedNode{},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 10,
-			},
-		},
-		{
-			name: "not banned",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 4,
-				},
-				ByBanned: &wrapperspb.BoolValue{Value: false},
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 4,
-				Token:    "3",
-			},
-		},
-		{
-			name: "not banned no pagination",
-			req: &datastore.ListAttestedNodesRequest{
-				ByBanned: &wrapperspb.BoolValue{Value: false},
-			},
-			expectedList: []*common.AttestedNode{aNode1, aNode2, aNode3},
-		},
-		{
-			name: "banned",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 2,
-				},
-				ByBanned: &wrapperspb.BoolValue{Value: true},
-			},
-			expectedList: []*common.AttestedNode{aNode4, aNode5},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-				Token:    "5",
-			},
-		},
-		{
-			name: "by selector match exact",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 2,
-				},
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode4WithSelectors},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-				Token:    "4",
-			},
-		},
-		{
-			name: "by selector match exact second page no results",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "4",
-					PageSize: 2,
-				},
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-				Token:    "",
-			},
-		},
-		{
-			name: "by selector match exact no pagination",
-			req: &datastore.ListAttestedNodesRequest{
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode4WithSelectors},
-		},
-		{
-			name: "by selector match subset",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 4,
-				},
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_SUBSET,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode2WithSelectors, aNode4WithSelectors},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 4,
-				Token:    "4",
-			},
-		},
-		{
-			name: "by selector match subset no pagination",
-			req: &datastore.ListAttestedNodesRequest{
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_SUBSET,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1WithSelectors, aNode2WithSelectors, aNode4WithSelectors},
-		},
-		{
-			name: "multiple filters",
-			req: &datastore.ListAttestedNodesRequest{
-				Pagination: &datastore.Pagination{
-					Token:    "",
-					PageSize: 2,
-				},
-				ByAttestationType: "t1",
-				ByBanned:          &wrapperspb.BoolValue{Value: false},
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1WithSelectors},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-				Token:    "1",
-			},
-		},
-		{
-			name: "multiple filters no pagination",
-			req: &datastore.ListAttestedNodesRequest{
-				ByAttestationType: "t1",
-				ByBanned:          &wrapperspb.BoolValue{Value: false},
-				BySelectorMatch: &datastore.BySelectors{
-					Match: datastore.BySelectors_MATCH_EXACT,
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
-				},
-			},
-			expectedList: []*common.AttestedNode{aNode1WithSelectors},
-		},
-	}
-	for _, test := range tests {
-		test := test
-		s.T().Run(test.name, func(t *testing.T) {
-			resp, err := s.ds.ListAttestedNodes(ctx, test.req)
-			if test.expectedErr != "" {
-				require.EqualError(t, err, test.expectedErr)
-				return
+	} {
+		tt := tt
+		for _, withPagination := range []bool{true, false} {
+			for _, withSelectors := range []bool{true, false} {
+				name := tt.test
+				if withSelectors {
+					name += " with selectors"
+				} else {
+					name += " without selectors"
+				}
+				if withPagination {
+					name += " with pagination"
+				} else {
+					name += " without pagination"
+				}
+				s.T().Run(name, func(t *testing.T) {
+					s.ds = s.newPlugin()
+					defer s.ds.closeDB()
+
+					// Create entries for the test. For convenience, map the actual
+					// entry ID to the "test" entry ID, so we can easily pinpoint
+					// which entries were unexpectedly missing or included in the
+					// listing.
+					for _, node := range tt.nodes {
+						_, err := s.ds.CreateAttestedNode(ctx, node)
+						require.NoError(t, err)
+						_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
+							Selectors: &datastore.NodeSelectors{
+								SpiffeId:  node.SpiffeId,
+								Selectors: node.Selectors,
+							},
+						})
+						require.NoError(t, err)
+					}
+
+					var pagination *datastore.Pagination
+					if withPagination {
+						pagination = &datastore.Pagination{
+							PageSize: tt.pageSize,
+						}
+						if pagination.PageSize == 0 {
+							pagination.PageSize = 1
+						}
+					}
+
+					var tokensIn []string
+					var actualIDsOut [][]string
+					actualSelectorsOut := make(map[string][]*common.Selector)
+					req := &datastore.ListAttestedNodesRequest{
+						Pagination:        pagination,
+						ByExpiresBefore:   tt.byExpiresBefore,
+						ByAttestationType: tt.byAttestationType,
+						BySelectorMatch:   tt.bySelectors,
+						ByBanned:          tt.byBanned,
+						FetchSelectors:    withSelectors,
+					}
+
+					// Don't loop forever if there is a bug
+					for i := 0; ; i++ {
+						if i > len(tt.nodes) {
+							require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
+						}
+						if req.Pagination != nil {
+							tokensIn = append(tokensIn, req.Pagination.Token)
+						}
+						resp, err := s.ds.ListAttestedNodes(ctx, req)
+						require.NoError(t, err)
+						require.NotNil(t, resp)
+						if withPagination {
+							require.NotNil(t, resp.Pagination, "response missing pagination")
+							assert.Equal(t, req.Pagination.PageSize, resp.Pagination.PageSize, "response page size did not match request")
+						} else {
+							require.Nil(t, resp.Pagination, "response has pagination")
+						}
+
+						var idSet []string
+						for _, node := range resp.Nodes {
+							idSet = append(idSet, node.SpiffeId)
+							actualSelectorsOut[node.SpiffeId] = node.Selectors
+						}
+						actualIDsOut = append(actualIDsOut, idSet)
+
+						if resp.Pagination == nil || resp.Pagination.Token == "" {
+							break
+						}
+						req.Pagination = resp.Pagination
+					}
+
+					expectNodesOut := tt.expectPagedNodesOut
+					if !withPagination {
+						expectNodesOut = [][]*common.AttestedNode{tt.expectNodesOut}
+					}
+
+					var expectIDsOut [][]string
+					expectSelectorsOut := make(map[string][]*common.Selector)
+					for _, nodeSet := range expectNodesOut {
+						var idSet []string
+						for _, node := range nodeSet {
+							idSet = append(idSet, node.SpiffeId)
+							if withSelectors {
+								expectSelectorsOut[node.SpiffeId] = node.Selectors
+							}
+						}
+						expectIDsOut = append(expectIDsOut, idSet)
+					}
+
+					if withPagination {
+						assert.Equal(t, tt.expectPagedTokensIn, tokensIn, "unexpected request tokens")
+					} else {
+						assert.Empty(t, tokensIn, "unexpected request tokens")
+					}
+					assert.Equal(t, expectIDsOut, actualIDsOut, "unexpected response nodes")
+					assertSelectorsEqual(t, expectSelectorsOut, actualSelectorsOut, "unexpected response selectors")
+				})
 			}
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			spiretest.RequireProtoListEqual(t, test.expectedList, resp.Nodes)
-			require.Equal(t, test.expectedPagination, resp.Pagination)
-		})
+		}
 	}
-
-	resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-		Pagination: &datastore.Pagination{
-			Token:    "invalid int",
-			PageSize: 10,
-		},
-	})
-	s.Require().Nil(resp)
-	s.Require().Error(err, "could not parse token 'invalid int'")
 }
 
 func (s *PluginSuite) TestUpdateAttestedNode() {
@@ -1223,14 +914,15 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 
 	for _, tt := range []struct {
 		name           string
-		updateReq      *datastore.UpdateAttestedNodeRequest
+		updateNode     *common.AttestedNode
+		updateNodeMask *common.AttestedNodeMask
 		expUpdatedNode *common.AttestedNode
 		expCode        codes.Code
 		expMsg         string
 	}{
 		{
 			name: "update non-existing attested node",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:         "non-existent-node-id",
 				CertSerialNumber: updatedSerial,
 				CertNotAfter:     updatedExpires,
@@ -1240,14 +932,14 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		},
 		{
 			name: "update attested node with all false mask",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				CertSerialNumber:    updatedSerial,
 				CertNotAfter:        updatedExpires,
 				NewCertNotAfter:     updatedNewExpires,
 				NewCertSerialNumber: updatedNewSerial,
-				InputMask:           &common.AttestedNodeMask{},
 			},
+			updateNodeMask: &common.AttestedNodeMask{},
 			expUpdatedNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				AttestationDataType: attestationType,
@@ -1259,16 +951,16 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		},
 		{
 			name: "update attested node with mask set only some fields: 'CertSerialNumber', 'NewCertNotAfter'",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				CertSerialNumber:    updatedSerial,
 				CertNotAfter:        updatedExpires,
 				NewCertNotAfter:     updatedNewExpires,
 				NewCertSerialNumber: updatedNewSerial,
-				InputMask: &common.AttestedNodeMask{
-					CertSerialNumber: true,
-					NewCertNotAfter:  true,
-				},
+			},
+			updateNodeMask: &common.AttestedNodeMask{
+				CertSerialNumber: true,
+				NewCertNotAfter:  true,
 			},
 			expUpdatedNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
@@ -1281,7 +973,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		},
 		{
 			name: "update attested node with nil mask",
-			updateReq: &datastore.UpdateAttestedNodeRequest{
+			updateNode: &common.AttestedNode{
 				SpiffeId:            nodeID,
 				CertSerialNumber:    updatedSerial,
 				CertNotAfter:        updatedExpires,
@@ -1303,32 +995,32 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.ds = s.newPlugin()
 			defer s.ds.closeDB()
 
-			_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: &common.AttestedNode{
+			_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 				SpiffeId:            nodeID,
 				AttestationDataType: attestationType,
 				CertSerialNumber:    serial,
 				CertNotAfter:        expires,
 				NewCertNotAfter:     newExpires,
 				NewCertSerialNumber: newSerial,
-			}})
+			})
 			s.Require().NoError(err)
 
 			// Update attested node
-			uresp, err := s.ds.UpdateAttestedNode(ctx, tt.updateReq)
+			updatedNode, err := s.ds.UpdateAttestedNode(ctx, tt.updateNode, tt.updateNodeMask)
 			s.RequireGRPCStatus(err, tt.expCode, tt.expMsg)
 			if tt.expCode != codes.OK {
-				s.Require().Nil(uresp)
+				s.Require().Nil(updatedNode)
 				return
 			}
 			s.Require().NoError(err)
-			s.Require().NotNil(uresp)
-			s.RequireProtoEqual(tt.expUpdatedNode, uresp.Node)
+			s.Require().NotNil(updatedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, updatedNode)
 
 			// Check a fresh fetch shows the updated attested node
-			fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: tt.updateReq.SpiffeId})
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateNode.SpiffeId)
 			s.Require().NoError(err)
-			s.Require().NotNil(fresp)
-			s.RequireProtoEqual(tt.expUpdatedNode, fresp.Node)
+			s.Require().NotNil(attestedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, attestedNode)
 		})
 	}
 }
@@ -1342,19 +1034,19 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	}
 
 	// delete it before it exists
-	_, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	_, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	_, err = s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: entry})
+	_, err = s.ds.CreateAttestedNode(ctx, entry)
 	s.Require().NoError(err)
 
-	dresp, err := s.ds.DeleteAttestedNode(ctx, &datastore.DeleteAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.AssertProtoEqual(entry, dresp.Node)
+	s.AssertProtoEqual(entry, deletedNode)
 
-	fresp, err := s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: entry.SpiffeId})
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
 	s.Require().NoError(err)
-	s.Nil(fresp.Node)
+	s.Nil(attestedNode)
 }
 
 func (s *PluginSuite) TestNodeSelectors() {
@@ -1410,20 +1102,21 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	s.T().Run("no selectors exist", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{}
 		resp := s.listNodeSelectors(req)
-		s.Assert().Empty(resp.Selectors)
+		assertSelectorsEqual(t, nil, resp.Selectors)
 	})
 
 	const numNonExpiredAttNodes = 3
 	const attestationDataType = "fake_nodeattestor"
 	nonExpiredAttNodes := make([]*common.AttestedNode, numNonExpiredAttNodes)
+	now := time.Now()
 	for i := 0; i < numNonExpiredAttNodes; i++ {
 		nonExpiredAttNodes[i] = &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/non-expired-node-%d", i),
 			AttestationDataType: attestationDataType,
 			CertSerialNumber:    fmt.Sprintf("non-expired serial %d-1", i),
-			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+			CertNotAfter:        now.Add(time.Hour).Unix(),
 			NewCertSerialNumber: fmt.Sprintf("non-expired serial %d-2", i),
-			NewCertNotAfter:     time.Now().Add(2 * time.Hour).Unix(),
+			NewCertNotAfter:     now.Add(2 * time.Hour).Unix(),
 		}
 	}
 
@@ -1434,20 +1127,16 @@ func (s *PluginSuite) TestListNodeSelectors() {
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/expired-node-%d", i),
 			AttestationDataType: attestationDataType,
 			CertSerialNumber:    fmt.Sprintf("expired serial %d-1", i),
-			CertNotAfter:        time.Now().Add(-24 * time.Hour).Unix(),
+			CertNotAfter:        now.Add(-24 * time.Hour).Unix(),
 			NewCertSerialNumber: fmt.Sprintf("expired serial %d-2", i),
-			NewCertNotAfter:     time.Now().Add(-12 * time.Hour).Unix(),
+			NewCertNotAfter:     now.Add(-12 * time.Hour).Unix(),
 		}
 	}
 
 	allAttNodesToCreate := append(nonExpiredAttNodes, expiredAttNodes...)
 	selectorMap := make(map[string][]*common.Selector)
 	for i, n := range allAttNodesToCreate {
-		req := &datastore.CreateAttestedNodeRequest{
-			Node: n,
-		}
-
-		_, err := s.ds.CreateAttestedNode(ctx, req)
+		_, err := s.ds.CreateAttestedNode(ctx, n)
 		s.Require().NoError(err)
 
 		selectors := []*common.Selector{
@@ -1470,24 +1159,42 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	s.T().Run("list all", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{}
 		resp := s.listNodeSelectors(req)
-		s.Require().Len(resp.Selectors, len(selectorMap))
+		assertSelectorsEqual(t, selectorMap, resp.Selectors)
 	})
 
 	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
 			ValidAt: &timestamppb.Timestamp{
-				Seconds: time.Now().Unix(),
+				Seconds: now.Unix(),
 			},
 		}
-
 		resp := s.listNodeSelectors(req)
-		s.Assert().Len(resp.Selectors, len(nonExpiredSelectorsMap))
-		for _, n := range resp.Selectors {
-			expectedSelectors, ok := nonExpiredSelectorsMap[n.SpiffeId]
-			s.Assert().True(ok)
-			s.AssertProtoListEqual(expectedSelectors, n.Selectors)
-		}
+		assertSelectorsEqual(t, nonExpiredSelectorsMap, resp.Selectors)
 	})
+}
+
+func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
+	insertSelector := func(id int, spiffeID, selectorType, selectorValue string) {
+		query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(id, spiffe_id, type, value) VALUES (?, ?, ?, ?)")
+		_, err := s.ds.db.raw.Exec(query, id, spiffeID, selectorType, selectorValue)
+		s.Require().NoError(err)
+	}
+
+	// Insert selectors out of order in respect to the SPIFFE ID so
+	// that we can assert that the datastore aggregates the results correctly.
+	insertSelector(1, "spiffe://example.org/node3", "A", "a")
+	insertSelector(2, "spiffe://example.org/node2", "B", "b")
+	insertSelector(3, "spiffe://example.org/node3", "C", "c")
+	insertSelector(4, "spiffe://example.org/node1", "D", "d")
+	insertSelector(5, "spiffe://example.org/node2", "E", "e")
+	insertSelector(6, "spiffe://example.org/node3", "F", "f")
+
+	resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
+	assertSelectorsEqual(s.T(), map[string][]*common.Selector{
+		"spiffe://example.org/node1": {{Type: "D", Value: "d"}},
+		"spiffe://example.org/node2": {{Type: "B", Value: "b"}, {Type: "E", Value: "e"}},
+		"spiffe://example.org/node3": {{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}},
+	}, resp.Selectors)
 }
 
 func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
@@ -1528,13 +1235,12 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: validRegistrationEntry})
+		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
 		s.Require().NoError(err)
-		s.NotNil(resp)
-		s.Require().NotNil(resp.Entry)
-		s.NotEmpty(resp.Entry.EntryId)
-		resp.Entry.EntryId = ""
-		s.RequireProtoEqual(resp.Entry, validRegistrationEntry)
+		s.Require().NotNil(registrationEntry)
+		s.NotEmpty(registrationEntry.EntryId)
+		registrationEntry.EntryId = ""
+		s.RequireProtoEqual(registrationEntry, validRegistrationEntry)
 	}
 }
 
@@ -1543,16 +1249,16 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
-		createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: invalidRegistrationEntry})
+		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
 		s.Require().Error(err)
-		s.Require().Nil(createRegistrationEntryResponse)
+		s.Require().Nil(registrationEntry)
 	}
 
 	// TODO: Check that no entries have been created
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
-	registeredEntry := &common.RegistrationEntry{
+	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1567,20 +1273,17 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 		},
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-	createdEntry := createRegistrationEntryResponse.Entry
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.RequireProtoEqual(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.RequireProtoEqual(createdRegistrationEntry, fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
-	now := time.Now().Unix()
-	registeredEntry := &common.RegistrationEntry{
+	now := time.Now()
+	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
@@ -1589,403 +1292,475 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		SpiffeId:    "SpiffeId",
 		ParentId:    "ParentId",
 		Ttl:         1,
-		EntryExpiry: now,
+		EntryExpiry: now.Unix(),
 	}
 
-	createRegistrationEntryResponse, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: registeredEntry})
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
-	s.Require().NotNil(createRegistrationEntryResponse)
-	createdEntry := createRegistrationEntryResponse.Entry
 
 	// Ensure we don't prune valid entries, wind clock back 10s
-	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: now - 10,
-	})
+	err = s.ds.PruneRegistrationEntries(ctx, now.Add(-10*time.Second))
 	s.Require().NoError(err)
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: now,
-	})
+	err = s.ds.PruneRegistrationEntries(ctx, now)
 	s.Require().NoError(err)
 
-	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Equal(createdEntry, fetchRegistrationEntryResponse.Entry)
+	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
 
 	// Ensure we prune old entries
-	_, err = s.ds.PruneRegistrationEntries(ctx, &datastore.PruneRegistrationEntriesRequest{
-		ExpiresBefore: now + 10,
-	})
+	err = s.ds.PruneRegistrationEntries(ctx, now.Add(10*time.Second))
 	s.Require().NoError(err)
 
-	fetchRegistrationEntryResponse, err = s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: createdEntry.EntryId})
+	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 	s.Require().NoError(err)
-	s.Nil(fetchRegistrationEntryResponse.Entry)
+	s.Nil(fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: "INEXISTENT"})
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "INEXISTENT")
 	s.Require().NoError(err)
-	s.Require().Nil(fetchRegistrationEntryResponse.Entry)
+	s.Require().Nil(fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
-	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
-		},
-		SpiffeId: "spiffe://example.org/foo",
-		ParentId: "spiffe://example.org/bar",
-		Ttl:      1,
-		Admin:    true,
-	})
+	s.testListRegistrationEntries(false)
+	s.testListRegistrationEntries(true)
 
-	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type3", Value: "Value3"},
-			{Type: "Type4", Value: "Value4"},
-			{Type: "Type5", Value: "Value5"},
-		},
-		SpiffeId:   "spiffe://example.org/baz",
-		ParentId:   "spiffe://example.org/bat",
-		Ttl:        2,
-		Downstream: true,
-	})
-
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-
-	expectedResponse := &datastore.ListRegistrationEntriesResponse{
-		Entries: []*common.RegistrationEntry{entry2, entry1},
-	}
-	util.SortRegistrationEntries(expectedResponse.Entries)
-	util.SortRegistrationEntries(resp.Entries)
-	s.RequireProtoListEqual(expectedResponse.Entries, resp.Entries)
-	s.Require().Equal(expectedResponse.Pagination, resp.Pagination)
-}
-
-func (s *PluginSuite) TestListRegistrationEntriesWithPagination() {
-	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
-		},
-		SpiffeId: "spiffe://example.org/foo",
-		ParentId: "spiffe://example.org/bar",
-		Ttl:      1,
-	})
-
-	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type3", Value: "Value3"},
-			{Type: "Type4", Value: "Value4"},
-			{Type: "Type5", Value: "Value5"},
-		},
-		SpiffeId: "spiffe://example.org/baz",
-		ParentId: "spiffe://example.org/bat",
-		Ttl:      2,
-	})
-
-	entry3 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
-		},
-		SpiffeId: "spiffe://example.org/tez",
-		ParentId: "spiffe://example.org/taz",
-		Ttl:      2,
-	})
-
-	selectors := []*common.Selector{
-		{Type: "Type1", Value: "Value1"},
-		{Type: "Type2", Value: "Value2"},
-		{Type: "Type3", Value: "Value3"},
-	}
-
-	tests := []ListRegistrationReq{
-		{
-			name: "pagination_without_token",
-			pagination: &datastore.Pagination{
-				PageSize: 2,
-			},
-			expectedList: []*common.RegistrationEntry{entry2, entry1},
-			expectedPagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "pagination_not_null_but_page_size_is_zero",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 0,
-			},
-			err: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
-		},
-		{
-			name: "get_all_entries_first_page",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 2,
-			},
-			expectedList: []*common.RegistrationEntry{entry2, entry1},
-			expectedPagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get_all_entries_second_page",
-			pagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
-			},
-			expectedList: []*common.RegistrationEntry{entry3},
-			expectedPagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get_all_entries_third_page_no_results",
-			pagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 2,
-			},
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get_entries_by_selector_get_only_page_first_page",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 2,
-			},
-			selectors:    selectors,
-			expectedList: []*common.RegistrationEntry{entry1, entry3},
-			expectedPagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get_entries_by_selector_get_only_page_second_page_no_results",
-			pagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 2,
-			},
-			selectors: selectors,
-			expectedPagination: &datastore.Pagination{
-				PageSize: 2,
-			},
-		},
-		{
-			name: "get_entries_by_selector_first_page",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 1,
-			},
-			selectors:    selectors,
-			expectedList: []*common.RegistrationEntry{entry1},
-			expectedPagination: &datastore.Pagination{
-				Token:    "1",
-				PageSize: 1,
-			},
-		},
-		{
-			name: "get_entries_by_selector_second_page",
-			pagination: &datastore.Pagination{
-				Token:    "1",
-				PageSize: 1,
-			},
-			selectors:    selectors,
-			expectedList: []*common.RegistrationEntry{entry3},
-			expectedPagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 1,
-			},
-		},
-		{
-			name: "get_entries_by_selector_third_page_no_results",
-			pagination: &datastore.Pagination{
-				Token:    "3",
-				PageSize: 1,
-			},
-			selectors: selectors,
-			expectedPagination: &datastore.Pagination{
-				PageSize: 1,
-			},
-		},
-	}
-
-	s.listRegistrationEntries(tests, true)
-	s.listRegistrationEntries(tests, false)
-
-	// with invalid token
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		Pagination: &datastore.Pagination{
+			PageSize: 0,
+		},
+	})
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	s.Require().Nil(resp)
+
+	resp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
 			Token:    "invalid int",
 			PageSize: 10,
 		},
 	})
-	s.Require().Nil(resp)
 	s.Require().Error(err, "could not parse token 'invalid int'")
+	s.Require().Nil(resp)
+
+	resp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		BySelectors: &datastore.BySelectors{},
+	})
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "cannot list by empty selector set")
+	s.Require().Nil(resp)
 }
 
-func (s *PluginSuite) listRegistrationEntries(tests []ListRegistrationReq, tolerateStale bool) {
-	if tolerateStale && TestStaleDelay != "" {
-		time.Sleep(s.staleDelay)
+func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
+	byID := func(suffix string) *wrapperspb.StringValue {
+		return &wrapperspb.StringValue{Value: makeID(suffix)}
 	}
-	for _, test := range tests {
-		test := test
-		s.T().Run(test.name, func(t *testing.T) {
-			var bySelectors *datastore.BySelectors
-			if test.selectors != nil {
-				bySelectors = &datastore.BySelectors{
-					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_EXACT,
+
+	byFederatesWith := func(match datastore.MatchBehavior, trustDomainIDs ...string) *datastore.ByFederatesWith {
+		return &datastore.ByFederatesWith{
+			TrustDomains: trustDomainIDs,
+			Match:        match,
+		}
+	}
+
+	makeEntry := func(parentIDSuffix, spiffeIDSuffix string, selectors ...string) *common.RegistrationEntry {
+		return &common.RegistrationEntry{
+			EntryId:   fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
+			ParentId:  makeID(parentIDSuffix),
+			SpiffeId:  makeID(spiffeIDSuffix),
+			Selectors: makeSelectors(selectors...),
+		}
+	}
+
+	foobarAB1 := makeEntry("foo", "bar", "A", "B")
+	foobarAB1.FederatesWith = []string{"spiffe://federated1.test"}
+	foobarAD12 := makeEntry("foo", "bar", "A", "D")
+	foobarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	foobarCB2 := makeEntry("foo", "bar", "C", "B")
+	foobarCB2.FederatesWith = []string{"spiffe://federated2.test"}
+	foobarCD12 := makeEntry("foo", "bar", "C", "D")
+	foobarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+
+	foobarB := makeEntry("foo", "bar", "B")
+
+	foobuzAD := makeEntry("foo", "buz", "A", "D")
+	foobuzCD := makeEntry("foo", "buz", "C", "D")
+
+	bazbarAB1 := makeEntry("baz", "bar", "A", "B")
+	bazbarAB1.FederatesWith = []string{"spiffe://federated1.test"}
+	bazbarAD12 := makeEntry("baz", "bar", "A", "D")
+	bazbarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	bazbarCB2 := makeEntry("baz", "bar", "C", "B")
+	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
+	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
+	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+
+	bazbuzAB := makeEntry("baz", "buz", "A", "B")
+	bazbuzB := makeEntry("baz", "buz", "B")
+	bazbuzCD := makeEntry("baz", "buz", "C", "D")
+
+	zizzazX := makeEntry("ziz", "zaz", "X")
+
+	for _, tt := range []struct {
+		test                  string
+		entries               []*common.RegistrationEntry
+		pageSize              int32
+		byParentID            *wrapperspb.StringValue
+		bySpiffeID            *wrapperspb.StringValue
+		bySelectors           *datastore.BySelectors
+		byFederatesWith       *datastore.ByFederatesWith
+		expectEntriesOut      []*common.RegistrationEntry
+		expectPagedTokensIn   []string
+		expectPagedEntriesOut [][]*common.RegistrationEntry
+	}{
+		{
+			test:                  "without entries",
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		{
+			test:                  "with partial page",
+			entries:               []*common.RegistrationEntry{foobarAB1},
+			pageSize:              2,
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "with full page",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarCB2},
+			pageSize:              2,
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1, foobarCB2}, {}},
+		},
+		{
+			test:                  "with page and a half",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarCB2, foobarAD12},
+			pageSize:              2,
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2, foobarAD12},
+			expectPagedTokensIn:   []string{"", "2", "3"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1, foobarCB2}, {foobarAD12}, {}},
+		},
+		// by parent ID
+		{
+			test:                  "by parent ID",
+			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
+			byParentID:            byID("foo"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
+			expectPagedTokensIn:   []string{"", "1", "3"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
+		},
+		// by SPIFFE ID
+		{
+			test:                  "by SPIFFE ID",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, foobarCB2, foobuzCD},
+			bySpiffeID:            byID("bar"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
+			expectPagedTokensIn:   []string{"", "1", "3"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
+		},
+		// by federates with
+		{
+			test:                  "by federatesWith one subset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by federatesWith many subset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarCB2},
+			expectPagedTokensIn:   []string{"", "3"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarCB2}, {}},
+		},
+		{
+			test:                  "by federatesWith one exact",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by federatesWith many exact",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12, foobarCD12},
+			expectPagedTokensIn:   []string{"", "2", "4"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {}},
+		},
+		// by parent ID and spiffe ID
+		{
+			test:                  "by parent ID and SPIFFE ID",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, bazbarCB2, bazbuzCD},
+			byParentID:            byID("foo"),
+			bySpiffeID:            byID("bar"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		// by parent ID and selector
+		{
+			test:                  "by parent ID and exact selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			byParentID:            byID("foo"),
+			bySelectors:           bySelectors(datastore.Exact, "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
+		},
+		{
+			test:                  "by parent ID and exact selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			byParentID:            byID("foo"),
+			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by parent ID and subset selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			byParentID:            byID("foo"),
+			bySelectors:           bySelectors(datastore.Subset, "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
+		},
+		{
+			test:                  "by parent ID and subset selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			byParentID:            byID("foo"),
+			bySelectors:           bySelectors(datastore.Subset, "A", "B", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
+			expectPagedTokensIn:   []string{"", "1", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {}},
+		},
+		{
+			test:                  "by parent ID and subset selectors no match",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			byParentID:            byID("foo"),
+			bySelectors:           bySelectors(datastore.Subset, "C", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		// by parent ID and federates with
+		{
+			test:                  "by parentID and federatesWith one subset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			byParentID:            byID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1},
+			expectPagedTokensIn:   []string{"", "6"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith many subset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			byParentID:            byID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarCB2},
+			expectPagedTokensIn:   []string{"", "8"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarCB2}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith one exact",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			byParentID:            byID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1},
+			expectPagedTokensIn:   []string{"", "6"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith many exact",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			byParentID:            byID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAD12}, {bazbarCD12}, {}},
+		},
+		// by SPIFFE ID and selector
+		{
+			test:                  "by SPIFFE ID and exact selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			bySpiffeID:            byID("bar"),
+			bySelectors:           bySelectors(datastore.Exact, "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and exact selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			bySpiffeID:            byID("bar"),
+			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and subset selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			bySpiffeID:            byID("bar"),
+			bySelectors:           bySelectors(datastore.Subset, "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
+			expectPagedTokensIn:   []string{"", "1"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and subset selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			bySpiffeID:            byID("bar"),
+			bySelectors:           bySelectors(datastore.Subset, "A", "B", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
+			expectPagedTokensIn:   []string{"", "1", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and subset selectors no match",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			bySpiffeID:            byID("bar"),
+			bySelectors:           bySelectors(datastore.Subset, "C", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+	} {
+		tt := tt
+		for _, withPagination := range []bool{true, false} {
+			name := tt.test
+			if withPagination {
+				name += " with pagination"
+			} else {
+				name += " without pagination"
+			}
+			if tolerateStale {
+				name += " stale"
+			}
+			s.T().Run(name, func(t *testing.T) {
+				s.ds = s.newPlugin()
+				defer s.ds.closeDB()
+
+				s.createBundle("spiffe://federated1.test")
+				s.createBundle("spiffe://federated2.test")
+
+				// Create entries for the test. For convenience, map the actual
+				// entry ID to the "test" entry ID, so we can easily pinpoint
+				// which entries were unexpectedly missing or included in the
+				// listing.
+				entryIDMap := map[string]string{}
+				for _, entryIn := range tt.entries {
+					entryOut := s.createRegistrationEntry(entryIn)
+					entryIDMap[entryOut.EntryId] = entryIn.EntryId
 				}
-			}
-			resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				BySelectors:   bySelectors,
-				Pagination:    test.pagination,
-				TolerateStale: tolerateStale,
+
+				// Optionally sleep to give time for the entries to propagate to
+				// the replicas.
+				if tolerateStale && s.staleDelay > 0 {
+					time.Sleep(s.staleDelay)
+				}
+
+				var pagination *datastore.Pagination
+				if withPagination {
+					pagination = &datastore.Pagination{
+						PageSize: tt.pageSize,
+					}
+					if pagination.PageSize == 0 {
+						pagination.PageSize = 1
+					}
+				}
+
+				var tokensIn []string
+				var actualIDsOut [][]string
+				req := &datastore.ListRegistrationEntriesRequest{
+					Pagination:      pagination,
+					ByParentId:      tt.byParentID,
+					BySpiffeId:      tt.bySpiffeID,
+					BySelectors:     tt.bySelectors,
+					ByFederatesWith: tt.byFederatesWith,
+				}
+
+				// Don't loop forever if there is a bug
+				for i := 0; ; i++ {
+					if i > len(tt.entries) {
+						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
+					}
+					if req.Pagination != nil {
+						tokensIn = append(tokensIn, req.Pagination.Token)
+					}
+					resp, err := s.ds.ListRegistrationEntries(ctx, req)
+					require.NoError(t, err)
+					require.NotNil(t, resp)
+					if withPagination {
+						require.NotNil(t, resp.Pagination, "response missing pagination")
+						assert.Equal(t, req.Pagination.PageSize, resp.Pagination.PageSize, "response page size did not match request")
+					} else {
+						assert.Nil(t, resp.Pagination, "response has pagination")
+					}
+
+					var idSet []string
+					for _, entry := range resp.Entries {
+						entryID, ok := entryIDMap[entry.EntryId]
+						require.True(t, ok, "entry with id %q was not created by this test", entry.EntryId)
+						idSet = append(idSet, entryID)
+					}
+					actualIDsOut = append(actualIDsOut, idSet)
+
+					if resp.Pagination == nil || resp.Pagination.Token == "" {
+						break
+					}
+					req.Pagination = resp.Pagination
+				}
+
+				expectEntriesOut := tt.expectPagedEntriesOut
+				if !withPagination {
+					expectEntriesOut = [][]*common.RegistrationEntry{tt.expectEntriesOut}
+				}
+
+				var expectIDsOut [][]string
+				for _, entrySet := range expectEntriesOut {
+					var idSet []string
+					for _, entry := range entrySet {
+						idSet = append(idSet, entry.EntryId)
+					}
+					expectIDsOut = append(expectIDsOut, idSet)
+				}
+
+				if withPagination {
+					assert.Equal(t, tt.expectPagedTokensIn, tokensIn, "unexpected request tokens")
+				} else {
+					assert.Empty(t, tokensIn, "unexpected request tokens")
+				}
+				assert.Equal(t, expectIDsOut, actualIDsOut, "unexpected response entries")
 			})
-			if test.err != "" {
-				require.EqualError(t, err, test.err)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-
-			expectedResponse := &datastore.ListRegistrationEntriesResponse{
-				Entries:    test.expectedList,
-				Pagination: test.expectedPagination,
-			}
-			util.SortRegistrationEntries(expectedResponse.Entries)
-			util.SortRegistrationEntries(resp.Entries)
-			spiretest.RequireProtoListEqual(t, expectedResponse.Entries, resp.Entries)
-			require.Equal(t, expectedResponse.Pagination, resp.Pagination)
-		})
+		}
 	}
-}
-
-func (s *PluginSuite) TestListRegistrationEntriesAgainstMultipleCriteria() {
-	s.createBundle("spiffe://federates1.org")
-	s.createBundle("spiffe://federates2.org")
-	s.createBundle("spiffe://federates3.org")
-	s.createBundle("spiffe://federates4.org")
-
-	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/P1",
-		SpiffeId: "spiffe://example.org/S1",
-		Selectors: []*common.Selector{
-			{Type: "T1", Value: "V1"},
-		},
-		FederatesWith: []string{
-			"spiffe://federates1.org",
-		},
-	})
-
-	// shares a parent ID
-	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/P1",
-		SpiffeId: "spiffe://example.org/S2",
-		Selectors: []*common.Selector{
-			{Type: "T2", Value: "V2"},
-		},
-		FederatesWith: []string{
-			"spiffe://federates2.org",
-		},
-	})
-
-	// shares a spiffe ID
-	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/P3",
-		SpiffeId: "spiffe://example.org/S1",
-		Selectors: []*common.Selector{
-			{Type: "T3", Value: "V3"},
-		},
-		FederatesWith: []string{
-			"spiffe://federates3.org",
-		},
-	})
-
-	// shares selectors
-	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/P4",
-		SpiffeId: "spiffe://example.org/S4",
-		Selectors: []*common.Selector{
-			{Type: "T1", Value: "V1"},
-		},
-		FederatesWith: []string{
-			"spiffe://federates4.org",
-		},
-	})
-
-	// shares federates with
-	s.createRegistrationEntry(&common.RegistrationEntry{
-		ParentId: "spiffe://example.org/P5",
-		SpiffeId: "spiffe://example.org/S5",
-		Selectors: []*common.Selector{
-			{Type: "T5", Value: "V5"},
-		},
-		FederatesWith: []string{
-			"spiffe://federates1.org",
-		},
-	})
-
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		ByParentId: &wrapperspb.StringValue{
-			Value: "spiffe://example.org/P1",
-		},
-		BySpiffeId: &wrapperspb.StringValue{
-			Value: "spiffe://example.org/S1",
-		},
-		BySelectors: &datastore.BySelectors{
-			Selectors: []*common.Selector{
-				{Type: "T1", Value: "V1"},
-			},
-			Match: datastore.BySelectors_MATCH_EXACT,
-		},
-		ByFederatesWith: &datastore.ByFederatesWith{
-			TrustDomains: []string{
-				"spiffe://federates1.org",
-			},
-			Match: datastore.ByFederatesWith_MATCH_EXACT,
-		},
-	})
-
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.RequireProtoListEqual([]*common.RegistrationEntry{entry}, resp.Entries)
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
-	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			Selectors: []*common.Selector{
-				{Type: "TYPE", Value: "VALUE"},
-			},
-			SpiffeId: "SpiffeId",
-			ParentId: "ParentId",
-			DnsNames: []string{
-				"abcd.efg",
-				"somehost",
-			},
+	_, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "TYPE", Value: "VALUE"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+		DnsNames: []string{
+			"abcd.efg",
+			"somehost",
 		},
 	})
 	s.Require().NoError(err)
@@ -2021,22 +1796,16 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.Admin = true
 	entry.Downstream = true
 
-	updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().NoError(err)
-	s.Require().NotNil(updateRegistrationEntryResponse)
 
-	fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: entry.EntryId})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
-	s.Require().NotNil(fetchRegistrationEntryResponse)
-	s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
-	s.RequireProtoEqual(updateRegistrationEntryResponse.Entry, fetchRegistrationEntryResponse.Entry)
+	s.Require().NotNil(registrationEntry)
+	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
 
 	entry.EntryId = "badid"
-	_, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 }
 
@@ -2089,7 +1858,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		update func(*common.RegistrationEntry)
 		result func(*common.RegistrationEntry)
 		err    error
-	}{ /// SPIFFE ID FIELD -- this field is validated so we check with good and bad data
+	}{ // SPIFFE ID FIELD -- this field is validated so we check with good and bad data
 		{name: "Update Spiffe ID, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{SpiffeId: true},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = newEntry.SpiffeId },
@@ -2106,7 +1875,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{SpiffeId: false},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
 			result: func(e *common.RegistrationEntry) {}},
-		/// PARENT ID FIELD -- This field isn't validated so we just check with good data
+		// PARENT ID FIELD -- This field isn't validated so we just check with good data
 		{name: "Update Parent ID, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{ParentId: true},
 			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
@@ -2115,7 +1884,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{ParentId: false},
 			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
 			result: func(e *common.RegistrationEntry) {}},
-		/// TTL FIELD -- This field is validated so we check with good and bad data
+		// TTL FIELD -- This field is validated so we check with good and bad data
 		{name: "Update TTL, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Ttl: true},
 			update: func(e *common.RegistrationEntry) { e.Ttl = newEntry.Ttl },
@@ -2132,7 +1901,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Ttl: false},
 			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
 			result: func(e *common.RegistrationEntry) {}},
-		/// SELECTORS FIELD -- This field is validated so we check with good and bad data
+		// SELECTORS FIELD -- This field is validated so we check with good and bad data
 		{name: "Update Selectors, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Selectors: true},
 			update: func(e *common.RegistrationEntry) { e.Selectors = newEntry.Selectors },
@@ -2149,7 +1918,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Selectors: false},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
 			result: func(e *common.RegistrationEntry) {}},
-		/// FEDERATESWITH FIELD -- This field isn't validated so we just check with good data
+		// FEDERATESWITH FIELD -- This field isn't validated so we just check with good data
 		{name: "Update FederatesWith, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{FederatesWith: true},
 			update: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith },
@@ -2158,7 +1927,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{FederatesWith: false},
 			update: func(e *common.RegistrationEntry) { e.FederatesWith = newEntry.FederatesWith },
 			result: func(e *common.RegistrationEntry) {}},
-		/// ADMIN FIELD -- This field isn't validated so we just check with good data
+		// ADMIN FIELD -- This field isn't validated so we just check with good data
 		{name: "Update Admin, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Admin: true},
 			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
@@ -2167,7 +1936,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Admin: false},
 			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
 			result: func(e *common.RegistrationEntry) {}},
-		/// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
+		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
 		{name: "Update EntryExpiry, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{EntryExpiry: true},
 			update: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry },
@@ -2176,7 +1945,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{EntryExpiry: false},
 			update: func(e *common.RegistrationEntry) { e.EntryExpiry = newEntry.EntryExpiry },
 			result: func(e *common.RegistrationEntry) {}},
-		/// DNSNAMES FIELD -- This field isn't validated so we just check with good data
+		// DNSNAMES FIELD -- This field isn't validated so we just check with good data
 		{name: "Update DnsNames, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{DnsNames: true},
 			update: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames },
@@ -2185,7 +1954,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{DnsNames: false},
 			update: func(e *common.RegistrationEntry) { e.DnsNames = newEntry.DnsNames },
 			result: func(e *common.RegistrationEntry) {}},
-		/// DOWNSTREAM FIELD -- This field isn't validated so we just check with good data
+		// DOWNSTREAM FIELD -- This field isn't validated so we just check with good data
 		{name: "Update DnsNames, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{Downstream: true},
 			update: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream },
@@ -2202,16 +1971,13 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	} {
 		tt := testcase
 		s.Run(tt.name, func() {
-			entry := s.createRegistrationEntry(oldEntry)
-			id := entry.EntryId
+			registrationEntry := s.createRegistrationEntry(oldEntry)
+			id := registrationEntry.EntryId
 
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
 			updateEntry.EntryId = id
-			updateRegistrationEntryResponse, err := s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-				Entry: updateEntry,
-				Mask:  tt.mask,
-			})
+			updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, updateEntry, tt.mask)
 
 			if tt.err != nil {
 				s.Require().Error(tt.err)
@@ -2219,27 +1985,25 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			}
 
 			s.Require().NoError(err)
-			s.Require().NotNil(updateRegistrationEntryResponse)
 			expectedResult := proto.Clone(oldEntry).(*common.RegistrationEntry)
 			tt.result(expectedResult)
 			expectedResult.EntryId = id
 			expectedResult.RevisionNumber++
-			s.RequireProtoEqual(expectedResult, updateRegistrationEntryResponse.Entry)
+			s.RequireProtoEqual(expectedResult, updatedRegistrationEntry)
 
 			// Fetch and check the results match expectations
-			fetchRegistrationEntryResponse, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{EntryId: id})
+			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
 			s.Require().NoError(err)
-			s.Require().NotNil(fetchRegistrationEntryResponse)
-			s.Require().NotNil(fetchRegistrationEntryResponse.Entry)
+			s.Require().NotNil(registrationEntry)
 
-			s.RequireProtoEqual(expectedResult, fetchRegistrationEntryResponse.Entry)
+			s.RequireProtoEqual(expectedResult, registrationEntry)
 		})
 	}
 }
 
 func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	// delete non-existing
-	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: "badid"})
+	_, err := s.ds.DeleteRegistrationEntry(ctx, "badid")
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -2270,9 +2034,9 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	s.Require().Len(entriesResp.Entries, 2)
 
 	// Make sure we deleted the right one
-	delRes, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
+	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
 	s.Require().NoError(err)
-	s.Require().Equal(entry1, delRes.Entry)
+	s.Require().Equal(entry1, deletedEntry)
 
 	// Make sure we have now only one registration entry
 	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -2280,9 +2044,9 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	s.Require().Len(entriesResp.Entries, 1)
 
 	// Delete again must fails with Not Found
-	delRes, err = s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{EntryId: entry1.EntryId})
+	deletedEntry, err = s.ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
 	s.Require().EqualError(err, "rpc error: code = NotFound desc = datastore-sql: record not found")
-	s.Require().Nil(delRes)
+	s.Require().Nil(deletedEntry)
 }
 
 func (s *PluginSuite) TestListParentIDEntries() {
@@ -2313,11 +2077,10 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				require.NotNil(t, r.Entry)
-				entry.EntryId = r.Entry.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				ByParentId: &wrapperspb.StringValue{
@@ -2363,16 +2126,15 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				require.NotNil(t, r.Entry)
-				entry.EntryId = r.Entry.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_EXACT,
+					Match:     datastore.Exact,
 				},
 			})
 			require.NoError(t, err)
@@ -2418,16 +2180,15 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			for _, entry := range test.registrationEntries {
-				r, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{Entry: entry})
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
-				require.NotNil(t, r)
-				require.NotNil(t, r.Entry)
-				entry.EntryId = r.Entry.EntryId
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				BySelectors: &datastore.BySelectors{
 					Selectors: test.selectors,
-					Match:     datastore.BySelectors_MATCH_SUBSET,
+					Match:     datastore.Subset,
 				},
 			})
 			require.NoError(t, err)
@@ -2440,9 +2201,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 
 func (s *PluginSuite) TestRegistrationEntriesFederatesWithAgainstMissingBundle() {
 	// cannot federate with a trust bundle that does not exist
-	_, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: makeFederatedRegistrationEntry(),
-	})
+	_, err := s.ds.CreateRegistrationEntry(ctx, makeFederatedRegistrationEntry())
 	s.RequireErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
 }
 
@@ -2465,9 +2224,7 @@ func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
 	s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
 	// delete the bundle in RESTRICTED mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-	})
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Restrict)
 	s.RequireErrorContains(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
 }
 
@@ -2483,19 +2240,14 @@ func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.createBundle("spiffe://otherdomain.org")
 	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
-	// delete the bundle in DELETE mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-		Mode:          datastore.DeleteBundleRequest_DELETE,
-	})
+	// delete the bundle in Delete mode
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Delete)
 	s.Require().NoError(err)
 
 	// verify that the registeration entry has been deleted
-	resp, err := s.ds.FetchRegistrationEntry(context.Background(), &datastore.FetchRegistrationEntryRequest{
-		EntryId: entry.EntryId,
-	})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
 	s.Require().NoError(err)
-	s.Require().Nil(resp.Entry)
+	s.Require().Nil(registrationEntry)
 
 	// make sure the unrelated entry still exists
 	s.fetchRegistrationEntry(unrelated.EntryId)
@@ -2507,10 +2259,7 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
 	// delete the bundle in DISSOCIATE mode
-	_, err := s.ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-		TrustDomainId: "spiffe://otherdomain.org",
-		Mode:          datastore.DeleteBundleRequest_DISSOCIATE,
-	})
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Dissociate)
 	s.Require().NoError(err)
 
 	// make sure the entry still exists, albeit without an associated bundle
@@ -2519,51 +2268,42 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 }
 
 func (s *PluginSuite) TestCreateJoinToken() {
-	now := time.Now().Unix()
-	req := &datastore.CreateJoinTokenRequest{
-		JoinToken: &datastore.JoinToken{
-			Token:  "foobar",
-			Expiry: now,
-		},
+	req := &datastore.JoinToken{
+		Token:  "foobar",
+		Expiry: time.Now().Truncate(time.Second),
 	}
-	_, err := s.ds.CreateJoinToken(ctx, req)
+	err := s.ds.CreateJoinToken(ctx, req)
 	s.Require().NoError(err)
 
 	// Make sure we can't re-register
-	_, err = s.ds.CreateJoinToken(ctx, req)
+	err = s.ds.CreateJoinToken(ctx, req)
 	s.NotNil(err)
 }
 
 func (s *PluginSuite) TestCreateAndFetchJoinToken() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken,
-	})
+	err := s.ds.CreateJoinToken(ctx, joinToken)
 	s.Require().NoError(err)
 
-	res, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	res, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Equal("foobar", res.JoinToken.Token)
-	s.Equal(now, res.JoinToken.Expiry)
+	s.Equal("foobar", res.Token)
+	s.Equal(now, res.Expiry)
 }
 
 func (s *PluginSuite) TestDeleteJoinToken() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken1 := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken1,
-	})
+	err := s.ds.CreateJoinToken(ctx, joinToken1)
 	s.Require().NoError(err)
 
 	joinToken2 := &datastore.JoinToken{
@@ -2571,79 +2311,58 @@ func (s *PluginSuite) TestDeleteJoinToken() {
 		Expiry: now,
 	}
 
-	_, err = s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken2,
-	})
+	err = s.ds.CreateJoinToken(ctx, joinToken2)
 	s.Require().NoError(err)
 
-	_, err = s.ds.DeleteJoinToken(ctx, &datastore.DeleteJoinTokenRequest{
-		Token: joinToken1.Token,
-	})
+	err = s.ds.DeleteJoinToken(ctx, joinToken1.Token)
 	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken1.Token,
-	})
+	resp, err := s.ds.FetchJoinToken(ctx, joinToken1.Token)
 	s.Require().NoError(err)
-	s.Nil(resp.JoinToken)
+	s.Nil(resp)
 
 	// Second token should still be present
-	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken2.Token,
-	})
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken2.Token)
 	s.Require().NoError(err)
-	s.Equal(joinToken2, resp.JoinToken)
+	s.Equal(joinToken2, resp)
 }
 
 func (s *PluginSuite) TestPruneJoinTokens() {
-	now := time.Now().Unix()
+	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	_, err := s.ds.CreateJoinToken(ctx, &datastore.CreateJoinTokenRequest{
-		JoinToken: joinToken,
-	})
+	err := s.ds.CreateJoinToken(ctx, joinToken)
 	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
-	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
-		ExpiresBefore: now - 10,
-	})
+	err = s.ds.PruneJoinTokens(ctx, now.Add(-time.Second*10))
 	s.Require().NoError(err)
 
-	resp, err := s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	resp, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Equal("foobar", resp.JoinToken.Token)
+	s.Equal("foobar", resp.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
-		ExpiresBefore: now,
-	})
+	err = s.ds.PruneJoinTokens(ctx, now)
 	s.Require().NoError(err)
 
-	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Equal("foobar", resp.JoinToken.Token)
+	s.Require().NotNil(resp, "token was unexpectedly pruned")
+	s.Equal("foobar", resp.Token)
 
 	// Ensure we prune old tokens
-	joinToken.Expiry = (now + 10)
-	_, err = s.ds.PruneJoinTokens(ctx, &datastore.PruneJoinTokensRequest{
-		ExpiresBefore: now + 10,
-	})
+	joinToken.Expiry = now.Add(time.Second * 10)
+	err = s.ds.PruneJoinTokens(ctx, now.Add(time.Second*10))
 	s.Require().NoError(err)
 
-	resp, err = s.ds.FetchJoinToken(ctx, &datastore.FetchJoinTokenRequest{
-		Token: joinToken.Token,
-	})
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
 	s.Require().NoError(err)
-	s.Nil(resp.JoinToken)
+	s.Nil(resp)
 }
 
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
@@ -2687,9 +2406,7 @@ func (s *PluginSuite) TestMigration() {
 			// exist. if we try and create a bundle with the same id, it should
 			// fail if the migration did not run, due to uniqueness
 			// constraints.
-			_, err := s.ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-				Bundle: bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil),
-			})
+			_, err := s.ds.CreateBundle(context.Background(), bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil))
 			s.Require().NoError(err)
 		case 1:
 			// registration entries should gain the federates_with column.
@@ -2749,9 +2466,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().False(resp.Entries[0].Admin)
 
 			resp.Entries[0].Admin = true
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2765,9 +2480,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().False(resp.Entries[0].Downstream)
 
 			resp.Entries[0].Downstream = true
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2783,9 +2496,7 @@ func (s *PluginSuite) TestMigration() {
 
 			expiryVal := time.Now().Unix()
 			resp.Entries[0].EntryExpiry = expiryVal
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2800,9 +2511,7 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Empty(resp.Entries[0].DnsNames)
 
 			resp.Entries[0].DnsNames = []string{"abcd.efg"}
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), &datastore.UpdateRegistrationEntryRequest{
-				Entry: resp.Entries[0],
-			})
+			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
 			s.Require().NoError(err)
 
 			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
@@ -2837,20 +2546,18 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
 			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
 
-			resp, err := s.ds.FetchAttestedNode(context.Background(), &datastore.FetchAttestedNodeRequest{
-				SpiffeId: "spiffe://example.org/host",
-			})
+			attestedNode, err := s.ds.FetchAttestedNode(context.Background(), "spiffe://example.org/host")
 			s.Require().NoError(err)
 
 			// Assert current serial numbers and expiration time remains the same
 			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
 			s.Require().NoError(err)
-			s.Require().Equal(expectedTime.Unix(), resp.Node.CertNotAfter)
-			s.Require().Equal("111", resp.Node.CertSerialNumber)
+			s.Require().Equal(expectedTime.Unix(), attestedNode.CertNotAfter)
+			s.Require().Equal("111", attestedNode.CertSerialNumber)
 
 			// Assert the new fields are empty for pre-existing entries
-			s.Require().Empty(resp.Node.NewCertSerialNumber)
-			s.Require().Empty(resp.Node.NewCertNotAfter)
+			s.Require().Empty(attestedNode.NewCertSerialNumber)
+			s.Require().Empty(attestedNode.NewCertNotAfter)
 		case 13:
 			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		case 14:
@@ -2884,9 +2591,9 @@ func (s *PluginSuite) TestRace() {
 			CertNotAfter:        exp,
 		}
 
-		_, err := s.ds.CreateAttestedNode(ctx, &datastore.CreateAttestedNodeRequest{Node: node})
+		_, err := s.ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
-		_, err = s.ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{SpiffeId: node.SpiffeId})
+		_, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 		require.NoError(t, err)
 	})
 }
@@ -2908,38 +2615,28 @@ func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interfa
 }
 
 func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
-	resp, err := s.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-		TrustDomainId: trustDomainID,
-	})
+	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
 	s.Require().NoError(err)
-	return resp.Bundle
+	return bundle
 }
 
 func (s *PluginSuite) createBundle(trustDomainID string) {
-	_, err := s.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert),
-	})
+	_, err := s.ds.CreateBundle(ctx, bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert))
 	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.Entry)
-	return resp.Entry
+	s.Require().NotNil(registrationEntry)
+	return registrationEntry
 }
 
 func (s *PluginSuite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
-	resp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
-		EntryId: entryID,
-	})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entryID)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.Entry)
-	return resp.Entry
+	s.Require().NotNil(registrationEntry)
+	return registrationEntry
 }
 
 func makeFederatedRegistrationEntry() *common.RegistrationEntry {
@@ -3068,7 +2765,7 @@ func TestListRegistrationEntriesQuery(t *testing.T) {
 			dialect: "sqlite3",
 			query: `
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3119,10 +2816,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3139,7 +2836,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3152,7 +2849,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3160,7 +2857,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3168,7 +2865,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3178,10 +2875,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE spiffe_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3198,7 +2895,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3211,7 +2908,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3219,7 +2916,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3227,7 +2924,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3237,10 +2934,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3257,7 +2954,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3270,7 +2967,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3278,7 +2975,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3286,7 +2983,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3296,10 +2993,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3316,7 +3013,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3329,7 +3026,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3337,7 +3034,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3345,7 +3042,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3355,14 +3052,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT e_id FROM (
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3379,7 +3076,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3392,7 +3089,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3400,7 +3097,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3408,7 +3105,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3418,10 +3115,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3438,7 +3135,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3451,7 +3148,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3459,7 +3156,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3467,7 +3164,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3477,14 +3174,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT e_id FROM (
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3501,7 +3198,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3514,7 +3211,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3522,7 +3219,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3530,7 +3227,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3540,14 +3237,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3564,7 +3261,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3577,7 +3274,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3585,7 +3282,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3593,7 +3290,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3603,18 +3300,18 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT id FROM (
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT e_id FROM (
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 			UNION
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		) s_1
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3631,7 +3328,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3644,7 +3341,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3652,7 +3349,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3660,7 +3357,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3670,14 +3367,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3694,7 +3391,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3707,7 +3404,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3715,7 +3412,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3723,7 +3420,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3733,16 +3430,16 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3759,7 +3456,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3772,7 +3469,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3780,7 +3477,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3788,7 +3485,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3798,10 +3495,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "no-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+	SELECT id AS e_id FROM registered_entries ORDER BY id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3818,7 +3515,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3831,7 +3528,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3839,7 +3536,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3847,7 +3544,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3857,10 +3554,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
+	SELECT id AS e_id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3877,7 +3574,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3890,7 +3587,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3898,7 +3595,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3906,7 +3603,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3917,10 +3614,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
+	SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -3937,7 +3634,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3950,7 +3647,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3958,7 +3655,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -3966,7 +3663,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -3977,14 +3674,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
-	) s_0 WHERE id > ? ORDER BY id ASC LIMIT 1
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
+	) s_0 WHERE e_id > ? ORDER BY e_id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4001,7 +3698,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4014,7 +3711,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4022,7 +3719,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4030,7 +3727,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4039,7 +3736,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			dialect: "postgres",
 			query: `
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4090,10 +3787,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4110,7 +3807,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4123,7 +3820,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4131,7 +3828,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4139,7 +3836,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4149,10 +3846,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE spiffe_id = $1
+	SELECT id AS e_id FROM registered_entries WHERE spiffe_id = $1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4169,7 +3866,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4182,7 +3879,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4190,7 +3887,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4198,7 +3895,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4208,10 +3905,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "spiffe-id"},
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE parent_id = $1 AND spiffe_id = $2
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = $1 AND spiffe_id = $2
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4228,7 +3925,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4241,7 +3938,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4249,7 +3946,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4257,7 +3954,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4267,10 +3964,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = $1 AND value = $2
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4287,7 +3984,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4300,7 +3997,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4308,7 +4005,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4316,7 +4013,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4326,14 +4023,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+	SELECT e_id FROM (
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $1 AND value = $2
 		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $3 AND value = $4
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $3 AND value = $4
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4350,7 +4047,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4363,7 +4060,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4371,7 +4068,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4379,7 +4076,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4389,10 +4086,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = $1 AND value = $2
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4409,7 +4106,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4422,7 +4119,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4430,7 +4127,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4438,7 +4135,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4448,14 +4145,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"selector-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $1 AND value = $2
+	SELECT e_id FROM (
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $1 AND value = $2
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $3 AND value = $4
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $3 AND value = $4
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4472,7 +4169,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4485,7 +4182,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4493,7 +4190,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4501,7 +4198,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4511,14 +4208,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $2 AND value = $3
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4535,7 +4232,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4548,7 +4245,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4556,7 +4253,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4564,7 +4261,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4574,18 +4271,18 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT id FROM (
-			SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+		SELECT e_id FROM (
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = $2 AND value = $3
 			UNION
-			SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = $4 AND value = $5
 		) s_1
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4602,7 +4299,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4615,7 +4312,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4623,7 +4320,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4631,7 +4328,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4641,14 +4338,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $2 AND value = $3
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4665,7 +4362,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4678,7 +4375,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4686,7 +4383,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4694,7 +4391,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4704,16 +4401,16 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "selector-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $2 AND value = $3
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $4 AND value = $5
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $4 AND value = $5
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4730,7 +4427,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4743,7 +4440,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4751,7 +4448,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4759,7 +4456,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4769,10 +4466,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "no-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+	SELECT id AS e_id FROM registered_entries ORDER BY id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4789,7 +4486,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4802,7 +4499,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4810,7 +4507,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4818,7 +4515,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4828,10 +4525,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE id > $1 ORDER BY id ASC LIMIT 1
+	SELECT id AS e_id FROM registered_entries WHERE id > $1 ORDER BY id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4848,7 +4545,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4861,7 +4558,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4869,7 +4566,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4877,7 +4574,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4888,10 +4585,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE spiffe_id = $1 AND id > $2 ORDER BY id ASC LIMIT 1
+	SELECT id AS e_id FROM registered_entries WHERE spiffe_id = $1 AND id > $2 ORDER BY id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4908,7 +4605,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4921,7 +4618,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4929,7 +4626,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4937,7 +4634,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -4948,14 +4645,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE spiffe_id = $1
 		INTERSECT
-		SELECT registered_entry_id AS id FROM selectors WHERE type = $2 AND value = $3
-	) s_0 WHERE id > $4 ORDER BY id ASC LIMIT 1
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = $2 AND value = $3
+	) s_0 WHERE e_id > $4 ORDER BY e_id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -4972,7 +4669,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4985,7 +4682,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -4993,7 +4690,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5001,7 +4698,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5070,7 +4767,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5106,7 +4803,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM registered_entries WHERE spiffe_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5142,7 +4839,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5178,7 +4875,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5214,10 +4911,10 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT e_id FROM (
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5254,7 +4951,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 )
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5290,11 +4987,11 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5331,11 +5028,11 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5372,15 +5069,15 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT id FROM (
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		(SELECT e_id FROM (
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 			UNION
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		) s_1) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5417,11 +5114,11 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5458,14 +5155,14 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_2
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_2
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5502,8 +5199,8 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5540,8 +5237,8 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5579,8 +5276,8 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5618,13 +5315,13 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT DISTINCT id FROM (
-			(SELECT id FROM registered_entries WHERE spiffe_id = ?) c_0
+	SELECT e_id FROM (
+		SELECT DISTINCT e_id FROM (
+			(SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?) c_0
 			INNER JOIN
-			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-			USING(id)
-		) WHERE id > ? ORDER BY id ASC LIMIT 1
+			(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+			USING(e_id)
+		) WHERE e_id > ? ORDER BY e_id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -5635,7 +5332,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -5687,10 +5384,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -5707,7 +5404,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5720,7 +5417,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5728,7 +5425,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5736,7 +5433,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5747,10 +5444,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE spiffe_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -5767,7 +5464,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5780,7 +5477,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5788,7 +5485,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5796,7 +5493,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5807,10 +5504,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
+	SELECT id AS e_id FROM registered_entries WHERE parent_id = ? AND spiffe_id = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -5827,7 +5524,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5840,7 +5537,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5848,7 +5545,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5856,7 +5553,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5867,10 +5564,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -5887,7 +5584,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5900,7 +5597,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5908,7 +5605,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5916,7 +5613,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5927,14 +5624,14 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT e_id FROM (
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		UNION
-		SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -5951,7 +5648,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5964,7 +5661,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5972,7 +5669,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -5980,7 +5677,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -5991,10 +5688,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+	SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6011,7 +5708,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6024,7 +5721,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6032,7 +5729,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6040,7 +5737,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6051,15 +5748,15 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6076,7 +5773,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6089,7 +5786,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6097,7 +5794,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6105,7 +5802,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6116,15 +5813,15 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6141,7 +5838,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6154,7 +5851,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6162,7 +5859,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6170,7 +5867,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6181,19 +5878,19 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT id FROM (
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+		(SELECT e_id FROM (
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 			UNION
-			SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?
+			SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?
 		) s_1) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6210,7 +5907,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6223,7 +5920,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6231,7 +5928,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6239,7 +5936,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6250,15 +5947,15 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6275,7 +5972,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6288,7 +5985,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6296,7 +5993,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6304,7 +6001,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6315,18 +6012,18 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+		USING(e_id)
 		INNER JOIN
-		(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_2
-		USING(id)
+		(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_2
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6343,7 +6040,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6356,7 +6053,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6364,7 +6061,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6372,7 +6069,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6383,12 +6080,12 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries ORDER BY id ASC LIMIT 1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6405,7 +6102,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6418,7 +6115,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6426,7 +6123,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6434,7 +6131,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6445,12 +6142,12 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6467,7 +6164,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6480,7 +6177,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6488,7 +6185,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6496,7 +6193,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6508,12 +6205,12 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ? AND id > ? ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6530,7 +6227,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6543,7 +6240,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6551,7 +6248,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6559,7 +6256,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6571,17 +6268,17 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT DISTINCT id FROM (
-			(SELECT id FROM registered_entries WHERE spiffe_id = ?) c_0
+	SELECT e_id FROM (
+		SELECT DISTINCT e_id FROM (
+			(SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?) c_0
 			INNER JOIN
-			(SELECT registered_entry_id AS id FROM selectors WHERE type = ? AND value = ?) c_1
-			USING(id)
-		) WHERE id > ? ORDER BY id ASC LIMIT 1
+			(SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?) c_1
+			USING(e_id)
+		) WHERE e_id > ? ORDER BY e_id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6598,7 +6295,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6611,7 +6308,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6619,7 +6316,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6627,7 +6324,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6637,7 +6334,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -6647,7 +6344,7 @@ WITH listing AS (
 		COUNT(CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) > 0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6664,7 +6361,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6677,7 +6374,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6685,7 +6382,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6693,7 +6390,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6703,7 +6400,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -6713,7 +6410,7 @@ WITH listing AS (
 		COUNT(CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) > 0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6730,7 +6427,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6743,7 +6440,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6751,7 +6448,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6759,7 +6456,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6769,7 +6466,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -6779,7 +6476,7 @@ WITH listing AS (
 		COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6796,7 +6493,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6809,7 +6506,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6817,7 +6514,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6825,7 +6522,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6835,7 +6532,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -6845,7 +6542,7 @@ WITH listing AS (
 		COUNT(DISTINCT CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6862,7 +6559,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6875,7 +6572,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6883,7 +6580,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6891,7 +6588,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6901,10 +6598,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -6915,7 +6612,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -6932,7 +6629,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6945,7 +6642,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6953,7 +6650,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -6961,7 +6658,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -6971,10 +6668,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -6985,7 +6682,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7002,7 +6699,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7015,7 +6712,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7023,7 +6720,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7031,7 +6728,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7041,10 +6738,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7055,7 +6752,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7072,7 +6769,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7085,7 +6782,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7093,7 +6790,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7101,7 +6798,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7111,10 +6808,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = ?
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7125,7 +6822,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7142,7 +6839,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7155,7 +6852,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7163,7 +6860,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7171,7 +6868,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7182,10 +6879,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = ?
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7193,10 +6890,10 @@ WITH listing AS (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?
-	) s_0 WHERE id > ? ORDER BY id ASC LIMIT 1
+	) s_0 WHERE e_id > ? ORDER BY e_id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7213,7 +6910,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7226,7 +6923,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7234,7 +6931,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7242,7 +6939,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7252,7 +6949,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7262,7 +6959,7 @@ WITH listing AS (
 		COUNT(CASE WHEN B.trust_domain IN ($2) THEN B.trust_domain ELSE NULL END) > 0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7279,7 +6976,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7292,7 +6989,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7300,7 +6997,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7308,7 +7005,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7318,7 +7015,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7328,7 +7025,7 @@ WITH listing AS (
 		COUNT(CASE WHEN B.trust_domain IN ($3, $4) THEN B.trust_domain ELSE NULL END) > 0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7345,7 +7042,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7358,7 +7055,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7366,7 +7063,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7374,7 +7071,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7384,7 +7081,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7394,7 +7091,7 @@ WITH listing AS (
 		COUNT(DISTINCT CASE WHEN B.trust_domain IN ($2) THEN B.trust_domain ELSE NULL END) = $3
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7411,7 +7108,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7424,7 +7121,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7432,7 +7129,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7440,7 +7137,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7450,7 +7147,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"federates-with-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7460,7 +7157,7 @@ WITH listing AS (
 		COUNT(DISTINCT CASE WHEN B.trust_domain IN ($3, $4) THEN B.trust_domain ELSE NULL END) = $5
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7477,7 +7174,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7490,7 +7187,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7498,7 +7195,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7506,7 +7203,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7516,10 +7213,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-subset-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7530,7 +7227,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7547,7 +7244,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7560,7 +7257,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7568,7 +7265,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7576,7 +7273,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7586,10 +7283,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-subset-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7600,7 +7297,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7617,7 +7314,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7630,7 +7327,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7638,7 +7335,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7646,7 +7343,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7656,10 +7353,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-exact-one"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7670,7 +7367,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7687,7 +7384,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7700,7 +7397,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7708,7 +7405,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7716,7 +7413,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7726,10 +7423,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			by:      []string{"parent-id", "federates-with-exact-many"},
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE parent_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE parent_id = $1
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7740,7 +7437,7 @@ WITH listing AS (
 	) s_0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7757,7 +7454,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7770,7 +7467,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7778,7 +7475,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7786,7 +7483,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7797,10 +7494,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			paged:   "with-token",
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT id FROM registered_entries WHERE spiffe_id = $1
+	SELECT e_id FROM (
+		SELECT id AS e_id FROM registered_entries WHERE spiffe_id = $1
 		INTERSECT
-		SELECT E.id
+		SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7808,10 +7505,10 @@ WITH listing AS (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN ($2) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(DISTINCT CASE WHEN B.trust_domain IN ($3) THEN B.trust_domain ELSE NULL END) = $4
-	) s_0 WHERE id > $5 ORDER BY id ASC LIMIT 1
+	) s_0 WHERE e_id > $5 ORDER BY e_id ASC LIMIT 1
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -7828,7 +7525,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7841,7 +7538,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7849,7 +7546,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -7857,7 +7554,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -7893,7 +7590,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7936,7 +7633,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -7979,7 +7676,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8022,7 +7719,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8065,10 +7762,10 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8076,7 +7773,7 @@ WHERE E.id IN (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) > 0) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -8113,10 +7810,10 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8124,7 +7821,7 @@ WHERE E.id IN (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?, ?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) > 0) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -8161,10 +7858,10 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8172,7 +7869,7 @@ WHERE E.id IN (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -8209,10 +7906,10 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8220,7 +7917,7 @@ WHERE E.id IN (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?, ?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(DISTINCT CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) = ?) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -8258,11 +7955,11 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.id IN (
-	SELECT id FROM (
-		SELECT DISTINCT id FROM (
-			(SELECT id FROM registered_entries WHERE spiffe_id = ?) c_0
+	SELECT e_id FROM (
+		SELECT DISTINCT e_id FROM (
+			(SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?) c_0
 			INNER JOIN
-			(SELECT E.id
+			(SELECT E.id AS e_id
 			FROM registered_entries E
 			INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 			INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8270,8 +7967,8 @@ WHERE E.id IN (
 			HAVING
 				COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 				COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?) c_1
-			USING(id)
-		) WHERE id > ? ORDER BY id ASC LIMIT 1
+			USING(e_id)
+		) WHERE e_id > ? ORDER BY e_id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 ORDER BY e_id, selector_id, dns_name_id
@@ -8283,7 +7980,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8293,7 +7990,7 @@ WITH listing AS (
 		COUNT(CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) > 0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8310,7 +8007,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8323,7 +8020,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8331,7 +8028,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8339,7 +8036,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8350,7 +8047,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8360,7 +8057,7 @@ WITH listing AS (
 		COUNT(CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) > 0
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8377,7 +8074,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8390,7 +8087,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8398,7 +8095,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8406,7 +8103,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8417,7 +8114,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8427,7 +8124,7 @@ WITH listing AS (
 		COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8444,7 +8141,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8457,7 +8154,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8465,7 +8162,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8473,7 +8170,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8484,7 +8181,7 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT E.id
+	SELECT E.id AS e_id
 	FROM registered_entries E
 	INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 	INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8494,7 +8191,7 @@ WITH listing AS (
 		COUNT(DISTINCT CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) = ?
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8511,7 +8208,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8524,7 +8221,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8532,7 +8229,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8540,7 +8237,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8551,10 +8248,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8562,11 +8259,11 @@ WITH listing AS (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) > 0) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8583,7 +8280,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8596,7 +8293,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8604,7 +8301,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8612,7 +8309,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8623,10 +8320,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8634,11 +8331,11 @@ WITH listing AS (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?, ?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) > 0) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8655,7 +8352,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8668,7 +8365,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8676,7 +8373,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8684,7 +8381,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8695,10 +8392,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8706,11 +8403,11 @@ WITH listing AS (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8727,7 +8424,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8740,7 +8437,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8748,7 +8445,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8756,7 +8453,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8767,10 +8464,10 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT DISTINCT id FROM (
-		(SELECT id FROM registered_entries WHERE parent_id = ?) c_0
+	SELECT DISTINCT e_id FROM (
+		(SELECT id AS e_id FROM registered_entries WHERE parent_id = ?) c_0
 		INNER JOIN
-		(SELECT E.id
+		(SELECT E.id AS e_id
 		FROM registered_entries E
 		INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 		INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8778,11 +8475,11 @@ WITH listing AS (
 		HAVING
 			COUNT(CASE WHEN B.trust_domain NOT IN (?, ?) THEN B.trust_domain ELSE NULL END) = 0 AND
 			COUNT(DISTINCT CASE WHEN B.trust_domain IN (?, ?) THEN B.trust_domain ELSE NULL END) = ?) c_1
-		USING(id)
+		USING(e_id)
 	)
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8799,7 +8496,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8812,7 +8509,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8820,7 +8517,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8828,7 +8525,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8840,11 +8537,11 @@ ORDER BY e_id, selector_id, dns_name_id
 			supportsCTE: true,
 			query: `
 WITH listing AS (
-	SELECT id FROM (
-		SELECT DISTINCT id FROM (
-			(SELECT id FROM registered_entries WHERE spiffe_id = ?) c_0
+	SELECT e_id FROM (
+		SELECT DISTINCT e_id FROM (
+			(SELECT id AS e_id FROM registered_entries WHERE spiffe_id = ?) c_0
 			INNER JOIN
-			(SELECT E.id
+			(SELECT E.id AS e_id
 			FROM registered_entries E
 			INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id
 			INNER JOIN bundles B ON B.id = FE.bundle_id
@@ -8852,12 +8549,12 @@ WITH listing AS (
 			HAVING
 				COUNT(CASE WHEN B.trust_domain NOT IN (?) THEN B.trust_domain ELSE NULL END) = 0 AND
 				COUNT(DISTINCT CASE WHEN B.trust_domain IN (?) THEN B.trust_domain ELSE NULL END) = ?) c_1
-			USING(id)
-		) WHERE id > ? ORDER BY id ASC LIMIT 1
+			USING(e_id)
+		) WHERE e_id > ? ORDER BY e_id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
 )
 SELECT
-	id as e_id,
+	id AS e_id,
 	entry_id,
 	spiffe_id,
 	parent_id,
@@ -8874,7 +8571,7 @@ SELECT
 	revision_number
 FROM
 	registered_entries
-WHERE id IN (SELECT id FROM listing)
+WHERE id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8887,7 +8584,7 @@ INNER JOIN
 ON
 	B.id = F.bundle_id
 WHERE
-	F.registered_entry_id IN (SELECT id FROM listing)
+	F.registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8895,7 +8592,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 UNION
 
@@ -8903,7 +8600,7 @@ SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
-WHERE registered_entry_id IN (SELECT id FROM listing)
+WHERE registered_entry_id IN (SELECT e_id FROM listing)
 
 ORDER BY e_id, selector_id, dns_name_id
 ;`,
@@ -8954,42 +8651,42 @@ ORDER BY e_id, selector_id, dns_name_id
 				case "selector-subset-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case "selector-subset-many":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case "selector-exact-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case "selector-exact-many":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case "federates-with-subset-one":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
-						TrustDomains: []string{"spiffe://federates1.org"},
-						Match:        datastore.ByFederatesWith_MATCH_SUBSET,
+						TrustDomains: []string{"spiffe://federates1.test"},
+						Match:        datastore.Subset,
 					}
 				case "federates-with-subset-many":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
-						TrustDomains: []string{"spiffe://federates1.org", "spiffe://federates2.org"},
-						Match:        datastore.ByFederatesWith_MATCH_SUBSET,
+						TrustDomains: []string{"spiffe://federates1.test", "spiffe://federates2.test"},
+						Match:        datastore.Subset,
 					}
 				case "federates-with-exact-one":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
-						TrustDomains: []string{"spiffe://federates1.org"},
-						Match:        datastore.ByFederatesWith_MATCH_EXACT,
+						TrustDomains: []string{"spiffe://federates1.test"},
+						Match:        datastore.Exact,
 					}
 				case "federates-with-exact-many":
 					req.ByFederatesWith = &datastore.ByFederatesWith{
-						TrustDomains: []string{"spiffe://federates1.org", "spiffe://federates2.org"},
-						Match:        datastore.ByFederatesWith_MATCH_EXACT,
+						TrustDomains: []string{"spiffe://federates1.test", "spiffe://federates2.test"},
+						Match:        datastore.Exact,
 					}
 				default:
 					require.FailNow(t, "unsupported by case: %q", by)
@@ -9043,7 +8740,7 @@ func wipePostgres(t *testing.T, connString string) {
 	require.NoError(t, err)
 	defer rows.Close()
 
-	dropTablesInRows(t, db, rows)
+	dropTables(t, db, scanTableNames(t, rows))
 }
 
 func wipeMySQL(t *testing.T, connString string) {
@@ -9055,20 +8752,64 @@ func wipeMySQL(t *testing.T, connString string) {
 	require.NoError(t, err)
 	defer rows.Close()
 
-	dropTablesInRows(t, db, rows)
+	dropTables(t, db, scanTableNames(t, rows))
 }
 
-func dropTablesInRows(t *testing.T, db *sql.DB, rows *sql.Rows) {
+func scanTableNames(t *testing.T, rows *sql.Rows) []string {
+	var tableNames []string
 	for rows.Next() {
-		var q string
-		err := rows.Scan(&q)
+		var tableName string
+		err := rows.Scan(&tableName)
 		require.NoError(t, err)
-		_, err = db.Exec("DROP TABLE IF EXISTS " + q + " CASCADE")
-		require.NoError(t, err)
+		tableNames = append(tableNames, tableName)
 	}
 	require.NoError(t, rows.Err())
+	return tableNames
 }
 
-func cloneAttestedNode(aNode *common.AttestedNode) *common.AttestedNode {
-	return proto.Clone(aNode).(*common.AttestedNode)
+func dropTables(t *testing.T, db *sql.DB, tableNames []string) {
+	for _, tableName := range tableNames {
+		_, err := db.Exec("DROP TABLE IF EXISTS " + tableName + " CASCADE")
+		require.NoError(t, err)
+	}
+}
+
+// assertSelectorsEqual compares two selector maps for equality
+// TODO: replace this with calls to Equal when we replace common.Selector with
+// a normal struct that doesn't require special comparison (i.e. not a
+// protobuf)
+func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...interface{}) {
+	type selector struct {
+		Type  string
+		Value string
+	}
+	convert := func(in map[string][]*common.Selector) map[string][]selector {
+		out := make(map[string][]selector)
+		for spiffeID, selectors := range in {
+			for _, s := range selectors {
+				out[spiffeID] = append(out[spiffeID], selector{Type: s.Type, Value: s.Value})
+			}
+		}
+		return out
+	}
+	assert.Equal(t, convert(expected), convert(actual), msgAndArgs...)
+}
+
+func makeSelectors(vs ...string) []*common.Selector {
+	var ss []*common.Selector
+	for _, v := range vs {
+		ss = append(ss, &common.Selector{Type: v, Value: v})
+	}
+	return ss
+}
+
+func bySelectors(match datastore.MatchBehavior, ss ...string) *datastore.BySelectors {
+	return &datastore.BySelectors{
+		Match:     match,
+		Selectors: makeSelectors(ss...),
+	}
+}
+
+func makeID(suffix string) string {
+	return "spiffe://example.org/" + suffix
 }

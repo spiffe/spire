@@ -14,10 +14,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
-	testTimeout = time.Second * 2
+	testTimeout = time.Minute
 )
 
 func (s *Suite) TestBundleWatcherErrorsWhenCannotCreateClient() {
@@ -74,42 +75,57 @@ func (s *Suite) TestBundleWatchersStartsAndStops() {
 
 func (s *Suite) TestBundleWatcherUpdateConfig() {
 	w := newFakeWebhook()
-	s.withKubeClient(w, "/some/file/path")
+	a := newFakeAPIService()
+	client := []kubeClient{w, a}
+	s.withKubeClient(client, "/some/file/path")
 
 	s.configure(`
-webhook_label = "LABEL"
+webhook_label = "WEBHOOK_LABEL"
+api_service_label = "API_SERVICE_LABEL"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 	s.Require().Eventually(func() bool {
-		return w.getWatchLabel() == "LABEL"
+		return w.getWatchLabel() == "WEBHOOK_LABEL"
+	}, testTimeout, time.Second)
+
+	s.Require().Eventually(func() bool {
+		return a.getWatchLabel() == "API_SERVICE_LABEL"
 	}, testTimeout, time.Second)
 
 	s.configure(`
-webhook_label = "LABEL2"
+webhook_label = "WEBHOOK_LABEL2"
+api_service_label = "API_SERVICE_LABEL2"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 	s.Require().Eventually(func() bool {
-		return w.getWatchLabel() == "LABEL2"
+		return w.getWatchLabel() == "WEBHOOK_LABEL2"
+	}, testTimeout, time.Second)
+
+	s.Require().Eventually(func() bool {
+		return a.getWatchLabel() == "API_SERVICE_LABEL2"
 	}, testTimeout, time.Second)
 }
 
-func (s *Suite) TestBundleWatcherAddEvent() {
+func (s *Suite) TestBundleWatcherAddWebhookEvent() {
 	w := newFakeWebhook()
-	s.withKubeClient(w, "/some/file/path")
+	s.withKubeClient([]kubeClient{w}, "/some/file/path")
+
 	s.configure(`
-webhook_label = "LABEL"
+webhook_label = "WEBHOOK_LABEL"
 kube_config_file_path = "/some/file/path"
 `)
+	s.Require().NotNil(s.raw.cancelWatcher)
 
 	webhook := newWebhook()
 	s.r.AppendBundle(testBundle)
 	w.setWebhook(webhook)
 	w.addWatchEvent(webhook)
-
 	s.Require().Eventually(func() bool {
 		return s.Equal(&admissionv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:            "spire-webhook",
+				Name:            webhook.Name,
 				ResourceVersion: "2",
 			},
 			Webhooks: []admissionv1.MutatingWebhook{
@@ -119,7 +135,34 @@ kube_config_file_path = "/some/file/path"
 					},
 				},
 			},
-		}, w.getWebhook("spire-webhook"))
+		}, w.getWebhook(webhook.Name))
+	}, testTimeout, time.Second)
+}
+
+func (s *Suite) TestBundleWatcherAddAPIServiceEvent() {
+	a := newFakeAPIService()
+	s.withKubeClient([]kubeClient{a}, "/some/file/path")
+
+	s.configure(`
+api_service_label = "API_SERVICE_LABEL"
+kube_config_file_path = "/some/file/path"
+`)
+	s.Require().NotNil(s.raw.cancelWatcher)
+	s.r.AppendBundle(testBundle)
+
+	apiService := newAPIService()
+	a.setAPIService(apiService)
+	a.addWatchEvent(apiService)
+	s.Require().Eventually(func() bool {
+		return s.Equal(&apiregistrationv1.APIService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            apiService.Name,
+				ResourceVersion: "2",
+			},
+			Spec: apiregistrationv1.APIServiceSpec{
+				CABundle: []byte(testBundleData),
+			},
+		}, a.getAPIService(apiService.Name))
 	}, testTimeout, time.Second)
 }
 
@@ -145,6 +188,7 @@ func (w *fakeWebhook) Get(ctx context.Context, namespace, name string) (runtime.
 	}
 	return entry, nil
 }
+
 func (w *fakeWebhook) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
 	list := w.getWebhookList()
 	if list.Items == nil {
@@ -246,5 +290,121 @@ func newWebhook() *admissionv1.MutatingWebhookConfiguration {
 				ClientConfig: admissionv1.WebhookClientConfig{},
 			},
 		},
+	}
+}
+
+type fakeAPIService struct {
+	mu          sync.RWMutex
+	fakeWatch   *watch.FakeWatcher
+	apiServices map[string]*apiregistrationv1.APIService
+	watchLabel  string
+}
+
+func newFakeAPIService() *fakeAPIService {
+	return &fakeAPIService{
+		fakeWatch:   watch.NewFake(),
+		apiServices: make(map[string]*apiregistrationv1.APIService),
+	}
+}
+
+func (a *fakeAPIService) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
+	entry := a.getAPIService(name)
+	if entry == nil {
+		return nil, errors.New("not found")
+	}
+	return entry, nil
+}
+
+func (a *fakeAPIService) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+	list := a.getAPIServiceList()
+	if list.Items == nil {
+		return nil, errors.New("not found")
+	}
+	return list, nil
+}
+
+func (a *fakeAPIService) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+	webhook, ok := obj.(*apiregistrationv1.APIService)
+	if !ok {
+		return nil, k8sErr.New("wrong type, expecting API service")
+	}
+	return &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: webhook.ResourceVersion,
+		},
+		Spec: apiregistrationv1.APIServiceSpec{
+			CABundle: []byte(bundleData(resp.Bundle)),
+		},
+	}, nil
+}
+
+func (a *fakeAPIService) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	entry, ok := a.apiServices[name]
+	if !ok {
+		return errors.New("not found")
+	}
+
+	patchedAPIService := new(apiregistrationv1.APIService)
+	if err := json.Unmarshal(patchBytes, patchedAPIService); err != nil {
+		return err
+	}
+	resourceVersion, err := strconv.Atoi(patchedAPIService.ResourceVersion)
+	if err != nil {
+		return errors.New("patch does not have resource version")
+	}
+	entry.ResourceVersion = fmt.Sprint(resourceVersion + 1)
+	entry.Spec.CABundle = patchedAPIService.Spec.CABundle
+	return nil
+}
+
+func (a *fakeAPIService) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.watchLabel = config.APIServiceLabel
+	return a.fakeWatch, nil
+}
+
+func (a *fakeAPIService) getAPIService(name string) *apiregistrationv1.APIService {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.apiServices[name]
+}
+
+func (a *fakeAPIService) getAPIServiceList() *apiregistrationv1.APIServiceList {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	apiServiceList := &apiregistrationv1.APIServiceList{}
+	for _, apiService := range a.apiServices {
+		apiServiceList.Items = append(apiServiceList.Items, *apiService)
+	}
+	return apiServiceList
+}
+
+func (a *fakeAPIService) setAPIService(apiService *apiregistrationv1.APIService) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.apiServices[apiService.Name] = apiService
+}
+
+func (a *fakeAPIService) addWatchEvent(obj runtime.Object) {
+	a.fakeWatch.Add(obj)
+}
+
+func (a *fakeAPIService) getWatchLabel() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.watchLabel
+}
+
+func newAPIService() *apiregistrationv1.APIService {
+	return &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "spire-api-service",
+			ResourceVersion: "1",
+		},
+		Spec: apiregistrationv1.APIServiceSpec{},
 	}
 }

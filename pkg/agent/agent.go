@@ -18,14 +18,11 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	common_catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,30 +58,21 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	metricsService := metricsservice.New(metricsservice.Config{
-		Metrics: metrics,
-	})
-
 	telemetry.EmitVersion(metrics)
 	uptime.ReportMetrics(ctx, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
-		Log: a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		GlobalConfig: &catalog.GlobalConfig{
-			TrustDomain: a.c.TrustDomain.String(),
-		},
+		Log:          a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		Metrics:      metrics,
+		TrustDomain:  a.c.TrustDomain,
 		PluginConfig: a.c.PluginConfigs,
-		HostServices: []common_catalog.HostServiceServer{
-			metricsv0.HostServiceServer(metricsService),
-		},
-		Metrics: metrics,
 	})
 	if err != nil {
 		return err
 	}
 	defer cat.Close()
 
-	healthChecks := health.NewChecker(a.c.HealthChecks, a.c.Log)
+	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
 	as, err := a.attest(ctx, cat, metrics)
 	if err != nil {
@@ -98,15 +86,15 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(cat, metrics, manager)
 
-	if err := healthChecks.AddCheck("agent", a); err != nil {
-		return fmt.Errorf("failed adding healthcheck: %v", err)
+	if err := healthChecker.AddCheck("agent", a); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
 
 	tasks := []func(context.Context) error{
 		manager.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
-		util.SerialRun(a.waitForTestDial, healthChecks.ListenAndServe),
+		util.SerialRun(a.waitForTestDial, healthChecker.ListenAndServe),
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -115,7 +103,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	err = util.RunTasks(ctx, tasks...)
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err
@@ -260,8 +248,27 @@ func (a *Agent) waitForTestDial(ctx context.Context) error {
 	return nil
 }
 
-// Status is used as a top-level health check for the Agent.
-func (a *Agent) Status() (interface{}, error) {
+// CheckHealth is used as a top-level health check for the agent.
+func (a *Agent) CheckHealth() health.State {
+	err := a.checkWorkloadAPI()
+
+	// Both liveness and readiness checks are done by
+	// agents ability to create new Workload API client
+	// for the X509SVID service.
+	// TODO: Better live check for agent.
+	return health.State{
+		Ready: err == nil,
+		Live:  err == nil,
+		ReadyDetails: agentHealthDetails{
+			WorkloadAPIErr: errString(err),
+		},
+		LiveDetails: agentHealthDetails{
+			WorkloadAPIErr: errString(err),
+		},
+	}
+}
+
+func (a *Agent) checkWorkloadAPI() error {
 	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
 		Addr:        a.c.BindAddress,
 		FailOnError: true,
@@ -275,10 +282,19 @@ func (a *Agent) Status() (interface{}, error) {
 
 	err := <-errCh
 	if status.Code(err) == codes.Unavailable {
-		return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+		return errors.New("workload api is unavailable")
 	}
 
-	return health.Details{
-		Message: "successfully created a workload api client to fetch x509 svid",
-	}, nil
+	return nil
+}
+
+type agentHealthDetails struct {
+	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
+}
+
+func errString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
 }

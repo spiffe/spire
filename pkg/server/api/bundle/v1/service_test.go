@@ -483,10 +483,8 @@ func TestAppendBundle(t *testing.T) {
 			test.ds.SetNextError(tt.dsError)
 
 			if tt.invalidEntry {
-				_, err := test.ds.AppendBundle(ctx, &datastore.AppendBundleRequest{
-					Bundle: &common.Bundle{
-						TrustDomainId: "malformed",
-					},
+				_, err := test.ds.AppendBundle(ctx, &common.Bundle{
+					TrustDomainId: "malformed",
 				})
 				require.NoError(t, err)
 			}
@@ -741,11 +739,9 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 
 			var entryID string
 			if tt.entry != nil {
-				r, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-					Entry: tt.entry,
-				})
+				registrationEntry, err := test.ds.CreateRegistrationEntry(ctx, tt.entry)
 				require.NoError(t, err)
-				entryID = r.Entry.EntryId
+				entryID = registrationEntry.EntryId
 			}
 
 			// Set datastore error after creating the test bundles
@@ -783,19 +779,16 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			require.Equal(t, tt.expectDSBundles, dsBundles)
 
 			if entryID != "" {
-				fetchEntryResp, err := test.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
-					EntryId: entryID,
-				})
+				registrationEntry, err := test.ds.FetchRegistrationEntry(ctx, entryID)
 				require.NoError(t, err)
-				entry := fetchEntryResp.Entry
 
 				switch tt.mode {
 				case bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT:
-					require.Equal(t, []string{td1.IDString()}, entry.FederatesWith)
+					require.Equal(t, []string{td1.IDString()}, registrationEntry.FederatesWith)
 				case bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE:
-					require.Empty(t, entry.FederatesWith)
+					require.Empty(t, registrationEntry.FederatesWith)
 				case bundlev1.BatchDeleteFederatedBundleRequest_DELETE:
-					require.Nil(t, fetchEntryResp.Entry)
+					require.Nil(t, registrationEntry)
 				}
 			}
 		})
@@ -1630,9 +1623,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			defer test.Cleanup()
 
 			if tt.preExistentBundle != nil {
-				_, err := test.ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-					Bundle: tt.preExistentBundle,
-				})
+				_, err := test.ds.CreateBundle(ctx, tt.preExistentBundle)
 				require.NoError(t, err)
 			}
 
@@ -1657,11 +1648,10 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					switch codes.Code(result.Status.Code) {
 					case codes.OK, codes.NotFound:
 					default:
-						updatedBundle, err := test.ds.FetchBundle(ctx, &datastore.FetchBundleRequest{
-							TrustDomainId: "spiffe://" + tt.bundlesToUpdate[i].TrustDomain,
-						})
+						td := spiffeid.RequireTrustDomainFromString(tt.bundlesToUpdate[i].TrustDomain)
+						updatedBundle, err := test.ds.FetchBundle(ctx, td.IDString())
 						require.NoError(t, err)
-						require.Equal(t, tt.preExistentBundle, updatedBundle.Bundle)
+						require.Equal(t, tt.preExistentBundle, updatedBundle)
 					}
 				}
 			}
@@ -1932,11 +1922,7 @@ func assertBundleWithMask(t *testing.T, expected, actual *types.Bundle, m *types
 }
 
 func (c *serviceTest) setBundle(t *testing.T, b *common.Bundle) {
-	req := &datastore.SetBundleRequest{
-		Bundle: b,
-	}
-
-	_, err := c.ds.SetBundle(context.Background(), req)
+	_, err := c.ds.SetBundle(context.Background(), b)
 	require.NoError(t, err)
 }
 
@@ -2048,9 +2034,7 @@ func clearDSBundles(t *testing.T, ds datastore.DataStore) {
 	require.NoError(t, err)
 
 	for _, b := range resp.Bundles {
-		_, err = ds.DeleteBundle(context.Background(), &datastore.DeleteBundleRequest{
-			TrustDomainId: b.TrustDomainId,
-		})
+		err = ds.DeleteBundle(context.Background(), b.TrustDomainId, datastore.Restrict)
 		require.NoError(t, err)
 	}
 }

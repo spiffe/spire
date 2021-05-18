@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func EnsureNotAttested(ctx context.Context, store agentstorev0.AgentStore, agentID string) error {
+func EnsureNotAttested(ctx context.Context, store agentstorev0.AgentStoreClient, agentID string) error {
 	attested, err := IsAttested(ctx, store, agentID)
 	switch {
 	case err != nil:
@@ -22,7 +22,7 @@ func EnsureNotAttested(ctx context.Context, store agentstorev0.AgentStore, agent
 	}
 }
 
-func IsAttested(ctx context.Context, store agentstorev0.AgentStore, agentID string) (bool, error) {
+func IsAttested(ctx context.Context, store agentstorev0.AgentStoreClient, agentID string) (bool, error) {
 	_, err := store.GetAgentInfo(ctx, &agentstorev0.GetAgentInfoRequest{
 		AgentId: agentID,
 	})
@@ -32,6 +32,6 @@ func IsAttested(ctx context.Context, store agentstorev0.AgentStore, agentID stri
 	case codes.NotFound:
 		return false, nil
 	default:
-		return false, fmt.Errorf("unable to get agent info: %v", err)
+		return false, fmt.Errorf("unable to get agent info: %w", err)
 	}
 }

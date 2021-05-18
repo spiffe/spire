@@ -189,7 +189,7 @@ func parseX509SVIDResponse(resp *workload.X509SVIDResponse) ([]*X509SVID, error)
 	for federatedDomainID, federatedBundleDER := range resp.FederatedBundles {
 		federatedBundle, err := x509.ParseCertificates(federatedBundleDER)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse bundle for federated domain %q: %v", federatedDomainID, err)
+			return nil, fmt.Errorf("failed to parse bundle for federated domain %q: %w", federatedDomainID, err)
 		}
 		if len(federatedBundle) == 0 {
 			return nil, fmt.Errorf("no certificates in bundle for federated domain %q", federatedDomainID)
@@ -201,7 +201,7 @@ func parseX509SVIDResponse(resp *workload.X509SVIDResponse) ([]*X509SVID, error)
 	for i, respSVID := range resp.Svids {
 		svid, err := parseX509SVID(respSVID, federatedBundles)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse svid entry %d for spiffe id %q: %v", i, svid.SPIFFEID, err)
+			return nil, fmt.Errorf("failed to parse svid entry %d for spiffe id %q: %w", i, svid.SPIFFEID, err)
 		}
 		svids = append(svids, svid)
 	}
@@ -219,7 +219,7 @@ func parseX509SVID(svid *workload.X509SVID, federatedBundles map[string][]*x509.
 	}
 	privateKey, err := x509.ParsePKCS8PrivateKey(svid.X509SvidKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %v", err)
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 	signer, ok := privateKey.(crypto.Signer)
 	if !ok {
@@ -227,7 +227,7 @@ func parseX509SVID(svid *workload.X509SVID, federatedBundles map[string][]*x509.
 	}
 	bundle, err := x509.ParseCertificates(svid.Bundle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse trust bundle: %v", err)
+		return nil, fmt.Errorf("failed to parse trust bundle: %w", err)
 	}
 	if len(bundle) == 0 {
 		return nil, errors.New("no certificates in trust bundle")
@@ -260,7 +260,7 @@ func validateX509SVID(svid *X509SVID) error {
 	bundle := x509bundle.FromX509Authorities(id.TrustDomain(), svid.Bundle)
 
 	if _, _, err := x509svid.Verify(svid.Certificates, bundle); err != nil {
-		return fmt.Errorf("%q SVID failed verification against bundle: %v", svid.SPIFFEID, err)
+		return fmt.Errorf("%q SVID failed verification against bundle: %w", svid.SPIFFEID, err)
 	}
 
 	return nil

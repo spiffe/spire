@@ -7,35 +7,29 @@ import (
 	"sync"
 )
 
-type PipeAddr struct {
-}
+type pipeAddr struct{}
 
-func (PipeAddr) Network() string {
-	return "pipe"
-}
+func (pipeAddr) Network() string { return "pipe" }
+func (pipeAddr) String() string  { return "pipe" }
 
-func (PipeAddr) String() string {
-	return "pipe"
-}
-
-type PipeNet struct {
+type pipeNet struct {
 	accept    chan net.Conn
 	closed    chan struct{}
 	closeOnce sync.Once
 }
 
-func NewPipeNet() *PipeNet {
-	return &PipeNet{
+func newPipeNet() *pipeNet {
+	return &pipeNet{
 		accept: make(chan net.Conn),
 		closed: make(chan struct{}),
 	}
 }
 
-func (n *PipeNet) Addr() net.Addr {
-	return PipeAddr{}
+func (n *pipeNet) Addr() net.Addr {
+	return pipeAddr{}
 }
 
-func (n *PipeNet) Accept() (net.Conn, error) {
+func (n *pipeNet) Accept() (net.Conn, error) {
 	select {
 	case s := <-n.accept:
 		return s, nil
@@ -44,7 +38,7 @@ func (n *PipeNet) Accept() (net.Conn, error) {
 	}
 }
 
-func (n *PipeNet) DialContext(ctx context.Context, addr string) (conn net.Conn, err error) {
+func (n *pipeNet) DialContext(ctx context.Context, addr string) (conn net.Conn, err error) {
 	c, s := net.Pipe()
 
 	defer func() {
@@ -64,7 +58,7 @@ func (n *PipeNet) DialContext(ctx context.Context, addr string) (conn net.Conn, 
 	}
 }
 
-func (n *PipeNet) Close() error {
+func (n *pipeNet) Close() error {
 	n.closeOnce.Do(func() {
 		close(n.closed)
 	})

@@ -3,9 +3,6 @@ package svid
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
 	"time"
 
@@ -84,14 +81,14 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 	defer counter.Done(&err)
 	r.c.Log.Debug("Rotating server SVID")
 
-	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	signer, err := r.c.KeyType.GenerateSigner()
 	if err != nil {
 		return err
 	}
 
 	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
 		SpiffeID:  idutil.ServerID(r.c.TrustDomain),
-		PublicKey: key.Public(),
+		PublicKey: signer.Public(),
 	})
 	if err != nil {
 		return err
@@ -99,7 +96,7 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 
 	r.state.Update(State{
 		SVID: svid,
-		Key:  key,
+		Key:  signer,
 	})
 
 	return nil

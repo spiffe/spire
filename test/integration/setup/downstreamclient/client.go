@@ -25,6 +25,15 @@ var (
 )
 
 func main() {
+	// Run all tests cases and if error msg is returned make client fails
+	if msg := run(); msg != "" {
+		log.Fatal(msg)
+	}
+	log.Println("Downstream client finished successfully")
+}
+
+// run executes all tests cases and return error msg when failing
+func run() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	c := itclient.New(ctx)
@@ -41,23 +50,19 @@ func main() {
 		failures["PublishJWTAuthority"] = err
 	}
 
-	if len(failures) == 0 {
-		log.Println("downstream client finished successfully")
-		return
-	}
-
 	msg := ""
 	for rpcName, err := range failures {
 		msg += fmt.Sprintf("RPC %q: %v\n", rpcName, err)
 	}
-	log.Fatal(msg)
+
+	return msg
 }
 
 func validateNewDownstreamX509CA(ctx context.Context, c *itclient.Client) error {
 	// Create csr
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
 	if err != nil {
-		return fmt.Errorf("failed to create CSR: %v", err)
+		return fmt.Errorf("failed to create CSR: %w", err)
 	}
 
 	// Create new svid client and new downstream CA
@@ -68,7 +73,7 @@ func validateNewDownstreamX509CA(ctx context.Context, c *itclient.Client) error 
 	case c.ExpectErrors:
 		return validatePermissionError(err)
 	case err != nil:
-		return fmt.Errorf("failed to call NewDownstreamX509CA: %v", err)
+		return fmt.Errorf("failed to call NewDownstreamX509CA: %w", err)
 	case len(resp.CaCertChain) == 0:
 		return errors.New("no CA returned")
 	case len(resp.X509Authorities) == 0:
@@ -82,7 +87,7 @@ func validatePublishJWTAUthorirty(ctx context.Context, c *itclient.Client) error
 	// Marshal key
 	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
 	if err != nil {
-		return fmt.Errorf("unable to marshal key: %v", err)
+		return fmt.Errorf("unable to marshal key: %w", err)
 	}
 
 	jwtKey := &types.JWTKey{
@@ -97,7 +102,7 @@ func validatePublishJWTAUthorirty(ctx context.Context, c *itclient.Client) error
 	case c.ExpectErrors:
 		return validatePermissionError(err)
 	case err != nil:
-		return fmt.Errorf("failed to publish JWT authority: %v", err)
+		return fmt.Errorf("failed to publish JWT authority: %w", err)
 	case len(resp.JwtAuthorities) == 0:
 		return errors.New("no authorities ruturned")
 	}
@@ -116,7 +121,7 @@ func validatePermissionError(err error) error {
 	case err == nil:
 		return errors.New("no error returned")
 	case status.Code(err) != codes.PermissionDenied:
-		return fmt.Errorf("unnexpected error returned: %v", err)
+		return fmt.Errorf("unnexpected error returned: %w", err)
 	default:
 		return nil
 	}

@@ -7,6 +7,7 @@ import (
 
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -44,7 +45,7 @@ func TestIsAttested(t *testing.T) {
 
 type fakeAgentStore struct{}
 
-func (fakeAgentStore) GetAgentInfo(ctx context.Context, in *agentstorev0.GetAgentInfoRequest) (*agentstorev0.GetAgentInfoResponse, error) {
+func (fakeAgentStore) GetAgentInfo(ctx context.Context, in *agentstorev0.GetAgentInfoRequest, dialOpts ...grpc.CallOption) (*agentstorev0.GetAgentInfoResponse, error) {
 	switch in.AgentId {
 	case "spiffe://domain.test/spire/agent/test/attested":
 		return &agentstorev0.GetAgentInfoResponse{

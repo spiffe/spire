@@ -629,11 +629,9 @@ func dropTablesInRows(tb testing.TB, db *sql.DB, rows *sql.Rows) {
 }
 
 func createRegistrationEntry(ctx context.Context, tb testing.TB, ds datastore.DataStore, entry *common.RegistrationEntry) *common.RegistrationEntry {
-	resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: entry,
-	})
+	registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 	require.NoError(tb, err)
-	return resp.Entry
+	return registrationEntry
 }
 
 func setNodeSelectors(ctx context.Context, tb testing.TB, ds datastore.DataStore, spiffeID string, selectors ...*common.Selector) {

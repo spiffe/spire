@@ -12,12 +12,11 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	workloadattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/workloadattestor/v0"
 )
 
 const (
@@ -27,12 +26,15 @@ const (
 	subselectorEnv     = "env"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName, workloadattestorv0.PluginServer(p))
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		workloadattestorv1.WorkloadAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 // Docker is a subset of the docker client functionality, useful for mocking.
@@ -41,7 +43,8 @@ type Docker interface {
 }
 
 type Plugin struct {
-	workloadattestorv0.UnsafeWorkloadAttestorServer
+	workloadattestorv1.UnsafeWorkloadAttestorServer
+	configv1.UnsafeConfigServer
 
 	log     hclog.Logger
 	fs      cgroups.FileSystem
@@ -73,7 +76,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestRequest) (*workloadattestorv0.AttestResponse, error) {
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
@@ -88,7 +91,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 		return nil, err
 	case containerID == "":
 		// Not a docker workload. Nothing more to do.
-		return &workloadattestorv0.AttestResponse{}, nil
+		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
 	var container types.ContainerJSON
@@ -103,38 +106,29 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv0.AttestReque
 		return nil, err
 	}
 
-	return &workloadattestorv0.AttestResponse{
-		Selectors: getSelectorsFromConfig(container.Config),
+	return &workloadattestorv1.AttestResponse{
+		SelectorValues: getSelectorValuesFromConfig(container.Config),
 	}, nil
 }
 
-func getSelectorsFromConfig(cfg *container.Config) []*common.Selector {
-	var selectors []*common.Selector
+func getSelectorValuesFromConfig(cfg *container.Config) []string {
+	var selectorValues []string
 	for label, value := range cfg.Labels {
-		selectors = append(selectors, &common.Selector{
-			Type:  pluginName,
-			Value: fmt.Sprintf("%s:%s:%s", subselectorLabel, label, value),
-		})
+		selectorValues = append(selectorValues, fmt.Sprintf("%s:%s:%s", subselectorLabel, label, value))
 	}
 	for _, e := range cfg.Env {
-		selectors = append(selectors, &common.Selector{
-			Type:  pluginName,
-			Value: fmt.Sprintf("%s:%s", subselectorEnv, e),
-		})
+		selectorValues = append(selectorValues, fmt.Sprintf("%s:%s", subselectorEnv, e))
 	}
 	if cfg.Image != "" {
-		selectors = append(selectors, &common.Selector{
-			Type:  pluginName,
-			Value: fmt.Sprintf("%s:%s", subselectorImageID, cfg.Image),
-		})
+		selectorValues = append(selectorValues, fmt.Sprintf("%s:%s", subselectorImageID, cfg.Image))
 	}
-	return selectors
+	return selectorValues
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	var err error
 	config := &dockerPluginConfig{}
-	if err = hcl.Decode(config, req.Configuration); err != nil {
+	if err = hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, err
 	}
 
@@ -166,11 +160,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	defer p.mtx.Unlock()
 	p.docker = docker
 	p.containerIDFinder = containerIDFinder
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 // getContainerIDFromCGroups returns the container ID from a set of cgroups

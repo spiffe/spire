@@ -2,6 +2,7 @@ package nodeattestor
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
@@ -11,22 +12,21 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin nodeattestorv0.NodeAttestor
+	nodeattestorv0.NodeAttestorPluginClient
 }
 
-func (v0 V0) Attest(ctx context.Context, serverStream ServerStream) error {
+func (v0 *V0) Attest(ctx context.Context, serverStream ServerStream) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	pluginStream, err := v0.Plugin.FetchAttestationData(ctx)
+	pluginStream, err := v0.NodeAttestorPluginClient.FetchAttestationData(ctx)
 	if err != nil {
 		return v0.WrapErr(err)
 	}
 
 	resp, err := pluginStream.Recv()
 	switch {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		return v0.Error(codes.Internal, "plugin closed stream before returning attestation data")
 	case err != nil:
 		return v0.WrapErr(err)
@@ -58,7 +58,7 @@ func (v0 V0) Attest(ctx context.Context, serverStream ServerStream) error {
 			Challenge: challenge,
 		})
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return v0.Error(codes.Internal, "plugin closed stream before handling the challenge")
 		case err != nil:
 			return v0.WrapErr(err)
@@ -66,7 +66,7 @@ func (v0 V0) Attest(ctx context.Context, serverStream ServerStream) error {
 
 		resp, err := pluginStream.Recv()
 		switch {
-		case err == io.EOF:
+		case errors.Is(err, io.EOF):
 			return v0.Error(codes.Internal, "plugin closed stream before handling the challenge")
 		case err != nil:
 			return v0.WrapErr(err)

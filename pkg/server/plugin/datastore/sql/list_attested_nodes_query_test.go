@@ -62,7 +62,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -75,7 +75,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -85,7 +85,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -98,7 +98,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -108,7 +108,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 		AND id > ?)
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -121,7 +121,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -132,7 +132,7 @@ WITH filtered_nodes AS (
 		AND expires_at < ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -145,7 +145,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -165,7 +165,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -179,8 +179,8 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 	SELECT DISTINCT id FROM (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -200,7 +200,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -216,8 +216,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		UNION
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -237,7 +237,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -251,8 +251,8 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 	SELECT DISTINCT id FROM (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	) 
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -272,7 +272,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -288,8 +288,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	) 
-)
+	)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -300,7 +300,7 @@ WITH filtered_nodes AS (
 		AND data_type = ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -313,7 +313,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -324,7 +324,7 @@ WITH filtered_nodes AS (
 		AND serial_number = ''
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -337,7 +337,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -348,7 +348,7 @@ WITH filtered_nodes AS (
 		AND serial_number <> ''
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -361,7 +361,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -381,7 +381,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -395,7 +395,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -416,7 +416,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -430,7 +430,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -451,7 +451,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -465,7 +465,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -486,7 +486,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -502,8 +502,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  ORDER BY id ASC LIMIT 1
-)
+	) ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -524,7 +524,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -540,8 +540,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  ORDER BY id ASC LIMIT 1
-)
+	) ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -553,7 +553,7 @@ WITH filtered_nodes AS (
 		AND data_type = ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -566,7 +566,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -578,7 +578,7 @@ WITH filtered_nodes AS (
 		AND id > ?		AND data_type = ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -591,7 +591,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -615,7 +615,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -631,8 +631,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  ORDER BY id ASC LIMIT 1
-)
+	) ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "sqlite3",
@@ -656,7 +656,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -672,8 +672,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  ORDER BY id ASC LIMIT 1
-)
+	) ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -682,7 +682,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -695,7 +695,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -705,7 +705,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -718,7 +718,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -728,7 +728,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 		AND id > $1)
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -741,7 +741,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -752,7 +752,7 @@ WITH filtered_nodes AS (
 		AND expires_at < $1
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -765,7 +765,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -785,7 +785,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -799,8 +799,8 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 	SELECT DISTINCT id FROM (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $1 AND selector_value = $2
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -820,7 +820,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -836,8 +836,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $1 AND selector_value = $2
 		UNION
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $3 AND selector_value = $4
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -857,7 +857,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -871,8 +871,8 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 	SELECT DISTINCT id FROM (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $1 AND selector_value = $2
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -892,7 +892,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -908,8 +908,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $1 AND selector_value = $2
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $3 AND selector_value = $4
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -920,7 +920,7 @@ WITH filtered_nodes AS (
 		AND data_type = $1
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -933,7 +933,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -944,7 +944,7 @@ WITH filtered_nodes AS (
 		AND serial_number = ''
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -957,7 +957,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -968,7 +968,7 @@ WITH filtered_nodes AS (
 		AND serial_number <> ''
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -981,7 +981,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1001,7 +1001,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1015,7 +1015,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors AS result_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1036,7 +1036,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1050,7 +1050,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors AS result_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1071,7 +1071,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1085,7 +1085,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors AS result_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1106,7 +1106,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1122,8 +1122,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $1 AND selector_value = $2
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $3 AND selector_value = $4
-	)  AS result_nodes ORDER BY id ASC LIMIT 1
-)
+	) AS result_nodes ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1144,7 +1144,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1160,8 +1160,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $2 AND selector_value = $3
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $4 AND selector_value = $5
-	)  AS result_nodes ORDER BY id ASC LIMIT 1
-)
+	) AS result_nodes ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1173,7 +1173,7 @@ WITH filtered_nodes AS (
 		AND data_type = $1
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1186,7 +1186,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1198,7 +1198,7 @@ WITH filtered_nodes AS (
 		AND id > $1		AND data_type = $2
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1211,7 +1211,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes AS result_nodes ORDER BY id ASC LIMIT 1
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1235,7 +1235,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1251,8 +1251,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $4 AND selector_value = $5
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $6 AND selector_value = $7
-	)  AS result_nodes ORDER BY id ASC LIMIT 1
-)
+	) AS result_nodes ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "postgres",
@@ -1276,7 +1276,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1292,14 +1292,14 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $3 AND selector_value = $4
 		INTERSECT
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = $5 AND selector_value = $6
-	)  AS result_nodes ORDER BY id ASC LIMIT 1
-)
+	) AS result_nodes ORDER BY id ASC LIMIT 1
+) ORDER BY id ASC
 `},
 		{
 			dialect: "mysql",
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1316,7 +1316,7 @@ WHERE true
 			paged:   withNoToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1333,7 +1333,7 @@ WHERE true ORDER BY N.id ASC LIMIT 1
 			paged:   withToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1350,7 +1350,7 @@ WHERE true AND N.id > ? ORDER BY N.id ASC LIMIT 1
 			by:      []filterBy{byExpiresBefore},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1367,7 +1367,7 @@ WHERE true AND N.expires_at < ?
 			by:      []filterBy{bySelectorSubsetOne},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1396,7 +1396,7 @@ WHERE N.id IN (
 			by:      []filterBy{bySelectorSubsetMany},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1427,7 +1427,7 @@ WHERE N.id IN (
 			by:      []filterBy{bySelectorExactOne},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1455,7 +1455,7 @@ WHERE N.id IN (
 			by:      []filterBy{bySelectorExactMany},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1486,7 +1486,7 @@ WHERE N.id IN (
 			by:      []filterBy{byAttestationType},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1503,7 +1503,7 @@ WHERE true AND N.data_type = ?
 			by:      []filterBy{byBanned},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1520,7 +1520,7 @@ WHERE true AND N.serial_number = ''
 			by:      []filterBy{byNoBanned},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1537,7 +1537,7 @@ WHERE true AND N.serial_number <> ''
 			by:      []filterBy{byFetchSelectors},
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1563,7 +1563,7 @@ WHERE N.id IN (
 			paged:   withNoToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1591,7 +1591,7 @@ WHERE N.id IN (
 			paged:   withToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1619,7 +1619,7 @@ WHERE N.id IN (
 			paged:   withNoToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1653,7 +1653,7 @@ WHERE N.id IN (
 			paged:   withToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1687,7 +1687,7 @@ WHERE N.id IN (
 			paged:   withNoToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1705,7 +1705,7 @@ WHERE true AND N.data_type = ? ORDER BY N.id ASC LIMIT 1
 			paged:   withToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1723,7 +1723,7 @@ WHERE true AND N.id > ? AND N.data_type = ? ORDER BY N.id ASC LIMIT 1
 			paged:   withToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1757,7 +1757,7 @@ WHERE N.id IN (
 			paged:   withNoToken,
 			query: `
 SELECT 
-	N.id as e_id,
+	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
 	N.serial_number,
@@ -1793,7 +1793,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1806,7 +1806,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -1817,7 +1817,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1832,7 +1832,7 @@ WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -1843,7 +1843,7 @@ WITH filtered_nodes AS (
 	SELECT * FROM attested_node_entries WHERE true
 		AND id > ?)
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1858,7 +1858,7 @@ WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -1870,7 +1870,7 @@ WITH filtered_nodes AS (
 		AND expires_at < ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1883,7 +1883,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -1904,7 +1904,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1918,8 +1918,8 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 	SELECT DISTINCT id FROM (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -1940,7 +1940,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1956,8 +1956,8 @@ WHERE id IN (
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
 		UNION
 		SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
-	)  AS result_nodes
-)
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -1978,7 +1978,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -1991,10 +1991,9 @@ SELECT
 FROM filtered_nodes_and_selectors
 WHERE id IN (
 	SELECT DISTINCT id FROM (
-		(SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?) c_0
-
-	) 
-)
+SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?
+	) AS result_nodes
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2015,7 +2014,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2033,8 +2032,8 @@ WHERE id IN (
 		(SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?) c_1
 		USING(id)
 
-	) 
-)
+	)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2046,7 +2045,7 @@ WITH filtered_nodes AS (
 		AND data_type = ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2059,7 +2058,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2071,7 +2070,7 @@ WITH filtered_nodes AS (
 		AND serial_number = ''
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2084,7 +2083,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2096,7 +2095,7 @@ WITH filtered_nodes AS (
 		AND serial_number <> ''
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2109,7 +2108,7 @@ FROM filtered_nodes
 WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2130,7 +2129,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2144,7 +2143,7 @@ FROM filtered_nodes_and_selectors
 WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2166,7 +2165,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2182,7 +2181,7 @@ WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2204,7 +2203,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2220,7 +2219,7 @@ WHERE id IN (
 		SELECT DISTINCT id 
 		FROM filtered_nodes_and_selectors ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2242,7 +2241,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2261,9 +2260,9 @@ WHERE id IN (
 		(SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?) c_1
 		USING(id)
 
-	)  ORDER BY id ASC LIMIT 1
+	) ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2284,7 +2283,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2303,9 +2302,9 @@ WHERE id IN (
 		(SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?) c_1
 		USING(id)
 
-	)  ORDER BY id ASC LIMIT 1
+	) ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2318,7 +2317,7 @@ WITH filtered_nodes AS (
 		AND data_type = ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2333,7 +2332,7 @@ WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2346,7 +2345,7 @@ WITH filtered_nodes AS (
 		AND id > ?		AND data_type = ?
 )
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2361,7 +2360,7 @@ WHERE id IN (
 		SELECT id 
 		FROM filtered_nodes ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2386,7 +2385,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2405,9 +2404,9 @@ WHERE id IN (
 		(SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?) c_1
 		USING(id)
 
-	)  ORDER BY id ASC LIMIT 1
+	) ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 		{
 			dialect:     "mysql",
@@ -2432,7 +2431,7 @@ WITH filtered_nodes AS (
 	)
 
 SELECT 
-	id as e_id,
+	id AS e_id,
 	spiffe_id,
 	data_type,
 	serial_number,
@@ -2451,9 +2450,9 @@ WHERE id IN (
 		(SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?) c_1
 		USING(id)
 
-	)  ORDER BY id ASC LIMIT 1
+	) ORDER BY id ASC LIMIT 1
 	) workaround_for_mysql_subquery_limit
-)
+) ORDER BY id ASC
 `},
 	} {
 		tt := tt
@@ -2496,22 +2495,22 @@ WHERE id IN (
 				case bySelectorSubsetOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case bySelectorSubsetMany:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_SUBSET,
+						Match:     datastore.Subset,
 					}
 				case bySelectorExactOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case bySelectorExactMany:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}, {Type: "b", Value: "2"}},
-						Match:     datastore.BySelectors_MATCH_EXACT,
+						Match:     datastore.Exact,
 					}
 				case byAttestationType:
 					req.ByAttestationType = "type1"

@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )
@@ -24,7 +26,7 @@ func TestX509PoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p          nodeattestorv0.Plugin
+	p          nodeattestorv0.NodeAttestorClient
 	leafBundle [][]byte
 	leafCert   *x509.Certificate
 }
@@ -36,10 +38,10 @@ func (s *Suite) SetupTest() {
 	s.configure(leafKeyPath, leafCertPath, "")
 }
 
-func (s *Suite) newPlugin() nodeattestorv0.Plugin {
-	var p nodeattestorv0.Plugin
-	s.LoadPlugin(BuiltIn(), &p)
-	return p
+func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
+	na := new(nodeattestor.V0)
+	plugintest.Load(s.T(), BuiltIn(), na)
+	return na.NodeAttestorPluginClient
 }
 
 func (s *Suite) configure(privateKeyPath, certificatePath, intermediatesPath string) {

@@ -1,45 +1,21 @@
 package fakeagentkeymanager
 
 import (
-	"context"
-	"fmt"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
-	"github.com/spiffe/spire/pkg/common/plugin"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
-	"github.com/spiffe/spire/test/spiretest"
-	"github.com/stretchr/testify/require"
+	"github.com/spiffe/spire/test/plugintest"
 )
 
 // New returns a fake key manager
 func New(t *testing.T, dir string) keymanager.KeyManager {
-	configuration := ""
-	builtIn := memory.BuiltIn()
+	km := new(keymanager.V0)
 	if dir != "" {
-		builtIn = disk.BuiltIn()
-		configuration = fmt.Sprintf("directory = %q", dir)
+		plugintest.Load(t, disk.BuiltIn(), km, plugintest.Configuref("directory = %q", dir))
+	} else {
+		plugintest.Load(t, memory.BuiltIn(), km)
 	}
-
-	// This little workaround to get at the configuration interface
-	// won't be required after the catalog system refactor
-	raw := struct {
-		plugin.Facade
-		keymanagerv0.Plugin
-	}{}
-
-	spiretest.LoadPlugin(t, builtIn, &raw)
-
-	_, err := raw.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: configuration,
-	})
-	require.NoError(t, err)
-
-	return keymanager.V0{
-		Facade: raw.Facade,
-		Plugin: raw.Plugin,
-	}
+	return km
 }

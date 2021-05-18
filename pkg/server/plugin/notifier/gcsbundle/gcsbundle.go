@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"sync"
 
 	"cloud.google.com/go/storage"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -23,13 +25,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtIn(New())
 }
 
-func builtIn(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("gcs_bundle",
-		notifierv0.PluginServer(p),
+func builtIn(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("gcs_bundle",
+		notifierv0.NotifierPluginServer(p),
 	)
 }
 
@@ -51,7 +53,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProvider
+	identityProvider identityproviderv0.IdentityProviderServiceClient
 
 	hooks struct {
 		newBucketClient func(ctx context.Context, configPath string) (bucketClient, error)
@@ -68,12 +70,8 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(identityproviderv0.HostServiceClient(&p.identityProvider))
-	if err != nil {
-		return err
-	}
-	if !has {
+func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
+	if !broker.BrokerClient(&p.identityProvider) {
 		return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
 	}
 	return nil
@@ -110,10 +108,6 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndA
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
-	if p.identityProvider == nil {
-		return nil, status.Error(codes.FailedPrecondition, "IdentityProvider host service is required but not brokered")
-	}
-
 	config := new(pluginConfig)
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
@@ -212,7 +206,7 @@ func newGCSBucketClient(ctx context.Context, serviceAccountFile string) (bucketC
 func (c *gcsBucketClient) GetObjectGeneration(ctx context.Context, bucket, object string) (int64, error) {
 	attrs, err := c.client.Bucket(bucket).Object(object).Attrs(ctx)
 	if err != nil {
-		if err == storage.ErrObjectNotExist {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			return 0, nil
 		}
 		return 0, errs.Wrap(err)
@@ -259,7 +253,9 @@ func bundleData(bundle *common.Bundle) []byte {
 }
 
 func isConditionNotMetError(err error) bool {
-	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusPreconditionFailed {
+	var e *googleapi.Error
+	ok := errors.As(err, &e)
+	if ok && e.Code == http.StatusPreconditionFailed {
 		for _, errorItem := range e.Errors {
 			if errorItem.Reason == "conditionNotMet" {
 				return true

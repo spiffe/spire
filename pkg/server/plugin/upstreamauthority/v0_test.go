@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/testkey"
@@ -404,16 +405,16 @@ func (b *V0Builder) clone() *V0Builder {
 }
 
 func (b *V0Builder) Load(t *testing.T) upstreamauthority.UpstreamAuthority {
-	server := upstreamauthorityv0.PluginServer(b.clone().p)
+	server := upstreamauthorityv0.UpstreamAuthorityPluginServer(b.clone().p)
 
-	var opts []spiretest.PluginOption
+	var opts []plugintest.Option
 	if b.log != nil {
-		opts = append(opts, spiretest.Logger(b.log))
+		opts = append(opts, plugintest.Log(b.log))
 	}
 
-	var na upstreamauthority.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test", server), &na, opts...)
-	return na
+	ua := new(upstreamauthority.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), ua, opts...)
+	return ua
 }
 
 type v0Plugin struct {

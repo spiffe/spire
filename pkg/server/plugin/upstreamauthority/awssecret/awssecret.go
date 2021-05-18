@@ -28,13 +28,13 @@ const (
 	pluginName = "awssecret"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		upstreamauthorityv0.PluginServer(p),
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		upstreamauthorityv0.UpstreamAuthorityPluginServer(p),
 	)
 }
 
@@ -147,7 +147,7 @@ func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsMana
 	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read %s: %s", config.KeyFileARN, err)
+		return nil, nil, fmt.Errorf("unable to read %s: %w", config.KeyFileARN, err)
 	}
 
 	key, err := pemutil.ParsePrivateKey([]byte(keyPEMstr))
@@ -158,7 +158,7 @@ func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsMana
 	certPEMstr, err := readARN(ctx, sm, config.CertFileARN)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read %s: %s", config.CertFileARN, err)
+		return nil, nil, fmt.Errorf("unable to read %s: %w", config.CertFileARN, err)
 	}
 
 	cert, err := pemutil.ParseCertificate([]byte(certPEMstr))

@@ -14,12 +14,14 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - durationcheck
+    - errorlint
     - goimports
     - golint
     - gosec
     - misspell
+    - nolintlint
     - nakedret
-    - scopelint
     - unconvert
     - unparam
     - whitespace

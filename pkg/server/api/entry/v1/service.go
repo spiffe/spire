@@ -51,13 +51,13 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // CountEntries returns the total number of entries.
 func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
-	dsResp, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	count, err := s.ds.CountRegistrationEntries(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 	}
 
-	return &entryv1.CountEntriesResponse{Count: dsResp.Entries}, nil
+	return &entryv1.CountEntriesResponse{Count: count}, nil
 }
 
 // ListEntries returns the optionally filtered and/or paginated list of entries.
@@ -103,7 +103,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
 			}
 			listReq.BySelectors = &datastore.BySelectors{
-				Match:     datastore.BySelectors_MatchBehavior(req.Filter.BySelectors.Match),
+				Match:     datastore.MatchBehavior(req.Filter.BySelectors.Match),
 				Selectors: dsSelectors,
 			}
 		}
@@ -121,7 +121,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
 			}
 			listReq.ByFederatesWith = &datastore.ByFederatesWith{
-				Match:        datastore.ByFederatesWith_MatchBehavior(req.Filter.ByFederatesWith.Match),
+				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
 				TrustDomains: trustDomains,
 			}
 		}
@@ -158,18 +158,16 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing ID", nil)
 	}
 	log = log.WithField(telemetry.RegistrationID, req.Id)
-	dsResp, err := s.ds.FetchRegistrationEntry(ctx, &datastore.FetchRegistrationEntryRequest{
-		EntryId: req.Id,
-	})
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch entry", err)
 	}
 
-	if dsResp.Entry == nil {
+	if registrationEntry == nil {
 		return nil, api.MakeErr(log, codes.NotFound, "entry not found", nil)
 	}
 
-	entry, err := api.RegistrationEntryToProto(dsResp.Entry)
+	entry, err := api.RegistrationEntryToProto(registrationEntry)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert entry", err)
 	}
@@ -214,15 +212,12 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	if existingEntry == nil {
 		// Create entry
-		resp, err := s.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-			Entry: cEntry,
-		})
+		regEntry, err = s.ds.CreateRegistrationEntry(ctx, cEntry)
 		if err != nil {
 			return &entryv1.BatchCreateEntryResponse_Result{
 				Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
 			}
 		}
-		regEntry = resp.Entry
 	} else {
 		resultStatus = api.CreateStatus(codes.AlreadyExists, "similar entry already exists")
 	}
@@ -280,9 +275,7 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entryv1.BatchDele
 
 	log = log.WithField(telemetry.RegistrationID, id)
 
-	_, err := s.ds.DeleteRegistrationEntry(ctx, &datastore.DeleteRegistrationEntryRequest{
-		EntryId: id,
-	})
+	_, err := s.ds.DeleteRegistrationEntry(ctx, id)
 	switch status.Code(err) {
 	case codes.OK:
 		return &entryv1.BatchDeleteEntryResponse_Result{
@@ -392,7 +385,7 @@ func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEn
 			Value: e.ParentId,
 		},
 		BySelectors: &datastore.BySelectors{
-			Match:     datastore.BySelectors_MATCH_EXACT,
+			Match:     datastore.Exact,
 			Selectors: e.Selectors,
 		},
 	})
@@ -418,23 +411,22 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
-	var resp *datastore.UpdateRegistrationEntryResponse
+	var dsEntry *common.RegistrationEntry
 	if inputMask != nil {
-		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{
-			Entry: convEntry,
-			Mask: &common.RegistrationEntryMask{
-				SpiffeId:      inputMask.SpiffeId,
-				ParentId:      inputMask.ParentId,
-				Ttl:           inputMask.Ttl,
-				FederatesWith: inputMask.FederatesWith,
-				Admin:         inputMask.Admin,
-				Downstream:    inputMask.Downstream,
-				EntryExpiry:   inputMask.ExpiresAt,
-				DnsNames:      inputMask.DnsNames,
-				Selectors:     inputMask.Selectors,
-			}})
+		mask := &common.RegistrationEntryMask{
+			SpiffeId:      inputMask.SpiffeId,
+			ParentId:      inputMask.ParentId,
+			Ttl:           inputMask.Ttl,
+			FederatesWith: inputMask.FederatesWith,
+			Admin:         inputMask.Admin,
+			Downstream:    inputMask.Downstream,
+			EntryExpiry:   inputMask.ExpiresAt,
+			DnsNames:      inputMask.DnsNames,
+			Selectors:     inputMask.Selectors,
+		}
+		dsEntry, err = s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
 	} else {
-		resp, err = s.ds.UpdateRegistrationEntry(ctx, &datastore.UpdateRegistrationEntryRequest{Entry: convEntry})
+		dsEntry, err = s.ds.UpdateRegistrationEntry(ctx, convEntry, nil)
 	}
 
 	if err != nil {
@@ -443,7 +435,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
-	tEntry, err := api.RegistrationEntryToProto(resp.Entry)
+	tEntry, err := api.RegistrationEntryToProto(dsEntry)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry in updateEntry", err),

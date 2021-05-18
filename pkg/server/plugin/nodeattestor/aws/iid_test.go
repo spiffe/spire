@@ -20,12 +20,14 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 )
@@ -68,7 +70,7 @@ type IIDAttestorSuite struct {
 	// original plugin, for modifications on mock
 	plugin *IIDAttestorPlugin
 	// built-in for full callstack
-	p          nodeattestorv0.Plugin
+	p          nodeattestorv0.NodeAttestorClient
 	rsaKey     *rsa.PrivateKey
 	env        map[string]string
 	agentStore *fakeagentstore.AgentStore
@@ -87,9 +89,12 @@ func (s *IIDAttestorSuite) SetupTest() {
 		return s.env[key]
 	}
 	s.plugin = p
-	s.LoadPlugin(builtin(s.plugin), &s.p,
-		spiretest.HostService(agentstorev0.HostServiceServer(s.agentStore)),
+
+	v0 := new(nodeattestor.V0)
+	plugintest.Load(s.T(), builtin(s.plugin), v0,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 	)
+	s.p = v0.NodeAttestorClient
 }
 
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
@@ -103,7 +108,7 @@ func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 	// Send() will either succeed or return EOF if the gRPC stream has already
 	// been torn down due to the plugin-side failure.
 	err = stream.Send(&nodeattestorv0.AttestRequest{})
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		s.Require().NoError(err)
 	}
 

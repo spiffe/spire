@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
@@ -31,6 +32,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	aggregator "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
 
 var (
@@ -43,13 +46,13 @@ const (
 	defaultConfigMapKey = "bundle.crt"
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtIn(New())
 }
 
-func builtIn(p *Plugin) catalog.Plugin {
-	return catalog.MakePlugin("k8sbundle",
-		notifierv0.PluginServer(p),
+func builtIn(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("k8sbundle",
+		notifierv0.NotifierPluginServer(p),
 	)
 }
 
@@ -58,6 +61,7 @@ type pluginConfig struct {
 	ConfigMap          string `hcl:"config_map"`
 	ConfigMapKey       string `hcl:"config_map_key"`
 	WebhookLabel       string `hcl:"webhook_label"`
+	APIServiceLabel    string `hcl:"api_service_label"`
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
 }
 
@@ -67,7 +71,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProvider
+	identityProvider identityproviderv0.IdentityProviderServiceClient
 	cancelWatcher    func()
 
 	hooks struct {
@@ -85,12 +89,8 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) BrokerHostServices(broker catalog.HostServiceBroker) error {
-	has, err := broker.GetHostService(identityproviderv0.HostServiceClient(&p.identityProvider))
-	if err != nil {
-		return err
-	}
-	if !has {
+func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
+	if !broker.BrokerClient(&p.identityProvider) {
 		return k8sErr.New("IdentityProvider host service is required")
 	}
 	return nil
@@ -127,10 +127,6 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndA
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
-	if p.identityProvider == nil {
-		return nil, errors.New("required IdentityProvider host service not available")
-	}
-
 	config := new(pluginConfig)
 	if err := hcl.Decode(&config, req.Configuration); err != nil {
 		return nil, k8sErr.New("unable to decode configuration: %v", err)
@@ -172,7 +168,7 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 
 	// Start watcher to set CA Bundle in objects created after server has started
 	var cancelWatcher func()
-	if config.WebhookLabel != "" {
+	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		ctx, cancel := context.WithCancel(context.Background())
 		watcher, err := newBundleWatcher(ctx, p, config)
 		if err != nil {
@@ -196,7 +192,7 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 		p.cancelWatcher()
 		p.cancelWatcher = nil
 	}
-	if config.WebhookLabel != "" {
+	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		p.cancelWatcher = cancelWatcher
 	}
 
@@ -284,12 +280,21 @@ func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 	if err != nil {
 		return nil, k8sErr.Wrap(err)
 	}
+	aggregatorClientset, err := newAggregatorClientset(c.KubeConfigFilePath)
+	if err != nil {
+		return nil, k8sErr.Wrap(err)
+	}
 
 	clients := []kubeClient{configMapClient{Clientset: clientset}}
 	if c.WebhookLabel != "" {
 		clients = append(clients,
 			mutatingWebhookClient{Clientset: clientset},
 			validatingWebhookClient{Clientset: clientset},
+		)
+	}
+	if c.APIServiceLabel != "" {
+		clients = append(clients,
+			apiServiceClient{Clientset: aggregatorClientset},
 		)
 	}
 
@@ -299,12 +304,25 @@ func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 func newKubeClientset(configPath string) (*kubernetes.Clientset, error) {
 	config, err := getKubeConfig(configPath)
 	if err != nil {
-		return nil, k8sErr.Wrap(err)
+		return nil, err
 	}
 
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, k8sErr.Wrap(err)
+		return nil, err
+	}
+	return client, nil
+}
+
+func newAggregatorClientset(configPath string) (*aggregator.Clientset, error) {
+	config, err := getKubeConfig(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := aggregator.NewForConfig(config)
+	if err != nil {
+		return nil, err
 	}
 	return client, nil
 }
@@ -348,7 +366,7 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting ConfigMap")
+		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ConfigMap")
 	}
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -369,6 +387,57 @@ func (c configMapClient) Watch(ctx context.Context, config *pluginConfig) (watch
 	return nil, nil
 }
 
+// apiServiceClient encapsulates the Kubenetes API for updating the CA Bundle in an API Service
+type apiServiceClient struct {
+	*aggregator.Clientset
+}
+
+func (c apiServiceClient) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
+	return c.ApiregistrationV1().APIServices().Get(ctx, name, metav1.GetOptions{})
+}
+
+func (c apiServiceClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+	return c.ApiregistrationV1().APIServices().List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", config.APIServiceLabel),
+	})
+}
+
+func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+	apiService, ok := obj.(*apiregistrationv1.APIService)
+	if !ok {
+		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting APIService")
+	}
+
+	// Check if APIService needs an update
+	if bytes.Equal(apiService.Spec.CABundle, []byte(bundleData(resp.Bundle))) {
+		return nil, status.Errorf(codes.AlreadyExists, "APIService %s is already up to date", apiService.Name)
+	}
+
+	patch := &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: apiService.ResourceVersion,
+		},
+		Spec: apiregistrationv1.APIServiceSpec{
+			CABundle:             []byte(bundleData(resp.Bundle)),
+			GroupPriorityMinimum: apiService.Spec.GroupPriorityMinimum,
+			VersionPriority:      apiService.Spec.VersionPriority,
+		},
+	}
+
+	return patch, nil
+}
+
+func (c apiServiceClient) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+	_, err := c.ApiregistrationV1().APIServices().Patch(ctx, name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	return err
+}
+
+func (c apiServiceClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+	return c.ApiregistrationV1().APIServices().Watch(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("%s=true", config.APIServiceLabel),
+	})
+}
+
 // mutatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a mutating webhook
 type mutatingWebhookClient struct {
 	*kubernetes.Clientset
@@ -387,7 +456,7 @@ func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig
 func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting MutatingWebhookConfiguration")
+		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting MutatingWebhookConfiguration")
 	}
 
 	// Check if MutatingWebhookConfiguration needs an update
@@ -449,7 +518,7 @@ func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConf
 func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting ValidatingWebhookConfiguration")
+		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ValidatingWebhookConfiguration")
 	}
 
 	// Check if ValidatingWebhookConfiguration needs an update

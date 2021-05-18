@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.15
+go 1.16
 
 require (
 	cloud.google.com/go v0.80.0
@@ -38,10 +38,8 @@ require (
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.1
 	github.com/google/go-cmp v0.5.5
-	github.com/google/go-tpm v0.3.2
-	github.com/google/go-tpm-tools v0.2.1
-	github.com/hashicorp/go-hclog v0.14.0
-	github.com/hashicorp/go-plugin v1.3.0
+	github.com/hashicorp/go-hclog v0.15.0
+	github.com/hashicorp/go-plugin v1.4.0
 	github.com/hashicorp/golang-lru v0.5.1
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/hashicorp/vault/api v1.0.4
@@ -62,7 +60,8 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
 	github.com/spiffe/spire-api-sdk v1.0.0-pre.0.20210318220945-7ff3eb0759ce
-	github.com/stretchr/testify v1.6.1
+	github.com/spiffe/spire-plugin-sdk v1.0.0-pre.0.20210429190523-165234a66136
+	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.5.0
@@ -73,19 +72,18 @@ require (
 	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
-	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
-	golang.org/x/tools v0.1.0
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/api v0.42.0
 	google.golang.org/genproto v0.0.0-20210323160006-e668133fea6a
-	google.golang.org/grpc v1.36.0
+	google.golang.org/grpc v1.36.1
 	google.golang.org/protobuf v1.26.0
-	gopkg.in/DATA-DOG/go-sqlmock.v1 v1.3.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 	gotest.tools v2.2.0+incompatible
 	k8s.io/api v0.18.2
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.2
-	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
+	k8s.io/kube-aggregator v0.18.2
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	sigs.k8s.io/controller-runtime v0.6.0
 )

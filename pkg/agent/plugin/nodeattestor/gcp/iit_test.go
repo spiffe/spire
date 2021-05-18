@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +27,7 @@ func TestIITAttestorPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p      nodeattestorv0.Plugin
+	p      nodeattestorv0.NodeAttestorClient
 	server *httptest.Server
 	status int
 	body   string
@@ -166,12 +168,10 @@ func (s *Suite) TestGetPluginInfo() {
 	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
 }
 
-func (s *Suite) newPlugin() nodeattestorv0.Plugin {
-	p := New()
-
-	var plugin nodeattestorv0.Plugin
-	s.LoadPlugin(builtin(p), &plugin)
-	return plugin
+func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
+	attestor := new(nodeattestor.V0)
+	plugintest.Load(s.T(), BuiltIn(), attestor)
+	return attestor.NodeAttestorPluginClient
 }
 
 func (s *Suite) configure() {

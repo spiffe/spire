@@ -173,7 +173,7 @@ As a counter example, DO NOT do the following:
 var callCounter telemetry.CallCounter
 ...
 if caller != "" {
-  callCounter.AddLabel("caller_id", caller)
+  callCounter.AddLabel(telemetry.CallerID, caller)
 }
 ...
 if x > 5000 {
@@ -185,9 +185,9 @@ Instead, the following would be more acceptable:
 var callCounter telemetry.CallCounter
 ...
 if caller != "" {
-  callCounter.AddLabel("caller_id", caller)
+  callCounter.AddLabel(telemetry.CallerID, caller)
 } else {
-  callCounter.AddLabel("caller_id", "someDefault")
+  callCounter.AddLabel(telemetry.CallerID, "someDefault")
 }
 ...
 if x > 5000 {

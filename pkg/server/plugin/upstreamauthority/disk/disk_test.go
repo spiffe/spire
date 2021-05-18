@@ -12,9 +12,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +44,7 @@ type DiskSuite struct {
 
 	clock     *clock.Mock
 	rawPlugin *Plugin
-	p         upstreamauthorityv0.Plugin
+	p         upstreamauthorityv0.UpstreamAuthorityClient
 }
 
 func (s *DiskSuite) SetupTest() {
@@ -57,7 +59,11 @@ func (s *DiskSuite) SetupTest() {
 	// all the cert and key material for tests on the fly to avoid this problem.
 	p._testOnlyShouldVerify = false
 	s.rawPlugin = p
-	s.LoadPlugin(builtin(p), &s.p)
+
+	v0 := new(upstreamauthority.V0)
+	plugintest.Load(s.T(), builtin(p), v0)
+	s.p = v0.UpstreamAuthorityClient
+
 	s.configure()
 }
 
@@ -124,13 +130,13 @@ func (s *DiskSuite) TestGetPluginInfo() {
 func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	// On OSX
 	// openssl ecparam -name prime256v1 -genkey -noout -out root_key.pem
-	//openssl req -days 3650 -x509 -new -key root_key.pem -out root_cert.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://root\nbasicConstraints=CA:true") -extensions v3
-	//openssl ecparam -name prime256v1 -genkey -noout -out intermediate_key.pem
-	//openssl req  -new -key intermediate_key.pem -out intermediate_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
-	//openssl x509 -days 3650 -req -CA root_cert.pem -CAkey root_key.pem -in intermediate_csr.pem -out intermediate_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
-	//openssl ecparam -name prime256v1 -genkey -noout -out upstream_key.pem
-	//openssl req  -new -key upstream_key.pem -out upstream_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
-	//openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in upstream_csr.pem -out upstream_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
+	// openssl req -days 3650 -x509 -new -key root_key.pem -out root_cert.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://root\nbasicConstraints=CA:true") -extensions v3
+	// openssl ecparam -name prime256v1 -genkey -noout -out intermediate_key.pem
+	// openssl req  -new -key intermediate_key.pem -out intermediate_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
+	// openssl x509 -days 3650 -req -CA root_cert.pem -CAkey root_key.pem -in intermediate_csr.pem -out intermediate_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
+	// openssl ecparam -name prime256v1 -genkey -noout -out upstream_key.pem
+	// openssl req  -new -key upstream_key.pem -out upstream_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
+	// openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in upstream_csr.pem -out upstream_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
 	// cat upstream_cert.pem intermediate_cert.pem > upstream_and_intermediate.pem
 	// This test verifies the cert chain and will start failing on May 15 2029
 	require := s.Require()

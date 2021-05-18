@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"io"
 	"strconv"
 
@@ -73,7 +74,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				if status.Code(err) == codes.Canceled || err == io.EOF {
+				if status.Code(err) == codes.Canceled || errors.Is(err, io.EOF) {
 					err = nil
 				}
 				errch <- err

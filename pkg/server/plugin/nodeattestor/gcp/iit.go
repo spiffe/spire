@@ -11,6 +11,7 @@ import (
 	"github.com/zeebo/errs"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -32,13 +33,13 @@ var (
 	pluginErr = errs.Class("gcp-iit")
 )
 
-func BuiltIn() catalog.Plugin {
+func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *IITAttestorPlugin) catalog.Plugin {
-	return catalog.MakePlugin(pluginName,
-		nodeattestorv0.PluginServer(p),
+func builtin(p *IITAttestorPlugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv0.NodeAttestorPluginServer(p),
 	)
 }
 
@@ -53,7 +54,10 @@ type computeEngineClient interface {
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv0.UnsafeNodeAttestorServer
+
 	config            *IITAttestorConfig
+	log               hclog.Logger
 	mtx               sync.Mutex
 	tokenKeyRetriever tokenKeyRetriever
 	client            computeEngineClient
@@ -66,13 +70,16 @@ type IITAttestorConfig struct {
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
-	ProjectIDWhitelist   []string `hcl:"projectid_whitelist"`
+	ProjectIDAllowList   []string `hcl:"projectid_allow_list"`
 	AgentPathTemplate    string   `hcl:"agent_path_template"`
 	UseInstanceMetadata  bool     `hcl:"use_instance_metadata"`
 	AllowedLabelKeys     []string `hcl:"allowed_label_keys"`
 	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
 	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
 	ServiceAccountFile   string   `hcl:"service_account_file"`
+
+	// TODO: Remove in 1.1.0
+	ProjectIDAllowListDeprecated []string `hcl:"projectid_whitelist"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -81,6 +88,11 @@ func New() *IITAttestorPlugin {
 		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
 		client:            googleComputeEngineClient{},
 	}
+}
+
+// SetLogger sets up plugin logging
+func (p *IITAttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
@@ -95,15 +107,15 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServ
 		return err
 	}
 
-	projectIDMatchesWhitelist := false
-	for _, projectID := range c.ProjectIDWhitelist {
+	projectIDMatchesAllowList := false
+	for _, projectID := range c.ProjectIDAllowList {
 		if identityMetadata.ProjectID == projectID {
-			projectIDMatchesWhitelist = true
+			projectIDMatchesAllowList = true
 			break
 		}
 	}
-	if !projectIDMatchesWhitelist {
-		return pluginErr.New("identity token project ID %q is not in the whitelist", identityMetadata.ProjectID)
+	if !projectIDMatchesAllowList {
+		return pluginErr.New("identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
 	}
 
 	id, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityMetadata)
@@ -162,8 +174,14 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	}
 	config.trustDomain = req.GlobalConfig.TrustDomain
 
-	if len(config.ProjectIDWhitelist) == 0 {
-		return nil, pluginErr.New("projectid_whitelist is required")
+	// TODO: Remove in 1.1.0
+	if len(config.ProjectIDAllowListDeprecated) > 0 {
+		p.log.Warn("The `projectid_whitelist` configurable is deprecated and will be removed in a future release. Please use `projectid_allow_list` instead.")
+		config.ProjectIDAllowList = config.ProjectIDAllowListDeprecated
+	}
+
+	if len(config.ProjectIDAllowList) == 0 {
+		return nil, pluginErr.New("projectid_allow_list is required")
 	}
 
 	tmpl := gcp.DefaultAgentPathTemplate
@@ -340,11 +358,11 @@ type googleComputeEngineClient struct {
 func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	service, err := c.getService(ctx, serviceAccountFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compute service client: %v", err)
+		return nil, fmt.Errorf("failed to create compute service client: %w", err)
 	}
 	instance, err := service.Instances.Get(projectID, zone, instanceName).Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch instance metadata: %v", err)
+		return nil, fmt.Errorf("failed to fetch instance metadata: %w", err)
 	}
 	return instance, nil
 }

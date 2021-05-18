@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-logr/logr"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 	corev1 "k8s.io/api/core/v1"
@@ -18,7 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck // No longer deprecated in newer versions.
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/golang/mock/gomock"
@@ -108,7 +109,8 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 						"spiffe": "label1",
 					},
 					Annotations: map[string]string{
-						"spiffe": "annotation1",
+						"spiffe":                  "annotation1",
+						"spiffe.io/federatesWith": "example.io",
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -117,7 +119,10 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				},
 			}
 
-			err := s.k8sClient.Create(ctx, &pod)
+			_, err := s.ds.AppendBundle(ctx, &common.Bundle{TrustDomainId: "spiffe://example.io"})
+			s.Assert().NoError(err)
+
+			err = s.k8sClient.Create(ctx, &pod)
 			s.Assert().NoError(err)
 
 			_, err = r.Reconcile(ctrl.Request{

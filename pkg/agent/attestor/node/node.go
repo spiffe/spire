@@ -107,7 +107,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, crypto.Si
 	case codes.OK:
 	case codes.NotFound:
 	default:
-		return nil, nil, fmt.Errorf("unable to load private key: %v", err)
+		return nil, nil, fmt.Errorf("unable to load private key: %w", err)
 	}
 
 	svid := a.readSVIDFromDisk()
@@ -131,7 +131,7 @@ func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, crypto.Si
 
 	key, err = km.GenerateKey(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to generate private key: %v", err)
+		return nil, nil, fmt.Errorf("unable to generate private key: %w", err)
 	}
 	return nil, key, nil
 }
@@ -148,7 +148,7 @@ func IsSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 
 func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
-	if err == manager.ErrNotCached {
+	if errors.Is(err, manager.ErrNotCached) {
 		if a.c.InsecureBootstrap {
 			if len(a.c.TrustBundle) > 0 {
 				a.c.Log.Warn("Trust bundle will be ignored; performing insecure bootstrap")
@@ -157,7 +157,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		}
 		bundle = a.c.TrustBundle
 	} else if err != nil {
-		return nil, fmt.Errorf("load bundle: %v", err)
+		return nil, fmt.Errorf("load bundle: %w", err)
 	}
 
 	if bundle == nil {
@@ -177,7 +177,7 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 	log := a.c.Log.WithField(telemetry.Path, a.c.SVIDCachePath)
 
 	svid, err := manager.ReadSVID(a.c.SVIDCachePath)
-	if err == manager.ErrNotCached {
+	if errors.Is(err, manager.ErrNotCached) {
 		log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
@@ -192,7 +192,7 @@ func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundl
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 
-	attestor := nodeattestor.JoinToken(a.c.JoinToken)
+	attestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
 		attestor = a.c.Catalog.GetNodeAttestor()
 	}
@@ -200,13 +200,13 @@ func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundl
 
 	conn, err := a.serverConn(ctx, bundle)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create attestation client: %v", err)
+		return nil, nil, fmt.Errorf("create attestation client: %w", err)
 	}
 	defer conn.Close()
 
 	csr, err := util.MakeCSRWithoutURISAN(key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %v", err)
+		return nil, nil, fmt.Errorf("failed to generate CSR for attestation: %w", err)
 	}
 
 	newSVID, err := a.getSVID(ctx, conn, csr, attestor)
@@ -215,7 +215,7 @@ func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundl
 	}
 	newBundle, err := a.getBundle(ctx, conn)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get updated bundle: %v", err)
+		return nil, nil, fmt.Errorf("failed to get updated bundle: %w", err)
 	}
 	return newSVID, newBundle, nil
 }

@@ -61,7 +61,7 @@ func (c *validateJWTCommand) run(ctx context.Context, env *common_cli.Env, clien
 	}
 	claims, err := protojson.Marshal(resp.Claims)
 	if err != nil {
-		return fmt.Errorf("unable to unmarshal claims: %v", err)
+		return fmt.Errorf("unable to unmarshal claims: %w", err)
 	}
 	if err := env.Println("Claims    :", string(claims)); err != nil {
 		return err
@@ -81,7 +81,7 @@ func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *worklo
 		if s := status.Convert(err); s.Code() == codes.InvalidArgument {
 			return nil, fmt.Errorf("SVID is not valid: %v", s.Message())
 		}
-		return nil, fmt.Errorf("unable to validate JWT SVID: %v", err)
+		return nil, fmt.Errorf("unable to validate JWT SVID: %w", err)
 	}
 	return resp, nil
 }

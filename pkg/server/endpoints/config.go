@@ -24,7 +24,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"golang.org/x/net/context"
 )
@@ -104,16 +103,14 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 		Log:     c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: c.BundleEndpoint.Address.String(),
 		Getter: bundle.GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
-			resp, err := ds.FetchBundle(dscache.WithCache(ctx), &datastore.FetchBundleRequest{
-				TrustDomainId: c.TrustDomain.IDString(),
-			})
+			commonBundle, err := ds.FetchBundle(dscache.WithCache(ctx), c.TrustDomain.IDString())
 			if err != nil {
 				return nil, err
 			}
-			if resp.Bundle == nil {
+			if commonBundle == nil {
 				return nil, errors.New("trust domain bundle not found")
 			}
-			return bundleutil.BundleFromProto(resp.Bundle)
+			return bundleutil.BundleFromProto(commonBundle)
 		}),
 		ServerAuth: serverAuth,
 	})

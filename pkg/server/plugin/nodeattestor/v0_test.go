@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -38,26 +39,36 @@ func TestV0(t *testing.T) {
 		expectResult  *nodeattestor.AttestResult
 	}{
 		{
+			test:          "payload cannot be empty",
+			plugin:        &fakeV0Plugin{},
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "payload cannot be empty",
+		},
+		{
 			test:          "plugin closes stream immediately",
 			plugin:        &fakeV0Plugin{preRecvError: &nilErr},
+			payload:       "unused",
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
 		},
 		{
 			test:          "plugin fails immediately",
 			plugin:        &fakeV0Plugin{preRecvError: &ohnoErr},
+			payload:       "unused",
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
 		{
 			test:          "plugin closes stream after receiving data but before responding",
 			plugin:        &fakeV0Plugin{postRecvError: &nilErr},
+			payload:       "unused",
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
 		},
 		{
 			test:          "plugin fails after receiving data but before responding",
 			plugin:        &fakeV0Plugin{postRecvError: &ohnoErr},
+			payload:       "unused",
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
@@ -71,6 +82,7 @@ func TestV0(t *testing.T) {
 		{
 			test:          "challenge response",
 			plugin:        &fakeV0Plugin{},
+			payload:       "unused",
 			expectCode:    codes.InvalidArgument,
 			expectMessage: "nodeattestor(test): attestation failed by test",
 		},
@@ -129,10 +141,10 @@ func TestV0(t *testing.T) {
 }
 
 func loadV0Plugin(t *testing.T, plugin *fakeV0Plugin) nodeattestor.NodeAttestor {
-	server := nodeattestorv0.PluginServer(plugin)
+	server := nodeattestorv0.NodeAttestorPluginServer(plugin)
 
-	var na nodeattestor.V0
-	spiretest.LoadPlugin(t, catalog.MakePlugin("test", server), &na)
+	na := new(nodeattestor.V0)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
 	return na
 }
 

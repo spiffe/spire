@@ -56,7 +56,7 @@ cp "${BINDIR}"/oidc-discovery-provider "${EXTRAS_STAGING}"/bin
 
 # Create the tarballs and checksums
 mkdir -p "${OUTDIR}"
-tar -cvzf "${TARBALL}" --directory "${TMPDIR}/spire" "${TAROPTS[@]}" .
+(cd "${TMPDIR}/spire"; tar -cvzf "${TARBALL}" "${TAROPTS[@]}" -- *)
 echo "$(shasum -a 256 "${TARBALL}" | cut -d' ' -f1) $(basename "${TARBALL}")" > "${CHECKSUM}"
-tar -cvzf "${EXTRAS_TARBALL}" --directory "${TMPDIR}/spire-extras" "${TAROPTS[@]}" .
+(cd "${TMPDIR}/spire-extras"; tar -cvzf "${EXTRAS_TARBALL}" "${TAROPTS[@]}" -- *)
 echo "$(shasum -a 256 "${EXTRAS_TARBALL}" | cut -d' ' -f1) $(basename "${EXTRAS_TARBALL}")" > "${EXTRAS_CHECKSUM}"

@@ -31,7 +31,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	datastore_pb "github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
@@ -178,14 +177,14 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	}
 
 	err := util.RunTasks(ctx, tasks...)
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err
 }
 
 func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
-	tlsConfig := &tls.Config{
+	tlsConfig := &tls.Config{ //nolint: gosec // False positive, getTLSConfig is setting MinVersion
 		GetConfigForClient: e.getTLSConfig(ctx),
 	}
 
@@ -292,21 +291,19 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
 // the current CA root bundle.
 func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	resp, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), &datastore_pb.FetchBundleRequest{
-		TrustDomainId: e.TrustDomain.IDString(),
-	})
+	bundle, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), e.TrustDomain.IDString())
 	if err != nil {
-		return nil, nil, fmt.Errorf("get bundle from datastore: %v", err)
+		return nil, nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
-	if resp.Bundle == nil {
+	if bundle == nil {
 		return nil, nil, errors.New("bundle not found")
 	}
 
 	var caCerts []*x509.Certificate
-	for _, rootCA := range resp.Bundle.RootCas {
+	for _, rootCA := range bundle.RootCas {
 		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("parse bundle: %v", err)
+			return nil, nil, fmt.Errorf("parse bundle: %w", err)
 		}
 		caCerts = append(caCerts, rootCACerts...)
 	}

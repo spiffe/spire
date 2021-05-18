@@ -4,86 +4,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	datastore_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
-	keymanager_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
+	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
+	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	km_awskms "github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
-	km_disk "github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
-	km_memory "github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	na_aws_iid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
-	na_azure_msi "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
-	na_gcp_iit "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
-	na_join_token "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
-	na_k8s_psat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
-	na_k8s_sat "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/sat"
-	na_sshpop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
-	na_tpm_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
-	na_x509pop "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	nr_azure_msi "github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	no_gcs_bundle "github.com/spiffe/spire/pkg/server/plugin/notifier/gcsbundle"
-	no_k8sbundle "github.com/spiffe/spire/pkg/server/plugin/notifier/k8sbundle"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	up_awspca "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
-	up_awssecret "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
-	up_disk "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
-	up_gcpcas "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
-	up_spire "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
-	up_vault "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
-	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
-	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 const (
-	dataStoreType    = "DataStore"
-	nodeResolverType = "NodeResolver"
-)
-
-var (
-	builtIns = []catalog.Plugin{
-		// NodeAttestors
-		na_aws_iid.BuiltIn(),
-		na_gcp_iit.BuiltIn(),
-		na_x509pop.BuiltIn(),
-		na_sshpop.BuiltIn(),
-		na_azure_msi.BuiltIn(),
-		na_k8s_sat.BuiltIn(),
-		na_k8s_psat.BuiltIn(),
-		na_join_token.BuiltIn(),
-		na_tpm_devid.BuiltIn(),
-		// NodeResolvers
-		nr_azure_msi.BuiltIn(),
-		// UpstreamAuthorities
-		up_awspca.BuiltIn(),
-		up_gcpcas.BuiltIn(),
-		up_awssecret.BuiltIn(),
-		up_spire.BuiltIn(),
-		up_disk.BuiltIn(),
-		up_vault.BuiltIn(),
-		// KeyManagers
-		km_disk.BuiltIn(),
-		km_memory.BuiltIn(),
-		km_awskms.BuiltIn(),
-		// Notifiers
-		no_k8sbundle.BuiltIn(),
-		no_gcs_bundle.BuiltIn(),
-	}
+	dataStoreType         = "DataStore"
+	keyManagerType        = "KeyManager"
+	nodeAttestorType      = "NodeAttestor"
+	nodeResolverType      = "NodeResolver"
+	notifierType          = "Notifier"
+	upstreamAuthorityType = "UpstreamAuthority"
 )
 
 type Catalog interface {
@@ -95,70 +44,11 @@ type Catalog interface {
 	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
 }
 
-type GlobalConfig = catalog.GlobalConfig
-type HCLPluginConfig = catalog.HCLPluginConfig
 type HCLPluginConfigMap = catalog.HCLPluginConfigMap
-
-func KnownPlugins() []catalog.PluginClient {
-	return []catalog.PluginClient{
-		nodeattestorv0.PluginClient,
-		noderesolverv0.PluginClient,
-		upstreamauthorityv0.PluginClient,
-		keymanagerv0.PluginClient,
-		notifierv0.PluginClient,
-	}
-}
-
-func KnownServices() []catalog.ServiceClient {
-	return []catalog.ServiceClient{}
-}
-
-func BuiltIns() []catalog.Plugin {
-	return append([]catalog.Plugin(nil), builtIns...)
-}
-
-type Plugins struct {
-	// DataStore isn't actually a plugin.
-	DataStore datastore.DataStore
-
-	NodeAttestors     map[string]nodeattestor.NodeAttestor
-	NodeResolvers     map[string]noderesolver.NodeResolver
-	UpstreamAuthority upstreamauthority.UpstreamAuthority
-	KeyManager        keymanager.KeyManager
-	Notifiers         []notifier.Notifier
-}
-
-var _ Catalog = (*Plugins)(nil)
-
-func (p *Plugins) GetDataStore() datastore.DataStore {
-	return p.DataStore
-}
-
-func (p *Plugins) GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool) {
-	n, ok := p.NodeAttestors[name]
-	return n, ok
-}
-
-func (p *Plugins) GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool) {
-	n, ok := p.NodeResolvers[name]
-	return n, ok
-}
-
-func (p *Plugins) GetKeyManager() keymanager.KeyManager {
-	return p.KeyManager
-}
-
-func (p *Plugins) GetNotifiers() []notifier.Notifier {
-	return p.Notifiers
-}
-
-func (p *Plugins) GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool) {
-	return p.UpstreamAuthority, p.UpstreamAuthority != nil
-}
 
 type Config struct {
 	Log          logrus.FieldLogger
-	GlobalConfig *GlobalConfig
+	TrustDomain  spiffeid.TrustDomain
 	PluginConfig HCLPluginConfigMap
 
 	Metrics          telemetry.Metrics
@@ -168,16 +58,35 @@ type Config struct {
 }
 
 type Repository struct {
-	Catalog
-	catalog.Closer
+	datastore.Repository
+	keyManagerRepository
+	nodeAttestorRepository
+	nodeResolverRepository
+	notifierRepository
+	upstreamAuthorityRepository
+	io.Closer
 }
 
-func Load(ctx context.Context, config Config) (*Repository, error) {
+func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
+	return map[string]catalog.PluginRepo{
+		keyManagerType:        &repo.keyManagerRepository,
+		nodeAttestorType:      &repo.nodeAttestorRepository,
+		nodeResolverType:      &repo.nodeResolverRepository,
+		notifierType:          &repo.notifierRepository,
+		upstreamAuthorityType: &repo.upstreamAuthorityRepository,
+	}
+}
+
+func (repo *Repository) Services() []catalog.ServiceRepo {
+	return nil
+}
+
+func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfig := config.PluginConfig[dataStoreType]
 	delete(config.PluginConfig, dataStoreType)
-	ds, err := loadSQLDataStore(config.Log, dataStoreConfig)
+	dataStore, err := loadSQLDataStore(config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -193,73 +102,39 @@ func Load(ctx context.Context, config Config) (*Repository, error) {
 		return nil, err
 	}
 
-	p := new(versionedPlugins)
-	closer, err := catalog.Fill(ctx, catalog.Config{
-		Log:           config.Log,
-		GlobalConfig:  config.GlobalConfig,
-		PluginConfig:  pluginConfigs,
-		KnownPlugins:  KnownPlugins(),
-		KnownServices: KnownServices(),
-		BuiltIns:      BuiltIns(),
-		HostServices: []catalog.HostServiceServer{
-			identityproviderv0.HostServiceServer(config.IdentityProvider),
-			agentstorev0.HostServiceServer(config.AgentStore),
-			metricsv0.HostServiceServer(config.MetricsService),
+	repo := new(Repository)
+	repo.Closer, err = catalog.Load(ctx, catalog.Config{
+		Log: config.Log,
+		CoreConfig: catalog.CoreConfig{
+			TrustDomain: config.TrustDomain,
 		},
-	}, p)
+		PluginConfigs: pluginConfigs,
+		HostServices: []catalog.HostServiceServer{
+			{
+				ServiceServer: identityproviderv0.IdentityProviderServiceServer(config.IdentityProvider),
+				LegacyType:    "IdentityProvider",
+			},
+			{
+				ServiceServer: agentstorev0.AgentStoreServiceServer(config.AgentStore),
+				LegacyType:    "AgentStore",
+			},
+			{
+				ServiceServer: metricsv0.MetricsServiceServiceServer(config.MetricsService),
+				LegacyType:    "MetricsService",
+			},
+		},
+	}, repo)
 	if err != nil {
 		return nil, err
 	}
 
-	ds = datastore_telemetry.WithMetrics(ds, config.Metrics)
-	ds = dscache.New(ds, clock.New())
+	dataStore = ds_telemetry.WithMetrics(dataStore, config.Metrics)
+	dataStore = dscache.New(dataStore, clock.New())
 
-	keyManager := keymanager_telemetry.WithMetrics(p.KeyManager, config.Metrics)
+	repo.SetDataStore(dataStore)
+	repo.SetKeyManager(km_telemetry.WithMetrics(repo.GetKeyManager(), config.Metrics))
 
-	nodeAttestors := make(map[string]nodeattestor.NodeAttestor)
-	for _, na := range p.NodeAttestors {
-		nodeAttestors[na.Name()] = na
-	}
-
-	nodeResolvers := make(map[string]noderesolver.NodeResolver)
-	for _, nr := range p.NodeResolvers {
-		nodeResolvers[nr.Name()] = nr
-	}
-
-	var notifiers []notifier.Notifier
-	for _, n := range p.Notifiers {
-		notifiers = append(notifiers, n)
-	}
-
-	var upstreamAuthority upstreamauthority.UpstreamAuthority
-	if p.UpstreamAuthority != nil {
-		upstreamAuthority = p.UpstreamAuthority
-	}
-
-	return &Repository{
-		Catalog: &Plugins{
-			DataStore:         ds,
-			NodeAttestors:     nodeAttestors,
-			NodeResolvers:     nodeResolvers,
-			UpstreamAuthority: upstreamAuthority,
-			KeyManager:        keyManager,
-			Notifiers:         notifiers,
-		},
-		Closer: closer,
-	}, nil
-}
-
-// versionedPlugins is a temporary struct with the v0 version shims as they are
-// introduced. The catalog will fill this struct, which is then converted to
-// the Plugins struct which contains the facade interfaces. It will be removed
-// when the catalog is refactored to leverage the new common catalog with
-// native versioning support (see issue #2153).
-type versionedPlugins struct {
-	NodeAttestors     map[string]nodeattestor.V0
-	NodeResolvers     map[string]noderesolver.V0
-	UpstreamAuthority *upstreamauthority.V0
-	KeyManager        keymanager.V0
-	Notifiers         []notifier.V0
+	return repo, nil
 }
 
 func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {

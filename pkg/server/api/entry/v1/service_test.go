@@ -90,14 +90,12 @@ func TestCountEntries(t *testing.T) {
 			defer test.Cleanup()
 
 			for i := 0; i < int(tt.count); i++ {
-				_, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-					Entry: &common.RegistrationEntry{
-						ParentId: td.NewID(fmt.Sprintf("parent%d", i)).String(),
-						SpiffeId: td.NewID(fmt.Sprintf("child%d", i)).String(),
-						Selectors: []*common.Selector{
-							{Type: "unix", Value: "uid:1000"},
-							{Type: "unix", Value: "gid:1000"},
-						},
+				_, err := test.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+					ParentId: td.NewID(fmt.Sprintf("parent%d", i)).String(),
+					SpiffeId: td.NewID(fmt.Sprintf("child%d", i)).String(),
+					Selectors: []*common.Selector{
+						{Type: "unix", Value: "uid:1000"},
+						{Type: "unix", Value: "gid:1000"},
 					},
 				})
 				require.NoError(t, err)
@@ -172,27 +170,21 @@ func TestListEntries(t *testing.T) {
 	// Create federated bundles, that we use on "FederatesWith"
 	createFederatedBundles(t, test.ds)
 
-	childEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: childRegEntry,
-	})
+	childEntry, err := test.ds.CreateRegistrationEntry(ctx, childRegEntry)
 	require.NoError(t, err)
 	require.NotNil(t, childEntry)
 
-	secondChildEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: secondChildRegEntry,
-	})
+	secondChildEntry, err := test.ds.CreateRegistrationEntry(ctx, secondChildRegEntry)
 	require.NoError(t, err)
 	require.NotNil(t, secondChildEntry)
 
-	badEntry, err := test.ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: badRegEntry,
-	})
+	badEntry, err := test.ds.CreateRegistrationEntry(ctx, badRegEntry)
 	require.NoError(t, err)
 	require.NotNil(t, badEntry)
 
 	// expected entries
 	expectedChild := &types.Entry{
-		Id:       childEntry.Entry.EntryId,
+		Id:       childEntry.EntryId,
 		ParentId: protoParentID,
 		SpiffeId: protoChildID,
 		Selectors: []*types.Selector{
@@ -205,7 +197,7 @@ func TestListEntries(t *testing.T) {
 	}
 
 	expectedSecondChild := &types.Entry{
-		Id:       secondChildEntry.Entry.EntryId,
+		Id:       secondChildEntry.EntryId,
 		ParentId: protoParentID,
 		SpiffeId: protoSecondChildID,
 		Selectors: []*types.Selector{
@@ -231,7 +223,7 @@ func TestListEntries(t *testing.T) {
 			name: "happy path",
 			expectedEntries: []*types.Entry{
 				{
-					Id:       childEntry.Entry.EntryId,
+					Id:       childEntry.EntryId,
 					SpiffeId: protoChildID,
 				},
 			},
@@ -565,35 +557,31 @@ func TestGetEntry(t *testing.T) {
 	parent := td.NewID("foo")
 	entry1SpiffeID := td.NewID("bar")
 	expiresAt := time.Now().Unix()
-	goodEntry, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId: parent.String(),
-			SpiffeId: entry1SpiffeID.String(),
-			Ttl:      60,
-			Selectors: []*common.Selector{
-				{Type: "unix", Value: "uid:1000"},
-				{Type: "unix", Value: "gid:1000"},
-			},
-			FederatesWith: []string{
-				federatedTd.IDString(),
-			},
-			Admin:       true,
-			EntryExpiry: expiresAt,
-			DnsNames:    []string{"dns1", "dns2"},
-			Downstream:  true,
+	goodEntry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: parent.String(),
+		SpiffeId: entry1SpiffeID.String(),
+		Ttl:      60,
+		Selectors: []*common.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
 		},
+		FederatesWith: []string{
+			federatedTd.IDString(),
+		},
+		Admin:       true,
+		EntryExpiry: expiresAt,
+		DnsNames:    []string{"dns1", "dns2"},
+		Downstream:  true,
 	})
 	require.NoError(t, err)
 
-	malformedEntry, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId: parent.String(),
-			SpiffeId: "malformed id",
-			Selectors: []*common.Selector{
-				{Type: "unix", Value: "uid:1000"},
-			},
-			EntryExpiry: expiresAt,
+	malformedEntry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: parent.String(),
+		SpiffeId: "malformed id",
+		Selectors: []*common.Selector{
+			{Type: "unix", Value: "uid:1000"},
 		},
+		EntryExpiry: expiresAt,
 	})
 	require.NoError(t, err)
 
@@ -609,9 +597,9 @@ func TestGetEntry(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			entryID: goodEntry.Entry.EntryId,
+			entryID: goodEntry.EntryId,
 			expectEntry: &types.Entry{
-				Id:       goodEntry.Entry.EntryId,
+				Id:       goodEntry.EntryId,
 				ParentId: api.ProtoFromID(parent),
 				SpiffeId: api.ProtoFromID(entry1SpiffeID),
 			},
@@ -622,9 +610,9 @@ func TestGetEntry(t *testing.T) {
 		},
 		{
 			name:    "no outputMask",
-			entryID: goodEntry.Entry.EntryId,
+			entryID: goodEntry.EntryId,
 			expectEntry: &types.Entry{
-				Id:       goodEntry.Entry.EntryId,
+				Id:       goodEntry.EntryId,
 				ParentId: api.ProtoFromID(parent),
 				SpiffeId: api.ProtoFromID(entry1SpiffeID),
 				Ttl:      60,
@@ -641,8 +629,8 @@ func TestGetEntry(t *testing.T) {
 		},
 		{
 			name:        "outputMask all false",
-			entryID:     goodEntry.Entry.EntryId,
-			expectEntry: &types.Entry{Id: goodEntry.Entry.EntryId},
+			entryID:     goodEntry.EntryId,
+			expectEntry: &types.Entry{Id: goodEntry.EntryId},
 			outputMask:  &types.EntryMask{},
 		},
 		{
@@ -659,14 +647,14 @@ func TestGetEntry(t *testing.T) {
 		{
 			name:    "fetch fails",
 			code:    codes.Internal,
-			entryID: goodEntry.Entry.EntryId,
+			entryID: goodEntry.EntryId,
 			err:     "failed to fetch entry: ds error",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to fetch entry",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: goodEntry.Entry.EntryId,
+						telemetry.RegistrationID: goodEntry.EntryId,
 						logrus.ErrorKey:          "ds error",
 					},
 				},
@@ -691,14 +679,14 @@ func TestGetEntry(t *testing.T) {
 		{
 			name:    "malformed entry",
 			code:    codes.Internal,
-			entryID: malformedEntry.Entry.EntryId,
+			entryID: malformedEntry.EntryId,
 			err:     "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: malformedEntry.Entry.EntryId,
+						telemetry.RegistrationID: malformedEntry.EntryId,
 						logrus.ErrorKey:          "invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
@@ -1446,24 +1434,20 @@ func TestGetAuthorizedEntries(t *testing.T) {
 }
 
 func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
-	_, err := ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: federatedTd.IDString(),
-			RootCas: []*common.Certificate{
-				{
-					DerBytes: []byte("federated bundle"),
-				},
+	_, err := ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: federatedTd.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("federated bundle"),
 			},
 		},
 	})
 	require.NoError(t, err)
-	_, err = ds.CreateBundle(ctx, &datastore.CreateBundleRequest{
-		Bundle: &common.Bundle{
-			TrustDomainId: secondFederatedTd.IDString(),
-			RootCas: []*common.Certificate{
-				{
-					DerBytes: []byte("second federated bundle"),
-				},
+	_, err = ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: secondFederatedTd.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("second federated bundle"),
 			},
 		},
 	})
@@ -1474,12 +1458,10 @@ func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.Re
 	entriesMap := make(map[string]*common.RegistrationEntry)
 
 	for _, e := range entry {
-		resp, err := ds.CreateRegistrationEntry(ctx, &datastore.CreateRegistrationEntryRequest{
-			Entry: e,
-		})
+		registrationEntry, err := ds.CreateRegistrationEntry(ctx, e)
 		require.NoError(t, err)
 
-		entriesMap[resp.Entry.SpiffeId] = resp.Entry
+		entriesMap[registrationEntry.SpiffeId] = registrationEntry
 	}
 
 	return entriesMap
@@ -2307,35 +2289,31 @@ func newFakeDS(t *testing.T) *fakeDS {
 	}
 }
 
-func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, req *datastore.CreateRegistrationEntryRequest) (*datastore.CreateRegistrationEntryResponse, error) {
+func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	if !f.customCreate {
-		return f.DataStore.CreateRegistrationEntry(ctx, req)
+		return f.DataStore.CreateRegistrationEntry(ctx, entry)
 	}
 
 	if f.err != nil {
 		return nil, f.err
 	}
-	entryID := req.Entry.EntryId
+	entryID := entry.EntryId
 
 	expect, ok := f.expectEntries[entryID]
 	assert.True(f.t, ok, "no expect entry found")
 
 	// Validate we get expected entry
-	spiretest.AssertProtoEqual(f.t, expect, req.Entry)
+	spiretest.AssertProtoEqual(f.t, expect, entry)
 
 	// Return expect when no custom result configured
 	if len(f.results) == 0 {
-		return &datastore.CreateRegistrationEntryResponse{
-			Entry: expect,
-		}, nil
+		return expect, nil
 	}
 
 	res, ok := f.results[entryID]
 	assert.True(f.t, ok, "no result found")
 
-	return &datastore.CreateRegistrationEntryResponse{
-		Entry: res,
-	}, nil
+	return res, nil
 }
 
 type entryFetcher struct {

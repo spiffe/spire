@@ -8,8 +8,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewHostServer(pluginName string, opts []grpc.ServerOption, hostServices []HostServiceServer) *grpc.Server {
-	s := grpc.NewServer(append(opts,
+func newHostServer(pluginName string, hostServices []HostServiceServer) *grpc.Server {
+	s := grpc.NewServer(
 		grpc.ChainStreamInterceptor(
 			streamPanicInterceptor,
 			streamPluginInterceptor(pluginName),
@@ -18,9 +18,9 @@ func NewHostServer(pluginName string, opts []grpc.ServerOption, hostServices []H
 			unaryPanicInterceptor,
 			unaryPluginInterceptor(pluginName),
 		),
-	)...)
+	)
 	for _, hostService := range hostServices {
-		hostService.RegisterHostServiceServer(s)
+		hostService.ServiceServer.RegisterServer(s)
 	}
 	return s
 }

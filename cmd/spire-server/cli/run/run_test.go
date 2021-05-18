@@ -756,6 +756,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "ca_key_type and jwt_key_type are set as default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
+			},
+		},
+		{
 			msg: "rsa-2048 ca_key_type is correctly parsed and is set as default for jwt key",
 			input: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
@@ -811,7 +820,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
 			},
 		},
@@ -821,7 +830,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
 			},
 		},
@@ -831,7 +840,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
@@ -841,7 +850,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
 			},
 		},
@@ -1216,7 +1225,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//{
+		// {
 		//	msg:            "in nested experimental block",
 		//	confFile: "/server_bad_nested_experimental_block.conf",
 		//	expectedLogEntries: []logEntry{
@@ -1225,8 +1234,8 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//			keys: 		"unknown_option1,unknown_option2",
 		//		},
 		//	},
-		//},
-		//{
+		// },
+		// {
 		//	msg:            "in nested federation block",
 		//	confFile: "/server_bad_nested_federation_block.conf",
 		//	expectedLogEntries: []logEntry{
@@ -1235,7 +1244,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//			keys: "unknown_option1,unknown_option2",
 		//		},
 		//	},
-		//},
+		// },
 		{
 			msg:      "in nested federation.bundle_endpoint block",
 			confFile: "server_bad_nested_bundle_endpoint_block.conf",
@@ -1273,7 +1282,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		// TODO: Re-enable unused key detection for telemetry. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		//{
+		// {
 		//	msg:            "in telemetry block",
 		//	confFile: "/server_and_agent_bad_telemetry_block.conf",
 		//	expectedLogEntries: []logEntry{
@@ -1282,7 +1291,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		//			keys: "unknown_option1,unknown_option2",
 		//		},
 		//	},
-		//},
+		// },
 		{
 			msg:      "in nested Prometheus block",
 			confFile: "server_and_agent_bad_nested_Prometheus_block.conf",

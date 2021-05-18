@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -76,14 +77,16 @@ func TestNew(t *testing.T) {
 	clk := clock.NewMock(t)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
+	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
-		CA:          serverCA,
-		Catalog:     cat,
-		TrustDomain: testTD,
-		Dir:         spiretest.TempDir(t),
-		Log:         log,
-		Metrics:     metrics,
-		Clock:       clk,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   testTD,
+		Dir:           spiretest.TempDir(t),
+		Log:           log,
+		Metrics:       metrics,
+		Clock:         clk,
+		HealthChecker: healthChecker,
 	})
 
 	endpoints, err := New(ctx, Config{
@@ -136,14 +139,16 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	clk := clock.NewMock(t)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
+	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
-		CA:          serverCA,
-		Catalog:     cat,
-		TrustDomain: testTD,
-		Dir:         spiretest.TempDir(t),
-		Log:         log,
-		Metrics:     metrics,
-		Clock:       clk,
+		CA:            serverCA,
+		Catalog:       cat,
+		TrustDomain:   testTD,
+		Dir:           spiretest.TempDir(t),
+		Log:           log,
+		Metrics:       metrics,
+		Clock:         clk,
+		HealthChecker: healthChecker,
 	})
 
 	endpoints, err := New(ctx, Config{
@@ -312,39 +317,31 @@ func TestListenAndServe(t *testing.T) {
 
 func prepareDataStore(t *testing.T, ds datastore.DataStore, ca *testca.CA, agentSVID *x509svid.SVID) {
 	// Prepare the bundle
-	_, err := ds.CreateBundle(context.Background(), &datastore.CreateBundleRequest{
-		Bundle: makeBundle(ca),
-	})
+	_, err := ds.CreateBundle(context.Background(), makeBundle(ca))
 	require.NoError(t, err)
 
 	// Create the attested node
-	_, err = ds.CreateAttestedNode(context.Background(), &datastore.CreateAttestedNodeRequest{
-		Node: &common.AttestedNode{
-			SpiffeId:         agentID.String(),
-			CertSerialNumber: agentSVID.Certificates[0].SerialNumber.String(),
-		},
+	_, err = ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+		SpiffeId:         agentID.String(),
+		CertSerialNumber: agentSVID.Certificates[0].SerialNumber.String(),
 	})
 	require.NoError(t, err)
 
 	// Create an admin entry
-	_, err = ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId:  agentID.String(),
-			SpiffeId:  adminID.String(),
-			Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
-			Admin:     true,
-		},
+	_, err = ds.CreateRegistrationEntry(context.Background(), &common.RegistrationEntry{
+		ParentId:  agentID.String(),
+		SpiffeId:  adminID.String(),
+		Selectors: []*common.Selector{{Type: "not", Value: "relevant"}},
+		Admin:     true,
 	})
 	require.NoError(t, err)
 
 	// Create a downstream entry
-	_, err = ds.CreateRegistrationEntry(context.Background(), &datastore.CreateRegistrationEntryRequest{
-		Entry: &common.RegistrationEntry{
-			ParentId:   agentID.String(),
-			SpiffeId:   downstreamID.String(),
-			Selectors:  []*common.Selector{{Type: "not", Value: "relevant"}},
-			Downstream: true,
-		},
+	_, err = ds.CreateRegistrationEntry(context.Background(), &common.RegistrationEntry{
+		ParentId:   agentID.String(),
+		SpiffeId:   downstreamID.String(),
+		Selectors:  []*common.Selector{{Type: "not", Value: "relevant"}},
+		Downstream: true,
 	})
 	require.NoError(t, err)
 }

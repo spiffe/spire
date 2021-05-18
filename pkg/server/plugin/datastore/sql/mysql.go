@@ -65,12 +65,14 @@ func (my mysqlDB) supportsCTE(gormDB *gorm.DB) (bool, error) {
 }
 
 func (my mysqlDB) isParseError(err error) bool {
-	e, ok := err.(*mysql.MySQLError)
+	var e *mysql.MySQLError
+	ok := errors.As(err, &e)
 	return ok && e.Number == 1064 // ER_PARSE_ERROR
 }
 
 func (my mysqlDB) isConstraintViolation(err error) bool {
-	e, ok := err.(*mysql.MySQLError)
+	var e *mysql.MySQLError
+	ok := errors.As(err, &e)
 	return ok && e.Number == 1062 // ER_DUP_ENTRY
 }
 
@@ -83,7 +85,9 @@ func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
 		return connectionString, nil
 	}
 
-	tlsConf := tls.Config{}
+	// MySQL still allows, and in some places requires, older TLS versions. For example, when built with yaSSL, it is limited to TLSv1 and TLSv1.1.
+	// TODO: consider making this more secure by default
+	tlsConf := tls.Config{} //nolint: gosec // see above
 
 	opts, err := mysql.ParseDSN(connectionString)
 	if err != nil {

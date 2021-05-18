@@ -10,12 +10,11 @@ import (
 
 type V0 struct {
 	plugin.Facade
-
-	Plugin notifierv0.Notifier
+	notifierv0.NotifierPluginClient
 }
 
-func (v0 V0) NotifyAndAdviseBundleLoaded(ctx context.Context, bundle *common.Bundle) error {
-	_, err := v0.Plugin.NotifyAndAdvise(ctx, &notifierv0.NotifyAndAdviseRequest{
+func (v0 *V0) NotifyAndAdviseBundleLoaded(ctx context.Context, bundle *common.Bundle) error {
+	_, err := v0.NotifierPluginClient.NotifyAndAdvise(ctx, &notifierv0.NotifyAndAdviseRequest{
 		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
 			BundleLoaded: &notifierv0.BundleLoaded{
 				Bundle: bundle,
@@ -25,8 +24,8 @@ func (v0 V0) NotifyAndAdviseBundleLoaded(ctx context.Context, bundle *common.Bun
 	return v0.WrapErr(err)
 }
 
-func (v0 V0) NotifyBundleUpdated(ctx context.Context, bundle *common.Bundle) error {
-	_, err := v0.Plugin.Notify(ctx, &notifierv0.NotifyRequest{
+func (v0 *V0) NotifyBundleUpdated(ctx context.Context, bundle *common.Bundle) error {
+	_, err := v0.NotifierPluginClient.Notify(ctx, &notifierv0.NotifyRequest{
 		Event: &notifierv0.NotifyRequest_BundleUpdated{
 			BundleUpdated: &notifierv0.BundleUpdated{
 				Bundle: bundle,

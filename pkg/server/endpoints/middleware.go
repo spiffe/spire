@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -119,35 +120,33 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 			return permissionDenied(types.PermissionDeniedDetails_AGENT_EXPIRED, "agent %q SVID is expired", id)
 		}
 
-		resp, err := ds.FetchAttestedNode(ctx, &datastore.FetchAttestedNodeRequest{
-			SpiffeId: id,
-		})
+		attestedNode, err := ds.FetchAttestedNode(ctx, id)
 		switch {
 		case err != nil:
 			log.WithError(err).Error("Unable to look up agent information")
 			return status.Errorf(codes.Internal, "unable to look up agent information: %v", err)
-		case resp.Node == nil:
+		case attestedNode == nil:
 			log.Error("Agent is not attested")
 			return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ATTESTED, "agent %q is not attested", id)
-		case resp.Node.CertSerialNumber == "":
+		case attestedNode.CertSerialNumber == "":
 			log.Error("Agent is banned")
 			return permissionDenied(types.PermissionDeniedDetails_AGENT_BANNED, "agent %q is banned", id)
-		case resp.Node.CertSerialNumber == agentSVID.SerialNumber.String():
+		case attestedNode.CertSerialNumber == agentSVID.SerialNumber.String():
 			// AgentSVID matches the current serial number, access granted
 			return nil
-		case resp.Node.NewCertSerialNumber == agentSVID.SerialNumber.String():
+		case attestedNode.NewCertSerialNumber == agentSVID.SerialNumber.String():
 			// AgentSVID matches the new serial number, access granted
 			// Also update the attested node agent serial number from 'new' to 'current'
-			_, err := ds.UpdateAttestedNode(ctx, &datastore.UpdateAttestedNodeRequest{
-				SpiffeId:         resp.Node.SpiffeId,
-				CertNotAfter:     resp.Node.NewCertNotAfter,
-				CertSerialNumber: resp.Node.NewCertSerialNumber,
-			})
+			_, err := ds.UpdateAttestedNode(ctx, &common.AttestedNode{
+				SpiffeId:         attestedNode.SpiffeId,
+				CertNotAfter:     attestedNode.NewCertNotAfter,
+				CertSerialNumber: attestedNode.NewCertSerialNumber,
+			}, nil)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
-					telemetry.SerialNumber:     resp.Node.CertSerialNumber,
-					telemetry.NewSerialNumber:  resp.Node.NewCertSerialNumber,
+					telemetry.SerialNumber:     attestedNode.CertSerialNumber,
+					telemetry.NewSerialNumber:  attestedNode.NewCertSerialNumber,
 				}).WithError(err).Warningf("Unable to activate the new agent SVID")
 				return status.Errorf(codes.Internal, "unable to activate the new agent SVID: %v", err)
 			}
@@ -155,9 +154,9 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 		default:
 			log.WithFields(logrus.Fields{
 				telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
-				telemetry.SerialNumber:     resp.Node.CertSerialNumber,
+				telemetry.SerialNumber:     attestedNode.CertSerialNumber,
 			}).Error("Agent SVID is not active")
-			return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ACTIVE, "agent %q expected to have serial number %q; has %q", id, resp.Node.CertSerialNumber, agentSVID.SerialNumber.String())
+			return permissionDenied(types.PermissionDeniedDetails_AGENT_NOT_ACTIVE, "agent %q expected to have serial number %q; has %q", id, attestedNode.CertSerialNumber, agentSVID.SerialNumber.String())
 		}
 	})
 }

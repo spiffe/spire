@@ -8,12 +8,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
-	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
@@ -21,10 +21,9 @@ import (
 )
 
 func TestRequiresIdentityProvider(t *testing.T) {
-	_, err := catalog.LoadBuiltInPlugin(context.Background(), catalog.BuiltInPlugin{
-		Plugin: BuiltIn(),
-	})
-	spiretest.RequireGRPCStatusContains(t, err, codes.Unknown, "IdentityProvider host service is required")
+	var err error
+	plugintest.Load(t, BuiltIn(), nil, plugintest.CaptureLoadError(&err))
+	spiretest.RequireGRPCStatusContains(t, err, codes.FailedPrecondition, "IdentityProvider host service is required")
 }
 
 func TestConfigure(t *testing.T) {
@@ -83,17 +82,16 @@ func TestConfigure(t *testing.T) {
 			idp := fakeidentityprovider.New()
 
 			raw := New()
-			var plugin notifierv0.Plugin
-			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
-				spiretest.HostService(identityproviderv0.HostServiceServer(idp)))
-
-			resp, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{Configuration: tt.config})
+			var err error
+			plugintest.Load(t, builtIn(raw), new(notifier.V0),
+				plugintest.Configure(tt.config),
+				plugintest.CaptureConfigureError(&err),
+				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)))
 			if tt.code != codes.OK {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.desc)
 				return
 			}
 			require.NoError(t, err)
-			require.NotNil(t, resp)
 		})
 	}
 }
@@ -104,29 +102,19 @@ func TestGetPluginInfo(t *testing.T) {
 	require.Equal(t, &spi.GetPluginInfoResponse{}, resp)
 }
 
-func TestNotify(t *testing.T) {
-	testUpdateBundleObject(t, func(plugin notifierv0.Plugin) error {
-		_, err := plugin.Notify(context.Background(), &notifierv0.NotifyRequest{
-			Event: &notifierv0.NotifyRequest_BundleUpdated{
-				BundleUpdated: &notifierv0.BundleUpdated{},
-			},
-		})
-		return err
+func TestNotifyBundleUpdated(t *testing.T) {
+	testUpdateBundleObject(t, func(n notifier.Notifier) error {
+		return n.NotifyBundleUpdated(context.Background(), nil)
 	})
 }
 
-func TestNotifyAndAdvise(t *testing.T) {
-	testUpdateBundleObject(t, func(plugin notifierv0.Plugin) error {
-		_, err := plugin.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-			Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-				BundleLoaded: &notifierv0.BundleLoaded{},
-			},
-		})
-		return err
+func TestNotifyAndAdviseBundleLoaded(t *testing.T) {
+	testUpdateBundleObject(t, func(n notifier.Notifier) error {
+		return n.NotifyAndAdviseBundleLoaded(context.Background(), nil)
 	})
 }
 
-func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) error) {
+func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) {
 	bundle1 := &common.Bundle{RootCas: []*common.Certificate{{DerBytes: []byte("1")}}}
 	bundle2 := &common.Bundle{RootCas: []*common.Certificate{{DerBytes: []byte("2")}}}
 
@@ -143,7 +131,7 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 			name:          "not configured",
 			skipConfigure: true,
 			code:          codes.FailedPrecondition,
-			desc:          "not configured",
+			desc:          "notifier(gcs_bundle): not configured",
 		},
 		{
 			name: "failed to create bucket client",
@@ -151,7 +139,7 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 				return errors.New("ohno")
 			},
 			code: codes.Unknown,
-			desc: "unable to instantiate bucket client: ohno",
+			desc: "notifier(gcs_bundle): unable to instantiate bucket client: ohno",
 		},
 		{
 			name: "failed to get object generation",
@@ -160,12 +148,12 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to get bundle object the-bucket/bundle.pem: ohno",
+			desc: "notifier(gcs_bundle): unable to get bundle object the-bucket/bundle.pem: ohno",
 		},
 		{
 			name: "failed to fetch bundle from identity provider",
 			code: codes.Unknown,
-			desc: "unable to fetch bundle from SPIRE server: no bundle",
+			desc: "notifier(gcs_bundle): unable to fetch bundle from SPIRE server: no bundle",
 		},
 		{
 			name:    "failed to put object",
@@ -175,7 +163,7 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to update bundle object the-bucket/bundle.pem: ohno",
+			desc: "notifier(gcs_bundle): unable to update bundle object the-bucket/bundle.pem: ohno",
 		},
 		{
 			name:           "success",
@@ -209,7 +197,7 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 				return nil
 			},
 			code: codes.Unknown,
-			desc: "unable to update bundle object the-bucket/bundle.pem: googleapi: got HTTP response code 412 with body: ohno",
+			desc: "notifier(gcs_bundle): unable to update bundle object the-bucket/bundle.pem: googleapi: got HTTP response code 412 with body: ohno",
 		},
 	} {
 		tt := tt
@@ -236,9 +224,9 @@ func testUpdateBundleObject(t *testing.T, notify func(plugin notifierv0.Plugin) 
 			}
 
 			// Load the instance as a plugin
-			var plugin notifierv0.Plugin
-			spiretest.LoadPlugin(t, builtIn(raw), &plugin,
-				spiretest.HostService(identityproviderv0.HostServiceServer(idp)))
+			plugin := new(notifier.V0)
+			plugintest.Load(t, builtIn(raw), plugin,
+				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)))
 
 			if !tt.skipConfigure {
 				_, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{

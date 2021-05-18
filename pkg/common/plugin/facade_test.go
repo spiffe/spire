@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	facade = plugin.FixedFacade("name", "type")
+	facade = plugin.FixedFacade("name", "type", plugin.NullLogger())
 )
 
 func TestPrefixMessage(t *testing.T) {

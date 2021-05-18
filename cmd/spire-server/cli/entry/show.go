@@ -97,7 +97,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 	if c.entryID != "" {
 		entry, err := c.fetchByEntryID(ctx, c.entryID, client)
 		if err != nil {
-			return nil, fmt.Errorf("error fetching entry ID %s: %s", c.entryID, err)
+			return nil, fmt.Errorf("error fetching entry ID %s: %w", c.entryID, err)
 		}
 		return []*types.Entry{entry}, nil
 	}
@@ -106,7 +106,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 	if c.parentID != "" {
 		id, err := idStringToProto(c.parentID)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing parent ID %q: %v", c.parentID, err)
+			return nil, fmt.Errorf("error parsing parent ID %q: %w", c.parentID, err)
 		}
 		filter.ByParentId = id
 	}
@@ -114,7 +114,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 	if c.spiffeID != "" {
 		id, err := idStringToProto(c.spiffeID)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing SPIFFE ID %q: %v", c.spiffeID, err)
+			return nil, fmt.Errorf("error parsing SPIFFE ID %q: %w", c.spiffeID, err)
 		}
 		filter.BySpiffeId = id
 	}
@@ -124,7 +124,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 		for i, sel := range c.selectors {
 			selector, err := parseSelector(sel)
 			if err != nil {
-				return nil, fmt.Errorf("error parsing selectors: %v", err)
+				return nil, fmt.Errorf("error parsing selectors: %w", err)
 			}
 			selectors[i] = selector
 		}
@@ -138,7 +138,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 		Filter: filter,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error fetching entries: %v", err)
+		return nil, fmt.Errorf("error fetching entries: %w", err)
 	}
 
 	return resp.Entries, nil

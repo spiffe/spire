@@ -101,7 +101,7 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 			block.Object, err = x509.ParsePKIXPublicKey(pemBlock.Bytes)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse %q PEM block %d: %v", pemBlock.Type, blockno, err)
+			return nil, fmt.Errorf("unable to parse %q PEM block %d: %w", pemBlock.Type, blockno, err)
 		}
 
 		blocks = append(blocks, block)
