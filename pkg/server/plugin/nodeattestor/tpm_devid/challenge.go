@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/credactivation"
-	"github.com/spiffe/spire/pkg/common/plugin/devid"
+	devid "github.com/spiffe/spire/pkg/common/plugin/tpm_devid"
 )
 
 // We use a 32 bytes nonce to provide enough cryptographical randomness and to be
