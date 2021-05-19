@@ -3,22 +3,24 @@ package azure
 import (
 	"context"
 	"crypto/rsa"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -52,7 +54,7 @@ func TestMSIAttestorPlugin(t *testing.T) {
 type MSIAttestorSuite struct {
 	spiretest.Suite
 
-	attestor   nodeattestorv0.NodeAttestorClient
+	attestor   nodeattestor.NodeAttestor
 	key        *rsa.PrivateKey
 	jwks       *jose.JSONWebKeySet
 	now        time.Time
@@ -68,65 +70,48 @@ func (s *MSIAttestorSuite) SetupTest() {
 	s.now = time.Now()
 	s.agentStore = fakeagentstore.New()
 
-	s.attestor = s.newAttestor()
-	s.configureAttestor()
+	s.attestor = s.loadPlugin()
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWhenNotConfigured() {
-	attestor := s.newAttestor()
-	resp, err := s.doAttestOnAttestor(attestor, &nodeattestorv0.AttestRequest{})
-	s.requireErrorContains(err, "azure-msi: not configured")
-	s.Require().Nil(resp)
-}
-
-func (s *MSIAttestorSuite) TestAttestFailsWithNoAttestationData() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{},
-		"azure-msi: missing attestation data")
-}
-
-func (s *MSIAttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "blah",
-		},
-	}, `azure-msi: unexpected attestation data type "blah"`)
+	attestor := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), attestor,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+	)
+	s.attestor = attestor
+	s.requireAttestError(s.T(), []byte("payload"), codes.FailedPrecondition, "nodeattestor(azure_msi): not configured")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "azure_msi",
-		},
-	}, "azure-msi: missing attestation data payload")
+	s.requireAttestError(s.T(), nil, codes.InvalidArgument, "payload cannot be empty")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "azure_msi",
-			Data: []byte("{"),
-		},
-	}, "azure-msi: failed to unmarshal data payload")
+	s.requireAttestError(s.T(), []byte("{"), codes.InvalidArgument, "nodeattestor(azure_msi): failed to unmarshal data payload")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithNoToken() {
-	s.requireAttestError(makeAttestRequest(""),
-		"azure-msi: missing token from attestation data")
+	s.requireAttestError(s.T(), makeAttestPayload(""),
+		codes.InvalidArgument,
+		"nodeattestor(azure_msi): missing token from attestation data")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithMalformedToken() {
-	s.requireAttestError(makeAttestRequest("blah"),
-		"azure-msi: unable to parse token")
+	s.requireAttestError(s.T(), makeAttestPayload("blah"),
+		codes.InvalidArgument,
+		"nodeattestor(azure_msi): unable to parse token")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsIfTokenKeyIDMissing() {
-	s.requireAttestError(s.signAttestRequest("", "", "", ""),
-		"azure-msi: token missing key id")
+	s.requireAttestError(s.T(), s.signAttestPayload("", "", "", ""),
+		codes.InvalidArgument,
+		"nodeattestor(azure_msi): token missing key id")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsIfTokenKeyIDNotFound() {
-	s.requireAttestError(s.signAttestRequest("KEYID", "", "", ""),
-		`azure-msi: key id "KEYID" not found`)
+	s.requireAttestError(s.T(), s.signAttestPayload("KEYID", "", "", ""),
+		codes.InvalidArgument,
+		`nodeattestor(azure_msi): key id "KEYID" not found`)
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
@@ -139,7 +124,8 @@ func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
 	parts[2] = "aaaa"
 	token = strings.Join(parts, ".")
 
-	s.requireAttestError(makeAttestRequest(token),
+	s.requireAttestError(s.T(), makeAttestPayload(token),
+		codes.InvalidArgument,
 		"unable to verify token")
 }
 
@@ -161,64 +147,77 @@ func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 	token, err := jwt.Signed(signer).CompactSerialize()
 	s.Require().NoError(err)
 
-	s.requireAttestError(makeAttestRequest(token),
+	s.requireAttestError(s.T(), makeAttestPayload(token),
+		codes.InvalidArgument,
 		"unable to verify token")
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsClaimValidation() {
 	s.addKey()
 
-	// missing tenant id claim
-	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "", "PRINCIPALID"),
-		"token missing tenant ID claim")
+	s.T().Run("missing tenant id claim", func(t *testing.T) {
+		s.requireAttestError(t, s.signAttestPayload("KEYID", resourceID, "", "PRINCIPALID"),
+			codes.Internal,
+			"nodeattestor(azure_msi): token missing tenant ID claim")
+	})
 
-	// unauthorized tenant id claim
-	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "BADTENANTID", "PRINCIPALID"),
-		`tenant "BADTENANTID" is not authorized`)
+	s.T().Run("unauthorized tenant id claim", func(t *testing.T) {
+		s.requireAttestError(t, s.signAttestPayload("KEYID", resourceID, "BADTENANTID", "PRINCIPALID"),
+			codes.PermissionDenied,
+			`nodeattestor(azure_msi): tenant "BADTENANTID" is not authorized`)
+	})
 
-	// no audience
-	s.requireAttestError(s.signAttestRequest("KEYID", "", "TENANTID", "PRINCIPALID"),
-		"invalid audience claim")
+	s.T().Run("no audience", func(t *testing.T) {
+		s.requireAttestError(t, s.signAttestPayload("KEYID", "", "TENANTID", "PRINCIPALID"),
+			codes.Internal,
+			"nodeattestor(azure_msi): unable to validate token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)")
+	})
 
-	// wrong audience
-	s.requireAttestError(s.signAttestRequest("KEYID", "FOO", "TENANTID", "PRINCIPALID"),
-		"invalid audience claim")
+	s.T().Run("wrong audience", func(t *testing.T) {
+		s.requireAttestError(t, s.signAttestPayload("KEYID", "FOO", "TENANTID", "PRINCIPALID"),
+			codes.Internal,
+			"nodeattestor(azure_msi): unable to validate token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)")
+	})
 
-	// missing principal id (sub) claim
-	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "TENANTID", ""),
-		"token missing subject claim")
+	s.T().Run(" missing principal id (sub) claim", func(t *testing.T) {
+		s.requireAttestError(t, s.signAttestPayload("KEYID", resourceID, "TENANTID", ""),
+			codes.Internal,
+			"nodeattestor(azure_msi): token missing subject claim")
+	})
 }
 
 func (s *MSIAttestorSuite) TestAttestTokenExpiration() {
 	s.addKey()
-	token := s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID")
+	token := s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID")
 
 	// within 5m leeway (token expires at 1m + 5m leeway = 6m)
 	s.adjustTime(6 * time.Minute)
-	_, err := s.doAttest(token)
+	_, err := s.attestor.Attest(context.Background(), token, expectNoChallenge)
 	s.Require().NotNil(err)
 
 	// just after 5m leeway
 	s.adjustTime(time.Second)
-	s.requireAttestError(token, "token is expired")
+	s.requireAttestError(s.T(), token, codes.Internal, "nodeattestor(azure_msi): unable to validate token claims: square/go-jose/jwt: validation failed, token is expired (exp)")
 }
 
 func (s *MSIAttestorSuite) TestAttestSuccess() {
 	s.addKey()
 
-	// Success against TENANTID, which uses the custom resource ID
-	resp, err := s.doAttest(s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID"))
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID")
-	s.Require().Nil(resp.Challenge)
+	s.T().Run("Success against TENANTID, which uses the custom resource ID", func(t *testing.T) {
+		payload := s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID")
+		resp, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, resp.AgentID, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID")
+	})
 
-	// Success against TENANTID2, which uses the default resource ID
-	resp, err = s.doAttest(s.signAttestRequest("KEYID", azure.DefaultMSIResourceID, "TENANTID2", "PRINCIPALID"))
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/azure_msi/TENANTID2/PRINCIPALID")
-	s.Require().Nil(resp.Challenge)
+	s.T().Run("Success against TENANTID2, which uses the default resource ID", func(t *testing.T) {
+		payload := s.signAttestPayload("KEYID", azure.DefaultMSIResourceID, "TENANTID2", "PRINCIPALID")
+		resp, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, resp.AgentID, "spiffe://example.org/spire/agent/azure_msi/TENANTID2/PRINCIPALID")
+	})
 }
 
 func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
@@ -228,44 +227,53 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
 		AgentId: agentID,
 	})
-	s.requireAttestError(s.signAttestRequest("KEYID", resourceID, "TENANTID", "PRINCIPALID"),
-		"azure-msi: MSI token has already been used to attest an agent")
+	s.requireAttestError(s.T(), s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID"),
+		codes.PermissionDenied,
+		"nodeattestor(azure_msi): MSI token has already been used to attest an agent")
 }
 
 func (s *MSIAttestorSuite) TestConfigure() {
-	// malformed configuration
-	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: "blah",
+	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+		var err error
+		plugintest.Load(s.T(), BuiltIn(), nil,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+			plugintest.CoreConfig(coreConfig),
+			plugintest.Configure(config),
+		)
+		return err
+	}
+
+	coreConfig := catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}
+
+	s.T().Run("malformed configuration", func(t *testing.T) {
+		err := doConfig(coreConfig, "blah")
+		spiretest.RequireErrorContains(t, err, "unable to decode configuration")
 	})
-	s.requireErrorContains(err, "azure-msi: unable to decode configuration")
-	s.Require().Nil(resp)
 
-	// missing global configuration
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "azure-msi: global configuration is required")
-	s.Require().Nil(resp)
-
-	// missing trust domain
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.requireErrorContains(err, "azure-msi: global configuration missing trust domain")
-	s.Require().Nil(resp)
-
-	// missing tenants
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: ``,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	s.T().Run("missing trust domain", func(t *testing.T) {
+		err := doConfig(catalog.CoreConfig{}, "")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
 	})
-	s.requireErrorContains(err, "azure-msi: configuration must have at least one tenant")
-	s.Require().Nil(resp)
 
-	// success
-	s.configureAttestor()
-}
+	s.T().Run("missing tenants", func(t *testing.T) {
+		err := doConfig(coreConfig, "")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration must have at least one tenant")
+	})
 
-func (s *MSIAttestorSuite) TestGetPluginInfo() {
-	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
+	s.T().Run("success", func(t *testing.T) {
+		err := doConfig(coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+			}
+			"TENANTID2" = {}
+		}
+		`)
+		require.NoError(t, err)
+	})
 }
 
 func (s *MSIAttestorSuite) adjustTime(d time.Duration) {
@@ -310,8 +318,8 @@ func (s *MSIAttestorSuite) signToken(keyID, audience, tenantID, principalID stri
 	return token
 }
 
-func (s *MSIAttestorSuite) signAttestRequest(keyID, audience, tenantID, principalID string) *nodeattestorv0.AttestRequest {
-	return makeAttestRequest(s.signToken(keyID, audience, tenantID, principalID))
+func (s *MSIAttestorSuite) signAttestPayload(keyID, audience, tenantID, principalID string) []byte {
+	return makeAttestPayload(s.signToken(keyID, audience, tenantID, principalID))
 }
 
 func (s *MSIAttestorSuite) addKey() {
@@ -321,7 +329,7 @@ func (s *MSIAttestorSuite) addKey() {
 	})
 }
 
-func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.NodeAttestorClient {
+func (s *MSIAttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	attestor := New()
 	attestor.hooks.now = func() time.Time {
 		return s.now
@@ -329,62 +337,35 @@ func (s *MSIAttestorSuite) newAttestor() nodeattestorv0.NodeAttestorClient {
 	attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) {
 		return s.jwks, nil
 	})
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(s.T(), builtin(attestor), v0,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
-	)
-	return v0.NodeAttestorClient
-}
 
-func (s *MSIAttestorSuite) configureAttestor() {
-	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
+	v1 := new(nodeattestor.V1)
+
+	plugintest.Load(s.T(), builtin(attestor), v1,
+		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
 			}
 			"TENANTID2" = {}
 		}
-		`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
+	`))
+	return v1
 }
 
-func (s *MSIAttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
-	return s.doAttestOnAttestor(s.attestor, req)
+func (s *MSIAttestorSuite) requireAttestError(t *testing.T, payload []byte, expectCode codes.Code, expectMsg string) {
+	result, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
+	spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMsg)
+	require.Nil(t, result)
 }
 
-func (s *MSIAttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestorClient, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
-	stream, err := attestor.Attest(context.Background())
-	s.Require().NoError(err)
-
-	err = stream.Send(req)
-	s.Require().NoError(err)
-
-	err = stream.CloseSend()
-	s.Require().NoError(err)
-
-	return stream.Recv()
+func makeAttestPayload(token string) []byte {
+	return []byte(fmt.Sprintf(`{"token": %q}`, token))
 }
 
-func (s *MSIAttestorSuite) requireAttestError(req *nodeattestorv0.AttestRequest, contains string) {
-	resp, err := s.doAttest(req)
-	s.requireErrorContains(err, contains)
-	s.Require().Nil(resp)
-}
-
-func (s *MSIAttestorSuite) requireErrorContains(err error, contains string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), contains)
-}
-
-func makeAttestRequest(token string) *nodeattestorv0.AttestRequest {
-	return &nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "azure_msi",
-			Data: []byte(fmt.Sprintf(`{"token": %q}`, token)),
-		},
-	}
+func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+	return nil, errors.New("challenge is not expected")
 }
