@@ -20,42 +20,32 @@ var (
 func TestNewClient(t *testing.T) {
 	tests := []struct {
 		desc          string
-		trustDomain   string
 		configString  string
 		expectErr     string
 		requireClient func(*testing.T, *Client)
 	}{
 		{
-			desc:      "missing trust domain",
-			expectErr: "sshpop: trust_domain global configuration is required",
-		},
-		{
 			desc:         "bad config",
-			trustDomain:  "foo.test",
 			configString: "[[]",
-			expectErr:    "sshpop: failed to decode configuration",
+			expectErr:    "failed to decode configuration",
 		},
 		{
 			desc:         "key file not exists",
-			trustDomain:  "foo.test",
 			configString: `host_key_path = "something-that-doesnt-exist"`,
-			expectErr:    "sshpop: failed to read host key file",
+			expectErr:    "failed to read host key file",
 		},
 		{
 			desc:         "cert file not exists",
-			trustDomain:  "foo.test",
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"`,
-			expectErr:    "sshpop: failed to read host cert file",
+			expectErr:    "failed to read host cert file",
 		},
 		{
-			desc:        "success",
-			trustDomain: "foo.test",
+			desc: "success",
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"
 						   host_cert_path = "./testdata/dummy_agent_ssh_key-cert.pub"
 						   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`,
 			requireClient: func(t *testing.T, c *Client) {
 				require.NotNil(t, c)
-				require.Equal(t, "foo.test", c.trustDomain)
 				require.Equal(t, c.signer.PublicKey(), c.cert.Key)
 				require.Equal(t, "foo-host", c.cert.KeyId)
 			},
@@ -65,7 +55,7 @@ func TestNewClient(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			c, err := NewClient(tt.trustDomain, tt.configString)
+			c, err := NewClient(tt.configString)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
@@ -87,30 +77,30 @@ func TestNewServer(t *testing.T) {
 	}{
 		{
 			desc:      "missing trust domain",
-			expectErr: "sshpop: trust_domain global configuration is required",
+			expectErr: "trust_domain global configuration is required",
 		},
 		{
 			desc:         "bad config",
 			trustDomain:  "foo.test",
 			configString: "[[]",
-			expectErr:    "sshpop: failed to decode configuration",
+			expectErr:    "failed to decode configuration",
 		},
 		{
 			desc:        "no cert authority",
 			trustDomain: "foo.test",
-			expectErr:   `sshpop: missing required config value for "cert_authorities"`,
+			expectErr:   `missing required config value for "cert_authorities"`,
 		},
 		{
 			desc:         "no cert authorities",
 			configString: `cert_authorities = []`,
 			trustDomain:  "foo.test",
-			expectErr:    `sshpop: failed to create cert checker: must provide at least one cert authority`,
+			expectErr:    `failed to create cert checker: must provide at least one cert authority`,
 		},
 		{
 			desc:         "bad cert authorities",
 			configString: `cert_authorities = ["bad authority"]`,
 			trustDomain:  "foo.test",
-			expectErr:    `sshpop: failed to create cert checker: failed to parse public key`,
+			expectErr:    `failed to create cert checker: failed to parse public key`,
 		},
 		{
 			desc: "success",

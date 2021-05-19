@@ -123,7 +123,7 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 		go func() {
 			defer wg.Done()
 			c.log.WithField("address", c.server.Addr).Info("Serving health checks")
-			if err := c.server.ListenAndServe(); err != http.ErrServerClosed {
+			if err := c.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 				c.log.WithError(err).Warn("Error serving health checks")
 			}
 		}()

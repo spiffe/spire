@@ -76,7 +76,7 @@ func (s *SpiffeID) ValidateCreate() error {
 	for _, entry := range resp.Entries {
 		entrySPIFFEID, err := idutil.IDFromProto(entry.SpiffeId)
 		if err != nil {
-			return fmt.Errorf("entry SPIFFE ID is malformed: %v", err)
+			return fmt.Errorf("entry SPIFFE ID is malformed: %w", err)
 		}
 		if s.Spec.SpiffeId == entrySPIFFEID.String() {
 			if s.Status.EntryId == nil || *s.Status.EntryId != entry.Id {
@@ -131,7 +131,7 @@ func (s *SpiffeID) validateSpiffeID() error {
 
 	for _, dnsName := range s.Spec.DnsNames {
 		if err := x509util.ValidateDNS(dnsName); err != nil {
-			return fmt.Errorf("invalid DNS name %q: %v", dnsName, err)
+			return fmt.Errorf("invalid DNS name %q: %w", dnsName, err)
 		}
 	}
 

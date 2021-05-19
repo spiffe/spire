@@ -97,12 +97,6 @@ func NewManager(c ManagerConfig) *Manager {
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
-	if c.X509CAKeyType == keymanager.KeyTypeUnset {
-		c.X509CAKeyType = keymanager.ECP256
-	}
-	if c.JWTKeyType == keymanager.KeyTypeUnset {
-		c.JWTKeyType = keymanager.ECP256
-	}
 
 	m := &Manager{
 		c:               c,
@@ -161,7 +155,7 @@ func (m *Manager) Run(ctx context.Context) error {
 			return nil
 		},
 	)
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return err
@@ -458,7 +452,7 @@ func (m *Manager) pruneBundle(ctx context.Context) (err error) {
 	changed, err := ds.PruneBundle(ctx, m.c.TrustDomain.IDString(), expiresBefore)
 
 	if err != nil {
-		return fmt.Errorf("unable to prune bundle: %v", err)
+		return fmt.Errorf("unable to prune bundle: %w", err)
 	}
 
 	if changed {

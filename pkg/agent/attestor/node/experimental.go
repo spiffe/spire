@@ -33,17 +33,17 @@ func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byt
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
 	updatedBundle, err := bundlev1.NewBundleClient(conn).GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get updated bundle %v", err)
+		return nil, fmt.Errorf("failed to get updated bundle %w", err)
 	}
 
 	b, err := bundleutil.CommonBundleFromProto(updatedBundle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse trust domain bundle: %v", err)
+		return nil, fmt.Errorf("failed to parse trust domain bundle: %w", err)
 	}
 
 	bundle, err := bundleutil.BundleFromProto(b)
 	if err != nil {
-		return nil, fmt.Errorf("invalid trust domain bundle: %v", err)
+		return nil, fmt.Errorf("invalid trust domain bundle: %w", err)
 	}
 
 	return bundle, err
@@ -56,7 +56,7 @@ func getSVIDFromAttestAgentResponse(r *agentv1.AttestAgentResponse) ([]*x509.Cer
 
 	svid, err := x509util.RawCertsToCertificates(r.GetResult().Svid.CertChain)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SVID cert chain: %v", err)
+		return nil, fmt.Errorf("invalid SVID cert chain: %w", err)
 	}
 
 	if len(svid) == 0 {
@@ -102,18 +102,18 @@ func (ss *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgen
 	if ss.stream == nil {
 		stream, err := ss.client.AttestAgent(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("could not open attestation stream to SPIRE server: %v", err)
+			return nil, fmt.Errorf("could not open attestation stream to SPIRE server: %w", err)
 		}
 		ss.stream = stream
 	}
 
 	if err := ss.stream.Send(req); err != nil {
-		return nil, fmt.Errorf("failed to send attestation request to SPIRE server: %v", err)
+		return nil, fmt.Errorf("failed to send attestation request to SPIRE server: %w", err)
 	}
 
 	resp, err := ss.stream.Recv()
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive attestation response: %v", err)
+		return nil, fmt.Errorf("failed to receive attestation response: %w", err)
 	}
 
 	if challenge := resp.GetChallenge(); challenge != nil {
@@ -122,7 +122,7 @@ func (ss *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgen
 
 	svid, err := getSVIDFromAttestAgentResponse(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse attestation response: %v", err)
+		return nil, fmt.Errorf("failed to parse attestation response: %w", err)
 	}
 
 	if err := ss.stream.CloseSend(); err != nil {

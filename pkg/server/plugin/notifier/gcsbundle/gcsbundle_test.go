@@ -10,7 +10,6 @@ import (
 
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
@@ -81,9 +80,8 @@ func TestConfigure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			idp := fakeidentityprovider.New()
 
-			raw := New()
 			var err error
-			plugintest.Load(t, builtIn(raw), new(notifier.V0),
+			plugintest.Load(t, BuiltIn(), nil,
 				plugintest.Configure(tt.config),
 				plugintest.CaptureConfigureError(&err),
 				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)))
@@ -96,21 +94,15 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
-func TestGetPluginInfo(t *testing.T) {
-	resp, err := New().GetPluginInfo(context.Background(), &spi.GetPluginInfoRequest{})
-	require.NoError(t, err)
-	require.Equal(t, &spi.GetPluginInfoResponse{}, resp)
-}
-
 func TestNotifyBundleUpdated(t *testing.T) {
 	testUpdateBundleObject(t, func(n notifier.Notifier) error {
-		return n.NotifyBundleUpdated(context.Background(), nil)
+		return n.NotifyBundleUpdated(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
 	})
 }
 
 func TestNotifyAndAdviseBundleLoaded(t *testing.T) {
 	testUpdateBundleObject(t, func(n notifier.Notifier) error {
-		return n.NotifyAndAdviseBundleLoaded(context.Background(), nil)
+		return n.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
 	})
 }
 
@@ -223,21 +215,20 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 				idp.AppendBundle(bundle)
 			}
 
-			// Load the instance as a plugin
-			plugin := new(notifier.V0)
-			plugintest.Load(t, builtIn(raw), plugin,
-				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)))
-
-			if !tt.skipConfigure {
-				_, err := plugin.Configure(context.Background(), &spi.ConfigureRequest{
-					Configuration: `
-				bucket = "the-bucket"
-				object_path = "bundle.pem"
-				service_account_file = "the-service-account-file"
-			`,
-				})
-				require.NoError(t, err)
+			options := []plugintest.Option{
+				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)),
 			}
+			if !tt.skipConfigure {
+				options = append(options, plugintest.Configure(`
+					bucket = "the-bucket"
+					object_path = "bundle.pem"
+					service_account_file = "the-service-account-file"
+				`))
+			}
+
+			// Load the instance as a plugin
+			plugin := new(notifier.V1)
+			plugintest.Load(t, builtIn(raw), plugin, options...)
 
 			err := notify(plugin)
 			if tt.code != codes.OK {

@@ -213,7 +213,7 @@ func Load(ctx context.Context, config Config, cat Catalog) (_ io.Closer, err err
 	// Make sure all of the plugin constraints are satisfied
 	for pluginType, pluginRepo := range pluginRepos {
 		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
-			return nil, fmt.Errorf("plugin type %q constraint not satisfied: %v", pluginType, err)
+			return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
 		}
 	}
 

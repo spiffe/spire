@@ -45,7 +45,7 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 	// Grab a handle to proc first since that's the fastest thing we can do
 	procfd, err := syscall.Open(procPath, syscall.O_RDONLY, 0)
 	if err != nil {
-		return nil, fmt.Errorf("could not open caller's proc directory: %v", err)
+		return nil, fmt.Errorf("could not open caller's proc directory: %w", err)
 	}
 
 	starttime, err := getStarttime(info.PID)
@@ -90,7 +90,7 @@ func (l *linuxWatcher) IsAlive() error {
 	var buf [8196]byte
 	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
-		return fmt.Errorf("caller exit suspected due to failed readdirent: err=%v", err)
+		return fmt.Errorf("caller exit suspected due to failed readdirent: err=%w", err)
 	}
 	if n < 0 {
 		return fmt.Errorf("caller exit suspected due to failed readdirent: n=%d", n)
@@ -106,7 +106,7 @@ func (l *linuxWatcher) IsAlive() error {
 	// TODO: Evaluate the use of `starttime` as the primary exit detection mechanism.
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
-		return fmt.Errorf("caller exit suspected due to failure to get starttime: %v", err)
+		return fmt.Errorf("caller exit suspected due to failure to get starttime: %w", err)
 	}
 	if currentStarttime != l.starttime {
 		return errors.New("new process detected: starttime mismatch")
@@ -118,7 +118,7 @@ func (l *linuxWatcher) IsAlive() error {
 	// the original caller by comparing it to the received CallerInfo.
 	var stat syscall.Stat_t
 	if err := syscall.Stat(l.procPath, &stat); err != nil {
-		return fmt.Errorf("caller exit suspected due to failed proc stat: %v", err)
+		return fmt.Errorf("caller exit suspected due to failed proc stat: %w", err)
 	}
 	if stat.Uid != l.uid {
 		return fmt.Errorf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
@@ -151,12 +151,12 @@ func parseTaskStat(stat string) ([]string, error) {
 func getStarttime(pid int32) (string, error) {
 	statBytes, err := ioutil.ReadFile(fmt.Sprintf("/proc/%v/stat", pid))
 	if err != nil {
-		return "", fmt.Errorf("could not read caller stat: %v", err)
+		return "", fmt.Errorf("could not read caller stat: %w", err)
 	}
 
 	statFields, err := parseTaskStat(string(statBytes))
 	if err != nil {
-		return "", fmt.Errorf("bad stat data: %v", err)
+		return "", fmt.Errorf("bad stat data: %w", err)
 	}
 
 	// starttime is the 22nd field in the proc stat data

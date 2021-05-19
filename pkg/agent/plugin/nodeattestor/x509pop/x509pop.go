@@ -78,18 +78,18 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 	challenge := new(x509pop.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
-		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
+		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %w", err)
 	}
 
 	// calculate and send the challenge response
 	response, err := x509pop.CalculateResponse(data.privateKey, challenge)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to calculate challenge response: %v", err)
+		return status.Errorf(codes.Internal, "failed to calculate challenge response: %w", err)
 	}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to marshal challenge response: %v", err)
+		return status.Errorf(codes.Internal, "unable to marshal challenge response: %w", err)
 	}
 
 	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
@@ -106,8 +106,25 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := new(Config)
+<<<<<<< HEAD
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+=======
+	if err := hcl.Decode(config, req.Configuration); err != nil {
+		return nil, fmt.Errorf("x509pop: unable to decode configuration: %w", err)
+	}
+
+	if req.GlobalConfig == nil {
+		return nil, errors.New("x509pop: global configuration is required")
+	}
+	if req.GlobalConfig.TrustDomain == "" {
+		return nil, errors.New("x509pop: trust_domain is required")
+	}
+
+	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	if err != nil {
+		return nil, err
+>>>>>>> origin/main
 	}
 
 	if config.PrivateKeyPath == "" {
@@ -150,7 +167,7 @@ func (p *Plugin) loadConfigData() (*configData, error) {
 func loadConfigData(config *Config) (*configData, error) {
 	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %w", err)
 	}
 
 	certificates := certificate.Certificate
@@ -159,7 +176,7 @@ func loadConfigData(config *Config) (*configData, error) {
 	if strings.TrimSpace(config.IntermediatesPath) != "" {
 		intermediates, err := util.LoadCertificates(config.IntermediatesPath)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to load intermediate certificates: %v", err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to load intermediate certificates: %w", err)
 		}
 
 		for _, cert := range intermediates {
@@ -171,7 +188,7 @@ func loadConfigData(config *Config) (*configData, error) {
 		Certificates: certificates,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to marshal attestation data: %w", err)
 	}
 
 	return &configData{

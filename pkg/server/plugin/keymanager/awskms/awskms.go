@@ -512,7 +512,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 			describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias.AliasArn})
 			switch {
 			case err != nil:
-				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DescribeKey failed: %v", err))
+				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DescribeKey failed: %w", err))
 				errs = append(errs, err.Error())
 				continue
 			case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
@@ -525,7 +525,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 
 			_, err = p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: alias.AliasName})
 			if err != nil {
-				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DeleteAlias failed: %v", err))
+				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DeleteAlias failed: %w", err))
 				errs = append(errs, err.Error())
 				continue
 			}

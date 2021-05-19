@@ -29,7 +29,6 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
@@ -207,9 +206,7 @@ func (h *Handler) ListByParentID(ctx context.Context, request *registration.Pare
 	ds := h.getDataStore()
 	listResponse, err := ds.ListRegistrationEntries(ctx,
 		&datastore.ListRegistrationEntriesRequest{
-			ByParentId: &wrapperspb.StringValue{
-				Value: request.Id,
-			},
+			ByParentID: request.Id,
 		})
 	if err != nil {
 		log.WithError(err).Error("Failed to list entries by parent ID")
@@ -284,9 +281,7 @@ func (h *Handler) ListBySpiffeID(ctx context.Context, request *registration.Spif
 
 	ds := h.getDataStore()
 	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrapperspb.StringValue{
-			Value: request.Id,
-		},
+		BySpiffeID: request.Id,
 	}
 	resp, err := ds.ListRegistrationEntries(ctx, req)
 	if err != nil {
@@ -689,18 +684,15 @@ func (h *Handler) MintJWTSVID(ctx context.Context, req *registration.MintJWTSVID
 func (h *Handler) GetNodeSelectors(ctx context.Context, req *registration.GetNodeSelectorsRequest) (*registration.GetNodeSelectorsResponse, error) {
 	log := h.Log.WithField(telemetry.Method, telemetry.GetNodeSelectors)
 	ds := h.Catalog.GetDataStore()
-	r := &datastore.GetNodeSelectorsRequest{
-		SpiffeId: req.SpiffeId,
-	}
-	resp, err := ds.GetNodeSelectors(ctx, r)
+	selectors, err := ds.GetNodeSelectors(ctx, req.SpiffeId, datastore.RequireCurrent)
 	if err != nil {
 		log.WithError(err).Error("Failed to get node selectors")
 		return nil, err
 	}
 	return &registration.GetNodeSelectorsResponse{
 		Selectors: &registration.NodeSelectors{
-			SpiffeId:  resp.Selectors.SpiffeId,
-			Selectors: resp.Selectors.Selectors,
+			SpiffeId:  req.SpiffeId,
+			Selectors: selectors,
 		},
 	}, nil
 }
@@ -743,12 +735,8 @@ func (h *Handler) normalizeSPIFFEIDForMinting(spiffeID string) (spiffeid.ID, err
 func (h *Handler) isEntryUnique(ctx context.Context, ds datastore.DataStore, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	// First we get all the entries that matches the entry's spiffe id.
 	req := &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrapperspb.StringValue{
-			Value: entry.SpiffeId,
-		},
-		ByParentId: &wrapperspb.StringValue{
-			Value: entry.ParentId,
-		},
+		BySpiffeID: entry.SpiffeId,
+		ByParentID: entry.ParentId,
 		BySelectors: &datastore.BySelectors{
 			Match:     datastore.Exact,
 			Selectors: entry.Selectors,
@@ -807,7 +795,7 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	for _, dns := range entry.DnsNames {
 		err = validateDNS(dns)
 		if err != nil {
-			return nil, fmt.Errorf("dns name %v failed validation: %v", dns, err)
+			return nil, fmt.Errorf("dns name %v failed validation: %w", dns, err)
 		}
 	}
 
@@ -823,11 +811,11 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	}
 
 	if err := idutil.CheckIDStringNormalization(original.ParentId); err != nil {
-		return nil, fmt.Errorf("parent ID is malformed: %v", err)
+		return nil, fmt.Errorf("parent ID is malformed: %w", err)
 	}
 
 	if err := idutil.CheckIDStringNormalization(original.SpiffeId); err != nil {
-		return nil, fmt.Errorf("spiffe ID is malformed: %v", err)
+		return nil, fmt.Errorf("spiffe ID is malformed: %w", err)
 	}
 
 	// Validate Selectors
@@ -878,7 +866,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 		return "", errors.New("no SPIFFE ID in certificate")
 	}
 	if err := idutil.CheckIDURLNormalization(cert.URIs[0]); err != nil {
-		return "", fmt.Errorf("SPIFFE ID is malformed: %v", err)
+		return "", fmt.Errorf("SPIFFE ID is malformed: %w", err)
 	}
 	spiffeID, err := idutil.NormalizeSpiffeIDURL(cert.URIs[0], idutil.AllowAny())
 	if err != nil {
@@ -921,9 +909,7 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID stri
 	}
 
 	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrapperspb.StringValue{
-			Value: spiffeID,
-		},
+		BySpiffeID: spiffeID,
 	})
 	if err != nil {
 		return "", err
