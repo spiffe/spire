@@ -169,7 +169,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		Filters:     instanceFilters,
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to querying AWS via describe-instances: %v", err)
+		return status.Errorf(codes.Internal, "failed to describe instance: %v", err)
 	}
 
 	// Ideally we wouldn't do this work at all if the agent has already attested
@@ -208,7 +208,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	case err != nil:
 		return err
 	case attested:
-		return status.Error(codes.InvalidArgument, "IID has already been used to attest an agent")
+		return status.Error(codes.PermissionDenied, "IID has already been used to attest an agent")
 	}
 
 	selectorValues, err := p.resolveSelectors(stream.Context(), instancesDesc, awsClient)
@@ -369,7 +369,7 @@ func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (e
 
 	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
 	if err != nil {
-		return ec2metadata.EC2InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to base64 decoding the IID signature: %v", err)
+		return ec2metadata.EC2InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to decode the IID signature: %v", err)
 	}
 
 	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
@@ -418,9 +418,7 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 	for value := range selectorSet {
 		selectors = append(selectors, value)
 	}
-	sort.Slice(selectors, func(i, j int) bool {
-		return strings.Compare(selectors[i], selectors[j]) < 0
-	})
+	sort.Strings(selectors)
 
 	return selectors, nil
 }

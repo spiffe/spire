@@ -137,7 +137,7 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 	payload := s.iidAttestationDataToBytes(*s.buildDefaultIIDAttestationData())
 
 	result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
-	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "IID has already been used to attest an agent")
+	s.RequireGRPCStatusContains(err, codes.PermissionDenied, "nodeattestor(aws_iid): IID has already been used to attest an agent")
 	s.Require().Nil(result)
 }
 
@@ -163,8 +163,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 		mockExpect                      func(mock *mock_aws.MockClient)
 		expectID                        string
 		expectSelectors                 []*common.Selector
-		expectErrCode                   codes.Code
-		expectErrMessage                string
+		expectCode                      codes.Code
+		expectMessage                   string
 		replacementTemplate             string
 		allowList                       []string
 		skipBlockDev                    bool
@@ -176,8 +176,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			mockExpect: func(mock *mock_aws.MockClient) {
 				setAttestExpectations(mock, nil, errors.New("client error"))
 			},
-			expectErrCode:    codes.Internal,
-			expectErrMessage: "nodeattestor(aws_iid): failed to querying AWS via describe-instances: client error",
+			expectCode:    codes.Internal,
+			expectMessage: "nodeattestor(aws_iid): failed to describe instance: client error",
 		},
 		{
 			desc: "no reservation",
@@ -186,8 +186,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 					Reservations: []*ec2.Reservation{},
 				}, nil)
 			},
-			expectErrCode:    codes.Internal,
-			expectErrMessage: "nodeattestor(aws_iid): failed to query AWS via describe-instances: returned no reservations",
+			expectCode:    codes.Internal,
+			expectMessage: "nodeattestor(aws_iid): failed to query AWS via describe-instances: returned no reservations",
 		},
 		{
 			desc: "no instance",
@@ -200,8 +200,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 					},
 				}, nil)
 			},
-			expectErrCode:    codes.Internal,
-			expectErrMessage: "nodeattestor(aws_iid): failed to query AWS via describe-instances: returned no instances",
+			expectCode:    codes.Internal,
+			expectMessage: "nodeattestor(aws_iid): failed to query AWS via describe-instances: returned no instances",
 		},
 		{
 			desc: "non-zero device index",
@@ -211,8 +211,8 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
 				setAttestExpectations(mock, output, nil)
 			},
-			expectErrCode:    codes.Internal,
-			expectErrMessage: "nodeattestor(aws_iid): failed aws ec2 attestation: failed to verify the EC2 instance's NetworkInterface[0].DeviceIndex is 0, the DeviceIndex is 1",
+			expectCode:    codes.Internal,
+			expectMessage: "nodeattestor(aws_iid): failed aws ec2 attestation: failed to verify the EC2 instance's NetworkInterface[0].DeviceIndex is 0, the DeviceIndex is 1",
 		},
 		{
 			desc:         "success, client, no block device, default template",
@@ -404,7 +404,6 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 				return client, nil
 			}
 			clients := newClientsCache(mockGetEC2Client)
-			// s.plugin.clients = newClientsCache(mockGetEC2Client)
 
 			if tt.mockExpect != nil {
 				tt.mockExpect(client)
@@ -448,9 +447,9 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			plugin.config.awsCaCertPublicKey = &s.rsaKey.PublicKey
 
 			resp, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
-			if tt.expectErrMessage != "" {
+			s.AssertGRPCStatusContains(err, tt.expectCode, tt.expectMessage)
+			if tt.expectMessage != "" {
 				s.Nil(resp)
-				s.AssertGRPCStatusContains(err, tt.expectErrCode, tt.expectErrMessage)
 				return
 			}
 
@@ -624,9 +623,7 @@ func (s *IIDAttestorSuite) loadPlugin(clients *clientsCache, opts ...plugintest.
 	}
 
 	v1 := new(nodeattestor.V1)
-	plugintest.Load(s.T(), builtin(attestor), v1,
-		opts...,
-	)
+	plugintest.Load(s.T(), builtin(attestor), v1, opts...)
 
 	return attestor, v1
 }
