@@ -64,23 +64,17 @@ var (
 		},
 	}
 
-	testNodeSelectors = map[string]*datastore.NodeSelectors{
+	testNodeSelectors = map[string][]*common.Selector{
 		agent1: {
-			SpiffeId: agent1,
-			Selectors: []*common.Selector{
-				{
-					Type:  "node-selector-type-1",
-					Value: "node-selector-value-1",
-				},
+			{
+				Type:  "node-selector-type-1",
+				Value: "node-selector-value-1",
 			},
 		},
 		agent2: {
-			SpiffeId: agent2,
-			Selectors: []*common.Selector{
-				{
-					Type:  "node-selector-type-2",
-					Value: "node-selector-value-2",
-				},
+			{
+				Type:  "node-selector-type-2",
+				Value: "node-selector-value-2",
 			},
 		},
 	}
@@ -93,8 +87,8 @@ var (
 			X509SvidExpiresAt:    testNodes[agent1].CertNotAfter,
 			Selectors: []*types.Selector{
 				{
-					Type:  testNodeSelectors[agent1].Selectors[0].Type,
-					Value: testNodeSelectors[agent1].Selectors[0].Value,
+					Type:  testNodeSelectors[agent1][0].Type,
+					Value: testNodeSelectors[agent1][0].Value,
 				},
 			},
 		},
@@ -105,8 +99,8 @@ var (
 			X509SvidExpiresAt:    testNodes[agent2].CertNotAfter,
 			Selectors: []*types.Selector{
 				{
-					Type:  testNodeSelectors[agent2].Selectors[0].Type,
-					Value: testNodeSelectors[agent2].Selectors[0].Value,
+					Type:  testNodeSelectors[agent2][0].Type,
+					Value: testNodeSelectors[agent2][0].Value,
 				},
 			},
 			Banned: true,
@@ -226,11 +220,7 @@ func TestListAgents(t *testing.T) {
 	}
 	_, err := test.ds.CreateAttestedNode(ctx, node1)
 	require.NoError(t, err)
-	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  node1.SpiffeId,
-			Selectors: node1.Selectors},
-	})
+	err = test.ds.SetNodeSelectors(ctx, node1.SpiffeId, node1.Selectors)
 	require.NoError(t, err)
 
 	node2ID := spiffeid.Must("example.org", "node2")
@@ -248,11 +238,7 @@ func TestListAgents(t *testing.T) {
 	}
 	_, err = test.ds.CreateAttestedNode(ctx, node2)
 	require.NoError(t, err)
-	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  node2.SpiffeId,
-			Selectors: node2.Selectors},
-	})
+	err = test.ds.SetNodeSelectors(ctx, node2.SpiffeId, node2.Selectors)
 	require.NoError(t, err)
 
 	node3ID := spiffeid.Must("example.org", "node3")
@@ -1974,7 +1960,7 @@ func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 		require.NoError(t, err)
 
 		// set selectors to the test node
-		_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{Selectors: testNodeSelectors[testNode.SpiffeId]})
+		err = s.ds.SetNodeSelectors(ctx, testNode.SpiffeId, testNodeSelectors[testNode.SpiffeId])
 		require.NoError(t, err)
 	}
 }
@@ -2003,12 +1989,9 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	require.NotNil(t, attestedAgent)
 	require.Equal(t, expectedID, attestedAgent.SpiffeId)
 
-	agentSelectors, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: expectedID,
-	})
+	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
-	require.NotNil(t, agentSelectors.Selectors)
-	require.EqualValues(t, expectedSelectors, agentSelectors.Selectors.Selectors)
+	require.EqualValues(t, expectedSelectors, agentSelectors)
 }
 
 type fakeRateLimiter struct {

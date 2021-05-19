@@ -635,12 +635,7 @@ func createRegistrationEntry(ctx context.Context, tb testing.TB, ds datastore.Da
 }
 
 func setNodeSelectors(ctx context.Context, tb testing.TB, ds datastore.DataStore, spiffeID string, selectors ...*common.Selector) {
-	_, err := ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  spiffeID,
-			Selectors: selectors,
-		},
-	})
+	err := ds.SetNodeSelectors(ctx, spiffeID, selectors)
 	require.NoError(tb, err)
 }
 

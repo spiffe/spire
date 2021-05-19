@@ -29,7 +29,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -42,8 +41,8 @@ var (
 	TestConnString   string
 	TestROConnString string
 	// Replication to replica can take some time,
-	// if specified, this configuration setting tells the duration to wait before running queries in stale databases
-	TestStaleDelay string
+	// if specified, this configuration setting tells the duration to wait before running queries in read-only databases
+	TestReadOnlyDelay string
 )
 
 const (
@@ -68,7 +67,7 @@ type PluginSuite struct {
 	nextID int
 	ds     *Plugin
 
-	staleDelay time.Duration
+	readOnlyDelay time.Duration
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -100,10 +99,10 @@ func (s *PluginSuite) SetupSuite() {
 	s.cacert = cacert
 	s.cert = cert
 
-	if TestStaleDelay != "" {
-		delay, err := time.ParseDuration(TestStaleDelay)
-		s.Require().NoError(err, "failed to parse stale delay")
-		s.staleDelay = delay
+	if TestReadOnlyDelay != "" {
+		delay, err := time.ParseDuration(TestReadOnlyDelay)
+		s.Require().NoError(err, "failed to parse read-only delay")
+		s.readOnlyDelay = delay
 	}
 }
 
@@ -625,14 +624,6 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	expired := now.Add(-time.Hour)
 	unexpired := now.Add(time.Hour)
 
-	byBanned := func(value bool) *wrapperspb.BoolValue {
-		return &wrapperspb.BoolValue{Value: value}
-	}
-
-	byExpiresBefore := func(t time.Time) *wrapperspb.Int64Value {
-		return &wrapperspb.Int64Value{Value: t.Unix()}
-	}
-
 	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, selectors ...string) *common.AttestedNode {
 		return &common.AttestedNode{
 			SpiffeId:            makeID(spiffeIDSuffix),
@@ -644,6 +635,8 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	}
 
 	banned := ""
+	bannedFalse := false
+	bannedTrue := true
 	unbanned := "IRRELEVANT"
 
 	nodeA := makeAttestedNode("A", "T1", expired, unbanned, "S1")
@@ -659,10 +652,10 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		test                string
 		nodes               []*common.AttestedNode
 		pageSize            int32
-		byExpiresBefore     *wrapperspb.Int64Value
+		byExpiresBefore     time.Time
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
-		byBanned            *wrapperspb.BoolValue
+		byBanned            *bool
 		expectNodesOut      []*common.AttestedNode
 		expectPagedTokensIn []string
 		expectPagedNodesOut [][]*common.AttestedNode
@@ -701,7 +694,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		{
 			test:                "by expires before",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeB, nodeF, nodeG, nodeC},
-			byExpiresBefore:     byExpiresBefore(now),
+			byExpiresBefore:     now,
 			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
 			expectPagedTokensIn: []string{"", "1", "3", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeC}, {}},
@@ -719,7 +712,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		{
 			test:                "by banned",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
-			byBanned:            byBanned(true),
+			byBanned:            &bannedTrue,
 			expectNodesOut:      []*common.AttestedNode{nodeE, nodeF},
 			expectPagedTokensIn: []string{"", "2", "3"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {nodeF}, {}},
@@ -727,7 +720,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		{
 			test:                "by unbanned",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
-			byBanned:            byBanned(false),
+			byBanned:            &bannedFalse,
 			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB},
 			expectPagedTokensIn: []string{"", "1", "4"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
@@ -804,12 +797,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					for _, node := range tt.nodes {
 						_, err := s.ds.CreateAttestedNode(ctx, node)
 						require.NoError(t, err)
-						_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-							Selectors: &datastore.NodeSelectors{
-								SpiffeId:  node.SpiffeId,
-								Selectors: node.Selectors,
-							},
-						})
+						err = s.ds.SetNodeSelectors(ctx, node.SpiffeId, node.Selectors)
 						require.NoError(t, err)
 					}
 
@@ -1061,9 +1049,9 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo", true)
+	selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
@@ -1071,30 +1059,30 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo", true)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.RequireProtoListEqual(foo1, selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo", true)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.RequireProtoListEqual(foo2, selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
-	s.setNodeSelectors("foo", nil)
-	selectors = s.getNodeSelectors("foo", true)
+	s.setNodeSelectors("foo", []*common.Selector{})
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", false)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", true)
+	selectors = s.getNodeSelectors("bar", datastore.TolerateStale)
 	s.RequireProtoListEqual(bar, selectors)
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", false)
+	selectors = s.getNodeSelectors("bar", datastore.RequireCurrent)
 	s.RequireProtoListEqual(bar, selectors)
 }
 
@@ -1164,9 +1152,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 
 	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
-			ValidAt: &timestamppb.Timestamp{
-				Seconds: now.Unix(),
-			},
+			ValidAt: now,
 		}
 		resp := s.listNodeSelectors(req)
 		assertSelectorsEqual(t, nonExpiredSelectorsMap, resp.Selectors)
@@ -1211,12 +1197,7 @@ func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 		go func() {
 			id := fmt.Sprintf("ID%d", atomic.AddInt32(&nextID, 1))
 			for j := 0; j < 10; j++ {
-				_, err := s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-					Selectors: &datastore.NodeSelectors{
-						SpiffeId:  id,
-						Selectors: selectors,
-					},
-				})
+				err := s.ds.SetNodeSelectors(ctx, id, selectors)
 				if err != nil {
 					resultCh <- err
 				}
@@ -1330,8 +1311,8 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
-	s.testListRegistrationEntries(false)
-	s.testListRegistrationEntries(true)
+	s.testListRegistrationEntries(datastore.RequireCurrent)
+	s.testListRegistrationEntries(datastore.TolerateStale)
 
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
@@ -1357,11 +1338,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	s.Require().Nil(resp)
 }
 
-func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
-	byID := func(suffix string) *wrapperspb.StringValue {
-		return &wrapperspb.StringValue{Value: makeID(suffix)}
-	}
-
+func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataConsistency) {
 	byFederatesWith := func(match datastore.MatchBehavior, trustDomainIDs ...string) *datastore.ByFederatesWith {
 		return &datastore.ByFederatesWith{
 			TrustDomains: trustDomainIDs,
@@ -1411,8 +1388,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		test                  string
 		entries               []*common.RegistrationEntry
 		pageSize              int32
-		byParentID            *wrapperspb.StringValue
-		bySpiffeID            *wrapperspb.StringValue
+		byParentID            string
+		bySpiffeID            string
 		bySelectors           *datastore.BySelectors
 		byFederatesWith       *datastore.ByFederatesWith
 		expectEntriesOut      []*common.RegistrationEntry
@@ -1453,7 +1430,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID",
 			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
-			byParentID:            byID("foo"),
+			byParentID:            makeID("foo"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
@@ -1462,7 +1439,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by SPIFFE ID",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, foobarCB2, foobuzCD},
-			bySpiffeID:            byID("bar"),
+			bySpiffeID:            makeID("bar"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
@@ -1504,8 +1481,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID and SPIFFE ID",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, bazbarCB2, bazbuzCD},
-			byParentID:            byID("foo"),
-			bySpiffeID:            byID("bar"),
+			byParentID:            makeID("foo"),
+			bySpiffeID:            makeID("bar"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "1"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
@@ -1514,7 +1491,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID and exact selector",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
-			byParentID:            byID("foo"),
+			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Exact, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
@@ -1523,7 +1500,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID and exact selectors",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
-			byParentID:            byID("foo"),
+			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "2"},
@@ -1532,7 +1509,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID and subset selector",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
-			byParentID:            byID("foo"),
+			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
@@ -1541,7 +1518,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID and subset selectors",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
-			byParentID:            byID("foo"),
+			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "A", "B", "Z"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
 			expectPagedTokensIn:   []string{"", "1", "2"},
@@ -1550,7 +1527,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parent ID and subset selectors no match",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
-			byParentID:            byID("foo"),
+			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "C", "Z"),
 			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
@@ -1560,7 +1537,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parentID and federatesWith one subset",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
-			byParentID:            byID("baz"),
+			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1},
 			expectPagedTokensIn:   []string{"", "6"},
@@ -1569,7 +1546,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parentID and federatesWith many subset",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
-			byParentID:            byID("baz"),
+			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarCB2},
 			expectPagedTokensIn:   []string{"", "8"},
@@ -1578,7 +1555,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parentID and federatesWith one exact",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
-			byParentID:            byID("baz"),
+			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1},
 			expectPagedTokensIn:   []string{"", "6"},
@@ -1587,7 +1564,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by parentID and federatesWith many exact",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
-			byParentID:            byID("baz"),
+			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
 			expectPagedTokensIn:   []string{"", "7", "9"},
@@ -1597,7 +1574,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by SPIFFE ID and exact selector",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
-			bySpiffeID:            byID("bar"),
+			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Exact, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
@@ -1606,7 +1583,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by SPIFFE ID and exact selectors",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
-			bySpiffeID:            byID("bar"),
+			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
 			expectPagedTokensIn:   []string{"", "2"},
@@ -1615,7 +1592,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by SPIFFE ID and subset selector",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
-			bySpiffeID:            byID("bar"),
+			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
 			expectPagedTokensIn:   []string{"", "1"},
@@ -1624,7 +1601,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by SPIFFE ID and subset selectors",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
-			bySpiffeID:            byID("bar"),
+			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "A", "B", "Z"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
 			expectPagedTokensIn:   []string{"", "1", "2"},
@@ -1633,7 +1610,7 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 		{
 			test:                  "by SPIFFE ID and subset selectors no match",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
-			bySpiffeID:            byID("bar"),
+			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "C", "Z"),
 			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
@@ -1648,8 +1625,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 			} else {
 				name += " without pagination"
 			}
-			if tolerateStale {
-				name += " stale"
+			if dbPreference == datastore.TolerateStale {
+				name += " read-only"
 			}
 			s.T().Run(name, func(t *testing.T) {
 				s.ds = s.newPlugin()
@@ -1670,8 +1647,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 
 				// Optionally sleep to give time for the entries to propagate to
 				// the replicas.
-				if tolerateStale && s.staleDelay > 0 {
-					time.Sleep(s.staleDelay)
+				if dbPreference == datastore.TolerateStale && s.readOnlyDelay > 0 {
+					time.Sleep(s.readOnlyDelay)
 				}
 
 				var pagination *datastore.Pagination
@@ -1688,8 +1665,8 @@ func (s *PluginSuite) testListRegistrationEntries(tolerateStale bool) {
 				var actualIDsOut [][]string
 				req := &datastore.ListRegistrationEntriesRequest{
 					Pagination:      pagination,
-					ByParentId:      tt.byParentID,
-					BySpiffeId:      tt.bySpiffeID,
+					ByParentID:      tt.byParentID,
+					BySpiffeID:      tt.bySpiffeID,
 					BySelectors:     tt.bySelectors,
 					ByFederatesWith: tt.byFederatesWith,
 				}
@@ -2083,9 +2060,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 				entry.EntryId = registrationEntry.EntryId
 			}
 			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-				ByParentId: &wrapperspb.StringValue{
-					Value: test.parentID,
-				},
+				ByParentID: test.parentID,
 			})
 			require.NoError(t, err)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
@@ -2419,8 +2394,7 @@ func (s *PluginSuite) TestMigration() {
 				FederatesWith: []string{"spiffe://otherdomain.org"},
 			})
 		case 2:
-			// assert that SPIFFE IDs in bundles, attested nodes, node selectors, and registration entries
-			// are all normalized.
+			// assert that SPIFFE IDs in bundles, attested nodes, and registration entries are all normalized.
 			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
 			s.Require().NoError(err)
 			s.Require().Len(bundlesResp.Bundles, 2)
@@ -2431,14 +2405,6 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().NoError(err)
 			s.Require().Len(attestedNodesResp.Nodes, 1)
 			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
-
-			nodeSelectorsResp, err := s.ds.GetNodeSelectors(context.Background(), &datastore.GetNodeSelectorsRequest{
-				SpiffeId:      "spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed",
-				TolerateStale: true,
-			})
-			s.Require().NoError(err)
-			s.Require().NotNil(nodeSelectorsResp.Selectors)
-			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", nodeSelectorsResp.Selectors.SpiffeId)
 
 			entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 			s.Require().NoError(err)
@@ -2649,19 +2615,13 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string, tolerateStale bool) []*common.Selector {
-	if tolerateStale && TestStaleDelay != "" {
-		time.Sleep(s.staleDelay)
+func (s *PluginSuite) getNodeSelectors(spiffeID string, dbPreference datastore.DataConsistency) []*common.Selector {
+	if dbPreference == datastore.TolerateStale && TestReadOnlyDelay != "" {
+		time.Sleep(s.readOnlyDelay)
 	}
-	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId:      spiffeID,
-		TolerateStale: tolerateStale,
-	})
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().NotNil(resp.Selectors)
-	s.Require().Equal(spiffeID, resp.Selectors.SpiffeId)
-	return resp.Selectors.Selectors
+	return selectors
 }
 
 func (s *PluginSuite) listNodeSelectors(req *datastore.ListNodeSelectorsRequest) *datastore.ListNodeSelectorsResponse {
@@ -2672,14 +2632,8 @@ func (s *PluginSuite) listNodeSelectors(req *datastore.ListNodeSelectorsRequest)
 }
 
 func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
-	resp, err := s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  spiffeID,
-			Selectors: selectors,
-		},
-	})
+	err := s.ds.SetNodeSelectors(ctx, spiffeID, selectors)
 	s.Require().NoError(err)
-	s.Equal(&datastore.SetNodeSelectorsResponse{}, resp)
 }
 
 func (s *PluginSuite) TestConfigure() {
@@ -8641,13 +8595,9 @@ ORDER BY e_id, selector_id, dns_name_id
 			for _, by := range testCase.by {
 				switch by {
 				case "parent-id":
-					req.ByParentId = &wrapperspb.StringValue{
-						Value: "spiffe://parent",
-					}
+					req.ByParentID = "spiffe://parent"
 				case "spiffe-id":
-					req.BySpiffeId = &wrapperspb.StringValue{
-						Value: "spiffe://id",
-					}
+					req.BySpiffeID = "spiffe://id"
 				case "selector-subset-one":
 					req.BySelectors = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
