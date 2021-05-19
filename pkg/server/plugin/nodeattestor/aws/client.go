@@ -7,6 +7,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -73,12 +75,12 @@ func (cc *clientsCache) getClient(region string) (Client, error) {
 	}
 
 	if cc.config == nil {
-		return nil, iidError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
 	client, err := cc.newClient(cc.config, region)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
 
 	cc.clients[region] = client
@@ -88,7 +90,7 @@ func (cc *clientsCache) getClient(region string) (Client, error) {
 func newClient(config *SessionConfig, region string) (Client, error) {
 	sess, err := newAWSSession(config.AccessKeyID, config.SecretAccessKey, region)
 	if err != nil {
-		return nil, iidError.Wrap(err)
+		return nil, err
 	}
 
 	return struct {
