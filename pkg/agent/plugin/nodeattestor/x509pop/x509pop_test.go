@@ -9,14 +9,21 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
+)
+
+var (
+	leafKeyPath      = fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
+	leafCertPath     = fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
+	intermediatePath = fixture.Join("nodeattestor", "x509pop", "intermediate.pem")
+
+	streamBuilder = nodeattestortest.ServerStream(pluginName)
 )
 
 func TestX509PoP(t *testing.T) {
@@ -26,241 +33,137 @@ func TestX509PoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p          nodeattestorv0.NodeAttestorClient
-	leafBundle [][]byte
-	leafCert   *x509.Certificate
+	leafCert                  *x509.Certificate
+	bundleWithoutIntermediate [][]byte
+	bundleWithIntermediate    [][]byte
 }
 
-func (s *Suite) SetupTest() {
-	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
-	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
-	s.p = s.newPlugin()
-	s.configure(leafKeyPath, leafCertPath, "")
-}
+func (s *Suite) SetupSuite() {
+	kp, err := tls.LoadX509KeyPair(leafCertPath, leafKeyPath)
+	s.Require().NoError(err)
 
-func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
-	na := new(nodeattestor.V0)
-	plugintest.Load(s.T(), BuiltIn(), na)
-	return na.NodeAttestorPluginClient
-}
+	s.leafCert, err = x509.ParseCertificate(kp.Certificate[0])
+	s.Require().NoError(err)
 
-func (s *Suite) configure(privateKeyPath, certificatePath, intermediatesPath string) {
-	require := s.Require()
-	config := fmt.Sprintf(`
-		private_key_path = %q 
-		certificate_path = %q`, privateKeyPath, certificatePath)
+	s.bundleWithoutIntermediate = kp.Certificate
 
-	if intermediatesPath != "" {
-		config += fmt.Sprintf(`
-			intermediates_path = %q`, intermediatesPath)
+	intermediateCerts, err := util.LoadCertificates(intermediatePath)
+	s.Require().NoError(err)
+	s.bundleWithIntermediate = kp.Certificate
+	for _, c := range intermediateCerts {
+		s.bundleWithIntermediate = append(s.bundleWithIntermediate, c.Raw)
 	}
-
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: config,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	require.NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
-
-	kp, err := tls.LoadX509KeyPair(certificatePath, privateKeyPath)
-	require.NoError(err)
-
-	certificates := kp.Certificate
-	if intermediatesPath != "" {
-		certs, err := util.LoadCertificates(intermediatesPath)
-		require.NoError(err)
-		for _, c := range certs {
-			certificates = append(certificates, c.Raw)
-		}
-	}
-
-	s.leafBundle = certificates
-	s.leafCert, err = x509.ParseCertificate(s.leafBundle[0])
-	require.NoError(err)
 }
 
-func (s *Suite) TestFetchAttestationDataSuccess() {
-	require := s.Require()
-
-	stream, done := s.fetchAttestationData()
-	defer done()
-
-	// first response has the attestation data
-	resp, err := stream.Recv()
-	require.NoError(err)
-	require.NotNil(resp)
-	require.Equal("x509pop", resp.AttestationData.Type)
-	require.JSONEq(string(s.marshal(x509pop.AttestationData{
-		Certificates: s.leafBundle,
-	})), string(resp.AttestationData.Data))
-	require.Nil(resp.Response)
-
-	// send a challenge
-	challenge, err := x509pop.GenerateChallenge(s.leafCert)
-	require.NoError(err)
-	challengeBytes, err := json.Marshal(challenge)
-	require.NoError(err)
-	err = stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
-		Challenge: challengeBytes,
-	})
-	require.NoError(err)
-
-	// recv the response
-	resp, err = stream.Recv()
-	require.NoError(err)
-	require.Nil(resp.AttestationData)
-	require.NotEmpty(resp.Response)
-
-	// verify signature
-	response := new(x509pop.Response)
-	s.unmarshal(resp.Response, response)
-	err = x509pop.VerifyChallengeResponse(s.leafCert.PublicKey, challenge, response)
-	require.NoError(err)
+func (s *Suite) TestAttestSuccess() {
+	p := s.loadAndConfigurePlugin(false)
+	s.testAttestSuccess(p, s.bundleWithoutIntermediate)
 }
 
-func (s *Suite) TestFetchAttestationDataSuccessWithIntermediates() {
-	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
-	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf.pem")
-	intermediatePath := fixture.Join("nodeattestor", "x509pop", "intermediate.pem")
-	s.configure(leafKeyPath, leafCertPath, intermediatePath)
-	s.TestFetchAttestationDataSuccess()
+func (s *Suite) TestAttestSuccessWithIntermediates() {
+	p := s.loadAndConfigurePlugin(true)
+	s.testAttestSuccess(p, s.bundleWithIntermediate)
 }
 
-func (s *Suite) TestFetchAttestationDataFailure() {
-	require := s.Require()
-
-	challengeFails := func(challenge []byte, expected string) {
-		stream, done := s.fetchAttestationData()
-		defer done()
-
-		resp, err := stream.Recv()
-		require.NoError(err)
-		require.NotNil(resp)
-
-		require.NoError(stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
-			Challenge: challenge,
-		}))
-
-		resp, err = stream.Recv()
-		s.RequireErrorContains(err, expected)
-		require.Nil(resp)
-	}
-
+func (s *Suite) TestAttestFailure() {
 	// not configured
-	stream, err := s.newPlugin().FetchAttestationData(context.Background())
-	require.NoError(err)
-	defer func() {
-		require.NoError(stream.CloseSend())
-	}()
-	resp, err := stream.Recv()
-	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: not configured")
-	require.Nil(resp)
+	err := s.loadPlugin().Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(x509pop): not configured")
+
+	p := s.loadAndConfigurePlugin(false)
 
 	// malformed challenge
-	challengeFails(nil, "x509pop: unable to unmarshal challenge")
+	err = p.Attest(context.Background(), streamBuilder.IgnoreThenChallenge([]byte("")).Build())
+	s.RequireGRPCStatusContains(err, codes.Internal, "nodeattestor(x509pop): unable to unmarshal challenge")
 
 	// empty challenge
-	challengeFails(s.marshal(x509pop.Challenge{}), "x509pop: failed to calculate challenge response")
+	err = p.Attest(context.Background(), streamBuilder.IgnoreThenChallenge(s.marshal(x509pop.Challenge{})).Build())
+	s.RequireGRPCStatusContains(err, codes.Internal, "nodeattestor(x509pop): failed to calculate challenge response")
 }
 
 func (s *Suite) TestConfigure() {
-	require := s.Require()
+	var err error
 
 	// malformed
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `bad juju`,
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "x509pop: unable to decode configuration")
-	require.Nil(resp)
-
-	// missing global configuration
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		private_key_path = "blah"
-		certificate_path = "blah"
-		`,
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: global configuration is required")
-	require.Nil(resp)
-
-	// missing trust_domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		private_key_path = "blah"
-		certificate_path = "blah"
-		`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: trust_domain is required")
-	require.Nil(resp)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`bad juju`))
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
 	// missing private_key_path
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		certificate_path = "blah"
-		`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: private_key_path is required")
-	require.Nil(resp)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`
+			certificate_path = "blah"
+		`),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "private_key_path is required")
 
 	// missing certificate_path
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		private_key_path = "blah"
-		`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "x509pop: certificate_path is required")
-	require.Nil(resp)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`
+			private_key_path = "blah"
+		`),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "certificate_path is required")
 
 	// cannot load keypair
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-		private_key_path = "blah"
-		certificate_path = "blah"
-		`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "x509pop: unable to load keypair")
-	require.Nil(resp)
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configure(`
+			private_key_path = "blah"
+			certificate_path = "blah"
+		`),
+	)
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to load keypair")
 
 	// cannot load intermediates
-	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
-	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: fmt.Sprintf(`
-			private_key_path = %q 
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.Configuref(`
+			private_key_path = %q
 			certificate_path = %q
 			intermediates_path = "blah"`, leafKeyPath, leafCertPath),
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "spiffe://example.org"},
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "x509pop: unable to load intermediate certificates")
-	require.Nil(resp)
+	)
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to load intermediate certificates")
 }
 
-func (s *Suite) TestGetPluginInfo() {
-	require := s.Require()
-
-	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	require.NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
+func (s *Suite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {
+	na := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), na, options...)
+	return na
 }
 
-func (s *Suite) fetchAttestationData() (nodeattestorv0.NodeAttestor_FetchAttestationDataClient, func()) {
-	stream, err := s.p.FetchAttestationData(context.Background())
-	s.Require().NoError(err)
-	return stream, func() {
-		s.Require().NoError(stream.CloseSend())
+func (s *Suite) loadAndConfigurePlugin(withIntermediate bool) nodeattestor.NodeAttestor {
+	config := fmt.Sprintf(`
+		private_key_path = %q 
+		certificate_path = %q`, leafKeyPath, leafCertPath)
+	if withIntermediate {
+		config += fmt.Sprintf(`
+			intermediates_path = %q`, intermediatePath)
 	}
+	return s.loadPlugin(plugintest.Configure(config))
+}
+
+func (s *Suite) testAttestSuccess(p nodeattestor.NodeAttestor, expectBundle [][]byte) {
+	expectPayload := s.marshal(x509pop.AttestationData{
+		Certificates: expectBundle,
+	})
+
+	challenge, err := x509pop.GenerateChallenge(s.leafCert)
+	s.Require().NoError(err)
+	challengeBytes := s.marshal(challenge)
+
+	err = p.Attest(context.Background(), streamBuilder.
+		ExpectThenChallenge(expectPayload, challengeBytes).
+		Handle(func(challengeResponse []byte) ([]byte, error) {
+			response := new(x509pop.Response)
+			if err := json.Unmarshal(challengeResponse, response); err != nil {
+				return nil, err
+			}
+			return nil, x509pop.VerifyChallengeResponse(s.leafCert.PublicKey, challenge, response)
+		}).Build())
+	s.Require().NoError(err)
 }
 
 func (s *Suite) marshal(obj interface{}) []byte {
 	data, err := json.Marshal(obj)
 	s.Require().NoError(err)
 	return data
-}
-
-func (s *Suite) unmarshal(data []byte, obj interface{}) {
-	s.Require().NoError(json.Unmarshal(data, obj))
 }
