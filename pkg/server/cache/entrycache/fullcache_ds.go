@@ -10,7 +10,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -42,7 +41,7 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 	}
 	if it.entries == nil {
 		req := &datastore.ListRegistrationEntriesRequest{
-			TolerateStale: true,
+			DataConsistency: datastore.TolerateStale,
 		}
 
 		resp, err := it.ds.ListRegistrationEntries(ctx, req)
@@ -134,11 +133,10 @@ func (it *agentIteratorDS) Err() error {
 
 // Fetches all agent selectors from the datastore and stores them in the iterator.
 func (it *agentIteratorDS) fetchAgents(ctx context.Context) ([]Agent, error) {
+	now := time.Now()
 	resp, err := it.ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{
-		TolerateStale: true,
-		ValidAt: &timestamppb.Timestamp{
-			Seconds: time.Now().Unix(),
-		},
+		DataConsistency: datastore.TolerateStale,
+		ValidAt:         now,
 	})
 	if err != nil {
 		return nil, err

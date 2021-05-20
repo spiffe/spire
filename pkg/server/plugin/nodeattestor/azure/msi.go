@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -30,17 +31,14 @@ const (
 	azureOIDCIssuer       = "https://login.microsoftonline.com/common/"
 )
 
-var (
-	msiError = errs.Class("azure-msi")
-)
-
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
 func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		nodeattestorv0.NodeAttestorPluginServer(p),
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -55,6 +53,8 @@ type MSIAttestorConfig struct {
 
 type MSIAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	mu     sync.RWMutex
 	config *MSIAttestorConfig
@@ -65,7 +65,7 @@ type MSIAttestorPlugin struct {
 	}
 }
 
-var _ nodeattestorv0.NodeAttestorServer = (*MSIAttestorPlugin)(nil)
+var _ nodeattestorv1.NodeAttestorServer = (*MSIAttestorPlugin)(nil)
 
 func New() *MSIAttestorPlugin {
 	p := &MSIAttestorPlugin{}
@@ -74,10 +74,10 @@ func New() *MSIAttestorPlugin {
 	return p
 }
 
-func (p *MSIAttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
-		return msiError.Wrap(err)
+		return err
 	}
 
 	config, err := p.getConfig()
@@ -85,122 +85,115 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServ
 		return err
 	}
 
-	if req.AttestationData == nil {
-		return msiError.New("missing attestation data")
-	}
-
-	if dataType := req.AttestationData.Type; dataType != pluginName {
-		return msiError.New("unexpected attestation data type %q", dataType)
-	}
-
-	if req.AttestationData.Data == nil {
-		return msiError.New("missing attestation data payload")
+	payload := req.GetPayload()
+	if payload == nil {
+		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	attestationData := new(azure.MSIAttestationData)
-	if err := json.Unmarshal(req.AttestationData.Data, attestationData); err != nil {
-		return msiError.New("failed to unmarshal data payload: %v", err)
+	if err := json.Unmarshal(payload, attestationData); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data payload: %v", err)
 	}
 
 	if attestationData.Token == "" {
-		return msiError.New("missing token from attestation data")
+		return status.Errorf(codes.InvalidArgument, "missing token from attestation data")
 	}
 
 	keySet, err := p.hooks.keySetProvider.GetKeySet(stream.Context())
 	if err != nil {
-		return msiError.New("unable to obtain JWKS: %v", err)
+		return status.Errorf(codes.Internal, "unable to obtain JWKS: %v", err)
 	}
 
 	token, err := jwt.ParseSigned(attestationData.Token)
 	if err != nil {
-		return msiError.New("unable to parse token: %v", err)
+		return status.Errorf(codes.InvalidArgument, "unable to parse token: %v", err)
 	}
 
 	keyID, ok := getTokenKeyID(token)
 	if !ok {
-		return msiError.New("token missing key id")
+		return status.Error(codes.InvalidArgument, "token missing key id")
 	}
 
 	keys := keySet.Key(keyID)
 	if len(keys) == 0 {
-		return msiError.New("key id %q not found", keyID)
+		return status.Errorf(codes.InvalidArgument, "key id %q not found", keyID)
 	}
 
 	claims := new(azure.MSITokenClaims)
 	if err := token.Claims(&keys[0], claims); err != nil {
-		return msiError.New("unable to verify token: %v", err)
+		return status.Errorf(codes.InvalidArgument, "unable to verify token: %v", err)
 	}
 	agentID := claims.AgentID(config.trustDomain)
 
 	attested, err := p.IsAttested(stream.Context(), agentID)
 	switch {
 	case err != nil:
-		return msiError.Wrap(err)
+		return err
 	case attested:
-		return msiError.New("MSI token has already been used to attest an agent")
+		return status.Error(codes.PermissionDenied, "MSI token has already been used to attest an agent")
 	}
 
 	// make sure tenant id is present and authorized
 	if claims.TenantID == "" {
-		return msiError.New("token missing tenant ID claim")
+		return status.Error(codes.Internal, "token missing tenant ID claim")
 	}
 	tenant, ok := config.Tenants[claims.TenantID]
 	if !ok {
-		return msiError.New("tenant %q is not authorized", claims.TenantID)
+		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", claims.TenantID)
 	}
 
 	if err := claims.ValidateWithLeeway(jwt.Expected{
 		Audience: []string{tenant.ResourceID},
 		Time:     p.hooks.now(),
 	}, tokenLeeway); err != nil {
-		return msiError.New("unable to validate token claims: %v", err)
+		return status.Errorf(codes.Internal, "unable to validate token claims: %v", err)
 	}
 
 	// make sure principal id is in subject claim
 	if claims.Subject == "" {
-		return msiError.New("token missing subject claim")
+		return status.Error(codes.Internal, "token missing subject claim")
 	}
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId: agentID,
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId: agentID,
+			},
+		},
 	})
 }
 
-func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := new(MSIAttestorConfig)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, msiError.New("unable to decode configuration: %v", err)
+func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	hclConfig := new(MSIAttestorConfig)
+	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-	if req.GlobalConfig == nil {
-		return nil, msiError.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, msiError.New("global configuration missing trust domain")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	hclConfig.trustDomain = req.CoreConfiguration.TrustDomain
 
-	if len(config.Tenants) == 0 {
-		return nil, msiError.New("configuration must have at least one tenant")
+	if len(hclConfig.Tenants) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one tenant")
 	}
-	for _, tenant := range config.Tenants {
+	for _, tenant := range hclConfig.Tenants {
 		if tenant.ResourceID == "" {
 			tenant.ResourceID = azure.DefaultMSIResourceID
 		}
 	}
 
-	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *MSIAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	p.setConfig(hclConfig)
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, msiError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }

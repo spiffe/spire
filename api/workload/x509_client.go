@@ -141,12 +141,11 @@ func (x *x509Client) Start() error {
 	}()
 
 	err := x.hooks.streamX509SVID(ctx, x.c, out)
-	switch err {
-	case nil, context.Canceled:
+	if errors.Is(err, context.Canceled) {
 		return nil
-	default:
-		return err
 	}
+
+	return err
 }
 
 func (x *x509Client) Stop() {

@@ -14,9 +14,9 @@ func TestBackOff(t *testing.T) {
 	mockClk := clock.NewMock(t)
 	b := NewBackoff(mockClk, testInitialInterval)
 
-	var expectedResults = []time.Duration{6400, 9600, 14400, 21600, 32400, 48600, 72900, 109350, 153600, 153600}
-	for i, d := range expectedResults {
-		expectedResults[i] = d * time.Millisecond
+	expectedResults := []time.Duration{}
+	for _, d := range []int{6400, 9600, 14400, 21600, 32400, 48600, 72900, 109350, 153600, 153600} {
+		expectedResults = append(expectedResults, time.Duration(d)*time.Millisecond)
 	}
 
 	for _, expected := range expectedResults {

@@ -8,7 +8,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (
@@ -2470,7 +2469,9 @@ WHERE id IN (
 		if tt.supportsCTE {
 			name += "-cte"
 		}
-		expiresBefore := time.Now().Unix()
+		expiresBefore := time.Now()
+		bannedTrue := true
+		bannedFalse := false
 		t.Run(name, func(t *testing.T) {
 			req := new(datastore.ListAttestedNodesRequest)
 			switch tt.paged {
@@ -2489,9 +2490,7 @@ WHERE id IN (
 				switch by {
 				case noFilter:
 				case byExpiresBefore:
-					req.ByExpiresBefore = &wrapperspb.Int64Value{
-						Value: expiresBefore,
-					}
+					req.ByExpiresBefore = expiresBefore
 				case bySelectorSubsetOne:
 					req.BySelectorMatch = &datastore.BySelectors{
 						Selectors: []*common.Selector{{Type: "a", Value: "1"}},
@@ -2515,13 +2514,9 @@ WHERE id IN (
 				case byAttestationType:
 					req.ByAttestationType = "type1"
 				case byBanned:
-					req.ByBanned = &wrapperspb.BoolValue{
-						Value: true,
-					}
+					req.ByBanned = &bannedTrue
 				case byNoBanned:
-					req.ByBanned = &wrapperspb.BoolValue{
-						Value: false,
-					}
+					req.ByBanned = &bannedFalse
 				case byFetchSelectors:
 					req.FetchSelectors = true
 				}

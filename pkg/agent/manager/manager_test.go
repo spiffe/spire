@@ -147,7 +147,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	}
 
 	_, err := ReadSVID(c.SVIDCachePath)
-	if err != ErrNotCached {
+	if !errors.Is(err, ErrNotCached) {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
 
@@ -1047,7 +1047,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	go func() {
 		errCh <- server.Serve(listener)
 		if err != nil {
-			panic(fmt.Errorf("error starting mock server: %v", err))
+			panic(fmt.Errorf("error starting mock server: %w", err))
 		}
 	}()
 

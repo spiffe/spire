@@ -72,7 +72,7 @@ func (b *bsdTracker) NewWatcher(info CallerInfo) (Watcher, error) {
 	if !ok {
 		err := b.addKeventForWatcher(pid)
 		if err != nil {
-			return nil, fmt.Errorf("could not create watcher: %v", err)
+			return nil, fmt.Errorf("could not create watcher: %w", err)
 		}
 
 		done = make(chan struct{})
@@ -124,7 +124,7 @@ func (b *bsdTracker) receiveKevents(kqfd int) {
 				return
 			}
 
-			if err == syscall.EINTR {
+			if errors.Is(err, syscall.EINTR) {
 				continue
 			}
 

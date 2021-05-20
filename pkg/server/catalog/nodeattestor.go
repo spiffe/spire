@@ -26,7 +26,11 @@ func (repo *nodeAttestorRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *nodeAttestorRepository) Versions() []catalog.Version {
-	return []catalog.Version{nodeAttestorV0{}}
+	return []catalog.Version{
+		nodeAttestorV1{},
+		// TODO: remove v0 once all of the built-ins have been migrated to v1
+		nodeAttestorV0{},
+	}
 }
 
 func (repo *nodeAttestorRepository) LegacyVersion() (catalog.Version, bool) {
@@ -46,7 +50,12 @@ func (repo *nodeAttestorRepository) BuiltIns() []catalog.BuiltIn {
 	}
 }
 
+type nodeAttestorV1 struct{}
+
+func (nodeAttestorV1) New() catalog.Facade { return new(nodeattestor.V1) }
+func (nodeAttestorV1) Deprecated() bool    { return false }
+
 type nodeAttestorV0 struct{}
 
 func (nodeAttestorV0) New() catalog.Facade { return new(nodeattestor.V0) }
-func (nodeAttestorV0) Deprecated() bool    { return false }
+func (nodeAttestorV0) Deprecated() bool    { return true }

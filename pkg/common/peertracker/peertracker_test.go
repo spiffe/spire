@@ -178,7 +178,7 @@ func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan error) {
 	go func() {
 		conn, err := net.DialUnix("unix", nil, addr)
 		if err != nil {
-			doneCh <- fmt.Errorf("could not dial unix address: %v", err)
+			doneCh <- fmt.Errorf("could not dial unix address: %w", err)
 			return
 		}
 
@@ -206,14 +206,14 @@ func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath stri
 	go func() {
 		out, err := exec.Command(childPath, "-socketPath", addr.Name).Output()
 		if err != nil {
-			doneCh <- fmt.Errorf("child process failed: %v", err)
+			doneCh <- fmt.Errorf("child process failed: %w", err)
 			return
 		}
 
 		// Get and store the grandchild PID from our child's STDOUT
 		grandchildPID, err := strconv.ParseInt(string(out), 10, 0)
 		if err != nil {
-			doneCh <- fmt.Errorf("could not get grandchild pid: %v", err)
+			doneCh <- fmt.Errorf("could not get grandchild pid: %w", err)
 			return
 		}
 

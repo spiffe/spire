@@ -3,6 +3,7 @@ package jwtsvid
 import (
 	"context"
 	"crypto"
+	"errors"
 	"fmt"
 	"time"
 
@@ -100,10 +101,10 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 		Time:     time.Now(),
 	}); err != nil {
 		// Convert expected validation errors for pretty errors
-		switch err {
-		case jwt.ErrExpired:
+		switch {
+		case errors.Is(err, jwt.ErrExpired):
 			err = errs.New("token has expired")
-		case jwt.ErrInvalidAudience:
+		case errors.Is(err, jwt.ErrInvalidAudience):
 			err = errs.New("expected audience in %q (audience=%q)", audience, claims.Audience)
 		default:
 			err = errs.Wrap(err)

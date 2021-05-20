@@ -7,21 +7,16 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
 	pluginName = "azure_msi"
-)
-
-var (
-	msiError = errs.Class("azure-msi")
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -29,12 +24,13 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 type MSIAttestorConfig struct {
-	trustDomain spiffeid.TrustDomain
-
 	// ResourceID assigned to the MSI token. This value is the intended
 	// audience of the token, in other words, which service the token can be
 	// used to authenticate with. Ideally deployments use the ID of an
@@ -45,7 +41,8 @@ type MSIAttestorConfig struct {
 }
 
 type MSIAttestorPlugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	mu     sync.RWMutex
 	config *MSIAttestorConfig
@@ -61,7 +58,7 @@ func New() *MSIAttestorPlugin {
 	return p
 }
 
-func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
+func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -70,60 +67,42 @@ func (p *MSIAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttes
 	// Obtain an MSI token from the Azure Instance Metadata Service
 	token, err := p.hooks.fetchMSIToken(stream.Context(), http.DefaultClient, config.ResourceID)
 	if err != nil {
-		return msiError.New("unable to fetch token: %v", err)
+		return status.Errorf(codes.Internal, "unable to fetch token: %v", err)
 	}
 
-	data, err := json.Marshal(azure.MSIAttestationData{
+	payload, err := json.Marshal(azure.MSIAttestationData{
 		Token: token,
 	})
 	if err != nil {
-		return msiError.Wrap(err)
+		return status.Errorf(codes.Internal, "failed to marshal payload: %v", err)
 	}
 
-	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		AttestationData: &common.AttestationData{
-			Type: pluginName,
-			Data: data,
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: payload,
 		},
 	})
 }
 
-func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(MSIAttestorConfig)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, msiError.New("unable to decode configuration: %v", err)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-
-	if req.GlobalConfig == nil {
-		return nil, msiError.New("global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, msiError.New("global configuration missing trust domain")
-	}
-
-	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
-	config.trustDomain = td
 
 	if config.ResourceID == "" {
 		config.ResourceID = azure.DefaultMSIResourceID
 	}
 
 	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *MSIAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, msiError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }

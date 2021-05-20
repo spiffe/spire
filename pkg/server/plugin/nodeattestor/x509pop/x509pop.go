@@ -71,7 +71,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 
 	attestationData := new(x509pop.AttestationData)
 	if err := json.Unmarshal(req.AttestationData.Data, attestationData); err != nil {
-		return newError("failed to unmarshal data: %v", err)
+		return newError("failed to unmarshal data: %w", err)
 	}
 
 	// build up leaf certificate and list of intermediates
@@ -80,7 +80,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	}
 	leaf, err := x509.ParseCertificate(attestationData.Certificates[0])
 	if err != nil {
-		return newError("unable to parse leaf certificate: %v", err)
+		return newError("unable to parse leaf certificate: %w", err)
 	}
 	intermediates := x509.NewCertPool()
 	for i, intermediateBytes := range attestationData.Certificates[1:] {
@@ -98,19 +98,19 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	})
 	if err != nil {
-		return newError("certificate verification failed: %v", err)
+		return newError("certificate verification failed: %w", err)
 	}
 
 	// now that the leaf certificate is trusted, issue a challenge to the node
 	// to prove possession of the private key.
 	challenge, err := x509pop.GenerateChallenge(leaf)
 	if err != nil {
-		return fmt.Errorf("unable to generate challenge: %v", err)
+		return fmt.Errorf("unable to generate challenge: %w", err)
 	}
 
 	challengeBytes, err := json.Marshal(challenge)
 	if err != nil {
-		return fmt.Errorf("unable to marshal challenge: %v", err)
+		return fmt.Errorf("unable to marshal challenge: %w", err)
 	}
 
 	if err := stream.Send(&nodeattestorv0.AttestResponse{
@@ -127,16 +127,16 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 
 	response := new(x509pop.Response)
 	if err := json.Unmarshal(responseReq.Response, response); err != nil {
-		return newError("unable to unmarshal challenge response: %v", err)
+		return newError("unable to unmarshal challenge response: %w", err)
 	}
 
 	if err := x509pop.VerifyChallengeResponse(leaf.PublicKey, challenge, response); err != nil {
-		return newError("challenge response verification failed: %v", err)
+		return newError("challenge response verification failed: %w", err)
 	}
 
 	spiffeid, err := x509pop.MakeSpiffeID(c.trustDomain, c.pathTemplate, leaf)
 	if err != nil {
-		return newError("failed to make spiffe id: %v", err)
+		return newError("failed to make spiffe id: %w", err)
 	}
 
 	return stream.Send(&nodeattestorv0.AttestResponse{
@@ -148,7 +148,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
 	config := new(Config)
 	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, newError("unable to decode configuration: %v", err)
+		return nil, newError("unable to decode configuration: %w", err)
 	}
 
 	if req.GlobalConfig == nil {
