@@ -16,7 +16,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // Config defines the service configuration.
@@ -79,9 +78,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
 			}
-			listReq.ByParentId = &wrapperspb.StringValue{
-				Value: parentID.String(),
-			}
+			listReq.ByParentID = parentID.String()
 		}
 
 		if req.Filter.BySpiffeId != nil {
@@ -89,9 +86,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
 			}
-			listReq.BySpiffeId = &wrapperspb.StringValue{
-				Value: spiffeID.String(),
-			}
+			listReq.BySpiffeID = spiffeID.String()
 		}
 
 		if req.Filter.BySelectors != nil {
@@ -378,12 +373,8 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 
 func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrapperspb.StringValue{
-			Value: e.SpiffeId,
-		},
-		ByParentId: &wrapperspb.StringValue{
-			Value: e.ParentId,
-		},
+		BySpiffeID: e.SpiffeId,
+		ByParentID: e.ParentId,
 		BySelectors: &datastore.BySelectors{
 			Match:     datastore.Exact,
 			Selectors: e.Selectors,

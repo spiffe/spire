@@ -91,8 +91,14 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 	// Parse proto filter into datastore request
 	if req.Filter != nil {
 		filter := req.Filter
+
+		var byBanned *bool
+		if filter.ByBanned != nil {
+			byBanned = &filter.ByBanned.Value
+		}
+
 		listReq.ByAttestationType = filter.ByAttestationType
-		listReq.ByBanned = filter.ByBanned
+		listReq.ByBanned = byBanned
 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
@@ -297,12 +303,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
-	_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  agentID,
-			Selectors: append(attestResult.Selectors, resolvedSelectors...),
-		},
-	})
+	err = s.ds.SetNodeSelectors(ctx, agentID, append(attestResult.Selectors, resolvedSelectors...))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -492,14 +493,12 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 }
 
 func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) ([]*types.Selector, error) {
-	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: agentID,
-	})
+	selectors, err := s.ds.GetNodeSelectors(ctx, agentID, datastore.RequireCurrent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node selectors: %w", err)
 	}
 
-	return api.NodeSelectorsToProto(resp.Selectors)
+	return api.ProtoFromSelectors(selectors), nil
 }
 
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {

@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
@@ -85,9 +84,7 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 	return middleware.EntryFetcherFunc(func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
 		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-			BySpiffeId: &wrapperspb.StringValue{
-				Value: id.String(),
-			},
+			BySpiffeID: id.String(),
 		})
 		if err != nil {
 			return nil, err
