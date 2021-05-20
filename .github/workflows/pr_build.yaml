@@ -127,7 +127,7 @@ jobs:
       - name: Build images
         run: make images scratch-images
       - name: Export images
-        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local | gzip > images.tar.gz
+        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > images.tar.gz
       - name: Archive images
         uses: actions/upload-artifact@v2
         with:
