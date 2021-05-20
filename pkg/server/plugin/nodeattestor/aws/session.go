@@ -4,6 +4,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // SessionConfig is a common config for AWS session config.
@@ -23,9 +25,9 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 
 	switch {
 	case cfg.AccessKeyID != "" && cfg.SecretAccessKey == "":
-		return iidError.New("configuration missing secret access key, but has access key id")
+		return status.Error(codes.InvalidArgument, "configuration missing secret access key, but has access key id")
 	case cfg.AccessKeyID == "" && cfg.SecretAccessKey != "":
-		return iidError.New("configuration missing access key id, but has secret access key")
+		return status.Error(codes.InvalidArgument, "configuration missing access key id, but has secret access key")
 	}
 	return nil
 }

@@ -16,7 +16,6 @@ func New(t *testing.T) keymanager.KeyManager {
 
 	plugin := keyManager{
 		Base: keymanagerbase.New(keymanagerbase.Funcs{
-			GenerateRSA1024Key: keys.NextRSA1024,
 			GenerateRSA2048Key: keys.NextRSA2048,
 			GenerateRSA4096Key: keys.NextRSA4096,
 			GenerateEC256Key:   keys.NextEC256,
