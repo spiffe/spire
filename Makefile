@@ -360,7 +360,7 @@ oidc-discovery-provider-image: Dockerfile
 #############################################################################
 
 .PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image
+scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
 
 .PHONY: spire-server-scratch-image
 spire-server-scratch-image: Dockerfile
