@@ -110,7 +110,7 @@ func (v0 *V0) convertKeyType(t KeyType) (keymanagerv0.KeyType, error) {
 	case RSA4096:
 		return keymanagerv0.KeyType_RSA_4096, nil
 	default:
-		return keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE, v0.Errorf(codes.Internal, "facade does not support key type %s", t)
+		return keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE, v0.Errorf(codes.Internal, "facade does not support key type %q", t)
 	}
 }
 
