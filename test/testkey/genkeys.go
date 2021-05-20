@@ -35,7 +35,6 @@ var (
 )
 
 func main() {
-	rsa1024 := flag.Int("rsa1024", 0, "Number of rsa1024 keys to generate")
 	rsa2048 := flag.Int("rsa2048", 0, "Number of rsa2048 keys to generate")
 	rsa4096 := flag.Int("rsa4096", 0, "Number of rsa4096 keys to generate")
 	ec256 := flag.Int("ec256", 0, "Number of ec256 keys to generate")
@@ -46,7 +45,6 @@ func main() {
 
 	fmt.Fprintln(buf, header)
 
-	writeKeys(buf, "RSA1024Keys", testkey.RSA1024Keys, *rsa1024, genRSA1024)
 	writeKeys(buf, "RSA2048Keys", testkey.RSA2048Keys, *rsa2048, genRSA2048)
 	writeKeys(buf, "RSA4096Keys", testkey.RSA4096Keys, *rsa4096, genRSA4096)
 	writeKeys(buf, "EC256Keys", testkey.EC256Keys, *ec256, genEC256)
@@ -75,7 +73,6 @@ func writeKeys(buf io.Writer, varName string, existing []string, wanted int, gen
 	fmt.Fprintln(buf, "}")
 }
 
-func genRSA1024() crypto.PrivateKey { return genRSA(1024) }
 func genRSA2048() crypto.PrivateKey { return genRSA(2048) }
 func genRSA4096() crypto.PrivateKey { return genRSA(4096) }
 func genEC256() crypto.PrivateKey   { return genEC(elliptic.P256()) }
