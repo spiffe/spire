@@ -143,7 +143,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	}
 
 	// Verify DevID challenge
-	err = verifyDevIDChallenge(devIDCert, devIDChallenge, challengeResponse.DevID)
+	err = VerifyDevIDChallenge(devIDCert, devIDChallenge, challengeResponse.DevID)
 	if err != nil {
 		return status.Errorf(codes.Unauthenticated, "devID challenge verification failed: %v", err)
 	}
@@ -310,13 +310,13 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 	}
 
 	// Verify DevID resides in the same TPM than AK
-	err = verifyDevIDCertification(&akPub, &devIDPub, attData.CertifiedDevID, attData.CertificationSignature)
+	err = VerifyDevIDCertification(&akPub, &devIDPub, attData.CertifiedDevID, attData.CertificationSignature)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot to verify that DevID is in the same TPM than AK: %v", err)
 	}
 
 	// Issue a credential activation challenge (to verify AK is in the same TPM than EK)
-	challenge, nonce, err := newCredActivationChallenge(akPub, ekPub)
+	challenge, nonce, err := NewCredActivationChallenge(akPub, ekPub)
 	if err != nil {
 		return nil, nil, status.Error(codes.Internal, "cannot generate credential activation challenge")
 	}
@@ -398,7 +398,7 @@ func verifyEKsMatch(ekCert *x509.Certificate, ekPub tpm2.Public) error {
 	return nil
 }
 
-func verifyDevIDCertification(pubAK, pubDevID *tpm2.Public, attestData, attestSig []byte) error {
+func VerifyDevIDCertification(pubAK, pubDevID *tpm2.Public, attestData, attestSig []byte) error {
 	err := checkSignature(pubAK, attestData, attestSig)
 	if err != nil {
 		return err

@@ -96,11 +96,13 @@ func (k *SigningKey) Sign(data []byte) ([]byte, error) {
 	}
 
 	var sig *tpm2.Signature
+
+loop:
 	for i := 0; i <= maxAttempts; i++ {
 		sig, err = tpm2.Sign(k.rw, k.Handle, "", digest, token, nil)
 		switch {
 		case err == nil:
-			break
+			break loop
 
 		case isRetry(err):
 			if i == maxAttempts {
@@ -142,6 +144,7 @@ func (k *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 	var certifiedDevID []byte
 	var certificationSignature []byte
 	var err error
+loop:
 	for i := 0; i <= maxAttempts; i++ {
 		certifiedDevID, certificationSignature, err = tpm2.Certify(k.rw, "", "", object, k.Handle, nil)
 		switch {
@@ -157,7 +160,7 @@ func (k *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
 			time.Sleep(time.Millisecond * 500)
 
 		default:
-			break
+			break loop
 		}
 	}
 
@@ -176,5 +179,9 @@ func SRKTemplateHighRSA() tpm2.Public {
 
 // isRetry returns true if the given error is a tpm2.Warning that request retry.
 func isRetry(err error) bool {
-	return errors.As(err, &tpm2.Warning{Code: tpm2.RCRetry})
+	target := &tpm2.Warning{Code: tpm2.RCRetry}
+	if errors.As(err, target) && target.Code == tpm2.RCRetry {
+		return true
+	}
+	return false
 }

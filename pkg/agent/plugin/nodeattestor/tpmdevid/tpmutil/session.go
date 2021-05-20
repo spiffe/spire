@@ -1,6 +1,7 @@
 package tpmutil
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -13,7 +14,7 @@ import (
 // ekRSACertificateHandle is the default handle for RSA endorsement key according
 // to the TCG TPM v2.0 Provisioning Guidance, section 7.8
 // https://trustedcomputinggroup.org/resource/tcg-tpm-v2-0-provisioning-guidance/
-const ekRSACertificateHandle = tpmutil.Handle(0x01c00002)
+const EKCertificateHandleRSA = tpmutil.Handle(0x01c00002)
 
 // Session represents a TPM with loaded DevID credentials and exposes methods
 // to perfom cryptographyc operations relevant to the SPIRE node attestation
@@ -38,13 +39,25 @@ type SessionConfig struct {
 	Log hclog.Logger
 }
 
+var OpenTPM func(string) (io.ReadWriteCloser, error) = tpm2.OpenTPM
+
 // NewSession opens a connection to a TPM and configures it to be used for
 // node attestation.
 func NewSession(scfg *SessionConfig) (*Session, error) {
+	if scfg.Log == nil {
+		return nil, errors.New("missing logger")
+	}
+
 	// Open TPM connection
-	tpm, err := open(scfg.DevicePath, scfg.Log)
+	rwc, err := OpenTPM(scfg.DevicePath)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open TPM at %q: %w", scfg.DevicePath, err)
+	}
+
+	// Create session
+	tpm := &Session{
+		rwc: rwc,
+		log: scfg.Log,
 	}
 
 	// Close session in case of error
@@ -121,7 +134,12 @@ func (c *Session) Close() {
 // SolveDevIDChallenge request the TPM to sign the provided nonce using the loaded
 // DevID credentials.
 func (c *Session) SolveDevIDChallenge(nonce []byte) ([]byte, error) {
-	return c.devID.Sign(nonce)
+	signedNonce, err := c.devID.Sign(nonce)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign nonce: %w", err)
+	}
+
+	return signedNonce, nil
 }
 
 // SolveCredActivationChallenge runs credential activation on the TPM. It proves
@@ -161,9 +179,9 @@ func (c *Session) CertifyDevIDKey() ([]byte, []byte, error) {
 
 // GetEKCert returns TPM endorsement certificate.
 func (c *Session) GetEKCert() ([]byte, error) {
-	EKCert, err := tpm2.NVRead(c.rwc, ekRSACertificateHandle)
+	EKCert, err := tpm2.NVRead(c.rwc, EKCertificateHandleRSA)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read NV index %08x: %w", ekRSACertificateHandle, err)
+		return nil, fmt.Errorf("failed to read NV index %08x: %w", EKCertificateHandleRSA, err)
 	}
 
 	return EKCert, nil
@@ -261,19 +279,4 @@ func (c *Session) flushContext(handle tpmutil.Handle) {
 	if err != nil {
 		c.log.Warn(fmt.Sprintf("Failed to flush handle %v: %v", handle, err))
 	}
-}
-
-// open opens a new connection to a TPM. Path could be the path to a device
-// or to an unix domain socket. The returned TPM context must be closed when it
-// is no longer used.
-func open(path string, log hclog.Logger) (*Session, error) {
-	rwc, err := tpm2.OpenTPM(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Session{
-		rwc: rwc,
-		log: log,
-	}, nil
 }

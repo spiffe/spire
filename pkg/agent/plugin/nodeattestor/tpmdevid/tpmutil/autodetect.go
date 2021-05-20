@@ -5,18 +5,14 @@ import (
 	"io/ioutil"
 	"path"
 	"regexp"
-
-	"github.com/google/go-tpm/tpm2"
 )
-
-const baseTPMDir = "/dev"
 
 var validTPMNames = []*regexp.Regexp{
 	regexp.MustCompile(`tpmrm\d+$`),
 	regexp.MustCompile(`tpm\d+$`),
 }
 
-func AutoDetectTPMPath() (string, error) {
+func AutoDetectTPMPath(baseTPMDir string) (string, error) {
 	files, err := ioutil.ReadDir(baseTPMDir)
 	if err != nil {
 		return "", err
@@ -38,7 +34,7 @@ func AutoDetectTPMPath() (string, error) {
 
 // VerifyTPM verifies that the given path belongs to a functional TPM 2.0
 func isValidTPM(path string) bool {
-	rwc, err := tpm2.OpenTPM(path)
+	rwc, err := OpenTPM(path)
 	if err != nil {
 		return false
 	}

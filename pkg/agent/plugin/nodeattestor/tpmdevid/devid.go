@@ -22,6 +22,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const baseTPMDir = "/dev"
+
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
@@ -201,7 +203,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	if extConf.DevicePath != "" {
 		p.c.devicePath = extConf.DevicePath
 	} else {
-		tpmPath, err := tpmutil.AutoDetectTPMPath()
+		tpmPath, err := tpmutil.AutoDetectTPMPath(baseTPMDir)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
