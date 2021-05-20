@@ -138,9 +138,9 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	selectorValues := []string{
-		makeSelector("project-id", identityMetadata.ProjectID),
-		makeSelector("zone", identityMetadata.Zone),
-		makeSelector("instance-name", identityMetadata.InstanceName),
+		makeSelectorValue("project-id", identityMetadata.ProjectID),
+		makeSelectorValue("zone", identityMetadata.Zone),
+		makeSelectorValue("instance-name", identityMetadata.InstanceName),
 	}
 	if instance != nil {
 		instanceSelectors, err := getInstanceSelectorValues(c, instance)
@@ -241,16 +241,16 @@ func getInstanceSelectorValues(config *IITAttestorConfig, instance *compute.Inst
 
 	var selectorValues []string
 	for _, tag := range getInstanceTags(instance) {
-		selectorValues = append(selectorValues, makeSelector("tag", tag))
+		selectorValues = append(selectorValues, makeSelectorValue("tag", tag))
 	}
 	for _, serviceAccount := range getInstanceServiceAccounts(instance) {
-		selectorValues = append(selectorValues, makeSelector("sa", serviceAccount))
+		selectorValues = append(selectorValues, makeSelectorValue("sa", serviceAccount))
 	}
 	for _, label := range getInstanceLabels(instance, config.allowedLabelKeys) {
-		selectorValues = append(selectorValues, makeSelector("label", label.key, label.value))
+		selectorValues = append(selectorValues, makeSelectorValue("label", label.key, label.value))
 	}
 	for _, md := range metadata {
-		selectorValues = append(selectorValues, makeSelector("metadata", md.key, md.value))
+		selectorValues = append(selectorValues, makeSelectorValue("metadata", md.key, md.value))
 	}
 	return selectorValues, nil
 }
@@ -338,7 +338,7 @@ func getInstanceMetadata(instance *compute.Instance, allowedKeys map[string]bool
 	return md, nil
 }
 
-func makeSelector(key string, value ...string) string {
+func makeSelectorValue(key string, value ...string) string {
 	return fmt.Sprintf("%s:%s", key, strings.Join(value, ":"))
 }
 

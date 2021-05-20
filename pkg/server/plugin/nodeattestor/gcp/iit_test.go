@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -20,6 +19,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
@@ -35,32 +35,7 @@ const (
 )
 
 var (
-	testKey, _ = pemutil.ParseRSAPrivateKey([]byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBzAIBAAJhAMnVzWSZn20CtcFaWh1Uuoh7NObRt9z84h8zzuIVSNkeJV6Dei0v
-8FGp3ZilrU3MDM6WsuFTUVo21qBTOTnYKuEI0bk7pTgZk9CN6aF0iZbzyrvsU6hy
-b09dN0PFBc5A2QIDAQABAmEAqSpioQvFPKfF0M46s1S9lwC1ATULRtRJbd+NaZ5v
-VVLX/VRzRYZlhPy7d2J9U7ROFjSM+Fng8S1knrHAK0ka/ZfYOl1ZLoMexpBovebM
-mGcsCHrHz4eBN8B1Y+8JRhkBAjEA7fTLjbz3M7za1nGODqWsoBv33yJHGh9GIaf9
-umpx3qpFZCVsqHgCvmalAu+IXAz5AjEA2SPTRcddrGVsDnSOYot3eCArVOIxgI+r
-H9A4cjS4cp4W4nBZhb+08/IYtDfYdirhAjAtl8LMtJE045GWlwld+xZ5UwKKSVoQ
-Qj/AwRxXdH++5ycGijkoil4UNzyUtGqPIJkCMQC5g9ola8ekWqKPVxWvK+jOQO3E
-f9w7MoPJkmQnbtOHWXnDzKkvlDJNmTFyB6RwkQECMQDp+GR2I305amG9isTzm7UU
-8pJxbXLymDwR4A7x5vwH6x2gLBgpat21QAR14W4dYEg=
------END RSA PRIVATE KEY-----`))
-
-	// Alternative key
-	alternativeKeyPEM, _ = pemutil.ParseRSAPrivateKey([]byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBywIBAAJhAKC4t/KjGW7qAuK89ZQGasYlI1octSwElSGioJag1w7s/d2EXjtY
-4FDYOYa8bKB3wC6rIzPDKUR783fZ3gJmvdI8TLlnj25wyPApVkRXC3ZQxYj5/hcG
-aQuNWr6zrY8C8QIDAQABAmB95nViQtWHhxTfnPobDLPTp//7dQWPB7/y6zw1AqW0
-8X0ka66Net+tNNRLcYr+YQ8Sv4suvGVo3NXBNU+jJVys2s+kB2vvfh5w/mpaEyM1
-C3UGsX8WWcRvxkxQhwR5VmECMQDWAufI9k7mfo8kjPcFcxKZbwiklTn0p6IVNXIf
-cA7f210xizyPm2NDUvs1v+f6Yw0CMQDAQT1zR4qlTm4tufG0+IlfPaP9FxvTl+ox
-dxnOm4DzNx14+seX6Mont4ucrrFnNnUCMQC3u8zVGqnId3VbMu7MreuU8N+htUAJ
-jHW58aWl2eXbSJCs/VYkEIra/P4ROk3mCG0CMQC3mpaRDXW/QRO/36CR7/lhV4DR
-J8yPWrlx3AhtY9zWaYBgFT+gN9U38PYIAF2z8DECMHNJ/MNm0Keasv9K3sfrCpL6
-bpR/VgtruOOSiOvJJ9xOAKCSsyeVpZdHrWlY7fkCKg==
------END RSA PRIVATE KEY-----`))
+	testKey = testkey.MustRSA2048()
 )
 
 func TestIITAttestorPlugin(t *testing.T) {
@@ -140,9 +115,11 @@ func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
+	alternativeKey := testkey.MustRSA2048()
+
 	token := buildToken()
 
-	tokenString, err := token.SignedString(alternativeKeyPEM)
+	tokenString, err := token.SignedString(alternativeKey)
 	s.Require().NoError(err)
 
 	payload := []byte(tokenString)
@@ -152,23 +129,6 @@ func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
 
 func (s *IITAttestorSuite) TestErrorOnInvalidPayload() {
 	s.requireAttestError(s.T(), []byte("secret"), codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse/validate the identity token: token contains an invalid number of segments")
-}
-
-func (s *IITAttestorSuite) TestErrorOnBadSVIDTemplate() {
-	var err error
-	plugintest.Load(s.T(), BuiltIn(), nil,
-		plugintest.CaptureConfigureError(&err),
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
-		plugintest.Configure(`
-projectid_allow_list = ["test-project"]
-agent_path_template = "{{ .InstanceID "
-`),
-	)
-
-	s.AssertGRPCStatusContains(err, codes.InvalidArgument, "failed to parse agent path template")
 }
 
 func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
@@ -336,6 +296,14 @@ projectid_allow_list = ["bar"]
 	s.T().Run("missing projectID allow list", func(t *testing.T) {
 		err := doConfig(coreConfig, "")
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "projectid_allow_list is required")
+	})
+
+	s.T().Run("bad SVID template", func(t *testing.T) {
+		err := doConfig(coreConfig, `
+projectid_allow_list = ["test-project"]
+agent_path_template = "{{ .InstanceID "
+`)
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent path template")
 	})
 
 	s.T().Run("success", func(t *testing.T) {
