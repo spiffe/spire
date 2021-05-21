@@ -98,28 +98,26 @@ func (s *Suite) TestAttestSuccess() {
 		s.T().Run(tt.desc, func(t *testing.T) {
 			attestor := s.loadPlugin(t, tt.giveConfig)
 
-			require := s.Require()
-
 			attestationData := &x509pop.AttestationData{
 				Certificates: s.leafBundle,
 			}
-			payload := s.marshal(attestationData)
+			payload := marshal(t, attestationData)
 
 			challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
-				require.NotEmpty(challenge)
+				require.NotEmpty(t, challenge)
 				popChallenge := new(x509pop.Challenge)
-				s.unmarshal(challenge, popChallenge)
+				unmarshal(t, challenge, popChallenge)
 
 				// calculate and send the response
 				response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
-				require.NoError(err)
-				return s.marshal(response), nil
+				require.NoError(t, err)
+				return marshal(t, response), nil
 			}
 
 			result, err := attestor.Attest(context.Background(), payload, challengeFn)
 
-			require.NoError(err)
-			require.Equal(tt.expectAgentID, result.AgentID)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectAgentID, result.AgentID)
 
 			spiretest.AssertProtoListEqual(t,
 				[]*common.Selector{
@@ -134,8 +132,8 @@ func (s *Suite) TestAttestSuccess() {
 func (s *Suite) TestAttestFailure() {
 	successConfiguration := s.createConfiguration("ca_bundle_path", "")
 
-	makePayload := func(attestationData *x509pop.AttestationData) []byte {
-		return s.marshal(attestationData)
+	makePayload := func(t *testing.T, attestationData *x509pop.AttestationData) []byte {
+		return marshal(t, attestationData)
 	}
 
 	attestFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, payload []byte, expectCode codes.Code, expectMessage string) {
@@ -146,7 +144,7 @@ func (s *Suite) TestAttestFailure() {
 	}
 
 	challengeResponseFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, challengeResp string, expectCode codes.Code, expectMessage string) {
-		payload := makePayload(&x509pop.AttestationData{
+		payload := makePayload(t, &x509pop.AttestationData{
 			Certificates: s.leafBundle,
 		})
 		doChallenge := func(ctx context.Context, challenge []byte) ([]byte, error) {
@@ -172,7 +170,7 @@ func (s *Suite) TestAttestFailure() {
 
 	s.T().Run("no certificate", func(t *testing.T) {
 		attestor := s.loadPlugin(t, successConfiguration)
-		payload := makePayload(&x509pop.AttestationData{})
+		payload := makePayload(t, &x509pop.AttestationData{})
 
 		attestFails(t, attestor, payload, codes.InvalidArgument,
 			"nodeattestor(x509pop): no certificate to attest")
@@ -180,7 +178,7 @@ func (s *Suite) TestAttestFailure() {
 
 	s.T().Run("malformed leaf", func(t *testing.T) {
 		attestor := s.loadPlugin(t, successConfiguration)
-		payload := makePayload(&x509pop.AttestationData{Certificates: [][]byte{{0x00}}})
+		payload := makePayload(t, &x509pop.AttestationData{Certificates: [][]byte{{0x00}}})
 
 		attestFails(t, attestor, payload, codes.InvalidArgument,
 			"nodeattestor(x509pop): unable to parse leaf certificate")
@@ -188,7 +186,7 @@ func (s *Suite) TestAttestFailure() {
 
 	s.T().Run("malformed intermediate", func(t *testing.T) {
 		attestor := s.loadPlugin(t, successConfiguration)
-		payload := makePayload(&x509pop.AttestationData{Certificates: [][]byte{s.leafBundle[0], {0x00}}})
+		payload := makePayload(t, &x509pop.AttestationData{Certificates: [][]byte{s.leafBundle[0], {0x00}}})
 
 		attestFails(t, attestor, payload, codes.InvalidArgument,
 			"nodeattestor(x509pop): unable to parse intermediate certificate 0")
@@ -196,7 +194,7 @@ func (s *Suite) TestAttestFailure() {
 
 	s.T().Run("incomplete chain of trust", func(t *testing.T) {
 		attestor := s.loadPlugin(t, successConfiguration)
-		payload := makePayload(&x509pop.AttestationData{Certificates: s.leafBundle[:1]})
+		payload := makePayload(t, &x509pop.AttestationData{Certificates: s.leafBundle[:1]})
 
 		attestFails(t, attestor, payload, codes.PermissionDenied,
 			"nodeattestor(x509pop): certificate verification failed")
@@ -302,14 +300,14 @@ ca_bundle_paths = %s
 	return ""
 }
 
-func (s *Suite) marshal(obj interface{}) []byte {
+func marshal(t *testing.T, obj interface{}) []byte {
 	data, err := json.Marshal(obj)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 	return data
 }
 
-func (s *Suite) unmarshal(data []byte, obj interface{}) {
-	s.Require().NoError(json.Unmarshal(data, obj))
+func unmarshal(t *testing.T, data []byte, obj interface{}) {
+	require.NoError(t, json.Unmarshal(data, obj))
 }
 
 func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
