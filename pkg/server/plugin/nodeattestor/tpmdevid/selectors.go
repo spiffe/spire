@@ -4,8 +4,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-
-	spc "github.com/spiffe/spire/proto/spire/common"
 )
 
 var attributeTypeNames = map[string]string{
@@ -17,24 +15,16 @@ var attributeTypeNames = map[string]string{
 	"2.5.4.11": "ou",           // Organizational unit
 }
 
-func selectorsFromCertificate(selectorType, prefix string, cert *x509.Certificate) []*spc.Selector {
+func selectorsFromCertificate(prefix string, cert *x509.Certificate) []string {
 	snValue := fmt.Sprintf("%s:serialnumber:%x", prefix, cert.SerialNumber.Bytes())
-
-	selectors := []*spc.Selector{
-		{
-			Type:  selectorType,
-			Value: snValue,
-		},
-	}
+	selectors := []string{snValue}
 
 	subjectSelectors := selectorsFromAttributes(
-		selectorType,
 		fmt.Sprintf("%s:subject", prefix),
 		cert.Subject.Names,
 	)
 
 	issuerSelectors := selectorsFromAttributes(
-		selectorType,
 		fmt.Sprintf("%s:issuer", prefix),
 		cert.Issuer.Names,
 	)
@@ -45,17 +35,15 @@ func selectorsFromCertificate(selectorType, prefix string, cert *x509.Certificat
 	return selectors
 }
 
-func selectorsFromAttributes(selectorType, prefix string, attributes []pkix.AttributeTypeAndValue) []*spc.Selector {
-	selectors := make([]*spc.Selector, 0, len(attributes))
+func selectorsFromAttributes(prefix string, attributes []pkix.AttributeTypeAndValue) []string {
+	selectors := make([]string, 0, len(attributes))
 	for _, tv := range attributes {
 		valueString := fmt.Sprint(tv.Value)
 		oidString := tv.Type.String()
 		typeName, ok := attributeTypeNames[oidString]
 		if ok {
-			selectors = append(selectors, &spc.Selector{
-				Type:  selectorType,
-				Value: fmt.Sprintf("%s:%s:%s", prefix, typeName, valueString),
-			})
+			selectors = append(selectors,
+				fmt.Sprintf("%s:%s:%s", prefix, typeName, valueString))
 		}
 	}
 

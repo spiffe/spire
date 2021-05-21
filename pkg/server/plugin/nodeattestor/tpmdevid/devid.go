@@ -14,13 +14,12 @@ import (
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/common/util"
-	spc "github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -31,7 +30,8 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(common_devid.PluginName,
-		nodeattestorv0.NodeAttestorPluginServer(p),
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -50,7 +50,8 @@ type Config struct {
 }
 
 type Plugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	m sync.Mutex
 	c *config
@@ -60,7 +61,7 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	// Receive attestation request
 	req, err := stream.Recv()
 	if err != nil {
@@ -72,13 +73,14 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 		return status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	if dataType := req.AttestationData.Type; dataType != common_devid.PluginName {
-		return status.Errorf(codes.InvalidArgument, "unexpected attestation data type %q", dataType)
+	payload := req.GetPayload()
+	if payload == nil {
+		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	// Unmarshall received attestation data
 	attData := new(common_devid.AttestationRequest)
-	err = json.Unmarshal(req.AttestationData.Data, attData)
+	err = json.Unmarshal(payload, attData)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to unmarshall attestation data: %v", err)
 	}
@@ -125,7 +127,11 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	}
 
 	// Send challenges to the agent
-	err = stream.Send(&nodeattestorv0.AttestResponse{Challenge: challenge})
+	err = stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_Challenge{
+			Challenge: challenge,
+		},
+	})
 	if err != nil {
 		return status.Errorf(status.Code(err), "unable to send challenges: %v", err)
 	}
@@ -138,7 +144,7 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 
 	// Unmarshal challenges response
 	challengeResponse := &common_devid.ChallengeResponse{}
-	if err = json.Unmarshal(responseReq.Response, challengeResponse); err != nil {
+	if err = json.Unmarshal(responseReq.GetChallengeResponse(), challengeResponse); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to unmarshall challenges response: %v", err)
 	}
 
@@ -157,28 +163,29 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	}
 
 	// Create SPIFFE ID and selectors
-	certSelectors := selectorsFromCertificate(common_devid.PluginName, "certificate", devIDCert)
+	certSelectors := selectorsFromCertificate("certificate", devIDCert)
 	fingerprint := fingerprint(devIDCert)
-	certSelectors = append(certSelectors, &spc.Selector{
-		Type:  common_devid.PluginName,
-		Value: fmt.Sprintf("fingerprint:%s", fingerprint),
-	})
+	certSelectors = append(certSelectors, fmt.Sprintf("fingerprint:%s", fingerprint))
 
 	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", common_devid.PluginName, fingerprint))
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId:   spiffeID,
-		Selectors: certSelectors,
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId:       spiffeID,
+				SelectorValues: certSelectors,
+			},
+		},
 	})
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	err := common_devid.ValidateGlobalConfig(req.GlobalConfig)
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	err := validateCoreConfig(req.CoreConfiguration)
 	if err != nil {
 		return nil, err
 	}
 
-	extConf, err := decodePluginConfig(req.Configuration)
+	extConf, err := decodePluginConfig(req.HclConfiguration)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
@@ -190,7 +197,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	// Create initial internal configuration
 	intConf := &config{
-		trustDomain:         req.GlobalConfig.TrustDomain,
+		trustDomain:         req.CoreConfiguration.TrustDomain,
 		checkDevIDResidency: extConf.CheckDevIDResidency,
 	}
 
@@ -210,11 +217,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 
 	p.setConfiguration(intConf)
 
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) getConfiguration() *config {
@@ -236,6 +239,17 @@ func decodePluginConfig(hclConf string) (*Config, error) {
 	}
 
 	return extConfig, nil
+}
+
+func validateCoreConfig(c *configv1.CoreConfiguration) error {
+	if c == nil {
+		return status.Error(codes.InvalidArgument, "core configuration is missing")
+	}
+
+	if c.TrustDomain == "" {
+		return status.Error(codes.InvalidArgument, "trust_domain is required")
+	}
+	return nil
 }
 
 func validatePluginConfig(extConf *Config) error {
