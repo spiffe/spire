@@ -11,13 +11,13 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/common/util"
-	spc "github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,7 +29,9 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(common_devid.PluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(common_devid.PluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
 type Config struct {
@@ -41,16 +43,15 @@ type Config struct {
 }
 
 type config struct {
-	trustDomain string
-	devicePath  string
-
-	devIDCert *x509.Certificate
-	devIDPub  []byte
-	devIDPriv []byte
+	devicePath string
+	devIDCert  *x509.Certificate
+	devIDPub   []byte
+	devIDPriv  []byte
 }
 
 type Plugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 	log hclog.Logger
 
 	m sync.Mutex
@@ -63,7 +64,7 @@ func New() *Plugin {
 	}
 }
 
-func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
+func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
 	conf := p.getConfig()
 	if conf == nil {
 		return status.Error(codes.FailedPrecondition, "not configured")
@@ -117,10 +118,9 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 	}
 
 	// Send attestation request
-	err = stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		AttestationData: &spc.AttestationData{
-			Type: common_devid.PluginName,
-			Data: marshaledAttData,
+	err = stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: marshaledAttData,
 		},
 	})
 	if err != nil {
@@ -169,8 +169,10 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 	}
 
 	// Send challenge response back to the server
-	err = stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		Response: marshalledChallengeResp,
+	err = stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
+			ChallengeResponse: marshalledChallengeResp,
+		},
 	})
 	if err != nil {
 		st := status.Convert(err)
@@ -180,13 +182,8 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 	return nil
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	err := common_devid.ValidateGlobalConfig(req.GlobalConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	extConf, err := decodePluginConfig(req.Configuration)
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	extConf, err := decodePluginConfig(req.HclConfiguration)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
@@ -198,7 +195,6 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 
 	p.m.Lock()
 	defer p.m.Unlock()
-	p.c.trustDomain = req.GlobalConfig.TrustDomain
 
 	if extConf.DevicePath != "" {
 		p.c.devicePath = extConf.DevicePath
@@ -215,7 +211,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		return nil, status.Errorf(codes.Internal, "unable to load DevID files: %v", err)
 	}
 
-	return &plugin.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
