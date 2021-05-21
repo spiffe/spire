@@ -215,14 +215,10 @@ go_test_flags := -timeout=60s
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
-	# circleci executors don't have enough memory to run compilation with
-	# high parallism
 	go_flags += -p=$(GOPARALLEL)
 endif
 
 ifneq ($(GOVERBOSE),)
-	# circleci executors don't have enough memory to run compilation with
-	# high parallism
 	go_flags += -v
 endif
 
