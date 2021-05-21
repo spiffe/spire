@@ -29,7 +29,7 @@ test-mysql() {
 
 
     # Wait up to two minutes for mysql to be available. It should come up
-    # pretty quick on developer machines but Travis is slow.
+    # pretty quick on developer machines but CI/CD is slow.
     MAXREADYCHECKS=40
     READYCHECKINTERVAL=3
     READY=
