@@ -233,9 +233,9 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 }
 
 func (s *MSIAttestorSuite) TestConfigure() {
-	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
 		var err error
-		plugintest.Load(s.T(), BuiltIn(), nil,
+		plugintest.Load(t, BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
 			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
@@ -249,22 +249,22 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	}
 
 	s.T().Run("malformed configuration", func(t *testing.T) {
-		err := doConfig(coreConfig, "blah")
+		err := doConfig(t, coreConfig, "blah")
 		spiretest.RequireErrorContains(t, err, "unable to decode configuration")
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(catalog.CoreConfig{}, "")
+		err := doConfig(t, catalog.CoreConfig{}, "")
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
 	})
 
 	s.T().Run("missing tenants", func(t *testing.T) {
-		err := doConfig(coreConfig, "")
+		err := doConfig(t, coreConfig, "")
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration must have at least one tenant")
 	})
 
 	s.T().Run("success", func(t *testing.T) {
-		err := doConfig(coreConfig, `
+		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"

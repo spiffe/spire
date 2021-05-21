@@ -266,9 +266,9 @@ agent_path_template = "{{ .InstanceID }}"
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
-	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
 		var err error
-		plugintest.Load(s.T(), BuiltIn(), nil,
+		plugintest.Load(t, BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
 			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
@@ -282,24 +282,24 @@ func (s *IITAttestorSuite) TestConfigure() {
 	}
 
 	s.T().Run("malformed", func(t *testing.T) {
-		err := doConfig(coreConfig, "trust_domain")
+		err := doConfig(t, coreConfig, "trust_domain")
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(catalog.CoreConfig{}, `
+		err := doConfig(t, catalog.CoreConfig{}, `
 projectid_allow_list = ["bar"]
 		`)
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "trust_domain is required")
 	})
 
 	s.T().Run("missing projectID allow list", func(t *testing.T) {
-		err := doConfig(coreConfig, "")
+		err := doConfig(t, coreConfig, "")
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "projectid_allow_list is required")
 	})
 
 	s.T().Run("bad SVID template", func(t *testing.T) {
-		err := doConfig(coreConfig, `
+		err := doConfig(t, coreConfig, `
 projectid_allow_list = ["test-project"]
 agent_path_template = "{{ .InstanceID "
 `)
@@ -307,7 +307,7 @@ agent_path_template = "{{ .InstanceID "
 	})
 
 	s.T().Run("success", func(t *testing.T) {
-		err := doConfig(coreConfig, `
+		err := doConfig(t, coreConfig, `
 projectid_allow_list = ["bar"]
 		`)
 		require.NoError(t, err)
