@@ -150,10 +150,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		if err := env.Printf("Private key:\n%s\n", keyPEM.String()); err != nil {
 			return err
 		}
-		if err := env.Printf("Root CAs:\n%s\n", bundlePEM.String()); err != nil {
-			return err
-		}
-		return nil
+		return env.Printf("Root CAs:\n%s\n", bundlePEM.String())
 	}
 
 	svidPath := env.JoinPath(c.write, "svid.pem")
@@ -177,11 +174,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	if err := ioutil.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
 		return fmt.Errorf("unable to write bundle: %w", err)
 	}
-	if err := env.Printf("Root CAs written to %s\n", bundlePath); err != nil {
-		return err
-	}
-
-	return nil
+	return env.Printf("Root CAs written to %s\n", bundlePath)
 }
 
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
