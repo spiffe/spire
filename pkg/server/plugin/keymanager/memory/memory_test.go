@@ -11,7 +11,7 @@ import (
 
 func TestKeyManagerContract(t *testing.T) {
 	keymanagertest.Test(t, func(t *testing.T) keymanager.KeyManager {
-		km := new(keymanager.V0)
+		km := new(keymanager.V1)
 		plugintest.Load(t, memory.BuiltIn(), km)
 		return km
 	})

@@ -13,7 +13,7 @@ import (
 func Decode(trustDomain spiffeid.TrustDomain, r io.Reader) (*Bundle, error) {
 	doc := new(bundleDoc)
 	if err := json.NewDecoder(r).Decode(doc); err != nil {
-		return nil, fmt.Errorf("failed to decode bundle: %v", err)
+		return nil, fmt.Errorf("failed to decode bundle: %w", err)
 	}
 	return unmarshal(trustDomain, doc)
 }

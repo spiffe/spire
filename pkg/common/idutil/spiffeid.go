@@ -156,7 +156,7 @@ func isServerPath(path string) bool {
 func ParseSpiffeID(spiffeID string, mode ValidationMode) (*url.URL, error) {
 	u, err := url.Parse(spiffeID)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse SPIFFE ID: %v", err)
+		return nil, fmt.Errorf("could not parse SPIFFE ID: %w", err)
 	}
 
 	if err := ValidateSpiffeIDURL(u, mode); err != nil {

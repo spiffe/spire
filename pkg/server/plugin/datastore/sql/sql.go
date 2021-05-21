@@ -272,33 +272,29 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
-func (ds *Plugin) SetNodeSelectors(ctx context.Context, req *datastore.SetNodeSelectorsRequest) (resp *datastore.SetNodeSelectorsResponse, err error) {
-	if req.Selectors == nil {
-		return nil, errors.New("invalid request: missing selectors")
-	}
-
+func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = setNodeSelectors(tx, req)
+		err = setNodeSelectors(tx, spiffeID, selectors)
 		return err
 	}); err != nil {
-		return nil, err
+		return err
 	}
-	return resp, nil
+	return nil
 }
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
-func (ds *Plugin) GetNodeSelectors(ctx context.Context,
-	req *datastore.GetNodeSelectorsRequest) (resp *datastore.GetNodeSelectorsResponse, err error) {
-	if req.TolerateStale && ds.roDb != nil {
-		return getNodeSelectors(ctx, ds.roDb, req)
+func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string,
+	dbPreference datastore.DataConsistency) (selectors []*common.Selector, err error) {
+	if dbPreference == datastore.TolerateStale && ds.roDb != nil {
+		return getNodeSelectors(ctx, ds.roDb, spiffeID)
 	}
-	return getNodeSelectors(ctx, ds.db, req)
+	return getNodeSelectors(ctx, ds.db, spiffeID)
 }
 
 // ListNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *Plugin) ListNodeSelectors(ctx context.Context,
 	req *datastore.ListNodeSelectorsRequest) (resp *datastore.ListNodeSelectorsResponse, err error) {
-	if req.TolerateStale && ds.roDb != nil {
+	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		return listNodeSelectors(ctx, ds.roDb, req)
 	}
 	return listNodeSelectors(ctx, ds.db, req)
@@ -342,7 +338,7 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, er
 // ListRegistrationEntries lists all registrations (pagination available)
 func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
-	if req.TolerateStale && ds.roDb != nil {
+	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		return listRegistrationEntries(ctx, ds.roDb, ds.log, req)
 	}
 	return listRegistrationEntries(ctx, ds.db, ds.log, req)
@@ -644,7 +640,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	if cfg.ConnMaxLifetime != nil {
 		connMaxLifetime, err := time.ParseDuration(*cfg.ConnMaxLifetime)
 		if err != nil {
-			return nil, "", false, nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %v", *cfg.ConnMaxLifetime, err)
+			return nil, "", false, nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *cfg.ConnMaxLifetime, err)
 		}
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
@@ -856,7 +852,7 @@ func fetchBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
 	model := new(Bundle)
 	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
 	switch {
-	case err == gorm.ErrRecordNotFound:
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
@@ -931,7 +927,7 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	// Get current bundle
 	currentBundle, err := fetchBundle(tx, trustDomainID)
 	if err != nil {
-		return false, fmt.Errorf("unable to fetch current bundle: %v", err)
+		return false, fmt.Errorf("unable to fetch current bundle: %w", err)
 	}
 
 	if currentBundle == nil {
@@ -942,14 +938,14 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	// Prune
 	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, expiry, log)
 	if err != nil {
-		return false, fmt.Errorf("prune failed: %v", err)
+		return false, fmt.Errorf("prune failed: %w", err)
 	}
 
 	// Update only if bundle was modified
 	if changed {
 		_, err := updateBundle(tx, newBundle, nil)
 		if err != nil {
-			return false, fmt.Errorf("unable to write new bundle: %v", err)
+			return false, fmt.Errorf("unable to write new bundle: %w", err)
 		}
 	}
 
@@ -977,7 +973,7 @@ func fetchAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, erro
 	var model AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", spiffeID).Error
 	switch {
-	case err == gorm.ErrRecordNotFound:
+	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
 	case err != nil:
 		return nil, sqlError.Wrap(err)
@@ -1179,9 +1175,9 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 	}
 
 	// Filter by expiration
-	if req.ByExpiresBefore != nil {
+	if !req.ByExpiresBefore.IsZero() {
 		builder.WriteString("\t\tAND expires_at < ?\n")
-		args = append(args, time.Unix(req.ByExpiresBefore.Value, 0))
+		args = append(args, req.ByExpiresBefore)
 	}
 
 	// Filter by Attestation type
@@ -1196,7 +1192,7 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 	// - true: returns banned entries
 	// - false: returns no banned entries
 	if req.ByBanned != nil {
-		if req.ByBanned.Value {
+		if *req.ByBanned {
 			builder.WriteString("\t\tAND serial_number = ''\n")
 		} else {
 			builder.WriteString("\t\tAND serial_number <> ''\n")
@@ -1396,9 +1392,9 @@ FROM attested_node_entries N
 		}
 
 		// Filter by expiration
-		if req.ByExpiresBefore != nil {
+		if !req.ByExpiresBefore.IsZero() {
 			builder.WriteString(" AND N.expires_at < ?")
-			args = append(args, time.Unix(req.ByExpiresBefore.Value, 0))
+			args = append(args, req.ByExpiresBefore)
 		}
 
 		// Filter by Attestation type
@@ -1413,7 +1409,7 @@ FROM attested_node_entries N
 		// - true: returns banned entries
 		// - false: returns no banned entries
 		if req.ByBanned != nil {
-			if req.ByBanned.Value {
+			if *req.ByBanned {
 				builder.WriteString(" AND N.serial_number = ''")
 			} else {
 				builder.WriteString(" AND N.serial_number <> ''")
@@ -1540,7 +1536,7 @@ func deleteAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, err
 	return modelToAttestedNode(model), nil
 }
 
-func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
+func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector) error {
 	// Previously the deletion of the previous set of node selectors was
 	// implemented via query like DELETE FROM node_resolver_map_entries WHERE
 	// spiffe_id = ?, but unfortunately this triggered some pessimistic gap
@@ -1553,32 +1549,32 @@ func setNodeSelectors(tx *gorm.DB, req *datastore.SetNodeSelectorsRequest) (*dat
 	// deleted and delete them from separate queries, which does not trigger
 	// gap locks on the index.
 	var ids []int64
-	if err := tx.Model(&NodeSelector{}).Where("spiffe_id = ?", req.Selectors.SpiffeId).Pluck("id", &ids).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+	if err := tx.Model(&NodeSelector{}).Where("spiffe_id = ?", spiffeID).Pluck("id", &ids).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 	if len(ids) > 0 {
 		if err := tx.Where("id IN (?)", ids).Delete(&NodeSelector{}).Error; err != nil {
-			return nil, sqlError.Wrap(err)
+			return sqlError.Wrap(err)
 		}
 	}
 
-	for _, selector := range req.Selectors.Selectors {
+	for _, selector := range selectors {
 		model := &NodeSelector{
-			SpiffeID: req.Selectors.SpiffeId,
+			SpiffeID: spiffeID,
 			Type:     selector.Type,
 			Value:    selector.Value,
 		}
 		if err := tx.Create(model).Error; err != nil {
-			return nil, sqlError.Wrap(err)
+			return sqlError.Wrap(err)
 		}
 	}
 
-	return &datastore.SetNodeSelectorsResponse{}, nil
+	return nil
 }
 
-func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
+func getNodeSelectors(ctx context.Context, db *sqlDB, spiffeID string) ([]*common.Selector, error) {
 	query := maybeRebind(db.databaseType, "SELECT type, value FROM node_resolver_map_entries WHERE spiffe_id=? ORDER BY id")
-	rows, err := db.QueryContext(ctx, query, req.SpiffeId)
+	rows, err := db.QueryContext(ctx, query, spiffeID)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -1597,12 +1593,7 @@ func getNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.GetNodeSele
 		return nil, sqlError.Wrap(err)
 	}
 
-	return &datastore.GetNodeSelectorsResponse{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  req.SpiffeId,
-			Selectors: selectors,
-		},
-	}, nil
+	return selectors, nil
 }
 
 func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
@@ -1661,9 +1652,9 @@ func listNodeSelectors(ctx context.Context, db *sqlDB, req *datastore.ListNodeSe
 func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query string, args []interface{}) {
 	var sb strings.Builder
 	sb.WriteString("SELECT nre.spiffe_id, nre.type, nre.value FROM node_resolver_map_entries nre")
-	if req.ValidAt != nil {
+	if !req.ValidAt.IsZero() {
 		sb.WriteString(" INNER JOIN attested_node_entries ane ON nre.spiffe_id=ane.spiffe_id WHERE ane.expires_at > ?")
-		args = append(args, time.Unix(req.ValidAt.Seconds, 0))
+		args = append(args, req.ValidAt)
 	}
 
 	// This ordering is required to make listNodeSelectors efficient but not
@@ -2590,19 +2581,19 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 
 	root := idFilterNode{idColumn: "id"}
 
-	if req.ByParentId != nil || req.BySpiffeId != nil {
+	if req.ByParentID != "" || req.BySpiffeID != "" {
 		subquery := new(strings.Builder)
 		subquery.WriteString("SELECT id AS e_id FROM registered_entries WHERE ")
-		if req.ByParentId != nil {
+		if req.ByParentID != "" {
 			subquery.WriteString("parent_id = ?")
-			args = append(args, req.ByParentId.Value)
+			args = append(args, req.ByParentID)
 		}
-		if req.BySpiffeId != nil {
-			if req.ByParentId != nil {
+		if req.BySpiffeID != "" {
+			if req.ByParentID != "" {
 				subquery.WriteString(" AND ")
 			}
 			subquery.WriteString("spiffe_id = ?")
-			args = append(args, req.BySpiffeId.Value)
+			args = append(args, req.BySpiffeID)
 		}
 		root.children = append(root.children, idFilterNode{
 			idColumn: "id",
@@ -3121,7 +3112,7 @@ func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
 func fetchJoinToken(tx *gorm.DB, token string) (*datastore.JoinToken, error) {
 	var model JoinToken
 	err := tx.Find(&model, "token = ?", token).Error
-	if err == gorm.ErrRecordNotFound {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	} else if err != nil {
 		return nil, sqlError.Wrap(err)

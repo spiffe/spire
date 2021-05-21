@@ -34,14 +34,14 @@ func slicedEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
 
 	spiffeID, err := spiffeIDFromProto(e.SpiffeId)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SPIFFE ID: %v", err)
+		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
 	var federatesWith []string
 	for _, trustDomainName := range e.FederatesWith {
 		td, err := spiffeid.TrustDomainFromString(trustDomainName)
 		if err != nil {
-			return nil, fmt.Errorf("invalid federated trust domain: %v", err)
+			return nil, fmt.Errorf("invalid federated trust domain: %w", err)
 		}
 		federatesWith = append(federatesWith, td.IDString())
 	}

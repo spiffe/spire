@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
 
 const (
@@ -21,6 +22,7 @@ type RotatorConfig struct {
 	TrustDomain spiffeid.TrustDomain
 	ServerCA    ca.ServerCA
 	Clock       clock.Clock
+	KeyType     keymanager.KeyType
 
 	// How long to wait between expiry checks
 	Interval time.Duration

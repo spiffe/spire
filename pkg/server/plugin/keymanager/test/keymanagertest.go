@@ -2,10 +2,12 @@ package keymanagertest
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"math/big"
 	"testing"
@@ -51,11 +53,6 @@ func testGenerateKey(t *testing.T, create CreateFunc) {
 		testECKey(t, key, "ec384", elliptic.P384())
 	})
 
-	t.Run("RSA1024", func(t *testing.T) {
-		key := requireGenerateKey(t, km, "rsa1024", keymanager.RSA1024)
-		testRSAKey(t, key, "rsa1024", 1024)
-	})
-
 	t.Run("RSA2048", func(t *testing.T) {
 		key := requireGenerateKey(t, km, "rsa2048", keymanager.RSA2048)
 		testRSAKey(t, key, "rsa2048", 2048)
@@ -78,10 +75,15 @@ func testGenerateKey(t *testing.T, create CreateFunc) {
 
 	t.Run("key id can be overwritten", func(t *testing.T) {
 		km := create(t)
-		key := requireGenerateKey(t, km, "id", keymanager.ECP256)
-		testECKey(t, key, "id", elliptic.P256())
-		key = requireGenerateKey(t, km, "id", keymanager.RSA1024)
-		testRSAKey(t, key, "id", 1024)
+		key1 := requireGenerateKey(t, km, "id", keymanager.ECP256)
+		testECKey(t, key1, "id", elliptic.P256())
+		key2 := requireGenerateKey(t, km, "id", keymanager.RSA2048)
+		testRSAKey(t, key2, "id", 2048)
+
+		// Signing with key1 should fail since it has been overwritten.
+		digest := sha256.Sum256([]byte("DATA"))
+		_, err := key1.Sign(rand.Reader, digest[:], crypto.SHA256)
+		spiretest.AssertGRPCStatusContains(t, err, codes.Internal, "does not match", "signing with an overwritten key did not fail as expected")
 	})
 }
 
@@ -89,7 +91,6 @@ func testGetKey(t *testing.T, create CreateFunc) {
 	km := create(t)
 	requireGenerateKey(t, km, "ec256", keymanager.ECP256)
 	requireGenerateKey(t, km, "ec384", keymanager.ECP384)
-	requireGenerateKey(t, km, "rsa1024", keymanager.RSA1024)
 	requireGenerateKey(t, km, "rsa2048", keymanager.RSA2048)
 	requireGenerateKey(t, km, "rsa4096", keymanager.RSA4096)
 
@@ -101,11 +102,6 @@ func testGetKey(t *testing.T, create CreateFunc) {
 	t.Run("EC384", func(t *testing.T) {
 		key := requireGetKey(t, km, "ec384")
 		testECKey(t, key, "ec384", elliptic.P384())
-	})
-
-	t.Run("RSA1024", func(t *testing.T) {
-		key := requireGetKey(t, km, "rsa1024")
-		testRSAKey(t, key, "rsa1024", 1024)
 	})
 
 	t.Run("RSA2048", func(t *testing.T) {
@@ -125,7 +121,7 @@ func testGetKey(t *testing.T, create CreateFunc) {
 
 	t.Run("no such key", func(t *testing.T) {
 		_, err := km.GetKey(ctx, "nope")
-		spiretest.AssertGRPCStatus(t, err, codes.NotFound, plugin.PrefixMessage(km, `private key "nope" not found`))
+		spiretest.AssertGRPCStatus(t, err, codes.NotFound, plugin.PrefixMessage(km, `key "nope" not found`))
 	})
 }
 
@@ -138,7 +134,6 @@ func testGetKeys(t *testing.T, create CreateFunc) {
 
 	requireGenerateKey(t, km, "ec256", keymanager.ECP256)
 	requireGenerateKey(t, km, "ec384", keymanager.ECP384)
-	requireGenerateKey(t, km, "rsa1024", keymanager.RSA1024)
 	requireGenerateKey(t, km, "rsa2048", keymanager.RSA2048)
 	requireGenerateKey(t, km, "rsa4096", keymanager.RSA4096)
 
@@ -147,10 +142,9 @@ func testGetKeys(t *testing.T, create CreateFunc) {
 		for _, key := range requireGetKeys(t, km) {
 			keys[key.ID()] = key
 		}
-		require.Len(t, keys, 5)
+		require.Len(t, keys, 4)
 		testECKey(t, keys["ec256"], "ec256", elliptic.P256())
 		testECKey(t, keys["ec384"], "ec384", elliptic.P384())
-		testRSAKey(t, keys["rsa1024"], "rsa1024", 1024)
 		testRSAKey(t, keys["rsa2048"], "rsa2048", 2048)
 		testRSAKey(t, keys["rsa4096"], "rsa4096", 4096)
 	})
@@ -174,13 +168,9 @@ func testRSAKey(t *testing.T, key keymanager.Key, expectID string, expectBits in
 		x509.SHA256WithRSA,
 		x509.SHA384WithRSA,
 		x509.SHA512WithRSA,
-	}
-	if expectBits > 1024 {
-		signatureAlgorithms = append(signatureAlgorithms,
-			x509.SHA256WithRSAPSS,
-			x509.SHA384WithRSAPSS,
-			x509.SHA512WithRSAPSS,
-		)
+		x509.SHA256WithRSAPSS,
+		x509.SHA384WithRSAPSS,
+		x509.SHA512WithRSAPSS,
 	}
 	testSignCertificates(t, key, signatureAlgorithms...)
 }
