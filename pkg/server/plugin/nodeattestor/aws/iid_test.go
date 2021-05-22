@@ -28,6 +28,7 @@ import (
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
@@ -480,17 +481,16 @@ agent_path_template = "{{ .InstanceID "
 }
 
 func (s *IIDAttestorSuite) TestConfigure() {
-	require := s.Require()
 	env := map[string]string{}
 
-	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
 		var err error
 		attestor := New()
 		attestor.hooks.getenv = func(s string) string {
 			return env[s]
 		}
 
-		plugintest.Load(s.T(), BuiltIn(), nil,
+		plugintest.Load(t, builtin(attestor), nil,
 			plugintest.CaptureConfigureError(&err),
 			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
@@ -504,27 +504,27 @@ func (s *IIDAttestorSuite) TestConfigure() {
 	}
 
 	s.T().Run("malformed", func(t *testing.T) {
-		err := doConfig(coreConfig, "trust_domain")
-		s.RequireGRPCStatusContains(err, codes.InvalidArgument, "expected start of object")
+		err := doConfig(t, coreConfig, "trust_domain")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "expected start of object")
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(catalog.CoreConfig{}, ``)
-		s.RequireGRPCStatusContains(err, codes.InvalidArgument, "core configuration missing trust domain")
+		err := doConfig(t, catalog.CoreConfig{}, ``)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
 	})
 
 	s.T().Run("fails with access id but no secret", func(t *testing.T) {
-		err := doConfig(coreConfig, `
+		err := doConfig(t, coreConfig, `
 		access_key_id = "ACCESSKEYID"
 		`)
-		s.RequireGRPCStatusContains(err, codes.InvalidArgument, "configuration missing secret access key, but has access key id")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration missing secret access key, but has access key id")
 	})
 
 	s.T().Run("fails with secret but no access id", func(t *testing.T) {
-		err := doConfig(coreConfig, `
+		err := doConfig(t, coreConfig, `
 		secret_access_key = "SECRETACCESSKEY"
 		`)
-		s.RequireGRPCStatusContains(err, codes.InvalidArgument, "configuration missing access key id, but has secret access key")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration missing access key id, but has secret access key")
 	})
 
 	s.T().Run("success with envvars", func(t *testing.T) {
@@ -534,13 +534,13 @@ func (s *IIDAttestorSuite) TestConfigure() {
 			delete(env, accessKeyIDVarName)
 			delete(env, secretAccessKeyVarName)
 		}()
-		err := doConfig(coreConfig, ``)
-		require.NoError(err)
+		err := doConfig(t, coreConfig, ``)
+		require.NoError(t, err)
 	})
 
 	s.T().Run("success , no AWS keys", func(t *testing.T) {
-		err := doConfig(coreConfig, ``)
-		require.NoError(err)
+		err := doConfig(t, coreConfig, ``)
+		require.NoError(t, err)
 	})
 }
 
