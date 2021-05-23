@@ -11,7 +11,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 
 - [Get SPIRE](#get-spire)
 - [Learn about SPIRE](#learn-about-spire)
-- [Integrate with SPIRE](#integrate-about-spire)
+- [Integrate with SPIRE](#integrate-with-spire)
 - [Contribute to SPIRE](#contribute-to-spire)
 - [Further Reading](#further-reading)
 - [Security](#security)
