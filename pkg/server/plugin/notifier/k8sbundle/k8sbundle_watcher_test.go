@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -88,13 +88,28 @@ func TestBundleWatcherUpdateConfig(t *testing.T) {
 	w := newFakeWebhook()
 	a := newFakeAPIService()
 
-	test := setupWatcherTest("/some/file/path", w, a)
+	clients := []kubeClient{w, a}
+	identityprovider := fakeidentityprovider.New()
 
-	raw := test.loadPluginRaw(t, `
+	// Start plugin
+	notifier := new(notifier.V1)
+	raw := New()
+	raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
+		require.Equal(t, "/some/file/path", c.KubeConfigFilePath)
+		if len(clients) == 0 {
+			return nil, errors.New("kube client not configured")
+		}
+		return clients, nil
+	}
+
+	pp := plugintest.Load(t, builtIn(raw), notifier,
+		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(identityprovider)),
+		plugintest.Configure(`
 webhook_label = "WEBHOOK_LABEL"
 api_service_label = "API_SERVICE_LABEL"
 kube_config_file_path = "/some/file/path"
-`)
+`),
+	)
 
 	require.NotNil(t, raw.cancelWatcher)
 	require.Eventually(t, func() bool {
@@ -105,13 +120,11 @@ kube_config_file_path = "/some/file/path"
 		return a.getWatchLabel() == "API_SERVICE_LABEL"
 	}, testTimeout, time.Second)
 
-	_, err := raw.Configure(context.Background(), &configv1.ConfigureRequest{
-		HclConfiguration: `
+	err := pp.Configure(context.Background(), catalog.CoreConfig{}, `
 webhook_label = "WEBHOOK_LABEL2"
 api_service_label = "API_SERVICE_LABEL2"
 kube_config_file_path = "/some/file/path"
-`,
-	})
+`)
 	require.NoError(t, err)
 
 	require.NotNil(t, raw.cancelWatcher)
