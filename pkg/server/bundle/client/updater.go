@@ -49,7 +49,7 @@ func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
 	localBundleOrNil, err := fetchBundleIfExists(ctx, u.c.DataStore, u.c.TrustDomain)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch local bundle: %v", err)
+		return nil, nil, fmt.Errorf("failed to fetch local bundle: %w", err)
 	}
 
 	client, err := u.newClient(localBundleOrNil)
@@ -59,7 +59,7 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *
 
 	endpointBundle, err := client.FetchBundle(ctx)
 	if err != nil {
-		return localBundleOrNil, nil, fmt.Errorf("failed to fetch endpoint bundle: %v", err)
+		return localBundleOrNil, nil, fmt.Errorf("failed to fetch endpoint bundle: %w", err)
 	}
 
 	if localBundleOrNil != nil && endpointBundle.EqualTo(localBundleOrNil) {
@@ -68,7 +68,7 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *
 
 	_, err = u.c.DataStore.SetBundle(ctx, endpointBundle.Proto())
 	if err != nil {
-		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %v", err)
+		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %w", err)
 	}
 
 	return localBundleOrNil, endpointBundle, nil

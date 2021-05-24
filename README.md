@@ -1,7 +1,7 @@
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
-[![Build Status](https://travis-ci.com/spiffe/spire.svg?branch=main)](https://travis-ci.com/github/spiffe/spire)
+[![Build Status](https://github.com/spiffe/spire/actions/workflows/pr_build.yaml/badge.svg)](https://github.com/spiffe/spire/actions/workflows/pr_build.yaml)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=main)](https://coveralls.io/github/spiffe/spire?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/spiffe/spire)](https://goreportcard.com/report/github.com/spiffe/spire)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
@@ -11,7 +11,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 
 - [Get SPIRE](#get-spire)
 - [Learn about SPIRE](#learn-about-spire)
-- [Integrate with SPIRE](#integrate-about-spire)
+- [Integrate with SPIRE](#integrate-with-spire)
 - [Contribute to SPIRE](#contribute-to-spire)
 - [Further Reading](#further-reading)
 - [Security](#security)

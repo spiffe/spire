@@ -2,6 +2,8 @@ package awskms
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -18,9 +20,9 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -46,13 +48,16 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, keymanagerv0.KeyManagerPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		keymanagerv1.KeyManagerPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 type keyEntry struct {
 	Arn       string
 	AliasName string
-	PublicKey *keymanagerv0.PublicKey
+	PublicKey *keymanagerv1.PublicKey
 }
 
 type pluginHooks struct {
@@ -67,7 +72,9 @@ type pluginHooks struct {
 
 // Plugin is the main representation of this keymanager plugin
 type Plugin struct {
-	keymanagerv0.UnsafeKeyManagerServer
+	keymanagerv1.UnsafeKeyManagerServer
+	configv1.UnsafeConfigServer
+
 	log            hclog.Logger
 	mu             sync.RWMutex
 	entries        map[string]keyEntry
@@ -109,8 +116,8 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 // Configure sets up the plugin
-func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	config, err := parseAndValidateConfig(req.Configuration)
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	config, err := parseAndValidateConfig(req.HclConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +137,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 		log:         p.log,
 		kmsClient:   kc,
 		serverID:    serverID,
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: req.CoreConfiguration.TrustDomain,
 	}
 	p.log.Debug("Fetching key aliases from KMS")
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -143,7 +150,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 
 	p.setCache(keyEntries)
 	p.kmsClient = kc
-	p.trustDomain = req.GlobalConfig.TrustDomain
+	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 
 	// cancels previous tasks in case of re configure
@@ -158,15 +165,15 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	go p.disposeAliasesTask(ctx)
 	go p.disposeKeysTask(ctx)
 
-	return &plugin.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 // GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
-func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv0.GenerateKeyRequest) (*keymanagerv0.GenerateKeyResponse, error) {
+func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
-	if req.KeyType == keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE {
+	if req.KeyType == keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE {
 		return nil, status.Error(codes.InvalidArgument, "key type is required")
 	}
 
@@ -186,13 +193,13 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv0.GenerateKeyR
 
 	p.entries[spireKeyID] = *newKeyEntry
 
-	return &keymanagerv0.GenerateKeyResponse{
+	return &keymanagerv1.GenerateKeyResponse{
 		PublicKey: newKeyEntry.PublicKey,
 	}, nil
 }
 
 // SignData creates a digital signature for the data to be signed
-func (p *Plugin) SignData(ctx context.Context, req *keymanagerv0.SignDataRequest) (*keymanagerv0.SignDataResponse, error) {
+func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
@@ -205,7 +212,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv0.SignDataRequest
 
 	keyEntry, hasKey := p.entries[req.KeyId]
 	if !hasKey {
-		return nil, status.Errorf(codes.NotFound, "no such key %q", req.KeyId)
+		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
 	}
 
 	signingAlgo, err := signingAlgorithmForKMS(keyEntry.PublicKey.Type, req.SignerOpts)
@@ -223,11 +230,14 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv0.SignDataRequest
 		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
 	}
 
-	return &keymanagerv0.SignDataResponse{Signature: signResp.Signature}, nil
+	return &keymanagerv1.SignDataResponse{
+		Signature:      signResp.Signature,
+		KeyFingerprint: keyEntry.PublicKey.Fingerprint,
+	}, nil
 }
 
 // GetPublicKey returns the public key for a given key
-func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv0.GetPublicKeyRequest) (*keymanagerv0.GetPublicKeyResponse, error) {
+func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
@@ -237,32 +247,27 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv0.GetPublicKe
 
 	entry, ok := p.entries[req.KeyId]
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "no such key %q", req.KeyId)
+		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
 	}
 
-	return &keymanagerv0.GetPublicKeyResponse{
+	return &keymanagerv1.GetPublicKeyResponse{
 		PublicKey: entry.PublicKey,
 	}, nil
 }
 
 // GetPublicKeys return the publicKey for all the keys
-func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv0.GetPublicKeysRequest) (*keymanagerv0.GetPublicKeysResponse, error) {
-	var keys []*keymanagerv0.PublicKey
+func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
+	var keys []*keymanagerv1.PublicKey
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	for _, key := range p.entries {
 		keys = append(keys, key.PublicKey)
 	}
 
-	return &keymanagerv0.GetPublicKeysResponse{PublicKeys: keys}, nil
+	return &keymanagerv1.GetPublicKeysResponse{PublicKeys: keys}, nil
 }
 
-// GetPluginInfo returns information about this plugin
-func (p *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
-}
-
-func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv0.KeyType) (*keyEntry, error) {
+func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
 	description := p.descriptionFromSpireKeyID(spireKeyID)
 	keySpec, ok := keySpecFromKeyType(keyType)
 	if !ok {
@@ -295,10 +300,11 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	return &keyEntry{
 		Arn:       *key.KeyMetadata.Arn,
 		AliasName: p.aliasFromSpireKeyID(spireKeyID),
-		PublicKey: &keymanagerv0.PublicKey{
-			Id:       spireKeyID,
-			Type:     keyType,
-			PkixData: pub.PublicKey,
+		PublicKey: &keymanagerv1.PublicKey{
+			Id:          spireKeyID,
+			Type:        keyType,
+			PkixData:    pub.PublicKey,
+			Fingerprint: makeFingerprint(pub.PublicKey),
 		},
 	}, nil
 }
@@ -512,7 +518,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 			describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: alias.AliasArn})
 			switch {
 			case err != nil:
-				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DescribeKey failed: %v", err))
+				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DescribeKey failed: %w", err))
 				errs = append(errs, err.Error())
 				continue
 			case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
@@ -525,7 +531,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 
 			_, err = p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: alias.AliasName})
 			if err != nil {
-				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DeleteAlias failed: %v", err))
+				log.Error("Failed to clean up old KMS keys.", reasonTag, fmt.Errorf("AWS API DeleteAlias failed: %w", err))
 				errs = append(errs, err.Error())
 				continue
 			}
@@ -725,17 +731,17 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	return config, nil
 }
 
-func signingAlgorithmForKMS(keyType keymanagerv0.KeyType, signerOpts interface{}) (types.SigningAlgorithmSpec, error) {
+func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts interface{}) (types.SigningAlgorithmSpec, error) {
 	var (
-		hashAlgo keymanagerv0.HashAlgorithm
+		hashAlgo keymanagerv1.HashAlgorithm
 		isPSS    bool
 	)
 
 	switch opts := signerOpts.(type) {
-	case *keymanagerv0.SignDataRequest_HashAlgorithm:
+	case *keymanagerv1.SignDataRequest_HashAlgorithm:
 		hashAlgo = opts.HashAlgorithm
 		isPSS = false
-	case *keymanagerv0.SignDataRequest_PssOptions:
+	case *keymanagerv1.SignDataRequest_PssOptions:
 		if opts.PssOptions == nil {
 			return "", errors.New("PSS options are required")
 		}
@@ -746,56 +752,56 @@ func signingAlgorithmForKMS(keyType keymanagerv0.KeyType, signerOpts interface{}
 		return "", fmt.Errorf("unsupported signer opts type %T", opts)
 	}
 
-	isRSA := keyType == keymanagerv0.KeyType_RSA_2048 || keyType == keymanagerv0.KeyType_RSA_4096
+	isRSA := keyType == keymanagerv1.KeyType_RSA_2048 || keyType == keymanagerv1.KeyType_RSA_4096
 
 	switch {
-	case hashAlgo == keymanagerv0.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
+	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", errors.New("hash algorithm is required")
-	case keyType == keymanagerv0.KeyType_EC_P256 && hashAlgo == keymanagerv0.HashAlgorithm_SHA256:
+	case keyType == keymanagerv1.KeyType_EC_P256 && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecEcdsaSha256, nil
-	case keyType == keymanagerv0.KeyType_EC_P384 && hashAlgo == keymanagerv0.HashAlgorithm_SHA384:
+	case keyType == keymanagerv1.KeyType_EC_P384 && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
 		return types.SigningAlgorithmSpecEcdsaSha384, nil
-	case isRSA && !isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA256:
+	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha256, nil
-	case isRSA && !isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA384:
+	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
 		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha384, nil
-	case isRSA && !isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA512:
+	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
 		return types.SigningAlgorithmSpecRsassaPkcs1V15Sha512, nil
-	case isRSA && isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA256:
+	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
 		return types.SigningAlgorithmSpecRsassaPssSha256, nil
-	case isRSA && isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA384:
+	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
 		return types.SigningAlgorithmSpecRsassaPssSha384, nil
-	case isRSA && isPSS && hashAlgo == keymanagerv0.HashAlgorithm_SHA512:
+	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
 		return types.SigningAlgorithmSpecRsassaPssSha512, nil
 	default:
 		return "", fmt.Errorf("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}
 }
 
-func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanagerv0.KeyType, bool) {
+func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanagerv1.KeyType, bool) {
 	switch keySpec {
 	case types.CustomerMasterKeySpecRsa2048:
-		return keymanagerv0.KeyType_RSA_2048, true
+		return keymanagerv1.KeyType_RSA_2048, true
 	case types.CustomerMasterKeySpecRsa4096:
-		return keymanagerv0.KeyType_RSA_4096, true
+		return keymanagerv1.KeyType_RSA_4096, true
 	case types.CustomerMasterKeySpecEccNistP256:
-		return keymanagerv0.KeyType_EC_P256, true
+		return keymanagerv1.KeyType_EC_P256, true
 	case types.CustomerMasterKeySpecEccNistP384:
-		return keymanagerv0.KeyType_EC_P384, true
+		return keymanagerv1.KeyType_EC_P384, true
 	default:
-		return keymanagerv0.KeyType_UNSPECIFIED_KEY_TYPE, false
+		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, false
 	}
 }
 
-func keySpecFromKeyType(keyType keymanagerv0.KeyType) (types.CustomerMasterKeySpec, bool) {
+func keySpecFromKeyType(keyType keymanagerv1.KeyType) (types.CustomerMasterKeySpec, bool) {
 	switch keyType {
-	case keymanagerv0.KeyType_RSA_2048:
+	case keymanagerv1.KeyType_RSA_2048:
 		return types.CustomerMasterKeySpecRsa2048, true
-	case keymanagerv0.KeyType_RSA_4096:
+	case keymanagerv1.KeyType_RSA_4096:
 		return types.CustomerMasterKeySpecRsa4096, true
-	case keymanagerv0.KeyType_EC_P256:
+	case keymanagerv1.KeyType_EC_P256:
 		return types.CustomerMasterKeySpecEccNistP256, true
-	case keymanagerv0.KeyType_EC_P384:
+	case keymanagerv1.KeyType_EC_P384:
 		return types.CustomerMasterKeySpecEccNistP384, true
 	default:
 		return "", false
@@ -841,4 +847,9 @@ func createServerID(idPath string) (string, error) {
 		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
 	}
 	return id, nil
+}
+
+func makeFingerprint(pkixData []byte) string {
+	s := sha256.Sum256(pkixData)
+	return hex.EncodeToString(s[:])
 }

@@ -20,12 +20,12 @@ func ReadBundle(bundleCachePath string) ([]*x509.Certificate, error) {
 
 	data, err := ioutil.ReadFile(bundleCachePath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading bundle at %s: %s", bundleCachePath, err)
+		return nil, fmt.Errorf("error reading bundle at %s: %w", bundleCachePath, err)
 	}
 
 	bundle, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing bundle at %s: %s", bundleCachePath, err)
+		return nil, fmt.Errorf("error parsing bundle at %s: %w", bundleCachePath, err)
 	}
 	return bundle, nil
 }
@@ -52,12 +52,12 @@ func ReadSVID(svidCachePath string) ([]*x509.Certificate, error) {
 		if os.IsNotExist(err) {
 			return nil, ErrNotCached
 		}
-		return nil, fmt.Errorf("error reading SVID at %s: %s", svidCachePath, err)
+		return nil, fmt.Errorf("error reading SVID at %s: %w", svidCachePath, err)
 	}
 
 	certChain, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing SVID at %s: %s", svidCachePath, err)
+		return nil, fmt.Errorf("error parsing SVID at %s: %w", svidCachePath, err)
 	}
 	return certChain, nil
 }

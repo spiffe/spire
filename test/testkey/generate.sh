@@ -7,7 +7,6 @@
 # pregenerated keys for that type.
 
 # The following variables control how many keys of each type are generated:
-NUMRSA1024=5
 NUMRSA2048=5
 NUMRSA4096=5
 NUMEC256=26
@@ -26,7 +25,6 @@ cleanup() {
 trap cleanup EXIT
 
 go run genkeys.go \
-    -rsa1024="${NUMRSA1024}" \
     -rsa2048="${NUMRSA2048}" \
     -rsa4096="${NUMRSA4096}" \
     -ec256="${NUMEC256}" \

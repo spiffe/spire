@@ -8,18 +8,18 @@ import (
 	"text/template"
 
 	"github.com/hashicorp/hcl"
-	"github.com/zeebo/errs"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	hclog "github.com/hashicorp/go-hclog"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -29,17 +29,14 @@ const (
 	defaultMaxMetadataValueSize = 128
 )
 
-var (
-	pluginErr = errs.Class("gcp-iit")
-)
-
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
 func builtin(p *IITAttestorPlugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		nodeattestorv0.NodeAttestorPluginServer(p),
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -54,6 +51,9 @@ type computeEngineClient interface {
 // IITAttestorPlugin implements node attestation for agents running in GCP.
 type IITAttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
+
 	config            *IITAttestorConfig
 	log               hclog.Logger
 	mtx               sync.Mutex
@@ -94,13 +94,13 @@ func (p *IITAttestorPlugin) SetLogger(log hclog.Logger) {
 }
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
-func (p *IITAttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
 	}
 
-	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, gcp.PluginName, p.tokenKeyRetriever)
+	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, p.tokenKeyRetriever)
 	if err != nil {
 		return err
 	}
@@ -113,115 +113,114 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServ
 		}
 	}
 	if !projectIDMatchesAllowList {
-		return pluginErr.New("identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
+		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
 	}
 
 	id, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityMetadata)
 	if err != nil {
-		return pluginErr.New("failed to create spiffe ID: %v", err)
+		return status.Errorf(codes.Internal, "failed to create spiffe ID: %v", err)
 	}
 
 	attested, err := p.IsAttested(stream.Context(), id.String())
 	switch {
 	case err != nil:
-		return pluginErr.Wrap(err)
+		return err
 	case attested:
-		return pluginErr.New("IIT has already been used to attest an agent")
+		return status.Error(codes.PermissionDenied, "IIT has already been used to attest an agent")
 	}
 
 	var instance *compute.Instance
 	if c.UseInstanceMetadata {
 		instance, err = p.client.fetchInstanceMetadata(stream.Context(), identityMetadata.ProjectID, identityMetadata.Zone, identityMetadata.InstanceName, c.ServiceAccountFile)
 		if err != nil {
-			return pluginErr.New("failed to fetch instance metadata: %v", err)
+			return status.Errorf(codes.Internal, "failed to fetch instance metadata: %v", err)
 		}
 	}
 
-	selectors := []*common.Selector{
-		makeSelector("project-id", identityMetadata.ProjectID),
-		makeSelector("zone", identityMetadata.Zone),
-		makeSelector("instance-name", identityMetadata.InstanceName),
+	selectorValues := []string{
+		makeSelectorValue("project-id", identityMetadata.ProjectID),
+		makeSelectorValue("zone", identityMetadata.Zone),
+		makeSelectorValue("instance-name", identityMetadata.InstanceName),
 	}
 	if instance != nil {
-		instanceSelectors, err := getInstanceSelectors(c, instance)
+		instanceSelectors, err := getInstanceSelectorValues(c, instance)
 		if err != nil {
 			return err
 		}
-		selectors = append(selectors, instanceSelectors...)
+		selectorValues = append(selectorValues, instanceSelectors...)
 	}
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId:   id.String(),
-		Selectors: selectors,
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId:       id.String(),
+				SelectorValues: selectorValues,
+			},
+		},
 	})
 }
 
 // Configure configures the IITAttestorPlugin.
-func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := &IITAttestorConfig{}
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, pluginErr.New("unable to decode configuration: %v", err)
+func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	hclConfig := new(IITAttestorConfig)
+	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if req.GlobalConfig == nil {
-		return nil, pluginErr.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "global configuration is required")
 	}
 
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, pluginErr.New("trust_domain is required")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	hclConfig.trustDomain = req.CoreConfiguration.TrustDomain
 
 	// TODO: Remove in 1.1.0
-	if len(config.ProjectIDAllowListDeprecated) > 0 {
+	if len(hclConfig.ProjectIDAllowListDeprecated) > 0 {
 		p.log.Warn("The `projectid_whitelist` configurable is deprecated and will be removed in a future release. Please use `projectid_allow_list` instead.")
-		config.ProjectIDAllowList = config.ProjectIDAllowListDeprecated
+		hclConfig.ProjectIDAllowList = hclConfig.ProjectIDAllowListDeprecated
 	}
 
-	if len(config.ProjectIDAllowList) == 0 {
-		return nil, pluginErr.New("projectid_allow_list is required")
+	if len(hclConfig.ProjectIDAllowList) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "projectid_allow_list is required")
 	}
 
 	tmpl := gcp.DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
+	if len(hclConfig.AgentPathTemplate) > 0 {
 		var err error
-		tmpl, err = template.New("agent-path").Parse(config.AgentPathTemplate)
+		tmpl, err = template.New("agent-path").Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
-			return nil, pluginErr.New("failed to parse agent path template: %q", config.AgentPathTemplate)
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent path template: %q", hclConfig.AgentPathTemplate)
 		}
 	}
 
-	if len(config.AllowedLabelKeys) > 0 {
-		config.allowedLabelKeys = make(map[string]bool, len(config.AllowedLabelKeys))
-		for _, key := range config.AllowedLabelKeys {
-			config.allowedLabelKeys[key] = true
+	if len(hclConfig.AllowedLabelKeys) > 0 {
+		hclConfig.allowedLabelKeys = make(map[string]bool, len(hclConfig.AllowedLabelKeys))
+		for _, key := range hclConfig.AllowedLabelKeys {
+			hclConfig.allowedLabelKeys[key] = true
 		}
 	}
 
-	if len(config.AllowedMetadataKeys) > 0 {
-		config.allowedMetadataKeys = make(map[string]bool, len(config.AllowedMetadataKeys))
-		for _, key := range config.AllowedMetadataKeys {
-			config.allowedMetadataKeys[key] = true
+	if len(hclConfig.AllowedMetadataKeys) > 0 {
+		hclConfig.allowedMetadataKeys = make(map[string]bool, len(hclConfig.AllowedMetadataKeys))
+		for _, key := range hclConfig.AllowedMetadataKeys {
+			hclConfig.allowedMetadataKeys[key] = true
 		}
 	}
 
-	if config.MaxMetadataValueSize == 0 {
-		config.MaxMetadataValueSize = defaultMaxMetadataValueSize
+	if hclConfig.MaxMetadataValueSize == 0 {
+		hclConfig.MaxMetadataValueSize = defaultMaxMetadataValueSize
 	}
 
-	config.idPathTemplate = tmpl
+	hclConfig.idPathTemplate = tmpl
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.config = config
+	p.config = hclConfig
 
-	return &spi.ConfigureResponse{}, nil
-}
-
-// GetPluginInfo returns the version and related metadata of the installed plugin.
-func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
@@ -229,31 +228,31 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	defer p.mtx.Unlock()
 
 	if p.config == nil {
-		return nil, pluginErr.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }
 
-func getInstanceSelectors(config *IITAttestorConfig, instance *compute.Instance) ([]*common.Selector, error) {
+func getInstanceSelectorValues(config *IITAttestorConfig, instance *compute.Instance) ([]string, error) {
 	metadata, err := getInstanceMetadata(instance, config.allowedMetadataKeys, config.MaxMetadataValueSize)
 	if err != nil {
 		return nil, err
 	}
 
-	var selectors []*common.Selector
+	var selectorValues []string
 	for _, tag := range getInstanceTags(instance) {
-		selectors = append(selectors, makeSelector("tag", tag))
+		selectorValues = append(selectorValues, makeSelectorValue("tag", tag))
 	}
 	for _, serviceAccount := range getInstanceServiceAccounts(instance) {
-		selectors = append(selectors, makeSelector("sa", serviceAccount))
+		selectorValues = append(selectorValues, makeSelectorValue("sa", serviceAccount))
 	}
 	for _, label := range getInstanceLabels(instance, config.allowedLabelKeys) {
-		selectors = append(selectors, makeSelector("label", label.key, label.value))
+		selectorValues = append(selectorValues, makeSelectorValue("label", label.key, label.value))
 	}
 	for _, md := range metadata {
-		selectors = append(selectors, makeSelector("metadata", md.key, md.value))
+		selectorValues = append(selectorValues, makeSelectorValue("metadata", md.key, md.value))
 	}
-	return selectors, nil
+	return selectorValues, nil
 }
 
 type keyValue struct {
@@ -261,29 +260,25 @@ type keyValue struct {
 	value string
 }
 
-func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv0.NodeAttestor_AttestServer, pluginName string, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
+func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAttestor_AttestServer, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return gcp.ComputeEngine{}, err
 	}
 
-	attestationData := req.GetAttestationData()
-	if attestationData == nil {
-		return gcp.ComputeEngine{}, pluginErr.New("request missing attestation data")
-	}
-
-	if attestationData.Type != pluginName {
-		return gcp.ComputeEngine{}, pluginErr.New("unexpected attestation data type %q", attestationData.Type)
+	payload := req.GetPayload()
+	if payload == nil {
+		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	identityToken := &gcp.IdentityToken{}
-	_, err = jwt.ParseWithClaims(string(req.GetAttestationData().Data), identityToken, tokenRetriever.retrieveKey)
+	_, err = jwt.ParseWithClaims(string(payload), identityToken, tokenRetriever.retrieveKey)
 	if err != nil {
-		return gcp.ComputeEngine{}, pluginErr.New("unable to parse/validate the identity token: %v", err)
+		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "unable to parse/validate the identity token: %v", err)
 	}
 
 	if identityToken.Audience != tokenAudience {
-		return gcp.ComputeEngine{}, pluginErr.New("unexpected identity token audience %q", identityToken.Audience)
+		return gcp.ComputeEngine{}, status.Errorf(codes.PermissionDenied, "unexpected identity token audience %q", identityToken.Audience)
 	}
 
 	return identityToken.Google.ComputeEngine, nil
@@ -332,7 +327,7 @@ func getInstanceMetadata(instance *compute.Instance, allowedKeys map[string]bool
 		if item.Value != nil {
 			value = *item.Value
 			if len(value) > maxValueSize {
-				return nil, pluginErr.New("metadata %q exceeded value limit (%d > %d)", item.Key, len(value), maxValueSize)
+				return nil, status.Errorf(codes.Internal, "metadata %q exceeded value limit (%d > %d)", item.Key, len(value), maxValueSize)
 			}
 		}
 		md = append(md, keyValue{
@@ -343,11 +338,8 @@ func getInstanceMetadata(instance *compute.Instance, allowedKeys map[string]bool
 	return md, nil
 }
 
-func makeSelector(key string, value ...string) *common.Selector {
-	return &common.Selector{
-		Type:  pluginName,
-		Value: fmt.Sprintf("%s:%s", key, strings.Join(value, ":")),
-	}
+func makeSelectorValue(key string, value ...string) string {
+	return fmt.Sprintf("%s:%s", key, strings.Join(value, ":"))
 }
 
 type googleComputeEngineClient struct {
@@ -356,11 +348,11 @@ type googleComputeEngineClient struct {
 func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	service, err := c.getService(ctx, serviceAccountFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compute service client: %v", err)
+		return nil, fmt.Errorf("failed to create compute service client: %w", err)
 	}
 	instance, err := service.Instances.Get(projectID, zone, instanceName).Do()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch instance metadata: %v", err)
+		return nil, fmt.Errorf("failed to fetch instance metadata: %w", err)
 	}
 	return instance, nil
 }

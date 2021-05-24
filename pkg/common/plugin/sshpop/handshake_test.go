@@ -10,8 +10,10 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/codes"
 )
 
 type testParams struct {
@@ -60,9 +62,8 @@ func TestHandshake(t *testing.T) {
 	tt := newTest(t, principal("ec2abcdef-uswest1"))
 
 	c := &Client{
-		cert:        tt.Certificate,
-		signer:      tt.Signer,
-		trustDomain: "foo.local",
+		cert:   tt.Certificate,
+		signer: tt.Signer,
 	}
 	s := &Server{
 		certChecker:       tt.CertChecker,
@@ -114,9 +115,8 @@ func newTestHandshake(t *testing.T) (*ClientHandshake, *ServerHandshake) {
 	tt := newTest(t, principal("ec2abcdef-uswest1.test.internal"))
 	trustDomain := "foo.local"
 	c := &Client{
-		signer:      tt.Signer,
-		cert:        tt.Certificate,
-		trustDomain: trustDomain,
+		signer: tt.Signer,
+		cert:   tt.Certificate,
 	}
 	s := &Server{
 		trustDomain:       trustDomain,
@@ -140,23 +140,27 @@ func TestVerifyAttestationData(t *testing.T) {
 		desc                  string
 		attestationData       []byte
 		serverCanonicalDomain string
-		expectErr             string
+		expectCode            codes.Code
+		expectMsg             string
 		expectHostname        string
 	}{
 		{
 			desc:            "bad format",
 			attestationData: []byte("{{"),
-			expectErr:       "sshpop: failed to unmarshal data",
+			expectCode:      codes.Internal,
+			expectMsg:       "failed to unmarshal data",
 		},
 		{
 			desc:            "no certs",
 			attestationData: []byte("{}"),
-			expectErr:       "sshpop: no certificate in response",
+			expectCode:      codes.Internal,
+			expectMsg:       "no certificate in response",
 		},
 		{
 			desc:            "bad cert format",
 			attestationData: []byte("{\"certificate\": \"aGVsbG8K\"}"),
-			expectErr:       "sshpop: failed to parse public key",
+			expectCode:      codes.Internal,
+			expectMsg:       "failed to parse public key",
 		},
 		{
 			desc: "cert is pubkey",
@@ -164,7 +168,8 @@ func TestVerifyAttestationData(t *testing.T) {
 				tt := newTest(t)
 				return marshalAttestationData(t, tt.Certificate.Key.Marshal())
 			}(),
-			expectErr: "sshpop: pubkey in response is not a certificate",
+			expectCode: codes.Internal,
+			expectMsg:  "pubkey in response is not a certificate",
 		},
 		{
 			desc: "cert has no valid principals",
@@ -172,7 +177,8 @@ func TestVerifyAttestationData(t *testing.T) {
 				tt := newTest(t)
 				return marshalAttestationData(t, tt.Certificate.Marshal())
 			}(),
-			expectErr: "sshpop: cert has no valid principals",
+			expectCode: codes.Internal,
+			expectMsg:  "cert has no valid principals",
 		},
 		{
 			desc: "cert isn't signed by a known authority",
@@ -180,24 +186,28 @@ func TestVerifyAttestationData(t *testing.T) {
 				tt := newTest(t, principal("foo"))
 				return marshalAttestationData(t, tt.Certificate.Marshal())
 			}(),
-			expectErr: "sshpop: failed to check host key",
+			expectCode: codes.Internal,
+			expectMsg:  "failed to check host key",
 		},
 		{
 			desc:            "cert is signed by a known authority",
 			attestationData: marshalAttestationData(t, c.c.cert.Marshal()),
+			expectCode:      codes.OK,
 			expectHostname:  "ec2abcdef-uswest1.test.internal",
 		},
 		{
 			desc:                  "cert is signed by a known authority with canonicalized domain",
 			attestationData:       marshalAttestationData(t, c.c.cert.Marshal()),
 			serverCanonicalDomain: "test.internal",
+			expectCode:            codes.OK,
 			expectHostname:        "ec2abcdef-uswest1",
 		},
 		{
 			desc:                  "cert is signed by a known authority with bad canonicalized domain",
 			attestationData:       marshalAttestationData(t, c.c.cert.Marshal()),
 			serverCanonicalDomain: "foo.internal",
-			expectErr:             `sshpop: failed to decanonicalize hostname: cert principal is not in domain ".foo.internal"`,
+			expectCode:            codes.Internal,
+			expectMsg:             `failed to decanonicalize hostname: cert principal is not in domain ".foo.internal"`,
 		},
 	}
 
@@ -208,15 +218,12 @@ func TestVerifyAttestationData(t *testing.T) {
 			s.s.canonicalDomain = tt.serverCanonicalDomain
 
 			err := s.VerifyAttestationData(tt.attestationData)
-			if tt.expectErr == "" {
-				require.NoError(t, err)
+			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
+			if tt.expectCode == codes.OK {
 				if tt.expectHostname != "" {
 					require.Equal(t, tt.expectHostname, s.hostname)
 				}
-				return
 			}
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tt.expectErr)
 		})
 	}
 }
@@ -253,12 +260,12 @@ func TestRespondToChallenge(t *testing.T) {
 		{
 			desc:         "bad format",
 			challengeReq: []byte("{{"),
-			expectErr:    "sshpop: failed to unmarshal challenge request",
+			expectErr:    "failed to unmarshal challenge request",
 		},
 		{
 			desc:         "nonce size mismatch",
 			challengeReq: []byte("{\"nonce\": \"c2hvcnQK\"}"),
-			expectErr:    "sshpop: failed to combine nonces: invalid challenge nonce size",
+			expectErr:    "failed to combine nonces: invalid challenge nonce size",
 		},
 		{
 			desc: "success",
@@ -301,14 +308,14 @@ func TestVerifyChallengeResponse(t *testing.T) {
 			challengeRes: func([]byte) []byte {
 				return []byte("{{")
 			},
-			expectErr: "sshpop: failed to unmarshal challenge response",
+			expectErr: "failed to unmarshal challenge response",
 		},
 		{
 			desc: "nonce size mismatch",
 			challengeRes: func([]byte) []byte {
 				return []byte("{\"nonce\": \"c2hvcnQK\"}")
 			},
-			expectErr: "sshpop: failed to combine nonces: invalid response nonce size",
+			expectErr: "failed to combine nonces: invalid response nonce size",
 		},
 		{
 			desc: "cert isn't signed by a known authority",
@@ -319,7 +326,7 @@ func TestVerifyChallengeResponse(t *testing.T) {
 				require.NoError(t, err)
 				return res
 			},
-			expectErr: "sshpop: failed to verify signature",
+			expectErr: "failed to verify signature",
 		},
 		{
 			desc: "success",

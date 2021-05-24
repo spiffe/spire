@@ -105,6 +105,7 @@ go_path := PATH="$(go_bin_dir):$(PATH)"
 golangci_lint_version = v1.39.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
+golangci_lint_cache = $(golangci_lint_dir)/cache
 
 protoc_version = 3.14.0
 ifeq ($(arch1),aarch64)
@@ -214,14 +215,10 @@ go_test_flags := -timeout=60s
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
-	# circleci executors don't have enough memory to run compilation with
-	# high parallism
 	go_flags += -p=$(GOPARALLEL)
 endif
 
 ifneq ($(GOVERBOSE),)
-	# circleci executors don't have enough memory to run compilation with
-	# high parallism
 	go_flags += -v
 endif
 
@@ -359,7 +356,7 @@ oidc-discovery-provider-image: Dockerfile
 #############################################################################
 
 .PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image
+scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
 
 .PHONY: spire-server-scratch-image
 spire-server-scratch-image: Dockerfile
@@ -402,7 +399,7 @@ endif
 lint: lint-code
 
 lint-code: $(golangci_lint_bin) | go-check
-	$(E)PATH="$(go_bin_dir):$(PATH)" $(golangci_lint_bin) run ./...
+	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
 
 #############################################################################
@@ -529,6 +526,7 @@ $(golangci_lint_bin):
 	@echo "Installing golangci-lint $(golangci_lint_version)..."
 	$(E)rm -rf $(dir $(golangci_lint_dir))
 	$(E)mkdir -p $(golangci_lint_dir)
+	$(E)mkdir -p $(golangci_lint_cache)
 	$(E)curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)

@@ -1,6 +1,8 @@
 package sql
 
 import (
+	"errors"
+
 	"github.com/jinzhu/gorm"
 	"github.com/lib/pq"
 
@@ -27,7 +29,8 @@ func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, v
 }
 
 func (p postgresDB) isConstraintViolation(err error) bool {
-	e, ok := err.(*pq.Error)
+	var e *pq.Error
+	ok := errors.As(err, &e)
 	// "23xxx" is the constraint violation class for PostgreSQL
 	return ok && e.Code.Class() == "23"
 }

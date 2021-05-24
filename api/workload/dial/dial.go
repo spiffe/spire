@@ -38,7 +38,7 @@ func addrFromEnv() (net.Addr, error) {
 
 	u, err := url.Parse(val)
 	if err != nil {
-		return nil, fmt.Errorf("parse address from env: %v", err)
+		return nil, fmt.Errorf("parse address from env: %w", err)
 	}
 
 	switch u.Scheme {
@@ -64,7 +64,7 @@ func parseTCPAddr(u *url.URL) (net.Addr, error) {
 
 	port, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("tcp port is not an integer: %v", err)
+		return nil, fmt.Errorf("tcp port is not an integer: %w", err)
 	}
 
 	addr := &net.TCPAddr{

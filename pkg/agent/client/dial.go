@@ -74,7 +74,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	case errors.Is(err, context.DeadlineExceeded):
 		return nil, fmt.Errorf("failed to dial %s: timed out", config.Address)
 	default:
-		return nil, fmt.Errorf("failed to dial %s: %v", config.Address, err)
+		return nil, fmt.Errorf("failed to dial %s: %w", config.Address, err)
 	}
 	return client, nil
 }
