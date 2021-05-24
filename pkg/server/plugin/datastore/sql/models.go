@@ -17,7 +17,7 @@ type Bundle struct {
 	Model
 
 	TrustDomain string `gorm:"not null;unique_index"`
-	Data        []byte `gorm:"size:16777215"` // make MySQL to use MEDIUMBLOB (max 24MB) - doesn't affect PostgreSQL/SQLite
+	Data        []byte `gorm:"size:16777215"` // make MySQL to use MEDIUMBLOB (max 16MB) - doesn't affect PostgreSQL/SQLite
 
 	FederatedEntries []RegisteredEntry `gorm:"many2many:federated_registration_entries;"`
 }
