@@ -50,7 +50,7 @@ The configuration file is a **required** by the registrar. It contains
 
 ## Quick Start
 
-This quick start leverages the [SPIRE Simple PSAT Example](https://github.com/spiffe/spire-examples/tree/master/examples/k8s/simple_psat) with the addition of the CRD Kubernetes Workload Registrar.
+This quick start sets up the SPIRE Server, SPIRE Agent, and CRD Kubernetes Workload Registrar.
 
 1. Deploy SPIRE Server, Kubernetes Workload Registrar, SPIRE Agent, and CRD. SPIRE Server and Kubernetes Workload Registrar will be deployed in the same Pod.
    ```
