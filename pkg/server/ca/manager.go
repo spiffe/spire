@@ -125,10 +125,7 @@ func (m *Manager) Initialize(ctx context.Context) error {
 	if err := m.loadJournal(ctx); err != nil {
 		return err
 	}
-	if err := m.rotate(ctx); err != nil {
-		return err
-	}
-	return nil
+	return m.rotate(ctx)
 }
 
 func (m *Manager) Run(ctx context.Context) error {

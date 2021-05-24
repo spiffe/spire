@@ -145,13 +145,10 @@ func (ds *Plugin) AppendBundle(ctx context.Context, b *common.Bundle) (bundle *c
 
 // DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
 func (ds *Plugin) DeleteBundle(ctx context.Context, trustDomainID string, mode datastore.DeleteMode) (err error) {
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = deleteBundle(tx, trustDomainID, mode)
 		return err
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // FetchBundle returns the bundle matching the specified Trust Domain.
@@ -273,13 +270,10 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
 func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = setNodeSelectors(tx, spiffeID, selectors)
 		return err
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
@@ -370,13 +364,10 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
 func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneRegistrationEntries(tx, expiresBefore)
 		return err
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -385,13 +376,10 @@ func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToke
 		return errors.New("token and expiry are required")
 	}
 
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = createJoinToken(tx, token)
 		return err
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // FetchJoinToken takes a Token message and returns one, populating the fields
@@ -409,25 +397,19 @@ func (ds *Plugin) FetchJoinToken(ctx context.Context, token string) (resp *datas
 
 // DeleteJoinToken deletes the given join token
 func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (err error) {
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = deleteJoinToken(tx, token)
 		return err
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
 func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err error) {
-	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneJoinTokens(tx, expiry)
 		return err
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
@@ -452,11 +434,7 @@ func (ds *Plugin) Configure(hclConfiguration string) error {
 		return nil
 	}
 
-	if err := ds.openConnection(config, true); err != nil {
-		return err
-	}
-
-	return nil
+	return ds.openConnection(config, true)
 }
 
 func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {

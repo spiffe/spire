@@ -92,15 +92,11 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to marshal challenge response: %v", err)
 	}
 
-	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
 		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
 			ChallengeResponse: responseBytes,
 		},
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {

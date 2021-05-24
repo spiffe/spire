@@ -76,10 +76,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	// Print in stdout
 	if c.write == "" {
-		if err := env.Println(token); err != nil {
-			return err
-		}
-		return nil
+		return env.Println(token)
 	}
 
 	// Save in file
@@ -87,10 +84,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
 		return fmt.Errorf("unable to write token: %w", err)
 	}
-	if err := env.Printf("JWT-SVID written to %s\n", tokenPath); err != nil {
-		return err
-	}
-	return nil
+	return env.Printf("JWT-SVID written to %s\n", tokenPath)
 }
 
 func (c *mintCommand) validateToken(token string, env *common_cli.Env) error {

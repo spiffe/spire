@@ -460,10 +460,7 @@ func migrateToV10(tx *gorm.DB) error {
 }
 
 func migrateToV11(tx *gorm.DB) error {
-	if err := addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx); err != nil {
-		return err
-	}
-	return nil
+	return addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx)
 }
 
 func migrateToV12(tx *gorm.DB) error {

@@ -226,10 +226,7 @@ func (c *gcsBucketClient) PutObject(ctx context.Context, bucket, object string, 
 	if _, err := w.Write(data); err != nil {
 		return err
 	}
-	if err := w.Close(); err != nil {
-		return err
-	}
-	return nil
+	return w.Close()
 }
 
 func (c *gcsBucketClient) Close() error {

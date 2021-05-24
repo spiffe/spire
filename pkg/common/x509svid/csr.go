@@ -30,9 +30,5 @@ func ValidateCSR(csr *x509.CertificateRequest, validationMode idutil.ValidationM
 		return errors.New("CSR must have exactly one URI SAN")
 	}
 
-	if err := idutil.ValidateSpiffeIDURL(csr.URIs[0], validationMode); err != nil {
-		return err
-	}
-
-	return nil
+	return idutil.ValidateSpiffeIDURL(csr.URIs[0], validationMode)
 }
