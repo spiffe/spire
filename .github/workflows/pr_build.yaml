@@ -1,5 +1,10 @@
 name: PR Build
-on: [pull_request]
+on:
+  pull_request: {}
+  workflow_dispatch: {}
+  schedule:
+    # Random minute number to avoid GH scheduler stampede
+    - cron: '37 21 * * *'
 env:
   GO_VERSION: 1.16.3
 jobs:
