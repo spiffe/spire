@@ -30,7 +30,6 @@ type KeyEntry struct {
 // used when not provided.
 type Funcs struct {
 	WriteEntries       func(ctx context.Context, entries []*KeyEntry) error
-	GenerateRSA1024Key func() (*rsa.PrivateKey, error)
 	GenerateRSA2048Key func() (*rsa.PrivateKey, error)
 	GenerateRSA4096Key func() (*rsa.PrivateKey, error)
 	GenerateEC256Key   func() (*ecdsa.PrivateKey, error)
@@ -49,9 +48,6 @@ type Base struct {
 // New creates a new base key manager using the provided Funcs. Default
 // implementations are provided for any that aren't set.
 func New(funcs Funcs) *Base {
-	if funcs.GenerateRSA1024Key == nil {
-		funcs.GenerateRSA1024Key = generateRSA1024Key
-	}
 	if funcs.GenerateRSA2048Key == nil {
 		funcs.GenerateRSA2048Key = generateRSA2048Key
 	}
@@ -214,8 +210,6 @@ func (m *Base) generateKeyEntry(keyID string, keyType keymanagerv1.KeyType) (e *
 		privateKey, err = m.funcs.GenerateEC256Key()
 	case keymanagerv1.KeyType_EC_P384:
 		privateKey, err = m.funcs.GenerateEC384Key()
-	case keymanagerv1.KeyType_RSA_1024:
-		privateKey, err = m.funcs.GenerateRSA1024Key()
 	case keymanagerv1.KeyType_RSA_2048:
 		privateKey, err = m.funcs.GenerateRSA2048Key()
 	case keymanagerv1.KeyType_RSA_4096:
@@ -274,8 +268,6 @@ func MakeKeyEntryFromKey(id string, privateKey crypto.PrivateKey) (*KeyEntry, er
 func rsaKeyType(privateKey *rsa.PrivateKey) (keymanagerv1.KeyType, error) {
 	bits := privateKey.N.BitLen()
 	switch bits {
-	case 1024:
-		return keymanagerv1.KeyType_RSA_1024, nil
 	case 2048:
 		return keymanagerv1.KeyType_RSA_2048, nil
 	case 4096:
@@ -295,10 +287,6 @@ func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanagerv1.KeyType, error) {
 		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("no EC key type for EC curve: %s",
 			privateKey.Curve.Params().Name)
 	}
-}
-
-func generateRSA1024Key() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, 1024) //nolint: gosec
 }
 
 func generateRSA2048Key() (*rsa.PrivateKey, error) {

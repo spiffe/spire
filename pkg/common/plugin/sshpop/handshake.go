@@ -14,6 +14,8 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type serverHandshakeState int
@@ -66,13 +68,13 @@ type challengeResponse struct {
 
 func (c *ClientHandshake) AttestationData() ([]byte, error) {
 	if c.state != stateClientInit {
-		return nil, Errorf("client must be in init state to provide attestation data")
+		return nil, status.Error(codes.FailedPrecondition, "client must be in init state to provide attestation data")
 	}
 	data, err := json.Marshal(attestationData{
 		Certificate: c.c.cert.Marshal(),
 	})
 	if err != nil {
-		return nil, Errorf("failed to marshal attestation data: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to marshal attestation data: %v", err)
 	}
 	c.state = stateProvidedAttestationData
 	return data, nil
@@ -80,30 +82,30 @@ func (c *ClientHandshake) AttestationData() ([]byte, error) {
 
 func (c *ClientHandshake) RespondToChallenge(req []byte) ([]byte, error) {
 	if c.state != stateProvidedAttestationData {
-		return nil, Errorf("client must provide attestation data to respond to challenge")
+		return nil, status.Error(codes.FailedPrecondition, "client must provide attestation data to respond to challenge")
 	}
 	challenge := new(challengeRequest)
 	if err := json.Unmarshal(req, challenge); err != nil {
-		return nil, Errorf("failed to unmarshal challenge request: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to unmarshal challenge request: %v", err)
 	}
 	nonce, err := newNonce()
 	if err != nil {
-		return nil, Errorf("failed to generate nonce: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to generate nonce: %v", err)
 	}
 	toBeSigned, err := combineNonces(challenge.Nonce, nonce)
 	if err != nil {
-		return nil, Errorf("failed to combine nonces: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to combine nonces: %v", err)
 	}
 	sig, err := c.c.signer.Sign(rand.Reader, toBeSigned)
 	if err != nil {
-		return nil, Errorf("failed to sign data: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to sign data: %v", err)
 	}
 	b, err := json.Marshal(challengeResponse{
 		Nonce:     nonce,
 		Signature: sig,
 	})
 	if err != nil {
-		return nil, Errorf("failed to marshal response: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to marshal response: %v", err)
 	}
 	c.state = stateRespondedToChallenge
 	return b, nil
@@ -111,33 +113,33 @@ func (c *ClientHandshake) RespondToChallenge(req []byte) ([]byte, error) {
 
 func (s *ServerHandshake) VerifyAttestationData(data []byte) error {
 	if s.state != stateServerInit {
-		return Errorf("server must be in init state to verify data")
+		return status.Error(codes.FailedPrecondition, "server must be in init state to verify data")
 	}
 	attestation := new(attestationData)
 	if err := json.Unmarshal(data, attestation); err != nil {
-		return Errorf("failed to unmarshal data: %v", err)
+		return status.Errorf(codes.Internal, "failed to unmarshal data: %v", err)
 	}
 	if len(attestation.Certificate) == 0 {
-		return Errorf("no certificate in response")
+		return status.Errorf(codes.Internal, "no certificate in response")
 	}
 	pubkey, err := ssh.ParsePublicKey(attestation.Certificate)
 	if err != nil {
-		return Errorf("failed to parse public key: %v", err)
+		return status.Errorf(codes.Internal, "failed to parse public key: %v", err)
 	}
 	cert, ok := pubkey.(*ssh.Certificate)
 	if !ok {
-		return Errorf("pubkey in response is not a certificate")
+		return status.Errorf(codes.Internal, "pubkey in response is not a certificate")
 	}
 	if len(cert.ValidPrincipals) == 0 {
-		return Errorf("cert has no valid principals")
+		return status.Errorf(codes.Internal, "cert has no valid principals")
 	}
 	addr := fmt.Sprintf("%s:22", cert.ValidPrincipals[0])
 	if err := s.s.certChecker.CheckHostKey(addr, &net.IPAddr{}, cert); err != nil {
-		return Errorf("failed to check host key: %v", err)
+		return status.Errorf(codes.Internal, "failed to check host key: %v", err)
 	}
 	s.hostname, err = decanonicalizeHostname(cert.ValidPrincipals[0], s.s.canonicalDomain)
 	if err != nil {
-		return Errorf("failed to decanonicalize hostname: %v", err)
+		return status.Errorf(codes.Internal, "failed to decanonicalize hostname: %v", err)
 	}
 	s.cert = cert
 	s.state = stateAttestationDataVerified
@@ -157,11 +159,11 @@ func decanonicalizeHostname(fqdn, domain string) (string, error) {
 
 func (s *ServerHandshake) IssueChallenge() ([]byte, error) {
 	if s.state != stateAttestationDataVerified {
-		return nil, Errorf("server must verify attestation data to issue a challenge")
+		return nil, status.Error(codes.FailedPrecondition, "server must verify attestation data to issue a challenge")
 	}
 	nonce, err := newNonce()
 	if err != nil {
-		return nil, Errorf("failed to generate nonce: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to generate nonce: %v", err)
 	}
 	s.nonce = nonce
 	challenge := challengeRequest{
@@ -169,7 +171,7 @@ func (s *ServerHandshake) IssueChallenge() ([]byte, error) {
 	}
 	b, err := json.Marshal(challenge)
 	if err != nil {
-		return nil, Errorf("failed to marshal challenge request: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to marshal challenge request: %v", err)
 	}
 	s.state = stateChallengeIssued
 	return b, nil
@@ -177,18 +179,18 @@ func (s *ServerHandshake) IssueChallenge() ([]byte, error) {
 
 func (s *ServerHandshake) VerifyChallengeResponse(res []byte) error {
 	if s.state != stateChallengeIssued {
-		return Errorf("server must issue a challenge to verify a challenge response")
+		return status.Error(codes.FailedPrecondition, "server must issue a challenge to verify a challenge response")
 	}
 	challenge := new(challengeResponse)
 	if err := json.Unmarshal(res, challenge); err != nil {
-		return Errorf("failed to unmarshal challenge response: %v", err)
+		return status.Errorf(codes.Internal, "failed to unmarshal challenge response: %v", err)
 	}
 	toBeSigned, err := combineNonces(s.nonce, challenge.Nonce)
 	if err != nil {
-		return Errorf("failed to combine nonces: %v", err)
+		return status.Errorf(codes.Internal, "failed to combine nonces: %v", err)
 	}
 	if err := s.cert.Verify(toBeSigned, challenge.Signature); err != nil {
-		return Errorf("failed to verify signature: %v", err)
+		return status.Errorf(codes.Internal, "failed to verify signature: %v", err)
 	}
 	s.state = stateChallengeVerified
 	return nil
