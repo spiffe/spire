@@ -23,9 +23,14 @@ func (v1 V1) GenerateKey(ctx context.Context, id string, keyType KeyType) (Key, 
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
+	kt, err := v1.convertKeyType(keyType)
+	if err != nil {
+		return nil, err
+	}
+
 	resp, err := v1.KeyManagerPluginClient.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
 		KeyId:   id,
-		KeyType: v1KeyType(keyType),
+		KeyType: kt,
 	})
 	if err != nil {
 		return nil, v1.WrapErr(err)
@@ -94,6 +99,28 @@ func (v1 V1) makeKey(id string, pb *keymanagerv1.PublicKey) (Key, error) {
 	}, nil
 }
 
+func (v1 *V1) convertKeyType(t KeyType) (keymanagerv1.KeyType, error) {
+	switch t {
+	case KeyTypeUnset:
+		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, v1.Error(codes.InvalidArgument, "key type is required")
+	case ECP256:
+		return keymanagerv1.KeyType_EC_P256, nil
+	case ECP384:
+		return keymanagerv1.KeyType_EC_P384, nil
+	case RSA2048:
+		return keymanagerv1.KeyType_RSA_2048, nil
+	case RSA4096:
+		return keymanagerv1.KeyType_RSA_4096, nil
+	default:
+		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, v1.Errorf(codes.Internal, "facade does not support key type %q", t)
+	}
+}
+
+func (v1 *V1) convertHashAlgorithm(h crypto.Hash) keymanagerv1.HashAlgorithm {
+	// Hash algorithm constants are aligned.
+	return keymanagerv1.HashAlgorithm(h)
+}
+
 type v1Key struct {
 	v1          V1
 	id          string
@@ -129,14 +156,14 @@ func (s *v1Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 		req.SignerOpts = &keymanagerv1.SignDataRequest_PssOptions{
 			PssOptions: &keymanagerv1.SignDataRequest_PSSOptions{
 				SaltLength:    int32(opts.SaltLength),
-				HashAlgorithm: v1HashAlgorithm(opts.Hash),
+				HashAlgorithm: s.v1.convertHashAlgorithm(opts.Hash),
 			},
 		}
 	case nil:
 		return nil, status.Error(codes.InvalidArgument, "signer opts cannot be nil")
 	default:
 		req.SignerOpts = &keymanagerv1.SignDataRequest_HashAlgorithm{
-			HashAlgorithm: v1HashAlgorithm(opts.HashFunc()),
+			HashAlgorithm: s.v1.convertHashAlgorithm(opts.HashFunc()),
 		}
 	}
 
@@ -151,14 +178,4 @@ func (s *v1Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 		return nil, s.v1.Errorf(codes.Internal, "fingerprint %q on key %q does not match %q", s.fingerprint, s.id, resp.KeyFingerprint)
 	}
 	return resp.Signature, nil
-}
-
-func v1KeyType(t KeyType) keymanagerv1.KeyType {
-	// Key type constants are aligned between the two types.
-	return keymanagerv1.KeyType(t)
-}
-
-func v1HashAlgorithm(h crypto.Hash) keymanagerv1.HashAlgorithm {
-	// Hash algorithm constants are aligned.
-	return keymanagerv1.HashAlgorithm(h)
 }

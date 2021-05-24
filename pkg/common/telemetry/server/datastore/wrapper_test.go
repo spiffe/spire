@@ -295,8 +295,8 @@ func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*commo
 	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) GetNodeSelectors(context.Context, *datastore.GetNodeSelectorsRequest) (*datastore.GetNodeSelectorsResponse, error) {
-	return &datastore.GetNodeSelectorsResponse{}, ds.err
+func (ds *fakeDataStore) GetNodeSelectors(context.Context, string, datastore.DataConsistency) ([]*common.Selector, error) {
+	return []*common.Selector{}, ds.err
 }
 
 func (ds *fakeDataStore) ListAttestedNodes(context.Context, *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -331,8 +331,8 @@ func (ds *fakeDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bun
 	return &common.Bundle{}, ds.err
 }
 
-func (ds *fakeDataStore) SetNodeSelectors(context.Context, *datastore.SetNodeSelectorsRequest) (*datastore.SetNodeSelectorsResponse, error) {
-	return &datastore.SetNodeSelectorsResponse{}, ds.err
+func (ds *fakeDataStore) SetNodeSelectors(context.Context, string, []*common.Selector) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error) {

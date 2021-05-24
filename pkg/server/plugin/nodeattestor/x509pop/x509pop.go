@@ -4,17 +4,17 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 	"sync"
 	"text/template"
 
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -27,7 +27,8 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		nodeattestorv0.NodeAttestorPluginServer(p),
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -44,49 +45,51 @@ type Config struct {
 }
 
 type Plugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
-	m sync.Mutex
-	c *configuration
+	m      sync.Mutex
+	config *configuration
 }
 
 func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return err
 	}
 
-	c := p.getConfiguration()
-	if c == nil {
-		return newError("not configured")
+	config, err := p.getConfig()
+	if err != nil {
+		return err
 	}
 
-	if dataType := req.AttestationData.Type; dataType != pluginName {
-		return newError("unexpected attestation data type %q", dataType)
+	payload := req.GetPayload()
+	if payload == nil {
+		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	attestationData := new(x509pop.AttestationData)
-	if err := json.Unmarshal(req.AttestationData.Data, attestationData); err != nil {
-		return newError("failed to unmarshal data: %w", err)
+	if err := json.Unmarshal(payload, attestationData); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data: %v", err)
 	}
 
 	// build up leaf certificate and list of intermediates
 	if len(attestationData.Certificates) == 0 {
-		return newError("no certificate to attest")
+		return status.Error(codes.InvalidArgument, "no certificate to attest")
 	}
 	leaf, err := x509.ParseCertificate(attestationData.Certificates[0])
 	if err != nil {
-		return newError("unable to parse leaf certificate: %w", err)
+		return status.Errorf(codes.InvalidArgument, "unable to parse leaf certificate: %v", err)
 	}
 	intermediates := x509.NewCertPool()
 	for i, intermediateBytes := range attestationData.Certificates[1:] {
 		intermediate, err := x509.ParseCertificate(intermediateBytes)
 		if err != nil {
-			return newError("unable to parse intermediate certificate %d: %v", i, err)
+			return status.Errorf(codes.InvalidArgument, "unable to parse intermediate certificate %d: %v", i, err)
 		}
 		intermediates.AddCert(intermediate)
 	}
@@ -94,27 +97,29 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	// verify the chain of trust
 	chains, err := leaf.Verify(x509.VerifyOptions{
 		Intermediates: intermediates,
-		Roots:         c.trustBundle,
+		Roots:         config.trustBundle,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	})
 	if err != nil {
-		return newError("certificate verification failed: %w", err)
+		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
 	}
 
 	// now that the leaf certificate is trusted, issue a challenge to the node
 	// to prove possession of the private key.
 	challenge, err := x509pop.GenerateChallenge(leaf)
 	if err != nil {
-		return fmt.Errorf("unable to generate challenge: %w", err)
+		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
 
 	challengeBytes, err := json.Marshal(challenge)
 	if err != nil {
-		return fmt.Errorf("unable to marshal challenge: %w", err)
+		return status.Errorf(codes.Internal, "unable to marshal challenge: %v", err)
 	}
 
-	if err := stream.Send(&nodeattestorv0.AttestResponse{
-		Challenge: challengeBytes,
+	if err := stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_Challenge{
+			Challenge: challengeBytes,
+		},
 	}); err != nil {
 		return err
 	}
@@ -126,60 +131,64 @@ func (p *Plugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
 	}
 
 	response := new(x509pop.Response)
-	if err := json.Unmarshal(responseReq.Response, response); err != nil {
-		return newError("unable to unmarshal challenge response: %w", err)
+	if err := json.Unmarshal(responseReq.GetChallengeResponse(), response); err != nil {
+		return status.Errorf(codes.InvalidArgument, "unable to unmarshal challenge response: %v", err)
 	}
 
 	if err := x509pop.VerifyChallengeResponse(leaf.PublicKey, challenge, response); err != nil {
-		return newError("challenge response verification failed: %w", err)
+		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeSpiffeID(c.trustDomain, c.pathTemplate, leaf)
+	spiffeid, err := x509pop.MakeSpiffeID(config.trustDomain, config.pathTemplate, leaf)
 	if err != nil {
-		return newError("failed to make spiffe id: %w", err)
+		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId:   spiffeid,
-		Selectors: buildSelectors(leaf, chains),
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId:       spiffeid,
+				SelectorValues: buildSelectorValues(leaf, chains),
+			},
+		},
 	})
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := new(Config)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, newError("unable to decode configuration: %w", err)
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	hclConfig := new(Config)
+	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if req.GlobalConfig == nil {
-		return nil, newError("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
 
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, newError("trust_domain is required")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 
-	bundles, err := getBundles(config)
+	bundles, err := getBundles(hclConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	pathTemplate := x509pop.DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+	if len(hclConfig.AgentPathTemplate) > 0 {
+		tmpl, err := template.New("agent-path").Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse agent svid template: %q", config.AgentPathTemplate)
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
 		}
 		pathTemplate = tmpl
 	}
 
 	p.setConfiguration(&configuration{
-		trustDomain:  req.GlobalConfig.TrustDomain,
+		trustDomain:  req.CoreConfiguration.TrustDomain,
 		trustBundle:  util.NewCertPool(bundles...),
 		pathTemplate: pathTemplate,
 	})
 
-	return &spi.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func getBundles(config *Config) ([]*x509.Certificate, error) {
@@ -187,20 +196,20 @@ func getBundles(config *Config) ([]*x509.Certificate, error) {
 
 	switch {
 	case config.CABundlePath != "" && len(config.CABundlePaths) > 0:
-		return nil, newError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
+		return nil, status.Error(codes.InvalidArgument, "only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
 	case config.CABundlePath != "":
 		caPaths = append(caPaths, config.CABundlePath)
 	case len(config.CABundlePaths) > 0:
 		caPaths = append(caPaths, config.CABundlePaths...)
 	default:
-		return nil, newError("ca_bundle_path or ca_bundle_paths must be configured")
+		return nil, status.Error(codes.InvalidArgument, "ca_bundle_path or ca_bundle_paths must be configured")
 	}
 
 	var cas []*x509.Certificate
 	for _, caPath := range caPaths {
 		certs, err := util.LoadCertificates(caPath)
 		if err != nil {
-			return nil, newError("unable to load trust bundle %q: %v", caPath, err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to load trust bundle %q: %v", caPath, err)
 		}
 		cas = append(cas, certs...)
 	}
@@ -208,33 +217,26 @@ func getBundles(config *Config) ([]*x509.Certificate, error) {
 	return cas, nil
 }
 
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func (p *Plugin) getConfiguration() *configuration {
+func (p *Plugin) getConfig() (*configuration, error) {
 	p.m.Lock()
 	defer p.m.Unlock()
-	return p.c
+	if p.config == nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
+	}
+	return p.config, nil
 }
 
-func (p *Plugin) setConfiguration(c *configuration) {
+func (p *Plugin) setConfiguration(config *configuration) {
 	p.m.Lock()
 	defer p.m.Unlock()
-	p.c = c
+	p.config = config
 }
 
-func newError(format string, args ...interface{}) error {
-	return fmt.Errorf("x509pop: "+format, args...)
-}
-
-func buildSelectors(leaf *x509.Certificate, chains [][]*x509.Certificate) []*common.Selector {
-	selectors := []*common.Selector{}
+func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
+	selectorValues := []string{}
 
 	if leaf.Subject.CommonName != "" {
-		selectors = append(selectors, &common.Selector{
-			Type: "x509pop", Value: "subject:cn:" + leaf.Subject.CommonName,
-		})
+		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
 	}
 
 	// Used to avoid duplicating selectors.
@@ -250,11 +252,9 @@ func buildSelectors(leaf *x509.Certificate, chains [][]*x509.Certificate) []*com
 			}
 			fingerprints[fp] = cert
 
-			selectors = append(selectors, &common.Selector{
-				Type: "x509pop", Value: "ca:fingerprint:" + fp,
-			})
+			selectorValues = append(selectorValues, "ca:fingerprint:"+fp)
 		}
 	}
 
-	return selectors
+	return selectorValues
 }

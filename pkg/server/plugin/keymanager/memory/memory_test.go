@@ -10,9 +10,11 @@ import (
 )
 
 func TestKeyManagerContract(t *testing.T) {
-	keymanagertest.Test(t, func(t *testing.T) keymanager.KeyManager {
-		km := new(keymanager.V1)
-		plugintest.Load(t, memory.BuiltIn(), km)
-		return km
+	keymanagertest.Test(t, keymanagertest.Config{
+		Create: func(t *testing.T) keymanager.KeyManager {
+			km := new(keymanager.V1)
+			plugintest.Load(t, memory.BuiltIn(), km)
+			return km
+		},
 	})
 }

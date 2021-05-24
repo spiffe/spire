@@ -12,6 +12,5 @@ COVERPROFILE="${COVERPROFILE}" make test
 
 if [ -n "${COVERALLS_TOKEN}" ]; then
     "$(go env GOPATH)"/bin/goveralls -coverprofile="${COVERPROFILE}" \
-            -service=circle-ci
+            -service=github
 fi
-

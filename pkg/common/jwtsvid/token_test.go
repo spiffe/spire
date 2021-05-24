@@ -37,24 +37,6 @@ qQDuoXqa8i3YOPk5fLib4ORzqD9NJFcrKjI+LLtipQe9yu/eY1K0yhBa
 -----END PRIVATE KEY-----
 `))
 
-	rsa1024Key, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
-MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAMUJvNeDN6FBdRhu
-sX40d+HbI1nREWQoq7YzSOwFfnGY9LGgvv2lHTbyBX2tusv80LuODbIMv54Cb+V5
-vPT0yigXsOeRlaFq+YAlBte2uOoObL5ZoGagvkKQqP3to7MeGwrYx4e3eVYyKOk8
-8GK5DLqu1fEROMx3qT30OY3gzIp5AgMBAAECgYAO19ny/j6NlknE6mnSkQ9K42A5
-XueJfQraceiXZx6MXjJowyxAHVUjE35YZmMBBO2Qg3YCqLUyqQpW5iHW7i3gT3I4
-tzeNm42Un5m4E+wfJKoyCuWEGlt+r7C3pPYTnymgA9uXTVYNcLV2fef0mo2+SajG
-QgmWAUU6DE2gK/17FQJBAOpMiToLtS27W6l67YEAJlRNP3dLcWdQdnmRSzoPTEto
-FQriFdSHHEwOCk6QMdM91qYt0ql48MGy4mw2qZODbxcCQQDXSbUfKQSa1AqZMFvJ
-i5jNtL6osZ6wCdJa2A5/oxkH1gD6xRSAnSV7IvMVPhjPs11m0bWekQhP5yXjL7hm
-60zvAkEA4lKwM/vfNZ/H+Tyfc377h29fIRMlJlFZQDETY7AnWKffu7WMtNEWinj9
-h8pN9unDEJ8u4TnMBq+PfEyJHc9WXQJAGWLnqLT9hgRa+5VoPWvoqNkXYm0PeVKv
-K2cuzn49BV+G3gs/T6s4MDz+zRJ1eoh8CxPPhtMzV7i6DwAhjoFQoQJAf0pfmmvl
-ux9CEiQXFbCgnS4D78b6OZxjCacnPLbyOHouFF1WJuEu+4eHxfD5TMOCIBhTmbIu
-Kzs/yXbmS2fezg==
------END PRIVATE KEY-----
-`))
-
 	rsa2048Key, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDJtODbX0oFZxYe
 xruMjDS2CxNHTtmRzKXwi0oKemLgceePM5+jwWHm7XwHAAR920PYzzMYOZfp6QWp
@@ -143,7 +125,6 @@ func (s *TokenSuite) SetupTest() {
 		"spiffe://example.org": {
 			"ec256Key":   ec256Key.Public(),
 			"ec384Key":   ec384Key.Public(),
-			"rsa1024Key": rsa1024Key.Public(),
 			"rsa2048Key": rsa2048Key.Public(),
 			"rsa4096Key": rsa4096Key.Public(),
 		},
@@ -166,11 +147,6 @@ func (s *TokenSuite) TestSignAndValidate() {
 		{
 			kid: "ec384Key",
 			key: ec384Key,
-		},
-		{
-			kid:     "rsa1024Key",
-			key:     rsa1024Key,
-			signErr: "unsupported RSA key size: 128",
 		},
 		{
 			kid: "rsa2048Key",

@@ -5,19 +5,17 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -29,23 +27,25 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
 type configData struct {
-	privateKey      crypto.PrivateKey
-	attestationData *common.AttestationData
+	privateKey         crypto.PrivateKey
+	attestationPayload []byte
 }
 
 type Config struct {
-	trustDomain       spiffeid.TrustDomain
 	PrivateKeyPath    string `hcl:"private_key_path"`
 	CertificatePath   string `hcl:"certificate_path"`
 	IntermediatesPath string `hcl:"intermediates_path"`
 }
 
 type Plugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	m sync.Mutex
 	c *Config
@@ -55,15 +55,17 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) (err error) {
+func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) (err error) {
 	data, err := p.loadConfigData()
 	if err != nil {
 		return err
 	}
 
 	// send the attestation data back to the agent
-	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		AttestationData: data.attestationData,
+	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: data.attestationPayload,
+		},
 	}); err != nil {
 		return err
 	}
@@ -76,54 +78,39 @@ func (p *Plugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAt
 
 	challenge := new(x509pop.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
-		return fmt.Errorf("x509pop: unable to unmarshal challenge: %w", err)
+		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
 	// calculate and send the challenge response
 	response, err := x509pop.CalculateResponse(data.privateKey, challenge)
 	if err != nil {
-		return fmt.Errorf("x509pop: failed to calculate challenge response: %w", err)
+		return status.Errorf(codes.Internal, "failed to calculate challenge response: %v", err)
 	}
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
-		return fmt.Errorf("x509pop: unable to marshal challenge response: %w", err)
+		return status.Errorf(codes.Internal, "unable to marshal challenge response: %v", err)
 	}
 
-	if err := stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		Response: responseBytes,
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
+			ChallengeResponse: responseBytes,
+		},
+	})
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := new(Config)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, fmt.Errorf("x509pop: unable to decode configuration: %w", err)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-
-	if req.GlobalConfig == nil {
-		return nil, errors.New("x509pop: global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, errors.New("x509pop: trust_domain is required")
-	}
-
-	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
-	config.trustDomain = td
 
 	if config.PrivateKeyPath == "" {
-		return nil, errors.New("x509pop: private_key_path is required")
+		return nil, status.Error(codes.InvalidArgument, "private_key_path is required")
 	}
 	if config.CertificatePath == "" {
-		return nil, errors.New("x509pop: certificate_path is required")
+		return nil, status.Error(codes.InvalidArgument, "certificate_path is required")
 	}
 
 	// make sure the configuration produces valid data
@@ -133,11 +120,7 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 
 	p.setConfig(config)
 
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (p *Plugin) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) getConfig() *Config {
@@ -155,7 +138,7 @@ func (p *Plugin) setConfig(c *Config) {
 func (p *Plugin) loadConfigData() (*configData, error) {
 	config := p.getConfig()
 	if config == nil {
-		return nil, errors.New("x509pop: not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return loadConfigData(config)
 }
@@ -163,7 +146,7 @@ func (p *Plugin) loadConfigData() (*configData, error) {
 func loadConfigData(config *Config) (*configData, error) {
 	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("x509pop: unable to load keypair: %w", err)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
 	}
 
 	certificates := certificate.Certificate
@@ -172,7 +155,7 @@ func loadConfigData(config *Config) (*configData, error) {
 	if strings.TrimSpace(config.IntermediatesPath) != "" {
 		intermediates, err := util.LoadCertificates(config.IntermediatesPath)
 		if err != nil {
-			return nil, fmt.Errorf("x509pop: unable to load intermediate certificates: %w", err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to load intermediate certificates: %v", err)
 		}
 
 		for _, cert := range intermediates {
@@ -180,18 +163,15 @@ func loadConfigData(config *Config) (*configData, error) {
 		}
 	}
 
-	attestationDataBytes, err := json.Marshal(x509pop.AttestationData{
+	attestationPayload, err := json.Marshal(x509pop.AttestationData{
 		Certificates: certificates,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("x509pop: unable to marshal attestation data: %w", err)
+		return nil, status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
 	}
 
 	return &configData{
-		privateKey: certificate.PrivateKey,
-		attestationData: &common.AttestationData{
-			Type: pluginName,
-			Data: attestationDataBytes,
-		},
+		privateKey:         certificate.PrivateKey,
+		attestationPayload: attestationPayload,
 	}, nil
 }
