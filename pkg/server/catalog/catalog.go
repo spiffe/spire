@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
@@ -55,6 +56,7 @@ type Config struct {
 	IdentityProvider identityproviderv0.IdentityProviderServer
 	AgentStore       agentstorev0.AgentStoreServer
 	MetricsService   metricsv0.MetricsServiceServer
+	HealthChecker    health.Checker
 }
 
 type Repository struct {
@@ -127,6 +129,10 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	if err != nil {
 		return nil, err
 	}
+
+	_ = config.HealthChecker.AddCheck("catalog.datastore", &datastore.Health{
+		DataStore: dataStore,
+	})
 
 	dataStore = ds_telemetry.WithMetrics(dataStore, config.Metrics)
 	dataStore = dscache.New(dataStore, clock.New())

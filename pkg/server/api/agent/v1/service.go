@@ -358,7 +358,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
-	log.Debug("Renewing agent SVID")
+	log.Info("Renewing agent SVID")
 
 	if req.Params == nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "params cannot be nil", nil)

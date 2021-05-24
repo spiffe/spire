@@ -978,7 +978,7 @@ func TestRenewAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	renewingMessage := spiretest.LogEntry{
-		Level:   logrus.DebugLevel,
+		Level:   logrus.InfoLevel,
 		Message: "Renewing agent SVID",
 	}
 

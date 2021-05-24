@@ -820,7 +820,7 @@ func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) 
 	return nil
 }
 
-// FetchBundle returns the bundle matching the specified Trust Domain.
+// fetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
 	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
 	if err != nil {
