@@ -1304,7 +1304,7 @@ SELECT
 
 	if dbType == PostgreSQL ||
 		(req.BySelectorMatch != nil &&
-			(req.BySelectorMatch.Match == datastore.Subset || len(req.BySelectorMatch.Selectors) == 1)) {
+			(req.BySelectorMatch.Match == datastore.Subset || req.BySelectorMatch.Match == datastore.MatchAny || len(req.BySelectorMatch.Selectors) == 1)) {
 		builder.WriteString(" AS result_nodes")
 	}
 
