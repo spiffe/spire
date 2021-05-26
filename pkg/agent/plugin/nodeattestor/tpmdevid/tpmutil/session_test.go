@@ -15,7 +15,7 @@ import (
 	"github.com/google/go-tpm/tpm2"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
+	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/tpmsimulator"
 	"github.com/stretchr/testify/require"
 )
@@ -199,7 +199,7 @@ func TestSolveDevIDChallenge(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, signedNonce)
 
-			err = tpmdevid.VerifyDevIDChallenge(tt.devID, tt.nonce, signedNonce)
+			err = server_devid.VerifyDevIDChallenge(tt.devID, tt.nonce, signedNonce)
 			require.NoError(t, err)
 		})
 	}
@@ -227,7 +227,7 @@ func TestSolveCredActivationChallenge(t *testing.T) {
 	akPub, err := tpm2.DecodePublic(akPubBytes)
 	require.NoError(t, err)
 
-	challenge, expectedNonce, err := tpmdevid.NewCredActivationChallenge(akPub, ekPub)
+	challenge, expectedNonce, err := server_devid.NewCredActivationChallenge(akPub, ekPub)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -261,7 +261,7 @@ func TestSolveCredActivationChallenge(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, nonce)
-			require.Equal(t, expectedNonce, nonce)
+			require.NoError(t, server_devid.VerifyCredActivationChallenge(expectedNonce, nonce))
 		})
 	}
 }
@@ -320,7 +320,7 @@ func TestCertifyDevIDKey(t *testing.T) {
 			require.NotNil(t, attData)
 			require.NotNil(t, signature)
 
-			err = tpmdevid.VerifyDevIDCertification(&akPub, &devIDPub, attData, signature)
+			err = server_devid.VerifyDevIDCertification(&akPub, &devIDPub, attData, signature)
 			require.NoError(t, err)
 		})
 	}

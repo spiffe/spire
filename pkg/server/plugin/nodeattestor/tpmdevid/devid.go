@@ -156,7 +156,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	// Verify credential activation challenge (if configured)
 	if conf.checkDevIDResidency {
-		err = verifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
+		err = VerifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
 		if err != nil {
 			return status.Errorf(codes.Unauthenticated, "credential activation failed: %v", err)
 		}

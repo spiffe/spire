@@ -22,7 +22,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const baseTPMDir = "/dev"
+const BaseTPMDir = "/dev"
+
+// Functions defined here are overriden in test files to facilitate unit testing
+var (
+	AutoDetectTPMPath func(string) (string, error)                           = tpmutil.AutoDetectTPMPath
+	NewSession        func(*tpmutil.SessionConfig) (*tpmutil.Session, error) = tpmutil.NewSession
+)
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -71,7 +77,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	}
 
 	// Open TPM connection and load DevID keys
-	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
+	tpm, err := NewSession(&tpmutil.SessionConfig{
 		DevicePath: conf.devicePath,
 		DevIDPriv:  conf.devIDPriv,
 		DevIDPub:   conf.devIDPub,
@@ -85,19 +91,19 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	// Get endorsement certificate from TPM NV index
 	ekCert, err := tpm.GetEKCert()
 	if err != nil {
-		return fmt.Errorf("unable to get endorsement certificate: %w", err)
+		return status.Errorf(codes.Internal, "unable to get endorsement certificate: %v", err)
 	}
 
 	// Get regenerated endorsement public key
 	ekPub, err := tpm.GetEKPublic()
 	if err != nil {
-		return fmt.Errorf("unable to get endorsement public key: %w", err)
+		return status.Errorf(codes.Internal, "unable to get endorsement public key: %v", err)
 	}
 
 	// Certify DevID in in the same TPM than AK
 	id, sig, err := tpm.CertifyDevIDKey()
 	if err != nil {
-		return fmt.Errorf("unable to certify DevID key: %w", err)
+		return status.Errorf(codes.Internal, "unable to certify DevID key: %v", err)
 	}
 
 	// Marshal attestation data
@@ -143,7 +149,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	// Solve DevID challenge (verify the possession of the DevID private key)
 	devIDChallengeResp, err := tpm.SolveDevIDChallenge(challenges.DevID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to solve DevID challenge: %v", err)
+		return status.Errorf(codes.Internal, "unable to solve proof of posession challenge: %v", err)
 	}
 
 	// Solve Credential Activation challenge
@@ -156,7 +162,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		challenges.CredActivation.Credential,
 		challenges.CredActivation.Secret)
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to solve credential activation challenge: %v", err)
+		return status.Errorf(codes.Internal, "unable to solve proof of residency challenge: %v", err)
 	}
 
 	// Marshal challenges responses
@@ -199,7 +205,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if extConf.DevicePath != "" {
 		p.c.devicePath = extConf.DevicePath
 	} else {
-		tpmPath, err := tpmutil.AutoDetectTPMPath(baseTPMDir)
+		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
 		if err != nil {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}

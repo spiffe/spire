@@ -88,7 +88,7 @@ func NewCredActivationChallenge(akPub, ekPub tpm2.Public) (*devid.CredActivation
 	}, nonce, err
 }
 
-func verifyCredActivationChallenge(expectedNonce, responseNonce []byte) error {
+func VerifyCredActivationChallenge(expectedNonce, responseNonce []byte) error {
 	if !bytes.Equal(expectedNonce, responseNonce) {
 		return errors.New("nonces are different")
 	}
