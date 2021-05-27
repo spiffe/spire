@@ -145,3 +145,18 @@ func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs 
 	tb.Helper()
 	return assert.Empty(tb, cmp.Diff(expected, actual, protocmp.Transform()), msgAndArgs...)
 }
+
+func RequireErrorPrefix(tb testing.TB, err error, prefix string) {
+	tb.Helper()
+	if !AssertErrorPrefix(tb, err, prefix) {
+		tb.FailNow()
+	}
+}
+
+func AssertErrorPrefix(tb testing.TB, err error, prefix string) bool {
+	tb.Helper()
+	if err == nil || !strings.HasPrefix(err.Error(), prefix) {
+		return assert.Fail(tb, fmt.Sprintf("error %v does not have prefix %q", err, prefix))
+	}
+	return true
+}
