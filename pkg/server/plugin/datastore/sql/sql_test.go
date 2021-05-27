@@ -823,8 +823,8 @@ func (s *PluginSuite) TestListAttestedNodes() {
 						FetchSelectors:    withSelectors,
 					}
 
-					// Don't loop forever if there is a bug
 					for i := 0; ; i++ {
+						// Don't loop forever if there is a bug
 						if i > len(tt.nodes) {
 							require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
 						}
@@ -1338,7 +1338,7 @@ func (s *PluginSuite) TestListRegistrationEntries() {
 	s.Require().Nil(resp)
 }
 
-func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataConsistency) {
+func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.DataConsistency) {
 	byFederatesWith := func(match datastore.MatchBehavior, trustDomainIDs ...string) *datastore.ByFederatesWith {
 		return &datastore.ByFederatesWith{
 			TrustDomains: trustDomainIDs,
@@ -1625,7 +1625,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 			} else {
 				name += " without pagination"
 			}
-			if dbPreference == datastore.TolerateStale {
+			if dataConsistency == datastore.TolerateStale {
 				name += " read-only"
 			}
 			s.T().Run(name, func(t *testing.T) {
@@ -1647,7 +1647,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 
 				// Optionally sleep to give time for the entries to propagate to
 				// the replicas.
-				if dbPreference == datastore.TolerateStale && s.readOnlyDelay > 0 {
+				if dataConsistency == datastore.TolerateStale && s.readOnlyDelay > 0 {
 					time.Sleep(s.readOnlyDelay)
 				}
 
@@ -1671,8 +1671,8 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 					ByFederatesWith: tt.byFederatesWith,
 				}
 
-				// Don't loop forever if there is a bug
 				for i := 0; ; i++ {
+					// Don't loop forever if there is a bug
 					if i > len(tt.entries) {
 						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
 					}
@@ -2331,7 +2331,6 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Equal("foobar", resp.Token)
 
 	// Ensure we prune old tokens
-	joinToken.Expiry = now.Add(time.Second * 10)
 	err = s.ds.PruneJoinTokens(ctx, now.Add(time.Second*10))
 	s.Require().NoError(err)
 
@@ -2615,11 +2614,11 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string, dbPreference datastore.DataConsistency) []*common.Selector {
-	if dbPreference == datastore.TolerateStale && TestReadOnlyDelay != "" {
+func (s *PluginSuite) getNodeSelectors(spiffeID string, dataConsistency datastore.DataConsistency) []*common.Selector {
+	if dataConsistency == datastore.TolerateStale && TestReadOnlyDelay != "" {
 		time.Sleep(s.readOnlyDelay)
 	}
-	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
 	s.Require().NoError(err)
 	return selectors
 }

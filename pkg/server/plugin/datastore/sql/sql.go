@@ -278,8 +278,8 @@ func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selecto
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string,
-	dbPreference datastore.DataConsistency) (selectors []*common.Selector, err error) {
-	if dbPreference == datastore.TolerateStale && ds.roDb != nil {
+	dataConsistency datastore.DataConsistency) (selectors []*common.Selector, err error) {
+	if dataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		return getNodeSelectors(ctx, ds.roDb, spiffeID)
 	}
 	return getNodeSelectors(ctx, ds.db, spiffeID)
