@@ -784,9 +784,9 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectPagedTokensIn: []string{"", "1", "2", "5", "6", "7", "8"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeE}, {nodeF}, {nodeG}, {nodeH}, {}},
 		},
-		// By exact selector super set
+		// By exact selector superset
 		{
-			test:                "by selector super set",
+			test:                "by selector superset",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
 			bySelectors:         bySelectors(datastore.Superset, "S1"),
 			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeE, nodeF},
@@ -794,7 +794,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeE}, {nodeF}, {}},
 		},
 		{
-			test:                "by selectors super set",
+			test:                "by selectors superset",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
 			bySelectors:         bySelectors(datastore.Superset, "S1", "S2"),
 			expectNodesOut:      []*common.AttestedNode{nodeE},
@@ -1552,7 +1552,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCB2}, {foobarCD12}, {}},
 		},
 		{
-			test:                  "by federatesWith one super set",
+			test:                  "by federatesWith one superset",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
 			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCD12},
@@ -1560,7 +1560,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCD12}, {}},
 		},
 		{
-			test:                  "by federatesWith many super set",
+			test:                  "by federatesWith many superset",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
 			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12, foobarCD12},
@@ -1625,7 +1625,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parent ID and match any selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbuzB, bazbuzAB12},
 			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.MatchAny, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
@@ -1645,7 +1645,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			test:                  "by parent ID and match any selectors no match",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
 			byParentID:            makeID("foo"),
-			bySelectors:           bySelectors(datastore.Subset, "D", "Z"),
+			bySelectors:           bySelectors(datastore.MatchAny, "D", "Z"),
 			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
@@ -1653,7 +1653,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 
 		{
 			test:                  "by parent ID and superset selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbuzB, bazbuzAB12},
 			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Superset, "A"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
@@ -1670,7 +1670,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
 		},
 		{
-			test:                  "by parent ID and subset selectors no match",
+			test:                  "by parent ID and superset selectors no match",
 			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
 			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Superset, "A", "B", "Z"),
@@ -1797,6 +1797,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
+		// TODO: ADD matchany and perset for selectors
 		// by spiffe ID and federates with
 		{
 			test:                  "by SPIFFE ID and federatesWith one subset",
@@ -1843,6 +1844,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
+		// TODO: ADD matchany and perset for federate with
 		// Make sure ByFedaratesWith and BySelectors can be used together
 		{
 			test:                  "by Parent ID, federatesWith and selectors",
