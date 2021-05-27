@@ -779,8 +779,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectPagedTokensIn: []string{"", "1"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
 		},
-		// This is to exercise an example where we have all filters together, to execute queries
-		// can be used together
+		// Exercise all filters together
 		{
 			test:                "all filters",
 			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeB, nodeF, nodeG, nodeC},
