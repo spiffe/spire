@@ -38,7 +38,7 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
-	GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference DataConsistency) ([]*common.Selector, error)
+	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
 	SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error
 
