@@ -42,6 +42,11 @@ var (
 			{DerBytes: []byte("BAZ")},
 		},
 	}
+
+	commonBundle = &common.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
+	}
 )
 
 const (
@@ -76,12 +81,8 @@ func TestBundleLoadedWhenCannotCreateClient(t *testing.T) {
 	test := setupTest()
 	test.kubeClient = nil
 	notifier := test.loadPlugin(t, "")
-	bundle := &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	}
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), bundle)
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube client: kube client not configured")
 }
 
@@ -106,11 +107,7 @@ func TestBundleLoadedConfigMapPatchFailure(t *testing.T) {
 	test.kubeClient.setPatchErr(errors.New("some error"))
 	test.identityProvider.AppendBundle(testBundle)
 
-	bundle := &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	}
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), bundle)
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: spire/spire-bundle: some error")
 }
 
@@ -131,11 +128,7 @@ func TestBundleLoadedConfigMapUpdateConflict(t *testing.T) {
 	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle2)
 
-	bundle := &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	}
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), bundle)
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	// make sure the config map contains the second bundle data
@@ -152,10 +145,7 @@ func TestBundleLoadedWithDefaultConfiguration(t *testing.T) {
 	test.kubeClient.setConfigMap(newConfigMap())
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -189,10 +179,7 @@ kube_config_file_path = "/some/file/path"
 	})
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -212,10 +199,7 @@ func TestBundleUpdatedWhenCannotCreateClient(t *testing.T) {
 	test.kubeClient = nil
 	notifier := test.loadPlugin(t, "")
 
-	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube client: kube client not configured")
 }
 
@@ -223,10 +207,7 @@ func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
 	test := setupTest()
 	notifier := test.loadPlugin(t, "")
 
-	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: unable to get list: not found")
 }
 
@@ -243,10 +224,7 @@ func TestBundleUpdatedConfigMapPatchFailure(t *testing.T) {
 	test.kubeClient.setPatchErr(errors.New("some error"))
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: spire/spire-bundle: some error")
 }
 
@@ -267,10 +245,7 @@ func TestBundleUpdatedConfigMapUpdateConflict(t *testing.T) {
 	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle2)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	// make sure the config map contains the second bundle data
@@ -287,10 +262,7 @@ func TestBundleUpdatedWithDefaultConfiguration(t *testing.T) {
 	test.kubeClient.setConfigMap(newConfigMap())
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -324,10 +296,7 @@ kube_config_file_path = "/some/file/path"
 	})
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
-	})
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
