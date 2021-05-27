@@ -725,6 +725,14 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectPagedTokensIn: []string{"", "1", "4"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {}},
 		},
+		{
+			test:                "banned undefined",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
+			byBanned:            nil,
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeE, nodeF, nodeB},
+			expectPagedTokensIn: []string{"", "1", "2", "3", "4"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeE}, {nodeF}, {nodeB}, {}},
+		},
 		// By selector subset
 		{
 			test:                "by selector subset",
@@ -765,6 +773,19 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		{
 			test:                "by attestation type and selector subset",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE},
+			byAttestationType:   "T1",
+			bySelectors:         bySelectors(datastore.Subset, "S1"),
+			expectNodesOut:      []*common.AttestedNode{nodeA},
+			expectPagedTokensIn: []string{"", "1"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
+		},
+		// This is to exercise an example where we have all filters together, to execute queries
+		// can be used together
+		{
+			test:                "all filters",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeB, nodeF, nodeG, nodeC},
+			byBanned:            &bannedFalse,
+			byExpiresBefore:     now,
 			byAttestationType:   "T1",
 			bySelectors:         bySelectors(datastore.Subset, "S1"),
 			expectNodesOut:      []*common.AttestedNode{nodeA},
@@ -1366,7 +1387,8 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 
 	foobarB := makeEntry("foo", "bar", "B")
 
-	foobuzAD := makeEntry("foo", "buz", "A", "D")
+	foobuzAD1 := makeEntry("foo", "buz", "A", "D")
+	foobuzAD1.FederatesWith = []string{"spiffe://federated1.test"}
 	foobuzCD := makeEntry("foo", "buz", "C", "D")
 
 	bazbarAB1 := makeEntry("baz", "bar", "A", "B")
@@ -1378,7 +1400,8 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
 	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 
-	bazbuzAB := makeEntry("baz", "buz", "A", "B")
+	bazbuzAB12 := makeEntry("baz", "buz", "A", "B")
+	bazbuzAB12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 	bazbuzB := makeEntry("baz", "buz", "B")
 	bazbuzCD := makeEntry("baz", "buz", "C", "D")
 
@@ -1438,7 +1461,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		// by SPIFFE ID
 		{
 			test:                  "by SPIFFE ID",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, foobarCB2, foobuzCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD1, foobarCB2, foobuzCD},
 			bySpiffeID:            makeID("bar"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
@@ -1480,7 +1503,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		// by parent ID and spiffe ID
 		{
 			test:                  "by parent ID and SPIFFE ID",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD, bazbarCB2, bazbuzCD},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobuzAD1, bazbarCB2, bazbuzCD},
 			byParentID:            makeID("foo"),
 			bySpiffeID:            makeID("bar"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
@@ -1490,7 +1513,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		// by parent ID and selector
 		{
 			test:                  "by parent ID and exact selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
 			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Exact, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
@@ -1499,7 +1522,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		},
 		{
 			test:                  "by parent ID and exact selectors",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
 			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
@@ -1508,7 +1531,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		},
 		{
 			test:                  "by parent ID and subset selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
 			byParentID:            makeID("foo"),
 			bySelectors:           bySelectors(datastore.Subset, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
@@ -1573,7 +1596,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		// by SPIFFE ID and selector
 		{
 			test:                  "by SPIFFE ID and exact selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
 			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Exact, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
@@ -1582,7 +1605,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		},
 		{
 			test:                  "by SPIFFE ID and exact selectors",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
 			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Exact, "A", "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
@@ -1591,7 +1614,7 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 		},
 		{
 			test:                  "by SPIFFE ID and subset selector",
-			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB},
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
 			bySpiffeID:            makeID("bar"),
 			bySelectors:           bySelectors(datastore.Subset, "B"),
 			expectEntriesOut:      []*common.RegistrationEntry{foobarB},
@@ -1615,6 +1638,63 @@ func (s *PluginSuite) testListRegistrationEntries(dbPreference datastore.DataCon
 			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		// by spiffe ID and federates with
+		{
+			test:                  "by SPIFFE ID and federatesWith one subset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, bazbarAB1},
+			expectPagedTokensIn:   []string{"", "1", "6"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {bazbarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith many subset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarCB2, bazbarCB2},
+			expectPagedTokensIn:   []string{"", "3", "8"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarCB2}, {bazbarCB2}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith one exact",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, bazbarAB1},
+			expectPagedTokensIn:   []string{"", "1", "6"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {bazbarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith many exact",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12, foobarCD12, bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "2", "4", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith no results",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("buz"),
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		// Make sure ByFedaratesWith and BySelectors can be used together
+		{
+			test:                  "by Parent ID, federatesWith and selectors",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			byParentID:            makeID("foo"),
+			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated1.test", "spiffe://federated2.test"),
+			bySelectors:           bySelectors(datastore.Subset, "A", "D"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {}},
 		},
 	} {
 		tt := tt
