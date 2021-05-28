@@ -2,132 +2,29 @@ package disk
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
-	"encoding/json"
+	"errors"
 	"io"
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
-const (
-	config = `{
-	"ttl":"1h",
-	"key_file_path":"_test_data/keys/EC/private_key.pem",
-	"cert_file_path":"_test_data/keys/EC/cert.pem"
-}`
-)
-
-var (
-	ctx = context.Background()
-)
-
-func TestDisk(t *testing.T) {
-	spiretest.Run(t, new(DiskSuite))
-}
-
-type DiskSuite struct {
-	spiretest.Suite
-
-	clock     *clock.Mock
-	rawPlugin *Plugin
-	p         upstreamauthorityv0.UpstreamAuthorityClient
-}
-
-func (s *DiskSuite) SetupTest() {
-	s.clock = clock.NewMock(s.T())
-
-	p := New()
-	p.clock = s.clock
-
-	// This ensures that there are only specific tests that do the verify
-	// flow lowering the cost of "refreshing" all of the cert material
-	// associated with the tests in this package. TODO before 2029 generate
-	// all the cert and key material for tests on the fly to avoid this problem.
-	p._testOnlyShouldVerify = false
-	s.rawPlugin = p
-
-	v0 := new(upstreamauthority.V0)
-	plugintest.Load(s.T(), builtin(p), v0)
-	s.p = v0.UpstreamAuthorityClient
-
-	s.configure()
-}
-
-func (s *DiskSuite) configure() {
-	resp, err := s.p.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: config,
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(&spi.ConfigureResponse{}, resp)
-}
-
-func (s *DiskSuite) TestConfigureUsingECKey() {
-	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
-	s.Require().NoError(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingPKCS1Key() {
-	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS1/cert.pem")
-	s.Require().NoError(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingPKCS8Key() {
-	err := s.configureWith("_test_data/keys/PKCS8/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
-	s.Require().NoError(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingNonMatchingKeyAndCert() {
-	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/PKCS8/cert.pem")
-	s.Require().Error(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingEmptyKey() {
-	err := s.configureWith("_test_data/keys/empty/private_key.pem", "_test_data/keys/empty/cert.pem")
-	s.Require().Error(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingEmptyCert() {
-	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/empty/cert.pem")
-	s.Require().Error(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingUnknownKey() {
-	err := s.configureWith("_test_data/keys/unknonw/private_key.pem", "_test_data/keys/unknonw/cert.pem")
-	s.Require().Error(err)
-}
-
-func (s *DiskSuite) TestConfigureUsingBadCert() {
-	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/unknonw/cert.pem")
-	s.Require().Error(err)
-}
-
-func (s *DiskSuite) TestConfigureWithMismatchedCertKey() {
-	err := s.configureWith("_test_data/keys/PKCS1/private_key.pem", "_test_data/keys/EC/cert.pem")
-	s.Require().Error(err)
-}
-
-func (s *DiskSuite) TestGetPluginInfo() {
-	res, err := s.p.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.Require().NotNil(res)
-}
-
-func (s *DiskSuite) TestExplicitBundleAndVerify() {
+func TestMintX509CA(t *testing.T) {
 	// On OSX
 	// openssl ecparam -name prime256v1 -genkey -noout -out root_key.pem
 	// openssl req -days 3650 -x509 -new -key root_key.pem -out root_cert.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://root\nbasicConstraints=CA:true") -extensions v3
@@ -139,198 +36,315 @@ func (s *DiskSuite) TestExplicitBundleAndVerify() {
 	// openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in upstream_csr.pem -out upstream_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
 	// cat upstream_cert.pem intermediate_cert.pem > upstream_and_intermediate.pem
 	// This test verifies the cert chain and will start failing on May 15 2029
-	require := s.Require()
 
-	s.rawPlugin._testOnlyShouldVerify = true
-	_, err := s.p.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: `{
-  "key_file_path": "_test_data/keys/EC/upstream_key.pem",
-  "cert_file_path": "_test_data/keys/EC/upstream_cert.pem",
-  "bundle_file_path": "_test_data/keys/EC/root_cert.pem",
-  "ttl": "1h",
-}`,
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	})
-	require.Error(err, "should fail to verify as an intermediate is missing")
+	key := testkey.NewEC256(t)
+	clock := clock.NewMock(t)
 
-	_, err = s.p.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: `{
-  "key_file_path": "_test_data/keys/EC/upstream_key.pem",
-  "cert_file_path": "_test_data/keys/EC/upstream_and_intermediate.pem",
-  "bundle_file_path": "_test_data/keys/EC/root_cert.pem",
-  "ttl": "1h",
-}`,
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	})
-	require.NoError(err)
-
-	validSpiffeID := "spiffe://localhost"
-	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
-	require.NoError(err)
-
-	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
-	require.NoError(err)
-	require.NotNil(resp)
-
-	testCSRResp(s.T(), resp, pubKey, []string{"spiffe://localhost", "spiffe://upstream", "spiffe://intermediate"}, []string{"spiffe://root"})
-}
-
-func (s *DiskSuite) TestBadBundleFile() {
-	require := s.Require()
-
-	_, err := s.p.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: `{
-  "key_file_path": "_test_data/keys/EC/upstream_key.pem",
-  "cert_file_path": "_test_data/keys/EC/upstream_cert.pem",
-  "bundle_file_path": "_test_data/keys/empty/cert.pem",
-  "ttl": "1h",
-}`,
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	})
-	require.Error(err)
-}
-
-func (s *DiskSuite) TestNotSelfSignedWithoutBundle() {
-	require := s.Require()
-
-	_, err := s.p.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: `{
-  "key_file_path": "_test_data/keys/EC/upstream_key.pem",
-  "cert_file_path": "_test_data/keys/EC/upstream_and_intermediate.pem",
-  "ttl": "1h",
-}`,
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	})
-	require.Error(err)
-}
-
-func (s *DiskSuite) TestSubmitValidCSR() {
-	require := s.Require()
-
-	testCSR := func() {
-		validSpiffeID := "spiffe://localhost"
-		csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
-		require.NoError(err)
-
-		resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
-		require.NoError(err)
-		require.NotNil(resp)
-
-		testCSRResp(s.T(), resp, pubKey, []string{"spiffe://localhost"}, []string{"spiffe://local"})
+	makeCSR := func(spiffeID string) []byte {
+		csr, err := util.NewCSRTemplateWithKey(spiffeID, key)
+		require.NoError(t, err)
+		return csr
 	}
 
-	testCSR()
+	selfSignedCA := Configuration{
+		CertFilePath: "testdata/keys/EC/cert.pem",
+		KeyFilePath:  "testdata/keys/EC/private_key.pem",
+	}
+	intermediateCA := Configuration{
+		CertFilePath:   "testdata/keys/EC/upstream_and_intermediate.pem",
+		KeyFilePath:    "testdata/keys/EC/upstream_key.pem",
+		BundleFilePath: "testdata/keys/EC/root_cert.pem",
+	}
 
-	// Modify the cert and key file paths. The CSR will still be
-	// signed by the cached upstreamCA.
-	s.rawPlugin.mtx.Lock()
-	s.rawPlugin.config.CertFilePath = "invalid-file"
-	s.rawPlugin.config.KeyFilePath = "invalid-file"
-	s.rawPlugin.mtx.Unlock()
+	for _, tt := range []struct {
+		test                    string
+		configuration           Configuration
+		csr                     []byte
+		preferredTTL            time.Duration
+		breakConfig             bool
+		expectCode              codes.Code
+		expectMsgPrefix         string
+		expectX509CA            []string
+		expectedX509Authorities []string
+		expectTTL               time.Duration
+	}{
+		{
+			test:            "empty CSR",
+			configuration:   selfSignedCA,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(disk): unable to sign CSR: unable to parse CSR",
+		},
+		{
+			test:            "malformed CSR",
+			configuration:   selfSignedCA,
+			csr:             []byte("MALFORMED"),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(disk): unable to sign CSR: unable to parse CSR",
+		},
+		{
+			test:            "invalid SPIFFE ID in CSR",
+			configuration:   selfSignedCA,
+			csr:             makeCSR("invalid://example.org"),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: `upstreamauthority(disk): unable to sign CSR: "invalid://example.org" is not a valid trust domain SPIFFE ID`,
+		},
+		{
+			test:            "invalid SPIFFE ID in CSR",
+			configuration:   selfSignedCA,
+			csr:             makeCSR("invalid://example.org"),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: `upstreamauthority(disk): unable to sign CSR: "invalid://example.org" is not a valid trust domain SPIFFE ID`,
+		},
+		{
+			test:                    "valid using self-signed",
+			configuration:           selfSignedCA,
+			csr:                     makeCSR("spiffe://example.org"),
+			expectTTL:               x509svid.DefaultUpstreamCATTL,
+			expectX509CA:            []string{"spiffe://example.org"},
+			expectedX509Authorities: []string{"spiffe://local"},
+		},
+		{
+			test:                    "valid using intermediate",
+			configuration:           intermediateCA,
+			csr:                     makeCSR("spiffe://example.org"),
+			expectTTL:               x509svid.DefaultUpstreamCATTL,
+			expectX509CA:            []string{"spiffe://example.org", "spiffe://upstream", "spiffe://intermediate"},
+			expectedX509Authorities: []string{"spiffe://root"},
+		},
+		{
+			test:                    "valid with preferred TTL",
+			configuration:           selfSignedCA,
+			csr:                     makeCSR("spiffe://example.org"),
+			preferredTTL:            x509svid.DefaultUpstreamCATTL + time.Hour,
+			expectTTL:               x509svid.DefaultUpstreamCATTL + time.Hour,
+			expectX509CA:            []string{"spiffe://example.org"},
+			expectedX509Authorities: []string{"spiffe://local"},
+		},
+		{
+			test:                    "valid with already loaded CA",
+			configuration:           selfSignedCA,
+			csr:                     makeCSR("spiffe://example.org"),
+			breakConfig:             true,
+			expectTTL:               x509svid.DefaultUpstreamCATTL,
+			expectX509CA:            []string{"spiffe://example.org"},
+			expectedX509Authorities: []string{"spiffe://local"},
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			p := New()
+			p.clock = clock
 
-	testCSR()
+			ua := new(upstreamauthority.V1)
+			plugintest.Load(t, builtin(p), ua,
+				plugintest.ConfigureJSON(tt.configuration),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+			)
+
+			if tt.breakConfig {
+				//	// Modify the cert and key file paths. The CSR will still be
+				//	// signed by the cached upstreamCA.
+				p.mtx.Lock()
+				p.config.CertFilePath = "invalid-file"
+				p.config.KeyFilePath = "invalid-file"
+				p.mtx.Unlock()
+			}
+
+			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), tt.csr, tt.preferredTTL)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			if tt.expectCode != codes.OK {
+				assert.Nil(t, x509CA)
+				assert.Nil(t, x509Authorities)
+				assert.Nil(t, stream)
+				return
+			}
+
+			if assert.NotEmpty(t, x509CA, "x509CA chain is empty") {
+				// assert key
+				isEqual, err := cryptoutil.PublicKeyEqual(x509CA[0].PublicKey, key.Public())
+				if assert.NoError(t, err, "unable to determine key equality") {
+					assert.True(t, isEqual, "x509CA key does not match expected key")
+				}
+				// assert ttl
+				ttl := x509CA[0].NotAfter.Sub(clock.Now())
+				assert.Equal(t, tt.expectTTL, ttl, "TTL does not match")
+			}
+			assert.Equal(t, tt.expectX509CA, certChainURIs(x509CA))
+			assert.Equal(t, tt.expectedX509Authorities, certChainURIs(x509Authorities))
+
+			// Plugin does not support streaming back changes so assert the
+			// stream returns EOF.
+			_, streamErr := stream.RecvUpstreamX509Authorities()
+			assert.True(t, errors.Is(streamErr, io.EOF))
+		})
+	}
 }
 
-func (s *DiskSuite) TestMintX509CAUsesPreferredTTLIfSet() {
-	err := s.configureWith("_test_data/keys/EC/private_key.pem", "_test_data/keys/EC/cert.pem")
-	s.Require().NoError(err)
-
-	// If the preferred TTL is set, it should be used.
-	s.testCSRTTL(3600, time.Hour)
-
-	// If the preferred TTL is zero, the default should be used.
-	s.testCSRTTL(0, x509svid.DefaultUpstreamCATTL)
-}
-
-func (s *DiskSuite) testCSRTTL(preferredTTL int32, expectedTTL time.Duration) {
-	validSpiffeID := "spiffe://localhost"
-	csr, _, err := util.NewCSRTemplate(validSpiffeID)
-	s.Require().NoError(err)
-
-	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-
-	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	s.Require().NoError(err)
-	s.Require().Len(certs, 1)
-	s.Require().Equal(s.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
-}
-
-func testCSRResp(t *testing.T, resp *upstreamauthorityv0.MintX509CAResponse, pubKey crypto.PublicKey, expectCertChainURIs []string, expectTrustBundleURIs []string) {
-	certs, err := x509util.RawCertsToCertificates(resp.X509CaChain)
+func TestPublishJWTKey(t *testing.T) {
+	ua := new(upstreamauthority.V1)
+	plugintest.Load(t, BuiltIn(), ua,
+		plugintest.ConfigureJSON(Configuration{
+			CertFilePath: "testdata/keys/EC/cert.pem",
+			KeyFilePath:  "testdata/keys/EC/private_key.pem",
+		}),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+	)
+	pkixBytes, err := x509.MarshalPKIXPublicKey(testkey.NewEC256(t).Public())
 	require.NoError(t, err)
 
-	trustBundle, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
-	require.NoError(t, err)
+	jwtAuthorities, stream, err := ua.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes})
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(disk): publishing upstream is unsupported")
+	assert.Nil(t, jwtAuthorities)
+	assert.Nil(t, stream)
+}
 
-	for i, cert := range certs {
-		assert.Equal(t, expectCertChainURIs[i], certURI(cert))
+func TestConfigure(t *testing.T) {
+	for _, tt := range []struct {
+		test               string
+		certFilePath       string
+		keyFilePath        string
+		bundleFilePath     string
+		overrideCoreConfig *catalog.CoreConfig
+		overrideConfig     string
+		expectCode         codes.Code
+		expectMsgPrefix    string
+	}{
+		{
+			test:         "using EC key",
+			certFilePath: "testdata/keys/EC/cert.pem",
+			keyFilePath:  "testdata/keys/EC/private_key.pem",
+		},
+		{
+			test:         "using PKCS1 key",
+			certFilePath: "testdata/keys/PKCS1/cert.pem",
+			keyFilePath:  "testdata/keys/PKCS1/private_key.pem",
+		},
+		{
+			test:         "using PKCS8 key",
+			certFilePath: "testdata/keys/PKCS8/cert.pem",
+			keyFilePath:  "testdata/keys/PKCS8/private_key.pem",
+		},
+		{
+			test:            "non matching key and cert",
+			certFilePath:    "testdata/keys/PKCS8/cert.pem",
+			keyFilePath:     "testdata/keys/PKCS1/private_key.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA: certificate and private key do not match",
+		},
+		{
+			test:            "empty key",
+			certFilePath:    "testdata/keys/EC/cert.pem",
+			keyFilePath:     "testdata/keys/empty/private_key.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA key: no PEM blocks",
+		},
+		{
+			test:            "empty cert",
+			certFilePath:    "testdata/keys/empty/cert.pem",
+			keyFilePath:     "testdata/keys/EC/private_key.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA cert: no PEM blocks",
+		},
+		{
+			test:            "unknown key",
+			certFilePath:    "testdata/keys/EC/cert.pem",
+			keyFilePath:     "testdata/keys/unknown/private_key.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA key: expected block type",
+		},
+		{
+			test:            "unknown cert",
+			certFilePath:    "testdata/keys/unknown/cert.pem",
+			keyFilePath:     "testdata/keys/EC/private_key.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA cert: unable to parse",
+		},
+		{
+			test:            "empty bundle",
+			certFilePath:    "testdata/keys/EC/cert.pem",
+			keyFilePath:     "testdata/keys/EC/private_key.pem",
+			bundleFilePath:  "testdata/keys/empty/cert.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA bundle: no PEM blocks",
+		},
+		{
+			test:            "intermediate CA without root bundle",
+			certFilePath:    "testdata/keys/EC/upstream_and_intermediate.pem",
+			keyFilePath:     "testdata/keys/EC/upstream_key.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "with no bundle_file_path configured only self-signed CAs are supported",
+		},
+		{
+			test:            "intermediate CA without full chain to root bundle",
+			certFilePath:    "testdata/keys/EC/upstream_cert.pem",
+			keyFilePath:     "testdata/keys/EC/upstream_key.pem",
+			bundleFilePath:  "testdata/keys/EC/root_cert.pem",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to load upstream CA: certificate cannot be validated with the provided bundle",
+		},
+		{
+			test:           "intermediate CA with full chain to root bundle",
+			certFilePath:   "testdata/keys/EC/upstream_and_intermediate.pem",
+			keyFilePath:    "testdata/keys/EC/upstream_key.pem",
+			bundleFilePath: "testdata/keys/EC/root_cert.pem",
+		},
+		{
+			test:            "malformed config",
+			overrideConfig:  "MALFORMED",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to decode configuration: ",
+		},
+		{
+			test:               "missing trust domain",
+			certFilePath:       "testdata/keys/EC/cert.pem",
+			keyFilePath:        "testdata/keys/EC/private_key.pem",
+			overrideCoreConfig: &catalog.CoreConfig{},
+			expectCode:         codes.InvalidArgument,
+			expectMsgPrefix:    "trust_domain is required",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			var err error
+
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+			}
+
+			if tt.overrideCoreConfig != nil {
+				options = append(options, plugintest.CoreConfig(*tt.overrideCoreConfig))
+			} else {
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
+				}))
+			}
+
+			if tt.overrideConfig != "" {
+				options = append(options, plugintest.Configure(tt.overrideConfig))
+			} else {
+				options = append(options, plugintest.ConfigureJSON(Configuration{
+					KeyFilePath:    tt.keyFilePath,
+					CertFilePath:   tt.certFilePath,
+					BundleFilePath: tt.bundleFilePath,
+				}))
+			}
+
+			plugintest.Load(t, BuiltIn(), nil, options...)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+		})
 	}
+}
 
-	for i, cert := range trustBundle {
-		assert.Equal(t, expectTrustBundleURIs[i], certURI(cert))
+func certChainURIs(chain []*x509.Certificate) []string {
+	var uris []string
+	for _, cert := range chain {
+		uris = append(uris, certURI(cert))
 	}
-
-	isEqual, err := cryptoutil.PublicKeyEqual(certs[0].PublicKey, pubKey)
-	require.NoError(t, err)
-	require.True(t, isEqual)
-}
-
-func (s *DiskSuite) TestSubmitInvalidCSR() {
-	require := s.Require()
-
-	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
-	for _, invalidSpiffeID := range invalidSpiffeIDs {
-		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
-		require.NoError(err)
-
-		resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
-		require.Error(err)
-		require.Nil(resp)
-	}
-
-	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
-	require.Error(err)
-	require.Nil(resp)
-}
-
-func (s *DiskSuite) TestRace() {
-	validSpiffeID := "spiffe://localhost"
-	csr, _, err := util.NewCSRTemplate(validSpiffeID)
-	s.Require().NoError(err)
-
-	util.RaceTest(s.T(), func(t *testing.T) {
-		// the results of these RPCs aren't important; the test is just trying
-		// to get a bunch of stuff happening at once.
-		_, _ = s.p.Configure(ctx, &spi.ConfigureRequest{Configuration: config})
-		_, _ = s.mintX509CA(&upstreamauthorityv0.MintX509CARequest{Csr: csr})
-	})
-}
-
-func (s *DiskSuite) configureWith(keyFilePath, certFilePath string) error {
-	config, err := json.Marshal(Configuration{
-		KeyFilePath:  keyFilePath,
-		CertFilePath: certFilePath,
-	})
-	s.Require().NoError(err)
-
-	_, err = s.p.Configure(ctx, &spi.ConfigureRequest{
-		Configuration: string(config),
-		GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: "localhost"},
-	})
-	return err
-}
-
-func (s *DiskSuite) TestPublishJWTKey() {
-	stream, err := s.p.PublishJWTKey(context.Background(), &upstreamauthorityv0.PublishJWTKeyRequest{})
-	s.Require().NoError(err)
-	s.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	s.Require().Nil(resp)
-	s.Require().EqualError(err, "rpc error: code = Unimplemented desc = upstreamauthority-disk: publishing upstream is unsupported")
+	return uris
 }
 
 func certURI(cert *x509.Certificate) string {
@@ -338,56 +352,4 @@ func certURI(cert *x509.Certificate) string {
 		return cert.URIs[0].String()
 	}
 	return ""
-}
-
-func TestInvalidConfigs(t *testing.T) {
-	tests := []struct {
-		msg               string
-		inputConfig       string
-		trustDomain       string
-		expectErrContains string
-	}{
-		{
-			msg:               "fail to decode",
-			trustDomain:       "trust.domain",
-			inputConfig:       `this is :[ invalid ^^^ hcl`,
-			expectErrContains: "illegal char",
-		},
-		{
-			msg:               "no trust domain",
-			expectErrContains: "trust_domain is required",
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.msg, func(t *testing.T) {
-			p := New()
-
-			_, err := p.Configure(ctx, &spi.ConfigureRequest{
-				Configuration: tt.inputConfig,
-				GlobalConfig:  &spi.ConfigureRequest_GlobalConfig{TrustDomain: tt.trustDomain},
-			})
-			assert.Contains(t, err.Error(), tt.expectErrContains)
-		})
-	}
-}
-
-func (s *DiskSuite) mintX509CA(req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	stream, err := s.p.MintX509CA(ctx, req)
-	s.Require().NoError(err)
-	s.Require().NotNil(stream)
-
-	// Get response and error to be returned
-	response, err := stream.Recv()
-	if err == nil {
-		// Verify stream is closed
-		_, eofErr := stream.Recv()
-		s.Require().Equal(io.EOF, eofErr)
-	}
-
-	return response, err
 }
