@@ -6,28 +6,28 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/acmpca"
-	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
-	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 const (
 	// Defaults used for testing
-	validTrustDomain             = "example.com"
 	validRegion                  = "us-west-2"
 	validCertificateAuthorityARN = "arn:aws:acm-pca:us-west-2:123456789012:certificate-authority/abcd-1234"
 	validCASigningTemplateARN    = "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1"
@@ -40,322 +40,422 @@ const (
 	testTTL = 300
 )
 
-var (
-	ctx = context.Background()
-)
+func TestConfigure(t *testing.T) {
+	for _, tt := range []struct {
+		test                   string
+		expectCode             codes.Code
+		expectMsgPrefix        string
+		overrideConfig         string
+		newClientErr           error
+		expectedDescribeStatus string
+		expectDescribeErr      error
+		expectConfig           *configuration
 
-func TestPCAPlugin(t *testing.T) {
-	spiretest.Run(t, new(PCAPluginSuite))
+		// All allowed configurations
+		region                  string
+		endpoint                string
+		certificateAuthorityARN string
+		signingAlgorithm        string
+		caSigningTemplateARN    string
+		assumeRoleARN           string
+		supplementalBundlePath  string
+	}{
+		{
+			test:                    "success",
+			expectedDescribeStatus:  "ACTIVE",
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectConfig: &configuration{
+				certificateAuthorityArn: "arn:aws:acm-pca:us-west-2:123456789012:certificate-authority/abcd-1234",
+				signingAlgorithm:        "SHA256WITHRSA",
+				caSigningTemplateArn:    "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1",
+			},
+		},
+		{
+			test:                    "using default signing algorithm",
+			expectedDescribeStatus:  "ACTIVE",
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectConfig: &configuration{
+				certificateAuthorityArn: "arn:aws:acm-pca:us-west-2:123456789012:certificate-authority/abcd-1234",
+				signingAlgorithm:        "defaultSigningAlgorithm",
+				caSigningTemplateArn:    "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1",
+			},
+		},
+		{
+			test:                    "using default signing template ARN",
+			expectedDescribeStatus:  "ACTIVE",
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectConfig: &configuration{
+				certificateAuthorityArn: "arn:aws:acm-pca:us-west-2:123456789012:certificate-authority/abcd-1234",
+				signingAlgorithm:        "SHA256WITHRSA",
+				caSigningTemplateArn:    defaultCASigningTemplateArn,
+			},
+		},
+		{
+			test:                    "DISABLED template",
+			expectedDescribeStatus:  "DISABLED",
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectConfig: &configuration{
+				certificateAuthorityArn: "arn:aws:acm-pca:us-west-2:123456789012:certificate-authority/abcd-1234",
+				signingAlgorithm:        "SHA256WITHRSA",
+				caSigningTemplateArn:    "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1",
+			},
+		},
+		{
+			test:                    "Describe certificate fails",
+			expectDescribeErr:       awserr.New("Internal", "some error", errors.New("oh no")),
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "failed to describe CertificateAuthority: Internal: some error\ncaused by: oh no",
+		},
+		{
+			test:                    "Invalid supplemental bundle Path",
+			expectedDescribeStatus:  "ACTIVE",
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  "testdata/i_am_not_a_certificate.txt",
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "failed to load supplemental bundle: no PEM blocks",
+		},
+		{
+			test:                    "Missing region",
+			expectedDescribeStatus:  "ACTIVE",
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "configuration is missing a region",
+		},
+		{
+			test:                   "Missing certificate ARN",
+			expectedDescribeStatus: "ACTIVE",
+			region:                 validRegion,
+			caSigningTemplateARN:   validCASigningTemplateARN,
+			signingAlgorithm:       validSigningAlgorithm,
+			assumeRoleARN:          validAssumeRoleARN,
+			supplementalBundlePath: validSupplementalBundlePath,
+			expectCode:             codes.InvalidArgument,
+			expectMsgPrefix:        "configuration is missing a certificate authority ARN",
+		},
+		{
+			test: "Malformed config",
+			overrideConfig: `{
+badjson
+}`,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to decode configuration:",
+		},
+		{
+			test:                    "Fail to create client",
+			newClientErr:            aws.ErrMissingEndpoint,
+			region:                  validRegion,
+			certificateAuthorityARN: validCertificateAuthorityARN,
+			caSigningTemplateARN:    validCASigningTemplateARN,
+			signingAlgorithm:        validSigningAlgorithm,
+			assumeRoleARN:           validAssumeRoleARN,
+			supplementalBundlePath:  validSupplementalBundlePath,
+			expectCode:              codes.Internal,
+			expectMsgPrefix:         "failed to create client: MissingEndpoint: 'Endpoint' configuration is required for this service",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			client := &pcaClientFake{t: t}
+			clock := clock.NewMock()
+
+			var err error
+
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+			}
+
+			if tt.overrideConfig != "" {
+				options = append(options, plugintest.Configure(tt.overrideConfig))
+			} else {
+				options = append(options, plugintest.ConfigureJSON(Configuration{
+					Region:                  tt.region,
+					Endpoint:                tt.endpoint,
+					CertificateAuthorityARN: tt.certificateAuthorityARN,
+					SigningAlgorithm:        tt.signingAlgorithm,
+					CASigningTemplateARN:    tt.caSigningTemplateARN,
+					AssumeRoleARN:           tt.assumeRoleARN,
+					SupplementalBundlePath:  tt.supplementalBundlePath,
+				}))
+			}
+
+			p := new(PCAPlugin)
+			p.hooks.clock = clock
+			p.hooks.newClient = func(config *Configuration) (PCAClient, error) {
+				if tt.newClientErr != nil {
+					return nil, tt.newClientErr
+				}
+				return client, nil
+			}
+			setupDescribeCertificateAuthority(client, tt.expectedDescribeStatus, tt.expectDescribeErr)
+
+			plugintest.Load(t, builtin(p), nil, options...)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+
+			require.Equal(t, tt.expectConfig, p.config)
+		})
+	}
 }
 
-type PCAPluginSuite struct {
-	spiretest.Suite
-
-	// Mocks used for testing the plugin
-	clock *clock.Mock
-
-	pcaClientFake *pcaClientFake
-	rawPlugin     *PCAPlugin
-	// The plugin under test
-	plugin upstreamauthorityv0.UpstreamAuthorityClient
-}
-
-func (as *PCAPluginSuite) SetupTest() {
-	// Setup mocks
-	as.clock = clock.NewMock(as.T())
-
-	as.pcaClientFake = &pcaClientFake{t: as.T()}
-
-	// Setup plugin
-	plugin := newPlugin(func(config *PCAPluginConfiguration) (PCAClient, error) {
-		return as.pcaClientFake, nil
-	})
-	plugin.hooks.clock = as.clock
-	plugin.SetLogger(hclog.Default())
-	as.rawPlugin = plugin
-
-	v0 := new(upstreamauthority.V0)
-	plugintest.Load(as.T(), builtin(plugin), v0)
-	as.plugin = v0.UpstreamAuthorityClient
-}
-
-func (as *PCAPluginSuite) Test_GetPluginInfo() {
-	response, err := as.plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	as.Require().NoError(err)
-	as.Require().NotNil(response)
-}
-
-func (as *PCAPluginSuite) Test_Configure() {
-	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
-
-	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
-	as.Require().NoError(err)
-}
-
-func (as *PCAPluginSuite) Test_Configure_Default_SigningAlgorithm() {
-	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
-
-	// If the configuration does not contain a signing algorithm, we'll fall
-	// back to the CA's pre-configured value
-	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest("", validCASigningTemplateARN, validSupplementalBundlePath))
-	as.Require().NoError(err)
-	as.Require().Equal("defaultSigningAlgorithm", as.rawPlugin.signingAlgorithm)
-}
-
-func (as *PCAPluginSuite) Test_Configure_Default_CASigningTemplateARN() {
-	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
-
-	// If the configuration does not contain a CA signing template ARN, we'll fall
-	// back to the default value.
-	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, "", validSupplementalBundlePath))
-	as.Require().NoError(err)
-	as.Require().Equal(defaultCASigningTemplateArn, as.rawPlugin.caSigningTemplateArn)
-}
-
-func (as *PCAPluginSuite) Test_Configure_Disabled_CA() {
-	// The certificate authority is in a DISABLED state
-	as.verifyDescribeCertificateAuthority("DISABLED", nil)
-
-	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
-
-	// The configuration should proceed without error, as we
-	// will attempt to issue against it, allowing the server to stay alive
-	// and recover gracefully.
-	as.Require().NoError(err)
-}
-
-func (as *PCAPluginSuite) Test_Configure_DescribeCertificateAuthorityError() {
-	as.verifyDescribeCertificateAuthority("", errors.New("describe error"))
-
-	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_Configure_WithBadSupplementalBundle() {
-	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
-
-	_, err := as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/i_am_not_a_certificate.txt"))
-	as.Assert().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_Configure_Invalid() {
-	// Missing region
-	invalidConfig := `{
-		"certificate_authority_arn":"caArn",
-		"ca_signing_template_arn":"templateArn",
-		"signing_algorithm":"signingAlgorithm"
-	}`
-	_, err := as.plugin.Configure(ctx, as.configureRequest(validTrustDomain, invalidConfig))
-	as.Require().Error(err)
-
-	// Missing certificate authority ARN
-	invalidConfig = `{
-		"region":"us-west-2",
-		"ca_signing_template_arn":"templateArn",
-		"signing_algorithm":"signingAlgorithm"
-	}`
-	_, err = as.plugin.Configure(ctx, as.configureRequest(validTrustDomain, invalidConfig))
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_Configure_DecodeError() {
-	malformedConfig := `{
-		badjson
-	}`
-	_, err := as.plugin.Configure(ctx, as.configureRequest(validTrustDomain, malformedConfig))
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_MintX509CA() {
-	as.configurePlugin()
-
-	// Since ACM does the signing, these are used to verify the signed
-	// bytes returned by the GetCertificate API are as expected.
-	expectedRoot, encodedRoot := as.certificateAuthorityFixture()
-	expectedIntermediate, encodedIntermediate := as.certificateAuthorityFixture()
-	expectedCert, encodedCert := as.SVIDFixture()
-
-	// Should send an issue request
-	csr, expectedEncodedCsr := as.generateCSR()
-	as.verifyIssueCertificate(expectedEncodedCsr, nil)
-
-	// Should wait for the certificate to reach the issued state
-	as.verifyWaitUntilCertificateIssued(nil)
+func TestMintX509CA(t *testing.T) {
+	bundleCert, encodedRoot := certificateAuthorityFixture(t)
+	intermediateCert, encodedIntermediate := certificateAuthorityFixture(t)
+	expectCert, encodedCert := svidFixture(t)
 
 	// Should get the contents of the certificate once issued
 	encodedCertChain := new(bytes.Buffer)
 	_, err := encodedCertChain.Write(encodedIntermediate.Bytes())
-	as.Require().NoError(err)
+	require.NoError(t, err)
 	_, err = encodedCertChain.Write(encodedRoot.Bytes())
-	as.Require().NoError(err)
-	as.verifyGetCertificate(encodedCert, encodedCertChain, nil)
+	require.NoError(t, err)
 
-	// The resulting response should not error, and should contain the expected
-	// values from ACM.
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().NoError(err)
-	as.Require().NotNil(response)
-	as.Require().Equal([][]byte{expectedCert.Raw, expectedIntermediate.Raw}, response.X509CaChain)
-	as.Require().Equal([][]byte{expectedRoot.Raw}, response.UpstreamX509Roots)
-}
+	makeCSR := func(spiffeID string) []byte {
+		csr, _, err := util.NewCSRTemplate(spiffeID)
+		require.NoError(t, err)
 
-func (as *PCAPluginSuite) Test_MintX509CA_WithSupplementalBundle() {
-	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
+		return csr
+	}
+
+	endcodeCSR := func(csr []byte) *bytes.Buffer {
+		encodedCsr := new(bytes.Buffer)
+		err := pem.Encode(encodedCsr, &pem.Block{
+			Type:  csrRequestType,
+			Bytes: csr,
+		})
+		require.NoError(t, err)
+
+		return encodedCsr
+	}
 
 	// Load and configure supplemental bundle
 	// This fixture includes a copy of the upstream root to test deduplication
+	supplementalBundlePath := "testdata/arbitrary_certificate_with_upstream_root.pem"
 	supplementalCert, err := pemutil.LoadCertificates("testdata/arbitrary_certificate_with_upstream_root.pem")
-	as.Require().NoError(err)
-	_, err = as.plugin.Configure(ctx, as.optionalConfigureRequest(validSigningAlgorithm, validCASigningTemplateARN, "testdata/arbitrary_certificate_with_upstream_root.pem"))
-	as.Require().NoError(err)
+	require.NoError(t, err)
 
-	csr, expectedEncodedCsr := as.generateCSR()
+	successConfig := &Configuration{
+		Region:                  validRegion,
+		CertificateAuthorityARN: validCertificateAuthorityARN,
+		CASigningTemplateARN:    validCASigningTemplateARN,
+		SigningAlgorithm:        validSigningAlgorithm,
+		AssumeRoleARN:           validAssumeRoleARN,
+		SupplementalBundlePath:  "",
+	}
 
-	// Should send an issue request
-	as.verifyIssueCertificate(expectedEncodedCsr, nil)
+	for _, tt := range []struct {
+		test   string
+		config *Configuration
 
-	// Should wait for the certificate to reach the issued state
-	as.verifyWaitUntilCertificateIssued(nil)
+		client *pcaClientFake
 
-	// Should get the contents of the certificate once issued
-	_, encodedCert := as.SVIDFixture()
-	upstreamRoot, encodedUpstreamRoot := as.certificateAuthorityFixture()
-	encodedCertChain := new(bytes.Buffer)
-	_, err = encodedCertChain.Write(encodedUpstreamRoot.Bytes())
-	as.Require().NoError(err)
-	_, err = encodedCertChain.Write(encodedUpstreamRoot.Bytes())
-	as.Require().NoError(err)
-	as.verifyGetCertificate(encodedCert, encodedCertChain, nil)
+		csr                     []byte
+		preferredTTL            time.Duration
+		issuedCertErr           error
+		waitCertErr             error
+		expectCode              codes.Code
+		getCertificateCert      string
+		getCertificateCertChain string
+		getCertificateErr       error
+		expectMsgPrefix         string
+		expectX509CA            []*x509.Certificate
+		expectX509Authorities   []*x509.Certificate
+		expectTTL               time.Duration
+	}{
+		{
+			test:                    "Succesull mint",
+			config:                  successConfig,
+			csr:                     makeCSR("spiffe://example.com/foo"),
+			preferredTTL:            300 * time.Second,
+			expectX509CA:            []*x509.Certificate{expectCert, intermediateCert},
+			expectX509Authorities:   []*x509.Certificate{bundleCert},
+			getCertificateCert:      encodedCert.String(),
+			getCertificateCertChain: encodedCertChain.String(),
+		},
+		{
+			test: "With supplemental bundle",
+			config: &Configuration{
+				Region:                  validRegion,
+				CertificateAuthorityARN: validCertificateAuthorityARN,
+				CASigningTemplateARN:    validCASigningTemplateARN,
+				SigningAlgorithm:        validSigningAlgorithm,
+				AssumeRoleARN:           validAssumeRoleARN,
+				SupplementalBundlePath:  supplementalBundlePath,
+			},
+			csr:                     makeCSR("spiffe://example.com/foo"),
+			preferredTTL:            300 * time.Second,
+			expectX509CA:            []*x509.Certificate{expectCert, intermediateCert},
+			expectX509Authorities:   []*x509.Certificate{bundleCert, supplementalCert[0]},
+			getCertificateCert:      encodedCert.String(),
+			getCertificateCertChain: encodedCertChain.String(),
+		},
+		{
+			test:            "Issueace fails",
+			config:          successConfig,
+			csr:             makeCSR("spiffe://example.com/foo"),
+			preferredTTL:    300 * time.Second,
+			issuedCertErr:   awserr.New("Internal", "some error", errors.New("oh no")),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(aws_pca): failed submintting CSR: Internal: some error\ncaused by: oh no",
+		},
+		{
+			test:            "Issueance wait fails",
+			config:          successConfig,
+			csr:             makeCSR("spiffe://example.com/foo"),
+			preferredTTL:    300 * time.Second,
+			waitCertErr:     awserr.New("Internal", "some error", errors.New("oh no")),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(aws_pca): failed waiting for issuance: Internal: some error\ncaused by: oh no",
+		},
+		{
+			test:              "Get certificate fails",
+			config:            successConfig,
+			csr:               makeCSR("spiffe://example.com/foo"),
+			preferredTTL:      300 * time.Second,
+			getCertificateErr: awserr.New("Internal", "some error", errors.New("oh no")),
+			expectCode:        codes.Internal,
+			expectMsgPrefix:   "upstreamauthority(aws_pca): failed to get cerficates: Internal: some error\ncaused by: oh no",
+		},
+		{
+			test:                    "Fails to parce certificate from GetCertificate",
+			config:                  successConfig,
+			csr:                     makeCSR("spiffe://example.com/foo"),
+			preferredTTL:            300 * time.Second,
+			getCertificateCert:      "no a certificate",
+			getCertificateCertChain: encodedCertChain.String(),
+			expectCode:              codes.Internal,
+			expectMsgPrefix:         "upstreamauthority(aws_pca): failed to parse certificate from response: no PEM blocks",
+		},
+		{
+			test:                    "Fails to parce certificate chain from GetCertificate",
+			config:                  successConfig,
+			csr:                     makeCSR("spiffe://example.com/foo"),
+			preferredTTL:            300 * time.Second,
+			getCertificateCert:      encodedCert.String(),
+			getCertificateCertChain: "no a cert chain",
+			expectCode:              codes.Internal,
+			expectMsgPrefix:         "upstreamauthority(aws_pca): failed to parse certificate chain from response: no PEM blocks",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			client := &pcaClientFake{t: t}
+			clk := clock.NewMock()
 
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().NotNil(response)
-	as.Require().NoError(err)
+			// Configure plugin
+			setupDescribeCertificateAuthority(client, "ACTIVE", nil)
+			p := New()
+			p.hooks.newClient = func(config *Configuration) (PCAClient, error) {
+				return client, nil
+			}
+			p.hooks.clock = clk
 
-	// Response should include one copy of the upstream root and supplemental root
-	expectedBundle := [][]byte{upstreamRoot.Raw, supplementalCert[0].Raw}
-	as.Assert().Equal(expectedBundle, response.UpstreamX509Roots)
+			ua := new(upstreamauthority.V1)
+			plugintest.Load(t, builtin(p), ua,
+				plugintest.ConfigureJSON(tt.config),
+			)
+
+			var expectPem []byte
+			if len(tt.csr) > 0 {
+				expectPem = endcodeCSR(tt.csr).Bytes()
+			}
+
+			// Setup expected responses and verify parameters to AWS client
+			setupIssueCertificate(client, clk, expectPem, tt.issuedCertErr)
+			setupWaitUntilCertificateIssued(client, tt.waitCertErr)
+			setupGetCertificate(client, tt.getCertificateCert, tt.getCertificateCertChain, tt.getCertificateErr)
+
+			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), tt.csr, tt.preferredTTL)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			if tt.expectCode != codes.OK {
+				assert.Nil(t, x509CA, "no x509CA expected")
+				assert.Nil(t, x509Authorities, "no x509Authorities expected")
+				assert.Nil(t, stream, "no stream expected")
+				return
+			}
+
+			assert.Equal(t, tt.expectX509CA, x509CA, "unexpected X509CA")
+			assert.Equal(t, tt.expectX509Authorities, x509Authorities, "unexected authorities")
+
+			// Plugin does not support streaming back changes so assert the
+			// stream returns EOF.
+			_, streamErr := stream.RecvUpstreamX509Authorities()
+			assert.True(t, errors.Is(streamErr, io.EOF))
+		})
+	}
 }
 
-func (as *PCAPluginSuite) Test_MintX509CA_IssuanceError() {
-	as.configurePlugin()
+func TestPublishJWTKey(t *testing.T) {
+	client := &pcaClientFake{t: t}
 
-	expectedErr := errors.New("issuance error")
-	// Issuance returns an error
-	csr, expectedEncodedCsr := as.generateCSR()
-	as.verifyIssueCertificate(expectedEncodedCsr, expectedErr)
+	// Configure plugin
+	setupDescribeCertificateAuthority(client, "ACTIVE", nil)
+	p := New()
+	p.hooks.newClient = func(config *Configuration) (PCAClient, error) {
+		return client, nil
+	}
 
-	// The resulting response should return an error
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().Nil(response)
-	as.Require().Error(err)
+	ua := new(upstreamauthority.V1)
+	var err error
+	plugintest.Load(t, builtin(p), ua,
+		plugintest.CaptureConfigureError(&err),
+		plugintest.ConfigureJSON(&Configuration{
+			Region:                  validRegion,
+			CertificateAuthorityARN: validCertificateAuthorityARN,
+			CASigningTemplateARN:    validCASigningTemplateARN,
+			SigningAlgorithm:        validSigningAlgorithm,
+			AssumeRoleARN:           validAssumeRoleARN,
+			SupplementalBundlePath:  "",
+		}),
+	)
+	require.NoError(t, err)
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(testkey.NewEC256(t).Public())
+	require.NoError(t, err)
+
+	jwtAuthorities, stream, err := ua.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes})
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(aws_pca): publishing upstream is unsupported")
+	assert.Nil(t, jwtAuthorities)
+	assert.Nil(t, stream)
 }
 
-func (as *PCAPluginSuite) Test_MintX509CA_IssuanceWaitError() {
-	as.configurePlugin()
-
-	// Should send an issue request
-	csr, expectedEncodedCsr := as.generateCSR()
-	as.verifyIssueCertificate(expectedEncodedCsr, nil)
-
-	// But the wait call returns an error
-	as.verifyWaitUntilCertificateIssued(errors.New("issuance waiting error"))
-
-	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().Nil(response)
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_MintX509CA_GetCertificateError() {
-	as.configurePlugin()
-
-	csr, expectedEncodedCsr := as.generateCSR()
-
-	// Should send an issue request
-	as.verifyIssueCertificate(expectedEncodedCsr, nil)
-
-	// Should wait for the certificate to reach the issued state
-	as.verifyWaitUntilCertificateIssued(nil)
-
-	// But the GetCertificate call returns an error
-	as.verifyGetCertificate(nil, nil, errors.New("get certificate error"))
-
-	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().Nil(response)
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateParseError() {
-	as.configurePlugin()
-
-	csr, expectedEncodedCsr := as.generateCSR()
-
-	// Should send an issue request
-	as.verifyIssueCertificate(expectedEncodedCsr, nil)
-
-	// Should wait for the certificate to reach the issued state
-	as.verifyWaitUntilCertificateIssued(nil)
-
-	// But the GetCertificate call returns no certificate
-	_, encodedBundle := as.certificateAuthorityFixture()
-	as.verifyGetCertificate(nil, encodedBundle, nil)
-
-	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().Nil(response)
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) Test_MintX509CA_GetCertificate_CertificateChainParseError() {
-	as.configurePlugin()
-
-	csr, expectedEncodedCsr := as.generateCSR()
-
-	// Should send an issue request
-	as.verifyIssueCertificate(expectedEncodedCsr, nil)
-
-	// Should wait for the certificate to reach the issued state
-	as.verifyWaitUntilCertificateIssued(nil)
-
-	// But the GetCertificate call returns no bundle
-	_, encodedCert := as.SVIDFixture()
-	as.verifyGetCertificate(encodedCert, nil, nil)
-
-	// The resulting response should error
-	response, err := as.mintX509CA(&upstreamauthorityv0.MintX509CARequest{
-		Csr:          csr,
-		PreferredTtl: testTTL,
-	})
-	as.Require().Nil(response)
-	as.Require().Error(err)
-}
-
-func (as *PCAPluginSuite) verifyDescribeCertificateAuthority(status string, mockError error) {
-	as.pcaClientFake.expectedDescribeInput = &acmpca.DescribeCertificateAuthorityInput{
+func setupDescribeCertificateAuthority(client *pcaClientFake, status string, err error) {
+	client.expectedDescribeInput = &acmpca.DescribeCertificateAuthorityInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
 	}
-	as.pcaClientFake.err = mockError
+	client.describeCertificateErr = err
 
-	as.pcaClientFake.describeCertificateOutput = &acmpca.DescribeCertificateAuthorityOutput{
+	client.describeCertificateOutput = &acmpca.DescribeCertificateAuthorityOutput{
 		CertificateAuthority: &acmpca.CertificateAuthority{
 			CertificateAuthorityConfiguration: &acmpca.CertificateAuthorityConfiguration{
 				SigningAlgorithm: aws.String("defaultSigningAlgorithm"),
@@ -367,163 +467,64 @@ func (as *PCAPluginSuite) verifyDescribeCertificateAuthority(status string, mock
 	}
 }
 
-func (as *PCAPluginSuite) verifyIssueCertificate(csr *bytes.Buffer, mockError error) {
-	as.pcaClientFake.expectedIssueInput = &acmpca.IssueCertificateInput{
+func setupIssueCertificate(client *pcaClientFake, clk clock.Clock, csr []byte, err error) {
+	client.expectedIssueInput = &acmpca.IssueCertificateInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
 		SigningAlgorithm:        aws.String(validSigningAlgorithm),
-		Csr:                     csr.Bytes(),
+		Csr:                     csr,
 		TemplateArn:             aws.String(validCASigningTemplateARN),
 		Validity: &acmpca.Validity{
 			Type:  aws.String(acmpca.ValidityPeriodTypeAbsolute),
-			Value: aws.Int64(as.clock.Now().Add(time.Second * testTTL).Unix()),
+			Value: aws.Int64(clk.Now().Add(time.Second * testTTL).Unix()),
 		},
 	}
-	as.pcaClientFake.err = mockError
-	as.pcaClientFake.issueCertificateOutput = &acmpca.IssueCertificateOutput{
+	client.issueCertifcateErr = err
+	client.issueCertificateOutput = &acmpca.IssueCertificateOutput{
 		CertificateArn: aws.String("certificateArn"),
 	}
 }
 
-func (as *PCAPluginSuite) verifyWaitUntilCertificateIssued(mockError error) {
-	as.pcaClientFake.expectedGetCertificateInput = &acmpca.GetCertificateInput{
+func setupWaitUntilCertificateIssued(client *pcaClientFake, err error) {
+	client.expectedGetCertificateInput = &acmpca.GetCertificateInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
 		CertificateArn:          aws.String("certificateArn"),
 	}
 
-	as.pcaClientFake.err = mockError
+	client.waitUntilCertificateIssuedErr = err
 }
 
-func (as *PCAPluginSuite) verifyGetCertificate(encodedCert *bytes.Buffer, encodedCertChain *bytes.Buffer, mockError error) {
-	as.pcaClientFake.expectedGetCertificateInput = &acmpca.GetCertificateInput{
+func setupGetCertificate(client *pcaClientFake, encodedCert string, encodedCertChain string, err error) {
+	client.expectedGetCertificateInput = &acmpca.GetCertificateInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
 		CertificateArn:          aws.String("certificateArn"),
 	}
-	as.pcaClientFake.err = mockError
-	as.pcaClientFake.getCertificateOutput = &acmpca.GetCertificateOutput{
-		Certificate:      aws.String(encodedCert.String()),
-		CertificateChain: aws.String(encodedCertChain.String()),
+	client.getCertificateErr = err
+	client.getCertificateOutput = &acmpca.GetCertificateOutput{
+		Certificate:      aws.String(encodedCert),
+		CertificateChain: aws.String(encodedCertChain),
 	}
 }
 
-func (as *PCAPluginSuite) configurePlugin() {
-	as.verifyDescribeCertificateAuthority("ACTIVE", nil)
-
-	_, err := as.plugin.Configure(ctx, as.defaultConfigureRequest())
-	as.Require().NoError(err)
-}
-
-func (as *PCAPluginSuite) defaultSerializedConfiguration() string {
-	config := as.serializedConfiguration(validRegion, validCertificateAuthorityARN, validCASigningTemplateARN, validSigningAlgorithm, validAssumeRoleARN, validSupplementalBundlePath)
-	fmt.Println("Config: ", config)
-	return config
-}
-
-func (as *PCAPluginSuite) serializedConfiguration(region, certificateAuthorityARN, caSigningTemplateARN, signingAlgorithm, assumeRoleARN, supplementalBundlePath string) string {
-	return fmt.Sprintf(`{
-		"region": "%s",
-		"certificate_authority_arn": "%s",
-		"ca_signing_template_arn":"%s",
-		"signing_algorithm":"%s",
-		"assume_role_arn":"%s",
-		"supplemental_bundle_path": "%s"
-		}`,
-		region,
-		certificateAuthorityARN,
-		caSigningTemplateARN,
-		signingAlgorithm,
-		assumeRoleARN,
-		supplementalBundlePath)
-}
-
-func (as *PCAPluginSuite) defaultConfigureRequest() *spi.ConfigureRequest {
-	return &spi.ConfigureRequest{
-		Configuration: as.defaultSerializedConfiguration(),
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{
-			TrustDomain: validTrustDomain,
-		},
-	}
-}
-
-func (as *PCAPluginSuite) optionalConfigureRequest(signingAlgorithm, caSigningTemplateARN, supplementalBundlePath string) *spi.ConfigureRequest {
-	return &spi.ConfigureRequest{
-		Configuration: as.serializedConfiguration(validRegion, validCertificateAuthorityARN, caSigningTemplateARN, signingAlgorithm, validAssumeRoleARN, supplementalBundlePath),
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{
-			TrustDomain: validTrustDomain,
-		},
-	}
-}
-
-func (as *PCAPluginSuite) configureRequest(trustDomain, config string) *spi.ConfigureRequest {
-	return &spi.ConfigureRequest{
-		Configuration: config,
-		GlobalConfig: &spi.ConfigureRequest_GlobalConfig{
-			TrustDomain: trustDomain,
-		},
-	}
-}
-
-func (as *PCAPluginSuite) certificateAuthorityFixture() (*x509.Certificate, *bytes.Buffer) {
+func certificateAuthorityFixture(t *testing.T) (*x509.Certificate, *bytes.Buffer) {
 	ca, _, err := util.LoadCAFixture()
-	as.Require().NoError(err)
+	require.NoError(t, err)
 	encodedCA := new(bytes.Buffer)
 	err = pem.Encode(encodedCA, &pem.Block{
 		Type:  certificateType,
 		Bytes: ca.Raw,
 	})
-	as.Require().NoError(err)
+	require.NoError(t, err)
 	return ca, encodedCA
 }
 
-func (as *PCAPluginSuite) SVIDFixture() (*x509.Certificate, *bytes.Buffer) {
+func svidFixture(t *testing.T) (*x509.Certificate, *bytes.Buffer) {
 	cert, _, err := util.LoadSVIDFixture()
-	as.Require().NoError(err)
+	require.NoError(t, err)
 	encodedCert := new(bytes.Buffer)
 	err = pem.Encode(encodedCert, &pem.Block{
 		Type:  certificateType,
 		Bytes: cert.Raw,
 	})
-	as.Require().NoError(err)
+	require.NoError(t, err)
 	return cert, encodedCert
-}
-
-func (as *PCAPluginSuite) generateCSR() ([]byte, *bytes.Buffer) {
-	csr, _, err := util.NewCSRTemplate("spiffe://example.com/foo")
-	as.Require().NoError(err)
-	encodedCsr := new(bytes.Buffer)
-	err = pem.Encode(encodedCsr, &pem.Block{
-		Type:  csrRequestType,
-		Bytes: csr,
-	})
-	as.Require().NoError(err)
-	return csr, encodedCsr
-}
-
-func (as *PCAPluginSuite) TestPublishJWTKey() {
-	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{})
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	as.Require().Nil(resp, "no response expected")
-	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-pca: publishing upstream is unsupported")
-}
-
-func (as *PCAPluginSuite) mintX509CA(req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	stream, err := as.plugin.MintX509CA(ctx, req)
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// Get response and error to be returned
-	response, err := stream.Recv()
-
-	// Verify stream is closed
-	if err == nil {
-		_, eofErr := stream.Recv()
-		as.Require().Equal(io.EOF, eofErr)
-	}
-
-	return response, err
 }

@@ -21,7 +21,7 @@ type PCAClient interface {
 	GetCertificateWithContext(aws.Context, *acmpca.GetCertificateInput, ...request.Option) (*acmpca.GetCertificateOutput, error)
 }
 
-func newPCAClient(config *PCAPluginConfiguration) (PCAClient, error) {
+func newPCAClient(config *Configuration) (PCAClient, error) {
 	awsConfig := &aws.Config{
 		Region:   aws.String(config.Region),
 		Endpoint: aws.String(config.Endpoint),
