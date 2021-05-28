@@ -24,7 +24,7 @@ import (
 
 const BaseTPMDir = "/dev"
 
-// Functions defined here are overriden in test files to facilitate unit testing
+// Functions defined here are overridden in test files to facilitate unit testing
 var (
 	AutoDetectTPMPath func(string) (string, error)                           = tpmutil.AutoDetectTPMPath
 	NewSession        func(*tpmutil.SessionConfig) (*tpmutil.Session, error) = tpmutil.NewSession
@@ -149,7 +149,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	// Solve DevID challenge (verify the possession of the DevID private key)
 	devIDChallengeResp, err := tpm.SolveDevIDChallenge(challenges.DevID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to solve proof of posession challenge: %v", err)
+		return status.Errorf(codes.Internal, "unable to solve proof of possession challenge: %v", err)
 	}
 
 	// Solve Credential Activation challenge

@@ -33,6 +33,7 @@ type ProvisioningAuthority struct {
 
 type TPMSimulator struct {
 	*simulator.Simulator
+	ekRoot *x509.Certificate
 }
 
 type KeyType int
@@ -52,7 +53,7 @@ func New() (*TPMSimulator, error) {
 	if err != nil {
 		return nil, err
 	}
-	sim := &TPMSimulator{s}
+	sim := &TPMSimulator{Simulator: s}
 
 	ekCert, err := sim.createEndorsementCertificate()
 	if err != nil {
@@ -117,13 +118,7 @@ func (s *TPMSimulator) GenerateDevID(p *ProvisioningAuthority, keyType KeyType) 
 		return nil, fmt.Errorf("cannot get DevID key: %w", err)
 	}
 
-	devIDCert, err := createCertificate(devIDKey, &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(time.Hour),
-		Subject:      pkix.Name{CommonName: "DevID common name"},
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}, p.Key, p.Cert)
+	devIDCert, err := p.issueCertificate(devIDKey)
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +131,11 @@ func (s *TPMSimulator) GenerateDevID(p *ProvisioningAuthority, keyType KeyType) 
 	}
 
 	return devIDCred, nil
+}
+
+// GetEKRoot returns the "manufacturer" CA used to sign the endorsement certificate
+func (s *TPMSimulator) GetEKRoot() *x509.Certificate {
+	return s.ekRoot
 }
 
 func (s *TPMSimulator) setEndorsementCertificate(ekCert []byte) error {
@@ -165,7 +165,7 @@ func (s *TPMSimulator) createEndorsementCertificate() (*x509.Certificate, error)
 		return nil, fmt.Errorf("cannot generate root RSA key: %w", err)
 	}
 
-	rootCert, err := createRootCertificate(rootKey, &x509.Certificate{
+	s.ekRoot, err = createRootCertificate(rootKey, &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -191,7 +191,18 @@ func (s *TPMSimulator) createEndorsementCertificate() (*x509.Certificate, error)
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		NotAfter:     neverExpires,
 		Subject:      pkix.Name{CommonName: "some common name"},
-	}, rootKey, rootCert)
+	}, rootKey, s.ekRoot)
+}
+
+func (p *ProvisioningAuthority) issueCertificate(key interface{}) (*x509.Certificate, error) {
+	return createCertificate(key, &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+		Subject:      pkix.Name{CommonName: "CommonName"},
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}, p.Key, p.Cert)
+
 }
 
 func createRootCertificate(key *rsa.PrivateKey, tmpl *x509.Certificate) (*x509.Certificate, error) {

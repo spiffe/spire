@@ -243,8 +243,8 @@ func TestAidAttestationFailiures(t *testing.T) {
 			serverStream: streamBuilder.IgnoreThenChallenge([]byte("not-a-challenge")).Build(),
 		},
 		{
-			name:   "AidAttestation fails if agent fails to solve proof of posession challenge",
-			expErr: "rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to solve proof of posession challenge: failed to sign nonce",
+			name:   "AidAttestation fails if agent fails to solve proof of possession challenge",
+			expErr: "rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to solve proof of possession challenge: failed to sign nonce",
 			serverStream: func() nodeattestor.ServerStream {
 				challenges, err := json.Marshal(common_devid.ChallengeRequest{
 					DevID: make([]byte, 1025), //TPM cannot sign payloads that contains more than 1024 bytes
@@ -348,7 +348,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 	porChallenge, porChallengeExp, err := server_devid.NewCredActivationChallenge(akPub, ekPub)
 	require.NoError(t, err)
 
-	// Create proof of posession challenge
+	// Create proof of possession challenge
 	popChallenge := []byte("nonce")
 
 	challenges, err := json.Marshal(common_devid.ChallengeRequest{

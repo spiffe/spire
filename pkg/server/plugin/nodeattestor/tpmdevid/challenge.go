@@ -44,7 +44,7 @@ func VerifyDevIDChallenge(cert *x509.Certificate, challenge, response []byte) er
 func NewCredActivationChallenge(akPub, ekPub tpm2.Public) (*devid.CredActivation, []byte, error) {
 	akName, err := akPub.Name()
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot extract name from AK public")
+		return nil, nil, fmt.Errorf("cannot extract name from AK public: %w", err)
 	}
 
 	hash, err := ekPub.NameAlg.Hash()

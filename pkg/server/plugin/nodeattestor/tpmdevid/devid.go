@@ -38,15 +38,13 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type config struct {
 	trustDomain string
 
-	devIDRoots          *x509.CertPool
-	ekRoots             *x509.CertPool
-	checkDevIDResidency bool
+	devIDRoots *x509.CertPool
+	ekRoots    *x509.CertPool
 }
 
 type Config struct {
 	DevIDBundlePath       string `hcl:"devid_bundle_path"`
 	EndorsementBundlePath string `hcl:"endorsement_bundle_path"`
-	CheckDevIDResidency   bool   `hcl:"check_devid_residency"`
 }
 
 type Plugin struct {
@@ -107,14 +105,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
 
-	// Verify DevID residency (if configured)
+	// Verify DevID residency
 	var nonce []byte
 	var credActivationChallenge *common_devid.CredActivation
-	if conf.checkDevIDResidency {
-		credActivationChallenge, nonce, err = verifyDevIDResidency(attData, conf.ekRoots)
-		if err != nil {
-			return err
-		}
+	credActivationChallenge, nonce, err = verifyDevIDResidency(attData, conf.ekRoots)
+	if err != nil {
+		return err
 	}
 
 	// Marshal challenges
@@ -154,17 +150,15 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Unauthenticated, "devID challenge verification failed: %v", err)
 	}
 
-	// Verify credential activation challenge (if configured)
-	if conf.checkDevIDResidency {
-		err = VerifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
-		if err != nil {
-			return status.Errorf(codes.Unauthenticated, "credential activation failed: %v", err)
-		}
+	// Verify credential activation challenge
+	err = VerifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
+	if err != nil {
+		return status.Errorf(codes.Unauthenticated, "credential activation failed: %v", err)
 	}
 
 	// Create SPIFFE ID and selectors
 	certSelectors := selectorsFromCertificate("certificate", devIDCert)
-	fingerprint := fingerprint(devIDCert)
+	fingerprint := Fingerprint(devIDCert)
 	certSelectors = append(certSelectors, fmt.Sprintf("fingerprint:%s", fingerprint))
 
 	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", common_devid.PluginName, fingerprint))
@@ -197,8 +191,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	// Create initial internal configuration
 	intConf := &config{
-		trustDomain:         req.CoreConfiguration.TrustDomain,
-		checkDevIDResidency: extConf.CheckDevIDResidency,
+		trustDomain: req.CoreConfiguration.TrustDomain,
 	}
 
 	// Load DevID bundle
@@ -208,11 +201,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	// Load endorsement bundle if configured
-	if extConf.CheckDevIDResidency {
-		intConf.ekRoots, err = util.LoadCertPool(extConf.EndorsementBundlePath)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to load endorsement trust bundle: %v", err)
-		}
+	intConf.ekRoots, err = util.LoadCertPool(extConf.EndorsementBundlePath)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to load endorsement trust bundle: %v", err)
 	}
 
 	p.setConfiguration(intConf)
@@ -257,8 +248,8 @@ func validatePluginConfig(extConf *Config) error {
 	case extConf.DevIDBundlePath == "":
 		return errors.New("devid_bundle_path is required")
 
-	case extConf.CheckDevIDResidency && extConf.EndorsementBundlePath == "":
-		return errors.New("endorsement_bundle_path is required if check_devid_residency is enabled")
+	case extConf.EndorsementBundlePath == "":
+		return errors.New("endorsement_bundle_path is required")
 	}
 
 	return nil
@@ -297,24 +288,24 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 
 	devIDPub, err := tpm2.DecodePublic(attData.DevIDPub)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot decode public DevID: %v", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot decode DevID key public blob: %v", err)
 	}
 
 	akPub, err := tpm2.DecodePublic(attData.AKPub)
 	if err != nil {
-		return nil, nil, status.Error(codes.InvalidArgument, "cannot to decode attestation key")
+		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot decode attestation key public blob: %v", err)
 	}
 
 	ekPub, err := tpm2.DecodePublic(attData.EKPub)
 	if err != nil {
-		return nil, nil, status.Error(codes.InvalidArgument, "cannot decode endorsement key")
+		return nil, nil, status.Error(codes.InvalidArgument, "cannot decode endorsement key public blob")
 	}
 
 	// Verify the public part of the EK generated from the template is the same
 	// than the one in the EK certificate.
 	err = verifyEKsMatch(ekCert, ekPub)
 	if err != nil {
-		return nil, nil, fmt.Errorf("public key in EK certificate differs from public key created via EK template: %w", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "public key in EK certificate differs from public key created via EK template: %v", err)
 	}
 
 	// Verify EK chain of trust using the provided manufacturer roots.
@@ -326,13 +317,13 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 	// Verify DevID resides in the same TPM than AK
 	err = VerifyDevIDCertification(&akPub, &devIDPub, attData.CertifiedDevID, attData.CertificationSignature)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot to verify that DevID is in the same TPM than AK: %v", err)
+		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot verify that DevID is in the same TPM than AK: %v", err)
 	}
 
 	// Issue a credential activation challenge (to verify AK is in the same TPM than EK)
 	challenge, nonce, err := NewCredActivationChallenge(akPub, ekPub)
 	if err != nil {
-		return nil, nil, status.Error(codes.Internal, "cannot generate credential activation challenge")
+		return nil, nil, status.Errorf(codes.Internal, "cannot generate credential activation challenge: %v", err)
 	}
 
 	return challenge, nonce, nil
@@ -340,11 +331,11 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 
 func isDevIDResidencyInfoComplete(attReq *common_devid.AttestationRequest) error {
 	if len(attReq.AKPub) == 0 {
-		return status.Error(codes.InvalidArgument, "missing attestation public key")
+		return status.Error(codes.InvalidArgument, "missing attestation key public blob")
 	}
 
 	if len(attReq.DevIDPub) == 0 {
-		return status.Error(codes.InvalidArgument, "missing DevID public key")
+		return status.Error(codes.InvalidArgument, "missing DevID key public blob")
 	}
 
 	if len(attReq.EKCert) == 0 {
@@ -352,7 +343,7 @@ func isDevIDResidencyInfoComplete(attReq *common_devid.AttestationRequest) error
 	}
 
 	if len(attReq.EKPub) == 0 {
-		return status.Error(codes.InvalidArgument, "missing endorsement public key")
+		return status.Error(codes.InvalidArgument, "missing endorsement key public blob")
 	}
 
 	return nil
@@ -499,7 +490,7 @@ func getSignatureScheme(pub tpm2.Public) (*tpm2.SigScheme, error) {
 	}
 }
 
-func fingerprint(cert *x509.Certificate) string {
+func Fingerprint(cert *x509.Certificate) string {
 	sum := sha1.Sum(cert.Raw) //nolint: gosec // SHA1 use is according to specification
 	return hex.EncodeToString(sum[:])
 }
