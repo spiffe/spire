@@ -93,8 +93,7 @@ func (u *bundleUpdater) newClient(ctx context.Context) (Client, error) {
 		trustDomain := spiffeAuth.EndpointSPIFFEID.TrustDomain()
 
 		// This is to preserve behavioral compatibility when using
-		// the deprecated config.
-		// TODO: Remove this in 1.1.0.
+		// the deprecated config and will be removed in 1.1.0.
 		if u.c.DeprecatedConfig && trustDomain.IsZero() {
 			trustDomain = u.c.TrustDomain
 		}

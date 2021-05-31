@@ -33,7 +33,7 @@ type TrustDomainConfig struct {
 	EndpointURL string
 
 	// EndpointProfile is the bundle endpoint profile used by the
-	// foreign trust domain.
+	// SPIFFE bundle endpoint server.
 	EndpointProfile EndpointProfileInfo
 }
 
