@@ -435,11 +435,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			}
 
 			var trustDomainConfig *bundleClient.TrustDomainConfig
-			if config.DeprecatedBundleEndpoint != nil {
+			switch {
+			case config.DeprecatedBundleEndpoint != nil:
 				sc.Log.Warn("The `bundle_endpoint` configurable is deprecated and will be removed in a future release. Please use `bundle_endpoint_url` and `bundle_endpoint_profile` to configure the federation relationships instead.")
-				trustDomainConfig, err = parseDeprecatedBundleEndpoint(config.DeprecatedBundleEndpoint, sc.Log)
+				trustDomainConfig, err = parseDeprecatedBundleEndpoint(config.DeprecatedBundleEndpoint)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 				}
 				trustDomainConfig.DeprecatedConfig = true
 				if spiffeAuth, ok := trustDomainConfig.EndpointProfile.(bundleClient.SPIFFEAuthentication); ok {
@@ -447,16 +448,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release.", trustDomain)
 					}
 				}
-			} else if config.BundleEndpointProfile != nil {
+			case config.BundleEndpointProfile != nil:
 				trustDomainConfig, err = parseBundleEndpointProfile(config)
-			} else {
+				if err != nil {
+					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
+				}
+			default:
 				return nil, fmt.Errorf("federation configuration for trust domain %q: missing bundle endpoint configuration", trustDomain)
 			}
-
-			if err != nil {
-				return nil, fmt.Errorf("federation configuration for trust domain %q: %v", trustDomain, err)
-			}
-
 			federatesWith[td] = *trustDomainConfig
 		}
 		sc.Federation.FederatesWith = federatesWith
@@ -562,16 +561,16 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 	}
 
 	var endpointProfile bundleClient.EndpointProfileInfo
-	if profileConfig.WebPKI != nil {
+	switch {
+	case profileConfig.WebPKI != nil:
 		endpointProfile = bundleClient.WebPKI{}
-	} else if profileConfig.SPIFFEAuth != nil {
+	case profileConfig.SPIFFEAuth != nil:
 		spiffeID, err := spiffeid.FromString(profileConfig.SPIFFEAuth.EndpointSPIFFEID)
 		if err != nil {
-			return nil, fmt.Errorf("could not get endpoint SPIFFE ID: %v", err)
+			return nil, fmt.Errorf("could not get endpoint SPIFFE ID: %w", err)
 		}
-
 		endpointProfile = bundleClient.SPIFFEAuthentication{EndpointSPIFFEID: spiffeID}
-	} else {
+	default:
 		return nil, errors.New("no bundle endpoint profile defined")
 	}
 
@@ -581,7 +580,7 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 	}, nil
 }
 
-func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpointConfig, l logrus.FieldLogger) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
+func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpointConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
 	port := defaultBundleEndpointPort
 	if config.Port != 0 {
 		port = config.Port
