@@ -91,8 +91,10 @@ func TestBundleUpdater(t *testing.T) {
 				DataStore:   ds,
 				TrustDomain: testCase.trustDomain,
 				TrustDomainConfig: TrustDomainConfig{
-					EndpointAddress:  "ENDPOINT_ADDRESS",
-					EndpointSpiffeID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
+					EndpointURL: "ENDPOINT_ADDRESS",
+					EndpointProfile: SPIFFEAuthentication{
+						EndpointSPIFFEID: trustDomain.ID(),
+					},
 				},
 				newClient: func(client ClientConfig) (Client, error) {
 					return testCase.client, nil

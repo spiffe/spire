@@ -23,16 +23,30 @@ const (
 )
 
 type TrustDomainConfig struct {
-	// EndpointAddress is the bundle endpoint for the trust domain.
-	EndpointAddress string
+	// DeprecatedConfig indicates that the configuration comes from a deprecated
+	// configuration.
+	// TODO: Remove support for this deprecated config in 1.1.0.
+	DeprecatedConfig bool
 
-	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If
+	// EndpointURL is the URL used to fetch bundle endpoint for the trust domain.
+	EndpointURL string
+
+	// EndpointProfile is the bundle endpoint profile used by the
+	// foreign trust domain.
+	EndpointProfile EndpointProfileInfo
+}
+
+type EndpointProfileInfo interface {
+	// The name of the endpoint profile (e.g. "https_spiffe").
+	Name() string
+}
+
+type WebPKI struct{}
+
+type SPIFFEAuthentication struct {
+	// EndpointSPIFFEID is the expected SPIFFE ID of the endpoint server. If
 	// unset, it defaults to the SPIRE server ID within the trust domain.
-	EndpointSpiffeID spiffeid.ID
-
-	// UseWebPKI is true if the endpoint should be authenticated with Web PKI.
-	// Otherwise, SPIFFE authentication is assumed.
-	UseWebPKI bool
+	EndpointSPIFFEID spiffeid.ID
 }
 
 type ManagerConfig struct {
@@ -94,6 +108,8 @@ func (m *Manager) Run(ctx context.Context) error {
 
 func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDomain, updater BundleUpdater) error {
 	log := m.log.WithField("trust_domain", trustDomain)
+	log = log.WithField("bundle_endpoint_url", updater.TrustDomainConfig().EndpointURL)
+	log = log.WithField("endpoint_profile", updater.TrustDomainConfig().EndpointProfile.Name())
 	for {
 		var nextRefresh time.Duration
 		log.Debug("Polling for bundle update")
@@ -135,4 +151,12 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 
 func calculateNextUpdate(b *bundleutil.Bundle) time.Duration {
 	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
+}
+
+func (e WebPKI) Name() string {
+	return "https_web"
+}
+
+func (e SPIFFEAuthentication) Name() string {
+	return "https_spiffe"
 }

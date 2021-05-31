@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 
@@ -29,13 +29,18 @@ type ClientConfig struct { //nolint: golint // name stutter is intentional
 	// TrustDomain is the federated trust domain (i.e. domain.test)
 	TrustDomain spiffeid.TrustDomain
 
-	// EndpointAddress is the bundle endpoint for the trust domain.
-	EndpointAddress string
+	// EndpointURL is the URL used to fetch bundle endpoint for the trust domain.
+	EndpointURL string
 
 	// SPIFFEAuth contains required configuration to authenticate the endpoint
 	// using SPIFFE authentication. If unset, it is assumed that the endpoint
 	// is authenticated via Web PKI.
 	SPIFFEAuth *SPIFFEAuthConfig
+
+	// DeprecatedConfig indicates that the configuration comes from a deprecated
+	// configuration.
+	// TODO: Remove support for this deprecated config in 1.1.0.
+	DeprecatedConfig bool
 }
 
 // Client is used to fetch a bundle and metadata from a bundle endpoint
@@ -53,10 +58,14 @@ func NewClient(config ClientConfig) (Client, error) {
 	if config.SPIFFEAuth != nil {
 		endpointID := config.SPIFFEAuth.EndpointSpiffeID
 		if endpointID.IsZero() {
-			endpointID = idutil.ServerID(config.TrustDomain)
+			if config.DeprecatedConfig {
+				endpointID = idutil.ServerID(config.TrustDomain)
+			} else {
+				return nil, errors.New("no SPIFFE ID specified for SPIFFE Authentication")
+			}
 		}
 
-		bundle := x509bundle.FromX509Authorities(config.TrustDomain, config.SPIFFEAuth.RootCAs)
+		bundle := x509bundle.FromX509Authorities(endpointID.TrustDomain(), config.SPIFFEAuth.RootCAs)
 
 		authorizer := tlsconfig.AuthorizeID(endpointID)
 
@@ -71,7 +80,7 @@ func NewClient(config ClientConfig) (Client, error) {
 }
 
 func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
-	resp, err := c.client.Get(fmt.Sprintf("https://%s", c.c.EndpointAddress))
+	resp, err := c.client.Get(c.c.EndpointURL)
 	if err != nil {
 		return nil, errs.New("failed to fetch bundle: %v", err)
 	}
