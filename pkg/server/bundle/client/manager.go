@@ -28,7 +28,8 @@ type TrustDomainConfig struct {
 	// TODO: Remove support for this deprecated config in 1.1.0.
 	DeprecatedConfig bool
 
-	// EndpointURL is the URL used to fetch bundle endpoint for the trust domain.
+	// EndpointURL is the URL used to fetch the bundle of the federated
+	// trust domain. Is served by a SPIFFE bundle endpoint server.
 	EndpointURL string
 
 	// EndpointProfile is the bundle endpoint profile used by the
@@ -44,8 +45,7 @@ type EndpointProfileInfo interface {
 type WebPKI struct{}
 
 type SPIFFEAuthentication struct {
-	// EndpointSPIFFEID is the expected SPIFFE ID of the endpoint server. If
-	// unset, it defaults to the SPIRE server ID within the trust domain.
+	// EndpointSPIFFEID is the expected SPIFFE ID of the bundle endpoint server.
 	EndpointSPIFFEID spiffeid.ID
 }
 

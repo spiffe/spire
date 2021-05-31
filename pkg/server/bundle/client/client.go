@@ -16,8 +16,7 @@ import (
 )
 
 type SPIFFEAuthConfig struct {
-	// EndpointSpiffeID is the expected SPIFFE ID of the endpoint server. If unset, it
-	// defaults to the SPIRE server ID within the trust domain.
+	// EndpointSpiffeID is the expected SPIFFE ID of the bundle endpoint server.
 	EndpointSpiffeID spiffeid.ID
 
 	// RootCAs is the set of root CA certificates used to authenticate the
@@ -29,7 +28,8 @@ type ClientConfig struct { //nolint: golint // name stutter is intentional
 	// TrustDomain is the federated trust domain (i.e. domain.test)
 	TrustDomain spiffeid.TrustDomain
 
-	// EndpointURL is the URL used to fetch bundle endpoint for the trust domain.
+	// EndpointURL is the URL used to fetch the bundle of the federated
+	// trust domain. Is served by a SPIFFE bundle endpoint server.
 	EndpointURL string
 
 	// SPIFFEAuth contains required configuration to authenticate the endpoint
@@ -59,6 +59,8 @@ func NewClient(config ClientConfig) (Client, error) {
 		endpointID := config.SPIFFEAuth.EndpointSpiffeID
 		if endpointID.IsZero() {
 			if config.DeprecatedConfig {
+				// This is to preserve behavioral compatibility when using
+				// the deprecated config and will be removed in 1.1.0.
 				endpointID = idutil.ServerID(config.TrustDomain)
 			} else {
 				return nil, errors.New("no SPIFFE ID specified for SPIFFE Authentication")

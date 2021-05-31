@@ -1562,11 +1562,8 @@ func spiffeAuthConfigTest(t *testing.T) federatesWithConfig {
 	bundle_endpoint_profile "https_spiffe" {
 		endpoint_spiffe_id = "spiffe://domain1.test/bundle/endpoint"
 	}`
-
 	spiffeAuthConfig := new(federatesWithConfig)
-	if err := hcl.Decode(spiffeAuthConfig, configString); err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, hcl.Decode(spiffeAuthConfig, configString))
 
 	return *spiffeAuthConfig
 }
@@ -1574,11 +1571,8 @@ func spiffeAuthConfigTest(t *testing.T) federatesWithConfig {
 func webPKIConfigTest(t *testing.T) federatesWithConfig {
 	configString := `bundle_endpoint_url = "https://192.168.1.1:1337"
 		bundle_endpoint_profile "https_web" {}`
-
 	webPKIConfig := new(federatesWithConfig)
-	if err := hcl.Decode(webPKIConfig, configString); err != nil {
-		require.NoError(t, err)
-	}
+	require.NoError(t, hcl.Decode(webPKIConfig, configString))
 
 	return *webPKIConfig
 }
