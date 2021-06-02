@@ -1,10 +1,10 @@
 package vault
 
 import (
-	"fmt"
-
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Renew struct {
@@ -17,7 +17,7 @@ func NewRenew(client *vapi.Client, secret *vapi.Secret, logger hclog.Logger) (*R
 		Secret: secret,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize Renewer: %w", err)
+		return nil, status.Errorf(codes.Internal, "failed to initialize Renewer: %v", err)
 	}
 	return &Renew{
 		Logger:  logger,
