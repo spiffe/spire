@@ -33,11 +33,17 @@ var (
 
 	devIDBundlePath       string
 	endorsementBundlePath string
+
+	tpmPasswords = tpmutil.TPMPasswords{
+		EndorsementHierarchy: "endorsement-hierarchy-pass",
+		OwnerHierarchy:       "owner-hierarchy-pass",
+		DevIDKey:             "devid-pass",
+	}
 )
 
 func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAuthority) {
 	// Creates a new global TPM simulator
-	simulator, err := tpmsimulator.New()
+	simulator, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
 	require.NoError(t, err)
 	sim = simulator
 
@@ -48,7 +54,7 @@ func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAutho
 	devIDBundlePath = path.Join(dir, "devid-provisioning-ca.pem")
 	require.NoError(t, ioutil.WriteFile(
 		devIDBundlePath,
-		pemutil.EncodeCertificate(provisioningCA.Cert),
+		pemutil.EncodeCertificate(provisioningCA.RootCert),
 		0600),
 	)
 
@@ -67,7 +73,7 @@ func teardownSimulator(t *testing.T) {
 
 func TestConfigure(t *testing.T) {
 	// Create a provisioning authority to generate DevIDs
-	provisioningCA, err := tpmsimulator.CreateProvisioningCA()
+	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
 	require.NoError(t, err)
 
 	// Setup the TPM simulator
@@ -96,36 +102,36 @@ func TestConfigure(t *testing.T) {
 			hclConf:  "not an HCL configuration",
 		},
 		{
-			name:     "Configure fails if devid_bundle_path is not provided",
-			expErr:   "rpc error: code = InvalidArgument desc = missing configurable: devid_bundle_path is required",
+			name:     "Configure fails if devid_ca_path is not provided",
+			expErr:   "rpc error: code = InvalidArgument desc = invalid configuration: devid_ca_path is required",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 		},
 		{
-			name:     "Configure fails if endorsement_bundle_path is not provided",
-			expErr:   "rpc error: code = InvalidArgument desc = missing configurable: endorsement_bundle_path is required",
+			name:     "Configure fails if endorsement_ca_path is not provided",
+			expErr:   "rpc error: code = InvalidArgument desc = invalid configuration: endorsement_ca_path is required",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-			hclConf:  `devid_bundle_path = "non-existent/devid/bundle/path"`,
+			hclConf:  `devid_ca_path = "non-existent/devid/bundle/path"`,
 		},
 		{
 			name:     "Configure fails if DevID trust bundle cannot be loaded",
 			expErr:   "rpc error: code = Internal desc = unable to load DevID trust bundle: open non-existent/devid/bundle/path: no such file or directory",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-			hclConf: `devid_bundle_path = "non-existent/devid/bundle/path"
-					  endorsement_bundle_path = "non-existent/endorsement/bundle/path"`,
+			hclConf: `devid_ca_path = "non-existent/devid/bundle/path"
+					  endorsement_ca_path = "non-existent/endorsement/bundle/path"`,
 		},
 		{
 			name:     "Configure fails if endorsement trust bundle cannot be opened",
 			expErr:   "rpc error: code = Internal desc = unable to load endorsement trust bundle: open non-existent/endorsement/bundle/path: no such file or directory",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-			hclConf: fmt.Sprintf(`devid_bundle_path = %q
-								endorsement_bundle_path = "non-existent/endorsement/bundle/path"`,
+			hclConf: fmt.Sprintf(`devid_ca_path = %q
+								endorsement_ca_path = "non-existent/endorsement/bundle/path"`,
 				devIDBundlePath),
 		},
 		{
 			name:     "Configure suceeds",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-			hclConf: fmt.Sprintf(`devid_bundle_path = %q
-								endorsement_bundle_path = %q`,
+			hclConf: fmt.Sprintf(`devid_ca_path = %q
+								endorsement_ca_path = %q`,
 				devIDBundlePath,
 				endorsementBundlePath),
 		},
@@ -152,15 +158,15 @@ func TestConfigure(t *testing.T) {
 
 func TestAttestFailiures(t *testing.T) {
 	// Create a provisioning authority to generate DevIDs
-	provisioningCA, err := tpmsimulator.CreateProvisioningCA()
+	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
 	require.NoError(t, err)
 
 	// Generate a DevID signed by the provisioning authority but using
 	// another TPM simulator (not the one used in the test)
-	anotherSim, err := tpmsimulator.New()
+	anotherSim, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
 	require.NoError(t, err)
 
-	devIDAnotherTPM, err := anotherSim.GenerateDevID(provisioningCA, tpmsimulator.RSA)
+	devIDAnotherTPM, err := anotherSim.GenerateDevID(provisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
 	// We need to close this TPM simulator before creating a new one (the
@@ -172,14 +178,14 @@ func TestAttestFailiures(t *testing.T) {
 	defer teardownSimulator(t)
 
 	// Generate DevIDs using the main provisioning authority
-	devID, err := sim.GenerateDevID(provisioningCA, tpmsimulator.RSA)
+	devID, err := sim.GenerateDevID(provisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
 	// Create another DevID using the main TPM but signed by a different provisioning authority
-	anotherProvisioningCA, err := tpmsimulator.CreateProvisioningCA()
+	anotherProvisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
 	require.NoError(t, err)
 
-	devIDAnotherProvisioningCA, err := sim.GenerateDevID(anotherProvisioningCA, tpmsimulator.RSA)
+	devIDAnotherProvisioningCA, err := sim.GenerateDevID(anotherProvisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
 	// Create a TPM session to generate payload and challenge response data
@@ -187,6 +193,7 @@ func TestAttestFailiures(t *testing.T) {
 	session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv: devID.PrivateBlob,
 		DevIDPub:  devID.PublicBlob,
+		Passwords: tpmPasswords,
 		Log:       hclog.NewNullLogger(),
 	})
 	require.NoError(t, err)
@@ -203,7 +210,7 @@ func TestAttestFailiures(t *testing.T) {
 	require.NoError(t, err)
 
 	// Define common configurations and challenge functions
-	goodConf := fmt.Sprintf(`devid_bundle_path = %q, endorsement_bundle_path = %q`,
+	goodConf := fmt.Sprintf(`devid_ca_path = %q, endorsement_ca_path = %q`,
 		devIDBundlePath, endorsementBundlePath)
 
 	challengeFnNil := func(ctx context.Context, challenge []byte) ([]byte, error) {
@@ -236,21 +243,21 @@ func TestAttestFailiures(t *testing.T) {
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): unable to parse DevID certificate",
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
-			payload:     marshalPayload(t, &common_devid.AttestationRequest{DevIDCert: []byte("not a raw certificate")}),
+			payload:     marshalPayload(t, &common_devid.AttestationRequest{DevIDCert: [][]byte{[]byte("not a raw certificate")}}),
 		},
 		{
 			name:        "Attest fails if DevID certificate cannot be chained up to DevID root certificate",
-			expErr:      "rpc error: code = Unauthenticated desc = nodeattestor(tpm_devid): unable to verify DevID signature: verification failed",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): unable to verify DevID signature: verification failed",
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
-			payload:     marshalPayload(t, &common_devid.AttestationRequest{DevIDCert: devIDAnotherProvisioningCA.Certificate.Raw}),
+			payload:     marshalPayload(t, &common_devid.AttestationRequest{DevIDCert: devIDAnotherProvisioningCA.Chain()}),
 		},
 		{
 			name:        "Attest fails if payload is missing the attestation key blob",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): missing attestation key public blob",
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
-			payload:     marshalPayload(t, &common_devid.AttestationRequest{DevIDCert: devID.Certificate.Raw}),
+			payload:     marshalPayload(t, &common_devid.AttestationRequest{DevIDCert: devID.Chain()}),
 		},
 		{
 			name:        "Attest fails if payload is missing the DevID key blob",
@@ -258,7 +265,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				AKPub:     akPub,
 			}),
 		},
@@ -268,7 +275,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     akPub,
 			}),
@@ -279,7 +286,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     akPub,
 				EKCert:    ekCert,
@@ -291,7 +298,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     akPub,
 				EKCert:    []byte("not-a-certificate"),
@@ -304,7 +311,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  []byte("not-a-tpm-public-blob"),
 				AKPub:     akPub,
 				EKCert:    ekCert,
@@ -317,7 +324,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     []byte("not-a-tpm-public-blob"),
 				EKCert:    ekCert,
@@ -330,7 +337,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     akPub,
 				EKCert:    ekCert,
@@ -343,7 +350,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     akPub,
 				EKCert:    ekCert,
@@ -352,11 +359,11 @@ func TestAttestFailiures(t *testing.T) {
 		},
 		{
 			name:        "Attest fails if endorsement certificate cannot be chained up to the endorsement root",
-			expErr:      "rpc error: code = Unauthenticated desc = nodeattestor(tpm_devid): cannot verify EK signature",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): cannot verify EK signature",
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devID.Certificate.Raw,
+				DevIDCert: devID.Chain(),
 				DevIDPub:  devID.PublicBlob,
 				AKPub:     akPub,
 				EKCert:    devID.Certificate.Raw, // Use DevID certificate (instead of EK) to induce a certificate verification error
@@ -365,11 +372,11 @@ func TestAttestFailiures(t *testing.T) {
 		},
 		{
 			name:        "Attest fails if DevID key and attestation key do not reside in the same TPM",
-			expErr:      "rpc error: code = Unauthenticated desc = nodeattestor(tpm_devid): cannot verify that DevID is in the same TPM than AK",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): cannot verify that DevID is in the same TPM than AK",
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert: devIDAnotherTPM.Certificate.Raw,
+				DevIDCert: devIDAnotherTPM.Chain(),
 				DevIDPub:  devIDAnotherTPM.PublicBlob,
 				AKPub:     akPub,
 				EKCert:    ekCert,
@@ -382,7 +389,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert:              devID.Certificate.Raw,
+				DevIDCert:              devID.Chain(),
 				DevIDPub:               devID.PublicBlob,
 				EKCert:                 ekCert,
 				EKPub:                  ekPub,
@@ -406,7 +413,7 @@ func TestAttestFailiures(t *testing.T) {
 			expErr:  "unable to respond to challenge",
 			hclConf: goodConf,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert:              devID.Certificate.Raw,
+				DevIDCert:              devID.Chain(),
 				DevIDPub:               devID.PublicBlob,
 				AKPub:                  akPub,
 				EKCert:                 ekCert,
@@ -424,7 +431,7 @@ func TestAttestFailiures(t *testing.T) {
 			hclConf:     goodConf,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert:              devID.Certificate.Raw,
+				DevIDCert:              devID.Chain(),
 				DevIDPub:               devID.PublicBlob,
 				AKPub:                  akPub,
 				EKCert:                 ekCert,
@@ -435,10 +442,10 @@ func TestAttestFailiures(t *testing.T) {
 		},
 		{
 			name:    "Attest fails if agent does not solve proof of posession challenge",
-			expErr:  "rpc error: code = Unauthenticated desc = nodeattestor(tpm_devid): devID challenge verification failed",
+			expErr:  "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): devID challenge verification failed",
 			hclConf: goodConf,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert:              devID.Certificate.Raw,
+				DevIDCert:              devID.Chain(),
 				DevIDPub:               devID.PublicBlob,
 				AKPub:                  akPub,
 				EKCert:                 ekCert,
@@ -454,10 +461,10 @@ func TestAttestFailiures(t *testing.T) {
 		},
 		{
 			name:    "Attest fails if agent does not solve proof of residency challenge",
-			expErr:  "rpc error: code = Unauthenticated desc = nodeattestor(tpm_devid): credential activation failed",
+			expErr:  "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): credential activation failed",
 			hclConf: goodConf,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert:              devID.Certificate.Raw,
+				DevIDCert:              devID.Chain(),
 				DevIDPub:               devID.PublicBlob,
 				AKPub:                  akPub,
 				EKCert:                 ekCert,
@@ -496,7 +503,7 @@ func TestAttestFailiures(t *testing.T) {
 
 func TestAttestSucceeds(t *testing.T) {
 	// Create a provisioning authority to generate DevIDs
-	provisioningCA, err := tpmsimulator.CreateProvisioningCA()
+	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
 	require.NoError(t, err)
 
 	// Setup the main TPM simulator
@@ -504,9 +511,20 @@ func TestAttestSucceeds(t *testing.T) {
 	defer teardownSimulator(t)
 
 	// Generate DevIDs with RSA and ECC key types
-	devIDRSA, err := sim.GenerateDevID(provisioningCA, tpmsimulator.RSA)
+	devIDRSA, err := sim.GenerateDevID(provisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
-	devIDECC, err := sim.GenerateDevID(provisioningCA, tpmsimulator.ECC)
+	devIDECC, err := sim.GenerateDevID(provisioningCA, tpmsimulator.ECC, tpmPasswords.DevIDKey)
+	require.NoError(t, err)
+
+	// Generate DevIDs with no intermediate certificates
+	provisioningCANoIntermediates, err := tpmsimulator.NewProvisioningCA(
+		&tpmsimulator.ProvisioningConf{
+			NoIntermediates: true,
+			RootCertificate: provisioningCA.RootCert,
+			RootKey:         provisioningCA.RootKey,
+		})
+	require.NoError(t, err)
+	devIDNoIntermediates, err := sim.GenerateDevID(provisioningCANoIntermediates, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -523,15 +541,15 @@ func TestAttestSucceeds(t *testing.T) {
 			expectedSelectors: []*common.Selector{
 				{
 					Type:  "tpm_devid",
-					Value: "certificate:serialnumber:01",
+					Value: "subject:cn:devid-leaf",
 				},
 				{
 					Type:  "tpm_devid",
-					Value: "certificate:subject:cn:CommonName",
+					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(devIDRSA.Intermediates[0]),
 				},
 				{
 					Type:  "tpm_devid",
-					Value: "fingerprint:" + tpmdevid.Fingerprint(devIDRSA.Certificate),
+					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(provisioningCA.RootCert),
 				},
 			},
 		},
@@ -543,15 +561,31 @@ func TestAttestSucceeds(t *testing.T) {
 			expectedSelectors: []*common.Selector{
 				{
 					Type:  "tpm_devid",
-					Value: "certificate:serialnumber:01",
+					Value: "subject:cn:devid-leaf",
 				},
 				{
 					Type:  "tpm_devid",
-					Value: "certificate:subject:cn:CommonName",
+					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(devIDECC.Intermediates[0]),
 				},
 				{
 					Type:  "tpm_devid",
-					Value: "fingerprint:" + tpmdevid.Fingerprint(devIDECC.Certificate),
+					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(provisioningCA.RootCert),
+				},
+			},
+		},
+		{
+			name:  "Attest succeds for DevID with no intermediate certificates",
+			devID: devIDNoIntermediates,
+			expectedAgentID: fmt.Sprintf("spiffe://example.org/spire/agent/tpm_devid/%v",
+				tpmdevid.Fingerprint(devIDNoIntermediates.Certificate)),
+			expectedSelectors: []*common.Selector{
+				{
+					Type:  "tpm_devid",
+					Value: "subject:cn:devid-leaf",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(provisioningCA.RootCert),
 				},
 			},
 		},
@@ -565,6 +599,7 @@ func TestAttestSucceeds(t *testing.T) {
 			session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 				DevIDPriv: tt.devID.PrivateBlob,
 				DevIDPub:  tt.devID.PublicBlob,
+				Passwords: tpmPasswords,
 				Log:       hclog.NewNullLogger(),
 			})
 			require.NoError(t, err)
@@ -579,7 +614,7 @@ func TestAttestSucceeds(t *testing.T) {
 			require.NoError(t, err)
 
 			payload := marshalPayload(t, &common_devid.AttestationRequest{
-				DevIDCert:              tt.devID.Certificate.Raw,
+				DevIDCert:              tt.devID.Chain(),
 				DevIDPub:               tt.devID.PublicBlob,
 				EKCert:                 ekCert,
 				EKPub:                  ekPub,
@@ -612,7 +647,7 @@ func TestAttestSucceeds(t *testing.T) {
 			}
 
 			// Configure and run plugin
-			plugin := loadPlugin(t, fmt.Sprintf(`devid_bundle_path = %q, endorsement_bundle_path = %q`,
+			plugin := loadPlugin(t, fmt.Sprintf(`devid_ca_path = %q, endorsement_ca_path = %q`,
 				devIDBundlePath, endorsementBundlePath))
 
 			result, err := plugin.Attest(context.Background(), payload, challengeFn)

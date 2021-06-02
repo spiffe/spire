@@ -4,7 +4,6 @@ package tpmdevid_test
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,7 +19,6 @@ import (
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
@@ -29,14 +27,21 @@ import (
 )
 
 var (
-	sim   *tpmsimulator.TPMSimulator
-	devID *tpmsimulator.Credential
+	sim                 *tpmsimulator.TPMSimulator
+	devID               *tpmsimulator.Credential
+	devIDNoItermediates *tpmsimulator.Credential
 
 	tpmDevicePath                 string = "/dev/tpmrm0"
 	devIDCertPath                 string
 	devIDPrivPath                 string
 	devIDPubPath                  string
-	devIDMultipleCertificatesPath string
+	devIDWithoutIntermediatesPath string
+
+	tpmPasswords = tpmutil.TPMPasswords{
+		EndorsementHierarchy: "endorsement-hierarchy-pass",
+		OwnerHierarchy:       "owner-hierarchy-pass",
+		DevIDKey:             "devid-pass",
+	}
 
 	streamBuilder = nodeattestortest.ServerStream("tpm_devid")
 )
@@ -55,39 +60,47 @@ func setupSimulator(t *testing.T) {
 	tpmutil.OpenTPM = openSimulatedTPM
 
 	// Create a new TPM simulator
-	simulator, err := tpmsimulator.New()
+	simulator, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
 	require.NoError(t, err)
 	sim = simulator
 
-	// Create DevIDs
-	provisioningCA, err := tpmsimulator.CreateProvisioningCA()
+	// Create DevID with intermediate cert
+	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
 	require.NoError(t, err)
 
-	devID, err = sim.GenerateDevID(provisioningCA, tpmsimulator.RSA)
+	devID, err = sim.GenerateDevID(provisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
-	createDevIDFiles(t)
+	// Create DevID without intermediate cert
+	provisioningCANoIntermediates, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{NoIntermediates: true})
+	require.NoError(t, err)
+
+	devIDNoItermediates, err = sim.GenerateDevID(provisioningCANoIntermediates, tpmsimulator.RSA, tpmPasswords.DevIDKey)
+	require.NoError(t, err)
+
+	// Write files into temporal directory
+	writeDevIDFiles(t)
 }
 
 func teardownSimulator(t *testing.T) {
 	require.NoError(t, sim.Close())
 }
 
-func createDevIDFiles(t *testing.T) {
+func writeDevIDFiles(t *testing.T) {
 	dir := t.TempDir()
 	devIDCertPath = path.Join(dir, "devid-certificate.pem")
 	devIDPrivPath = path.Join(dir, "devid-priv-path")
 	devIDPubPath = path.Join(dir, "devid-pub-path")
-	devIDMultipleCertificatesPath = path.Join(dir, "devid-multiple-certificates.pem")
+	devIDWithoutIntermediatesPath = path.Join(dir, "devid-without-intermediates.pem")
 
 	require.NoError(t, ioutil.WriteFile(
 		devIDCertPath,
-		pemutil.EncodeCertificate(devID.Certificate),
+		devID.ChainPem(),
 		0600),
 	)
 	require.NoError(t, ioutil.WriteFile(
-		devIDMultipleCertificatesPath,
-		pemutil.EncodeCertificates([]*x509.Certificate{devID.Certificate, devID.Certificate}),
+		devIDWithoutIntermediatesPath,
+		devID.ChainPem(),
 		0600),
 	)
 	require.NoError(t, ioutil.WriteFile(devIDPrivPath, devID.PrivateBlob, 0600))
@@ -112,18 +125,18 @@ func TestConfigure(t *testing.T) {
 		{
 			name:    "Configure fails if DevID certificate path is empty",
 			hclConf: "",
-			expErr:  "rpc error: code = InvalidArgument desc = missing configurable: devid_cert_path is required",
+			expErr:  "rpc error: code = InvalidArgument desc = invalid configuration: devid_cert_path is required",
 		},
 		{
 			name:    "Configure fails if DevID private key path is empty",
 			hclConf: `devid_cert_path = "non-existent-path/to/devid.cert"`,
-			expErr:  "rpc error: code = InvalidArgument desc = missing configurable: devid_priv_path is required",
+			expErr:  "rpc error: code = InvalidArgument desc = invalid configuration: devid_priv_path is required",
 		},
 		{
 			name: "Configure fails if DevID public key path is empty",
 			hclConf: `	devid_cert_path = "non-existent-path/to/devid.cert" 
 						devid_priv_path = "non-existent-path/to/devid-private-blob"`,
-			expErr: "rpc error: code = InvalidArgument desc = missing configurable: devid_pub_path is required",
+			expErr: "rpc error: code = InvalidArgument desc = invalid configuration: devid_pub_path is required",
 		},
 		{
 			name: "Configure fails if DevID certificate cannot be opened",
@@ -131,23 +144,15 @@ func TestConfigure(t *testing.T) {
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
 						tpm_device_path = "/dev/tpmrm0"`,
-			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate: open non-existent-path/to/devid.cert: no such file or directory",
+			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate(s): open non-existent-path/to/devid.cert: no such file or directory",
 		},
 		{
 			name: "Configure fails if TPM path is not provided and it cannot be auto detected",
 			hclConf: `devid_cert_path = "non-existent-path/to/devid.cert" 
 					devid_priv_path = "non-existent-path/to/devid-private-blob"
 					devid_pub_path = "non-existent-path/to/devid-public-blob"`,
-			expErr:             "rpc error: code = InvalidArgument desc = unable to autodetect TPM",
+			expErr:             "rpc error: code = Internal desc = tpm autodetection failed: unable to autodetect TPM",
 			autoDetectTPMFails: true,
-		},
-		{
-			name: "Configure fails if more than one DevID certificate is provided",
-			hclConf: fmt.Sprintf(`devid_cert_path = %q 
-						devid_priv_path = "non-existent-path/to/devid-private-blob"
-						devid_pub_path = "non-existent-path/to/devid-public-blob"
-						tpm_device_path = "/dev/tpmrm0"`, devIDMultipleCertificatesPath),
-			expErr: "rpc error: code = Internal desc = unable to load DevID files: only one certificate is expected",
 		},
 		{
 			name: "Configure fails if DevID private key cannot be opened",
@@ -186,6 +191,15 @@ func TestConfigure(t *testing.T) {
 				devIDPrivPath,
 				devIDPubPath),
 		},
+		{
+			name: "Configure succeeds if DevID does not have intermediates certificates",
+			hclConf: fmt.Sprintf(`devid_cert_path = %q
+						devid_priv_path = %q
+						devid_pub_path = %q`,
+				devIDWithoutIntermediatesPath,
+				devIDPrivPath,
+				devIDPubPath),
+		},
 	}
 
 	for _, tt := range tests {
@@ -214,15 +228,18 @@ func TestConfigure(t *testing.T) {
 
 func TestAidAttestationFailiures(t *testing.T) {
 	tests := []struct {
-		name         string
-		openTPMFail  bool
-		getEKFail    bool
-		expErr       string
-		serverStream nodeattestor.ServerStream
+		name                              string
+		openTPMFail                       bool
+		getEKFail                         bool
+		wrongDevIDPassword                bool
+		wrongOwnerHierarchyPassword       bool
+		wrongEndorsementHierarchyPassword bool
+		expErr                            string
+		serverStream                      nodeattestor.ServerStream
 	}{
 		{
 			name:         "AidAttestation fails if a new session cannot be started",
-			expErr:       `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot load DevID: failed to load key on TPM`,
+			expErr:       `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot load DevID key on TPM`,
 			openTPMFail:  true,
 			serverStream: streamBuilder.Build(),
 		},
@@ -280,6 +297,24 @@ func TestAidAttestationFailiures(t *testing.T) {
 				return streamBuilder.IgnoreThenChallenge(challenges).Build()
 			}(),
 		},
+		{
+			name:                              "AidAttestation fails if a wrong endorsement hierarchy password is provided",
+			expErr:                            `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot create endorsement key`,
+			wrongEndorsementHierarchyPassword: true,
+			serverStream:                      streamBuilder.Build(),
+		},
+		{
+			name:                        "AidAttestation fails if a wrong owner hierarchy password is provided",
+			expErr:                      `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot load DevID key on TPM`,
+			wrongOwnerHierarchyPassword: true,
+			serverStream:                streamBuilder.Build(),
+		},
+		{
+			name:               "AidAttestation fails if a wrong DevID key password is provided",
+			expErr:             `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to certify DevID key`,
+			wrongDevIDPassword: true,
+			serverStream:       streamBuilder.Build(),
+		},
 	}
 
 	for _, tt := range tests {
@@ -292,12 +327,24 @@ func TestAidAttestationFailiures(t *testing.T) {
 				// Remove EK cert from TPM
 				require.NoError(t, tpm2.NVUndefineSpace(sim, "", tpm2.HandlePlatform, tpmutil.EKCertificateHandleRSA))
 			}
+
 			if tt.openTPMFail {
 				// Do a manufacture reset to reset seeds so key cannot be loaded
 				sim.ManufactureReset()
 			}
 
-			p := loadAndConfigurePlugin(t)
+			passwords := tpmPasswords
+			if tt.wrongEndorsementHierarchyPassword {
+				passwords.EndorsementHierarchy = "wrong-password"
+			}
+			if tt.wrongOwnerHierarchyPassword {
+				passwords.OwnerHierarchy = "wrong-password"
+			}
+			if tt.wrongDevIDPassword {
+				passwords.DevIDKey = "wrong-password"
+			}
+
+			p := loadAndConfigurePlugin(t, passwords)
 			err := p.Attest(context.Background(), tt.serverStream)
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
@@ -331,6 +378,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 		DevicePath: tpmDevicePath,
 		DevIDPriv:  devID.PrivateBlob,
 		DevIDPub:   devID.PublicBlob,
+		Passwords:  tpmPasswords,
 		Log:        hclog.NewNullLogger(),
 	})
 	require.NoError(t, err)
@@ -379,21 +427,29 @@ func TestAidAttestationSucceeds(t *testing.T) {
 		}).Build()
 
 	// Configure and run the attestor
-	p := loadAndConfigurePlugin(t)
+	p := loadAndConfigurePlugin(t, tpmPasswords)
 	err = p.Attest(context.Background(), ss)
 	require.NoError(t, err)
 }
 
-func loadAndConfigurePlugin(t *testing.T) nodeattestor.NodeAttestor {
+func loadAndConfigurePlugin(t *testing.T, passwords tpmutil.TPMPasswords) nodeattestor.NodeAttestor {
 	config := fmt.Sprintf(`
 		tpm_device_path = %q	 
 		devid_cert_path = %q
 		devid_priv_path = %q
-		devid_pub_path = %q`,
+		devid_pub_path = %q
+		devid_password = %q
+		owner_hierarchy_password = %q
+		endorsement_hierarchy_password = %q`,
+
 		tpmDevicePath,
 		devIDCertPath,
 		devIDPrivPath,
-		devIDPubPath)
+		devIDPubPath,
+		passwords.DevIDKey,
+		passwords.OwnerHierarchy,
+		passwords.EndorsementHierarchy,
+	)
 
 	return loadPlugin(t, plugintest.Configure(config))
 }

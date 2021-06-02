@@ -1,51 +1,39 @@
 package tpmdevid
 
 import (
+	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
 	"crypto/x509"
-	"crypto/x509/pkix"
-	"fmt"
+	"encoding/hex"
 )
 
-var attributeTypeNames = map[string]string{
-	"2.5.4.3":  "cn",           // Common name
-	"2.5.4.5":  "serialnumber", // Serial number
-	"2.5.4.6":  "c",            // Country
-	"2.5.4.8":  "st",           // State
-	"2.5.4.10": "o",            // Organization
-	"2.5.4.11": "ou",           // Organizational unit
-}
+func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
+	selectorValues := []string{}
 
-func selectorsFromCertificate(prefix string, cert *x509.Certificate) []string {
-	snValue := fmt.Sprintf("%s:serialnumber:%x", prefix, cert.SerialNumber.Bytes())
-	selectors := []string{snValue}
+	if leaf.Subject.CommonName != "" {
+		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
+	}
 
-	subjectSelectors := selectorsFromAttributes(
-		fmt.Sprintf("%s:subject", prefix),
-		cert.Subject.Names,
-	)
+	// Used to avoid duplicating selectors.
+	fingerprints := map[string]*x509.Certificate{}
+	for _, chain := range chains {
+		// Iterate over all the certs in the chain (skip leaf at the 0 index)
+		for _, cert := range chain[1:] {
+			fp := Fingerprint(cert)
+			// If the same fingerprint is generated, continue with the next certificate, because
+			// a selector should have been already created for it.
+			if _, ok := fingerprints[fp]; ok {
+				continue
+			}
+			fingerprints[fp] = cert
 
-	issuerSelectors := selectorsFromAttributes(
-		fmt.Sprintf("%s:issuer", prefix),
-		cert.Issuer.Names,
-	)
-
-	selectors = append(selectors, subjectSelectors...)
-	selectors = append(selectors, issuerSelectors...)
-
-	return selectors
-}
-
-func selectorsFromAttributes(prefix string, attributes []pkix.AttributeTypeAndValue) []string {
-	selectors := make([]string, 0, len(attributes))
-	for _, tv := range attributes {
-		valueString := fmt.Sprint(tv.Value)
-		oidString := tv.Type.String()
-		typeName, ok := attributeTypeNames[oidString]
-		if ok {
-			selectors = append(selectors,
-				fmt.Sprintf("%s:%s:%s", prefix, typeName, valueString))
+			selectorValues = append(selectorValues, "ca:fingerprint:"+fp)
 		}
 	}
 
-	return selectors
+	return selectorValues
+}
+
+func Fingerprint(cert *x509.Certificate) string {
+	sum := sha1.Sum(cert.Raw) //nolint: gosec // SHA1 use is according to specification
+	return hex.EncodeToString(sum[:])
 }

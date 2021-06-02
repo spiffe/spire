@@ -3,10 +3,8 @@ package tpmdevid
 import (
 	"context"
 	"crypto/rsa"
-	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
 	"crypto/x509"
 	"encoding/asn1"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +21,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// We use a 32 bytes nonce to provide enough cryptographical randomness and to be
+// consistent with other nonces sizes around the project.
+const devIDChallengeNonceSize = 32
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -43,8 +45,8 @@ type config struct {
 }
 
 type Config struct {
-	DevIDBundlePath       string `hcl:"devid_bundle_path"`
-	EndorsementBundlePath string `hcl:"endorsement_bundle_path"`
+	DevIDBundlePath       string `hcl:"devid_ca_path"`
+	EndorsementBundlePath string `hcl:"endorsement_ca_path"`
 }
 
 type Plugin struct {
@@ -88,19 +90,28 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Error(codes.InvalidArgument, "no DevID certificate to attest")
 	}
 
-	devIDCert, err := x509.ParseCertificate(attData.DevIDCert)
+	devIDCert, err := x509.ParseCertificate(attData.DevIDCert[0])
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to parse DevID certificate: %v", err)
 	}
 
+	devIDIntermediates := x509.NewCertPool()
+	for i, intermediatesBytes := range attData.DevIDCert[1:] {
+		intermediate, err := x509.ParseCertificate(intermediatesBytes)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "unable to parse DevID intermediate certificate %d: %v", i, err)
+		}
+		devIDIntermediates.AddCert(intermediate)
+	}
+
 	// Verify DevID certificate chain of trust
-	err = verifyDevIDSignature(devIDCert, conf.devIDRoots)
+	chains, err := verifyDevIDSignature(devIDCert, devIDIntermediates, conf.devIDRoots)
 	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "unable to verify DevID signature: %v", err)
+		return status.Errorf(codes.InvalidArgument, "unable to verify DevID signature: %v", err)
 	}
 
 	// Issue a DevID challenge (to prove the possession of the DevID private key).
-	devIDChallenge, err := newDevIDChallenge()
+	devIDChallenge, err := newNonce(devIDChallengeNonceSize)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
@@ -147,27 +158,24 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	// Verify DevID challenge
 	err = VerifyDevIDChallenge(devIDCert, devIDChallenge, challengeResponse.DevID)
 	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "devID challenge verification failed: %v", err)
+		return status.Errorf(codes.InvalidArgument, "devID challenge verification failed: %v", err)
 	}
 
 	// Verify credential activation challenge
 	err = VerifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
 	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "credential activation failed: %v", err)
+		return status.Errorf(codes.InvalidArgument, "credential activation failed: %v", err)
 	}
 
 	// Create SPIFFE ID and selectors
-	certSelectors := selectorsFromCertificate("certificate", devIDCert)
-	fingerprint := Fingerprint(devIDCert)
-	certSelectors = append(certSelectors, fmt.Sprintf("fingerprint:%s", fingerprint))
-
-	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", common_devid.PluginName, fingerprint))
+	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", common_devid.PluginName, Fingerprint(devIDCert)))
+	selectors := buildSelectorValues(devIDCert, chains)
 
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeID,
-				SelectorValues: certSelectors,
+				SelectorValues: selectors,
 			},
 		},
 	})
@@ -186,7 +194,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	err = validatePluginConfig(extConf)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "missing configurable: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid configuration: %v", err)
 	}
 
 	// Create initial internal configuration
@@ -246,25 +254,26 @@ func validateCoreConfig(c *configv1.CoreConfiguration) error {
 func validatePluginConfig(extConf *Config) error {
 	switch {
 	case extConf.DevIDBundlePath == "":
-		return errors.New("devid_bundle_path is required")
+		return errors.New("devid_ca_path is required")
 
 	case extConf.EndorsementBundlePath == "":
-		return errors.New("endorsement_bundle_path is required")
+		return errors.New("endorsement_ca_path is required")
 	}
 
 	return nil
 }
 
-func verifyDevIDSignature(cert *x509.Certificate, roots *x509.CertPool) error {
-	_, err := cert.Verify(x509.VerifyOptions{
-		Roots:     roots,
-		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+func verifyDevIDSignature(cert *x509.Certificate, intermediates *x509.CertPool, roots *x509.CertPool) ([][]*x509.Certificate, error) {
+	chains, err := cert.Verify(x509.VerifyOptions{
+		Roots:         roots,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		Intermediates: intermediates,
 	})
 	if err != nil {
-		return fmt.Errorf("verification failed: %w", err)
+		return nil, fmt.Errorf("verification failed: %w", err)
 	}
 
-	return nil
+	return chains, nil
 }
 
 // verifyDevIDResidency verifies that the DevID resides on the same TPM than EK.
@@ -311,13 +320,13 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 	// Verify EK chain of trust using the provided manufacturer roots.
 	err = verifyEKSignature(ekCert, ekRoots)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot verify EK signature: %v", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot verify EK signature: %v", err)
 	}
 
 	// Verify DevID resides in the same TPM than AK
 	err = VerifyDevIDCertification(&akPub, &devIDPub, attData.CertifiedDevID, attData.CertificationSignature)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Unauthenticated, "cannot verify that DevID is in the same TPM than AK: %v", err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot verify that DevID is in the same TPM than AK: %v", err)
 	}
 
 	// Issue a credential activation challenge (to verify AK is in the same TPM than EK)
@@ -379,7 +388,7 @@ func verifyEKSignature(ekCert *x509.Certificate, roots *x509.CertPool) error {
 func verifyEKsMatch(ekCert *x509.Certificate, ekPub tpm2.Public) error {
 	keyFromCert, ok := ekCert.PublicKey.(*rsa.PublicKey)
 	if !ok {
-		return fmt.Errorf("key from certificate is not an RSA key")
+		return errors.New("key from certificate is not an RSA key")
 	}
 
 	cryptoKey, err := ekPub.Key()
@@ -389,15 +398,15 @@ func verifyEKsMatch(ekCert *x509.Certificate, ekPub tpm2.Public) error {
 
 	keyFromTemplate, ok := cryptoKey.(*rsa.PublicKey)
 	if !ok {
-		return fmt.Errorf("key from template is not an RSA key")
+		return errors.New("key from template is not an RSA key")
 	}
 
 	if keyFromCert.E != keyFromTemplate.E {
-		return fmt.Errorf("exponent missmatch")
+		return errors.New("exponent mismatch")
 	}
 
 	if keyFromCert.N.Cmp(keyFromTemplate.N) != 0 {
-		return fmt.Errorf("modulus missmatch")
+		return errors.New("modulus mismatch")
 	}
 
 	return nil
@@ -488,9 +497,4 @@ func getSignatureScheme(pub tpm2.Public) (*tpm2.SigScheme, error) {
 	default:
 		return nil, fmt.Errorf("unsupported key type 0x%04x", pub.Type)
 	}
-}
-
-func Fingerprint(cert *x509.Certificate) string {
-	sum := sha1.Sum(cert.Raw) //nolint: gosec // SHA1 use is according to specification
-	return hex.EncodeToString(sum[:])
 }

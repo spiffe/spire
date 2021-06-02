@@ -24,63 +24,7 @@ type SigningKey struct {
 	sigHashAlg tpm2.Algorithm
 	rw         io.ReadWriter
 	log        hclog.Logger
-}
-
-// LoadSigningKey loads the given keypair into the provided TPM
-func LoadSigningKey(rw io.ReadWriter, pubKey, privKey []byte, log hclog.Logger) (*SigningKey, error) {
-	pub, err := tpm2.DecodePublic(pubKey)
-	if err != nil {
-		return nil, fmt.Errorf("tpm2.Public decoding failed: %w", err)
-	}
-
-	canSign := pub.Attributes&tpm2.FlagSign != 0
-	if !canSign {
-		return nil, fmt.Errorf("not a signing key")
-	}
-
-	var sigHashAlg tpm2.Algorithm
-	var srkTemplate tpm2.Public
-	switch pub.Type {
-	case tpm2.AlgRSA:
-		srkTemplate = SRKTemplateHighRSA()
-		rsaParams := pub.RSAParameters
-		if rsaParams != nil {
-			sigHashAlg = rsaParams.Sign.Hash
-		}
-
-	case tpm2.AlgECC:
-		srkTemplate = tpm2tools.SRKTemplateECC()
-		eccParams := pub.ECCParameters
-		if eccParams != nil {
-			sigHashAlg = eccParams.Sign.Hash
-		}
-
-	default:
-		return nil, fmt.Errorf("bad key type: 0x%04x", pub.Type)
-	}
-
-	if sigHashAlg.IsNull() {
-		return nil, fmt.Errorf("signature hash algorithm is NULL")
-	}
-
-	srk, err := tpm2tools.NewKey(rw, tpm2.HandleOwner, srkTemplate)
-	if err != nil {
-		return nil, fmt.Errorf("SRK creation failed: %w", err)
-	}
-
-	defer srk.Close()
-
-	keyHandle, _, err := tpm2.Load(rw, srk.Handle(), "", pubKey, privKey)
-	if err != nil {
-		return nil, fmt.Errorf("tpm2.Load failed: %w", err)
-	}
-
-	return &SigningKey{
-		Handle:     keyHandle,
-		sigHashAlg: sigHashAlg,
-		rw:         rw,
-		log:        log,
-	}, nil
+	password   string
 }
 
 // Close removes the key from the TPM
@@ -95,21 +39,14 @@ func (k *SigningKey) Sign(data []byte) ([]byte, error) {
 		return nil, fmt.Errorf("tpm2.Hash failed: %w", err)
 	}
 
-	var sig *tpm2.Signature
-
-loop:
-	for i := 0; i <= maxAttempts; i++ {
-		sig, err = tpm2.Sign(k.rw, k.Handle, "", digest, token, nil)
+	for i := 1; i <= maxAttempts; i++ {
+		sig, err := tpm2.Sign(k.rw, k.Handle, k.password, digest, token, nil)
 		switch {
 		case err == nil:
-			break loop
+			return getSignatureBytes(sig)
 
 		case isRetry(err):
-			if i == maxAttempts {
-				return nil, fmt.Errorf("max attempts reached: %w", err)
-			}
-
-			k.log.Debug(fmt.Sprintf("TPM was not able to start the command 'Sign'. Retrying: attempt (%d/%d)", i, maxAttempts))
+			k.log.Warn(fmt.Sprintf("TPM was not able to start the command 'Sign'. Retrying: attempt (%d/%d)", i, maxAttempts))
 			time.Sleep(time.Millisecond * 500)
 			continue
 
@@ -118,6 +55,65 @@ loop:
 		}
 	}
 
+	return nil, fmt.Errorf("max attempts reached while trying to sign payload: %w", err)
+}
+
+// Certify calls tpm2.Certify using the current key as signer and the provided
+// handle as object.
+func (k *SigningKey) Certify(object tpmutil.Handle, objectPassword string) ([]byte, []byte, error) {
+	// For some reason 'tpm2.Certify()' sometimes fails the first attempt and asks for retry.
+	// So, we retry some times in case of getting the RCRetry error.
+	// It seems that this issue has been reported: https://github.com/google/go-tpm/issues/59
+	var err error
+	for i := 1; i <= maxAttempts; i++ {
+		certifiedDevID, certificationSignature, err := tpm2.Certify(k.rw, objectPassword, k.password, object, k.Handle, nil)
+		switch {
+		case err == nil:
+			return certifiedDevID, certificationSignature, nil
+
+		case isRetry(err):
+			k.log.Warn(fmt.Sprintf("TPM was not able to start the command 'Certify'. Retrying: attempt (%d/%d)", i, maxAttempts))
+			time.Sleep(time.Millisecond * 500)
+
+		default:
+			return nil, nil, fmt.Errorf("tpm2.Certify failed: %w", err)
+		}
+	}
+
+	return nil, nil, fmt.Errorf("max attempts reached while trying to certify key: %w", err)
+}
+
+// SRKTemplateHighRSA returns the default high range SRK template (called H-1 in the specification).
+// https://trustedcomputinggroup.org/wp-content/uploads/TCG_IWG_EKCredentialProfile_v2p3_r2_pub.pdf#page=41
+func SRKTemplateHighRSA() tpm2.Public {
+	// The tpm2tools library does not have a function to build the high range template
+	// so we build it based on the previous template.
+	template := tpm2tools.SRKTemplateRSA()
+	template.RSAParameters.ModulusRaw = []byte{}
+	return template
+}
+
+// SRKTemplateHighECC returns the default high range SRK template (called H-2 in the specification).
+// https://trustedcomputinggroup.org/wp-content/uploads/TCG_IWG_EKCredentialProfile_v2p3_r2_pub.pdf#page=42
+func SRKTemplateHighECC() tpm2.Public {
+	// The tpm2tools library does not have a function to build the high range template
+	// so we build it based on the previous template.
+	template := tpm2tools.SRKTemplateECC()
+	template.ECCParameters.Point.XRaw = []byte{}
+	template.ECCParameters.Point.YRaw = []byte{}
+	return template
+}
+
+// isRetry returns true if the given error is a tpm2.Warning that requests retry.
+func isRetry(err error) bool {
+	target := &tpm2.Warning{Code: tpm2.RCRetry}
+	if errors.As(err, target) && target.Code == tpm2.RCRetry {
+		return true
+	}
+	return false
+}
+
+func getSignatureBytes(sig *tpm2.Signature) ([]byte, error) {
 	if sig.RSA != nil {
 		return sig.RSA.Signature, nil
 	}
@@ -132,56 +128,5 @@ loop:
 		return b.Bytes()
 	}
 
-	return nil, fmt.Errorf("bad tpm2.Signature")
-}
-
-// Certify calls tpm2.Certify using the current key as signer and the provided
-// object as object handle.
-func (k *SigningKey) Certify(object tpmutil.Handle) ([]byte, []byte, error) {
-	// For some reason 'tpm2.Certify()' sometimes fails the first attempt and asks for retry.
-	// So, we retry some times in case of getting the RCRetry error.
-	// It seems that this issue has been reported: https://github.com/google/go-tpm/issues/59
-	var certifiedDevID []byte
-	var certificationSignature []byte
-	var err error
-loop:
-	for i := 0; i <= maxAttempts; i++ {
-		certifiedDevID, certificationSignature, err = tpm2.Certify(k.rw, "", "", object, k.Handle, nil)
-		switch {
-		case err == nil:
-			return certifiedDevID, certificationSignature, nil
-
-		case isRetry(err):
-			if i == maxAttempts {
-				return nil, nil, fmt.Errorf("max attempts reached: %w", err)
-			}
-
-			k.log.Debug(fmt.Sprintf("TPM was not able to start the command 'Certify'. Retrying: attempt (%d/%d)", i, maxAttempts))
-			time.Sleep(time.Millisecond * 500)
-
-		default:
-			break loop
-		}
-	}
-
-	return nil, nil, fmt.Errorf("certify failed: %w", err)
-}
-
-// SRKTemplateHighRSA returns the default high range SRK template (called H-1 in the specification).
-// https://trustedcomputinggroup.org/resource/tcg-ek-credential-profile-for-tpm-family-2-0/
-func SRKTemplateHighRSA() tpm2.Public {
-	// The tpm2tools library does not have a function to build the high range template
-	// so we build it based on the previous template.
-	template := tpm2tools.SRKTemplateRSA()
-	template.RSAParameters.ModulusRaw = []byte{}
-	return template
-}
-
-// isRetry returns true if the given error is a tpm2.Warning that request retry.
-func isRetry(err error) bool {
-	target := &tpm2.Warning{Code: tpm2.RCRetry}
-	if errors.As(err, target) && target.Code == tpm2.RCRetry {
-		return true
-	}
-	return false
+	return nil, errors.New("unrecognized tpm2.Signature")
 }

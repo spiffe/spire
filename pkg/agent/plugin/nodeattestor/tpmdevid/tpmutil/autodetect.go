@@ -2,6 +2,7 @@ package tpmutil
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"path"
 	"regexp"
@@ -19,26 +20,30 @@ func AutoDetectTPMPath(baseTPMDir string) (string, error) {
 	}
 
 	for _, validExp := range validTPMNames {
+		var deviceFound bool
+		var tpmDevicePath string
+
 		for _, f := range files {
-			if validExp.MatchString(f.Name()) {
-				candidateTPM := path.Join(baseTPMDir, f.Name())
-				if isValidTPM(candidateTPM) {
-					return candidateTPM, nil
-				}
+			deviceNameMatch := validExp.MatchString(f.Name())
+
+			switch {
+			case deviceNameMatch && !deviceFound:
+				tpmDevicePath = path.Join(baseTPMDir, f.Name())
+				deviceFound = true
+				// Do not return yet, we need to make sure that
+				// there is only one TPM device.
+
+			case deviceNameMatch && deviceFound:
+				return "", fmt.Errorf("more than one possible TPM device was found")
+
+			default:
 			}
+		}
+
+		if deviceFound {
+			return tpmDevicePath, nil
 		}
 	}
 
-	return "", errors.New("unable to autodetect TPM")
-}
-
-// VerifyTPM verifies that the given path belongs to a functional TPM 2.0
-func isValidTPM(path string) bool {
-	rwc, err := OpenTPM(path)
-	if err != nil {
-		return false
-	}
-	defer rwc.Close()
-
-	return true
+	return "", errors.New("not found")
 }

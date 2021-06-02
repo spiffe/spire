@@ -2,7 +2,6 @@ package tpmdevid
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,14 +44,19 @@ type Config struct {
 	DevIDPubPath  string `hcl:"devid_pub_path"`
 	DevIDCertPath string `hcl:"devid_cert_path"`
 
+	DevIDKeyPassword             string `hcl:"devid_password"`
+	OwnerHierarchyPassword       string `hcl:"owner_hierarchy_password"`
+	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password"`
+
 	DevicePath string `hcl:"tpm_device_path"`
 }
 
 type config struct {
 	devicePath string
-	devIDCert  *x509.Certificate
+	devIDCert  [][]byte
 	devIDPub   []byte
 	devIDPriv  []byte
+	passwords  tpmutil.TPMPasswords
 }
 
 type Plugin struct {
@@ -81,6 +85,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		DevicePath: conf.devicePath,
 		DevIDPriv:  conf.devIDPriv,
 		DevIDPub:   conf.devIDPub,
+		Passwords:  conf.passwords,
 		Log:        p.log,
 	})
 	if err != nil {
@@ -108,7 +113,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 	// Marshal attestation data
 	marshaledAttData, err := json.Marshal(common_devid.AttestationRequest{
-		DevIDCert: conf.devIDCert.Raw,
+		DevIDCert: conf.devIDCert,
 		DevIDPub:  conf.devIDPub,
 
 		EKCert: ekCert,
@@ -196,7 +201,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	err = validatePluginConfig(extConf)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "missing configurable: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "invalid configuration: %v", err)
 	}
 
 	p.m.Lock()
@@ -207,7 +212,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	} else {
 		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
 		if err != nil {
-			return nil, status.Error(codes.InvalidArgument, err.Error())
+			return nil, status.Errorf(codes.Internal, "tpm autodetection failed: %v", err)
 		}
 		p.c.devicePath = tpmPath
 	}
@@ -216,6 +221,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to load DevID files: %v", err)
 	}
+
+	p.c.passwords.DevIDKey = extConf.DevIDKeyPassword
+	p.c.passwords.OwnerHierarchy = extConf.OwnerHierarchyPassword
+	p.c.passwords.EndorsementHierarchy = extConf.EndorsementHierarchyPassword
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -237,13 +246,12 @@ func (p *Plugin) getConfig() *config {
 func (p *Plugin) loadDevIDFiles(c *Config) error {
 	certs, err := util.LoadCertificates(c.DevIDCertPath)
 	if err != nil {
-		return fmt.Errorf("cannot load certificate: %w", err)
+		return fmt.Errorf("cannot load certificate(s): %w", err)
 	}
 
-	if len(certs) != 1 {
-		return errors.New("only one certificate is expected")
+	for _, cert := range certs {
+		p.c.devIDCert = append(p.c.devIDCert, cert.Raw)
 	}
-	p.c.devIDCert = certs[0]
 
 	p.c.devIDPriv, err = ioutil.ReadFile(c.DevIDPrivPath)
 	if err != nil {
@@ -271,13 +279,13 @@ func validatePluginConfig(c *Config) error {
 	// DevID certificate, public and private key are always required
 	switch {
 	case c.DevIDCertPath == "":
-		return fmt.Errorf("devid_cert_path is required")
+		return errors.New("devid_cert_path is required")
 
 	case c.DevIDPrivPath == "":
-		return fmt.Errorf("devid_priv_path is required")
+		return errors.New("devid_priv_path is required")
 
 	case c.DevIDPubPath == "":
-		return fmt.Errorf("devid_pub_path is required")
+		return errors.New("devid_pub_path is required")
 	}
 
 	return nil

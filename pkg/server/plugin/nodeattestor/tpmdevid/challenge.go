@@ -3,7 +3,6 @@ package tpmdevid
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
@@ -14,13 +13,8 @@ import (
 	devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 )
 
-// We use a 32 bytes nonce to provide enough cryptographical randomness and to be
-// consistent with other nonces sizes around the project.
-const nonceSize = 32
-
-func newDevIDChallenge() ([]byte, error) {
-	nonce := make([]byte, nonceSize)
-	_, err := rand.Read(nonce)
+func newNonce(size int) ([]byte, error) {
+	nonce, err := devid.GetRandomBytes(size)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +46,7 @@ func NewCredActivationChallenge(akPub, ekPub tpm2.Public) (*devid.CredActivation
 		return nil, nil, err
 	}
 
-	nonce := make([]byte, hash.Size())
-	_, err = rand.Read(nonce)
+	nonce, err := newNonce(hash.Size())
 	if err != nil {
 		return nil, nil, err
 	}
