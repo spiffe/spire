@@ -47,10 +47,22 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
+			encodedSpireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
 			// ignore aliases/keys not belonging to this server
 			if !ok {
 				continue
+			}
+
+			var spireKeyID string
+			switch {
+			case isOldKey(encodedSpireKeyID): // For backward compatibility
+				spireKeyID = encodedSpireKeyID
+			default:
+				// Key is base64-ish encoded due to the characters limitation in alias name
+				spireKeyID, err = decodeKeyID(encodedSpireKeyID)
+				if err != nil {
+					return nil, status.Errorf(codes.Internal, "failed to decode spire key id from alias: name=%q", *alias.AliasName)
+				}
 			}
 
 			// The following checks are purely defensive but we want to ensure
@@ -141,4 +153,18 @@ func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
 		return "", false
 	}
 	return trimmed, true
+}
+
+// Identify keys that were generated with aliases without encoding
+func isOldKey(s string) bool {
+	if strings.HasPrefix(s, "bundle-acme") {
+		return true
+	}
+	if strings.HasPrefix(s, "JWT-Signer") {
+		return true
+	}
+	if strings.HasPrefix(s, "x509-CA") {
+		return true
+	}
+	return false
 }
