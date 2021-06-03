@@ -100,12 +100,20 @@ type Plugin struct {
 	cc         *ClientConfig
 	vc         *Client
 	reuseToken bool
+
+	hooks struct {
+		lookupEnv func(string) (string, bool)
+	}
 }
 
 func New() *Plugin {
-	return &Plugin{
+	p := &Plugin{
 		mtx: &sync.RWMutex{},
 	}
+
+	p.hooks.lookupEnv = os.LookupEnv
+
+	return p
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -126,7 +134,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, err
 	}
-	cp := genClientParams(am, config)
+	cp := p.genClientParams(am, config)
 	vcConfig, err := NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
@@ -225,6 +233,39 @@ func (*Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReque
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
+func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) *ClientParams {
+	cp := &ClientParams{
+		VaultAddr:     p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
+		CACertPath:    p.getEnvOrDefault(envVaultCACert, config.CACertPath),
+		PKIMountPoint: config.PKIMountPoint,
+		TLSSKipVerify: config.InsecureSkipVerify,
+		Namespace:     p.getEnvOrDefault(envVaultNamespace, config.Namespace),
+	}
+
+	switch method {
+	case TOKEN:
+		cp.Token = p.getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
+	case CERT:
+		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
+		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
+		cp.ClientCertPath = p.getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
+		cp.ClientKeyPath = p.getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
+	case APPROLE:
+		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
+		cp.AppRoleID = p.getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
+		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
+	}
+
+	return cp
+}
+
+func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
+	if value, ok := p.hooks.lookupEnv(envKey); ok {
+		return value
+	}
+	return fallback
+}
+
 func parseAuthMethod(config *Configuration) (AuthMethod, error) {
 	var authMethod AuthMethod
 	if config.TokenAuth != nil {
@@ -255,37 +296,4 @@ func checkForAuthMethodConfigured(authMethod AuthMethod) error {
 		return status.Error(codes.InvalidArgument, "only one authentication method can be configured")
 	}
 	return nil
-}
-
-func genClientParams(method AuthMethod, config *Configuration) *ClientParams {
-	cp := &ClientParams{
-		VaultAddr:     getEnvOrDefault(envVaultAddr, config.VaultAddr),
-		CACertPath:    getEnvOrDefault(envVaultCACert, config.CACertPath),
-		PKIMountPoint: config.PKIMountPoint,
-		TLSSKipVerify: config.InsecureSkipVerify,
-		Namespace:     getEnvOrDefault(envVaultNamespace, config.Namespace),
-	}
-
-	switch method {
-	case TOKEN:
-		cp.Token = getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
-	case CERT:
-		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
-		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
-		cp.ClientCertPath = getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
-		cp.ClientKeyPath = getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
-	case APPROLE:
-		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
-		cp.AppRoleID = getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
-		cp.AppRoleSecretID = getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
-	}
-
-	return cp
-}
-
-func getEnvOrDefault(envKey, fallback string) string {
-	if value, ok := os.LookupEnv(envKey); ok {
-		return value
-	}
-	return fallback
 }

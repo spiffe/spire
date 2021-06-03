@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
-	"os"
 	"testing"
 	"text/template"
 
@@ -23,16 +22,6 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 )
-
-func init() {
-	os.Unsetenv(envVaultAddr)
-	os.Unsetenv(envVaultToken)
-	os.Unsetenv(envVaultClientCert)
-	os.Unsetenv(envVaultClientKey)
-	os.Unsetenv(envVaultCACert)
-	os.Unsetenv(envVaultAppRoleID)
-	os.Unsetenv(envVaultAppRoleSecretID)
-}
 
 func TestConfigure(t *testing.T) {
 	fakeVaultServer := setupFakeVautServer()
@@ -152,19 +141,17 @@ func TestConfigure(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			// TODO: refactor to no longer depends on ENVVARs
-			defer func() {
-				for k := range tt.envKeyVal {
-					os.Unsetenv(k)
-				}
-			}()
-			for k, v := range tt.envKeyVal {
-				os.Setenv(k, v)
-			}
-
 			var err error
 
 			p := New()
+			p.hooks.lookupEnv = func(s string) (string, bool) {
+				if len(tt.envKeyVal) == 0 {
+					return "", false
+				}
+				v, ok := tt.envKeyVal[s]
+				return v, ok
+			}
+
 			plainConfig := ""
 			if tt.plainConfig != "" {
 				plainConfig = tt.plainConfig
@@ -399,7 +386,7 @@ func TestMintX509CA(t *testing.T) {
 			p := New()
 
 			tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
-			cp := genClientParams(tt.authMethod, tt.config)
+			cp := p.genClientParams(tt.authMethod, tt.config)
 			cc, err := NewClientConfig(cp, p.logger)
 			require.NoError(t, err)
 			p.cc = cc
