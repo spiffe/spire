@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/stretchr/testify/assert"
@@ -202,6 +203,7 @@ func TestMintX509CA(t *testing.T) {
 		appRoleAuthResp         []byte
 		signIntermediateResp    []byte
 		config                  *Configuration
+		ttl                     time.Duration
 		authMethod              AuthMethod
 		reuseToken              bool
 		expectCode              codes.Code
@@ -211,6 +213,23 @@ func TestMintX509CA(t *testing.T) {
 	}{
 		{
 			name:                 "Mint X509CA SVID with Token authentication",
+			lookupSelfResp:       []byte(testLookupSelfResponse),
+			signIntermediateResp: []byte(testSignIntermediateResponse),
+			config: &Configuration{
+				PKIMountPoint: "test-pki",
+				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
+				},
+			},
+			authMethod:              TOKEN,
+			reuseToken:              true,
+			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
+			expectedX509Authorities: []string{"spiffe://root"},
+		},
+		{
+			name:                 "Mint X509CA SVID with custom ttl",
+			ttl:                  time.Minute,
 			lookupSelfResp:       []byte(testLookupSelfResponse),
 			signIntermediateResp: []byte(testSignIntermediateResponse),
 			config: &Configuration{
@@ -401,7 +420,7 @@ func TestMintX509CA(t *testing.T) {
 			csr, err := pemutil.LoadCertificateRequest(testReqCSR)
 			require.NoError(t, err)
 
-			x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), csr.Raw, 3600)
+			x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), csr.Raw, tt.ttl)
 			require.NoError(t, err)
 			require.NotNil(t, x509CA)
 			require.NotNil(t, x509Authorities)
@@ -423,91 +442,130 @@ func TestMintX509CA(t *testing.T) {
 	}
 }
 
-func TestMintX509CAErrorFromVaultWhenSigning(t *testing.T) {
-	fakeVaultServer := setupFakeVautServer()
-
-	fakeVaultServer.CertAuthResponseCode = 200
-	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponseNotRenewable)
-	fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
-	fakeVaultServer.AppRoleAuthResponseCode = 200
-	fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponseNotRenewable)
-	fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
-	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
-	fakeVaultServer.LookupSelfResponseCode = 200
-	// Expect error
-	fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
-	fakeVaultServer.SignIntermediateResponseCode = 500
-	fakeVaultServer.SignIntermediateResponse = []byte("fake-error")
-
-	s, addr, err := fakeVaultServer.NewTLSServer()
-	require.NoError(t, err)
-
-	s.Start()
-	defer s.Close()
-
-	p := New()
-
-	v1 := new(upstreamauthority.V1)
-	plugintest.Load(t, builtin(p), v1,
-		plugintest.ConfigureJSON(&Configuration{
-			VaultAddr:     fmt.Sprintf("https://%v/", addr),
-			CACertPath:    testRootCert,
-			PKIMountPoint: "test-pki",
-			TokenAuth: &TokenAuthConfig{
-				Token: "test-token",
-			},
-		}),
-		plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
-	)
-
+func TestMintX509CAFails(t *testing.T) {
 	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
 	require.NoError(t, err)
 
-	x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), csr.Raw, 3600)
-	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(vault): fails to sign intermediate: Error making API request.")
-	assert.Nil(t, x509CA)
-	assert.Nil(t, x509Authorities)
-	assert.Nil(t, stream)
-}
+	for _, tt := range []struct {
+		test       string
+		fakeServer func() *FakeVaultServerConfig
+		csr        []byte
 
-func TestMintX509CAInvalidSigningResponse(t *testing.T) {
-	fakeVaultServer := setupFakeVautServer()
-	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
-	fakeVaultServer.LookupSelfResponseCode = 200
-	fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
-	fakeVaultServer.SignIntermediateResponseCode = 200
-	fakeVaultServer.SignIntermediateResponse = []byte(testInvalidSignIntermediateResponse)
+		expectCode      codes.Code
+		expectMsgPrefix string
+		configFails     bool
+	}{
+		{
+			test:            "Plugin is not configured",
+			configFails:     true,
+			csr:             csr.Raw,
+			fakeServer:      setupSuccessFakeVaultServer,
+			expectCode:      codes.FailedPrecondition,
+			expectMsgPrefix: "upstreamauthority(vault): plugin not configured",
+		},
+		{
+			test: "Authenticate client fails",
+			csr:  csr.Raw,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeVaultServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeVaultServer.LookupSelfResponse = []byte("fake-error")
+				fakeVaultServer.LookupSelfResponseCode = 500
+				fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
 
-	s, addr, err := fakeVaultServer.NewTLSServer()
-	require.NoError(t, err)
-
-	s.Start()
-	defer s.Close()
-
-	p := New()
-
-	v1 := new(upstreamauthority.V1)
-	plugintest.Load(t, builtin(p), v1,
-		plugintest.ConfigureJSON(&Configuration{
-			VaultAddr:     fmt.Sprintf("https://%v/", addr),
-			CACertPath:    testRootCert,
-			PKIMountPoint: "test-pki",
-			TokenAuth: &TokenAuthConfig{
-				Token: "test-token",
+				return fakeVaultServer
 			},
-		}),
-		plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
-	)
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to prepare authenticated client: rpc error: code = Internal desc = token lookup failed: Error making API request.",
+		},
+		{
+			test: "Signin fails",
+			csr:  csr.Raw,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeVaultServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeVaultServer.SignIntermediateResponseCode = 500
+				fakeVaultServer.SignIntermediateResponse = []byte("fake-error")
 
-	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
-	require.NoError(t, err)
+				return fakeVaultServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): fails to sign intermediate: Error making API request.",
+		},
+		{
+			test: "Invalid signing response",
+			csr:  csr.Raw,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeVaultServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeVaultServer.SignIntermediateResponseCode = 200
+				fakeVaultServer.SignIntermediateResponse = []byte(testInvalidSignIntermediateResponse)
 
-	// require.Contains(err.Error(), "failed to parse")
-	x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), csr.Raw, 3600)
-	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(vault): failed to parse Root CA certificate:")
-	assert.Nil(t, x509CA)
-	assert.Nil(t, x509Authorities)
-	assert.Nil(t, stream)
+				return fakeVaultServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse Root CA certificate:",
+		},
+		{
+			test: "Signing response malformed certificate",
+			csr:  csr.Raw,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeVaultServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeVaultServer.SignIntermediateResponseCode = 200
+				fakeVaultServer.SignIntermediateResponse = []byte(testSignMalformedCertificateResponse)
+
+				return fakeVaultServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse certificate: no PEM blocks",
+		},
+		{
+			test:            "Invalid CSR",
+			csr:             []byte("malformed-csr"),
+			fakeServer:      setupSuccessFakeVaultServer,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse CSR data:",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			fakeVaultServer := tt.fakeServer()
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			p := New()
+
+			v1 := new(upstreamauthority.V1)
+			plugintest.Load(t, builtin(p), v1,
+				plugintest.ConfigureJSON(&Configuration{
+					VaultAddr:     fmt.Sprintf("https://%v/", addr),
+					CACertPath:    testRootCert,
+					PKIMountPoint: "test-pki",
+					TokenAuth: &TokenAuthConfig{
+						Token: "test-token",
+					},
+				}),
+				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
+			)
+
+			if tt.configFails {
+				p.cc = nil
+			}
+
+			x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), tt.csr, time.Minute)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			assert.Nil(t, x509CA)
+			assert.Nil(t, x509Authorities)
+			assert.Nil(t, stream)
+		})
+	}
 }
 
 func TestMintX509CA_InvalidCSR(t *testing.T) {
@@ -597,6 +655,23 @@ func setupFakeVautServer() *FakeVaultServerConfig {
 	fakeVaultServer.ServerKeyPemPath = testServerKey
 	fakeVaultServer.RenewResponseCode = 200
 	fakeVaultServer.RenewResponse = []byte(testRenewResponse)
+	return fakeVaultServer
+}
+
+func setupSuccessFakeVaultServer() *FakeVaultServerConfig {
+	fakeVaultServer := setupFakeVautServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
+	fakeVaultServer.AppRoleAuthResponseCode = 200
+	fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
+	fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
+	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+	fakeVaultServer.LookupSelfResponseCode = 200
+	fakeVaultServer.SignIntermediateResponseCode = 200
+	fakeVaultServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+	fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+
 	return fakeVaultServer
 }
 

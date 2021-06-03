@@ -186,6 +186,18 @@ token_auth {
   "auth": null
 }`
 
+	testSignMalformedCertificateResponse = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "certificate": "malformed-cert",
+    "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIBjDCCATGgAwIBAgIJALZY6FEA9r6kMAoGCCqGSM49BAMCMDUxCzAJBgNVBAYT\nAlVTMQ8wDQYDVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTAeFw0y\nMDA1MjgwNTUxNTVaFw0zMDA1MjYwNTUxNTVaMDUxCzAJBgNVBAYTAlVTMQ8wDQYD\nVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTBZMBMGByqGSM49AgEG\nCCqGSM49AwEHA0IABO4U2vNH4ZuiexLCujPFh/r0fydL0Z+4JaVYh1Kx/m8KDFv7\ncaPNTZJwqNpZfvNxDO8YT0TGajLDmYI++/jZyBWjKjAoMBgGA1UdEQQRMA+GDXNw\naWZmZTovL3Jvb3QwDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAz+Pu\nb7yIGRTvWEj/ucQZXNnQc12GbWOPMO2dvA9I/BcCIQD0CeqIvkXunFMDy7SiyhgH\nvQpKl7ELFz1vtklgN2P8cg==\n-----END CERTIFICATE-----",
+    "serial_number": "39:dd:2e:90:b7:23:1f:8d:d3:7d:31:c5:1b:da:84:d0:5b:65:31:58"
+  },
+  "auth": null
+}`
+
 	testInvalidSignIntermediateResponse = `{
   "lease_id": "",
   "renewable": false,
