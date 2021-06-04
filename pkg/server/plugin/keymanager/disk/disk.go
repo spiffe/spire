@@ -14,7 +14,6 @@ import (
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -83,10 +82,6 @@ func (m *KeyManager) configure(config *configuration) error {
 	return nil
 }
 
-func (m *KeyManager) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
-}
-
 func (m *KeyManager) writeEntries(ctx context.Context, entries []*keymanagerbase.KeyEntry) error {
 	m.mu.Lock()
 	config := m.config
@@ -149,7 +144,7 @@ func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
 		return status.Errorf(codes.Internal, "unable to marshal entries: %v", err)
 	}
 
-	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0644); err != nil {
+	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0600); err != nil {
 		return status.Errorf(codes.Internal, "unable to write entries: %v", err)
 	}
 
