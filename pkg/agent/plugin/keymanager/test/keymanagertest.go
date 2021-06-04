@@ -147,12 +147,12 @@ func testGenerateKey(t *testing.T, config Config) {
 
 	t.Run("key id is empty", func(t *testing.T) {
 		_, err := km.GenerateKey(ctx, "", keymanager.ECP256)
-		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, plugin.PrefixMessage(km, "key id is required"))
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "key id is required")
 	})
 
 	t.Run("key type is invalid", func(t *testing.T) {
 		_, err := km.GenerateKey(ctx, "id", 0)
-		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, plugin.PrefixMessage(km, "key type is required"))
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "key type is required")
 	})
 
 	t.Run("key id can be overwritten", func(t *testing.T) {

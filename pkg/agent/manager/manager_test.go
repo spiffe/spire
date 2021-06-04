@@ -64,8 +64,8 @@ func TestInitializationFailure(t *testing.T) {
 	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, cakey, agentID, 1*time.Hour)
+	ca, caKey := createCA(t, clk)
+	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, caKey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
@@ -89,8 +89,8 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, cakey, agentID, 1*time.Hour)
+	ca, caKey := createCA(t, clk)
+	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, caKey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
@@ -136,8 +136,8 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, cakey, agentID, 1*time.Hour)
+	ca, caKey := createCA(t, clk)
+	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, caKey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
@@ -728,7 +728,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		},
 		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
 			ca, key := createCA(h.t, h.clk)
-			h.cakey = key
+			h.caKey = key
 			h.bundle.AppendRootCA(ca)
 
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
@@ -985,7 +985,7 @@ type mockAPI struct {
 	addr string
 
 	bundle *bundleutil.Bundle
-	cakey  *ecdsa.PrivateKey
+	caKey  *ecdsa.PrivateKey
 
 	svid []*x509.Certificate
 
@@ -1002,17 +1002,17 @@ type mockAPI struct {
 }
 
 func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
-	ca, cakey := createCA(t, config.clk)
+	ca, caKey := createCA(t, config.clk)
 
 	h := &mockAPI{
 		t:      t,
 		c:      config,
 		bundle: bundleutil.BundleFromRootCA(trustDomain, ca),
-		cakey:  cakey,
+		caKey:  caKey,
 		clk:    config.clk,
 	}
 	serverID := idutil.ServerID(trustDomain)
-	h.svid = createSVIDWithKey(t, config.clk, ca, cakey, serverID, time.Hour, serverKey)
+	h.svid = createSVIDWithKey(t, config.clk, ca, caKey, serverID, time.Hour, serverKey)
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: h.getGRPCServerConfig,
@@ -1119,11 +1119,11 @@ func (h *mockAPI) ca() *x509.Certificate {
 }
 
 func (h *mockAPI) newSVID(spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
-	return createSVID(h.t, h.c.km, h.clk, h.ca(), h.cakey, spiffeID, ttl)
+	return createSVID(h.t, h.c.km, h.clk, h.ca(), h.caKey, spiffeID, ttl)
 }
 
 func (h *mockAPI) newSVIDFromCSR(spiffeID spiffeid.ID, csr []byte) []*x509.Certificate {
-	return createSVIDFromCSR(h.t, h.clk, h.ca(), h.cakey, spiffeID, csr, h.c.svidTTL)
+	return createSVIDFromCSR(h.t, h.clk, h.ca(), h.caKey, spiffeID, csr, h.c.svidTTL)
 }
 
 func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -1177,34 +1177,34 @@ func createCA(t *testing.T, clk clock.Clock) (*x509.Certificate, *ecdsa.PrivateK
 		t.Fatalf("cannot create ca template: %v", err)
 	}
 
-	ca, cakey, err := util.SelfSign(tmpl)
+	ca, caKey, err := util.SelfSign(tmpl)
 	if err != nil {
 		t.Fatalf("cannot self sign ca template: %v", err)
 	}
-	return ca, cakey
+	return ca, caKey
 }
 
-func createSVID(t *testing.T, km keymanager.KeyManager, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
+func createSVID(t *testing.T, km keymanager.KeyManager, clk clock.Clock, ca *x509.Certificate, caKey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
 	svidKey, err := keymanager.ForSVID(km).GenerateKey(context.Background(), nil)
 	require.NoError(t, err)
 
-	return createSVIDWithKey(t, clk, ca, cakey, spiffeID, ttl, svidKey), svidKey
+	return createSVIDWithKey(t, clk, ca, caKey, spiffeID, ttl, svidKey), svidKey
 }
 
-func createSVIDWithKey(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration, svidKey crypto.Signer) []*x509.Certificate {
+func createSVIDWithKey(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration, svidKey crypto.Signer) []*x509.Certificate {
 	tmpl, err := util.NewSVIDTemplate(clk, spiffeID.String())
 	require.NoError(t, err)
 
 	tmpl.NotAfter = tmpl.NotBefore.Add(ttl)
 	tmpl.PublicKey = svidKey.Public()
 
-	svid, _, err := util.Sign(tmpl, ca, cakey)
+	svid, _, err := util.Sign(tmpl, ca, caKey)
 	require.NoError(t, err)
 
 	return []*x509.Certificate{svid}
 }
 
-func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, csr []byte, ttl int) []*x509.Certificate {
+func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKey *ecdsa.PrivateKey, spiffeID spiffeid.ID, csr []byte, ttl int) []*x509.Certificate {
 	req, err := x509.ParseCertificateRequest(csr)
 	require.NoError(t, err)
 
@@ -1213,7 +1213,7 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cake
 	tmpl.PublicKey = req.PublicKey
 	tmpl.NotAfter = tmpl.NotBefore.Add(time.Duration(ttl) * time.Second)
 
-	svid, _, err := util.Sign(tmpl, ca, cakey)
+	svid, _, err := util.Sign(tmpl, ca, caKey)
 	require.NoError(t, err)
 
 	return []*x509.Certificate{svid}
