@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/proto/spire/common"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // DataStore defines the data storage interface.
@@ -40,9 +38,9 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Node selectors
-	GetNodeSelectors(context.Context, *GetNodeSelectorsRequest) (*GetNodeSelectorsResponse, error)
+	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
-	SetNodeSelectors(context.Context, *SetNodeSelectorsRequest) (*SetNodeSelectorsResponse, error)
+	SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error
 
 	// Tokens
 	CreateJoinToken(context.Context, *JoinToken) error
@@ -51,14 +49,28 @@ type DataStore interface {
 	PruneJoinTokens(context.Context, time.Time) error
 }
 
+// DataConsistency indicates the required data consistency for a read operation.
+type DataConsistency int32
+
+const (
+	// Require data from a primary database instance (default)
+	RequireCurrent DataConsistency = iota
+
+	// Allow access from available secondary database instances
+	// Data staleness may be observed in the responses
+	TolerateStale
+)
+
 // DeleteMode defines delete behavior if associated records exist.
 type DeleteMode int32
 
 const (
 	// Restrict the bundle from being deleted in the presence of associated entries
 	Restrict DeleteMode = iota
+
 	// Delete the bundle and associated entries
 	Delete
+
 	// Dissociate deletes the bundle and dissociates associated entries
 	Dissociate
 )
@@ -93,30 +105,23 @@ type BySelectors struct {
 	Match     MatchBehavior
 }
 
-type GetNodeSelectorsRequest struct {
-	SpiffeId string //nolint: golint
-	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
-	TolerateStale bool
-}
-
-type GetNodeSelectorsResponse struct {
-	Selectors *NodeSelectors
-}
-
 type JoinToken struct {
-	// Token value
-	Token string
-	// Expiration in seconds since unix epoch
+	Token  string
 	Expiry time.Time
 }
 
+type Pagination struct {
+	Token    string
+	PageSize int32
+}
+
 type ListAttestedNodesRequest struct {
-	ByExpiresBefore   *wrapperspb.Int64Value
-	Pagination        *Pagination
 	ByAttestationType string
+	ByBanned          *bool
+	ByExpiresBefore   time.Time
 	BySelectorMatch   *BySelectors
-	ByBanned          *wrapperspb.BoolValue
 	FetchSelectors    bool
+	Pagination        *Pagination
 }
 
 type ListAttestedNodesResponse struct {
@@ -134,9 +139,8 @@ type ListBundlesResponse struct {
 }
 
 type ListNodeSelectorsRequest struct {
-	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
-	TolerateStale bool
-	ValidAt       *timestamppb.Timestamp
+	DataConsistency DataConsistency
+	ValidAt         time.Time
 }
 
 type ListNodeSelectorsResponse struct {
@@ -144,35 +148,15 @@ type ListNodeSelectorsResponse struct {
 }
 
 type ListRegistrationEntriesRequest struct {
-	ByParentId  *wrapperspb.StringValue //nolint: golint
-	BySelectors *BySelectors
-	BySpiffeId  *wrapperspb.StringValue //nolint: golint
-	Pagination  *Pagination
-	// When enabled, read-only connection will be used to connect to database read instances. Some staleness of data will be observed.
-	TolerateStale   bool
+	DataConsistency DataConsistency
+	ByParentID      string
+	BySelectors     *BySelectors
+	BySpiffeID      string
+	Pagination      *Pagination
 	ByFederatesWith *ByFederatesWith
 }
 
 type ListRegistrationEntriesResponse struct {
 	Entries    []*common.RegistrationEntry
 	Pagination *Pagination
-}
-
-type NodeSelectors struct {
-	// Node SPIFFE ID
-	SpiffeId string //nolint: golint
-	// Node selectors
-	Selectors []*common.Selector
-}
-
-type Pagination struct {
-	Token    string
-	PageSize int32
-}
-
-type SetNodeSelectorsRequest struct {
-	Selectors *NodeSelectors
-}
-
-type SetNodeSelectorsResponse struct {
 }

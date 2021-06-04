@@ -135,10 +135,7 @@ func (r *SpiffeIDReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				return err
 			}
 			spiffeID.Status.EntryId = entryID
-			if err := r.Status().Update(ctx, &spiffeID); err != nil {
-				return err
-			}
-			return nil
+			return r.Status().Update(ctx, &spiffeID)
 		})
 		if retryErr != nil {
 			r.c.Log.WithFields(logrus.Fields{

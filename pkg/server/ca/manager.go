@@ -97,12 +97,6 @@ func NewManager(c ManagerConfig) *Manager {
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
-	if c.X509CAKeyType == keymanager.KeyTypeUnset {
-		c.X509CAKeyType = keymanager.ECP256
-	}
-	if c.JWTKeyType == keymanager.KeyTypeUnset {
-		c.JWTKeyType = keymanager.ECP256
-	}
 
 	m := &Manager{
 		c:               c,
@@ -131,10 +125,7 @@ func (m *Manager) Initialize(ctx context.Context) error {
 	if err := m.loadJournal(ctx); err != nil {
 		return err
 	}
-	if err := m.rotate(ctx); err != nil {
-		return err
-	}
-	return nil
+	return m.rotate(ctx)
 }
 
 func (m *Manager) Run(ctx context.Context) error {

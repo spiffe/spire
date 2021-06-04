@@ -17,29 +17,30 @@ import (
 
 // NewCSRTemplate returns a default CSR template with the specified SPIFFE ID.
 func NewCSRTemplate(spiffeID string) ([]byte, crypto.PublicKey, error) {
-	uriSAN, err := url.Parse(spiffeID)
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, err
+	}
+	csr, err := NewCSRTemplateWithKey(spiffeID, key)
+	if err != nil {
+		return nil, nil, err
+	}
+	return csr, key.Public(), nil
+}
+
+func NewCSRTemplateWithKey(spiffeID string, key crypto.Signer) ([]byte, error) {
+	uriSAN, err := url.Parse(spiffeID)
+	if err != nil {
+		return nil, err
 	}
 	template := &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
-		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               []*url.URL{uriSAN},
+		URIs: []*url.URL{uriSAN},
 	}
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	csr, err := x509.CreateCertificateRequest(rand.Reader, template, key)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return csr, key.Public(), nil
+	return x509.CreateCertificateRequest(rand.Reader, template, key)
 }
 
 // NewSVIDTemplate returns a default SVID template with the specified SPIFFE ID. Must

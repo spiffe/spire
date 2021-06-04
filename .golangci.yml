@@ -14,9 +14,10 @@ linters:
   enable:
     - bodyclose
     - depguard
+    - durationcheck
     - errorlint
     - goimports
-    - golint
+    - revive
     - gosec
     - misspell
     - nolintlint
@@ -27,6 +28,6 @@ linters:
     - gocritic
 
 linters-settings:
-  golint:
+  revive:
     # minimal confidence for issues, default is 0.8
-    min-confidence: 0.0
+    confidence: 0.0

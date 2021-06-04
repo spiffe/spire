@@ -1,0 +1,183 @@
+name: PR Build
+on:
+  pull_request: {}
+  workflow_dispatch: {}
+  schedule:
+    # Random minute number to avoid GH scheduler stampede
+    - cron: '37 21 * * *'
+env:
+  GO_VERSION: 1.16.3
+jobs:
+  cache-deps:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Setup dep cache
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Pull go deps
+        run: go mod download
+
+  lint:
+    runs-on: ubuntu-18.04
+    needs: cache-deps
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Setup build tool cache
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Lint
+        run: make lint
+      - name: Tidy check
+        run: make tidy-check
+      - name: Generate check
+        run: make generate-check
+      - name: Shell check
+        run: shellcheck .github/workflows/scripts/*.sh
+
+  unit-test:
+    strategy:
+      matrix:
+        OS: [ubuntu-18.04, macos-latest]
+    runs-on: ${{ matrix.OS }}
+    needs: cache-deps
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Run unit tests
+        run: ./.github/workflows/scripts/run_unit_tests.sh
+
+  artifacts:
+    runs-on: ubuntu-18.04
+    needs: [cache-deps, unit-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Build artifacts
+        run: ./.github/workflows/scripts/build_artifacts.sh
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: binaries
+          path: ./artifacts/
+
+  images:
+    runs-on: ubuntu-18.04
+    needs: [cache-deps, unit-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Build images
+        run: make images scratch-images
+      - name: Export images
+        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > images.tar.gz
+      - name: Archive images
+        uses: actions/upload-artifact@v2
+        with:
+          name: images
+          path: images.tar.gz
+
+  integration:
+    runs-on: ubuntu-18.04
+    needs: [cache-deps, images]
+    strategy:
+      fail-fast: false
+      matrix:
+        num_runners: [5]
+        runner_id: [1, 2, 3, 4, 5]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Download archived images
+        uses: actions/download-artifact@v2
+        with:
+          name: images
+          path: .
+      - name: Load archived images
+        run: zcat images.tar.gz | docker load
+      - name: Run integration tests
+        env:
+          NUM_RUNNERS: ${{ matrix.num_runners }}
+          THIS_RUNNER: ${{ matrix.runner_id }}
+          TERM: dumb
+          CICD_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
+

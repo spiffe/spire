@@ -24,7 +24,7 @@ const (
 	// following timeout to prevent having to wait for the default go test
 	// timeout (10 minutes) if this happens. The timeout should be large enough
 	// by a comfortable margin to accommodate for slower running platforms, like
-	// Travis CI.
+	// CI/CD.
 	testTimeout = time.Minute
 )
 

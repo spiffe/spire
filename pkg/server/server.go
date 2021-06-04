@@ -98,17 +98,17 @@ func (s *Server) run(ctx context.Context) (err error) {
 		TrustDomainID: s.config.TrustDomain.IDString(),
 	})
 
+	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
+
 	// Create the agent store host service. It will not be functional
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, metricsService)
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, metricsService, healthChecker)
 	if err != nil {
 		return err
 	}
 	defer cat.Close()
-
-	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
@@ -237,7 +237,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider identityproviderv0.IdentityProviderServer, agentStore agentstorev0.AgentStoreServer,
-	metricsService metricsv0.MetricsServiceServer) (*catalog.Repository, error) {
+	metricsService metricsv0.MetricsServiceServer, healthChecker health.Checker) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
@@ -246,6 +246,7 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		MetricsService:   metricsService,
+		HealthChecker:    healthChecker,
 	})
 }
 
@@ -296,6 +297,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
 		Metrics:     metrics,
 		TrustDomain: s.config.TrustDomain,
+		KeyType:     s.config.CAKeyType,
 	})
 	if err := svidRotator.Initialize(ctx); err != nil {
 		return nil, err

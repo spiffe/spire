@@ -17,11 +17,13 @@ import (
 )
 
 func TestKeyManagerContract(t *testing.T) {
-	keymanagertest.Test(t, func(t *testing.T) keymanager.KeyManager {
-		dir := spiretest.TempDir(t)
-		km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
-		require.NoError(t, err)
-		return km
+	keymanagertest.Test(t, keymanagertest.Config{
+		Create: func(t *testing.T) keymanager.KeyManager {
+			dir := spiretest.TempDir(t)
+			km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
+			require.NoError(t, err)
+			return km
+		},
 	})
 }
 
