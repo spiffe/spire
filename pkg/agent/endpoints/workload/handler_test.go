@@ -351,6 +351,25 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
+			name:       "spiffe_id set, but not a valid SPIFFE ID",
+			audience:   []string{"AUDIENCE"},
+			spiffeID:   "foo",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid requested SPIFFE ID: spiffeid: invalid scheme",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid requested SPIFFE ID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTSVID",
+						"spiffe_id":     "foo",
+						logrus.ErrorKey: "spiffeid: invalid scheme",
+					},
+				},
+			},
+		},
+		{
 			name:       "no identity issued",
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.PermissionDenied,
@@ -400,6 +419,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					Message: "Could not fetch JWT-SVID",
 					Data: logrus.Fields{
 						"service":       "WorkloadAPI",
+						"spiffe_id":     "spiffe://domain.test/one",
 						"method":        "FetchJWTSVID",
 						"registered":    "true",
 						logrus.ErrorKey: "ohno",
