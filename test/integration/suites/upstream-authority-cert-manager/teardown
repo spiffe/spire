@@ -1,0 +1,7 @@
+#!/bin/bash
+
+source init-kubectl
+
+export KUBECONFIG=
+
+./bin/kind delete cluster --name cert-manager-test
