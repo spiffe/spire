@@ -29,7 +29,7 @@ func TestLoadConfig(t *testing.T) {
 				 issuer_kind = "my-kind"
 				 issuer_group = "my-group"
 				 namespace = "my-namespace"
-				 kube_config_path = "/path/to/config"
+				 kube_config_file = "/path/to/config"
 			`,
 			expErr: false,
 			expConfig: &Config{
@@ -44,7 +44,7 @@ func TestLoadConfig(t *testing.T) {
 			inpConfig: `
          issuer_name = "my-issuer"
 				 namespace = "my-namespace"
-				 kube_config_path = "/path/to/config"
+				 kube_config_file = "/path/to/config"
 			`,
 			expErr: false,
 			expConfig: &Config{

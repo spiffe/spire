@@ -5,12 +5,12 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	cmutil "github.com/jetstack/cert-manager/pkg/api/util"
 	cmapi "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -50,8 +50,8 @@ type Config struct {
 	IssuerGroup string `hcl:"issuer_group" json:"issuer_group"`
 	Namespace   string `hcl:"namespace" json:"namespace"`
 
-	// Filepath to the kubeconfig used to build the generic Kubernetes client.
-	KubeConfigFilePath string `hcl:"kube_config_path" json:"kube_config_path"`
+	// File path to the kubeconfig used to build the generic Kubernetes client.
+	KubeConfigFilePath string `hcl:"kube_config_file" json:"kube_config_file"`
 }
 
 type Plugin struct {
@@ -106,16 +106,13 @@ func (p *Plugin) loadConfig(req *spi.ConfigureRequest) (*Config, error) {
 	}
 	// If no issuer_kind given, default to Issuer
 	if len(config.IssuerKind) == 0 {
-		p.log.Warn("configuration has empty issuer_kind property, defaulting to 'Issuer'")
+		p.log.Debug("configuration has empty issuer_kind property, defaulting to 'Issuer'")
 		config.IssuerKind = "Issuer"
 	}
 	// If no issuer_group given, default to cert-manager.io
 	if len(config.IssuerGroup) == 0 {
-		p.log.Warn("configuration has empty issuer_group property, defaulting to 'cert-manager.io'")
+		p.log.Debug("configuration has empty issuer_group property, defaulting to 'cert-manager.io'")
 		config.IssuerGroup = "cert-manager.io"
-	}
-	if len(config.KubeConfigFilePath) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty kube_config_path property")
 	}
 
 	return config, nil
@@ -163,12 +160,16 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 		return err
 	}
 
+	log := p.log.With("certificaterequest", fmt.Sprintf("%s/%s", cr.Namespace, cr.Name))
+	log.Info("waiting for certificaterequest to be signed")
+
 	// Poll the CertificateRequest until it is signed. If not signed after 300
 	// polls, error.
 	obj := client.ObjectKey{Name: cr.Name, Namespace: cr.Namespace}
 	for i := 0; true; i++ {
 		if i == 60*5 { // ~5 mins
-			return fmt.Errorf("failed to wait for CertificateRequest %s/%s to become ready: %#+v", cr.Namespace, cr.Name, cr.Status)
+			log.Error("failed to wait for CertificateRequest to become ready in time")
+			return errors.New("request did not become ready in time")
 		}
 
 		time.Sleep(time.Second)
@@ -177,9 +178,9 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 			return err
 		}
 
-		if cmutil.CertificateRequestIsDenied(cr) {
-			cond := cmutil.GetCertificateRequestCondition(cr, cmapi.CertificateRequestConditionDenied)
-			return fmt.Errorf("created CertificateRequest %s/%s has been denied: %s:%s", cr.Namespace, cr.Name, cond.Reason, cond.Message)
+		if isDenied, cond := certificateRequestDeniedCondition(cr); isDenied {
+			log.Error("created CertificateRequest has been denied", "reason", cond.Reason, "message", cond.Message)
+			return errors.New("request has been denied")
 		}
 
 		if len(cr.Status.Certificate) > 0 {
@@ -190,18 +191,21 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	// Parse signed certificate chain and CA certificate from CertificateRequest
 	caChain, err := pemutil.ParseCertificates(cr.Status.Certificate)
 	if err != nil {
-		return fmt.Errorf("failed to parse signed certificate from %s/%s: %w", obj.Namespace, obj.Name, err)
+		log.Error("failed to parse signed certificate", "error", err.Error())
+		return fmt.Errorf("failed to parse certificate: %s", err)
 	}
 
 	// If the configured issuer did not populate the CA on the request we cannot
 	// build the upstream roots. We can only error here.
 	if len(cr.Status.CA) == 0 {
-		return fmt.Errorf("no ca certificate was populated in request %s/%s so cannot build upstream roots", obj.Namespace, obj.Name)
+		log.Error("no CA certificate was populated in request so cannot build upstream roots")
+		return errors.New("no upstream CA root returned from request")
 	}
 
 	upstreamRoot, err := pemutil.ParseCertificates(cr.Status.CA)
 	if err != nil {
-		return fmt.Errorf("failed to parse ca certificate from %s/%s: %w", obj.Namespace, obj.Name, err)
+		log.Error("failed to parse CA certificate returned from request", "error", err.Error())
+		return fmt.Errorf("failed to parse CA certificate: %s", err)
 	}
 
 	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
@@ -261,4 +265,22 @@ func makeError(code codes.Code, format string, args ...interface{}) error {
 
 func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
+}
+
+// certificateRequestDeniedCondition returns true and the condition if the
+// CertificateRequest is denied via a Denied condition of status `True`,
+// returns false otherwise.
+func certificateRequestDeniedCondition(cr *cmapi.CertificateRequest) (bool, cmapi.CertificateRequestCondition) {
+	if cr == nil {
+		return false, cmapi.CertificateRequestCondition{}
+	}
+
+	for _, con := range cr.Status.Conditions {
+		if con.Type == cmapi.CertificateRequestConditionDenied &&
+			con.Status == cmmeta.ConditionTrue {
+			return true, con
+		}
+	}
+
+	return false, cmapi.CertificateRequestCondition{}
 }
