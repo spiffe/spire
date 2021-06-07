@@ -11,6 +11,7 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
@@ -138,7 +139,14 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	defer r.rotMtx.Unlock()
 	r.c.Log.Debug("Rotating agent SVID")
 
-	key, err := r.c.Catalog.GetKeyManager().GenerateKey(ctx)
+	svidKM := keymanager.ForSVID(r.c.Catalog.GetKeyManager())
+
+	var existingKey keymanager.Key
+	if state, ok := r.state.Value().(State); ok && state.Key != nil {
+		existingKey, _ = state.Key.(keymanager.Key)
+	}
+
+	key, err := svidKM.GenerateKey(ctx, existingKey)
 	if err != nil {
 		return err
 	}
@@ -155,6 +163,10 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 
 	certs, err := x509.ParseCertificates(svid.CertChain)
 	if err != nil {
+		return err
+	}
+
+	if err := svidKM.SetKey(ctx, key); err != nil {
 		return err
 	}
 

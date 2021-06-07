@@ -13,7 +13,6 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
@@ -80,7 +79,7 @@ func TestInvalidConfigs(t *testing.T) {
 		    }`,
 	} {
 		var err error
-		plugintest.Load(t, BuiltIn(), new(upstreamauthority.V0),
+		plugintest.Load(t, BuiltIn(), new(upstreamauthority.V1),
 			plugintest.Configure(config),
 			plugintest.CaptureConfigureError(&err))
 		t.Logf("\ntestcase[%d] and err:%+v\n", i, err)
@@ -128,7 +127,7 @@ func TestGcpCAS(t *testing.T) {
 		return &fakeClient{cas, t, &pkeyCAx}, nil
 	}
 
-	upplugin := new(upstreamauthority.V0)
+	upplugin := new(upstreamauthority.V1)
 	plugintest.Load(t, builtin(p), upplugin, plugintest.Configure(`
 		root_cert_spec {
 			project_name = "proj1"
@@ -143,34 +142,30 @@ func TestGcpCAS(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	resp, err := p.mintX509CA(ctx, csr, 30)
+	x509CA, x509Authorities, stream, err := upplugin.MintX509CA(ctx, csr, 30*time.Second)
 	require.NoError(t, err)
-	require.NotNil(t, resp)
+	require.NotNil(t, stream)
 
-	respRootChain, err := x509util.RawCertsToCertificates(resp.UpstreamX509Roots)
-	require.NoError(t, err)
-	require.NotNil(t, respRootChain)
+	require.NotNil(t, x509Authorities)
 	// Confirm that we don't have unexpected CAs
-	require.Equal(t, 2, len(respRootChain))
-	require.Equal(t, "caX", respRootChain[0].Subject.CommonName)
-	require.Equal(t, "caX", respRootChain[0].Issuer.CommonName)
+	require.Equal(t, 2, len(x509Authorities))
+	require.Equal(t, "caX", x509Authorities[0].Subject.CommonName)
+	require.Equal(t, "caX", x509Authorities[0].Issuer.CommonName)
 	// We intentionally return the root externalcaY rather than intermediate caZ
-	require.Equal(t, "externalcaY", respRootChain[1].Subject.CommonName)
-	require.Equal(t, "externalcaY", respRootChain[1].Issuer.CommonName)
+	require.Equal(t, "externalcaY", x509Authorities[1].Subject.CommonName)
+	require.Equal(t, "externalcaY", x509Authorities[1].Issuer.CommonName)
 
-	respCaChain, err := x509util.RawCertsToCertificates(resp.X509CaChain)
-	require.NoError(t, err)
-	require.NotNil(t, respCaChain)
-	require.Equal(t, 1, len(respCaChain))
+	require.NotNil(t, x509CA)
+	require.Equal(t, 1, len(x509CA))
 
-	require.Equal(t, "caX", respCaChain[0].Issuer.CommonName)
+	require.Equal(t, "caX", x509CA[0].Issuer.CommonName)
 
 	rootPool := x509.NewCertPool()
-	rootPool.AddCert(respRootChain[0])
-	rootPool.AddCert(respRootChain[1])
+	rootPool.AddCert(x509Authorities[0])
+	rootPool.AddCert(x509Authorities[1])
 	var opt x509.VerifyOptions
 	opt.Roots = rootPool
-	res, err := respCaChain[0].Verify(opt)
+	res, err := x509CA[0].Verify(opt)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 }
