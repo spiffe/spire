@@ -91,8 +91,10 @@ func (mode DeleteMode) String() string {
 type MatchBehavior int32
 
 const (
-	Exact  MatchBehavior = 0
-	Subset MatchBehavior = 1
+	Exact    MatchBehavior = 0
+	Subset   MatchBehavior = 1
+	Superset MatchBehavior = 2
+	MatchAny MatchBehavior = 3
 )
 
 type ByFederatesWith struct {
