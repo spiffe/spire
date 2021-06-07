@@ -1,4 +1,4 @@
-package sql
+package sqlstore
 
 import "github.com/jinzhu/gorm"
 

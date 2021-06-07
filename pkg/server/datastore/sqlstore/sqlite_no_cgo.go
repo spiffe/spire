@@ -1,6 +1,6 @@
 // +build !cgo
 
-package sql
+package sqlstore
 
 import (
 	"errors"
