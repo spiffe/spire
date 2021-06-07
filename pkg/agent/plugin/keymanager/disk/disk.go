@@ -2,144 +2,244 @@ package disk
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/keymanager/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	keymanagerbase "github.com/spiffe/spire/pkg/agent/plugin/keymanager/base"
+	catalog "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/diskutil"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
-
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-)
-
-const (
-	pluginName = "disk"
-
-	keyFileName = "svid.key"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, keymanagerv0.KeyManagerPluginServer(p))
+func builtin(p *KeyManager) catalog.BuiltIn {
+	return catalog.MakeBuiltIn("disk",
+		keymanagerv1.KeyManagerPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
-type Config struct {
-	Directory string `hcl:"directory" json:"directory"`
+type configuration struct {
+	Directory string `hcl:"directory"`
 }
 
-type Plugin struct {
-	keymanagerv0.UnsafeKeyManagerServer
+type KeyManager struct {
+	*keymanagerbase.Base
+	configv1.UnimplementedConfigServer
 
-	mtx *sync.RWMutex
-	dir string
+	mu     sync.Mutex
+	config *configuration
 }
 
-func New() *Plugin {
-	return &Plugin{
-		mtx: new(sync.RWMutex),
-	}
+func New() *KeyManager {
+	m := &KeyManager{}
+	m.Base = keymanagerbase.New(keymanagerbase.Funcs{
+		WriteEntries: m.writeEntries,
+	})
+	return m
 }
 
-func (d *Plugin) GenerateKeyPair(context.Context, *keymanagerv0.GenerateKeyPairRequest) (*keymanagerv0.GenerateKeyPairResponse, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, err
+func (m *KeyManager) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	config := new(configuration)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-
-	privData, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return nil, err
-	}
-
-	pubData, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := &keymanagerv0.GenerateKeyPairResponse{PublicKey: pubData, PrivateKey: privData}
-	return resp, nil
-}
-
-func (d *Plugin) StorePrivateKey(ctx context.Context, req *keymanagerv0.StorePrivateKeyRequest) (*keymanagerv0.StorePrivateKeyResponse, error) {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	if d.dir == "" {
-		return nil, errors.New("path not configured")
-	}
-	keyPath := path.Join(d.dir, keyFileName)
-
-	if err := diskutil.AtomicWriteFile(keyPath, req.PrivateKey, 0600); err != nil {
-		return nil, err
-	}
-
-	return &keymanagerv0.StorePrivateKeyResponse{}, nil
-}
-
-func (d *Plugin) FetchPrivateKey(context.Context, *keymanagerv0.FetchPrivateKeyRequest) (*keymanagerv0.FetchPrivateKeyResponse, error) {
-	// Start with empty response
-	resp := &keymanagerv0.FetchPrivateKeyResponse{PrivateKey: []byte{}}
-
-	d.mtx.RLock()
-	p := path.Join(d.dir, keyFileName)
-	d.mtx.RUnlock()
-	if _, err := os.Stat(p); os.IsNotExist(err) {
-		return resp, nil
-	}
-
-	data, err := ioutil.ReadFile(p)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check key integrity first
-	key, err := x509.ParseECPrivateKey(data)
-	if err != nil {
-		return nil, err
-	}
-
-	resp.PrivateKey, _ = x509.MarshalECPrivateKey(key)
-	return resp, nil
-}
-
-func (d *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := &Config{}
-	hclTree, err := hcl.Parse(req.Configuration)
-	if err != nil {
-		return nil, err
-	}
-	err = hcl.DecodeObject(&config, hclTree)
-	if err != nil {
-		return nil, err
-	}
-
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
 
 	if config.Directory == "" {
-		return nil, errors.New("directory is required")
+		return nil, status.Error(codes.InvalidArgument, "directory must be configured")
 	}
 
-	// Create directory in which to store the private key if not exists
-	if err := os.MkdirAll(config.Directory, 0755); err != nil {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if err := m.configure(config); err != nil {
 		return nil, err
 	}
-	d.dir = config.Directory
 
-	return &spi.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
-func (d *Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+func (m *KeyManager) configure(config *configuration) error {
+	// Only load entry information on first configure
+	if m.config == nil {
+		if err := m.loadEntries(config.Directory); err != nil {
+			return err
+		}
+	}
+
+	m.config = config
+	return nil
+}
+
+func (m *KeyManager) loadEntries(dir string) error {
+	// Load the entries from the keys file.
+	entries, err := loadEntries(keysPath(dir))
+	if err != nil {
+		return err
+	}
+
+	// Load the key from the deprecated key path. ONLY add this key to the
+	// entries list if there is not an entry for it already.
+	// TODO: stop doing this in 1.1
+	entry, err := loadDeprecatedKey(deprecatedKeyPath(dir))
+	switch {
+	case err != nil:
+		return err
+	case entry != nil:
+		if !hasKey(entries, entry.PrivateKey) {
+			entries = append(entries, entry)
+		}
+	}
+
+	m.Base.SetEntries(entries)
+	return nil
+}
+
+func (m *KeyManager) writeEntries(ctx context.Context, allEntries []*keymanagerbase.KeyEntry, newEntry *keymanagerbase.KeyEntry) error {
+	m.mu.Lock()
+	config := m.config
+	m.mu.Unlock()
+
+	if config == nil {
+		return status.Error(codes.FailedPrecondition, "not configured")
+	}
+
+	// For the 1.0 release, we need to continue persisting the last key to
+	// the old deprecated key path so that we can safely downgrade the agent
+	// back to 0.12.x if necessary.
+	// TODO: stop doing this in 1.1 and remove the old key
+	if err := writeDeprecatedKey(deprecatedKeyPath(config.Directory), newEntry.PrivateKey); err != nil {
+		return err
+	}
+
+	return writeEntries(keysPath(config.Directory), allEntries)
+}
+
+type entriesData struct {
+	Keys map[string][]byte `json:"keys"`
+}
+
+func loadEntries(path string) ([]*keymanagerbase.KeyEntry, error) {
+	jsonBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	data := new(entriesData)
+	if err := json.Unmarshal(jsonBytes, data); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to decode keys JSON: %v", err)
+	}
+
+	var entries []*keymanagerbase.KeyEntry
+	for id, keyBytes := range data.Keys {
+		key, err := x509.ParsePKCS8PrivateKey(keyBytes)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to parse key %q: %v", id, err)
+		}
+		entry, err := keymanagerbase.MakeKeyEntryFromKey(id, key)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to make entry %q: %v", id, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
+	data := &entriesData{
+		Keys: make(map[string][]byte),
+	}
+	for _, entry := range entries {
+		keyBytes, err := x509.MarshalPKCS8PrivateKey(entry.PrivateKey)
+		if err != nil {
+			return err
+		}
+		data.Keys[entry.Id] = keyBytes
+	}
+
+	jsonBytes, err := json.MarshalIndent(data, "", "\t")
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to marshal entries: %v", err)
+	}
+
+	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0600); err != nil {
+		return status.Errorf(codes.Internal, "unable to write entries: %v", err)
+	}
+
+	return nil
+}
+
+func writeDeprecatedKey(path string, key crypto.Signer) error {
+	ecKey, ok := key.(*ecdsa.PrivateKey)
+	if !ok {
+		// Only need to write out ECDSA keys. Agent only uses ECDSA for the
+		// time being and can't change until the v0 key manager interface is
+		// deprecated with 1.1.
+		// TODO: We can phase out support for the deprecated key path at the
+		// same time (since we won't have to support a roll back to a version
+		// before 1.0).
+		return nil
+	}
+
+	data, err := x509.MarshalECPrivateKey(ecKey)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to marshal deprecated key: %v", err)
+	}
+
+	if err := diskutil.AtomicWriteFile(path, data, 0600); err != nil {
+		return status.Errorf(codes.Internal, "failed to write deprecated key: %v", err)
+	}
+
+	return nil
+}
+
+func loadDeprecatedKey(path string) (*keymanagerbase.KeyEntry, error) {
+	data, err := ioutil.ReadFile(path)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, status.Errorf(codes.InvalidArgument, "failed loading deprecated key: %v", err)
+	}
+
+	key, err := x509.ParseECPrivateKey(data)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed unmarshalling deprecated key: %v", err)
+	}
+
+	return keymanagerbase.MakeKeyEntryFromKey("agent-svid-deprecated", key)
+}
+
+func keysPath(dir string) string {
+	return filepath.Join(dir, "keys.json")
+}
+
+func deprecatedKeyPath(dir string) string {
+	return filepath.Join(dir, "svid.key")
+}
+
+func hasKey(entries []*keymanagerbase.KeyEntry, key crypto.Signer) bool {
+	for _, entry := range entries {
+		if equal, err := cryptoutil.PublicKeyEqual(entry.PrivateKey.Public(), key.Public()); err == nil && equal {
+			return true
+		}
+	}
+	return false
 }

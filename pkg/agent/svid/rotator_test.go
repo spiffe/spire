@@ -37,7 +37,7 @@ type RotatorTestSuite struct {
 
 	bundle observer.Property
 
-	km keymanager.KeyManager
+	svidKM keymanager.SVIDKeyManager
 
 	r *rotator
 
@@ -53,10 +53,11 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.Require().NoError(err)
 	s.bundle = observer.NewProperty(b)
 
-	s.km = fakeagentkeymanager.New(s.T(), "")
+	km := fakeagentkeymanager.New(s.T(), "")
+	s.svidKM = keymanager.ForSVID(km)
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(s.km)
+	cat.SetKeyManager(km)
 
 	s.mockClock = clock.NewMock(s.T())
 	s.mockClock.Set(time.Now())
@@ -78,7 +79,7 @@ func (s *RotatorTestSuite) TearDownTest() {
 }
 
 func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
-	key, err := s.km.GenerateKey(context.Background())
+	key, err := s.svidKM.GenerateKey(context.Background(), nil)
 	s.Require().NoError(err)
 
 	// Cert that's valid for 1hr
