@@ -12,8 +12,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ var (
 	}
 )
 
-type CreateFunc = func(t *testing.T) keymanager.KeyManager
+type CreateFunc = func(t *testing.T) keymanager.MultiKeyManager
 
 type Config struct {
 	Create CreateFunc
@@ -214,25 +214,25 @@ func testGetKeys(t *testing.T, config Config) {
 	})
 }
 
-func requireGenerateKey(t *testing.T, km keymanager.KeyManager, keyType keymanager.KeyType) keymanager.Key {
+func requireGenerateKey(t *testing.T, km keymanager.MultiKeyManager, keyType keymanager.KeyType) keymanager.Key {
 	key, err := km.GenerateKey(ctx, keyType.String(), keyType)
 	require.NoError(t, err)
 	return key
 }
 
-func requireGenerateKeyWithID(t *testing.T, km keymanager.KeyManager, keyType keymanager.KeyType, id string) keymanager.Key {
+func requireGenerateKeyWithID(t *testing.T, km keymanager.MultiKeyManager, keyType keymanager.KeyType, id string) keymanager.Key {
 	key, err := km.GenerateKey(ctx, id, keyType)
 	require.NoError(t, err)
 	return key
 }
 
-func requireGetKey(t *testing.T, km keymanager.KeyManager, id string) keymanager.Key {
+func requireGetKey(t *testing.T, km keymanager.MultiKeyManager, id string) keymanager.Key {
 	key, err := km.GetKey(ctx, id)
 	require.NoError(t, err)
 	return key
 }
 
-func requireGetKeys(t *testing.T, km keymanager.KeyManager) []keymanager.Key {
+func requireGetKeys(t *testing.T, km keymanager.MultiKeyManager) []keymanager.Key {
 	keys, err := km.GetKeys(ctx)
 	require.NoError(t, err)
 	return keys

@@ -14,7 +14,7 @@ import (
 	"sort"
 	"sync"
 
-	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/keymanager/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -29,7 +29,7 @@ type KeyEntry struct {
 // Funcs is a collection of optional callbacks. Default implementations will be
 // used when not provided.
 type Funcs struct {
-	WriteEntries       func(ctx context.Context, entries []*KeyEntry) error
+	WriteEntries       func(ctx context.Context, allEntries []*KeyEntry, newEntry *KeyEntry) error
 	GenerateRSA2048Key func() (*rsa.PrivateKey, error)
 	GenerateRSA4096Key func() (*rsa.PrivateKey, error)
 	GenerateEC256Key   func() (*ecdsa.PrivateKey, error)
@@ -143,7 +143,7 @@ func (m *Base) generateKey(ctx context.Context, req *keymanagerv1.GenerateKeyReq
 	m.entries[req.KeyId] = newEntry
 
 	if m.funcs.WriteEntries != nil {
-		if err := m.funcs.WriteEntries(ctx, entriesSliceFromMap(m.entries)); err != nil {
+		if err := m.funcs.WriteEntries(ctx, entriesSliceFromMap(m.entries), newEntry); err != nil {
 			if hasEntry {
 				m.entries[req.KeyId] = oldEntry
 			} else {

@@ -25,33 +25,34 @@ import (
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 var (
-	testKey, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgy8ps3oQaBaSUFpfd
-XM13o+VSA0tcZteyTvbOdIQNVnKhRANCAAT4dPIORBjghpL5O4h+9kyzZZUAFV9F
-qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
------END PRIVATE KEY-----
-`))
+	caKey       = testkey.MustEC256()
+	serverKey   = testkey.MustEC256()
 	trustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
 )
 
 func TestAttestor(t *testing.T) {
+	km := fakeagentkeymanager.New(t, "")
+
+	agentKey, err := keymanager.ForSVID(km).GenerateKey(context.Background(), nil)
+	require.NoError(t, err)
+
 	// create CA and server certificates
 	caCert := createCACertificate(t)
 	serverCert := createServerCertificate(t, caCert)
-	agentCert := createAgentCertificate(t, caCert, "/test/foo")
-	expiredCert := createExpiredCertificate(t, caCert)
+	agentCert := createAgentCertificate(t, caCert, agentKey, "/test/foo")
+	expiredCert := createExpiredCertificate(t, caCert, agentKey)
 	bundle := &types.Bundle{
 		TrustDomain:     trustDomain.String(),
 		X509Authorities: []*types.X509Certificate{{Asn1: caCert.Raw}},
@@ -65,7 +66,7 @@ func TestAttestor(t *testing.T) {
 		Certificates: []tls.Certificate{
 			{
 				Certificate: [][]byte{serverCert.Raw},
-				PrivateKey:  testKey,
+				PrivateKey:  serverKey,
 			},
 		},
 		MinVersion: tls.VersionTLS12,
@@ -78,7 +79,7 @@ func TestAttestor(t *testing.T) {
 		cachedBundle                []byte
 		cachedSVID                  []byte
 		err                         string
-		storeKey                    crypto.Signer
+		keepAgentKey                bool
 		failFetchingAttestationData bool
 		agentService                *fakeAgentService
 		bundleService               *fakeBundleService
@@ -204,7 +205,7 @@ func TestAttestor(t *testing.T) {
 			agentService: &fakeAgentService{
 				svid: &types.X509SVID{
 					Id:        &types.SPIFFEID{TrustDomain: trustDomain.String(), Path: "/join_token/JOINTOKEN"},
-					CertChain: [][]byte{createAgentCertificate(t, caCert, "/join_token/JOINTOKEN").Raw},
+					CertChain: [][]byte{createAgentCertificate(t, caCert, agentKey, "/join_token/JOINTOKEN").Raw},
 				},
 				joinToken: "JOINTOKEN",
 			},
@@ -227,7 +228,7 @@ func TestAttestor(t *testing.T) {
 			name:              "cached svid and private key but missing bundle",
 			insecureBootstrap: true,
 			cachedSVID:        agentCert.Raw,
-			storeKey:          testKey,
+			keepAgentKey:      true,
 			agentService: &fakeAgentService{
 				svid: svid,
 			},
@@ -240,7 +241,7 @@ func TestAttestor(t *testing.T) {
 			name:         "success with cached svid, private key, and bundle",
 			cachedBundle: caCert.Raw,
 			cachedSVID:   agentCert.Raw,
-			storeKey:     testKey,
+			keepAgentKey: true,
 			agentService: &fakeAgentService{
 				svid:            svid,
 				failAttestAgent: true,
@@ -253,7 +254,7 @@ func TestAttestor(t *testing.T) {
 			name:            "malformed cached svid ignored",
 			bootstrapBundle: caCert,
 			cachedSVID:      []byte("INVALID"),
-			storeKey:        testKey,
+			keepAgentKey:    true,
 			agentService: &fakeAgentService{
 				svid:            svid,
 				failAttestAgent: true,
@@ -304,13 +305,16 @@ func TestAttestor(t *testing.T) {
 				Responses: testCase.agentService.challengeResponses,
 			})
 
-			// load up an in-memory key manager
-			km := prepareKeyManager(t, testCase.storeKey)
-
 			// initialize the catalog
 			catalog := fakeagentcatalog.New()
 			catalog.SetNodeAttestor(agentNA)
 			catalog.SetKeyManager(km)
+
+			// Set a pristine km in the catalog if we're not keeping the agent
+			// key
+			if !testCase.keepAgentKey {
+				catalog.SetKeyManager(fakeagentkeymanager.New(t, ""))
+			}
 
 			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 			agentv1.RegisterAgentServer(server, testCase.agentService)
@@ -443,14 +447,6 @@ func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, stri
 	return svidCachePath, bundleCachePath
 }
 
-func prepareKeyManager(t *testing.T, key crypto.Signer) keymanager.KeyManager {
-	km := fakeagentkeymanager.New(t, "")
-	if key != nil {
-		storePrivateKey(t, km, key)
-	}
-	return km
-}
-
 func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
 	require.NoError(t, ioutil.WriteFile(path, data, mode))
 }
@@ -461,7 +457,7 @@ func createCACertificate(t *testing.T) *x509.Certificate {
 		IsCA:                  true,
 		URIs:                  []*url.URL{idutil.TrustDomainURI(trustDomain.String())},
 	}
-	return createCertificate(t, tmpl, tmpl)
+	return createCertificate(t, tmpl, tmpl, caKey, caKey)
 }
 
 func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
@@ -469,41 +465,36 @@ func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certi
 		URIs:     []*url.URL{idutil.ServerID(trustDomain).URL()},
 		DNSNames: []string{"localhost"},
 	}
-	return createCertificate(t, tmpl, caCert)
+	return createCertificate(t, tmpl, caCert, serverKey, caKey)
 }
 
-func createAgentCertificate(t *testing.T, caCert *x509.Certificate, path string) *x509.Certificate {
+func createAgentCertificate(t *testing.T, caCert *x509.Certificate, agentKey crypto.Signer, path string) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		URIs: []*url.URL{idutil.AgentURI(trustDomain.String(), path)},
 	}
-	return createCertificate(t, tmpl, caCert)
+	return createCertificate(t, tmpl, caCert, agentKey, caKey)
 }
 
-func createExpiredCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
+func createExpiredCertificate(t *testing.T, caCert *x509.Certificate, agentKey crypto.Signer) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		NotAfter: time.Now().Add(-1 * time.Hour),
 		URIs:     []*url.URL{idutil.AgentURI(trustDomain.String(), "/test/expired")},
 	}
-	return createCertificate(t, tmpl, caCert)
+	return createCertificate(t, tmpl, caCert, agentKey, caKey)
 }
 
-func createCertificate(t *testing.T, tmpl, parent *x509.Certificate) *x509.Certificate {
+func createCertificate(t *testing.T, tmpl, parent *x509.Certificate, certKey, parentKey crypto.Signer) *x509.Certificate {
 	now := time.Now()
 	tmpl.SerialNumber = big.NewInt(0)
 	tmpl.NotBefore = now
 	if tmpl.NotAfter.IsZero() {
 		tmpl.NotAfter = now.Add(time.Hour)
 	}
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, testKey.Public(), testKey)
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, certKey.Public(), parentKey)
 	require.NoError(t, err)
 	cert, err := x509.ParseCertificate(certDER)
 	require.NoError(t, err)
 	return cert
-}
-
-func storePrivateKey(t *testing.T, km keymanager.KeyManager, privateKey crypto.Signer) {
-	err := km.SetKey(context.Background(), privateKey)
-	require.NoError(t, err)
 }
 
 func makeTrustBundle(bootstrapCert *x509.Certificate) []*x509.Certificate {

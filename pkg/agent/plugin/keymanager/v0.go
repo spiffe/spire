@@ -16,6 +16,14 @@ type V0 struct {
 	keymanagerv0.KeyManagerPluginClient
 }
 
+func (v0 *V0) Single() (SingleKeyManager, bool) {
+	return v0, true
+}
+
+func (v0 *V0) Multi() (MultiKeyManager, bool) {
+	return nil, false
+}
+
 func (v0 *V0) GenerateKey(ctx context.Context) (crypto.Signer, error) {
 	resp, err := v0.KeyManagerPluginClient.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
 	if err != nil {
