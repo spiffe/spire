@@ -127,7 +127,7 @@ func TestConfigure(t *testing.T) {
 			signingAlgorithm:        validSigningAlgorithm,
 			assumeRoleARN:           validAssumeRoleARN,
 			supplementalBundlePath:  validSupplementalBundlePath,
-			expectCode:              codes.InvalidArgument,
+			expectCode:              codes.Internal,
 			expectMsgPrefix:         "failed to describe CertificateAuthority: Internal: some error\ncaused by: oh no",
 		},
 		{
@@ -320,13 +320,13 @@ func TestMintX509CA(t *testing.T) {
 			getCertificateCertChain: encodedCertChain.String(),
 		},
 		{
-			test:            "Issueace fails",
+			test:            "Issuance fails",
 			config:          successConfig,
 			csr:             makeCSR("spiffe://example.com/foo"),
 			preferredTTL:    300 * time.Second,
 			issuedCertErr:   awserr.New("Internal", "some error", errors.New("oh no")),
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(aws_pca): failed submintting CSR: Internal: some error\ncaused by: oh no",
+			expectMsgPrefix: "upstreamauthority(aws_pca): failed submitting CSR: Internal: some error\ncaused by: oh no",
 		},
 		{
 			test:            "Issueance wait fails",

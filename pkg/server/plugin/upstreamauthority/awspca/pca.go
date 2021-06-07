@@ -123,7 +123,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 		CertificateAuthorityArn: aws.String(config.CertificateAuthorityARN),
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to describe CertificateAuthority: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to describe CertificateAuthority: %v", err)
 	}
 
 	// Ensure the CA is set to ACTIVE
@@ -137,7 +137,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 	// If a signing algorithm has been provided, use it.
 	// Otherwise, fall back to the pre-configured value on the CA
 	signingAlgorithm := config.SigningAlgorithm
-	if config.SigningAlgorithm == "" {
+	if signingAlgorithm == "" {
 		signingAlgorithm = aws.StringValue(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
 		p.log.Info("No signing algorithm specified, using the CA default", "signing_algorithm", signingAlgorithm)
 	}
@@ -145,7 +145,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 	// If a CA signing template ARN has been provided, use it.
 	// Otherwise, fall back to the default value (PathLen=0)
 	caSigningTemplateArn := config.CASigningTemplateARN
-	if config.CASigningTemplateARN == "" {
+	if caSigningTemplateArn == "" {
 		p.log.Info("No CA signing template ARN specified, using the default", "ca_signing_template_arn", defaultCASigningTemplateArn)
 		caSigningTemplateArn = defaultCASigningTemplateArn
 	}
@@ -197,7 +197,7 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 		},
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed submintting CSR: %v", err)
+		return status.Errorf(codes.Internal, "failed submitting CSR: %v", err)
 	}
 
 	// Using the output of the `IssueCertificate` call, poll ACM until
@@ -252,7 +252,7 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 	}
 
 	// All else comprises the chain (including the issued certificate)
-	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, upstreamRoot))
+	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, certChain[:len(certChain)-1]...))
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
