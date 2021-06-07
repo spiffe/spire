@@ -37,7 +37,7 @@ func TestConfigure(t *testing.T) {
 		region          string
 		certFileARN     string
 		keyFileARN      string
-		accesKeyID      string
+		accessKeyID     string
 		secretAccessKey string
 		securityToken   string
 		assumeRoleARN   string
@@ -47,7 +47,7 @@ func TestConfigure(t *testing.T) {
 			region:          "region_1",
 			certFileARN:     "cert",
 			keyFileARN:      "key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -68,7 +68,7 @@ func TestConfigure(t *testing.T) {
 			test:            "missing key ARN",
 			region:          "region_1",
 			certFileARN:     "cert",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -79,7 +79,7 @@ func TestConfigure(t *testing.T) {
 			test:            "missing cert ARN",
 			region:          "region_1",
 			keyFileARN:      "key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -89,7 +89,7 @@ func TestConfigure(t *testing.T) {
 		{
 			test:            "missing cert and key ARNs",
 			region:          "region_1",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -101,7 +101,7 @@ func TestConfigure(t *testing.T) {
 			region:          "",
 			certFileARN:     "cert",
 			keyFileARN:      "key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -113,7 +113,7 @@ func TestConfigure(t *testing.T) {
 			region:          "region_1",
 			certFileARN:     "not_found",
 			keyFileARN:      "key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -125,7 +125,7 @@ func TestConfigure(t *testing.T) {
 			region:          "region_1",
 			certFileARN:     "invalid_cert",
 			keyFileARN:      "key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -138,7 +138,7 @@ func TestConfigure(t *testing.T) {
 			region:          "region_1",
 			certFileARN:     "cert",
 			keyFileARN:      "not_found",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -150,7 +150,7 @@ func TestConfigure(t *testing.T) {
 			region:          "region_1",
 			certFileARN:     "cert",
 			keyFileARN:      "invalid_key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -162,7 +162,7 @@ func TestConfigure(t *testing.T) {
 			region:          "region_1",
 			certFileARN:     "cert",
 			keyFileARN:      "alternative_key",
-			accesKeyID:      "access_key_id",
+			accessKeyID:     "access_key_id",
 			secretAccessKey: "secret_access_key",
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
@@ -193,7 +193,7 @@ func TestConfigure(t *testing.T) {
 					Region:          tt.region,
 					CertFileARN:     tt.certFileARN,
 					KeyFileARN:      tt.keyFileARN,
-					AccessKeyID:     tt.accesKeyID,
+					AccessKeyID:     tt.accessKeyID,
 					SecretAccessKey: tt.secretAccessKey,
 					SecurityToken:   tt.securityToken,
 					AssumeRoleARN:   tt.assumeRoleARN,
@@ -223,7 +223,7 @@ func TestMintX509CA(t *testing.T) {
 		return csr
 	}
 
-	successConfiguration := Configuration{
+	successConfiguration := &Configuration{
 		Region:          "region_1",
 		CertFileARN:     "cert",
 		KeyFileARN:      "key",
@@ -235,8 +235,7 @@ func TestMintX509CA(t *testing.T) {
 
 	for _, tt := range []struct {
 		test                    string
-		makeConfigFail          bool
-		configuration           Configuration
+		configuration           *Configuration
 		csr                     []byte
 		preferredTTL            time.Duration
 		expectCode              codes.Code
@@ -264,14 +263,12 @@ func TestMintX509CA(t *testing.T) {
 		},
 		{
 			test:            "configuration fail",
-			makeConfigFail:  true,
-			configuration:   successConfiguration,
 			csr:             makeCSR("spiffe://example.org"),
 			expectCode:      codes.FailedPrecondition,
 			expectMsgPrefix: "upstreamauthority(awssecret): not configured",
 		},
 		{
-			test:            "unable to sing CSR",
+			test:            "unable to sign CSR",
 			configuration:   successConfiguration,
 			csr:             []byte{1},
 			expectCode:      codes.Internal,
@@ -282,19 +279,27 @@ func TestMintX509CA(t *testing.T) {
 		t.Run(tt.test, func(t *testing.T) {
 			p := new(Plugin)
 			p.hooks.clock = clk
+			p.hooks.getenv = func(s string) string {
+				return ""
+			}
 			p.hooks.newClient = newFakeSecretsManagerClient
 
-			ua := new(upstreamauthority.V1)
-			plugintest.Load(t, builtin(p), ua,
-				plugintest.ConfigureJSON(tt.configuration),
+			var err error
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
 				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
-			)
-
-			if tt.makeConfigFail {
-				p.upstreamCA = nil
 			}
+
+			if tt.configuration != nil {
+				options = append(options, plugintest.ConfigureJSON(tt.configuration))
+			}
+
+			ua := new(upstreamauthority.V1)
+			plugintest.Load(t, builtin(p), ua,
+				options...,
+			)
 
 			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), tt.csr, tt.preferredTTL)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
