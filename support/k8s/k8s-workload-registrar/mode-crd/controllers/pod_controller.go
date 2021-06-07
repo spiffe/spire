@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"log"
 
 	"github.com/sirupsen/logrus"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
@@ -47,14 +48,23 @@ type PodReconcilerConfig struct {
 // PodReconciler holds the runtime configuration and state of this controller
 type PodReconciler struct {
 	client.Client
-	c PodReconcilerConfig
+	c  PodReconcilerConfig
+	is IdentitySchema
 }
 
 // NewPodReconciler creates a new PodReconciler object
 func NewPodReconciler(config PodReconcilerConfig) *PodReconciler {
+
+	idSchema := IdentitySchema{}
+	if _, err := idSchema.loadConfig("/run/identity-schema/config/identity-schema.yaml"); err != nil {
+		// if _, err := idSchema.loadConfig("/tmp/identity-schema.yaml"); err != nil {
+		log.Printf("Error getting IdenitySchema config %v", err)
+		//log.Fatalf()
+	}
 	return &PodReconciler{
 		Client: config.Client,
 		c:      config,
+		is:     idSchema,
 	}
 }
 
@@ -184,7 +194,10 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	//return makeID(r.c.TrustDomain, "v1/provider/eu-de/%s/%s/%s", pod.Namespace, pod.Spec.ServiceAccountName, pod.Spec.Containers[0].Name)
+	newId := r.is.getId()
+	return makeID(r.c.TrustDomain, newId)
+	// return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
