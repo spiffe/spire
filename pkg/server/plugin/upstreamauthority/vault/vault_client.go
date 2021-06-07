@@ -256,7 +256,7 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 		clientCert = c
 		foundClientCert = true
 	case c.clientParams.ClientCertPath != "" || c.clientParams.ClientKeyPath != "":
-		return status.Errorf(codes.InvalidArgument, "both client cert and client key are required")
+		return status.Error(codes.InvalidArgument, "both client cert and client key are required")
 	}
 
 	if c.clientParams.CACertPath != "" {
@@ -322,7 +322,7 @@ func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
 	}
 	renewable, err := secret.TokenIsRenewable()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to get token is renewable: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to determine if token is renewable: %v", err)
 	}
 	ttl, err := secret.TokenTTL()
 	if err != nil {
@@ -355,7 +355,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	path := fmt.Sprintf("/%s/root/sign-intermediate", c.clientParams.PKIMountPoint)
 	s, err := c.vaultClient.Logical().Write(path, reqData)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "fails to sign intermediate: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to sign intermediate: %v", err)
 	}
 
 	resp := &SignCSRResponse{}

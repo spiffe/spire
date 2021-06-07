@@ -52,9 +52,9 @@ func TestConfigure(t *testing.T) {
 		expectCertAuthMountPoint string
 		expectClientCertPath     string
 		expectClientKeyPath      string
-		AppRoleAuthMountPoint    string
-		AppRoleID                string
-		AppRoleSecretID          string
+		appRoleAuthMountPoint    string
+		appRoleID                string
+		appRoleSecretID          string
 	}{
 		{
 			name:        "Configure plugin with Client Certificate authentication params given in config file",
@@ -95,9 +95,9 @@ func TestConfigure(t *testing.T) {
 			name:                  "Configure plugin with AppRole authenticate params given in config file",
 			configTmpl:            testAppRoleAuthConfigTpl,
 			wantAuth:              APPROLE,
-			AppRoleAuthMountPoint: "test-approle-auth",
-			AppRoleID:             "test-approle-id",
-			AppRoleSecretID:       "test-approle-secret-id",
+			appRoleAuthMountPoint: "test-approle-auth",
+			appRoleID:             "test-approle-id",
+			appRoleSecretID:       "test-approle-secret-id",
 		},
 		{
 			name:       "Configure plugin with AppRole authentication params given as environment variables",
@@ -107,9 +107,9 @@ func TestConfigure(t *testing.T) {
 				envVaultAppRoleSecretID: "test-approle-secret-id",
 			},
 			wantAuth:              APPROLE,
-			AppRoleAuthMountPoint: "test-approle-auth",
-			AppRoleID:             "test-approle-id",
-			AppRoleSecretID:       "test-approle-secret-id",
+			appRoleAuthMountPoint: "test-approle-auth",
+			appRoleID:             "test-approle-id",
+			appRoleSecretID:       "test-approle-secret-id",
 		},
 		{
 			name:            "Multiple authentication methods configured",
@@ -196,12 +196,19 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestMintX509CA(t *testing.T) {
+	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
+	require.NoError(t, err)
+	successfulConfig := &Configuration{
+		PKIMountPoint: "test-pki",
+		CACertPath:    "testdata/keys/EC/root_cert.pem",
+		TokenAuth: &TokenAuthConfig{
+			Token: "test-token",
+		},
+	}
+
 	for _, tt := range []struct {
 		name                    string
-		lookupSelfResp          []byte
-		certAuthResp            []byte
-		appRoleAuthResp         []byte
-		signIntermediateResp    []byte
+		csr                     []byte
 		config                  *Configuration
 		ttl                     time.Duration
 		authMethod              AuthMethod
@@ -210,11 +217,12 @@ func TestMintX509CA(t *testing.T) {
 		expectMsgPrefix         string
 		expectX509CA            []string
 		expectedX509Authorities []string
+
+		fakeServer func() *FakeVaultServerConfig
 	}{
 		{
-			name:                 "Mint X509CA SVID with Token authentication",
-			lookupSelfResp:       []byte(testLookupSelfResponse),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with Token authentication",
+			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
@@ -226,12 +234,20 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with custom ttl",
-			ttl:                  time.Minute,
-			lookupSelfResp:       []byte(testLookupSelfResponse),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with custom ttl",
+			csr:  csr.Raw,
+			ttl:  time.Minute,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
@@ -243,11 +259,19 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with Token authentication / Token is not renewable",
-			lookupSelfResp:       []byte(testLookupSelfResponseNotRenewable),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with Token authentication / Token is not renewable",
+			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
@@ -258,11 +282,19 @@ func TestMintX509CA(t *testing.T) {
 			authMethod:              TOKEN,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponseNotRenewable)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with Token authentication / Token never expire",
-			lookupSelfResp:       []byte(testLookupSelfResponseNeverExpire),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with Token authentication / Token never expire",
+			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
@@ -274,11 +306,19 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponseNeverExpire)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with TLS cert authentication",
-			certAuthResp:         []byte(testCertAuthResponse),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with TLS cert authentication",
+			csr:  csr.Raw,
 			config: &Configuration{
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -293,11 +333,19 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte{}
+				fakeServer.CertAuthResponse = []byte(testCertAuthResponse)
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with AppRole authentication",
-			appRoleAuthResp:      []byte(testAppRoleAuthResponse),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with AppRole authentication",
+			csr:  csr.Raw,
 			config: &Configuration{
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -311,11 +359,19 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte{}
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with TLS cert authentication / Token is not renewable",
-			certAuthResp:         []byte(testCertAuthResponseNotRenewable),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with TLS cert authentication / Token is not renewable",
+			csr:  csr.Raw,
 			config: &Configuration{
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -329,11 +385,19 @@ func TestMintX509CA(t *testing.T) {
 			authMethod:              CERT,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte{}
+				fakeServer.CertAuthResponse = []byte(testCertAuthResponseNotRenewable)
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with AppRole authentication / Token is not renewable",
-			appRoleAuthResp:      []byte(testAppRoleAuthResponseNotRenewable),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with AppRole authentication / Token is not renewable",
+			csr:  csr.Raw,
 			config: &Configuration{
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
 				PKIMountPoint: "test-pki",
@@ -346,11 +410,19 @@ func TestMintX509CA(t *testing.T) {
 			authMethod:              APPROLE,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte{}
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponseNotRenewable)
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID with Namespace",
-			lookupSelfResp:       []byte(testLookupSelfResponse),
-			signIntermediateResp: []byte(testSignIntermediateResponse),
+			name: "Mint X509CA SVID with Namespace",
+			csr:  csr.Raw,
 			config: &Configuration{
 				Namespace:     "test-ns",
 				PKIMountPoint: "test-pki",
@@ -363,11 +435,19 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 		{
-			name:                 "Mint X509CA SVID against the RootCA Vault",
-			lookupSelfResp:       []byte(testLookupSelfResponse),
-			signIntermediateResp: []byte(testSignIntermediateResponseNoChain),
+			name: "Mint X509CA SVID against the RootCA Vault",
+			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
 				CACertPath:    "testdata/keys/EC/root_cert.pem",
@@ -379,22 +459,124 @@ func TestMintX509CA(t *testing.T) {
 			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponseNoChain)
+
+				return fakeServer
+			},
+		},
+		{
+			name:                    "Plugin is not configured",
+			csr:                     csr.Raw,
+			authMethod:              TOKEN,
+			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
+			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer:              setupSuccessFakeVaultServer,
+			expectCode:              codes.FailedPrecondition,
+			expectMsgPrefix:         "upstreamauthority(vault): plugin not configured",
+		},
+		{
+			name:       "Authenticate client fails",
+			csr:        csr.Raw,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeServer.LookupSelfResponse = []byte("fake-error")
+				fakeServer.LookupSelfResponseCode = 500
+				fakeServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to prepare authenticated client: rpc error: code = Internal desc = token lookup failed: Error making API request.",
+		},
+		{
+			name:       "Signin fails",
+			csr:        csr.Raw,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeServer.SignIntermediateResponseCode = 500
+				fakeServer.SignIntermediateResponse = []byte("fake-error")
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to sign intermediate: Error making API request.",
+		},
+		{
+			name:       "Invalid signing response",
+			csr:        csr.Raw,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeServer.SignIntermediateResponseCode = 200
+				fakeServer.SignIntermediateResponse = []byte(testInvalidSignIntermediateResponse)
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse Root CA certificate:",
+		},
+		{
+			name:       "Signing response malformed certificate",
+			csr:        csr.Raw,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeServer.SignIntermediateResponseCode = 200
+				fakeServer.SignIntermediateResponse = []byte(testSignMalformedCertificateResponse)
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse certificate: no PEM blocks",
+		},
+		{
+			name:       "Signing response malformed certificate",
+			csr:        csr.Raw,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				// Expect error
+				fakeServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+				fakeServer.SignIntermediateResponseCode = 200
+				fakeServer.SignIntermediateResponse = []byte(testSignMalformedCertificateResponse)
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse certificate: no PEM blocks",
+		},
+		{
+			name:            "Invalid CSR",
+			csr:             []byte("malformed-csr"),
+			config:          successfulConfig,
+			authMethod:      TOKEN,
+			fakeServer:      setupSuccessFakeVaultServer,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "upstreamauthority(vault): failed to parse CSR data:",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fakeVaultServer := setupFakeVautServer()
-			fakeVaultServer.CertAuthResponseCode = 200
-			fakeVaultServer.CertAuthResponse = tt.certAuthResp
-			fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
-			fakeVaultServer.AppRoleAuthResponseCode = 200
-			fakeVaultServer.AppRoleAuthResponse = tt.appRoleAuthResp
-			fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
-			fakeVaultServer.LookupSelfResponse = tt.lookupSelfResp
-			fakeVaultServer.LookupSelfResponseCode = 200
-			fakeVaultServer.SignIntermediateResponseCode = 200
-			fakeVaultServer.SignIntermediateResponse = tt.signIntermediateResp
-			fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
+			fakeVaultServer := tt.fakeServer()
 
 			s, addr, err := fakeVaultServer.NewTLSServer()
 			require.NoError(t, err)
@@ -403,25 +585,34 @@ func TestMintX509CA(t *testing.T) {
 			defer s.Close()
 
 			p := New()
-
-			tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
-			cp := p.genClientParams(tt.authMethod, tt.config)
-			cc, err := NewClientConfig(cp, p.logger)
-			require.NoError(t, err)
-			p.cc = cc
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
+			}
+			if tt.config != nil {
+				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
+				cp := p.genClientParams(tt.authMethod, tt.config)
+				cc, err := NewClientConfig(cp, p.logger)
+				require.NoError(t, err)
+				p.cc = cc
+				options = append(options, plugintest.ConfigureJSON(tt.config))
+			}
 			p.authMethod = tt.authMethod
 
 			v1 := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), v1,
-				plugintest.ConfigureJSON(tt.config),
-				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
+				options...,
 			)
 
-			csr, err := pemutil.LoadCertificateRequest(testReqCSR)
-			require.NoError(t, err)
+			x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), tt.csr, tt.ttl)
 
-			x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), csr.Raw, tt.ttl)
-			require.NoError(t, err)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			if tt.expectCode != codes.OK {
+				require.Nil(t, x509CA)
+				require.Nil(t, x509Authorities)
+				require.Nil(t, stream)
+				return
+			}
 			require.NotNil(t, x509CA)
 			require.NotNil(t, x509Authorities)
 			require.NotNil(t, stream)
@@ -438,132 +629,6 @@ func TestMintX509CA(t *testing.T) {
 				headers := p.vc.vaultClient.Headers()
 				require.Equal(t, p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
 			}
-		})
-	}
-}
-
-func TestMintX509CAFails(t *testing.T) {
-	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
-	require.NoError(t, err)
-
-	for _, tt := range []struct {
-		test       string
-		fakeServer func() *FakeVaultServerConfig
-		csr        []byte
-
-		expectCode      codes.Code
-		expectMsgPrefix string
-		configFails     bool
-	}{
-		{
-			test:            "Plugin is not configured",
-			configFails:     true,
-			csr:             csr.Raw,
-			fakeServer:      setupSuccessFakeVaultServer,
-			expectCode:      codes.FailedPrecondition,
-			expectMsgPrefix: "upstreamauthority(vault): plugin not configured",
-		},
-		{
-			test: "Authenticate client fails",
-			csr:  csr.Raw,
-			fakeServer: func() *FakeVaultServerConfig {
-				fakeVaultServer := setupSuccessFakeVaultServer()
-				// Expect error
-				fakeVaultServer.LookupSelfResponse = []byte("fake-error")
-				fakeVaultServer.LookupSelfResponseCode = 500
-				fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
-
-				return fakeVaultServer
-			},
-			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(vault): failed to prepare authenticated client: rpc error: code = Internal desc = token lookup failed: Error making API request.",
-		},
-		{
-			test: "Signin fails",
-			csr:  csr.Raw,
-			fakeServer: func() *FakeVaultServerConfig {
-				fakeVaultServer := setupSuccessFakeVaultServer()
-				// Expect error
-				fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
-				fakeVaultServer.SignIntermediateResponseCode = 500
-				fakeVaultServer.SignIntermediateResponse = []byte("fake-error")
-
-				return fakeVaultServer
-			},
-			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(vault): fails to sign intermediate: Error making API request.",
-		},
-		{
-			test: "Invalid signing response",
-			csr:  csr.Raw,
-			fakeServer: func() *FakeVaultServerConfig {
-				fakeVaultServer := setupSuccessFakeVaultServer()
-				// Expect error
-				fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
-				fakeVaultServer.SignIntermediateResponseCode = 200
-				fakeVaultServer.SignIntermediateResponse = []byte(testInvalidSignIntermediateResponse)
-
-				return fakeVaultServer
-			},
-			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(vault): failed to parse Root CA certificate:",
-		},
-		{
-			test: "Signing response malformed certificate",
-			csr:  csr.Raw,
-			fakeServer: func() *FakeVaultServerConfig {
-				fakeVaultServer := setupSuccessFakeVaultServer()
-				// Expect error
-				fakeVaultServer.SignIntermediateReqEndpoint = "/v1/test-pki/root/sign-intermediate"
-				fakeVaultServer.SignIntermediateResponseCode = 200
-				fakeVaultServer.SignIntermediateResponse = []byte(testSignMalformedCertificateResponse)
-
-				return fakeVaultServer
-			},
-			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(vault): failed to parse certificate: no PEM blocks",
-		},
-		{
-			test:            "Invalid CSR",
-			csr:             []byte("malformed-csr"),
-			fakeServer:      setupSuccessFakeVaultServer,
-			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "upstreamauthority(vault): failed to parse CSR data:",
-		},
-	} {
-		tt := tt
-		t.Run(tt.test, func(t *testing.T) {
-			fakeVaultServer := tt.fakeServer()
-			s, addr, err := fakeVaultServer.NewTLSServer()
-			require.NoError(t, err)
-
-			s.Start()
-			defer s.Close()
-
-			p := New()
-
-			v1 := new(upstreamauthority.V1)
-			plugintest.Load(t, builtin(p), v1,
-				plugintest.ConfigureJSON(&Configuration{
-					VaultAddr:     fmt.Sprintf("https://%v/", addr),
-					CACertPath:    testRootCert,
-					PKIMountPoint: "test-pki",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
-				}),
-				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
-			)
-
-			if tt.configFails {
-				p.cc = nil
-			}
-
-			x509CA, x509Authorities, stream, err := v1.MintX509CA(context.Background(), tt.csr, time.Minute)
-			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
-			assert.Nil(t, x509CA)
-			assert.Nil(t, x509Authorities)
-			assert.Nil(t, stream)
 		})
 	}
 }

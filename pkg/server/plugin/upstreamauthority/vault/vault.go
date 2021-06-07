@@ -146,7 +146,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
+func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	if p.cc == nil {
 		return status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
@@ -163,13 +163,13 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	}
 
 	var ttl string
-	if request.PreferredTtl == 0 {
+	if req.PreferredTtl == 0 {
 		ttl = ""
 	} else {
-		ttl = strconv.Itoa(int(request.PreferredTtl))
+		ttl = strconv.Itoa(int(req.PreferredTtl))
 	}
 
-	csr, err := x509.ParseCertificateRequest(request.Csr)
+	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to parse CSR data: %v", err)
 	}

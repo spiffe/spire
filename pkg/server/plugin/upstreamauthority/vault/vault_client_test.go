@@ -506,7 +506,7 @@ func TestSignIntermediateErrorFromEndpoint(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.SignIntermediate(testTTL, csr)
-	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "fails to sign intermediate: Error making API request.")
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to sign intermediate: Error making API request.")
 }
 
 func newFakeVaultServer() *FakeVaultServerConfig {
