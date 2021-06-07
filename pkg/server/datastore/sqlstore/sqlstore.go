@@ -1,4 +1,4 @@
-package sql
+package sqlstore
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -43,7 +43,7 @@ const (
 	SQLite = "sqlite3"
 )
 
-// Configuration for the datastore.
+// Configuration for the sql datastore implementation.
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
 	DatabaseType       string  `hcl:"database_type" json:"database_type"`

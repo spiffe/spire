@@ -15,8 +15,8 @@ import (
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	ds_sql "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	ds_sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
@@ -59,8 +59,10 @@ type Config struct {
 	HealthChecker    health.Checker
 }
 
+type datastoreRepository struct{ datastore.Repository }
+
 type Repository struct {
-	datastore.Repository
+	datastoreRepository
 	keyManagerRepository
 	nodeAttestorRepository
 	nodeResolverRepository
