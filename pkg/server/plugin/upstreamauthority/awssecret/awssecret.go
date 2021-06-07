@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"errors"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -14,12 +12,13 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -34,11 +33,12 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		upstreamauthorityv0.UpstreamAuthorityPluginServer(p),
+		upstreamauthorityv1.UpstreamAuthorityPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
-type Config struct {
+type Configuration struct {
 	Region          string `hcl:"region" json:"region"`
 	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
 	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn"`
@@ -49,7 +49,8 @@ type Config struct {
 }
 
 type Plugin struct {
-	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
+	configv1.UnsafeConfigServer
 
 	log hclog.Logger
 
@@ -60,7 +61,7 @@ type Plugin struct {
 	hooks struct {
 		clock     clock.Clock
 		getenv    func(string) string
-		newClient func(config *Config, region string) (secretsManagerClient, error)
+		newClient func(config *Configuration, region string) (secretsManagerClient, error)
 	}
 }
 
@@ -68,7 +69,7 @@ func New() *Plugin {
 	return newPlugin(newSecretsManagerClient)
 }
 
-func newPlugin(newClient func(config *Config, region string) (secretsManagerClient, error)) *Plugin {
+func newPlugin(newClient func(config *Configuration, region string) (secretsManagerClient, error)) *Plugin {
 	p := &Plugin{}
 	p.hooks.clock = clock.New()
 	p.hooks.getenv = os.Getenv
@@ -76,22 +77,21 @@ func newPlugin(newClient func(config *Config, region string) (secretsManagerClie
 	return p
 }
 
-func (m *Plugin) SetLogger(log hclog.Logger) {
-	m.log = log
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
-func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config, err := m.validateConfig(req)
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	config, err := p.validateConfig(req)
 	if err != nil {
 		return nil, err
 	}
 
 	// set the AWS configuration and reset clients +
 	// Set local vars from config struct
-	sm, err := m.hooks.newClient(config, config.Region)
-
+	sm, err := p.hooks.newClient(config, config.Region)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "failed to create AWS client: %v", err)
 	}
 
 	key, cert, err := fetchFromSecretsManager(ctx, config, sm)
@@ -99,125 +99,125 @@ func (m *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 		return nil, err
 	}
 
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
 	}
 
-	m.cert = cert
-	m.upstreamCA = x509svid.NewUpstreamCA(
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	p.cert = cert
+	p.upstreamCA = x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(cert, key),
 		trustDomain,
 		x509svid.UpstreamCAOptions{
-			Clock: m.hooks.clock,
+			Clock: p.hooks.clock,
 		})
 
-	return &spi.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
-// MintX509CA mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
-func (m *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+// MintX509CAAndSubscribe mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
+func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	ctx := stream.Context()
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
 
-	if m.upstreamCA == nil {
-		return errors.New("invalid state: not configured")
+	if p.upstreamCA == nil {
+		return status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	cert, err := m.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
+	cert, err := p.upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "unable to sign CSR: %v", err)
 	}
 
-	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
-		X509CaChain:       [][]byte{cert.Raw},
-		UpstreamX509Roots: [][]byte{m.cert.Raw},
+	x509CAChain, err := x509certificate.ToPluginProtos([]*x509.Certificate{cert})
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
+	}
+
+	upstreamX509Roots, err := x509certificate.ToPluginProtos([]*x509.Certificate{p.cert})
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
+	}
+
+	return stream.Send(&upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509CAChain,
+		UpstreamX509Roots: upstreamX509Roots,
 	})
 }
 
-func fetchFromSecretsManager(ctx context.Context, config *Config, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
-	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
+// PublishJWTKeyAndSubscribe is not implemented by the wrapper and returns a codes.Unimplemented status
+func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
+}
 
+func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
+	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read %s: %w", config.KeyFileARN, err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.KeyFileARN, err)
 	}
 
 	key, err := pemutil.ParsePrivateKey([]byte(keyPEMstr))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, status.Errorf(codes.Internal, "unable to parse private key: %v", err)
 	}
 
 	certPEMstr, err := readARN(ctx, sm, config.CertFileARN)
-
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read %s: %w", config.CertFileARN, err)
+		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.CertFileARN, err)
 	}
 
 	cert, err := pemutil.ParseCertificate([]byte(certPEMstr))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, status.Errorf(codes.Internal, "unable to parse certificate: %v", err)
 	}
 
 	// Validate cert matches private key
 	matched, err := x509util.CertificateMatchesPrivateKey(cert, key)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, status.Errorf(codes.Internal, "unable to validate certificate: %v", err)
 	}
 
 	if !matched {
-		return nil, nil, errors.New("certificate and private key does not match")
+		return nil, nil, status.Errorf(codes.InvalidArgument, "certificate and private key does not match")
 	}
 
 	return key, cert, nil
 }
 
-func (m *Plugin) validateConfig(req *spi.ConfigureRequest) (*Config, error) {
+func (p *Plugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {
 	// Parse HCL config payload into config struct
-	config := new(Config)
+	config := new(Configuration)
 
-	if err := hcl.Decode(&config, req.Configuration); err != nil {
-		return nil, err
+	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if req.GlobalConfig == nil {
-		return nil, errors.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
 
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, errors.New("trust_domain is required")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 
 	// Set defaults from the environment
 	if config.SecurityToken == "" {
-		config.SecurityToken = m.hooks.getenv("AWS_SESSION_TOKEN")
+		config.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
 	}
 
 	switch {
 	case config.CertFileARN != "" && config.KeyFileARN != "":
 	case config.CertFileARN != "" && config.KeyFileARN == "":
-		return nil, errors.New("configuration missing key ARN")
+		return nil, status.Error(codes.InvalidArgument, "configuration missing key ARN")
 	case config.CertFileARN == "" && config.KeyFileARN != "":
-		return nil, errors.New("configuration missing cert ARN")
+		return nil, status.Error(codes.InvalidArgument, "configuration missing cert ARN")
 	case config.CertFileARN == "" && config.KeyFileARN == "":
-		return nil, errors.New("configuration missing both cert ARN and key ARN")
+		return nil, status.Error(codes.InvalidArgument, "configuration missing both cert ARN and key ARN")
 	}
 
 	return config, nil
-}
-
-// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
-	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "aws-secret: "+format, args...)
 }
