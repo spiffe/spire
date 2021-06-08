@@ -15,6 +15,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
@@ -79,7 +80,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	// Parse HCL config payload into config struct
 	config := new(Configuration)
 
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
@@ -130,9 +131,12 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 
 	var bundles []*plugintypes.X509Certificate
 	for _, cert := range roots {
-		bundles = append(bundles, &plugintypes.X509Certificate{
-			Asn1: cert.Raw,
-		})
+		pluginCert, err := x509certificate.ToPluginProto(cert)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse X.509 authorities: %v", err)
+		}
+
+		bundles = append(bundles, pluginCert)
 	}
 
 	// Set X509 Authorities
@@ -179,23 +183,24 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKe
 	}
 	defer p.unsubscribeToPolling()
 
+	jwtKey, err := jwtkey.ToAPIFromPluginProto(req.JwtKey)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to parse JWTKey into api JWTKey: %v", err)
+	}
+
 	// Publish JWT authority
-	resp, err := p.serverClient.publishJWTAuthority(stream.Context(), &types.JWTKey{
-		PublicKey: req.JwtKey.PublicKey,
-		KeyId:     req.JwtKey.KeyId,
-		ExpiresAt: req.JwtKey.ExpiresAt,
-	})
+	resp, err := p.serverClient.publishJWTAuthority(stream.Context(), jwtKey)
 	if err != nil {
 		return err
 	}
 
 	var jwtKeys []*plugintypes.JWTKey
 	for _, jwtKey := range resp {
-		jwtKeys = append(jwtKeys, &plugintypes.JWTKey{
-			PublicKey: jwtKey.PublicKey,
-			KeyId:     jwtKey.KeyId,
-			ExpiresAt: jwtKey.ExpiresAt,
-		})
+		pluginKey, err := jwtkey.ToPluginFromAPIProto(jwtKey)
+		if err != nil {
+			return err
+		}
+		jwtKeys = append(jwtKeys, pluginKey)
 	}
 
 	// Set JWT authority
@@ -234,7 +239,10 @@ func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 		if err != nil {
 			p.log.Warn("Failed to fetch bundle while polling", "error", err)
 		} else {
-			p.setBundleIfVersionMatches(resp, preFetchCallVersion)
+			err := p.setBundleIfVersionMatches(resp, preFetchCallVersion)
+			if err != nil {
+				p.log.Warn("Failed to set bundle while polling", "error", err)
+			}
 		}
 
 		select {
@@ -247,13 +255,19 @@ func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 	}
 }
 
-func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) {
+func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) error {
 	p.bundleMtx.Lock()
 	defer p.bundleMtx.Unlock()
 
 	if p.bundleVersion == expectedVersion {
-		p.currentBundle = parseBundle(b)
+		currentBundle, err := parseBundle(b)
+		if err != nil {
+			return err
+		}
+		p.currentBundle = currentBundle
 	}
+
+	return nil
 }
 
 func (p *Plugin) getBundle() *plugintypes.Bundle {
@@ -340,23 +354,17 @@ func arePublicKeysEqual(a, b []*plugintypes.JWTKey) bool {
 	return true
 }
 
-func parseBundle(b *types.Bundle) *plugintypes.Bundle {
+func parseBundle(b *types.Bundle) (*plugintypes.Bundle, error) {
 	typesBundle := proto.Clone(b).(*types.Bundle)
 
-	var jwtAuthorities []*plugintypes.JWTKey
-	for _, jwtauthority := range typesBundle.JwtAuthorities {
-		jwtAuthorities = append(jwtAuthorities, &plugintypes.JWTKey{
-			PublicKey: jwtauthority.PublicKey,
-			KeyId:     jwtauthority.KeyId,
-			ExpiresAt: jwtauthority.ExpiresAt,
-		})
+	jwtAuthorities, err := jwtkey.ToPluginFromAPIProtos(b.JwtAuthorities)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "invalid JWT authority: %v", err)
 	}
 
-	var x509Authorities []*plugintypes.X509Certificate
-	for _, x509Authority := range typesBundle.X509Authorities {
-		x509Authorities = append(x509Authorities, &plugintypes.X509Certificate{
-			Asn1: x509Authority.Asn1,
-		})
+	x509Authorities, err := x509certificate.ToPluginFromAPIProtos(typesBundle.X509Authorities)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "invalid X.509 authority: %v", err)
 	}
 
 	return &plugintypes.Bundle{
@@ -365,5 +373,5 @@ func parseBundle(b *types.Bundle) *plugintypes.Bundle {
 		SequenceNumber:  typesBundle.SequenceNumber,
 		JwtAuthorities:  jwtAuthorities,
 		X509Authorities: x509Authorities,
-	}
+	}, nil
 }

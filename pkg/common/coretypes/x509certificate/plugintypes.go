@@ -3,6 +3,7 @@ package x509certificate
 import (
 	"crypto/x509"
 
+	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 )
 
@@ -92,4 +93,34 @@ func RawToPluginProtos(rawX509Certificates [][]byte) ([]*plugintypes.X509Certifi
 		pbs = append(pbs, pb)
 	}
 	return pbs, nil
+}
+
+func ToPluginFromAPIProto(pb *apitypes.X509Certificate) (*plugintypes.X509Certificate, error) {
+	if pb == nil {
+		return nil, nil
+	}
+
+	asn1, err := rawFromProtoFields(pb.Asn1)
+	if err != nil {
+		return nil, err
+	}
+	return &plugintypes.X509Certificate{
+		Asn1: asn1,
+	}, nil
+}
+
+func ToPluginFromAPIProtos(pbs []*apitypes.X509Certificate) ([]*plugintypes.X509Certificate, error) {
+	if pbs == nil {
+		return nil, nil
+	}
+	var x509Authorities []*plugintypes.X509Certificate
+	for _, pb := range pbs {
+		authority, err := ToPluginFromAPIProto(pb)
+		if err != nil {
+			return nil, err
+		}
+		x509Authorities = append(x509Authorities, authority)
+	}
+
+	return x509Authorities, nil
 }
