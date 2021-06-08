@@ -205,6 +205,28 @@ func TestToPluginProtos(t *testing.T) {
 	assertOK(t, nil, nil)
 }
 
+func TestToPluginFromCommonProtos(t *testing.T) {
+	assertOK := func(t *testing.T, in []*common.Certificate, expectOut []*plugintypes.X509Certificate) {
+		actualOut, err := x509certificate.ToPluginFromCommonProtos(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoListEqual(t, expectOut, actualOut)
+		assert.NotPanics(t, func() {
+			spiretest.AssertProtoListEqual(t, expectOut, x509certificate.RequireToPluginFromCommonProtos(in))
+		})
+	}
+
+	assertFail := func(t *testing.T, in []*common.Certificate, expectErr string) {
+		actualOut, err := x509certificate.ToPluginFromCommonProtos(in)
+		spiretest.RequireErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+		assert.Panics(t, func() { x509certificate.RequireToPluginFromCommonProtos(in) })
+	}
+
+	assertOK(t, []*common.Certificate{commonLeaf}, []*plugintypes.X509Certificate{pluginLeaf})
+	assertFail(t, []*common.Certificate{commonEmpty}, "missing X.509 certificate data")
+	assertOK(t, nil, nil)
+}
+
 func TestRawFromCommonProto(t *testing.T) {
 	assertOK := func(t *testing.T, in *common.Certificate, expectOut []byte) {
 		actualOut, err := x509certificate.RawFromCommonProto(in)
