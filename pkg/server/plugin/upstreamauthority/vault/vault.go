@@ -3,8 +3,6 @@ package vault
 import (
 	"context"
 	"crypto/x509"
-	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -14,10 +12,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 const (
@@ -30,65 +29,69 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, upstreamauthorityv0.UpstreamAuthorityPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		upstreamauthorityv1.UpstreamAuthorityPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
-type PluginConfig struct {
+type Configuration struct {
 	// A URL of Vault server. (e.g., https://vault.example.com:8443/)
-	VaultAddr string `hcl:"vault_addr"`
+	VaultAddr string `hcl:"vault_addr" json:"vault_addr"`
 	// Name of the mount point where PKI secret engine is mounted. (e.g., /<mount_point>/ca/pem)
-	PKIMountPoint string `hcl:"pki_mount_point"`
+	PKIMountPoint string `hcl:"pki_mount_point" json:"pki_mount_point"`
 	// Configuration for the Token authentication method
-	TokenAuth *TokenAuthConfig `hcl:"token_auth"`
+	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
 	// Configuration for the Client Certificate authentication method
-	CertAuth *CertAuthConfig `hcl:"cert_auth"`
+	CertAuth *CertAuthConfig `hcl:"cert_auth" json:"cert_auth,omitempty"`
 	// Configuration for the AppRole authentication method
-	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth"`
+	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth" json:"approle_auth,omitempty"`
 	// Path to a CA certificate file that the client verifies the server certificate.
 	// Only PEM format is supported.
-	CACertPath string `hcl:"ca_cert_path"`
+	CACertPath string `hcl:"ca_cert_path" json:"ca_cert_path"`
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
-	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
+	InsecureSkipVerify bool `hcl:"insecure_skip_verify" json:"insecure_skip_verify"`
 	// Name of the Vault namespace
-	Namespace string `hcl:"namespace"`
+	Namespace string `hcl:"namespace" json:"namespace"`
 }
 
 // TokenAuth represents parameters for token auth method
 type TokenAuthConfig struct {
 	// Token string to set into "X-Vault-Token" header
-	Token string `hcl:"token"`
+	Token string `hcl:"token" json:"token"`
 }
 
 // CertAuth represents parameters for cert auth method
 type CertAuthConfig struct {
 	// Name of the mount point where Client Certificate Auth method is mounted. (e.g., /auth/<mount_point>/login)
 	// If the value is empty, use default mount point (/auth/cert)
-	CertAuthMountPoint string `hcl:"cert_auth_mount_point"`
+	CertAuthMountPoint string `hcl:"cert_auth_mount_point" json:"cert_auth_mount_point"`
 	// Name of the Vault role.
 	// If given, the plugin authenticates against only the named role.
-	CertAuthRoleName string `hcl:"cert_auth_role_name"`
+	CertAuthRoleName string `hcl:"cert_auth_role_name" json:"cert_auth_role_name"`
 	// Path to a client certificate file.
 	// Only PEM format is supported.
-	ClientCertPath string `hcl:"client_cert_path"`
+	ClientCertPath string `hcl:"client_cert_path" json:"client_cert_path"`
 	// Path to a client private key file.
 	// Only PEM format is supported.
-	ClientKeyPath string `hcl:"client_key_path"`
+	ClientKeyPath string `hcl:"client_key_path" json:"client_key_path"`
 }
 
 // AppRoleAuth represents parameters for AppRole auth method.
 type AppRoleAuthConfig struct {
 	// Name of the mount point where AppRole auth method is mounted. (e.g., /auth/<mount_point>/login)
 	// If the value is empty, use default mount point (/auth/approle)
-	AppRoleMountPoint string `hcl:"approle_auth_mount_point"`
+	AppRoleMountPoint string `hcl:"approle_auth_mount_point" json:"approle_auth_mount_point"`
 	// An identifier that selects the AppRole
-	RoleID string `hcl:"approle_id"`
+	RoleID string `hcl:"approle_id" json:"approle_id"`
 	// A credential that is required for login.
-	SecretID string `hcl:"approle_secret_id"`
+	SecretID string `hcl:"approle_secret_id" json:"approle_secret_id"`
 }
 
 type Plugin struct {
-	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
+	configv1.UnsafeConfigServer
 
 	mtx    *sync.RWMutex
 	logger hclog.Logger
@@ -97,22 +100,31 @@ type Plugin struct {
 	cc         *ClientConfig
 	vc         *Client
 	reuseToken bool
+
+	hooks struct {
+		lookupEnv func(string) (string, bool)
+	}
 }
 
 func New() *Plugin {
-	return &Plugin{
+	p := &Plugin{
 		mtx: &sync.RWMutex{},
 	}
+
+	p.hooks.lookupEnv = os.LookupEnv
+
+	return p
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.logger = log
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config := new(PluginConfig)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, fmt.Errorf("failed to decode configuration file: %w", err)
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	config := new(Configuration)
+
+	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	p.mtx.Lock()
@@ -122,7 +134,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	if err != nil {
 		return nil, err
 	}
-	cp := genClientParams(am, config)
+	cp := p.genClientParams(am, config)
 	vcConfig, err := NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
@@ -131,12 +143,12 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	p.authMethod = am
 	p.cc = vcConfig
 
-	return &spi.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	if p.cc == nil {
-		return errors.New("plugin not configured")
+		return status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
 
 	// reuseToken=false means that the token cannot be renewed and may expire,
@@ -144,7 +156,7 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 	if p.vc == nil || !p.reuseToken {
 		vc, reusable, err := p.cc.NewAuthenticatedClient(p.authMethod)
 		if err != nil {
-			return fmt.Errorf("failed to prepare authenticated client: %w", err)
+			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 		}
 		p.vc = vc
 		p.reuseToken = reusable
@@ -157,26 +169,20 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 		ttl = strconv.Itoa(int(req.PreferredTtl))
 	}
 
-	csr, err := x509.ParseCertificateRequest(req.GetCsr())
+	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		return fmt.Errorf("failed to parse CSR data: %w", err)
+		return status.Errorf(codes.InvalidArgument, "failed to parse CSR data: %v", err)
 	}
 
 	signResp, err := p.vc.SignIntermediate(ttl, csr)
 	if err != nil {
-		return fmt.Errorf("failed to request signing the intermediate certificate: %w", err)
+		return err
 	}
 	if signResp == nil {
-		return errors.New("unexpected empty response from UpstreamAuthority")
+		return status.Error(codes.Internal, "unexpected empty response from UpstreamAuthority")
 	}
 
-	// Parse PEM format data to get DER format data
-	certificate, err := pemutil.ParseCertificate([]byte(signResp.CertPEM))
-	if err != nil {
-		return fmt.Errorf("failed to parse certificate: %w", err)
-	}
-	certChain := [][]byte{certificate.Raw}
-
+	// Parse CACert in PEM format
 	var upstreamRootPEM string
 	if len(signResp.CACertChainPEM) == 0 {
 		upstreamRootPEM = signResp.CACertPEM
@@ -185,10 +191,20 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 	}
 	upstreamRoot, err := pemutil.ParseCertificate([]byte(upstreamRootPEM))
 	if err != nil {
-		return fmt.Errorf("failed to parse Root CA certificate: %w", err)
+		return status.Errorf(codes.Internal, "failed to parse Root CA certificate: %v", err)
 	}
-	bundles := [][]byte{upstreamRoot.Raw}
 
+	upstreamX509Roots, err := x509certificate.ToPluginProtos([]*x509.Certificate{upstreamRoot})
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
+	}
+
+	// Parse PEM format data to get DER format data
+	certificate, err := pemutil.ParseCertificate([]byte(signResp.CertPEM))
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to parse certificate: %v", err)
+	}
+	certChain := []*x509.Certificate{certificate}
 	for _, c := range signResp.CACertChainPEM {
 		if c == upstreamRootPEM {
 			continue
@@ -196,31 +212,61 @@ func (p *Plugin) MintX509CA(req *upstreamauthorityv0.MintX509CARequest, stream u
 
 		b, err := pemutil.ParseCertificate([]byte(c))
 		if err != nil {
-			return fmt.Errorf("failed to parse upstream bundle certificates: %w", err)
+			return status.Errorf(codes.Internal, "failed to parse upstream bundle certificates: %v", err)
 		}
-		certChain = append(certChain, b.Raw)
+		certChain = append(certChain, b)
 	}
 
-	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
-		X509CaChain:       certChain,
-		UpstreamX509Roots: bundles,
+	x509CAChain, err := x509certificate.ToPluginProtos(certChain)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
+	}
+
+	return stream.Send(&upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509CAChain,
+		UpstreamX509Roots: upstreamX509Roots,
 	})
 }
 
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (*Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
-	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
+func (*Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "vault: "+format, args...)
+func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) *ClientParams {
+	cp := &ClientParams{
+		VaultAddr:     p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
+		CACertPath:    p.getEnvOrDefault(envVaultCACert, config.CACertPath),
+		PKIMountPoint: config.PKIMountPoint,
+		TLSSKipVerify: config.InsecureSkipVerify,
+		Namespace:     p.getEnvOrDefault(envVaultNamespace, config.Namespace),
+	}
+
+	switch method {
+	case TOKEN:
+		cp.Token = p.getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
+	case CERT:
+		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
+		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
+		cp.ClientCertPath = p.getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
+		cp.ClientKeyPath = p.getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
+	case APPROLE:
+		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
+		cp.AppRoleID = p.getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
+		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
+	}
+
+	return cp
 }
 
-func parseAuthMethod(config *PluginConfig) (AuthMethod, error) {
+func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
+	if value, ok := p.hooks.lookupEnv(envKey); ok {
+		return value
+	}
+	return fallback
+}
+
+func parseAuthMethod(config *Configuration) (AuthMethod, error) {
 	var authMethod AuthMethod
 	if config.TokenAuth != nil {
 		authMethod = TOKEN
@@ -242,45 +288,12 @@ func parseAuthMethod(config *PluginConfig) (AuthMethod, error) {
 		return authMethod, nil
 	}
 
-	return 0, errors.New("must be configured one of these authentication method 'Token or Cert or AppRole'")
+	return 0, status.Error(codes.InvalidArgument, "must be configured one of these authentication method 'Token or Cert or AppRole'")
 }
 
 func checkForAuthMethodConfigured(authMethod AuthMethod) error {
 	if authMethod != 0 {
-		return errors.New("only one authentication method can be configured")
+		return status.Error(codes.InvalidArgument, "only one authentication method can be configured")
 	}
 	return nil
-}
-
-func genClientParams(method AuthMethod, config *PluginConfig) *ClientParams {
-	cp := &ClientParams{
-		VaultAddr:     getEnvOrDefault(envVaultAddr, config.VaultAddr),
-		CACertPath:    getEnvOrDefault(envVaultCACert, config.CACertPath),
-		PKIMountPoint: config.PKIMountPoint,
-		TLSSKipVerify: config.InsecureSkipVerify,
-		Namespace:     getEnvOrDefault(envVaultNamespace, config.Namespace),
-	}
-
-	switch method {
-	case TOKEN:
-		cp.Token = getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
-	case CERT:
-		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
-		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
-		cp.ClientCertPath = getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
-		cp.ClientKeyPath = getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
-	case APPROLE:
-		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
-		cp.AppRoleID = getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
-		cp.AppRoleSecretID = getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
-	}
-
-	return cp
-}
-
-func getEnvOrDefault(envKey, fallback string) string {
-	if value, ok := os.LookupEnv(envKey); ok {
-		return value
-	}
-	return fallback
 }
