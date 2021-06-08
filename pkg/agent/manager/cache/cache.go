@@ -504,11 +504,7 @@ func (c *Cache) selectorsDifferent(existingEntry, newEntry *common.RegistrationE
 		}
 	}
 
-	if len(set) == 0 {
-		return false
-	}
-
-	return true
+	return len(set) != 0
 }
 func (c *Cache) diffFederatesWith(existingEntry, newEntry *common.RegistrationEntry, added, removed stringSet) {
 	// Make a set of all the selectors being added
