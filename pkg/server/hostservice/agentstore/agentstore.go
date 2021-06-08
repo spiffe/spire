@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

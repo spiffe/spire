@@ -1,4 +1,4 @@
-package sql
+package sqlstore
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -43,7 +43,7 @@ const (
 	SQLite = "sqlite3"
 )
 
-// Configuration for the datastore.
+// Configuration for the sql datastore implementation.
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
 	DatabaseType       string  `hcl:"database_type" json:"database_type"`
@@ -986,7 +986,11 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 			return resp, nil
 		}
 
-		resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
+		switch req.BySelectorMatch.Match {
+		case datastore.Exact, datastore.Subset:
+			resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
+		default:
+		}
 
 		// Now that we've filtered the nodes based on selectors, prune off
 		// selectors from the response if they were not requested.
@@ -1239,7 +1243,7 @@ SELECT
 		query := "SELECT id FROM filtered_nodes_and_selectors WHERE selector_type = ? AND selector_value = ?"
 
 		switch req.BySelectorMatch.Match {
-		case datastore.Subset:
+		case datastore.Subset, datastore.MatchAny:
 			// Subset needs a union, so we need to group them and add the group
 			// as a child to the root
 			for i := range req.BySelectorMatch.Selectors {
@@ -1249,7 +1253,7 @@ SELECT
 					builder.WriteString("\n\t\tUNION\n")
 				}
 			}
-		case datastore.Exact:
+		case datastore.Exact, datastore.Superset:
 			for i := range req.BySelectorMatch.Selectors {
 				switch dbType {
 				// MySQL does not support INTERSECT, so use INNER JOIN instead
@@ -1300,7 +1304,7 @@ SELECT
 
 	if dbType == PostgreSQL ||
 		(req.BySelectorMatch != nil &&
-			(req.BySelectorMatch.Match == datastore.Subset || len(req.BySelectorMatch.Selectors) == 1)) {
+			(req.BySelectorMatch.Match == datastore.Subset || req.BySelectorMatch.Match == datastore.MatchAny || len(req.BySelectorMatch.Selectors) == 1)) {
 		builder.WriteString(" AS result_nodes")
 	}
 
@@ -1414,7 +1418,7 @@ FROM attested_node_entries N
 			query := "SELECT spiffe_id FROM node_resolver_map_entries WHERE type = ? AND value = ?"
 
 			switch req.BySelectorMatch.Match {
-			case datastore.Subset:
+			case datastore.Subset, datastore.MatchAny:
 				builder.WriteString("\t\t\tINNER JOIN\n")
 				builder.WriteString("\t\t\t(SELECT spiffe_id FROM (\n")
 
@@ -1430,7 +1434,7 @@ FROM attested_node_entries N
 
 				builder.WriteString("\t\t\t) s_1) c_2\n")
 				builder.WriteString("\t\t\tUSING(spiffe_id)\n")
-			case datastore.Exact:
+			case datastore.Exact, datastore.Superset:
 				for i := range req.BySelectorMatch.Selectors {
 					builder.WriteString("\t\t\tINNER JOIN\n")
 					builder.WriteString("\t\t\t(")
@@ -2001,7 +2005,12 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 			return resp, nil
 		}
 
-		resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
+		switch req.BySelectors.Match {
+		case datastore.Exact, datastore.Subset:
+			resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
+		default:
+		}
+
 		if len(resp.Entries) > 0 || resp.Pagination == nil || len(resp.Pagination.Token) == 0 {
 			return resp, nil
 		}
@@ -2581,7 +2590,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
 		switch req.BySelectors.Match {
-		case datastore.Subset:
+		case datastore.Subset, datastore.MatchAny:
 			// subset needs a union, so we need to group them and add the group
 			// as a child to the root.
 			if len(req.BySelectors.Selectors) < 2 {
@@ -2602,7 +2611,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 				}
 				root.children = append(root.children, group)
 			}
-		case datastore.Exact:
+		case datastore.Exact, datastore.Superset:
 			// exact match does uses an intersection, so we can just add these
 			// directly to the root idFilterNode, since it is already an intersection
 			for range req.BySelectors.Selectors {
@@ -2641,17 +2650,20 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		filterNode.query = append(filterNode.query, "INNER JOIN bundles B ON B.id = FE.bundle_id")
 		filterNode.query = append(filterNode.query, "GROUP BY E.id")
 		filterNode.query = append(filterNode.query, "HAVING")
+
 		sliceArg := buildSliceArg(len(trustDomains))
-		filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain NOT IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = 0 AND")
-		for _, td := range trustDomains {
-			args = append(args, td)
+		addIsSubset := func() {
+			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain NOT IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = 0 AND")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
 		}
 
 		switch req.ByFederatesWith.Match {
 		case datastore.Subset:
 			// Subset federates-with matching requires filtering out all registration
 			// entries that don't federate with even one trust domain in the request
-			sliceArg := buildSliceArg(len(trustDomains))
+			addIsSubset()
 			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
 			for _, td := range trustDomains {
 				args = append(args, td)
@@ -2659,12 +2671,28 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		case datastore.Exact:
 			// Exact federates-with matching requires filtering out all registration
 			// entries that don't federate with all the trust domains in the request
-			sliceArg := buildSliceArg(len(trustDomains))
+			addIsSubset()
 			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
 			for _, td := range trustDomains {
 				args = append(args, td)
 			}
 			args = append(args, len(trustDomains))
+		case datastore.MatchAny:
+			// MatchAny federates-with matching requires filtering out all registration
+			// entries that has at least one trust domain in the request
+			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+		case datastore.Superset:
+			// SuperSet federates-with matching requires filtering out all registration
+			// entries has all trustdomains
+			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+			args = append(args, len(trustDomains))
+
 		default:
 			return false, nil, errs.New("unhandled federates with match behavior %q", req.ByFederatesWith.Match)
 		}

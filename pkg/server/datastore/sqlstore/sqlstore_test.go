@@ -1,4 +1,4 @@
-package sql
+package sqlstore
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
@@ -750,7 +750,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectPagedTokensIn: []string{"", "1", "2", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeF}, {}},
 		},
-		// By exact selector match
+		// By exact selector exact
 		{
 			test:                "by selector exact",
 			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
@@ -766,6 +766,40 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectNodesOut:      []*common.AttestedNode{nodeF},
 			expectPagedTokensIn: []string{"", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeF}, {}},
+		},
+		// By exact selector match any
+		{
+			test:                "by selector match any",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.MatchAny, "S1"),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeE, nodeF},
+			expectPagedTokensIn: []string{"", "1", "2", "5", "6"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeE}, {nodeF}, {}},
+		},
+		{
+			test:                "by selectors match any",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.MatchAny, "S1", "S3"),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeE, nodeF, nodeG, nodeH},
+			expectPagedTokensIn: []string{"", "1", "2", "5", "6", "7", "8"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeE}, {nodeF}, {nodeG}, {nodeH}, {}},
+		},
+		// By exact selector superset
+		{
+			test:                "by selector superset",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.Superset, "S1"),
+			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeE, nodeF},
+			expectPagedTokensIn: []string{"", "1", "2", "5", "6"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeE}, {nodeF}, {}},
+		},
+		{
+			test:                "by selectors superset",
+			nodes:               []*common.AttestedNode{nodeA, nodeB, nodeC, nodeD, nodeE, nodeF, nodeG, nodeH},
+			bySelectors:         bySelectors(datastore.Superset, "S1", "S2"),
+			expectNodesOut:      []*common.AttestedNode{nodeE},
+			expectPagedTokensIn: []string{"", "5"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {}},
 		},
 		// By attestation type and selector subset. This is to exercise some
 		// of the logic that combines these parts of the queries together to
@@ -1398,6 +1432,8 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
 	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
 	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
+	bazbarAD3 := makeEntry("baz", "bar", "A", "D")
+	bazbarAD3.FederatesWith = []string{"spiffe://federated3.test"}
 
 	bazbuzAB12 := makeEntry("baz", "buz", "A", "B")
 	bazbuzAB12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
@@ -1499,6 +1535,38 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedTokensIn:   []string{"", "2", "4"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {}},
 		},
+		{
+			test:                  "by federatesWith one match any",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCD12},
+			expectPagedTokensIn:   []string{"", "1", "2", "4"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCD12}, {}},
+		},
+		{
+			test:                  "by federatesWith many match any",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12},
+			expectPagedTokensIn:   []string{"", "1", "2", "3", "4"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCB2}, {foobarCD12}, {}},
+		},
+		{
+			test:                  "by federatesWith one superset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCD12},
+			expectPagedTokensIn:   []string{"", "1", "2", "4"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCD12}, {}},
+		},
+		{
+			test:                  "by federatesWith many superset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX},
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12, foobarCD12},
+			expectPagedTokensIn:   []string{"", "2", "4"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {}},
+		},
 		// by parent ID and spiffe ID
 		{
 			test:                  "by parent ID and SPIFFE ID",
@@ -1555,6 +1623,61 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
+		{
+			test:                  "by parent ID and match any selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbuzB, bazbuzAB12},
+			byParentID:            makeID("foo"),
+			bySelectors:           bySelectors(datastore.MatchAny, "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
+			expectPagedTokensIn:   []string{"", "1", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {}},
+		},
+		{
+			test:                  "by parent ID and match any selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbarCB2, bazbuzCD},
+			byParentID:            makeID("foo"),
+			bySelectors:           bySelectors(datastore.MatchAny, "A", "C", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCD12},
+			expectPagedTokensIn:   []string{"", "2", "3"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCD12}, {}},
+		},
+		{
+			test:                  "by parent ID and match any selectors no match",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			byParentID:            makeID("foo"),
+			bySelectors:           bySelectors(datastore.MatchAny, "D", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+
+		{
+			test:                  "by parent ID and superset selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbuzB, bazbuzAB12},
+			byParentID:            makeID("foo"),
+			bySelectors:           bySelectors(datastore.Superset, "A"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by parent ID and superset selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, foobarCD12, bazbarCB2, bazbuzCD},
+			byParentID:            makeID("foo"),
+			bySelectors:           bySelectors(datastore.Superset, "A", "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by parent ID and superset selectors no match",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			byParentID:            makeID("foo"),
+			bySelectors:           bySelectors(datastore.Superset, "A", "B", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
 		// by parent ID and federates with
 		{
 			test:                  "by parentID and federatesWith one subset",
@@ -1588,6 +1711,42 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Exact, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith one match any",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			byParentID:            makeID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "6", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith many match any",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			byParentID:            makeID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "6", "7", "8", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {bazbarAD12}, {bazbarCB2}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith one superset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			byParentID:            makeID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "6", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAB1}, {bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by parentID and federatesWith many superset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			byParentID:            makeID("baz"),
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
 			expectPagedTokensIn:   []string{"", "7", "9"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{bazbarAD12}, {bazbarCD12}, {}},
@@ -1638,6 +1797,60 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
+		{
+			test:                  "by SPIFFE ID and match any selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			bySelectors:           bySelectors(datastore.MatchAny, "A"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and match any selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			bySpiffeID:            makeID("bar"),
+			bySelectors:           bySelectors(datastore.MatchAny, "A", "B", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2},
+			expectPagedTokensIn:   []string{"", "1", "2", "3"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {bazbarCB2}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and match any selectors no match",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			bySpiffeID:            makeID("bar"),
+			bySelectors:           bySelectors(datastore.MatchAny, "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		{
+			test:                  "by SPIFFE ID and superset selector",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbuzB, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			bySelectors:           bySelectors(datastore.Superset, "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarB, foobarAB1},
+			expectPagedTokensIn:   []string{"", "1", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarB}, {foobarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and superset selectors",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			bySpiffeID:            makeID("bar"),
+			bySelectors:           bySelectors(datastore.Superset, "A", "B"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1},
+			expectPagedTokensIn:   []string{"", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and superset selectors no match",
+			entries:               []*common.RegistrationEntry{foobarB, foobarAB1, bazbarCB2, bazbuzCD},
+			bySpiffeID:            makeID("bar"),
+			bySelectors:           bySelectors(datastore.Superset, "A", "B", "Z"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
 		// by spiffe ID and federates with
 		{
 			test:                  "by SPIFFE ID and federatesWith one subset",
@@ -1676,10 +1889,64 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {bazbarAD12}, {bazbarCD12}, {}},
 		},
 		{
-			test:                  "by SPIFFE ID and federatesWith no results",
+			test:                  "by SPIFFE ID and federatesWith subset no results",
 			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
 			bySpiffeID:            makeID("buz"),
 			byFederatesWith:       byFederatesWith(datastore.Subset, "spiffe://federated2.test", "spiffe://federated3.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith match any",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCD12, bazbarAB1, bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "1", "2", "4", "6", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCD12}, {bazbarAB1}, {bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith many match any",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "1", "2", "3", "4", "6", "7", "8", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCB2}, {foobarCD12}, {bazbarAB1}, {bazbarAD12}, {bazbarCB2}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith match any no results",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("buz"),
+			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated3.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith superset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCD12, bazbarAB1, bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "1", "2", "4", "6", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarAD12}, {foobarCD12}, {bazbarAB1}, {bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith many superset",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("bar"),
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test", "spiffe://federated2.test"),
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAD12, foobarCD12, bazbarAD12, bazbarCD12},
+			expectPagedTokensIn:   []string{"", "2", "4", "7", "9"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {foobarCD12}, {bazbarAD12}, {bazbarCD12}, {}},
+		},
+		{
+			test:                  "by SPIFFE ID and federatesWith superset no results",
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, foobuzAD1, bazbuzAB12},
+			bySpiffeID:            makeID("buz"),
+			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated2.test", "spiffe://federated3.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{},
 			expectPagedTokensIn:   []string{""},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
@@ -1713,6 +1980,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 
 				s.createBundle("spiffe://federated1.test")
 				s.createBundle("spiffe://federated2.test")
+				s.createBundle("spiffe://federated3.test")
 
 				// Create entries for the test. For convenience, map the actual
 				// entry ID to the "test" entry ID, so we can easily pinpoint
@@ -2179,6 +2447,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
+			defer ds.closeDB()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2233,6 +2502,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
+			defer ds.closeDB()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2249,6 +2519,405 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
 			s.RequireProtoListEqual(test.expectedList, result.Entries)
+		})
+	}
+}
+
+func (s *PluginSuite) TestListSelectorEntriesSuperset() {
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	tests := []struct {
+		name                string
+		registrationEntries []*common.RegistrationEntry
+		selectors           []*common.Selector
+		expectedList        []*common.RegistrationEntry
+	}{
+		{
+			name:                "entries_by_selector_found",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "a", Value: "1"},
+				{Type: "c", Value: "3"},
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[3],
+			},
+		},
+		{
+			name:                "entries_by_selector_not_found",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "e", Value: "0"},
+			},
+			expectedList: nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.closeDB()
+			for _, entry := range test.registrationEntries {
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
+				require.NoError(t, err)
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
+			}
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: &datastore.BySelectors{
+					Selectors: test.selectors,
+					Match:     datastore.Superset,
+				},
+			})
+			require.NoError(t, err)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
+		})
+	}
+}
+
+func (s *PluginSuite) TestListEntriesBySelectorMatchAny() {
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	tests := []struct {
+		name                string
+		registrationEntries []*common.RegistrationEntry
+		selectors           []*common.Selector
+		expectedList        []*common.RegistrationEntry
+	}{
+		{
+			name:                "multiple selectors",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "c", Value: "3"},
+				{Type: "d", Value: "4"},
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[2],
+				allEntries[3],
+				allEntries[4],
+			},
+		},
+		{
+			name:                "single selector",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "d", Value: "4"},
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[3],
+				allEntries[4],
+			},
+		},
+		{
+			name:                "no match",
+			registrationEntries: allEntries,
+			selectors: []*common.Selector{
+				{Type: "e", Value: "5"},
+			},
+			expectedList: nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.closeDB()
+			for _, entry := range test.registrationEntries {
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
+				require.NoError(t, err)
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
+			}
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				BySelectors: &datastore.BySelectors{
+					Selectors: test.selectors,
+					Match:     datastore.MatchAny,
+				},
+			})
+			require.NoError(t, err)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
+			s.RequireProtoListEqual(test.expectedList, result.Entries)
+		})
+	}
+}
+
+func (s *PluginSuite) TestListEntriesByFederatesWithExact() {
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	tests := []struct {
+		name                string
+		registrationEntries []*common.RegistrationEntry
+		trustDomains        []string
+		expectedList        []*common.RegistrationEntry
+	}{
+		{
+			name:                "multiple selectors",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+				"spiffe://td3.org",
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+			},
+		},
+		{
+			name:                "with a subset",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[1],
+			},
+		},
+		{
+			name:                "no match",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td1.org",
+			},
+			expectedList: nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.closeDB()
+			createBundles(t, ds, []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+				"spiffe://td3.org",
+				"spiffe://td4.org",
+			})
+
+			for _, entry := range test.registrationEntries {
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
+				require.NoError(t, err)
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
+			}
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				ByFederatesWith: &datastore.ByFederatesWith{
+					TrustDomains: test.trustDomains,
+					Match:        datastore.Exact,
+				},
+			})
+			require.NoError(t, err)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
+		})
+	}
+}
+
+func (s *PluginSuite) TestListEntriesByFederatesWithSubset() {
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	tests := []struct {
+		name                string
+		registrationEntries []*common.RegistrationEntry
+		trustDomains        []string
+		expectedList        []*common.RegistrationEntry
+	}{
+		{
+			name:                "multiple selectors",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+				"spiffe://td3.org",
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[1],
+				allEntries[2],
+			},
+		},
+		{
+			name:                "no match",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td4.org",
+			},
+			expectedList: nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.closeDB()
+			createBundles(t, ds, []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+				"spiffe://td3.org",
+				"spiffe://td4.org",
+			})
+
+			for _, entry := range test.registrationEntries {
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
+				require.NoError(t, err)
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
+			}
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				ByFederatesWith: &datastore.ByFederatesWith{
+					TrustDomains: test.trustDomains,
+					Match:        datastore.Subset,
+				},
+			})
+			require.NoError(t, err)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
+		})
+	}
+}
+
+func (s *PluginSuite) TestListEntriesByFederatesWithMatchAny() {
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	tests := []struct {
+		name                string
+		registrationEntries []*common.RegistrationEntry
+		trustDomains        []string
+		expectedList        []*common.RegistrationEntry
+	}{
+		{
+			name:                "multiple selectors",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td3.org",
+				"spiffe://td4.org",
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[2],
+				allEntries[3],
+				allEntries[4],
+			},
+		},
+		{
+			name:                "single selector",
+			registrationEntries: allEntries,
+			trustDomains:        []string{"spiffe://td4.org"},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[3],
+				allEntries[4],
+			},
+		},
+		{
+			name:                "no match",
+			registrationEntries: allEntries,
+			trustDomains:        []string{"spiffe://td5.org"},
+			expectedList:        nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.closeDB()
+			createBundles(t, ds, []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+				"spiffe://td3.org",
+				"spiffe://td4.org",
+			})
+
+			for _, entry := range test.registrationEntries {
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
+				require.NoError(t, err)
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
+			}
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				ByFederatesWith: &datastore.ByFederatesWith{
+					TrustDomains: test.trustDomains,
+					Match:        datastore.MatchAny,
+				},
+			})
+			require.NoError(t, err)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
+		})
+	}
+}
+
+func (s *PluginSuite) TestListEntriesByFederatesWithSuperset() {
+	allEntries := make([]*common.RegistrationEntry, 0)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	tests := []struct {
+		name                string
+		registrationEntries []*common.RegistrationEntry
+		trustDomains        []string
+		expectedList        []*common.RegistrationEntry
+	}{
+		{
+			name:                "multiple selectors",
+			registrationEntries: allEntries,
+			trustDomains: []string{
+				"spiffe://td1.org",
+				"spiffe://td3.org",
+			},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[3],
+			},
+		},
+		{
+			name:                "single selector",
+			registrationEntries: allEntries,
+			trustDomains:        []string{"spiffe://td3.org"},
+			expectedList: []*common.RegistrationEntry{
+				allEntries[0],
+				allEntries[2],
+				allEntries[3],
+			},
+		},
+		{
+			name:                "no match",
+			registrationEntries: allEntries,
+			trustDomains:        []string{"spiffe://td5.org"},
+			expectedList:        nil,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.closeDB()
+			createBundles(t, ds, []string{
+				"spiffe://td1.org",
+				"spiffe://td2.org",
+				"spiffe://td3.org",
+				"spiffe://td4.org",
+			})
+
+			for _, entry := range test.registrationEntries {
+				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
+				require.NoError(t, err)
+				require.NotNil(t, registrationEntry)
+				entry.EntryId = registrationEntry.EntryId
+			}
+			result, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+				ByFederatesWith: &datastore.ByFederatesWith{
+					TrustDomains: test.trustDomains,
+					Match:        datastore.Superset,
+				},
+			})
+			require.NoError(t, err)
+			util.SortRegistrationEntries(test.expectedList)
+			util.SortRegistrationEntries(result.Entries)
+			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
@@ -2897,4 +3566,18 @@ func bySelectors(match datastore.MatchBehavior, ss ...string) *datastore.BySelec
 
 func makeID(suffix string) string {
 	return "spiffe://example.org/" + suffix
+}
+
+func createBundles(t *testing.T, ds *Plugin, trustDomains []string) {
+	for _, td := range trustDomains {
+		_, err := ds.CreateBundle(ctx, &common.Bundle{
+			TrustDomainId: td,
+			RootCas: []*common.Certificate{
+				{
+					DerBytes: []byte{1},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
 }

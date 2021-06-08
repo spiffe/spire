@@ -50,6 +50,14 @@ const (
 	// (agent)
 	GenerateKeyPair = "generate_key_pair"
 
+	// GetKey related to getting a key in the KeyManager plugin interface
+	// (agent)
+	GetKey = "get_key"
+
+	// GetKeys related to getting keys in the KeyManager plugin interface
+	// (agent)
+	GetKeys = "get_keys"
+
 	// GetPublicKey related to getting a key in the KeyManager plugin interface
 	// (server)
 	GetPublicKey = "get_public_key"

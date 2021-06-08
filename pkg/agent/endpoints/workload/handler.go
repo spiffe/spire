@@ -65,13 +65,20 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
 
+	if req.SpiffeId != "" {
+		if _, err := spiffeid.FromString(req.SpiffeId); err != nil {
+			log.WithField(telemetry.SPIFFEID, req.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+	}
+
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
 		return nil, err
 	}
 
-	var spiffeIDs []string
+	var spiffeIDs []spiffeid.ID
 	identities := h.c.Manager.MatchingIdentities(selectors)
 	if len(identities) == 0 {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
@@ -84,28 +91,28 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
 			continue
 		}
-		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
-	}
 
-	resp = new(workload.JWTSVIDResponse)
-	for _, spiffeID := range spiffeIDs {
-		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
-
-		var svid *client.JWTSVID
-
-		id, err := spiffeid.FromString(spiffeID)
+		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
 		if err != nil {
-			log.WithError(err).Errorf("Invalid requested SPIFFE ID: %s", spiffeID)
+			log.WithField(telemetry.SPIFFEID, identity.Entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 		}
 
+		spiffeIDs = append(spiffeIDs, spiffeID)
+	}
+
+	resp = new(workload.JWTSVIDResponse)
+	for _, id := range spiffeIDs {
+		loopLog := log.WithField(telemetry.SPIFFEID, id.String())
+
+		var svid *client.JWTSVID
 		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
 		if err != nil {
-			log.WithError(err).Error("Could not fetch JWT-SVID")
+			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
-			SpiffeId: spiffeID,
+			SpiffeId: id.String(),
 			Svid:     svid.Token,
 		})
 
