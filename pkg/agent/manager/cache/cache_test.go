@@ -644,7 +644,6 @@ func TestSubscriberNotNotifiedOnOverlappingSVIDChanges(t *testing.T) {
 	assertNoWorkloadUpdate(t, sub)
 }
 
-
 func BenchmarkCacheGlobalNotification(b *testing.B) {
 	cache := newTestCache()
 

@@ -125,7 +125,7 @@ func (set selectorSet) In(ss ...*common.Selector) bool {
 }
 
 func (set selectorSet) SuperSetOf(other selectorSet) bool {
-	for k, _ := range other {
+	for k := range other {
 		if _, ok := set[k]; !ok {
 			return false
 		}

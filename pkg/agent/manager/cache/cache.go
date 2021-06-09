@@ -280,10 +280,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			clearSelectorSet(selRem)
 			selRem.Merge(record.entry.Selectors...)
 			c.delSelectorIndicesRecord(selRem, record)
-			notifySet, selSetDone := allocSelectorSet()
-			defer selSetDone()
-			notifySet.MergeSet(selRem)
-			notifySets = append(notifySets, notifySet)
+			notifySets = append(notifySets, selRem)
 			delete(c.records, id)
 			// Remove stale entry since, registration entry is no longer on cache.
 			delete(c.staleEntries, id)
@@ -421,7 +418,6 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 		c.notifyBySelectorSet(notifySet)
 		clearSelectorSet(notifySet)
 	}
-
 }
 
 // GetStaleEntries obtains a list of stale entries
@@ -589,21 +585,7 @@ func (c *Cache) notifyAll() {
 	}
 }
 
-func (c *Cache) notifyBySelectors(set selectorSet) {
-	c.log.WithFields(logrus.Fields{
-		"set": set,
-	}).Debug("notifyBySelectors")
-	subs, subsDone := c.getSubscribers(set)
-	defer subsDone()
-	for sub := range subs {
-		c.notify(sub)
-	}
-}
-
 func (c *Cache) notifyBySelectorSet(set selectorSet) {
-	c.log.WithFields(logrus.Fields{
-		"set": set,
-	}).Debug("notifyBySelectorSet")
 	subs, subsDone := c.getSubscribers(set)
 	defer subsDone()
 	for sub := range subs {
