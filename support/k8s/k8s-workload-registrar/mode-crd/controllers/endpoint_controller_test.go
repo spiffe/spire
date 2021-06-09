@@ -78,7 +78,7 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 	err := s.k8sClient.Create(s.ctx, &pod)
 	s.Require().NoError(err)
 
-	_, err = p.Reconcile(s.ctx, ctrl.Request{
+	_, err = p.Reconcile(ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "test-endpoint",
 			Namespace: "default",
@@ -105,7 +105,7 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 	err = s.k8sClient.Create(s.ctx, &endpoints)
 	s.Require().NoError(err)
 
-	_, err = e.Reconcile(s.ctx, ctrl.Request{
+	_, err = e.Reconcile(ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "test-endpoint",
 			Namespace: "default",

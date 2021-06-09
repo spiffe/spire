@@ -62,7 +62,7 @@ func (e *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile steps through the endpoints for each service and adds the name of the service as
 // a DNS name to the SPIFFE ID CRD
-func (e *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (e *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if containsString(e.c.DisabledNamespaces, req.NamespacedName.Namespace) {
 		return ctrl.Result{}, nil
 	}

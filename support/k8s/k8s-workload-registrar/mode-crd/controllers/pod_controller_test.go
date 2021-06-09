@@ -150,9 +150,9 @@ func (s *PodControllerTestSuite) reconcile(p *PodReconciler) {
 		},
 	}
 
-	_, err := p.Reconcile(s.ctx, req)
+	_, err := p.Reconcile(req)
 	s.Require().NoError(err)
 
-	_, err = s.r.Reconcile(s.ctx, req)
+	_, err = s.r.Reconcile(req)
 	s.Require().NoError(err)
 }

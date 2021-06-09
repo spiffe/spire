@@ -6,36 +6,35 @@ package mock_client
 
 import (
 	context "context"
-	reflect "reflect"
-
 	gomock "github.com/golang/mock/gomock"
 	client "github.com/spiffe/spire/pkg/agent/client"
+	reflect "reflect"
 )
 
-// MockClient is a mock of Client interface.
+// MockClient is a mock of Client interface
 type MockClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockClientMockRecorder
 }
 
-// MockClientMockRecorder is the mock recorder for MockClient.
+// MockClientMockRecorder is the mock recorder for MockClient
 type MockClientMockRecorder struct {
 	mock *MockClient
 }
 
-// NewMockClient creates a new mock instance.
+// NewMockClient creates a new mock instance
 func NewMockClient(ctrl *gomock.Controller) *MockClient {
 	mock := &MockClient{ctrl: ctrl}
 	mock.recorder = &MockClientMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use.
+// EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// FetchUpdates mocks base method.
+// FetchUpdates mocks base method
 func (m *MockClient) FetchUpdates(arg0 context.Context) (*client.Update, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchUpdates", arg0)
@@ -44,13 +43,13 @@ func (m *MockClient) FetchUpdates(arg0 context.Context) (*client.Update, error) 
 	return ret0, ret1
 }
 
-// FetchUpdates indicates an expected call of FetchUpdates.
+// FetchUpdates indicates an expected call of FetchUpdates
 func (mr *MockClientMockRecorder) FetchUpdates(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchUpdates", reflect.TypeOf((*MockClient)(nil).FetchUpdates), arg0)
 }
 
-// NewJWTSVID mocks base method.
+// NewJWTSVID mocks base method
 func (m *MockClient) NewJWTSVID(arg0 context.Context, arg1 string, arg2 []string) (*client.JWTSVID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewJWTSVID", arg0, arg1, arg2)
@@ -59,13 +58,13 @@ func (m *MockClient) NewJWTSVID(arg0 context.Context, arg1 string, arg2 []string
 	return ret0, ret1
 }
 
-// NewJWTSVID indicates an expected call of NewJWTSVID.
+// NewJWTSVID indicates an expected call of NewJWTSVID
 func (mr *MockClientMockRecorder) NewJWTSVID(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewJWTSVID", reflect.TypeOf((*MockClient)(nil).NewJWTSVID), arg0, arg1, arg2)
 }
 
-// NewX509SVIDs mocks base method.
+// NewX509SVIDs mocks base method
 func (m *MockClient) NewX509SVIDs(arg0 context.Context, arg1 map[string][]byte) (map[string]*client.X509SVID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewX509SVIDs", arg0, arg1)
@@ -74,25 +73,25 @@ func (m *MockClient) NewX509SVIDs(arg0 context.Context, arg1 map[string][]byte) 
 	return ret0, ret1
 }
 
-// NewX509SVIDs indicates an expected call of NewX509SVIDs.
+// NewX509SVIDs indicates an expected call of NewX509SVIDs
 func (mr *MockClientMockRecorder) NewX509SVIDs(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewX509SVIDs", reflect.TypeOf((*MockClient)(nil).NewX509SVIDs), arg0, arg1)
 }
 
-// Release mocks base method.
+// Release mocks base method
 func (m *MockClient) Release() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Release")
 }
 
-// Release indicates an expected call of Release.
+// Release indicates an expected call of Release
 func (mr *MockClientMockRecorder) Release() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockClient)(nil).Release))
 }
 
-// RenewSVID mocks base method.
+// RenewSVID mocks base method
 func (m *MockClient) RenewSVID(arg0 context.Context, arg1 []byte) (*client.X509SVID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RenewSVID", arg0, arg1)
@@ -101,7 +100,7 @@ func (m *MockClient) RenewSVID(arg0 context.Context, arg1 []byte) (*client.X509S
 	return ret0, ret1
 }
 
-// RenewSVID indicates an expected call of RenewSVID.
+// RenewSVID indicates an expected call of RenewSVID
 func (mr *MockClientMockRecorder) RenewSVID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenewSVID", reflect.TypeOf((*MockClient)(nil).RenewSVID), arg0, arg1)

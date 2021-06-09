@@ -84,10 +84,11 @@ type ObjectWithMetadata interface {
 	V1Object
 }
 
-func (r *BaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *BaseReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !r.shouldProcess(req) {
 		return ctrl.Result{}, nil
 	}
+	ctx := context.Background()
 	reqLogger := r.Log.WithValues("request", req.NamespacedName)
 
 	obj := r.getObject()
@@ -342,11 +343,11 @@ func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []eve
 	for _, foundEntry := range entries {
 		if namespacedName := r.selectorsToNamespacedName(foundEntry.Selectors); namespacedName != nil {
 			reconcile := false
-			obj := r.getObject()
 			if seen[namespacedName.String()] {
 				// More than one entry found
 				reconcile = true
 			} else {
+				obj := r.getObject()
 				err := r.Get(ctx, *namespacedName, obj)
 				if err != nil {
 					if errors.IsNotFound(err) {
@@ -370,9 +371,10 @@ func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []eve
 			seen[namespacedName.String()] = true
 			if reconcile {
 				log.V(1).Info("Triggering reconciliation for resource", "name", namespacedName)
-				obj.SetNamespace(namespacedName.Namespace)
-				obj.SetName(namespacedName.Name)
-				events = append(events, event.GenericEvent{Object: obj})
+				events = append(events, event.GenericEvent{Meta: &v1.ObjectMeta{
+					Name:      namespacedName.Name,
+					Namespace: namespacedName.Namespace,
+				}})
 			}
 		}
 	}
@@ -405,8 +407,8 @@ type SpirePoller struct {
 }
 
 // Start implements Runnable
-func (p *SpirePoller) Start(s context.Context) error {
-	return p.r.pollSpire(p.out, s.Done())
+func (p *SpirePoller) Start(s <-chan struct{}) error {
+	return p.r.pollSpire(p.out, s)
 }
 
 func (r *BaseReconciler) SetupWithManager(mgr ctrl.Manager) error {

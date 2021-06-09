@@ -91,9 +91,9 @@ func (s *NodeControllerTestSuite) reconcile(n *NodeReconciler) {
 		},
 	}
 
-	_, err := n.Reconcile(s.ctx, req)
+	_, err := n.Reconcile(req)
 	s.Require().NoError(err)
 
-	_, err = s.r.Reconcile(s.ctx, req)
+	_, err = s.r.Reconcile(req)
 	s.Require().NoError(err)
 }

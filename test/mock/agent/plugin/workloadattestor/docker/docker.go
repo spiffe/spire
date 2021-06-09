@@ -6,36 +6,35 @@ package mock_docker
 
 import (
 	context "context"
-	reflect "reflect"
-
 	types "github.com/docker/docker/api/types"
 	gomock "github.com/golang/mock/gomock"
+	reflect "reflect"
 )
 
-// MockDocker is a mock of Docker interface.
+// MockDocker is a mock of Docker interface
 type MockDocker struct {
 	ctrl     *gomock.Controller
 	recorder *MockDockerMockRecorder
 }
 
-// MockDockerMockRecorder is the mock recorder for MockDocker.
+// MockDockerMockRecorder is the mock recorder for MockDocker
 type MockDockerMockRecorder struct {
 	mock *MockDocker
 }
 
-// NewMockDocker creates a new mock instance.
+// NewMockDocker creates a new mock instance
 func NewMockDocker(ctrl *gomock.Controller) *MockDocker {
 	mock := &MockDocker{ctrl: ctrl}
 	mock.recorder = &MockDockerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use.
+// EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockDocker) EXPECT() *MockDockerMockRecorder {
 	return m.recorder
 }
 
-// ContainerInspect mocks base method.
+// ContainerInspect mocks base method
 func (m *MockDocker) ContainerInspect(arg0 context.Context, arg1 string) (types.ContainerJSON, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContainerInspect", arg0, arg1)
@@ -44,7 +43,7 @@ func (m *MockDocker) ContainerInspect(arg0 context.Context, arg1 string) (types.
 	return ret0, ret1
 }
 
-// ContainerInspect indicates an expected call of ContainerInspect.
+// ContainerInspect indicates an expected call of ContainerInspect
 func (mr *MockDockerMockRecorder) ContainerInspect(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerInspect", reflect.TypeOf((*MockDocker)(nil).ContainerInspect), arg0, arg1)

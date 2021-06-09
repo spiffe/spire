@@ -80,7 +80,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().NoError(err)
 	spiffeIDLookupKey := types.NamespacedName{Name: SpiffeIDName, Namespace: SpiffeIDNamespace}
 
-	_, err = s.r.Reconcile(s.ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	_, err = s.r.Reconcile(ctrl.Request{NamespacedName: spiffeIDLookupKey})
 	s.Require().NoError(err)
 
 	// Verify the Entry ID got set
@@ -103,7 +103,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	createdSpiffeID.Spec.Selector.PodName = "test"
 	err = s.k8sClient.Update(s.ctx, createdSpiffeID)
 	s.Require().NoError(err)
-	_, err = s.r.Reconcile(s.ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	_, err = s.r.Reconcile(ctrl.Request{NamespacedName: spiffeIDLookupKey})
 	s.Require().NoError(err)
 
 	// Check SPIRE Server was updated

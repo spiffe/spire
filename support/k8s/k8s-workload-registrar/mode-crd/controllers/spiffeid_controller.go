@@ -66,9 +66,9 @@ func (r *SpiffeIDReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Reconcile ensures the SPIRE Server entry matches the corresponding CRD
-func (r *SpiffeIDReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *SpiffeIDReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	spiffeID := spiffeidv1beta1.SpiffeID{}
-	ctx = r.c.Ctx
+	ctx := r.c.Ctx
 
 	if err := r.Get(ctx, req.NamespacedName, &spiffeID); err != nil {
 		if !k8serrors.IsNotFound(err) {
