@@ -161,7 +161,7 @@ func TestMintX509CA(t *testing.T) {
 			},
 			customServerAddr: "localhost",
 			expectCode:       codes.Internal,
-			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp :0: connect: can't assign requested address`,
+			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp :0`,
 		},
 		{
 			name: "invalid scheme",

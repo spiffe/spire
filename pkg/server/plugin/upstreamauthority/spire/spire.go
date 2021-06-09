@@ -15,6 +15,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/bundle"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -260,7 +261,7 @@ func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint
 	defer p.bundleMtx.Unlock()
 
 	if p.bundleVersion == expectedVersion {
-		currentBundle, err := parseBundle(b)
+		currentBundle, err := bundle.ToPluginFromAPIProto(b)
 		if err != nil {
 			return err
 		}
@@ -352,26 +353,4 @@ func arePublicKeysEqual(a, b []*plugintypes.JWTKey) bool {
 		}
 	}
 	return true
-}
-
-func parseBundle(b *types.Bundle) (*plugintypes.Bundle, error) {
-	typesBundle := proto.Clone(b).(*types.Bundle)
-
-	jwtAuthorities, err := jwtkey.ToPluginFromAPIProtos(b.JwtAuthorities)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "invalid JWT authority: %v", err)
-	}
-
-	x509Authorities, err := x509certificate.ToPluginFromAPIProtos(typesBundle.X509Authorities)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "invalid X.509 authority: %v", err)
-	}
-
-	return &plugintypes.Bundle{
-		TrustDomain:     typesBundle.TrustDomain,
-		RefreshHint:     typesBundle.RefreshHint,
-		SequenceNumber:  typesBundle.SequenceNumber,
-		JwtAuthorities:  jwtAuthorities,
-		X509Authorities: x509Authorities,
-	}, nil
 }
