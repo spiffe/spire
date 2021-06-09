@@ -14,10 +14,10 @@ metadata:
   name: spire-server-role
   namespace: spire
 rules:
-  # allow creation of cert-manager CertificateRequest resources
+  # allow creation of cert-manager CertificateRequest resources, as well as deletion for cleaning-up
 - apiGroups: ["cert-manager.io"]
   resources: ["certificaterequests"]
-  verbs: ["get", "create"]
+  verbs: ["get", "create", "delete", "list"]
 
 ---
 
@@ -56,8 +56,8 @@ data:
       default_svid_ttl = "1h"
       ca_ttl = "12h"
       ca_subject {
-        country = ["GB"]
-        organization = ["cert-manager.io"]
+        country = ["US"]
+        organization = ["SPIFFE"]
         common_name = ""
       }
     }

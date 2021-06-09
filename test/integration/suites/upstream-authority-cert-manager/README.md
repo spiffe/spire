@@ -11,3 +11,5 @@ following:
     cert-manager Issuer
 * Verifies that obtained identities have been signed by that intermediate CA,
     and the cert-manager Issuer is the root of trust
+* Verifies that the SPIRE server will delete stale CertificateRequests that it
+    is responsible for
