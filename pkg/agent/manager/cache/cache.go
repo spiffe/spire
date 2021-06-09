@@ -491,7 +491,8 @@ func (c *Cache) selectorsDifferent(existingEntry, newEntry *common.RegistrationE
 		return true
 	}
 
-	set := make(selectorSet)
+	set, setDone := allocSelectorSet()
+	defer setDone()
 	set.Merge(newEntry.Selectors...)
 	for _, selector := range existingEntry.Selectors {
 		s := makeSelector(selector)
