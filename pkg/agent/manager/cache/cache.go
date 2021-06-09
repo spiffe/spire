@@ -383,9 +383,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 	if trustDomainBundleChanged {
 		c.notifyAll()
 	} else {
-		for _, notifySet := range notifySets {
-			c.notifyBySelectorSet(notifySet)
-		}
+		c.notifyBySelectorSet(notifySets...)
 	}
 }
 
@@ -585,12 +583,19 @@ func (c *Cache) notifyAll() {
 	}
 }
 
-func (c *Cache) notifyBySelectorSet(set selectorSet) {
-	subs, subsDone := c.getSubscribers(set)
-	defer subsDone()
-	for sub := range subs {
-		if sub.set.SuperSetOf(set) {
-			c.notify(sub)
+func (c *Cache) notifyBySelectorSet(sets ...selectorSet) {
+	notifiedSubs, notifiedSubsDone := allocSubscriberSet()
+	defer notifiedSubsDone()
+	for _, set := range sets {
+		subs, subsDone := c.getSubscribers(set)
+		defer subsDone()
+		for sub := range subs {
+			if sub.set.SuperSetOf(set) {
+				if _, notified := notifiedSubs[sub]; !notified {
+					c.notify(sub)
+					notifiedSubs[sub] = struct{}{}
+				}
+			}
 		}
 	}
 }
