@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
@@ -30,6 +31,8 @@ const (
 	defaultCertMountPoint    = "cert"
 	defaultPKIMountPoint     = "pki"
 	defaultAppRoleMountPoint = "approle"
+	defaultK8sMountPoint     = "kubernetes"
+	defaultK8sTokenPath      = "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 )
 
 type AuthMethod int
@@ -39,6 +42,7 @@ const (
 	CERT
 	TOKEN
 	APPROLE
+	K8S
 )
 
 type TokenStatus int
@@ -81,6 +85,13 @@ type ClientParams struct {
 	AppRoleID string
 	// A credential set of AppRole
 	AppRoleSecretID string
+	// Name of the mount point where Kubernetes auth method is mounted. (e.g., /auth/<mount_point>/login)
+	K8sAuthMountPoint string
+	// Name of the Vault role.
+	// The plugin authenticates against the named role.
+	K8sAuthRoleName string
+	// Path to a K8s Service Account Token to be used when auth method is 'k8s'
+	K8sAuthTokenPath string
 	// If true, client accepts any certificates.
 	// It should be used only test environment so on.
 	TLSSKipVerify bool
@@ -115,6 +126,8 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 	defaultParams := &ClientParams{
 		CertAuthMountPoint:    defaultCertMountPoint,
 		AppRoleAuthMountPoint: defaultAppRoleMountPoint,
+		K8sAuthMountPoint:     defaultK8sMountPoint,
+		K8sAuthTokenPath:      defaultK8sTokenPath,
 		PKIMountPoint:         defaultPKIMountPoint,
 	}
 	if err := mergo.Merge(cp, defaultParams); err != nil {
@@ -186,6 +199,23 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 		}
 		if sec == nil {
 			return nil, false, status.Error(codes.Internal, "approle authentication response is nil")
+		}
+	case K8S:
+		b, err := os.ReadFile(c.clientParams.K8sAuthTokenPath)
+		if err != nil {
+			return nil, false, status.Errorf(codes.Internal, "failed to read k8s service account token: %v", err)
+		}
+		path := fmt.Sprintf("auth/%v/login", c.clientParams.K8sAuthMountPoint)
+		body := map[string]interface{}{
+			"role": c.clientParams.K8sAuthRoleName,
+			"jwt":  string(b),
+		}
+		sec, err = client.Auth(path, body)
+		if err != nil {
+			return nil, false, err
+		}
+		if sec == nil {
+			return nil, false, status.Error(codes.Internal, "k8s authentication response is nil")
 		}
 	}
 

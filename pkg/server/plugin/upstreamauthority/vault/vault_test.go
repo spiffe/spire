@@ -55,6 +55,9 @@ func TestConfigure(t *testing.T) {
 		appRoleAuthMountPoint    string
 		appRoleID                string
 		appRoleSecretID          string
+		expectK8sAuthMountPoint  string
+		expectK8sAuthRoleName    string
+		expectK8sAuthTokenPath   string
 	}{
 		{
 			name:        "Configure plugin with Client Certificate authentication params given in config file",
@@ -112,6 +115,14 @@ func TestConfigure(t *testing.T) {
 			appRoleSecretID:       "test-approle-secret-id",
 		},
 		{
+			name:                    "Configure plugin with Kubernetes authentication params given in config file",
+			configTmpl:              testK8sAuthConfigTpl,
+			wantAuth:                K8S,
+			expectK8sAuthMountPoint: "test-k8s-auth",
+			expectK8sAuthTokenPath:  "testdata/k8s/token",
+			expectK8sAuthRoleName:   "my-role",
+		},
+		{
 			name:            "Multiple authentication methods configured",
 			configTmpl:      testMultipleAuthConfigsTpl,
 			expectCode:      codes.InvalidArgument,
@@ -138,6 +149,13 @@ func TestConfigure(t *testing.T) {
 			plainConfig:     "invalid-config",
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to decode configuration:",
+		},
+		{
+			name:            "Required parameters are not given",
+			configTmpl:      testK8sAuthNoRoleNameTpl,
+			wantAuth:        K8S,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "k8s_auth_role_name is required",
 		},
 	} {
 		tt := tt
@@ -186,6 +204,10 @@ func TestConfigure(t *testing.T) {
 				require.NotNil(t, p.cc.clientParams.AppRoleAuthMountPoint)
 				require.NotNil(t, p.cc.clientParams.AppRoleID)
 				require.NotNil(t, p.cc.clientParams.AppRoleSecretID)
+			case K8S:
+				require.Equal(t, tt.expectK8sAuthMountPoint, p.cc.clientParams.K8sAuthMountPoint)
+				require.Equal(t, tt.expectK8sAuthRoleName, p.cc.clientParams.K8sAuthRoleName)
+				require.Equal(t, tt.expectK8sAuthTokenPath, p.cc.clientParams.K8sAuthTokenPath)
 			}
 
 			if tt.wantNamespaceIsNotNil {
@@ -370,6 +392,31 @@ func TestMintX509CA(t *testing.T) {
 			},
 		},
 		{
+			name: "Mint X509CA SVID with Kubernetes authentication",
+			csr:  csr.Raw,
+			config: &Configuration{
+				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				PKIMountPoint: "test-pki",
+				K8sAuth: &K8sAuthConfig{
+					K8sAuthMountPoint: "test-k8s-auth",
+					K8sAuthRoleName:   "my-role",
+					TokenPath:         "testdata/k8s/token",
+				},
+			},
+			authMethod:              K8S,
+			reuseToken:              true,
+			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
+			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte{}
+				fakeServer.K8sAuthResponse = []byte(testK8sAuthResponse)
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
+		},
+		{
 			name: "Mint X509CA SVID with TLS cert authentication / Token is not renewable",
 			csr:  csr.Raw,
 			config: &Configuration{
@@ -415,6 +462,30 @@ func TestMintX509CA(t *testing.T) {
 				fakeServer.LookupSelfResponse = []byte{}
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponseNotRenewable)
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
+		},
+		{
+			name: "Mint X509CA SVID with Kubernetes authentication / Token is not renewable",
+			csr:  csr.Raw,
+			config: &Configuration{
+				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				PKIMountPoint: "test-pki",
+				K8sAuth: &K8sAuthConfig{
+					K8sAuthMountPoint: "test-k8s-auth",
+					K8sAuthRoleName:   "my-role",
+					TokenPath:         "testdata/k8s/token",
+				},
+			},
+			authMethod:              K8S,
+			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
+			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte{}
+				fakeServer.K8sAuthResponse = []byte(testK8sAuthResponseNotRenewable)
 				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
 
 				return fakeServer
@@ -591,7 +662,8 @@ func TestMintX509CA(t *testing.T) {
 			}
 			if tt.config != nil {
 				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
-				cp := p.genClientParams(tt.authMethod, tt.config)
+				cp, err := p.genClientParams(tt.authMethod, tt.config)
+				require.NoError(t, err)
 				cc, err := NewClientConfig(cp, p.logger)
 				require.NoError(t, err)
 				p.cc = cc
@@ -731,6 +803,9 @@ func setupSuccessFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer.AppRoleAuthResponseCode = 200
 	fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
 	fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
+	fakeVaultServer.K8sAuthResponseCode = 200
+	fakeVaultServer.K8sAuthReqEndpoint = "/v1/auth/test-k8s-auth/login"
+	fakeVaultServer.K8sAuthResponse = []byte(testK8sAuthResponse)
 	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 	fakeVaultServer.LookupSelfResponseCode = 200
 	fakeVaultServer.SignIntermediateResponseCode = 200

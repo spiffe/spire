@@ -46,6 +46,8 @@ type Configuration struct {
 	CertAuth *CertAuthConfig `hcl:"cert_auth" json:"cert_auth,omitempty"`
 	// Configuration for the AppRole authentication method
 	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth" json:"approle_auth,omitempty"`
+	// Configuration for the Kubernetes authentication method
+	K8sAuth *K8sAuthConfig `hcl:"k8s_auth" json:"k8s_auth,omitempty"`
 	// Path to a CA certificate file that the client verifies the server certificate.
 	// Only PEM format is supported.
 	CACertPath string `hcl:"ca_cert_path" json:"ca_cert_path"`
@@ -87,6 +89,18 @@ type AppRoleAuthConfig struct {
 	RoleID string `hcl:"approle_id" json:"approle_id"`
 	// A credential that is required for login.
 	SecretID string `hcl:"approle_secret_id" json:"approle_secret_id"`
+}
+
+// K8sAuthConfig represents parameters for Kubernetes auth method.
+type K8sAuthConfig struct {
+	// Name of the mount point where Kubernetes auth method is mounted. (e.g., /auth/<mount_point>/login)
+	// If the value is empty, use default mount point (/auth/kubernetes)
+	K8sAuthMountPoint string `hcl:"k8s_auth_mount_point" json:"k8s_auth_mount_point"`
+	// Name of the Vault role.
+	// The plugin authenticates against the named role.
+	K8sAuthRoleName string `hcl:"k8s_auth_role_name" json:"k8s_auth_role_name"`
+	// Path to the Kubernetes Service Account Token to use authentication with the Vault.
+	TokenPath string `hcl:"token_path" json:"token_path"`
 }
 
 type Plugin struct {
@@ -134,7 +148,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, err
 	}
-	cp := p.genClientParams(am, config)
+	cp, err := p.genClientParams(am, config)
+	if err != nil {
+		return nil, err
+	}
 	vcConfig, err := NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
@@ -233,7 +250,7 @@ func (*Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReque
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) *ClientParams {
+func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) (*ClientParams, error) {
 	cp := &ClientParams{
 		VaultAddr:     p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
 		CACertPath:    p.getEnvOrDefault(envVaultCACert, config.CACertPath),
@@ -254,9 +271,16 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) *Clie
 		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
 		cp.AppRoleID = p.getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
 		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
+	case K8S:
+		if config.K8sAuth.K8sAuthRoleName == "" {
+			return nil, status.Error(codes.Internal, "k8s_auth_role_name is required")
+		}
+		cp.K8sAuthMountPoint = config.K8sAuth.K8sAuthMountPoint
+		cp.K8sAuthRoleName = config.K8sAuth.K8sAuthRoleName
+		cp.K8sAuthTokenPath = config.K8sAuth.TokenPath
 	}
 
-	return cp
+	return cp, nil
 }
 
 func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
@@ -283,12 +307,18 @@ func parseAuthMethod(config *Configuration) (AuthMethod, error) {
 		}
 		authMethod = APPROLE
 	}
+	if config.K8sAuth != nil {
+		if err := checkForAuthMethodConfigured(authMethod); err != nil {
+			return 0, err
+		}
+		authMethod = K8S
+	}
 
 	if authMethod != 0 {
 		return authMethod, nil
 	}
 
-	return 0, status.Error(codes.InvalidArgument, "must be configured one of these authentication method 'Token or Cert or AppRole'")
+	return 0, status.Error(codes.InvalidArgument, "must be configured one of these authentication method 'Token or Cert or AppRole or K8s'")
 }
 
 func checkForAuthMethodConfigured(authMethod AuthMethod) error {
