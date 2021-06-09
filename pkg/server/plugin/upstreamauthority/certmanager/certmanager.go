@@ -1,27 +1,21 @@
 package certmanager
 
 import (
-	"bytes"
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	cmapi "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1"
-	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
 	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,17 +24,6 @@ import (
 const (
 	pluginName = "cert-manager"
 )
-
-var (
-	scheme = runtime.NewScheme()
-)
-
-func init() {
-	// Install the cert-manager.io and meta.cert-manager.io schemas for the
-	// generic Kubernetes client.
-	utilruntime.Must(cmmeta.AddToScheme(scheme))
-	utilruntime.Must(cmapi.AddToScheme(scheme))
-}
 
 type Config struct {
 	// Options which are used for configuring the target issuer to sign requests.
@@ -58,8 +41,12 @@ type Plugin struct {
 	log    hclog.Logger
 	config *Config
 
-	// cmclient is a generic Kubernetes client which has the cert-manager.io and
-	// meta.cert-manager.io schemas installed.
+	// trustDomain is the trust domain of this SPIRE server. Used to label
+	// CertificateRequests to be cleaned-up
+	trustDomain string
+
+	// cmclient is a generic Kubernetes client for interacting with the
+	// cert-manager APIs
 	cmclient client.Client
 
 	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
@@ -91,6 +78,10 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	}
 	p.cmclient = cmclient
 
+	// Used for adding labels to created CertificateRequests, which can be listed
+	// for cleanup.
+	p.trustDomain = req.GlobalConfig.TrustDomain
+
 	return &spi.ConfigureResponse{}, nil
 }
 
@@ -101,88 +92,79 @@ func (p *Plugin) loadConfig(req *spi.ConfigureRequest) (*Config, error) {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration file: %s", err)
 	}
 
+	// namespace is a required field
+	if len(config.Namespace) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "configuration has empty namespace property")
+	}
+	// issuer_name is a required field
 	if len(config.IssuerName) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "configuration has empty issuer_name property")
 	}
 	// If no issuer_kind given, default to Issuer
 	if len(config.IssuerKind) == 0 {
-		p.log.Debug("configuration has empty issuer_kind property, defaulting to 'Issuer'")
+		p.log.Debug("Configuration has empty issuer_kind property, defaulting to 'Issuer'")
 		config.IssuerKind = "Issuer"
 	}
 	// If no issuer_group given, default to cert-manager.io
 	if len(config.IssuerGroup) == 0 {
-		p.log.Debug("configuration has empty issuer_group property, defaulting to 'cert-manager.io'")
+		p.log.Debug("Configuration has empty issuer_group property, defaulting to 'cert-manager.io'")
 		config.IssuerGroup = "cert-manager.io"
 	}
-
 	return config, nil
 }
 
 func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
 	ctx := stream.Context()
 
-	// Build PEM encoded CSR
-	csrBuf := new(bytes.Buffer)
-	err := pem.Encode(csrBuf, &pem.Block{
-		Type:  "CERTIFICATE REQUEST",
-		Bytes: request.Csr,
-	})
+	defer func() {
+		p.log.Debug("Optimistically cleaning-up stale CertificateRequests")
+		if err := p.cleanupStaleCertificateRequests(ctx); err != nil {
+			p.log.Error("Failed to optimistically clean-up stale CertificateRequests", "error", err.Error())
+		}
+	}()
+
+	// Build the CertificateRequest object and create it
+	cr, err := p.buildCertificateRequest(request)
 	if err != nil {
 		return err
 	}
 
-	// Build CertificateRequest object to be created. Use a generated name to
-	// avoid conflicts.
-	cr := &cmapi.CertificateRequest{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "spiffe-ca-",
-			Namespace:    p.config.Namespace,
-		},
-		Spec: cmapi.CertificateRequestSpec{
-			Duration: &metav1.Duration{
-				Duration: time.Second * time.Duration(request.PreferredTtl),
-			},
-			Request: csrBuf.Bytes(),
-			Usages: []cmapi.KeyUsage{
-				cmapi.UsageDigitalSignature,
-				cmapi.UsageKeyEncipherment,
-				cmapi.UsageCertSign,
-			},
-			IsCA: true,
-			IssuerRef: cmmeta.ObjectReference{
-				Name:  p.config.IssuerName,
-				Kind:  p.config.IssuerKind,
-				Group: p.config.IssuerGroup,
-			},
-		},
-	}
 	if err := p.cmclient.Create(ctx, cr); err != nil {
 		return err
 	}
 
-	log := p.log.With("certificaterequest", fmt.Sprintf("%s/%s", cr.Namespace, cr.Name))
-	log.Info("waiting for certificaterequest to be signed")
+	log := p.log.With("namespace", cr.GetNamespace(), "name", cr.GetName())
+	log.Info("Waiting for certificaterequest to be signed")
 
 	// Poll the CertificateRequest until it is signed. If not signed after 300
 	// polls, error.
-	obj := client.ObjectKey{Name: cr.Name, Namespace: cr.Namespace}
+	obj := client.ObjectKey{Name: cr.GetName(), Namespace: cr.GetNamespace()}
 	for i := 0; true; i++ {
-		if i == 60*5 { // ~5 mins
-			log.Error("failed to wait for CertificateRequest to become ready in time")
+
+		if i == 60*5 { // ~1.25 mins
+			log.Error("Failed to wait for CertificateRequest to become ready in time")
 			return errors.New("request did not become ready in time")
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(time.Second / 4)
 
 		if err := p.cmclient.Get(ctx, obj, cr); err != nil {
 			return err
 		}
 
-		if isDenied, cond := certificateRequestDeniedCondition(cr); isDenied {
-			log.Error("created CertificateRequest has been denied", "reason", cond.Reason, "message", cond.Message)
+		// If the request has been denied, then return error here
+		if isDenied, cond := certificateRequestHasCondition(cr, cmapi.CertificateRequestCondition{Type: "Denied", Status: "True"}); isDenied {
+			log.With("reason", cond.Reason, "message", cond.Message).Error("Created CertificateRequest has been denied")
 			return errors.New("request has been denied")
 		}
 
+		// If the request has failed, then return error here
+		if isFailed, cond := certificateRequestHasCondition(cr, cmapi.CertificateRequestCondition{Type: "Ready", Status: "False", Reason: "Failed"}); isFailed {
+			log.With("reason", cond.Reason, "message", cond.Message).Error("Created CertificateRequest has failed")
+			return errors.New("request has failed")
+		}
+
+		// If the Certificate exists on the request then it is ready.
 		if len(cr.Status.Certificate) > 0 {
 			break
 		}
@@ -191,20 +173,20 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	// Parse signed certificate chain and CA certificate from CertificateRequest
 	caChain, err := pemutil.ParseCertificates(cr.Status.Certificate)
 	if err != nil {
-		log.Error("failed to parse signed certificate", "error", err.Error())
+		log.Error("Failed to parse signed certificate", "error", err.Error())
 		return fmt.Errorf("failed to parse certificate: %s", err)
 	}
 
 	// If the configured issuer did not populate the CA on the request we cannot
 	// build the upstream roots. We can only error here.
 	if len(cr.Status.CA) == 0 {
-		log.Error("no CA certificate was populated in request so cannot build upstream roots")
+		log.Error("No CA certificate was populated in CertificateRequest so cannot build upstream roots")
 		return errors.New("no upstream CA root returned from request")
 	}
 
 	upstreamRoot, err := pemutil.ParseCertificates(cr.Status.CA)
 	if err != nil {
-		log.Error("failed to parse CA certificate returned from request", "error", err.Error())
+		log.Error("Failed to parse CA certificate returned from request", "error", err.Error())
 		return fmt.Errorf("failed to parse CA certificate: %s", err)
 	}
 
@@ -265,22 +247,4 @@ func makeError(code codes.Code, format string, args ...interface{}) error {
 
 func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
 	return &spi.GetPluginInfoResponse{}, nil
-}
-
-// certificateRequestDeniedCondition returns true and the condition if the
-// CertificateRequest is denied via a Denied condition of status `True`,
-// returns false otherwise.
-func certificateRequestDeniedCondition(cr *cmapi.CertificateRequest) (bool, cmapi.CertificateRequestCondition) {
-	if cr == nil {
-		return false, cmapi.CertificateRequestCondition{}
-	}
-
-	for _, con := range cr.Status.Conditions {
-		if con.Type == cmapi.CertificateRequestConditionDenied &&
-			con.Status == cmmeta.ConditionTrue {
-			return true, con
-		}
-	}
-
-	return false, cmapi.CertificateRequestCondition{}
 }
