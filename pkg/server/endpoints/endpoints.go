@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -71,6 +72,7 @@ type Endpoints struct {
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	AuditLogEnabled              bool
+	AuthPolicyEngine             *authpolicy.Engine
 }
 
 type OldAPIServers struct {
@@ -99,6 +101,10 @@ type RateLimitConfig struct {
 func New(ctx context.Context, c Config) (*Endpoints, error) {
 	if err := os.MkdirAll(c.UDSAddr.String(), 0750); err != nil {
 		return nil, fmt.Errorf("unable to create socket directory: %w", err)
+	}
+
+	if c.AuthPolicyEngine == nil {
+		return nil, errors.New("policy engine not provided for new endpoint")
 	}
 
 	oldAPIServers := c.makeOldAPIServers()
@@ -132,6 +138,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
+		AuthPolicyEngine:             c.AuthPolicyEngine,
 	}, nil
 }
 
@@ -141,7 +148,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 // server is returned.
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.Log.Debug("Initializing API endpoints")
-
 	unaryInterceptor, streamInterceptor := e.makeInterceptors()
 
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
@@ -354,7 +360,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	oldUnary, oldStream := wrapWithDeprecationLogging(log, auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall)
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuditLogEnabled))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }

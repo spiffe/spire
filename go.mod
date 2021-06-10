@@ -14,11 +14,9 @@ require (
 	github.com/GoogleCloudPlatform/cloudsql-proxy v0.0.0-20190405210948-c70a36b8193f
 	github.com/InVisionApp/go-health v2.1.0+incompatible
 	github.com/InVisionApp/go-logger v1.0.1
-	github.com/OneOfOne/xxhash v1.2.5 // indirect
-	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.3
-	github.com/aws/aws-sdk-go v1.30.27
+	github.com/aws/aws-sdk-go v1.36.30
 	github.com/aws/aws-sdk-go-v2 v1.2.0
 	github.com/aws/aws-sdk-go-v2/config v1.1.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.1.1
@@ -29,9 +27,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.9.9-0.20210521033809-0cbd29f7d4f8
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-logr/logr v0.1.0
-	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
-	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/uuid v3.2.0+incompatible
 	github.com/golang/mock v1.5.0
 	github.com/golang/protobuf v1.5.1
@@ -39,43 +35,38 @@ require (
 	github.com/google/go-tpm v0.3.2
 	github.com/google/go-tpm-tools v0.2.1
 	github.com/gorilla/handlers v1.5.1
-	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/hashicorp/go-hclog v0.16.1
 	github.com/hashicorp/go-plugin v1.4.0
-	github.com/hashicorp/golang-lru v0.5.3
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/hashicorp/vault/api v1.1.1
 	github.com/hashicorp/vault/sdk v0.2.1
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/imdario/mergo v0.3.8
 	github.com/imkira/go-observer v1.0.3
-	github.com/jhump/protoreflect v1.6.1 // indirect
 	github.com/jinzhu/gorm v1.9.9
-	github.com/lib/pq v1.8.0
+	github.com/lib/pq v1.9.0
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/mitchellh/cli v1.0.0
-	github.com/open-policy-agent/opa v0.10.7
+	github.com/open-policy-agent/opa v0.29.4
 	github.com/prometheus/client_golang v1.7.1
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/shirou/gopsutil v2.18.12+incompatible
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.8.1
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.6
 	github.com/spiffe/spire-api-sdk v1.0.2
 	github.com/spiffe/spire-plugin-sdk v1.0.2
 	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/tally v3.3.12+incompatible
-	github.com/yashtewari/glob-intersection v0.0.0-20180916065949-5c77d914dd0b // indirect
 	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.6.0
 	go.uber.org/goleak v0.10.0
-	go.uber.org/multierr v1.4.0 // indirect
-	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/crypto v0.0.0-20210314154223-e6e6c4f2bb5b
-	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
-	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007
+	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/api v0.42.0
 	google.golang.org/genproto v0.0.0-20210323160006-e668133fea6a
 	google.golang.org/grpc v1.36.1

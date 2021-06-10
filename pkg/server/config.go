@@ -10,11 +10,11 @@ import (
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/common/policy"
 )
 
 type Config struct {
@@ -88,7 +88,8 @@ type Config struct {
 	// CacheReloadInterval controls how often the in-memory entry cache reloads
 	CacheReloadInterval time.Duration
 
-    PolicyEngineConfig *policy.EngineConfig
+	// AuthPolicyEngineConfig determines the config for authz policy
+	AuthOpaPolicyEngineConfig *authpolicy.OpaEngineConfig
 }
 
 type ExperimentalConfig struct {

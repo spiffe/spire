@@ -21,6 +21,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -76,6 +77,9 @@ func TestNew(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
+	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
 	serverCA := fakeserverca.New(t, testTD, nil)
 	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
@@ -90,18 +94,19 @@ func TestNew(t *testing.T) {
 	})
 
 	endpoints, err := New(ctx, Config{
-		TCPAddr:        tcpAddr,
-		UDSAddr:        udsAddr,
-		SVIDObserver:   svidObserver,
-		TrustDomain:    testTD,
-		Catalog:        cat,
-		ServerCA:       serverCA,
-		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
-		Manager:        manager,
-		Log:            log,
-		Metrics:        metrics,
-		RateLimit:      rateLimit,
-		Clock:          clk,
+		TCPAddr:          tcpAddr,
+		UDSAddr:          udsAddr,
+		SVIDObserver:     svidObserver,
+		TrustDomain:      testTD,
+		Catalog:          cat,
+		ServerCA:         serverCA,
+		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
+		Manager:          manager,
+		Log:              log,
+		Metrics:          metrics,
+		RateLimit:        rateLimit,
+		Clock:            clk,
+		AuthPolicyEngine: pe,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
@@ -138,6 +143,9 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
+	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
 	serverCA := fakeserverca.New(t, testTD, nil)
 	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
@@ -152,18 +160,19 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	})
 
 	endpoints, err := New(ctx, Config{
-		TCPAddr:        tcpAddr,
-		UDSAddr:        udsAddr,
-		SVIDObserver:   svidObserver,
-		TrustDomain:    testTD,
-		Catalog:        cat,
-		ServerCA:       serverCA,
-		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
-		Manager:        manager,
-		Log:            log,
-		Metrics:        metrics,
-		RateLimit:      rateLimit,
-		Clock:          clk,
+		TCPAddr:          tcpAddr,
+		UDSAddr:          udsAddr,
+		SVIDObserver:     svidObserver,
+		TrustDomain:      testTD,
+		Catalog:          cat,
+		ServerCA:         serverCA,
+		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
+		Manager:          manager,
+		Log:              log,
+		Metrics:          metrics,
+		RateLimit:        rateLimit,
+		Clock:            clk,
+		AuthPolicyEngine: pe,
 	})
 
 	assert.Error(t, err)
@@ -171,6 +180,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 }
 
 func TestListenAndServe(t *testing.T) {
+	ctx := context.Background()
 	ca := testca.New(t, testTD)
 	serverSVID := ca.CreateX509SVID(serverID)
 	agentSVID := ca.CreateX509SVID(agentID)
@@ -199,6 +209,9 @@ func TestListenAndServe(t *testing.T) {
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
+	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
 	endpoints := Endpoints{
 		TCPAddr:      listener.Addr().(*net.TCPAddr),
 		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
@@ -221,6 +234,7 @@ func TestListenAndServe(t *testing.T) {
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		AuthPolicyEngine:             pe,
 	}
 
 	// Prime the datastore with the:

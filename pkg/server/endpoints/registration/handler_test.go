@@ -1403,7 +1403,7 @@ func (s *HandlerSuite) TestAuthorizeCall() {
 		if testCase.Peer != nil {
 			ctx = peer.NewContext(ctx, testCase.Peer)
 		}
-		ctx, err := handler.AuthorizeCall(ctx, nil, "SOMEMETHOD")
+		ctx, err := handler.AuthorizeCall(ctx, "SOMEMETHOD")
 		if testCase.Err != "" {
 			s.requireErrorContains(err, testCase.Err)
 			s.requireGRPCStatusCode(err, codes.PermissionDenied)

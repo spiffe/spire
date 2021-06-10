@@ -27,10 +27,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -84,9 +84,9 @@ type serverConfig struct {
 	SocketPath      string             `hcl:"socket_path"`
 	TrustDomain     string             `hcl:"trust_domain"`
 
-	PolicyEngine        *policy.EngineConfig `hcl:"policy_engine"`
-	ConfigPath string
-	ExpandEnv  bool
+	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	ConfigPath          string
+	ExpandEnv           bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -591,7 +591,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CacheReloadInterval = interval
 	}
 
-	sc.PolicyEngineConfig = c.Server.PolicyEngine
+	sc.AuthOpaPolicyEngineConfig = c.Server.AuthOpaPolicyEngine
 
 	return sc, nil
 }
