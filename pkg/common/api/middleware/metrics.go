@@ -22,7 +22,7 @@ type metricsMiddleware struct {
 	metrics telemetry.Metrics
 }
 
-func (m metricsMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+func (m metricsMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	ctx, names := withNames(ctx, fullMethod)
 	counter := telemetry.StartCall(m.metrics, "rpc", names.MetricKey...)
 	return rpccontext.WithCallCounter(ctx, counter), nil

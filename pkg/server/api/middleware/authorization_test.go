@@ -56,6 +56,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 
 	for _, tt := range []struct {
 		name          string
+		request       interface{}
 		fullMethod    string
 		peer          *peer.Peer
 		authorizerErr error
@@ -155,7 +156,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				ctxIn = peer.NewContext(ctxIn, tt.peer)
 			}
 
-			ctxOut, err := m.Preprocess(ctxIn, tt.fullMethod)
+			ctxOut, err := m.Preprocess(ctxIn, tt.fullMethod, tt.request)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
 
