@@ -35,7 +35,7 @@ func (a agentAuthorizer) Name() string {
 	return "agent"
 }
 
-func (a agentAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
+func (a agentAuthorizer) AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error) {
 	agentSVID, ok := rpccontext.CallerX509SVID(ctx)
 	if !ok {
 		return nil, status.Error(codes.PermissionDenied, "caller does not have an X509-SVID")

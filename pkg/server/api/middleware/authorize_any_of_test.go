@@ -81,7 +81,7 @@ func TestAnyOfAuthorizer(t *testing.T) {
 			ctxIn = wrapContext(ctxIn)
 
 			authorizer := middleware.AuthorizeAnyOf(tt.authorizers...)
-			ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
+			ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
 			if tt.expectCode == codes.OK {
@@ -109,7 +109,7 @@ func (a fakeAuthorizer) Name() string {
 	return a.name
 }
 
-func (a fakeAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
+func (a fakeAuthorizer) AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error) {
 	if a.code == codes.OK {
 		return wrapContext(ctx), nil
 	}

@@ -83,9 +83,9 @@ type serverConfig struct {
 	SocketPath     string             `hcl:"socket_path"`
 	TrustDomain    string             `hcl:"trust_domain"`
 
-	PolicyEngine        *policy.EngineConfig `hcl:"policy_engine"`
-	ConfigPath string
-	ExpandEnv  bool
+	PolicyEngine *policy.EngineConfig `hcl:"policy_engine"`
+	ConfigPath   string
+	ExpandEnv    bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`

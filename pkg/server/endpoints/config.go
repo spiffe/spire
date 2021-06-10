@@ -76,12 +76,11 @@ type Config struct {
 
 func (c *Config) makeOldAPIServers() OldAPIServers {
 	registrationHandler := &registration.Handler{
-		Log:          c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
-		Metrics:      c.Metrics,
-		Catalog:      c.Catalog,
-		TrustDomain:  c.TrustDomain,
-		ServerCA:     c.ServerCA,
-        PolicyEngine: c.PolicyEngine,
+		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
+		Metrics:     c.Metrics,
+		Catalog:     c.Catalog,
+		TrustDomain: c.TrustDomain,
+		ServerCA:    c.ServerCA,
 	}
 
 	return OldAPIServers{

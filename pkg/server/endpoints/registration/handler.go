@@ -13,7 +13,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
@@ -46,7 +45,6 @@ type Handler struct {
 	Catalog     catalog.Catalog
 	TrustDomain spiffeid.TrustDomain
 	ServerCA    ca.ServerCA
-	PolicyEngine *policy.Engine
 }
 
 // CreateEntry creates an entry in the Registration table,
@@ -840,13 +838,13 @@ func (h *Handler) prepareRegistrationEntry(entry *common.RegistrationEntry, forU
 	return entry, nil
 }
 
-func (h *Handler) AuthorizeCall(ctx context.Context, req interface{}, fullMethod string) (_ context.Context, err error) {
+func (h *Handler) AuthorizeCall(ctx context.Context, fullMethod string) (_ context.Context, err error) {
 	// For the time being, authorization is not per-method. In other words, all or nothing.
 	counter := telemetry_registrationapi.StartAuthorizeCall(h.Metrics, fullMethod)
 	defer counter.Done(&err)
 	log := h.Log.WithField(telemetry.Method, fullMethod)
 
-	callerID, err := authorizeCaller(ctx, h.getDataStore(), h.PolicyEngine, req, fullMethod)
+	callerID, err := authorizeCaller(ctx, h.getDataStore())
 	if err != nil {
 		log.WithError(err).Error("Failed to authorize caller")
 		return nil, err
@@ -887,7 +885,7 @@ func getSpiffeIDFromCert(cert *x509.Certificate) (string, error) {
 	return spiffeID.String(), nil
 }
 
-func authorizeCaller(ctx context.Context, ds datastore.DataStore, policyEngine *policy.Engine, req interface{}, fullMethod string) (spiffeID string, err error) {
+func authorizeCaller(ctx context.Context, ds datastore.DataStore) (spiffeID string, err error) {
 	ctxPeer, ok := peer.FromContext(ctx)
 	if !ok {
 		return "", status.Error(codes.PermissionDenied, "no peer information for caller")
@@ -933,32 +931,7 @@ func authorizeCaller(ctx context.Context, ds datastore.DataStore, policyEngine *
 		}
 	}
 
-	if err := allowRequest(ctx, policyEngine, spiffeID, req, fullMethod); err != nil {
-		return spiffeID, nil
-	}
-
 	return "", status.Errorf(codes.PermissionDenied, "SPIFFE ID %q is not authorized", spiffeID)
-}
-
-func allowRequest(ctx context.Context, policyEngine *policy.Engine, caller string, req interface{}, fullMethod string) error {
-	// TODO: remove this
-	if policyEngine == nil {
-		return nil
-	}
-	input := policy.Input{
-		Caller:     caller,
-		FullMethod: fullMethod,
-		Req:        req,
-	}
-	allow, err := policyEngine.IsAllowed(ctx, input)
-	if err != nil {
-		return err
-	}
-	if !allow {
-		return errors.New("not authorized")
-	}
-
-	return nil
 }
 
 type callerIDKey struct{}

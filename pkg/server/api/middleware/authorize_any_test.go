@@ -15,7 +15,7 @@ func TestAnyAuthorizerName(t *testing.T) {
 
 func TestAnyAuthorizer(t *testing.T) {
 	authorizer := middleware.AuthorizeAny()
-	ctx, err := authorizer.AuthorizeCaller(context.Background())
+	ctx, err := authorizer.AuthorizeCaller(context.Background(), nil)
 	require.NoError(t, err)
 	require.Equal(t, ctx, context.Background())
 }

@@ -18,7 +18,7 @@ func (localAuthorizer) Name() string {
 	return "local"
 }
 
-func (localAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
+func (localAuthorizer) AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error) {
 	if !rpccontext.CallerIsLocal(ctx) {
 		return nil, status.Error(codes.PermissionDenied, "caller is not local")
 	}

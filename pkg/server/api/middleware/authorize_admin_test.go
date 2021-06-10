@@ -91,7 +91,7 @@ func TestAdminAuthorizer(t *testing.T) {
 			ctx := rpccontext.WithLogger(context.Background(), log)
 			ctx = rpccontext.WithCallerID(ctx, tt.id)
 
-			ctx, err := authorizer.AuthorizeCaller(ctx)
+			ctx, err := authorizer.AuthorizeCaller(ctx, nil)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
 			if tt.expectCode == codes.OK {

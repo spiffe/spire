@@ -39,7 +39,7 @@ func (a anyOfAuthorizer) Name() string {
 	return fmt.Sprintf("any-of[%s]", strings.Join(a.names, ","))
 }
 
-func (a anyOfAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
+func (a anyOfAuthorizer) AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error) {
 	if len(a.authorizers) == 0 {
 		middleware.LogMisconfiguration(ctx, "Authorization misconfigured (no authorizers); this is a bug")
 		return nil, status.Error(codes.Internal, "authorization misconfigured (no authorizers)")
@@ -47,7 +47,7 @@ func (a anyOfAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, 
 
 	var authenticated bool
 	for _, authorizer := range a.authorizers {
-		nextCtx, err := authorizer.AuthorizeCaller(ctx)
+		nextCtx, err := authorizer.AuthorizeCaller(ctx, req)
 		st := status.Convert(err)
 		switch st.Code() {
 		case codes.OK:

@@ -21,6 +21,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -199,6 +200,9 @@ func TestListenAndServe(t *testing.T) {
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
+	pe, err := policy.DefaultAuthPolicy()
+	require.NoError(t, err)
+
 	endpoints := Endpoints{
 		TCPAddr:      listener.Addr().(*net.TCPAddr),
 		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
@@ -221,6 +225,7 @@ func TestListenAndServe(t *testing.T) {
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		PolicyEngine:                 pe,
 	}
 
 	// Prime the datastore with the:

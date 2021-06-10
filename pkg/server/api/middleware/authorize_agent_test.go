@@ -46,7 +46,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		ctxIn = rpccontext.WithCallerID(ctxIn, agentID)
 		ctxIn = rpccontext.WithCallerX509SVID(ctxIn, agentSVID)
 
-		ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
+		ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
 		require.NoError(t, err)
 		assert.True(t, rpccontext.CallerIsAgent(ctxOut))
 	})
@@ -56,7 +56,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		ctxIn = rpccontext.WithCallerID(ctxIn, otherID)
 		ctxIn = rpccontext.WithCallerX509SVID(ctxIn, agentSVID)
 
-		ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
+		ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
 		spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "caller is not an active agent")
 		assert.Nil(t, ctxOut)
 	})
@@ -65,7 +65,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		ctxIn := context.Background()
 		ctxIn = rpccontext.WithCallerX509SVID(ctxIn, agentSVID)
 
-		ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
+		ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
 		spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "caller does not have a SPIFFE ID")
 		assert.Nil(t, ctxOut)
 	})
@@ -74,7 +74,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		ctxIn := context.Background()
 		ctxIn = rpccontext.WithCallerID(ctxIn, agentID)
 
-		ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
+		ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
 		spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "caller does not have an X509-SVID")
 		assert.Nil(t, ctxOut)
 	})

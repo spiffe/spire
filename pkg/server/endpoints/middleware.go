@@ -2,11 +2,13 @@ package endpoints
 
 import (
 	"crypto/x509"
+	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
@@ -23,11 +25,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, auditLogEnabled bool) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *policy.Engine, auditLogEnabled bool) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithAuthorization(Authorization(log, ds, clk)),
+		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(log, ds, clk)),
 		middleware.WithRateLimits(RateLimits(rlConf)),
 	}
 
@@ -45,6 +47,7 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 	agentAuthorizer := AgentAuthorizer(log, ds, clk)
 	entryFetcher := EntryFetcher(ds)
 
+	fmt.Println("LUMJJB: In endpoints.middleware.Authorization")
 	any := middleware.AuthorizeAny()
 	local := middleware.AuthorizeLocal()
 	agent := middleware.AuthorizeAgent(agentAuthorizer)

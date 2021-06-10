@@ -21,7 +21,7 @@ func (a downstreamAuthorizer) Name() string {
 	return "downstream"
 }
 
-func (a downstreamAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
+func (a downstreamAuthorizer) AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error) {
 	ctx, entries, err := WithCallerEntries(ctx, a.entryFetcher)
 	if err != nil {
 		return nil, err

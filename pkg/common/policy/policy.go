@@ -2,12 +2,15 @@ package policy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"os"
 
 	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
+	"github.com/open-policy-agent/opa/util"
 )
 
 // Engine drives policy management.
@@ -38,12 +41,21 @@ type Input struct {
 	Req interface{} `json:"req"`
 }
 
-// NewEngine returns a new policy engine.
+type Result struct {
+	Allow             bool `json:"allow"`
+	AllowIfAdmin      bool `json:"allow_if_admin"`
+	AllowIfLocal      bool `json:"allow_if_local"`
+	AllowIfDownstream bool `json:"allow_if_downstream"`
+	AllowIfAgent      bool `json:"allow_if_agent"`
+}
+
+// NewEngine returns a new policy engine. Or nil if no
+// config is provided.
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	if cfg == nil || cfg.FileProvider == nil {
-		// TODO: return noop engine if config is nil
 		return nil, nil
 	}
+
 	module, err := ioutil.ReadFile(cfg.FileProvider.PolicyPath)
 	if err != nil {
 		return nil, err
@@ -55,31 +67,104 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	defer storefile.Close()
 	store := inmem.NewFromReader(storefile)
 
+	return NewEngineFromRego(string(module), store)
+}
+
+// DefaultAuthPolicy returns the default policy engine
+func DefaultAuthPolicy() (*Engine, error) {
+	var json map[string]interface{}
+	err := util.UnmarshalJSON([]byte(defaultPermissionData), &json)
+	if err != nil {
+		return nil, err
+	}
+	store := inmem.NewFromObject(json)
+
+	return NewEngineFromRego(defaultPolicyRego, store)
+}
+
+// NewEngineFromRego is a helper to create the Engine object
+func NewEngineFromRego(regoPolicy string, dataStore storage.Store) (*Engine, error) {
 	rego := rego.New(
-		rego.Query("data.spire.allow"),
+		rego.Query("data.spire.result"),
 		rego.Package(`spire`),
-		rego.Module("spire.rego", string(module)),
-		rego.Store(store),
+		rego.Module("spire.rego", regoPolicy),
+		rego.Store(dataStore),
 	)
 	pr, err := rego.PartialResult(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	return &Engine{
+
+	e := &Engine{
 		rego: pr,
-	}, nil
+	}
+
+	// Test policy with some simple calls to ensure that the
+	// policy can be evaluated properly.
+	if err = e.testPolicy(); err != nil {
+		return nil, err
+	}
+
+	return e, nil
 }
 
-// IsAllowed determins whether access should be allowed on a resource.
-func (e *Engine) IsAllowed(ctx context.Context, input Input) (bool, error) {
+func (e *Engine) testPolicy() error {
+	ctx := context.Background()
+	for _, i := range sampleInputs {
+		var inp Input
+		err := json.Unmarshal([]byte(i), &inp)
+		if err != nil {
+			return err
+		}
+
+		_, err = e.Eval(ctx, inp)
+		if err != nil {
+			return errors.New("policy initialization: issue testing configured policy")
+		}
+	}
+	return nil
+}
+
+// Eval determines whether access should be allowed on a resource.
+func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err error) {
 	rs, err := e.rego.Rego(rego.Input(input)).Eval(ctx)
 	if err != nil {
-		return false, err
+		return result, err
 	}
 
 	// TODO(tjulian): figure this out
 	if len(rs) == 0 || len(rs[0].Expressions) == 0 {
-		return false, errors.New("policy: no matching policies found")
+		return result, errors.New("policy: no matching policies found")
 	}
-	return rs[0].Expressions[0].Value.(bool), nil
+
+	exp := rs[0].Expressions[0]
+	resultMap := exp.Value.(map[string]interface{})
+
+	var ok bool
+	result.Allow, ok = resultMap["allow"].(bool)
+	if !ok {
+		return result, errors.New("policy: result did not contain \"allow\" bool value")
+	}
+
+	result.AllowIfAdmin, ok = resultMap["allow_if_admin"].(bool)
+	if !ok {
+		return result, errors.New("policy: result did not contain \"allow_if_admin\" bool value")
+	}
+
+	result.AllowIfLocal, ok = resultMap["allow_if_local"].(bool)
+	if !ok {
+		return result, errors.New("policy: result did not contain \"allow_if_local\" bool value")
+	}
+
+	result.AllowIfDownstream, ok = resultMap["allow_if_downstream"].(bool)
+	if !ok {
+		return result, errors.New("policy: result did not contain \"allow_if_downstream\" bool value")
+	}
+
+	result.AllowIfAgent, ok = resultMap["allow_if_agent"].(bool)
+	if !ok {
+		return result, errors.New("policy: result did not contain \"allow_if_agent\" bool value")
+	}
+
+	return result, nil
 }

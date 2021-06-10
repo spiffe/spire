@@ -21,7 +21,7 @@ func (a adminAuthorizer) Name() string {
 	return "admin"
 }
 
-func (a adminAuthorizer) AuthorizeCaller(ctx context.Context) (context.Context, error) {
+func (a adminAuthorizer) AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error) {
 	ctx, entries, err := WithCallerEntries(ctx, a.entryFetcher)
 	if err != nil {
 		return nil, err
