@@ -89,7 +89,7 @@ func (u *bundleUpdater) newClient(ctx context.Context) (Client, error) {
 		DeprecatedConfig: u.c.DeprecatedConfig,
 	}
 
-	if spiffeAuth, ok := u.c.EndpointProfile.(SPIFFEAuthentication); ok {
+	if spiffeAuth, ok := u.c.EndpointProfile.(HTTPSSPIFFEProfile); ok {
 		trustDomain := spiffeAuth.EndpointSPIFFEID.TrustDomain()
 
 		// This is to preserve behavioral compatibility when using

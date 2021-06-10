@@ -47,11 +47,11 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL, "https://9.10.11.12:8443")
 	trustDomainConfig, err := parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain3.test"])
 	assert.NoError(t, err)
-	assert.Equal(t, trustDomainConfig.EndpointProfile.(bundleClient.SPIFFEAuthentication).EndpointSPIFFEID, spiffeid.RequireFromString("spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"))
+	assert.Equal(t, trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile).EndpointSPIFFEID, spiffeid.RequireFromString("spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"))
 	assert.Equal(t, c.Server.Federation.FederatesWith["domain4.test"].BundleEndpointURL, "https://13.14.15.16:8444")
 	trustDomainConfig, err = parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain4.test"])
 	assert.NoError(t, err)
-	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.WebPKI)
+	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 
 	// Check for plugins configurations
@@ -716,14 +716,14 @@ func TestNewServerConfig(t *testing.T) {
 					spiffeid.RequireTrustDomainFromString("domain1.test"): {
 						DeprecatedConfig: true,
 						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile: bundleClient.SPIFFEAuthentication{
+						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
 							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
 						},
 					},
 					spiffeid.RequireTrustDomainFromString("domain2.test"): {
 						DeprecatedConfig: true,
 						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile:  bundleClient.WebPKI{},
+						EndpointProfile:  bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
 			},
@@ -733,7 +733,7 @@ func TestNewServerConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
 					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": spiffeAuthConfigTest(t),
+						"domain1.test": httpsSPIFFEConfigTest(t),
 						"domain2.test": webPKIConfigTest(t),
 					},
 				}
@@ -742,13 +742,13 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
 					spiffeid.RequireTrustDomainFromString("domain1.test"): {
 						EndpointURL: "https://192.168.1.1:1337",
-						EndpointProfile: bundleClient.SPIFFEAuthentication{
+						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
 							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
 						},
 					},
 					spiffeid.RequireTrustDomainFromString("domain2.test"): {
 						EndpointURL:     "https://192.168.1.1:1337",
-						EndpointProfile: bundleClient.WebPKI{},
+						EndpointProfile: bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
 			},
@@ -1557,15 +1557,15 @@ func TestExpandEnv(t *testing.T) {
 	}
 }
 
-func spiffeAuthConfigTest(t *testing.T) federatesWithConfig {
+func httpsSPIFFEConfigTest(t *testing.T) federatesWithConfig {
 	configString := `bundle_endpoint_url = "https://192.168.1.1:1337"
 	bundle_endpoint_profile "https_spiffe" {
 		endpoint_spiffe_id = "spiffe://domain1.test/bundle/endpoint"
 	}`
-	spiffeAuthConfig := new(federatesWithConfig)
-	require.NoError(t, hcl.Decode(spiffeAuthConfig, configString))
+	httpsSPIFFEConfig := new(federatesWithConfig)
+	require.NoError(t, hcl.Decode(httpsSPIFFEConfig, configString))
 
-	return *spiffeAuthConfig
+	return *httpsSPIFFEConfig
 }
 
 func webPKIConfigTest(t *testing.T) federatesWithConfig {

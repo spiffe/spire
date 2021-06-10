@@ -152,17 +152,17 @@ type deprecatedFederatesWithBundleEndpointConfig struct {
 }
 
 type bundleEndpointProfileConfig struct {
-	SPIFFEAuth *spiffeAuthConfig `hcl:"https_spiffe"`
-	WebPKI     *webPKIConfig     `hcl:"https_web"`
-	UnusedKeys []string          `hcl:",unusedKeys"`
+	HTTPSSPIFFE *httpsSPIFFEProfileConfig `hcl:"https_spiffe"`
+	HTTPSWeb    *httpsWebProfileConfig    `hcl:"https_web"`
+	UnusedKeys  []string                  `hcl:",unusedKeys"`
 }
 
-type spiffeAuthConfig struct {
+type httpsSPIFFEProfileConfig struct {
 	EndpointSPIFFEID string   `hcl:"endpoint_spiffe_id"`
 	UnusedKeys       []string `hcl:",unusedKeys"`
 }
 
-type webPKIConfig struct {
+type httpsWebProfileConfig struct {
 }
 
 type rateLimitConfig struct {
@@ -443,7 +443,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 				}
 				trustDomainConfig.DeprecatedConfig = true
-				if spiffeAuth, ok := trustDomainConfig.EndpointProfile.(bundleClient.SPIFFEAuthentication); ok {
+				if spiffeAuth, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
 					if spiffeAuth.EndpointSPIFFEID.IsZero() {
 						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release.", trustDomain)
 					}
@@ -562,14 +562,14 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 
 	var endpointProfile bundleClient.EndpointProfileInfo
 	switch {
-	case profileConfig.WebPKI != nil:
-		endpointProfile = bundleClient.WebPKI{}
-	case profileConfig.SPIFFEAuth != nil:
-		spiffeID, err := spiffeid.FromString(profileConfig.SPIFFEAuth.EndpointSPIFFEID)
+	case profileConfig.HTTPSWeb != nil:
+		endpointProfile = bundleClient.HTTPSWebProfile{}
+	case profileConfig.HTTPSSPIFFE != nil:
+		spiffeID, err := spiffeid.FromString(profileConfig.HTTPSSPIFFE.EndpointSPIFFEID)
 		if err != nil {
 			return nil, fmt.Errorf("could not get endpoint SPIFFE ID: %w", err)
 		}
-		endpointProfile = bundleClient.SPIFFEAuthentication{EndpointSPIFFEID: spiffeID}
+		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
 	default:
 		return nil, errors.New("no bundle endpoint profile defined")
 	}
@@ -591,7 +591,7 @@ func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpoint
 
 	var endpointProfile bundleClient.EndpointProfileInfo
 	if config.UseWebPKI {
-		endpointProfile = bundleClient.WebPKI{}
+		endpointProfile = bundleClient.HTTPSWebProfile{}
 	} else {
 		var spiffeID spiffeid.ID
 		if config.SpiffeID != "" {
@@ -601,7 +601,7 @@ func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpoint
 			}
 		}
 
-		endpointProfile = bundleClient.SPIFFEAuthentication{EndpointSPIFFEID: spiffeID}
+		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
 	}
 
 	return &bundleClient.TrustDomainConfig{

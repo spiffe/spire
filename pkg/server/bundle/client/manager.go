@@ -42,9 +42,9 @@ type EndpointProfileInfo interface {
 	Name() string
 }
 
-type WebPKI struct{}
+type HTTPSWebProfile struct{}
 
-type SPIFFEAuthentication struct {
+type HTTPSSPIFFEProfile struct {
 	// EndpointSPIFFEID is the expected SPIFFE ID of the bundle endpoint server.
 	EndpointSPIFFEID spiffeid.ID
 }
@@ -153,10 +153,10 @@ func calculateNextUpdate(b *bundleutil.Bundle) time.Duration {
 	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
 }
 
-func (e WebPKI) Name() string {
+func (p HTTPSWebProfile) Name() string {
 	return "https_web"
 }
 
-func (e SPIFFEAuthentication) Name() string {
+func (p HTTPSSPIFFEProfile) Name() string {
 	return "https_spiffe"
 }

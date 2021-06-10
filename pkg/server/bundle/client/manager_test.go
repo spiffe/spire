@@ -77,7 +77,7 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 
 	trustDomainConfig := TrustDomainConfig{
 		EndpointURL: "ENDPOINT_URL",
-		EndpointProfile: SPIFFEAuthentication{
+		EndpointProfile: HTTPSSPIFFEProfile{
 			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
 		},
 	}
@@ -159,7 +159,7 @@ func (u *fakeBundleUpdater) UpdateBundle(context.Context) (*bundleutil.Bundle, *
 
 func (u *fakeBundleUpdater) TrustDomainConfig() TrustDomainConfig {
 	return TrustDomainConfig{
-		EndpointProfile: SPIFFEAuthentication{
+		EndpointProfile: HTTPSSPIFFEProfile{
 			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://td.test/test"),
 		},
 	}

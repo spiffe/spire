@@ -92,7 +92,7 @@ func TestBundleUpdater(t *testing.T) {
 				TrustDomain: testCase.trustDomain,
 				TrustDomainConfig: TrustDomainConfig{
 					EndpointURL: "ENDPOINT_ADDRESS",
-					EndpointProfile: SPIFFEAuthentication{
+					EndpointProfile: HTTPSSPIFFEProfile{
 						EndpointSPIFFEID: trustDomain.ID(),
 					},
 				},
