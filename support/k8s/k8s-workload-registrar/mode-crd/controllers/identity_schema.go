@@ -7,6 +7,8 @@ import (
 	"log"
 
 	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type IdentitySchema struct {
@@ -31,44 +33,14 @@ type ConfigMap struct {
 	Field     string `yaml:"field"`
 }
 
-// type Fields struct {
-// 	Provider          *Provider          `yaml:"provider,omitempty"`
-// 	Region            *Region            `yaml:"region,omitempty"`
-// 	WorkloadNamespace *WorkloadNamespace `yaml:"workload-namespace,omitempty"`
-// 	WorkloadPodname   *WorkloadPodname   `yaml:"workload-podname,omitempty"`
-// }
-
-// type Provider struct {
-// 	NodeAttestor *Attestor `yaml:"nodeAttestor"`
-// }
-
-// type Region struct {
-// 	// k8s:
-// 	// configMap:
-// 	//   ns: kube-system
-// 	//   name: cluster-info
-// 	//   field: cluster-region
-// 	SourceName string `yaml:"source-name"`
-// 	DataType   string `yaml:"data-type"`
-// }
-
-// type WorkloadNamespace struct {
-// 	WorkloadAttestor *Attestor `yaml:"workloadAttestor"`
-// }
-
-// type WorkloadPodname struct {
-// 	WorkloadAttestor *Attestor `yaml:"workloadAttestor"`
-// }
-
 type Attestor struct {
-	Type    string    `yaml:"type"`
-	Name    string    `yaml:"name"`
+	Group   string    `yaml:"group"`
 	Mapping []Mapping `yaml:"mapping"`
 }
 
 type Mapping struct {
-	From string `yaml:"from"`
-	To   string `yaml:"to"`
+	Type  string `yaml:"type"`
+	Field string `yaml:"field"`
 }
 
 func (is *IdentitySchema) loadConfig(fileName string) (*IdentitySchema, error) {
@@ -99,82 +71,117 @@ func main() {
 	if _, err := is.loadConfig("/tmp/identity-schema.yaml"); err != nil {
 		log.Fatalf("Error getting IdenitySchema config %v", err)
 	}
-	// if err != nil {
-	// 	log.Fatalf("Error getting IdenitySchema config %v", err)
+
+	// Set up pod:
+	pod := &corev1.Pod{
+		Spec: corev1.PodSpec{
+			ServiceAccountName: "podServiceAccount",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   "podNamespace",
+			Labels:      map[string]string{},
+			Annotations: map[string]string{},
+		},
+	}
+	// if testCase.configLabel != "" && testCase.podLabel != "" {
+	// 	pod.Labels[testCase.configLabel] = testCase.podLabel
+	// }
+	// if testCase.configAnnotation != "" && testCase.podAnnotation != "" {
+	// 	pod.Annotations[testCase.configAnnotation] = testCase.podAnnotation
 	// }
 
-	// fields := is.Fields
-	// // log.Printf("Identity provider %#v", &fields)
-	// for i, field := range fields {
-	// 	log.Printf("%d Field name: %s", i, field.Name)
-	// 	log.Printf("%d Field Source %v", i, field.Source.Name)
-	// 	att := field.Source.Attestor
-	// 	if att != nil {
-	// 		log.Printf("%d Field Attestor Name %v", i, att.Name)
-	// 		log.Printf("%d Field Mapping %#v", i, att.Mapping)
-	// 	}
+	// Test:
+	//spiffeID := c.podSpiffeID(pod)
 
-	// 	cm := field.Source.ConfigMap
-	// 	if cm != nil {
-	// 		log.Printf("%d ConfigMap Name %s", i, cm.Name)
-	// 		log.Printf("%d ConfigMap Field %s", i, cm.Field)
-	// 		log.Printf("%d ConfigMap Namespace %s", i, cm.Namespace)
-	// 	}
-
-	// }
-
-	finalId := is.getId()
+	finalId := is.getId(pod)
 	log.Printf("** Final id %v", finalId)
 	log.Printf("Identity %#v", is)
 	fmt.Print(&is)
 }
 
-func (is *IdentitySchema) getId() string {
+func (is *IdentitySchema) getId(pod *corev1.Pod) string {
+
+	// log.Printf("Processing Pod %#v", pod)
+
 	var idString string = ""
 	fields := is.Fields
-	// log.Printf("Identity provider %#v", &fields)
 	for i, field := range fields {
 		log.Printf("%d Field name: %s", i, field.Name)
-		log.Printf("%d Field Source %v", i, field.Source.Name)
-		idString += "/" + is.getValue(field)
+		log.Printf("%d Field source: %v", i, field.Source.Name)
+		idString += "/" + is.getValue(pod, field)
 	}
-	log.Printf("*** ID Value: %s", idString)
+	log.Printf("ID Value: %s", idString)
 	return idString
-	//return makeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
 }
 
-func (is *IdentitySchema) getValue(field Field) string {
-	log.Printf("Field name: %s", field.Name)
-	log.Printf("Field Source %v", field.Source.Name)
+func (is *IdentitySchema) getValue(pod *corev1.Pod, field Field) string {
 	att := field.Source.Attestor
 	if att != nil {
-		log.Printf("Field Attestor Name %v", att.Name)
-		log.Printf("Field Mapping %#v", att.Mapping)
-		return is.getValueFromAttestor(field.Name, att)
+		log.Printf("* Field Attestor Group Name: %v", att.Group)
+		return is.getValueFromAttestor(pod, field.Name, att)
 	}
 
 	cm := field.Source.ConfigMap
 	if cm != nil {
-		log.Printf("ConfigMap Name %s", cm.Name)
-		log.Printf("ConfigMap Field %s", cm.Field)
-		log.Printf("ConfigMap Namespace %s", cm.Namespace)
+		log.Printf("* ConfigMap Name %s", cm.Name)
+		log.Printf("* ConfigMap Field %s", cm.Field)
+		log.Printf("* ConfigMap Namespace %s", cm.Namespace)
 	}
 
-	// TODO this is just a default value
+	// TODO for now if value unknown, just return the field name
 	return field.Name
 }
 
-func (is *IdentitySchema) getValueFromAttestor(name string, attestor *Attestor) string {
-	log.Printf("Attestor name: %s, type: %s", attestor.Name, attestor.Type)
-	log.Printf("This attestor uses mapping: %#v", attestor.Mapping)
+func (is *IdentitySchema) getValueFromAttestor(pod *corev1.Pod, name string, attestor *Attestor) string {
+	// log.Printf("** Attestor group: %s", attestor.Group)
+	// log.Printf("** This attestor uses mapping: %#v", attestor.Mapping)
 
-	// TODO for now, just return the field name
+	switch attestor.Group {
+	case "nodeAttestor":
+		log.Print("** Processing nodeAttestor")
+		return "value-from-node-Attestor"
+	case "workloadAttestor":
+		return getValueFromWorkloadAttestor(pod, attestor.Mapping)
+	default:
+		log.Print("** Unknown attestor name")
+	}
+	// TODO for now if value unknown, just return the field name
 	return name
 }
 
 func (is *IdentitySchema) getValueFromConfgimap(name string, configmap *ConfigMap) string {
-	log.Printf("ConfigMap namespace: %s, name: %s, field: %s", configmap.Namespace, configmap.Name, configmap.Field)
+	log.Printf("** ConfigMap namespace: %s, name: %s, field: %s", configmap.Namespace, configmap.Name, configmap.Field)
 
 	// TODO for now, just return the field name
 	return name
+}
+
+func getValueFromWorkloadAttestor(pod *corev1.Pod, mapping []Mapping) string {
+
+	for _, field := range mapping {
+
+		//log.Printf("*** %d processing field: %#v", i, field)
+
+		switch field.Type {
+		case "k8s":
+			switch field.Field {
+			case "sa":
+				return pod.Spec.ServiceAccountName
+			case "ns":
+				return pod.Namespace
+			case "pod-name":
+				return pod.Name
+			case "pod-uid":
+				return string(pod.UID)
+			default:
+				log.Printf("*** Unknown field for k8s attestor: %s", field.Field)
+			}
+		case "xxx":
+			log.Printf("*** Processing xxx attestor")
+		default:
+			log.Printf("*** Unknown workload attestor type: %s", field.Type)
+		}
+
+	}
+	return "***Error"
 }

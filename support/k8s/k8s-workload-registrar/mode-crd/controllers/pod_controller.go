@@ -195,7 +195,7 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
 	//return makeID(r.c.TrustDomain, "v1/provider/eu-de/%s/%s/%s", pod.Namespace, pod.Spec.ServiceAccountName, pod.Spec.Containers[0].Name)
-	newId := r.is.getId()
+	newId := r.is.getId(pod)
 	return makeID(r.c.TrustDomain, newId)
 	// return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }

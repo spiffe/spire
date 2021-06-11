@@ -1,0 +1,41 @@
+version: v1
+fields:
+  - name: provider
+    source: 
+      name: nodeAttestor
+      attestor: 
+        group: nodeAttestor
+        mapping:
+        - type: aws
+          field: aws_iid:*
+        - type: gcloud
+          field: gcp_iit:*
+        - type: azure
+          field: azure_msi:*
+        - type: ibm
+          field: iks
+        - type: minikube
+          field: minikube
+  - name: region
+    source: 
+      name: k8s
+      configMap:
+            ns: kube-system
+            name: cluster-info
+            field: cluster-region
+  - name: workload-namespace
+    source: 
+      name: workloadAttestor
+      attestor: 
+        group: workloadAttestor
+        mapping:
+        - type: k8s
+          field: ns 
+  - name: workload-podname
+    source:
+      name: workloadAttestor
+      attestor: 
+        group: workloadAttestor
+        mapping:
+        - type: k8s
+          field: pod-name
