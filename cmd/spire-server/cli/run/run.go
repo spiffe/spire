@@ -443,9 +443,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 				}
 				trustDomainConfig.DeprecatedConfig = true
-				if spiffeAuth, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
-					if spiffeAuth.EndpointSPIFFEID.IsZero() {
-						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release.", trustDomain)
+				if httpsSPIFFE, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
+					if httpsSPIFFE.EndpointSPIFFEID.IsZero() {
+						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release in the https_spiffe profile.", trustDomain)
 					}
 				}
 			case config.BundleEndpointProfile != nil:
