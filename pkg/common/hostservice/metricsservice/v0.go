@@ -8,7 +8,7 @@ import (
 	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 )
 
-// V0 returns a v0 metrics service server over the provide metrics interface
+// V0 returns a v0 metrics service server over the provided Metrics interface
 func V0(metrics telemetry.Metrics) metricsv0.MetricsServiceServer {
 	return metricsV0{metrics: metrics}
 }

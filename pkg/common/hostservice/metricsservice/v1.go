@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// V1 returns a v1 metrics service server over the provide metrics interface
+// V1 returns a v1 metrics service server over the provided Metrics interface
 func V1(metrics telemetry.Metrics) metricsv1.MetricsServer {
 	return metricsV1{metrics: metrics}
 }
