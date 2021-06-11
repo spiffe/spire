@@ -9,8 +9,10 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
@@ -123,8 +125,11 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 				LegacyType:    "AgentStore",
 			},
 			{
-				ServiceServer: metricsv0.MetricsServiceServiceServer(config.MetricsService),
+				ServiceServer: metricsv0.MetricsServiceServiceServer(metricsservice.V0(config.Metrics)),
 				LegacyType:    "MetricsService",
+			},
+			{
+				ServiceServer: metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 			},
 		},
 	}, repo)

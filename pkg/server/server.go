@@ -15,7 +15,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
@@ -29,7 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/grpc"
@@ -82,9 +80,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	metricsService := metricsservice.New(metricsservice.Config{
-		Metrics: metrics,
-	})
 
 	telemetry.EmitVersion(metrics)
 	uptime.ReportMetrics(ctx, metrics)
@@ -104,7 +99,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, metricsService, healthChecker)
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker)
 	if err != nil {
 		return err
 	}
@@ -237,7 +232,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider identityproviderv0.IdentityProviderServer, agentStore agentstorev0.AgentStoreServer,
-	metricsService metricsv0.MetricsServiceServer, healthChecker health.Checker) (*catalog.Repository, error) {
+	healthChecker health.Checker) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
@@ -245,7 +240,6 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
-		MetricsService:   metricsService,
 		HealthChecker:    healthChecker,
 	})
 }
