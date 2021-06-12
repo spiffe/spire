@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -519,11 +519,11 @@ func newFakeVaultServer() *FakeVaultServerConfig {
 }
 
 func testClientCertificatePair() (tls.Certificate, error) {
-	cert, err := ioutil.ReadFile(testClientCert)
+	cert, err := os.ReadFile(testClientCert)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-	key, err := ioutil.ReadFile(testClientKey)
+	key, err := os.ReadFile(testClientKey)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -533,7 +533,7 @@ func testClientCertificatePair() (tls.Certificate, error) {
 
 func testRootCAs() (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	pem, err := ioutil.ReadFile(testRootCert)
+	pem, err := os.ReadFile(testRootCert)
 	if err != nil {
 		return nil, err
 	}

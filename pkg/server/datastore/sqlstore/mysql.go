@@ -4,7 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
@@ -99,7 +99,7 @@ func configureConnection(cfg *configuration, isReadOnly bool) (string, error) {
 	// load and configure Root CA if it exists
 	if len(cfg.RootCAPath) > 0 {
 		rootCertPool := x509.NewCertPool()
-		pem, err := ioutil.ReadFile(cfg.RootCAPath)
+		pem, err := os.ReadFile(cfg.RootCAPath)
 
 		if err != nil {
 			return "", sqlError.New("invalid mysql config: cannot find Root CA defined in root_ca_path")

@@ -2,7 +2,6 @@ package sat
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,7 +93,7 @@ func (s *AttestorSuite) writeValue(path, data string) string {
 	valuePath := s.joinPath(path)
 	err := os.MkdirAll(filepath.Dir(valuePath), 0755)
 	s.Require().NoError(err)
-	err = ioutil.WriteFile(valuePath, []byte(data), 0600)
+	err = os.WriteFile(valuePath, []byte(data), 0600)
 	s.Require().NoError(err)
 	return valuePath
 }

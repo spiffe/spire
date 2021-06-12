@@ -1,7 +1,7 @@
 package fixture
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"runtime"
 )
@@ -31,5 +31,5 @@ func Join(parts ...string) string {
 }
 
 func Load(path string) ([]byte, error) {
-	return ioutil.ReadFile(Path(path))
+	return os.ReadFile(Path(path))
 }

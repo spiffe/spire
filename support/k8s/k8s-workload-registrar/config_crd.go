@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 
 	"github.com/hashicorp/hcl"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -150,7 +150,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 }
 
 func getNamespace() (string, error) {
-	content, err := ioutil.ReadFile(namespaceFile)
+	content, err := os.ReadFile(namespaceFile)
 	if err != nil {
 		return "", err
 	}

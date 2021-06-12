@@ -5,7 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 // NewCertPool creates a new *x509.CertPool based on the certificates given
@@ -31,7 +31,7 @@ func LoadCertPool(path string) (*x509.CertPool, error) {
 // LoadCertificates loads one or more certificates into an []*x509.Certificate from
 // a PEM file on disk.
 func LoadCertificates(path string) ([]*x509.Certificate, error) {
-	rest, err := ioutil.ReadFile(path)
+	rest, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

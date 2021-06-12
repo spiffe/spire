@@ -5,7 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 var (
@@ -35,7 +35,7 @@ func loadBlock(path string, expectedTypes ...string) (*Block, error) {
 }
 
 func loadBlocks(path string, expectedCount int, expectedTypes ...string) (blocks []Block, err error) {
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

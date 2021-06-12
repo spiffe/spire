@@ -5,7 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -81,7 +81,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	// Save in file
 	tokenPath := env.JoinPath(c.write)
-	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+	if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
 		return fmt.Errorf("unable to write token: %w", err)
 	}
 	return env.Printf("JWT-SVID written to %s\n", tokenPath)
