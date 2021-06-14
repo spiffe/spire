@@ -20,7 +20,7 @@ const (
 var (
 	testConfigWithVaultAddrEnvTpl = `
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {
    token  = "test-token"
 }`
@@ -28,18 +28,18 @@ token_auth {
 	testCertAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 cert_auth {
    cert_auth_mount_point = "test-cert-auth"
    cert_auth_role_name = "test"
-   client_cert_path = "_test_data/keys/EC/client_cert.pem"
-   client_key_path  = "_test_data/keys/EC/client_key.pem"
+   client_cert_path = "testdata/keys/EC/client_cert.pem"
+   client_key_path  = "testdata/keys/EC/client_key.pem"
 }`
 
 	testCertAuthConfigWithEnvTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 cert_auth {
    cert_auth_mount_point = "test-cert-auth"
 }`
@@ -48,7 +48,7 @@ cert_auth {
 	testTokenAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {
    token  = "test-token"
 }`
@@ -57,13 +57,13 @@ token_auth {
 	testTokenAuthConfigWithEnvTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {}`
 
 	testAppRoleAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 approle_auth {
    approle_auth_mount_point = "test-approle-auth"
    approle_id = "test-approle-id"
@@ -73,7 +73,7 @@ approle_auth {
 	testAppRoleAuthConfigWithEnvTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 approle_auth {
    approle_auth_mount_point = "test-approle-auth"
 }`
@@ -81,7 +81,7 @@ approle_auth {
 	testMultipleAuthConfigsTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 cert_auth {}
 token_auth {}
 approle_auth {
@@ -94,7 +94,7 @@ approle_auth {
 namespace = "test-ns"
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {
    token  = "test-token"
 }
@@ -180,6 +180,18 @@ token_auth {
   "lease_duration": 0,
   "data": {
     "certificate": "-----BEGIN CERTIFICATE-----\nMIIBmjCCAUCgAwIBAgIJAJQ2zT1xCwf9MAkGByqGSM49BAEwNTELMAkGA1UEBhMC\nVVMxDzANBgNVBAoMBlNQSUZGRTEVMBMGA1UEAwwMdGVzdC1yb290LWNhMB4XDTIw\nMDUyODA1NTgxOVoXDTMwMDUyNjA1NTgxOVowPTELMAkGA1UEBhMCVVMxDzANBgNV\nBAoMBlNQSUZGRTEdMBsGA1UEAwwUdGVzdC1pbnRlcm1lZGlhdGUtY2EwWTATBgcq\nhkjOPQIBBggqhkjOPQMBBwNCAAQl25uLXYCtUuC56HBfiuSPRihZh+XZFe1azAt8\nm4JFFQE0MKYBGmuv+dtxbb7S1DWDIWe+/TgnwPlvPZ2fG8H1ozIwMDAgBgNVHREE\nGTAXhhVzcGlmZmU6Ly9pbnRlcm1lZGlhdGUwDAYDVR0TBAUwAwEB/zAJBgcqhkjO\nPQQBA0kAMEYCIQC75fPz270uBP654XhWXTzAv+pEy2i3tUIbeinFXuhhYQIhAJdm\nEt2IvChBiw2vII7Be7LUQq20qF6YIWaZbIYVLwD3\n-----END CERTIFICATE-----",
+    "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIBjDCCATGgAwIBAgIJALZY6FEA9r6kMAoGCCqGSM49BAMCMDUxCzAJBgNVBAYT\nAlVTMQ8wDQYDVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTAeFw0y\nMDA1MjgwNTUxNTVaFw0zMDA1MjYwNTUxNTVaMDUxCzAJBgNVBAYTAlVTMQ8wDQYD\nVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTBZMBMGByqGSM49AgEG\nCCqGSM49AwEHA0IABO4U2vNH4ZuiexLCujPFh/r0fydL0Z+4JaVYh1Kx/m8KDFv7\ncaPNTZJwqNpZfvNxDO8YT0TGajLDmYI++/jZyBWjKjAoMBgGA1UdEQQRMA+GDXNw\naWZmZTovL3Jvb3QwDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAz+Pu\nb7yIGRTvWEj/ucQZXNnQc12GbWOPMO2dvA9I/BcCIQD0CeqIvkXunFMDy7SiyhgH\nvQpKl7ELFz1vtklgN2P8cg==\n-----END CERTIFICATE-----",
+    "serial_number": "39:dd:2e:90:b7:23:1f:8d:d3:7d:31:c5:1b:da:84:d0:5b:65:31:58"
+  },
+  "auth": null
+}`
+
+	testSignMalformedCertificateResponse = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "certificate": "malformed-cert",
     "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIBjDCCATGgAwIBAgIJALZY6FEA9r6kMAoGCCqGSM49BAMCMDUxCzAJBgNVBAYT\nAlVTMQ8wDQYDVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTAeFw0y\nMDA1MjgwNTUxNTVaFw0zMDA1MjYwNTUxNTVaMDUxCzAJBgNVBAYTAlVTMQ8wDQYD\nVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTBZMBMGByqGSM49AgEG\nCCqGSM49AwEHA0IABO4U2vNH4ZuiexLCujPFh/r0fydL0Z+4JaVYh1Kx/m8KDFv7\ncaPNTZJwqNpZfvNxDO8YT0TGajLDmYI++/jZyBWjKjAoMBgGA1UdEQQRMA+GDXNw\naWZmZTovL3Jvb3QwDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAz+Pu\nb7yIGRTvWEj/ucQZXNnQc12GbWOPMO2dvA9I/BcCIQD0CeqIvkXunFMDy7SiyhgH\nvQpKl7ELFz1vtklgN2P8cg==\n-----END CERTIFICATE-----",
     "serial_number": "39:dd:2e:90:b7:23:1f:8d:d3:7d:31:c5:1b:da:84:d0:5b:65:31:58"
   },
