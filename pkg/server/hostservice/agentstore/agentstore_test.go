@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -71,17 +72,32 @@ func TestAgentStore(t *testing.T) {
 				}
 			}
 
-			resp, err := s.GetAgentInfo(context.Background(), &agentstorev0.GetAgentInfoRequest{
-				AgentId: testCase.agentID,
+			t.Run("v0", func(t *testing.T) {
+				resp, err := s.V0().GetAgentInfo(context.Background(), &agentstorev0.GetAgentInfoRequest{
+					AgentId: testCase.agentID,
+				})
+				if testCase.getErr != "" {
+					spiretest.AssertGRPCStatusContains(t, err, testCase.code, testCase.getErr)
+					assert.Nil(resp)
+					return
+				}
+				require.NoError(err)
+				require.NotNil(t, resp)
+				assert.Equal(resp.Info.AgentId, testCase.agentID)
 			})
-			if testCase.getErr != "" {
-				spiretest.AssertGRPCStatusContains(t, err, testCase.code, testCase.getErr)
-				assert.Nil(resp)
-				return
-			}
-			require.NoError(err)
-			require.NotNil(t, resp)
-			assert.Equal(resp.Info.AgentId, testCase.agentID)
+			t.Run("v1", func(t *testing.T) {
+				resp, err := s.V1().GetAgentInfo(context.Background(), &agentstorev1.GetAgentInfoRequest{
+					AgentId: testCase.agentID,
+				})
+				if testCase.getErr != "" {
+					spiretest.AssertGRPCStatusContains(t, err, testCase.code, testCase.getErr)
+					assert.Nil(resp)
+					return
+				}
+				require.NoError(err)
+				require.NotNil(t, resp)
+				assert.Equal(resp.Info.AgentId, testCase.agentID)
+			})
 		})
 	}
 }

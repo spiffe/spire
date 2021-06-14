@@ -5,12 +5,12 @@ import (
 	"errors"
 
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 )
 
 type Base struct {
-	store agentstorev0.AgentStoreServiceClient
+	store agentstorev1.AgentStoreServiceClient
 }
 
 var _ pluginsdk.NeedsHostServices = (*Base)(nil)
