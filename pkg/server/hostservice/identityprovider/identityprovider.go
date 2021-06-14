@@ -7,6 +7,11 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/zeebo/errs"
@@ -30,8 +35,8 @@ func (fn X509IdentityFetcherFunc) FetchX509Identity(ctx context.Context) (*X509I
 }
 
 type Config struct {
-	// TrustDomainID of the server trust domain.
-	TrustDomainID string
+	// TrustDomain is the server trust domain.
+	TrustDomain spiffeid.TrustDomain
 }
 
 type Deps struct {
@@ -43,8 +48,6 @@ type Deps struct {
 }
 
 type IdentityProvider struct {
-	identityproviderv0.UnsafeIdentityProviderServer
-
 	config Config
 
 	mu   sync.RWMutex
@@ -79,13 +82,27 @@ func (s *IdentityProvider) getDeps() (*Deps, error) {
 	return s.deps, nil
 }
 
-func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityproviderv0.FetchX509IdentityRequest) (*identityproviderv0.FetchX509IdentityResponse, error) {
-	deps, err := s.getDeps()
+func (s *IdentityProvider) V0() identityproviderv0.IdentityProviderServer {
+	return &identityProviderV0{s: s}
+}
+
+func (s *IdentityProvider) V1() identityproviderv1.IdentityProviderServer {
+	return &identityProviderV1{s: s}
+}
+
+type identityProviderV0 struct {
+	identityproviderv0.UnsafeIdentityProviderServer
+
+	s *IdentityProvider
+}
+
+func (v0 *identityProviderV0) FetchX509Identity(ctx context.Context, req *identityproviderv0.FetchX509IdentityRequest) (*identityproviderv0.FetchX509IdentityResponse, error) {
+	deps, err := v0.s.getDeps()
 	if err != nil {
 		return nil, err
 	}
 
-	bundle, err := deps.DataStore.FetchBundle(ctx, s.config.TrustDomainID)
+	bundle, err := deps.DataStore.FetchBundle(ctx, v0.s.config.TrustDomain.IDString())
 	if err != nil {
 		return nil, err
 	}
@@ -111,5 +128,61 @@ func (s *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityp
 			PrivateKey: privateKey,
 		},
 		Bundle: bundle,
+	}, nil
+}
+
+type identityProviderV1 struct {
+	identityproviderv1.UnsafeIdentityProviderServer
+
+	s *IdentityProvider
+}
+
+func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, req *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
+	deps, err := v1.s.getDeps()
+	if err != nil {
+		return nil, err
+	}
+
+	bundle, err := deps.DataStore.FetchBundle(ctx, v1.s.config.TrustDomain.IDString())
+	if err != nil {
+		return nil, err
+	}
+
+	x509Authorities, err := x509certificate.ToPluginFromCommonProtos(bundle.RootCas)
+	if err != nil {
+		return nil, err
+	}
+
+	jwtAuthorities, err := jwtkey.ToPluginFromCommonProtos(bundle.JwtSigningKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	x509Identity, err := deps.X509IdentityFetcher.FetchX509Identity(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	certChain := make([][]byte, 0, len(x509Identity.CertChain))
+	for _, cert := range x509Identity.CertChain {
+		certChain = append(certChain, cert.Raw)
+	}
+
+	privateKey, err := x509.MarshalPKCS8PrivateKey(x509Identity.PrivateKey)
+	if err != nil {
+		return nil, errs.Wrap(err)
+	}
+
+	return &identityproviderv1.FetchX509IdentityResponse{
+		Identity: &identityproviderv1.X509Identity{
+			CertChain:  certChain,
+			PrivateKey: privateKey,
+		},
+		Bundle: &plugintypes.Bundle{
+			TrustDomain:     v1.s.config.TrustDomain.String(),
+			X509Authorities: x509Authorities,
+			JwtAuthorities:  jwtAuthorities,
+			RefreshHint:     bundle.RefreshHint,
+		},
 	}, nil
 }

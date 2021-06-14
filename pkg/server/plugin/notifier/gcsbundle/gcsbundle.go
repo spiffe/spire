@@ -12,12 +12,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -54,7 +54,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProviderServiceClient
+	identityProvider identityproviderv1.IdentityProviderServiceClient
 
 	hooks struct {
 		newBucketClient func(ctx context.Context, configPath string) (bucketClient, error)
@@ -160,7 +160,7 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 		// be loaded after fetching the generation so we can properly detect
 		// and correct a race updating the bundle (i.e. read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
 		if err != nil {
 			st := status.Convert(err)
 			return status.Errorf(st.Code(), "unable to fetch bundle from SPIRE server: %v", st.Message())
@@ -234,13 +234,13 @@ func (c *gcsBucketClient) Close() error {
 }
 
 // bundleData formats the bundle data for storage in GCS
-func bundleData(bundle *common.Bundle) []byte {
+func bundleData(bundle *plugintypes.Bundle) []byte {
 	bundleData := new(bytes.Buffer)
-	for _, rootCA := range bundle.RootCas {
+	for _, x509Authority := range bundle.X509Authorities {
 		// no need to check the error since we're encoding into a memory buffer
 		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: rootCA.DerBytes,
+			Bytes: x509Authority.Asn1,
 		})
 	}
 	return bundleData.Bytes()

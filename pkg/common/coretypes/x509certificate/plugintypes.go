@@ -5,6 +5,7 @@ import (
 
 	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 func FromPluginProto(pb *plugintypes.X509Certificate) (*x509.Certificate, error) {
@@ -49,6 +50,14 @@ func ToPluginProtos(x509Certificates []*x509.Certificate) ([]*plugintypes.X509Ce
 		pbs = append(pbs, pb)
 	}
 	return pbs, nil
+}
+
+func ToPluginFromCommonProtos(pbs []*common.Certificate) ([]*plugintypes.X509Certificate, error) {
+	certs, err := FromCommonProtos(pbs)
+	if err != nil {
+		return nil, err
+	}
+	return ToPluginProtos(certs)
 }
 
 func RawFromPluginProto(pb *plugintypes.X509Certificate) ([]byte, error) {
