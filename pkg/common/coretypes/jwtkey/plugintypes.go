@@ -1,6 +1,7 @@
 package jwtkey
 
 import (
+	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -72,4 +73,34 @@ func ToPluginFromCommonProtos(pbs []*common.PublicKey) ([]*plugintypes.JWTKey, e
 		jwtKeys = append(jwtKeys, jwtKey)
 	}
 	return jwtKeys, nil
+}
+
+func ToPluginFromAPIProto(pb *apitypes.JWTKey) (*plugintypes.JWTKey, error) {
+	if pb == nil {
+		return nil, nil
+	}
+
+	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return ToPluginProto(jwtKey)
+}
+
+func ToPluginFromAPIProtos(pbs []*apitypes.JWTKey) ([]*plugintypes.JWTKey, error) {
+	if pbs == nil {
+		return nil, nil
+	}
+
+	jwtAuthorities := make([]*plugintypes.JWTKey, 0, len(pbs))
+	for _, pb := range pbs {
+		jwtKey, err := ToPluginFromAPIProto(pb)
+		if err != nil {
+			return nil, err
+		}
+		jwtAuthorities = append(jwtAuthorities, jwtKey)
+	}
+
+	return jwtAuthorities, nil
 }

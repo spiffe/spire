@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -45,6 +46,8 @@ ozrYAiBrdSwMwUG795ZY1D5lh5s0mHb98muSjR3EoPPSiadJtA==
 	commonLeaf  = &common.Certificate{DerBytes: leaf.Raw}
 	commonEmpty = &common.Certificate{}
 	commonBad   = &common.Certificate{DerBytes: junk}
+	apiLeaf     = &apitypes.X509Certificate{Asn1: leaf.Raw}
+	apiEmpty    = &apitypes.X509Certificate{}
 )
 
 func TestFromCommonProto(t *testing.T) {
@@ -382,6 +385,42 @@ func TestRawToPluginProtos(t *testing.T) {
 
 	assertOK(t, [][]byte{leaf.Raw}, []*plugintypes.X509Certificate{pluginLeaf})
 	assertFail(t, [][]byte{empty.Raw}, "missing X.509 certificate data")
+	assertOK(t, nil, nil)
+}
+
+func TestToPluginFromAPIProto(t *testing.T) {
+	assertOK := func(t *testing.T, in *apitypes.X509Certificate, expectOut *plugintypes.X509Certificate) {
+		actualOut, err := x509certificate.ToPluginFromAPIProto(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoEqual(t, expectOut, actualOut)
+	}
+
+	assertFail := func(t *testing.T, in *apitypes.X509Certificate, expectErr string) {
+		actualOut, err := x509certificate.ToPluginFromAPIProto(in)
+		spiretest.RequireErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, apiLeaf, pluginLeaf)
+	assertFail(t, apiEmpty, "missing X.509 certificate data")
+	assertOK(t, nil, nil)
+}
+
+func TestToPluginFromAPIProtos(t *testing.T) {
+	assertOK := func(t *testing.T, in []*apitypes.X509Certificate, expectOut []*plugintypes.X509Certificate) {
+		actualOut, err := x509certificate.ToPluginFromAPIProtos(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoListEqual(t, expectOut, actualOut)
+	}
+
+	assertFail := func(t *testing.T, in []*apitypes.X509Certificate, expectErr string) {
+		actualOut, err := x509certificate.ToPluginFromAPIProtos(in)
+		spiretest.RequireErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, []*apitypes.X509Certificate{apiLeaf}, []*plugintypes.X509Certificate{pluginLeaf})
+	assertFail(t, []*apitypes.X509Certificate{apiEmpty}, "missing X.509 certificate data")
 	assertOK(t, nil, nil)
 }
 
