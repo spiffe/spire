@@ -2,34 +2,41 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io/ioutil"
+	"os"
 
 	"github.com/hashicorp/hcl"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
+	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/webhook"
 	"github.com/zeebo/errs"
-
+	"golang.org/x/sys/unix"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
-	defaultAddSvcDNSName   = true
-	defaultPodController   = true
-	defaultMetricsBindAddr = ":8080"
-	defaultWebhookCertDir  = "/run/spire/serving-certs"
-	defaultWebhookPort     = 9443
-	namespaceFile          = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	defaultAddSvcDNSName      = true
+	defaultPodController      = true
+	defaultMetricsBindAddr    = ":8080"
+	defaultWebhookCertDir     = "/run/spire/serving-certs"
+	defaultWebhookPort        = 9443
+	defaultWebhookServiceName = "k8s-workload-registrar"
+	namespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 type CRDMode struct {
 	CommonMode
-	AddSvcDNSName   bool   `hcl:"add_svc_dns_name"`
-	LeaderElection  bool   `hcl:"leader_election"`
-	MetricsBindAddr string `hcl:"metrics_bind_addr"`
-	PodController   bool   `hcl:"pod_controller"`
-	WebhookEnabled  bool   `hcl:"webhook_enabled"`
-	WebhookCertDir  string `hcl:"webhook_cert_dir"`
-	WebhookPort     int    `hcl:"webhook_port"`
+	AddSvcDNSName      bool   `hcl:"add_svc_dns_name"`
+	LeaderElection     bool   `hcl:"leader_election"`
+	MetricsBindAddr    string `hcl:"metrics_bind_addr"`
+	PodController      bool   `hcl:"pod_controller"`
+	WebhookCertDir     string `hcl:"webhook_cert_dir"`
+	WebhookEnabled     bool   `hcl:"webhook_enabled"`
+	WebhookPort        int    `hcl:"webhook_port"`
+	WebhookServiceName string `hcl:"webhook_service_name"`
 }
 
 func (c *CRDMode) ParseConfig(hclConfig string) error {
@@ -49,6 +56,10 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 
 	if c.WebhookPort == 0 {
 		c.WebhookPort = defaultWebhookPort
+	}
+
+	if c.WebhookServiceName == "" {
+		c.WebhookServiceName = defaultWebhookServiceName
 	}
 
 	return nil
@@ -71,7 +82,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		return err
 	}
 
-	myNamespace, err := getNamespace()
+	myPodNamespace, err := getMyPodNamespace()
 	if err != nil {
 		return err
 	}
@@ -90,11 +101,71 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 
 	if c.WebhookEnabled {
+		// Backwards compatibility check
+		exists, err := c.certDirExistsAndReadOnly()
+		if err != nil {
+			return fmt.Errorf("checking webhook certificate directory permissions: %w", err)
+		}
+		if exists {
+			log.Warn("Detected statically mounted webhook certificate directory, support for this will be removed in a future version. " +
+				"Refer to README for instructions on using SPIRE Server to populate webhook certificates.")
+		} else {
+			myNodeName, err := getMyNodeName()
+			if err != nil {
+				return err
+			}
+			myPodName, err := getMyPodName()
+			if err != nil {
+				return err
+			}
+			myPodUID, err := getMyPodUID()
+			if err != nil {
+				return err
+			}
+			clientset, err := controllers.NewKubeClientset()
+			if err != nil {
+				return err
+			}
+			webhookEntry := webhook.NewEntry(webhook.EntryConfig{
+				Clientset:          clientset,
+				Cluster:            c.Cluster,
+				Ctx:                ctx,
+				E:                  entryClient,
+				Log:                log,
+				Name:               myPodName,
+				Namespace:          myPodNamespace,
+				NodeName:           myNodeName,
+				TrustDomain:        c.TrustDomain,
+				UID:                myPodUID,
+				WebhookServiceName: c.WebhookServiceName,
+			})
+			if err = webhookEntry.CleanupStaleEntries(); err != nil {
+				return err
+			}
+			if err = webhookEntry.CreateEntry(); err != nil {
+				return err
+			}
+			defer func() {
+				if err = webhookEntry.DeleteEntry(); err != nil {
+					log.WithError(err).Error("Unable to delete webhook entry")
+				}
+			}()
+			webhookSVIDWatcher := webhook.NewSVIDWatcher(webhook.SVIDWatcherConfig{
+				AgentSocketPath: c.AgentSocketPath,
+				Ctx:             ctx,
+				Log:             log,
+				SpiffeID:        webhookEntry.SpiffeID,
+				WebhookCertDir:  c.WebhookCertDir,
+			})
+			if err = webhookSVIDWatcher.Start(); err != nil {
+				return err
+			}
+		}
 		err = spiffeidv1beta1.AddSpiffeIDWebhook(spiffeidv1beta1.SpiffeIDWebhookConfig{
 			Ctx:         ctx,
 			Log:         log,
 			Mgr:         mgr,
-			Namespace:   myNamespace,
+			Namespace:   myPodNamespace,
 			E:           entryClient,
 			TrustDomain: c.TrustDomain,
 		})
@@ -109,7 +180,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			Cluster:     c.Cluster,
 			Ctx:         ctx,
 			Log:         log,
-			Namespace:   myNamespace,
+			Namespace:   myPodNamespace,
 			Scheme:      mgr.GetScheme(),
 			TrustDomain: c.TrustDomain,
 		}).SetupWithManager(mgr)
@@ -133,7 +204,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 
 	if c.AddSvcDNSName {
-		err := controllers.NewEndpointReconciler(controllers.EndpointReconcilerConfig{
+		err = controllers.NewEndpointReconciler(controllers.EndpointReconcilerConfig{
 			Client:             mgr.GetClient(),
 			Ctx:                ctx,
 			DisabledNamespaces: c.DisabledNamespaces,
@@ -149,11 +220,60 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	return mgr.Start(ctrl.SetupSignalHandler())
 }
 
-func getNamespace() (string, error) {
-	content, err := ioutil.ReadFile(namespaceFile)
+func (c *CRDMode) certDirExistsAndReadOnly() (bool, error) {
+	_, err := os.Stat(c.WebhookCertDir)
 	if err != nil {
-		return "", err
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err = unix.Access(c.WebhookCertDir, unix.W_OK); err != nil {
+		if errors.Is(err, unix.EROFS) {
+			return true, nil
+		}
+		return false, err
 	}
 
-	return string(content), nil
+	return false, nil
+}
+
+func getMyNodeName() (string, error) {
+	namespace, ok := os.LookupEnv("MY_NODE_NAME")
+	if !ok {
+		return "", fmt.Errorf("unable to get MY_NODE_NAME, ensure downward API is configured for this pod")
+	}
+
+	return namespace, nil
+}
+
+func getMyPodNamespace() (string, error) {
+	namespace, ok := os.LookupEnv("MY_POD_NAMESPACE")
+	if !ok {
+		content, err := ioutil.ReadFile(namespaceFile)
+		if err != nil {
+			return "", fmt.Errorf("unable to get MY_POD_NAMESPACE, ensure downward API is configured for this pod")
+		}
+		return string(content), nil
+	}
+
+	return namespace, nil
+}
+
+func getMyPodName() (string, error) {
+	name, ok := os.LookupEnv("MY_POD_NAME")
+	if !ok {
+		return "", fmt.Errorf("unable to get MY_POD_NAME, ensure downward API is configured for this pod")
+	}
+
+	return name, nil
+}
+
+func getMyPodUID() (types.UID, error) {
+	uid, ok := os.LookupEnv("MY_POD_UID")
+	if !ok {
+		return "", fmt.Errorf("unable to get MY_POD_UID, ensure downward API is configured for this pod")
+	}
+
+	return types.UID(uid), nil
 }

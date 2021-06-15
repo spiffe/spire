@@ -51,7 +51,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.6
 	github.com/mitchellh/cli v1.0.0
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/prometheus/client_golang v1.4.0
 	github.com/shirou/gopsutil v2.18.12+incompatible
