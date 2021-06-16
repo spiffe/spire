@@ -3,7 +3,7 @@ package sat
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -118,7 +118,7 @@ func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 }
 
 func loadTokenFromFile(path string) (string, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", errs.Wrap(err)
 	}

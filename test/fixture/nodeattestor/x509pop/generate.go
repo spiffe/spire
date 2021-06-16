@@ -7,8 +7,8 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"time"
 )
 
@@ -81,7 +81,7 @@ func writeKey(path string, key interface{}) {
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
-	err = ioutil.WriteFile(path, pemBytes, 0600)
+	err = os.WriteFile(path, pemBytes, 0600)
 	panice(err)
 }
 
@@ -94,6 +94,6 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 		})
 		panice(err)
 	}
-	err := ioutil.WriteFile(path, data.Bytes(), 0600)
+	err := os.WriteFile(path, data.Bytes(), 0600)
 	panice(err)
 }

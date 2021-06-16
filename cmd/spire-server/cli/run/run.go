@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -245,7 +244,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	}
 
 	// Return a friendly error if the file is missing
-	byteData, err := ioutil.ReadFile(path)
+	byteData, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {

@@ -3,7 +3,6 @@ package run
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -25,7 +24,7 @@ import (
 )
 
 func TestDownloadTrustBundle(t *testing.T) {
-	testTB, _ := ioutil.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
+	testTB, _ := os.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
 	cases := []struct {
 		msg          string
 		status       int
@@ -871,7 +870,7 @@ func TestNewAgentConfig(t *testing.T) {
 			logOptions: func(t *testing.T) []log.Option {
 				return []log.Option{
 					func(logger *log.Logger) error {
-						logger.SetOutput(ioutil.Discard)
+						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
 							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
@@ -1084,7 +1083,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 // TestLogOptions verifies the log options given to NewAgentConfig are applied, and are overridden
 // by values from the config file
 func TestLogOptions(t *testing.T) {
-	fd, err := ioutil.TempFile("", "test")
+	fd, err := os.CreateTemp("", "test")
 	require.NoError(t, err)
 	require.NoError(t, fd.Close())
 	defer os.Remove(fd.Name())

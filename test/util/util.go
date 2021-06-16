@@ -3,7 +3,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"runtime"
 	"testing"
@@ -22,7 +22,7 @@ func ProjectRoot() string {
 func GetRegistrationEntries(fileName string) []*common.RegistrationEntry {
 	regEntries := &common.RegistrationEntries{}
 	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
-	dat, _ := ioutil.ReadFile(path)
+	dat, _ := os.ReadFile(path)
 	_ = json.Unmarshal(dat, &regEntries)
 	return regEntries.Entries
 }
@@ -31,7 +31,7 @@ func GetRegistrationEntries(fileName string) []*common.RegistrationEntry {
 func GetRegistrationEntriesMap(fileName string) map[string][]*common.RegistrationEntry {
 	regEntriesMap := map[string]*common.RegistrationEntries{}
 	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
-	dat, _ := ioutil.ReadFile(path)
+	dat, _ := os.ReadFile(path)
 	_ = json.Unmarshal(dat, &regEntriesMap)
 	result := map[string][]*common.RegistrationEntry{}
 	for key, regEntries := range regEntriesMap {

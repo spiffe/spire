@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -43,7 +42,7 @@ func loadParamData(in io.Reader, fn string) ([]byte, error) {
 		r = f
 	}
 
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 // printX509Authorities print provided certificates into writer

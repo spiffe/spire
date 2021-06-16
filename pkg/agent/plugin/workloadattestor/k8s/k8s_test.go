@@ -9,7 +9,6 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
@@ -630,7 +629,7 @@ func (s *Suite) setServer(server *httptest.Server) {
 func (s *Suite) writeFile(path, data string) {
 	realPath := filepath.Join(s.dir, path)
 	s.Require().NoError(os.MkdirAll(filepath.Dir(realPath), 0755))
-	s.Require().NoError(ioutil.WriteFile(realPath, []byte(data), 0600))
+	s.Require().NoError(os.WriteFile(realPath, []byte(data), 0600))
 }
 
 func (s *Suite) serveHTTP(w http.ResponseWriter, req *http.Request) {
@@ -835,7 +834,7 @@ func (s *Suite) goAttest(p workloadattestor.WorkloadAttestor) <-chan attestResul
 }
 
 func (s *Suite) addPodListResponse(fixturePath string) {
-	podList, err := ioutil.ReadFile(fixturePath)
+	podList, err := os.ReadFile(fixturePath)
 	s.Require().NoError(err)
 
 	s.podList = append(s.podList, podList)
