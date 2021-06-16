@@ -6,7 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -581,7 +580,7 @@ func TestAutoDetectTPMPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create devices
 			for _, fileName := range tt.deviceNames {
-				_ = ioutil.WriteFile(path.Join(tt.baseTPMDir, fileName), []byte("content"), os.ModeDevice)
+				_ = os.WriteFile(path.Join(tt.baseTPMDir, fileName), []byte("content"), os.ModeDevice)
 			}
 
 			expectedPath := path.Join(tt.baseTPMDir, tt.targetDeviceName)

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -52,7 +52,7 @@ func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAutho
 
 	// Write provisioning root certificates into temp directory
 	devIDBundlePath = path.Join(dir, "devid-provisioning-ca.pem")
-	require.NoError(t, ioutil.WriteFile(
+	require.NoError(t, os.WriteFile(
 		devIDBundlePath,
 		pemutil.EncodeCertificate(provisioningCA.RootCert),
 		0600),
@@ -60,7 +60,7 @@ func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAutho
 
 	// Write endorsement root certificate into temp directory
 	endorsementBundlePath = path.Join(dir, "endorsement-ca.pem")
-	require.NoError(t, ioutil.WriteFile(
+	require.NoError(t, os.WriteFile(
 		endorsementBundlePath,
 		pemutil.EncodeCertificate(sim.GetEKRoot()),
 		0600),

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -93,18 +93,18 @@ func writeDevIDFiles(t *testing.T) {
 	devIDPubPath = path.Join(dir, "devid-pub-path")
 	devIDWithoutIntermediatesPath = path.Join(dir, "devid-without-intermediates.pem")
 
-	require.NoError(t, ioutil.WriteFile(
+	require.NoError(t, os.WriteFile(
 		devIDCertPath,
 		devID.ChainPem(),
 		0600),
 	)
-	require.NoError(t, ioutil.WriteFile(
+	require.NoError(t, os.WriteFile(
 		devIDWithoutIntermediatesPath,
 		devID.ChainPem(),
 		0600),
 	)
-	require.NoError(t, ioutil.WriteFile(devIDPrivPath, devID.PrivateBlob, 0600))
-	require.NoError(t, ioutil.WriteFile(devIDPubPath, devID.PublicBlob, 0600))
+	require.NoError(t, os.WriteFile(devIDPrivPath, devID.PrivateBlob, 0600))
+	require.NoError(t, os.WriteFile(devIDPubPath, devID.PublicBlob, 0600))
 }
 
 func TestConfigure(t *testing.T) {
