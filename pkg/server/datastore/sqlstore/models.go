@@ -143,6 +143,10 @@ type FederatedTrustDomain struct {
 	// SPIFFE bundle endpoint server when BundleEndpointProfile
 	// is "https_spiffe"
 	EndpointSPIFFEID string
+
+	// FederateWithNewRegistrationEntries indicates wether the trust domain
+	// automatically federates with new registration entries by default or not.
+	FederateWithNewRegistrationEntries bool
 }
 
 // TableName gets table name of FederatedTrustDomain
