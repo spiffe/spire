@@ -4,7 +4,7 @@ package sshpop
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"text/template"
 
@@ -73,11 +73,11 @@ func NewClient(configString string) (*Client, error) {
 	}
 	config.HostKeyPath = stringOrDefault(config.HostKeyPath, defaultHostKeyPath)
 	config.HostCertPath = stringOrDefault(config.HostCertPath, defaultHostCertPath)
-	keyBytes, err := ioutil.ReadFile(config.HostKeyPath)
+	keyBytes, err := os.ReadFile(config.HostKeyPath)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to read host key file: %v", err)
 	}
-	certBytes, err := ioutil.ReadFile(config.HostCertPath)
+	certBytes, err := os.ReadFile(config.HostCertPath)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to read host cert file: %v", err)
 	}
@@ -157,7 +157,7 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 }
 
 func pubkeysFromPath(pubkeysPath string) ([]string, error) {
-	pubkeysBytes, err := ioutil.ReadFile(pubkeysPath)
+	pubkeysBytes, err := os.ReadFile(pubkeysPath)
 	if err != nil {
 		return nil, err
 	}

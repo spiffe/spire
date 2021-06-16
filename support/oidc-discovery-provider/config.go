@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -126,7 +126,7 @@ type WorkloadAPIConfig struct {
 }
 
 func LoadConfig(path string) (*Config, error) {
-	hclBytes, err := ioutil.ReadFile(path)
+	hclBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errs.New("unable to load configuration: %v", err)
 	}

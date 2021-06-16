@@ -1,7 +1,6 @@
 package spiretest
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -14,7 +13,7 @@ import (
 // TODO: remove when go1.15 is out, which introduces a new method on
 // *testing.T for this purpose.
 func TempDir(tb testing.TB) string {
-	dir, err := ioutil.TempDir("", "spire-test-")
+	dir, err := os.MkdirTemp("", "spire-test-")
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
 		assert.NoError(tb, os.RemoveAll(dir))

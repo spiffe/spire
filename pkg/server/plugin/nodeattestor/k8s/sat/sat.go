@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sync"
 
 	"github.com/gofrs/uuid"
@@ -326,7 +326,7 @@ func verifyTokenSignature(keys []crypto.PublicKey, token *jwt.JSONWebToken, clai
 }
 
 func loadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -50,7 +49,7 @@ func EncodeCertificates(certs []*x509.Certificate) []byte {
 }
 
 func SaveCertificates(path string, certs []*x509.Certificate, mode os.FileMode) error {
-	return ioutil.WriteFile(path, EncodeCertificates(certs), mode)
+	return os.WriteFile(path, EncodeCertificates(certs), mode)
 }
 
 func EncodeCertificate(cert *x509.Certificate) []byte {
@@ -60,7 +59,7 @@ func EncodeCertificate(cert *x509.Certificate) []byte {
 }
 
 func SaveCertificate(path string, cert *x509.Certificate, mode os.FileMode) error {
-	return ioutil.WriteFile(path, EncodeCertificate(cert), mode)
+	return os.WriteFile(path, EncodeCertificate(cert), mode)
 }
 
 func certFromObject(object interface{}) (*x509.Certificate, error) {

@@ -10,7 +10,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"net/http"
@@ -249,7 +248,7 @@ func writeCertPEM(t *testing.T, path string, cert *x509.Certificate) {
 }
 
 func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
-	err := ioutil.WriteFile(path, data, mode)
+	err := os.WriteFile(path, data, mode)
 	require.NoError(t, err)
 }
 

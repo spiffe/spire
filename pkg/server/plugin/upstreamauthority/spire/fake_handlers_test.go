@@ -6,8 +6,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"sync"
 	"testing"
 
@@ -116,7 +116,7 @@ func (h *handler) startServerAPITestServer(t *testing.T) {
 }
 
 func (h *handler) loadInitialBundle(t *testing.T) {
-	jwksBytes, err := ioutil.ReadFile("testdata/keys/jwks.json")
+	jwksBytes, err := os.ReadFile("testdata/keys/jwks.json")
 	require.NoError(t, err)
 	b, err := bundleutil.Unmarshal(trustDomain, jwksBytes)
 	require.NoError(t, err)

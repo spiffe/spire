@@ -11,8 +11,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -338,7 +338,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireErrorContains(err, `failed to load cluster "FOO" service account keys`)
 
 	// no keys in PEM file
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
+	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
 	err = doConfig(coreConfig, fmt.Sprintf(`clusters = {
 		"FOO" = {
 			service_account_key_file = %q
@@ -351,7 +351,7 @@ func (s *AttestorSuite) TestConfigure() {
 func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	fooPKCS1KeyPath := filepath.Join(s.dir, "foo-pkcs1.pem")
 	fooPKCS1Bytes := x509.MarshalPKCS1PublicKey(&s.fooKey.PublicKey)
-	s.Require().NoError(ioutil.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(os.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: fooPKCS1Bytes,
 	}), 0600))
@@ -359,7 +359,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	fooPKIXKeyPath := filepath.Join(s.dir, "foo-pkix.pem")
 	fooPKIXBytes, err := x509.MarshalPKIXPublicKey(s.fooKey.Public())
 	s.Require().NoError(err)
-	s.Require().NoError(ioutil.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(os.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: fooPKIXBytes,
 	}), 0600))
@@ -367,7 +367,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	barPKIXKeyPath := filepath.Join(s.dir, "bar-pkix.pem")
 	barPKIXBytes, err := x509.MarshalPKIXPublicKey(s.barKey.Public())
 	s.Require().NoError(err)
-	s.Require().NoError(ioutil.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(os.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: barPKIXBytes,
 	}), 0600))
@@ -474,7 +474,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
+	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
 }
 
 func createTokenStatus(namespace, serviceAccountName string, authenticated bool) *authv1.TokenReviewStatus {
