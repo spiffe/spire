@@ -128,7 +128,7 @@ func TestConfigure(t *testing.T) {
 				devIDBundlePath),
 		},
 		{
-			name:     "Configure suceeds",
+			name:     "Configure succeeds",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 			hclConf: fmt.Sprintf(`devid_ca_path = %q
 								endorsement_ca_path = %q`,
@@ -441,7 +441,7 @@ func TestAttestFailiures(t *testing.T) {
 			}),
 		},
 		{
-			name:    "Attest fails if agent does not solve proof of posession challenge",
+			name:    "Attest fails if agent does not solve proof of possession challenge",
 			expErr:  "rpc error: code = InvalidArgument desc = nodeattestor(tpm_devid): devID challenge verification failed",
 			hclConf: goodConf,
 			payload: marshalPayload(t, &common_devid.AttestationRequest{
@@ -534,7 +534,7 @@ func TestAttestSucceeds(t *testing.T) {
 		expectedSelectors []*common.Selector
 	}{
 		{
-			name:  "Attest succeds for RSA DevID",
+			name:  "Attest succeeds for RSA DevID",
 			devID: devIDRSA,
 			expectedAgentID: fmt.Sprintf("spiffe://example.org/spire/agent/tpm_devid/%v",
 				tpmdevid.Fingerprint(devIDRSA.Certificate)),
@@ -554,7 +554,7 @@ func TestAttestSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:  "Attest succeds for ECC DevID",
+			name:  "Attest succeeds for ECC DevID",
 			devID: devIDECC,
 			expectedAgentID: fmt.Sprintf("spiffe://example.org/spire/agent/tpm_devid/%v",
 				tpmdevid.Fingerprint(devIDECC.Certificate)),
@@ -574,7 +574,7 @@ func TestAttestSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:  "Attest succeds for DevID with no intermediate certificates",
+			name:  "Attest succeeds for DevID with no intermediate certificates",
 			devID: devIDNoIntermediates,
 			expectedAgentID: fmt.Sprintf("spiffe://example.org/spire/agent/tpm_devid/%v",
 				tpmdevid.Fingerprint(devIDNoIntermediates.Certificate)),

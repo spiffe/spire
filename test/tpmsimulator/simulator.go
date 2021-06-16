@@ -84,12 +84,12 @@ func New(endorsementHierarchyPassword, ownerHierarchyPassword string) (*TPMSimul
 
 	ekCert, err := sim.createEndorsementCertificate()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create endorsement certificate: %v", err)
+		return nil, fmt.Errorf("unable to create endorsement certificate: %w", err)
 	}
 
 	err = sim.SetEndorsementCertificate(ekCert.Raw)
 	if err != nil {
-		return nil, fmt.Errorf("unable to set endorsement certificate: %v", err)
+		return nil, fmt.Errorf("unable to set endorsement certificate: %w", err)
 	}
 
 	err = tpm2.HierarchyChangeAuth(sim,
@@ -284,7 +284,11 @@ func (s *TPMSimulator) createEndorsementCertificate() (*x509.Certificate, error)
 	if err != nil {
 		return nil, fmt.Errorf("cannot generate endorsement key pair: %w", err)
 	}
-	defer tpm2.FlushContext(s, ekHandle)
+
+	err = tpm2.FlushContext(s, ekHandle)
+	if err != nil {
+		return nil, fmt.Errorf("cannot to flush endorsement key handle: %w", err)
+	}
 
 	ekPublicBlobDecoded, err := tpm2.DecodePublic(ekPublicBlob)
 	if err != nil {
@@ -326,9 +330,8 @@ func (s *TPMSimulator) createOrdinaryKey(keyType KeyType, parentKeyPassword, key
 	srkHandle, _, _, _, _, _, err :=
 		tpm2.CreatePrimaryEx(s, tpm2.HandleOwner, tpm2.PCRSelection{}, s.ownerHierarchyPassword, parentKeyPassword, srkTemplate)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot create new storage root key: %v", err)
+		return nil, nil, fmt.Errorf("cannot create new storage root key: %w", err)
 	}
-	defer tpm2.FlushContext(s, srkHandle)
 
 	privateBlob, publicBlob, _, _, _, err := tpm2.CreateKey(
 		s,
@@ -340,6 +343,11 @@ func (s *TPMSimulator) createOrdinaryKey(keyType KeyType, parentKeyPassword, key
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create key: %w", err)
+	}
+
+	err = tpm2.FlushContext(s, srkHandle)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot flush storage root key handle: %w", err)
 	}
 
 	return privateBlob, publicBlob, nil

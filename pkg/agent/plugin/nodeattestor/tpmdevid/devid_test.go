@@ -31,7 +31,8 @@ var (
 	devID               *tpmsimulator.Credential
 	devIDNoItermediates *tpmsimulator.Credential
 
-	tpmDevicePath                 string = "/dev/tpmrm0"
+	tpmDevicePath = "/dev/tpmrm0"
+
 	devIDCertPath                 string
 	devIDPrivPath                 string
 	devIDPubPath                  string
@@ -264,7 +265,7 @@ func TestAidAttestationFailiures(t *testing.T) {
 			expErr: "rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to solve proof of possession challenge: failed to sign nonce",
 			serverStream: func() nodeattestor.ServerStream {
 				challenges, err := json.Marshal(common_devid.ChallengeRequest{
-					DevID: make([]byte, 1025), //TPM cannot sign payloads that contains more than 1024 bytes
+					DevID: make([]byte, 1025), // TPM cannot sign payloads that contains more than 1024 bytes
 				})
 				require.NoError(t, err)
 				return streamBuilder.IgnoreThenChallenge(challenges).Build()
@@ -330,7 +331,7 @@ func TestAidAttestationFailiures(t *testing.T) {
 
 			if tt.openTPMFail {
 				// Do a manufacture reset to reset seeds so key cannot be loaded
-				sim.ManufactureReset()
+				require.NoError(t, sim.ManufactureReset())
 			}
 
 			passwords := tpmPasswords
