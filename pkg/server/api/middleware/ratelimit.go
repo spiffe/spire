@@ -190,7 +190,7 @@ type rateLimitsMiddleware struct {
 	limiters map[string]api.RateLimiter
 }
 
-func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
 		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")

@@ -20,11 +20,11 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/plugintest"
@@ -127,7 +127,7 @@ func (s *AttestorSuite) TearDownTest() {
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 	attestor := new(nodeattestor.V1)
 	plugintest.Load(s.T(), BuiltIn(), attestor,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 	)
 	s.attestor = attestor
 	s.requireAttestError([]byte("payload"), codes.FailedPrecondition, "nodeattestor(k8s_sat): not configured")
@@ -135,7 +135,7 @@ func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 
 func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	agentID := "spiffe://example.org/spire/agent/k8s_sat/FOO/UUID"
-	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
 		AgentId: agentID,
 	})
 
@@ -283,7 +283,7 @@ func (s *AttestorSuite) TestConfigure() {
 		var err error
 		plugintest.Load(s.T(), BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
-			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(config),
 		)
@@ -373,7 +373,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	}), 0600))
 
 	plugintest.Load(s.T(), BuiltIn(), nil,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
@@ -419,7 +419,7 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	}
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(attestor), v1,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),

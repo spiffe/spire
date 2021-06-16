@@ -28,8 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/grpc"
 )
 
@@ -90,7 +88,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// to do its job. RPC's from plugins to the identity provider before
 	// SetDeps() has been called will fail with a PreCondition status.
 	identityProvider := identityprovider.New(identityprovider.Config{
-		TrustDomainID: s.config.TrustDomain.IDString(),
+		TrustDomain: s.config.TrustDomain,
 	})
 
 	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
@@ -231,7 +229,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider identityproviderv0.IdentityProviderServer, agentStore agentstorev0.AgentStoreServer,
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
 	healthChecker health.Checker) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),

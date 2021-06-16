@@ -10,6 +10,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
@@ -19,6 +21,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
+	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
+	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
@@ -55,8 +59,8 @@ type Config struct {
 	PluginConfig HCLPluginConfigMap
 
 	Metrics          telemetry.Metrics
-	IdentityProvider identityproviderv0.IdentityProviderServer
-	AgentStore       agentstorev0.AgentStoreServer
+	IdentityProvider *identityprovider.IdentityProvider
+	AgentStore       *agentstore.AgentStore
 	MetricsService   metricsv0.MetricsServiceServer
 	HealthChecker    health.Checker
 }
@@ -117,16 +121,22 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		PluginConfigs: pluginConfigs,
 		HostServices: []catalog.HostServiceServer{
 			{
-				ServiceServer: identityproviderv0.IdentityProviderServiceServer(config.IdentityProvider),
+				ServiceServer: identityproviderv0.IdentityProviderServiceServer(config.IdentityProvider.V0()),
 				LegacyType:    "IdentityProvider",
 			},
 			{
-				ServiceServer: agentstorev0.AgentStoreServiceServer(config.AgentStore),
+				ServiceServer: agentstorev0.AgentStoreServiceServer(config.AgentStore.V0()),
 				LegacyType:    "AgentStore",
 			},
 			{
 				ServiceServer: metricsv0.MetricsServiceServiceServer(metricsservice.V0(config.Metrics)),
 				LegacyType:    "MetricsService",
+			},
+			{
+				ServiceServer: identityproviderv1.IdentityProviderServiceServer(config.IdentityProvider.V1()),
+			},
+			{
+				ServiceServer: agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
 			},
 			{
 				ServiceServer: metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),

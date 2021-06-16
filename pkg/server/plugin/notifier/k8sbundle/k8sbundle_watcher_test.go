@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/assert"
@@ -103,7 +103,7 @@ func TestBundleWatcherUpdateConfig(t *testing.T) {
 	}
 
 	pp := plugintest.Load(t, builtIn(raw), notifier,
-		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(identityprovider)),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityprovider)),
 		plugintest.Configure(`
 webhook_label = "WEBHOOK_LABEL"
 api_service_label = "API_SERVICE_LABEL"
@@ -228,7 +228,7 @@ func (w *fakeWebhook) GetList(ctx context.Context, config *pluginConfig) (runtim
 	return list, nil
 }
 
-func (w *fakeWebhook) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (w *fakeWebhook) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	webhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Error(codes.Internal, "wrong type, expecting mutating webhook")
@@ -354,7 +354,7 @@ func (a *fakeAPIService) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (a *fakeAPIService) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (a *fakeAPIService) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	webhook, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Error(codes.Internal, "wrong type, expecting API service")
@@ -466,7 +466,7 @@ func (w *watcherTest) loadPluginRaw(t *testing.T, configuration string) *Plugin 
 	}
 
 	plugintest.Load(t, builtIn(raw), notifier,
-		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(w.identityProvider)),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(w.identityProvider)),
 		plugintest.Configure(configuration),
 	)
 

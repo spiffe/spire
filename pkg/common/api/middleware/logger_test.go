@@ -16,7 +16,7 @@ func TestWithLogger(t *testing.T) {
 	log, hook := test.NewNullLogger()
 	m := middleware.WithLogger(log)
 
-	ctx, err := m.Preprocess(context.Background(), fakeFullMethod)
+	ctx, err := m.Preprocess(context.Background(), fakeFullMethod, nil)
 	assert.NoError(t, err)
 	rpccontext.Logger(ctx).Info("HELLO")
 
