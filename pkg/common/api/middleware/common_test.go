@@ -15,6 +15,7 @@ var (
 
 type preprocessArgs struct {
 	wrapCount  int
+	req        interface{}
 	fullMethod string
 }
 
@@ -31,9 +32,10 @@ type fakeMiddleware struct {
 	nextPreprocessErr error
 }
 
-func (f *fakeMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+func (f *fakeMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	f.lastPreprocess = preprocessArgs{
 		wrapCount:  wrapCount(ctx),
+		req:        req,
 		fullMethod: fullMethod,
 	}
 	if err := f.nextPreprocessErr; err != nil {

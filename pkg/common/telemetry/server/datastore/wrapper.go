@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -99,10 +99,10 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DataConsistency) (_ []*common.Selector, err error) {
+func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (_ []*common.Selector, err error) {
 	callCounter := StartGetNodeSelectorsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
+	return w.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
 }
 
 func (w metricsWrapper) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (_ *datastore.ListAttestedNodesResponse, err error) {

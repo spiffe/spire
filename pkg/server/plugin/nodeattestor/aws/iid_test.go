@@ -18,12 +18,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	mock_aws "github.com/spiffe/spire/test/mock/server/aws"
 	"github.com/spiffe/spire/test/plugintest"
@@ -85,7 +85,7 @@ func (s *IIDAttestorSuite) SetupTest() {
 	s.agentStore = fakeagentstore.New()
 
 	s.plugin, s.attestor = s.loadPlugin(nil, plugintest.Configure(`skip_block_device=true`),
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
@@ -95,7 +95,7 @@ func (s *IIDAttestorSuite) SetupTest() {
 func (s *IIDAttestorSuite) TestErrorWhenNotConfigured() {
 	attestor := new(nodeattestor.V1)
 	plugintest.Load(s.T(), BuiltIn(), attestor,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 	)
 
 	s.attestor = attestor
@@ -123,7 +123,7 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 	clients := newClientsCache(mockGetEC2Client)
 
 	plugin, attestor := s.loadPlugin(clients, plugintest.Configure(`skip_block_device=true`),
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}))
@@ -131,7 +131,7 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 	plugin.config.awsCaCertPublicKey = &s.rsaKey.PublicKey
 
 	agentID := "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance"
-	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
 		AgentId: agentID,
 	})
 
@@ -433,7 +433,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 			}
 
 			plugin, attestor := s.loadPlugin(clients, plugintest.Configure(configStr),
-				plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+				plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}))
@@ -469,7 +469,7 @@ func (s *IIDAttestorSuite) TestErrorOnBadSVIDTemplate() {
 	var err error
 	plugintest.Load(s.T(), BuiltIn(), nil,
 		plugintest.CaptureConfigureError(&err),
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
@@ -492,7 +492,7 @@ func (s *IIDAttestorSuite) TestConfigure() {
 
 		plugintest.Load(t, builtin(attestor), nil,
 			plugintest.CaptureConfigureError(&err),
-			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(config),
 		)

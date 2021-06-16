@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -171,11 +171,11 @@ func (s *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListNo
 	return s.ds.ListNodeSelectors(ctx, req)
 }
 
-func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dbPreference datastore.DataConsistency) ([]*common.Selector, error) {
+func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) ([]*common.Selector, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dbPreference)
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
 	if err == nil {
 		// Sorting helps unit-tests have deterministic assertions.
 		util.SortSelectors(selectors)

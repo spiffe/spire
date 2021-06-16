@@ -3,217 +3,363 @@ package awssecret
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
-	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
-var (
-	ctx = context.Background()
-)
+func TestConfigure(t *testing.T) {
+	for _, tt := range []struct {
+		test               string
+		overrideCoreConfig *catalog.CoreConfig
+		overrideConfig     string
+		expectCode         codes.Code
+		expectMsgPrefix    string
 
-func TestPlugin(t *testing.T) {
-	spiretest.Run(t, new(Suite))
+		// All allowed configurations
+		region          string
+		certFileARN     string
+		keyFileARN      string
+		accessKeyID     string
+		secretAccessKey string
+		securityToken   string
+		assumeRoleARN   string
+	}{
+		{
+			test:            "success",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+		},
+		{
+			test:            "malformed configuration",
+			overrideConfig:  "MALFORMED",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to decode configuration:",
+		},
+		{
+			test:               "no trust domain",
+			overrideCoreConfig: &catalog.CoreConfig{},
+			expectCode:         codes.InvalidArgument,
+			expectMsgPrefix:    "trust_domain is required",
+		},
+		{
+			test:            "missing key ARN",
+			region:          "region_1",
+			certFileARN:     "cert",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration missing key ARN",
+		},
+		{
+			test:            "missing cert ARN",
+			region:          "region_1",
+			keyFileARN:      "key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration missing cert ARN",
+		},
+		{
+			test:            "missing cert and key ARNs",
+			region:          "region_1",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration missing both cert ARN and key ARN",
+		},
+		{
+			test:            "fails to create client",
+			region:          "",
+			certFileARN:     "cert",
+			keyFileARN:      "key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "failed to create AWS client: MissingRegion: could not find region configuration",
+		},
+		{
+			test:            "cert not found",
+			region:          "region_1",
+			certFileARN:     "not_found",
+			keyFileARN:      "key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to read not_found: secret not found",
+		},
+		{
+			test:            "malformed cert",
+			region:          "region_1",
+			certFileARN:     "invalid_cert",
+			keyFileARN:      "key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "unable to parse certificate:",
+		},
+
+		{
+			test:            "key not found",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "not_found",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to read not_found: secret not found",
+		},
+		{
+			test:            "malformed key",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "invalid_key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "unable to parse private key:",
+		},
+		{
+			test:            "cert and key not match",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "alternative_key",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "certificate and private key does not match",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			var err error
+
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+			}
+
+			if tt.overrideCoreConfig != nil {
+				options = append(options, plugintest.CoreConfig(*tt.overrideCoreConfig))
+			} else {
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
+				}))
+			}
+
+			if tt.overrideConfig != "" {
+				options = append(options, plugintest.Configure(tt.overrideConfig))
+			} else {
+				options = append(options, plugintest.ConfigureJSON(Configuration{
+					Region:          tt.region,
+					CertFileARN:     tt.certFileARN,
+					KeyFileARN:      tt.keyFileARN,
+					AccessKeyID:     tt.accessKeyID,
+					SecretAccessKey: tt.secretAccessKey,
+					SecurityToken:   tt.securityToken,
+					AssumeRoleARN:   tt.assumeRoleARN,
+				}))
+			}
+
+			p := new(Plugin)
+			p.hooks.clock = clock.NewMock()
+			p.hooks.newClient = newFakeSecretsManagerClient
+
+			plugintest.Load(t, builtin(p), nil, options...)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+		})
+	}
 }
 
-type Suite struct {
-	spiretest.Suite
+func TestMintX509CA(t *testing.T) {
+	key := testkey.NewEC256(t)
+	clk := clock.NewMock()
 
-	clock  *clock.Mock
-	client secretsManagerClient
-	plugin upstreamauthorityv0.UpstreamAuthorityClient
-}
+	x509Authority, err := pemutil.LoadCertificates("testdata/keys/EC/cert.pem")
+	require.NoError(t, err, "failed to load X509 Authority from disk")
 
-func (as *Suite) SetupTest() {
-	as.clock = clock.NewMock(as.T())
-	as.plugin = as.newAWSUpstreamAuthority()
-}
-
-func (as *Suite) TestConfigureNoGlobal() {
-	a := newPlugin(newFakeSecretsManagerClient)
-	req := new(spi.ConfigureRequest)
-	resp, err := a.Configure(context.Background(), req)
-	as.Require().Error(err)
-	as.Require().Nil(resp)
-}
-
-func (as *Suite) TestGetSecret() {
-	svaluereq := secretsmanager.GetSecretValueInput{}
-	secretid := aws.String("cert")
-	svaluereq.SecretId = secretid
-	resp, err := as.client.GetSecretValueWithContext(ctx, &svaluereq)
-
-	as.Require().NotNil(resp)
-	as.Require().NoError(err)
-	as.Require().NotNil(aws.StringValue(resp.SecretString))
-	as.Require().True(strings.HasPrefix(aws.StringValue(resp.SecretString), "-----BEGIN CERTIFICATE-----"))
-	as.Require().NotNil(resp.ARN)
-}
-
-func (as *Suite) TestGetSecretFail() {
-	svaluereq := secretsmanager.GetSecretValueInput{}
-	secretid := aws.String("failure")
-	svaluereq.SecretId = secretid
-	resp, err := as.client.GetSecretValueWithContext(ctx, &svaluereq)
-
-	as.Require().Error(err)
-	as.Require().Nil(resp)
-}
-
-func (as *Suite) Test_MintX509CAValidCSR() {
-	validSpiffeID := "spiffe://localhost"
-	csr, pubKey, err := util.NewCSRTemplate(validSpiffeID)
-	as.Require().NoError(err)
-
-	resp, err := as.mintX509CA(as.plugin, &upstreamauthorityv0.MintX509CARequest{Csr: csr})
-	as.Require().NoError(err)
-	as.Require().NotNil(resp)
-
-	as.Require().Len(resp.X509CaChain, 1)
-	cert, err := x509.ParseCertificate(resp.X509CaChain[0])
-	as.Require().NoError(err)
-
-	isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, pubKey)
-	as.Require().NoError(err)
-	as.Require().True(isEqual)
-}
-
-func (as *Suite) TestMintX509CAInvalidCSR() {
-	invalidSpiffeIDs := []string{"invalid://localhost", "spiffe://not-trusted"}
-	for _, invalidSpiffeID := range invalidSpiffeIDs {
-		csr, _, err := util.NewCSRTemplate(invalidSpiffeID)
-		as.Require().NoError(err)
-
-		resp, err := as.mintX509CA(as.plugin, &upstreamauthorityv0.MintX509CARequest{Csr: csr})
-		as.Require().Error(err)
-		as.Require().Nil(resp)
+	makeCSR := func(spiffeID string) []byte {
+		csr, err := util.NewCSRTemplateWithKey(spiffeID, key)
+		require.NoError(t, err)
+		return csr
 	}
 
-	invalidSequenceOfBytesAsCSR := []byte("invalid-csr")
-	resp, err := as.mintX509CA(as.plugin, &upstreamauthorityv0.MintX509CARequest{Csr: invalidSequenceOfBytesAsCSR})
-	as.Require().Error(err)
-	as.Require().Nil(resp)
-}
-
-func (as *Suite) TestMintX509CAUsesPreferredTTLIfSet() {
-	awsUpstreamAuthority := as.newAWSUpstreamAuthority()
-
-	// If the preferred TTL is set, it should be used.
-	as.testCSRTTL(awsUpstreamAuthority, 3600, time.Hour)
-
-	// If the preferred TTL is zero, the default should be used.
-	as.testCSRTTL(awsUpstreamAuthority, 0, x509svid.DefaultUpstreamCATTL)
-}
-
-func (as *Suite) testCSRTTL(plugin upstreamauthorityv0.UpstreamAuthorityClient, preferredTTL int32, expectedTTL time.Duration) {
-	validSpiffeID := "spiffe://localhost"
-	csr, _, err := util.NewCSRTemplate(validSpiffeID)
-	as.Require().NoError(err)
-
-	resp, err := as.mintX509CA(plugin, &upstreamauthorityv0.MintX509CARequest{Csr: csr, PreferredTtl: preferredTTL})
-	as.Require().NoError(err)
-	as.Require().NotNil(resp)
-
-	as.Require().Len(resp.X509CaChain, 1)
-	certs, err := x509.ParseCertificates(resp.X509CaChain[0])
-	as.Require().NoError(err)
-	as.Require().Len(certs, 1)
-	as.Require().Equal(as.clock.Now().Add(expectedTTL).UTC(), certs[0].NotAfter)
-}
-
-func (as *Suite) TestFailConfiguration() {
-	config := Config{
-		KeyFileARN:      "",
-		CertFileARN:     "",
-		AccessKeyID:     "keyid",
-		Region:          "us-west-2",
-		SecretAccessKey: "accesskey",
-	}
-
-	m := newPlugin(newFakeSecretsManagerClient)
-
-	var err error
-	plugintest.Load(as.T(), builtin(m), new(upstreamauthority.V0),
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
-		}),
-		plugintest.ConfigureJSON(config),
-		plugintest.CaptureConfigureError(&err))
-	as.Require().Error(err)
-}
-
-func (as *Suite) TestAWSSecret_GetPluginInfo() {
-	res, err := as.plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	as.Require().NoError(err)
-	as.Require().NotNil(res)
-}
-
-func (as *Suite) newAWSUpstreamAuthority() upstreamauthorityv0.UpstreamAuthorityClient {
-	config := Config{
-		KeyFileARN:      "key",
+	successConfiguration := &Configuration{
+		Region:          "region_1",
 		CertFileARN:     "cert",
-		AccessKeyID:     "keyid",
-		SecretAccessKey: "accesskey",
+		KeyFileARN:      "key",
+		AccessKeyID:     "access_key_id",
+		SecretAccessKey: "secret_access_key",
+		SecurityToken:   "security_token",
+		AssumeRoleARN:   "assume_role_arn",
 	}
 
-	var err error
-	as.client, err = newFakeSecretsManagerClient(nil, "region")
-	as.Require().NoError(err)
+	for _, tt := range []struct {
+		test                    string
+		configuration           *Configuration
+		csr                     []byte
+		preferredTTL            time.Duration
+		expectCode              codes.Code
+		expectMsgPrefix         string
+		expectX509CASpiffeID    string
+		expectedX509Authorities []*x509.Certificate
+		expectTTL               time.Duration
+	}{
+		{
+			test:                    "valid CSR",
+			configuration:           successConfiguration,
+			csr:                     makeCSR("spiffe://example.org"),
+			preferredTTL:            x509svid.DefaultUpstreamCATTL + time.Hour,
+			expectTTL:               x509svid.DefaultUpstreamCATTL + time.Hour,
+			expectX509CASpiffeID:    "spiffe://example.org",
+			expectedX509Authorities: x509Authority,
+		},
+		{
+			test:                    "using default ttl",
+			configuration:           successConfiguration,
+			csr:                     makeCSR("spiffe://example.org"),
+			expectTTL:               x509svid.DefaultUpstreamCATTL,
+			expectX509CASpiffeID:    "spiffe://example.org",
+			expectedX509Authorities: x509Authority,
+		},
+		{
+			test:            "configuration fail",
+			csr:             makeCSR("spiffe://example.org"),
+			expectCode:      codes.FailedPrecondition,
+			expectMsgPrefix: "upstreamauthority(awssecret): not configured",
+		},
+		{
+			test:            "unable to sign CSR",
+			configuration:   successConfiguration,
+			csr:             []byte{1},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(awssecret): unable to sign CSR: unable to parse CSR",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			p := new(Plugin)
+			p.hooks.clock = clk
+			p.hooks.getenv = func(s string) string {
+				return ""
+			}
+			p.hooks.newClient = newFakeSecretsManagerClient
 
-	m := newPlugin(newFakeSecretsManagerClient)
-	m.hooks.clock = as.clock
+			var err error
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+			}
 
-	v0 := new(upstreamauthority.V0)
-	plugintest.Load(as.T(), builtin(m), v0,
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
+			if tt.configuration != nil {
+				options = append(options, plugintest.ConfigureJSON(tt.configuration))
+			}
+
+			ua := new(upstreamauthority.V1)
+			plugintest.Load(t, builtin(p), ua,
+				options...,
+			)
+
+			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), tt.csr, tt.preferredTTL)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			if tt.expectCode != codes.OK {
+				assert.Nil(t, x509CA)
+				assert.Nil(t, x509Authorities)
+				assert.Nil(t, stream)
+				return
+			}
+
+			if assert.Len(t, x509CA, 1, "only expect 1 x509CA") {
+				cert := x509CA[0]
+				// assert key
+				isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, key.Public())
+				if assert.NoError(t, err, "unable to determine key equality") {
+					assert.True(t, isEqual, "x509CA key does not match expected key")
+				}
+				// assert ttl
+				ttl := cert.NotAfter.Sub(clk.Now())
+				assert.Equal(t, tt.expectTTL, ttl, "TTL does not match")
+
+				// assert CA has expected SpiffeID
+				assert.Equal(t, tt.expectX509CASpiffeID, cert.URIs[0].String())
+			}
+
+			require.Equal(t, tt.expectedX509Authorities, x509Authorities)
+
+			// Plugin does not support streaming back changes so assert the
+			// stream returns EOF.
+			_, streamErr := stream.RecvUpstreamX509Authorities()
+			assert.True(t, errors.Is(streamErr, io.EOF))
+		})
+	}
+}
+
+func TestPublishJWTKey(t *testing.T) {
+	p := new(Plugin)
+	p.hooks.clock = clock.NewMock()
+	p.hooks.newClient = newFakeSecretsManagerClient
+
+	ua := new(upstreamauthority.V1)
+	plugintest.Load(t, builtin(p), ua,
+		plugintest.ConfigureJSON(Configuration{
+			Region:          "region_1",
+			CertFileARN:     "cert",
+			KeyFileARN:      "key",
+			AccessKeyID:     "access_key_id",
+			SecretAccessKey: "secret_access_key",
+			SecurityToken:   "security_token",
+			AssumeRoleARN:   "assume_role_arn",
 		}),
-		plugintest.ConfigureJSON(config),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 	)
-	return v0.UpstreamAuthorityClient
-}
+	pkixBytes, err := x509.MarshalPKIXPublicKey(testkey.NewEC256(t).Public())
+	require.NoError(t, err)
 
-func (as *Suite) TestPublishJWTKey() {
-	stream, err := as.plugin.PublishJWTKey(ctx, &upstreamauthorityv0.PublishJWTKeyRequest{})
-	as.Require().Nil(err)
-	as.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	as.Require().Nil(resp, "no response expected")
-	as.RequireGRPCStatus(err, codes.Unimplemented, "aws-secret: publishing upstream is unsupported")
-}
-
-func (as *Suite) mintX509CA(plugin upstreamauthorityv0.UpstreamAuthorityClient, req *upstreamauthorityv0.MintX509CARequest) (*upstreamauthorityv0.MintX509CAResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	stream, err := plugin.MintX509CA(ctx, req)
-	as.Require().NoError(err)
-	as.Require().NotNil(stream)
-
-	// Get response and error to be returned
-	response, err := stream.Recv()
-	if err == nil {
-		// Verify stream is closed
-		_, eofErr := stream.Recv()
-		as.Require().Equal(io.EOF, eofErr)
-	}
-
-	return response, err
+	jwtAuthorities, stream, err := ua.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes})
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(awssecret): publishing upstream is unsupported")
+	assert.Nil(t, jwtAuthorities)
+	assert.Nil(t, stream)
 }

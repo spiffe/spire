@@ -15,7 +15,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 
 	"github.com/spiffe/spire/pkg/common/peertracker"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"google.golang.org/grpc"

@@ -12,15 +12,16 @@ import (
 	"sync"
 	"testing"
 
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
-	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,18 +30,23 @@ import (
 )
 
 var (
-	testBundle = &common.Bundle{
-		RootCas: []*common.Certificate{
-			{DerBytes: []byte("FOO")},
-			{DerBytes: []byte("BAR")},
+	testBundle = &plugintypes.Bundle{
+		X509Authorities: []*plugintypes.X509Certificate{
+			{Asn1: []byte("FOO")},
+			{Asn1: []byte("BAR")},
 		},
 	}
 
-	testBundle2 = &common.Bundle{
-		RootCas: []*common.Certificate{
-			{DerBytes: []byte("BAR")},
-			{DerBytes: []byte("BAZ")},
+	testBundle2 = &plugintypes.Bundle{
+		X509Authorities: []*plugintypes.X509Certificate{
+			{Asn1: []byte("BAR")},
+			{Asn1: []byte("BAZ")},
 		},
+	}
+
+	commonBundle = &common.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
 	}
 )
 
@@ -50,115 +56,68 @@ const (
 	testBundle2Data = "-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFa\n-----END CERTIFICATE-----\n"
 )
 
-func Test(t *testing.T) {
-	spiretest.Run(t, new(Suite))
+func TestNotifyFailsIfNotConfigured(t *testing.T) {
+	test := setupTest()
+	notifier := new(notifier.V1)
+	plugintest.Load(t, BuiltIn(), notifier,
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
+	)
+
+	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
+	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "notifier(k8sbundle): not configured")
 }
 
-type Suite struct {
-	spiretest.Suite
+func TestNotifyAndAdviseFailsIfNotConfigured(t *testing.T) {
+	test := setupTest()
+	notifier := new(notifier.V1)
+	plugintest.Load(t, BuiltIn(), notifier,
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
+	)
 
-	r *fakeidentityprovider.IdentityProvider
-	k *fakeKubeClient
-
-	raw *Plugin
-	p   notifier.V0
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
+	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "notifier(k8sbundle): not configured")
 }
 
-func (s *Suite) SetupTest() {
-	s.r = fakeidentityprovider.New()
-	s.k = newFakeKubeClient()
+func TestBundleLoadedWhenCannotCreateClient(t *testing.T) {
+	test := setupTest()
+	test.kubeClient = nil
+	notifier := test.loadPlugin(t, "")
 
-	s.raw = New()
-	plugintest.Load(s.T(), builtIn(s.raw), &s.p,
-		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(s.r)))
-
-	s.withKubeClient([]kubeClient{s.k}, "")
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube client: kube client not configured")
 }
 
-func (s *Suite) TestNotifyFailsIfNotConfigured() {
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: not configured")
-	s.Nil(resp)
+func TestBundleLoadedConfigMapGetFailure(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
+
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: unable to get list: not found")
 }
 
-func (s *Suite) TestNotifyIgnoresUnknownEvents() {
-	s.configure("")
+func TestBundleLoadedConfigMapPatchFailure(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
 
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{})
-	s.NoError(err)
-	s.AssertProtoEqual(&notifierv0.NotifyResponse{}, resp)
-}
-
-func (s *Suite) TestNotifyAndAdviseFailsIfNotConfigured() {
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: not configured")
-	s.Nil(resp)
-}
-
-func (s *Suite) TestNotifyAndAdviseIgnoresUnknownEvents() {
-	s.configure("")
-
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{})
-	s.NoError(err)
-	s.AssertProtoEqual(&notifierv0.NotifyAndAdviseResponse{}, resp)
-}
-
-func (s *Suite) TestBundleLoadedWhenCannotCreateClient() {
-	s.withKubeClient(nil, "")
-
-	s.configure("")
-
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifierv0.BundleLoaded{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "kube client not configured")
-	s.Nil(resp)
-}
-
-func (s *Suite) TestBundleLoadedConfigMapGetFailure() {
-	s.configure("")
-
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifierv0.BundleLoaded{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: unable to get list: not found")
-	s.Nil(resp)
-}
-
-func (s *Suite) TestBundleLoadedConfigMapPatchFailure() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, string(debug.Stack()))
 		}
 	}()
-	s.k.setConfigMap(newConfigMap())
-	s.k.setPatchErr(errors.New("some error"))
-	s.r.AppendBundle(testBundle)
+	test.kubeClient.setConfigMap(newConfigMap())
+	test.kubeClient.setPatchErr(errors.New("some error"))
+	test.identityProvider.AppendBundle(testBundle)
 
-	s.configure("")
-
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifierv0.BundleLoaded{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: spire/spire-bundle: some error")
-	s.Nil(resp)
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: spire/spire-bundle: some error")
 }
 
-func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
-	s.k.setConfigMap(newConfigMap())
-	s.k.setPatchErr(&k8serrors.StatusError{
+func TestBundleLoadedConfigMapUpdateConflict(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
+
+	test.kubeClient.setConfigMap(newConfigMap())
+	test.kubeClient.setPatchErr(&k8serrors.StatusError{
 		ErrStatus: metav1.Status{
 			Code:    http.StatusConflict,
 			Message: "unexpected version",
@@ -167,44 +126,30 @@ func (s *Suite) TestBundleLoadedConfigMapUpdateConflict() {
 	})
 
 	// return a different bundle when fetched the second time
-	s.r.AppendBundle(testBundle)
-	s.r.AppendBundle(testBundle2)
+	test.identityProvider.AppendBundle(testBundle)
+	test.identityProvider.AppendBundle(testBundle2)
 
-	s.configure("")
-
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifierv0.BundleLoaded{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.NoError(err)
-	s.AssertProtoEqual(&notifierv0.NotifyAndAdviseResponse{}, resp)
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	require.NoError(t, err)
 
 	// make sure the config map contains the second bundle data
-	configMap := s.k.getConfigMap("spire", "spire-bundle")
-	s.Require().NotNil(configMap)
-	s.Require().NotNil(configMap.Data)
-	s.Equal(testBundle2Data, configMap.Data["bundle.crt"])
+	configMap := test.kubeClient.getConfigMap("spire", "spire-bundle")
+	require.NotNil(t, configMap)
+	require.NotNil(t, configMap.Data)
+	require.Equal(t, testBundle2Data, configMap.Data["bundle.crt"])
 }
 
-func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
-	s.configure("")
-	s.k.setConfigMap(newConfigMap())
-	s.r.AppendBundle(testBundle)
+func TestBundleLoadedWithDefaultConfiguration(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifierv0.BundleLoaded{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(&notifierv0.NotifyAndAdviseResponse{}, resp)
+	test.kubeClient.setConfigMap(newConfigMap())
+	test.identityProvider.AppendBundle(testBundle)
 
-	s.Require().Equal(&corev1.ConfigMap{
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	require.NoError(t, err)
+
+	require.Equal(t, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "spire",
 			Name:            "spire-bundle",
@@ -213,39 +158,32 @@ func (s *Suite) TestBundleLoadedWithDefaultConfiguration() {
 		Data: map[string]string{
 			"bundle.crt": testBundleData,
 		},
-	}, s.k.getConfigMap("spire", "spire-bundle"))
+	}, test.kubeClient.getConfigMap("spire", "spire-bundle"))
 }
 
-func (s *Suite) TestBundleLoadedWithConfigurationOverrides() {
-	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
-
-	s.k.setConfigMap(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE",
-			Name:            "CONFIGMAP",
-			ResourceVersion: "2",
-		},
-	})
-	s.r.AppendBundle(testBundle)
-
-	s.configure(`
+func TestBundleLoadedWithConfigurationOverrides(t *testing.T) {
+	test := setupTest()
+	test.expectConfigPath = "/some/file/path"
+	notifier := test.loadPlugin(t, `
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
 
-	resp, err := s.p.NotifyAndAdvise(context.Background(), &notifierv0.NotifyAndAdviseRequest{
-		Event: &notifierv0.NotifyAndAdviseRequest_BundleLoaded{
-			BundleLoaded: &notifierv0.BundleLoaded{
-				Bundle: testBundle,
-			},
+	test.kubeClient.setConfigMap(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "NAMESPACE",
+			Name:            "CONFIGMAP",
+			ResourceVersion: "2",
 		},
 	})
-	s.Require().NoError(err)
-	s.NotNil(resp)
+	test.identityProvider.AppendBundle(testBundle)
 
-	s.Equal(&corev1.ConfigMap{
+	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	require.NoError(t, err)
+
+	require.Equal(t, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "NAMESPACE",
 			Name:            "CONFIGMAP",
@@ -254,65 +192,49 @@ kube_config_file_path = "/some/file/path"
 		Data: map[string]string{
 			"CONFIGMAPKEY": testBundleData,
 		},
-	}, s.k.getConfigMap("NAMESPACE", "CONFIGMAP"))
+	}, test.kubeClient.getConfigMap("NAMESPACE", "CONFIGMAP"))
 }
 
-func (s *Suite) TestBundleUpdatedWhenCannotCreateClient() {
-	s.withKubeClient(nil, "")
+func TestBundleUpdatedWhenCannotCreateClient(t *testing.T) {
+	test := setupTest()
+	test.kubeClient = nil
+	notifier := test.loadPlugin(t, "")
 
-	s.configure("")
-
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
-		Event: &notifierv0.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifierv0.BundleUpdated{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "kube client not configured")
-	s.Nil(resp)
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube client: kube client not configured")
 }
 
-func (s *Suite) TestBundleUpdatedConfigMapGetFailure() {
-	s.configure("")
+func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
 
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
-		Event: &notifierv0.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifierv0.BundleUpdated{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: unable to get list: not found")
-	s.Nil(resp)
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: unable to get list: not found")
 }
 
-func (s *Suite) TestBundleUpdatedConfigMapPatchFailure() {
+func TestBundleUpdatedConfigMapPatchFailure(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
+
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, string(debug.Stack()))
 		}
 	}()
-	s.k.setConfigMap(newConfigMap())
-	s.k.setPatchErr(errors.New("some error"))
-	s.r.AppendBundle(testBundle)
+	test.kubeClient.setConfigMap(newConfigMap())
+	test.kubeClient.setPatchErr(errors.New("some error"))
+	test.identityProvider.AppendBundle(testBundle)
 
-	s.configure("")
-
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
-		Event: &notifierv0.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifierv0.BundleUpdated{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-bundle: unable to update: spire/spire-bundle: some error")
-	s.Nil(resp)
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: spire/spire-bundle: some error")
 }
 
-func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
-	s.k.setConfigMap(newConfigMap())
-	s.k.setPatchErr(&k8serrors.StatusError{
+func TestBundleUpdatedConfigMapUpdateConflict(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
+
+	test.kubeClient.setConfigMap(newConfigMap())
+	test.kubeClient.setPatchErr(&k8serrors.StatusError{
 		ErrStatus: metav1.Status{
 			Code:    http.StatusConflict,
 			Message: "unexpected version",
@@ -321,44 +243,30 @@ func (s *Suite) TestBundleUpdatedConfigMapUpdateConflict() {
 	})
 
 	// return a different bundle when fetched the second time
-	s.r.AppendBundle(testBundle)
-	s.r.AppendBundle(testBundle2)
+	test.identityProvider.AppendBundle(testBundle)
+	test.identityProvider.AppendBundle(testBundle2)
 
-	s.configure("")
-
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
-		Event: &notifierv0.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifierv0.BundleUpdated{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.NoError(err)
-	s.AssertProtoEqual(&notifierv0.NotifyResponse{}, resp)
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	require.NoError(t, err)
 
 	// make sure the config map contains the second bundle data
-	configMap := s.k.getConfigMap("spire", "spire-bundle")
-	s.Require().NotNil(configMap)
-	s.Require().NotNil(configMap.Data)
-	s.Equal(testBundle2Data, configMap.Data["bundle.crt"])
+	configMap := test.kubeClient.getConfigMap("spire", "spire-bundle")
+	require.NotNil(t, configMap)
+	require.NotNil(t, configMap.Data)
+	require.Equal(t, testBundle2Data, configMap.Data["bundle.crt"])
 }
 
-func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
-	s.configure("")
-	s.k.setConfigMap(newConfigMap())
-	s.r.AppendBundle(testBundle)
+func TestBundleUpdatedWithDefaultConfiguration(t *testing.T) {
+	test := setupTest()
+	notifier := test.loadPlugin(t, "")
 
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
-		Event: &notifierv0.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifierv0.BundleUpdated{
-				Bundle: testBundle,
-			},
-		},
-	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(&notifierv0.NotifyResponse{}, resp)
+	test.kubeClient.setConfigMap(newConfigMap())
+	test.identityProvider.AppendBundle(testBundle)
 
-	s.Equal(&corev1.ConfigMap{
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	require.NoError(t, err)
+
+	require.Equal(t, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "spire",
 			Name:            "spire-bundle",
@@ -367,39 +275,32 @@ func (s *Suite) TestBundleUpdatedWithDefaultConfiguration() {
 		Data: map[string]string{
 			"bundle.crt": testBundleData,
 		},
-	}, s.k.getConfigMap("spire", "spire-bundle"))
+	}, test.kubeClient.getConfigMap("spire", "spire-bundle"))
 }
 
-func (s *Suite) TestBundleUpdatedWithConfigurationOverrides() {
-	s.withKubeClient([]kubeClient{s.k}, "/some/file/path")
-
-	s.k.setConfigMap(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE",
-			Name:            "CONFIGMAP",
-			ResourceVersion: "2",
-		},
-	})
-	s.r.AppendBundle(testBundle)
-
-	s.configure(`
+func TestBundleUpdatedWithConfigurationOverrides(t *testing.T) {
+	test := setupTest()
+	test.expectConfigPath = "/some/file/path"
+	notifier := test.loadPlugin(t, `
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
 `)
 
-	resp, err := s.p.Notify(context.Background(), &notifierv0.NotifyRequest{
-		Event: &notifierv0.NotifyRequest_BundleUpdated{
-			BundleUpdated: &notifierv0.BundleUpdated{
-				Bundle: testBundle,
-			},
+	test.kubeClient.setConfigMap(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "NAMESPACE",
+			Name:            "CONFIGMAP",
+			ResourceVersion: "2",
 		},
 	})
-	s.Require().NoError(err)
-	s.NotNil(resp)
+	test.identityProvider.AppendBundle(testBundle)
 
-	s.Equal(&corev1.ConfigMap{
+	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	require.NoError(t, err)
+
+	require.Equal(t, &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:       "NAMESPACE",
 			Name:            "CONFIGMAP",
@@ -408,44 +309,32 @@ kube_config_file_path = "/some/file/path"
 		Data: map[string]string{
 			"CONFIGMAPKEY": testBundleData,
 		},
-	}, s.k.getConfigMap("NAMESPACE", "CONFIGMAP"))
+	}, test.kubeClient.getConfigMap("NAMESPACE", "CONFIGMAP"))
 }
 
-func (s *Suite) TestConfigureWithMalformedConfiguration() {
-	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: "blah",
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "k8s-bundle: unable to decode configuration")
-}
+func TestConfigureWithMalformedConfiguration(t *testing.T) {
+	test := setupTest()
+	doConfig := func(t *testing.T, configuration string) error {
+		var err error
+		notifier := new(notifier.V1)
+		plugintest.Load(t, BuiltIn(), notifier,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
+			plugintest.Configure(configuration),
+		)
 
-func (s *Suite) TestGetPluginInfo() {
-	resp, err := s.p.GetPluginInfo(context.Background(), &spi.GetPluginInfoRequest{})
-	s.NoError(err)
-	s.AssertProtoEqual(&spi.GetPluginInfoResponse{}, resp)
-}
-
-func (s *Suite) TestBundleFailsToLoadIfHostServicesUnavailabler() {
-	var err error
-	plugintest.Load(s.T(), BuiltIn(), nil,
-		plugintest.CaptureLoadError(&err))
-	s.AssertGRPCStatusContains(err, codes.Unknown, "k8s-bundle: IdentityProvider host service is required")
-}
-
-func (s *Suite) withKubeClient(client []kubeClient, expectedConfigPath string) {
-	s.raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
-		s.Equal(expectedConfigPath, c.KubeConfigFilePath)
-		if client == nil {
-			return nil, errors.New("kube client not configured")
-		}
-		return client, nil
+		return err
 	}
+
+	err := doConfig(t, "blah")
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
 }
 
-func (s *Suite) configure(configuration string) {
-	_, err := s.p.Configure(context.Background(), &spi.ConfigureRequest{
-		Configuration: configuration,
-	})
-	s.Require().NoError(err)
+func TestBundleFailsToLoadIfHostServicesUnavailabler(t *testing.T) {
+	var err error
+	plugintest.Load(t, BuiltIn(), nil,
+		plugintest.CaptureLoadError(&err))
+	spiretest.AssertGRPCStatusContains(t, err, codes.FailedPrecondition, "IdentityProvider host service is required")
 }
 
 type fakeKubeClient struct {
@@ -479,10 +368,10 @@ func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
-		return nil, k8sErr.New("wrong type, expecting config map")
+		return nil, status.Error(codes.InvalidArgument, "wrong type, expecting config map")
 	}
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -572,4 +461,37 @@ func newConfigMap() *corev1.ConfigMap {
 			ResourceVersion: "1",
 		},
 	}
+}
+
+type test struct {
+	identityProvider *fakeidentityprovider.IdentityProvider
+	kubeClient       *fakeKubeClient
+	expectConfigPath string
+}
+
+func setupTest() *test {
+	return &test{
+		identityProvider: fakeidentityprovider.New(),
+		kubeClient:       newFakeKubeClient(),
+		expectConfigPath: "",
+	}
+}
+
+func (s *test) loadPlugin(t *testing.T, configuration string) *notifier.V1 {
+	notifier := new(notifier.V1)
+	raw := New()
+	plugintest.Load(t, builtIn(raw), notifier,
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(s.identityProvider)),
+		plugintest.Configure(configuration),
+	)
+
+	raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
+		require.Equal(t, s.expectConfigPath, c.KubeConfigFilePath)
+		if s.kubeClient == nil {
+			return nil, errors.New("kube client not configured")
+		}
+		return []kubeClient{s.kubeClient}, nil
+	}
+
+	return notifier
 }

@@ -1,54 +1,23 @@
-package memory
+package memory_test
 
 import (
-	"context"
-	"crypto/x509"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
+	keymanagertest "github.com/spiffe/spire/pkg/agent/plugin/keymanager/test"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
-
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 )
 
-var (
-	ctx = context.Background()
-)
-
-func TestMemory_GenerateKeyPair(t *testing.T) {
-	plugin := New()
-	data, e := plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
-	require.NoError(t, e)
-	_, e = plugin.StorePrivateKey(ctx, &keymanagerv0.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
-	require.NoError(t, e)
-	priv, err := x509.ParseECPrivateKey(data.PrivateKey)
-	require.NoError(t, err)
-	assert.Equal(t, plugin.key, priv)
-}
-
-func TestMemory_FetchPrivateKey(t *testing.T) {
-	plugin := New()
-	data, e := plugin.GenerateKeyPair(ctx, &keymanagerv0.GenerateKeyPairRequest{})
-	require.NoError(t, e)
-	_, e = plugin.StorePrivateKey(ctx, &keymanagerv0.StorePrivateKeyRequest{PrivateKey: data.PrivateKey})
-	require.NoError(t, e)
-
-	priv, e := plugin.FetchPrivateKey(ctx, &keymanagerv0.FetchPrivateKeyRequest{})
-	require.NoError(t, e)
-	assert.Equal(t, priv.PrivateKey, data.PrivateKey)
-}
-
-func TestMemory_Configure(t *testing.T) {
-	plugin := New()
-	data, e := plugin.Configure(ctx, &spi.ConfigureRequest{})
-	require.NoError(t, e)
-	assert.Equal(t, &spi.ConfigureResponse{}, data)
-}
-
-func TestMemory_GetPluginInfo(t *testing.T) {
-	plugin := New()
-	data, e := plugin.GetPluginInfo(ctx, &spi.GetPluginInfoRequest{})
-	require.NoError(t, e)
-	assert.Equal(t, &spi.GetPluginInfoResponse{}, data)
+func TestKeyManagerContract(t *testing.T) {
+	keymanagertest.Test(t, keymanagertest.Config{
+		Create: func(t *testing.T) keymanager.MultiKeyManager {
+			km := new(keymanager.V1)
+			plugintest.Load(t, memory.BuiltIn(), km)
+			multi, ok := km.Multi()
+			require.True(t, ok)
+			return multi
+		},
+	})
 }

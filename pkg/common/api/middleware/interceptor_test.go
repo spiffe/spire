@@ -59,7 +59,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 3) Postprocess was called with "handlerInvoked" and no error
 		assert.NoError(t, err)
 		assert.Equal(t, "response", resp)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, req: "request", fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
 	})
 
@@ -82,7 +82,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 3) Postprocess was not called
 		assert.Equal(t, errFake, err)
 		assert.Nil(t, resp)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, req: "request", fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{}, m.lastPostprocess)
 	})
 
@@ -106,7 +106,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 3) Postprocess was called with "handlerInvoked" and the handler error
 		assert.Equal(t, err, errFake)
 		assert.Nil(t, resp)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, req: "request", fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: errFake}, m.lastPostprocess)
 	})
 }
@@ -131,7 +131,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 2) Preprocess was called
 		// 3) Postprocess was called with "handlerInvoked" and no error
 		assert.NoError(t, err)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, req: nil, fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
 	})
 
@@ -153,7 +153,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 2) Preprocess was called
 		// 3) Postprocess was not called
 		assert.Equal(t, errFake, err)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, req: nil, fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{}, m.lastPostprocess)
 	})
 
@@ -176,7 +176,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 2) Preprocess was called
 		// 3) Postprocess was called with "handlerInvoked" and the handler error
 		assert.Equal(t, err, errFake)
-		assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: fakeFullMethod}, m.lastPreprocess)
+		assert.Equal(t, preprocessArgs{wrapCount: 0, req: nil, fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: errFake}, m.lastPostprocess)
 	})
 }

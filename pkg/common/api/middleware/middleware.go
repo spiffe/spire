@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-type PreprocessFunc = func(ctx context.Context, fullMethod string) (context.Context, error)
+type PreprocessFunc = func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error)
 type PostprocessFunc = func(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error)
 
 type Middleware interface {
@@ -12,7 +12,9 @@ type Middleware interface {
 	// (possibly modified) context that is passed into the handler, which
 	// should either be the context passed into the function or one derived
 	// from it. If the function returns an error, the gRPC method fails.
-	Preprocess(ctx context.Context, fullMethod string) (context.Context, error)
+	// req passes the request object for unary interceptors and nil for
+	// stream interceptors
+	Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error)
 
 	// Postprocess is invoked after the handler is called, or if downstream
 	// middleware returns an error from Preprocess. The function is passed an
@@ -58,9 +60,9 @@ type funcs struct {
 }
 
 // Preprocess implements the Middleware interface
-func (h funcs) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+func (h funcs) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	if h.preprocess != nil {
-		return h.preprocess(ctx, fullMethod)
+		return h.preprocess(ctx, fullMethod, req)
 	}
 	return ctx, nil
 }
@@ -74,7 +76,7 @@ func (h funcs) Postprocess(ctx context.Context, fullMethod string, handlerInvoke
 
 type middlewares []Middleware
 
-func (ms middlewares) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+func (ms middlewares) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	if len(ms) == 0 {
 		return ctx, nil
 	}
@@ -82,12 +84,12 @@ func (ms middlewares) Preprocess(ctx context.Context, fullMethod string) (contex
 	m := ms[0]
 	ms = ms[1:]
 
-	ctx, err := m.Preprocess(ctx, fullMethod)
+	ctx, err := m.Preprocess(ctx, fullMethod, req)
 	if err != nil {
 		return nil, err
 	}
 
-	downstreamCtx, err := ms.Preprocess(ctx, fullMethod)
+	downstreamCtx, err := ms.Preprocess(ctx, fullMethod, req)
 	if err != nil {
 		// The downstream middleware failed to preprocess. Invoke the
 		// postprocess step of this middleware layer, passing in the context

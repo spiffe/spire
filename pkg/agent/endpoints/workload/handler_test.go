@@ -351,6 +351,25 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
+			name:       "spiffe_id set, but not a valid SPIFFE ID",
+			audience:   []string{"AUDIENCE"},
+			spiffeID:   "foo",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid requested SPIFFE ID: spiffeid: invalid scheme",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid requested SPIFFE ID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTSVID",
+						"spiffe_id":     "foo",
+						logrus.ErrorKey: "spiffeid: invalid scheme",
+					},
+				},
+			},
+		},
+		{
 			name:       "no identity issued",
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.PermissionDenied,
@@ -400,6 +419,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					Message: "Could not fetch JWT-SVID",
 					Data: logrus.Fields{
 						"service":       "WorkloadAPI",
+						"spiffe_id":     "spiffe://domain.test/one",
 						"method":        "FetchJWTSVID",
 						"registered":    "true",
 						logrus.ErrorKey: "ohno",
@@ -802,7 +822,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
 		middleware.WithLogger(log),
-		middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+		middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 			return rpccontext.WithCallerPID(ctx, params.AsPID), nil
 		}),
 	))
