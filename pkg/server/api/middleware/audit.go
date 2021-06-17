@@ -31,7 +31,6 @@ func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string) (
 	if m.udsTrackerEnabled {
 		fields, err := fieldsFromTracker(ctx)
 		if err != nil {
-			fmt.Printf("====================== peertraker: %v\n", err)
 			return nil, err
 		}
 
