@@ -53,7 +53,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create request ID: %v", err)
 	}
-	fields["request-id"] = requestID.String()
+	fields[telemetry.RequestID] = requestID.String()
 
 	if len(fields) > 0 {
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))

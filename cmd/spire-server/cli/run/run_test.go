@@ -53,6 +53,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.NoError(t, err)
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
+	assert.True(t, c.Server.AuditLogEnabled)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -505,6 +506,16 @@ func TestMergeInput(t *testing.T) {
 			},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.TrustDomain)
+			},
+		},
+		{
+			msg: "auditlog_enabled should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.AuditLogEnabled = true
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.AuditLogEnabled)
 			},
 		},
 	}
@@ -1068,6 +1079,24 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "auditlog_enabled is enabled",
+			input: func(c *Config) {
+				c.Server.AuditLogEnabled = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "auditlog_enabled is disabled",
+			input: func(c *Config) {
+				c.Server.AuditLogEnabled = false
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.AuditLogEnabled)
 			},
 		},
 	}

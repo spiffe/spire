@@ -312,6 +312,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Uptime:              uptime.Uptime,
 		Clock:               clock.New(),
 		CacheReloadInterval: s.config.CacheReloadInterval,
+		AuditLogEnabled:     s.config.AuditLogEnabled,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
