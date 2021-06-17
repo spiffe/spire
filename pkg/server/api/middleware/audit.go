@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/shirou/gopsutil/process"
 	"github.com/sirupsen/logrus"
@@ -26,7 +25,7 @@ type auditLogMiddleware struct {
 	udsTrackerEnabled bool
 }
 
-func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string) (context.Context, error) {
+func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	log := rpccontext.Logger(ctx)
 	if m.udsTrackerEnabled {
 		fields, err := fieldsFromTracker(ctx)
@@ -124,7 +123,7 @@ func getGID(proc *process.Process) (int32, error) {
 func getAddr(proc *process.Process) (string, error) {
 	path, err := proc.Exe()
 	if err != nil {
-		return "", fmt.Errorf("failed path lookup: %v", err)
+		return "", status.Errorf(codes.Internal, "failed path lookup: %v", err)
 	}
 
 	return path, nil
