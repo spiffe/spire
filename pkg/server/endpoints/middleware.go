@@ -23,13 +23,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
-	return middleware.Chain(
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, auditLogEnabled bool) middleware.Middleware {
+	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		middleware.WithAuthorization(Authorization(log, ds, clk)),
 		middleware.WithRateLimits(RateLimits(rlConf)),
-		middleware.WithAuditLog(),
+	}
+
+	if auditLogEnabled {
+		// Add audit log with UDS tracking enabled
+		chain = append(chain, middleware.WithAuditLog(true))
+	}
+
+	return middleware.Chain(
+		chain...,
 	)
 }
 

@@ -70,14 +70,14 @@ func (s *Service) CountBundles(ctx context.Context, req *bundlev1.CountBundlesRe
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count bundles", err)
 	}
-	rpccontext.EmitRPCAudit(ctx, logrus.Fields{})
+	rpccontext.AuditRPC(ctx)
 
 	return &bundlev1.CountBundlesResponse{Count: count}, nil
 }
 
 // GetBundle returns the bundle associated with the given trust domain.
 func (s *Service) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{"trust_domain": s.td.String()})
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: s.td.String()})
 	log := rpccontext.Logger(ctx)
 
 	commonBundle, err := s.ds.FetchBundle(dscache.WithCache(ctx), s.td.IDString())
@@ -95,7 +95,7 @@ func (s *Service) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest)
 	}
 
 	applyBundleMask(bundle, req.OutputMask)
-	rpccontext.EmitRPCAudit(ctx, logrus.Fields{})
+	rpccontext.AuditRPC(ctx)
 	return bundle, nil
 }
 
@@ -148,7 +148,7 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundlev1.AppendBundleRe
 	}
 
 	applyBundleMask(bundle, req.OutputMask)
-	rpccontext.EmitRPCAudit(ctx, logrus.Fields{})
+	rpccontext.AuditRPC(ctx)
 	return bundle, nil
 }
 
@@ -157,9 +157,9 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 	parseRequest := func() logrus.Fields {
 		fields := logrus.Fields{}
 		if req.JwtAuthority != nil {
-			fields["jwt_authority_expires_at"] = req.JwtAuthority.ExpiresAt
-			fields["jwt_authority_key_id"] = req.JwtAuthority.KeyId
-			fields["jwt_authority_public_key"] = api.HashByte(req.JwtAuthority.PublicKey)
+			fields[telemetry.JWTAuthorityExpiresAt] = req.JwtAuthority.ExpiresAt
+			fields[telemetry.JWTAuthorityKeyID] = req.JwtAuthority.KeyId
+			fields[telemetry.JWTAuthorityPublicKey] = api.HashByte(req.JwtAuthority.PublicKey)
 		}
 		return fields
 	}
@@ -183,7 +183,7 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to publish JWT key", err)
 	}
-	rpccontext.EmitRPCAudit(ctx, logrus.Fields{})
+	rpccontext.AuditRPC(ctx)
 
 	return &bundlev1.PublishJWTAuthorityResponse{
 		JwtAuthorities: api.PublicKeysToProto(resp),
@@ -193,8 +193,8 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 // ListFederatedBundles returns an optionally paginated list of federated bundles.
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundlev1.ListFederatedBundlesRequest) (*bundlev1.ListFederatedBundlesResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
-		"page_size":  req.PageSize,
-		"page_token": req.PageToken,
+		telemetry.PageSize:  req.PageSize,
+		telemetry.PageToken: req.PageToken,
 	})
 	log := rpccontext.Logger(ctx)
 
@@ -238,14 +238,14 @@ func (s *Service) ListFederatedBundles(ctx context.Context, req *bundlev1.ListFe
 		applyBundleMask(b, req.OutputMask)
 		resp.Bundles = append(resp.Bundles, b)
 	}
-	rpccontext.EmitRPCAudit(ctx, logrus.Fields{})
+	rpccontext.AuditRPC(ctx)
 
 	return resp, nil
 }
 
 // GetFederatedBundle returns the bundle associated with the given trust domain.
 func (s *Service) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{"trust_domain": req.TrustDomain})
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: req.TrustDomain})
 	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, req.TrustDomain)
 
 	td, err := spiffeid.TrustDomainFromString(req.TrustDomain)
@@ -272,7 +272,7 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFeder
 	}
 
 	applyBundleMask(bundle, req.OutputMask)
-	rpccontext.EmitRPCAudit(ctx, logrus.Fields{})
+	rpccontext.AuditRPC(ctx)
 
 	return bundle, nil
 }
@@ -284,7 +284,7 @@ func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundlev1.
 		r := s.createFederatedBundle(ctx, b, req.OutputMask)
 		results = append(results, r)
 
-		rpccontext.EmitBatchRPCAudit(ctx, r.Status, fieldsFromBundleProto(b, nil))
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, nil))
 	}
 
 	return &bundlev1.BatchCreateFederatedBundleResponse{
@@ -396,7 +396,7 @@ func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundlev1.
 		r := s.updateFederatedBundle(ctx, b, req.InputMask, req.OutputMask)
 		results = append(results, r)
 
-		rpccontext.EmitBatchRPCAudit(ctx, r.Status, fieldsFromBundleProto(b, req.InputMask))
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, req.InputMask))
 	}
 
 	return &bundlev1.BatchUpdateFederatedBundleResponse{
@@ -463,7 +463,7 @@ func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundlev1.Bat
 		r := s.setFederatedBundle(ctx, b, req.OutputMask)
 		results = append(results, r)
 
-		rpccontext.EmitBatchRPCAudit(ctx, r.Status, fieldsFromBundleProto(b, nil))
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, nil))
 	}
 
 	return &bundlev1.BatchSetFederatedBundleResponse{
@@ -485,9 +485,9 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundlev1.
 		r := s.deleteFederatedBundle(ctx, log, trustDomain, mode)
 		results = append(results, r)
 
-		rpccontext.EmitBatchRPCAudit(ctx, r.Status, logrus.Fields{
-			"trust_domain": trustDomain,
-			"mode":         mode,
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, logrus.Fields{
+			telemetry.TrustDomainID: trustDomain,
+			telemetry.Mode:          mode,
 		})
 	}
 
@@ -573,15 +573,15 @@ func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {
 
 func fieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) logrus.Fields {
 	fields := logrus.Fields{
-		"trust_domain": proto.TrustDomain,
+		telemetry.TrustDomainID: proto.TrustDomain,
 	}
 
 	if inputMask == nil || inputMask.RefreshHint {
-		fields["refresh_hint"] = proto.RefreshHint
+		fields[telemetry.RefreshHint] = proto.RefreshHint
 	}
 
 	if inputMask == nil || inputMask.SequenceNumber {
-		fields["sequence_number"] = proto.SequenceNumber
+		fields[telemetry.SequenceNumber] = proto.SequenceNumber
 	}
 
 	if inputMask == nil || inputMask.JwtAuthorities {
@@ -599,20 +599,20 @@ func fieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) log
 }
 
 func fieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields {
-	fields := logrus.Fields{}
-	for i, jwtAuthoriry := range jwtAuthorities {
-		fields[fmt.Sprintf("jwt_authority_expires_at_%d", i)] = jwtAuthoriry.ExpiresAt
-		fields[fmt.Sprintf("jwt_authority_key_id_%d", i)] = jwtAuthoriry.KeyId
-		fields[fmt.Sprintf("jwt_authority_public_key_%d", i)] = api.HashByte(jwtAuthoriry.PublicKey)
+	fields := make(logrus.Fields, 3*len(jwtAuthorities))
+	for i, jwtAuthority := range jwtAuthorities {
+		fields[fmt.Sprintf("jwt_authority_expires_at.%d", i)] = jwtAuthority.ExpiresAt
+		fields[fmt.Sprintf("jwt_authority_key_id.%d", i)] = jwtAuthority.KeyId
+		fields[fmt.Sprintf("jwt_authority_public_key.%d", i)] = api.HashByte(jwtAuthority.PublicKey)
 	}
 
 	return fields
 }
 
 func fieldsFromX509AuthoritiesProto(x509Authorities []*types.X509Certificate) logrus.Fields {
-	fields := logrus.Fields{}
+	fields := make(logrus.Fields, len(x509Authorities))
 	for i, x509Authority := range x509Authorities {
-		fields[fmt.Sprintf("x509_authorities_asn1_%d", i)] = api.HashByte(x509Authority.Asn1)
+		fields[fmt.Sprintf("x509_authorities_asn1.%d", i)] = api.HashByte(x509Authority.Asn1)
 	}
 
 	return fields

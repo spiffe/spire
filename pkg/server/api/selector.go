@@ -44,7 +44,7 @@ func ProtoFromSelectors(in []*common.Selector) []*types.Selector {
 }
 
 func SelectorFieldFromProto(proto []*types.Selector) string {
-	selectors := []string{}
+	selectors := make([]string, 0, len(proto))
 	for _, s := range proto {
 		selectors = append(selectors, fmt.Sprintf("%s:%s", s.Type, s.Value))
 	}

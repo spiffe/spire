@@ -10,32 +10,41 @@ import (
 
 type auditLogKey struct{}
 
-func WithAuditLog(ctx context.Context, auditLog audit.Log) context.Context {
+func WithAuditLog(ctx context.Context, auditLog audit.Logger) context.Context {
 	return context.WithValue(ctx, auditLogKey{}, auditLog)
 }
 
 func AddRPCAuditFields(ctx context.Context, fields logrus.Fields) {
-	auditLog := AuditLog(ctx)
-	auditLog.AddFields(fields)
-}
-
-func EmitRPCAudit(ctx context.Context, fields logrus.Fields) {
-	AuditLog(ctx).Emit(fields)
-}
-
-func EmitRPCAuditError(ctx context.Context, err error) {
-	AuditLog(ctx).EmitError(err)
-}
-
-func EmitBatchRPCAudit(ctx context.Context, s *types.Status, fields logrus.Fields) {
-	AuditLog(ctx).EmitBatch(s, fields)
-}
-
-func AuditLog(ctx context.Context) audit.Log {
-	auditLog, ok := ctx.Value(auditLogKey{}).(audit.Log)
-	if ok {
-		return auditLog
+	if auditLog, ok := AuditLog(ctx); ok {
+		auditLog.AddFields(fields)
 	}
+}
 
-	panic("RPC context missing audit log")
+func AuditRPC(ctx context.Context) {
+	if auditLog, ok := AuditLog(ctx); ok {
+		auditLog.Audit()
+	}
+}
+
+func AuditRPCWithFields(ctx context.Context, fields logrus.Fields) {
+	if auditLog, ok := AuditLog(ctx); ok {
+		auditLog.AuditWithFields(fields)
+	}
+}
+
+func AuditRPCWithError(ctx context.Context, err error) {
+	if auditLog, ok := AuditLog(ctx); ok {
+		auditLog.AuditWithError(err)
+	}
+}
+
+func AuditRPCWithTypesStatus(ctx context.Context, s *types.Status, fields logrus.Fields) {
+	if auditLog, ok := AuditLog(ctx); ok {
+		auditLog.AuditWithTypesStatus(fields, s)
+	}
+}
+
+func AuditLog(ctx context.Context) (audit.Logger, bool) {
+	auditLog, ok := ctx.Value(auditLogKey{}).(audit.Logger)
+	return auditLog, ok
 }

@@ -7,30 +7,30 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/audit"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func TestEmit(t *testing.T) {
+func TestAudit(t *testing.T) {
 	log, logHook := test.NewNullLogger()
 
 	for _, tt := range []struct {
-		name       string
-		addFields  logrus.Fields
-		expect     []spiretest.LogEntry
-		emitFields logrus.Fields
+		name      string
+		addFields logrus.Fields
+		expect    []spiretest.LogEntry
 	}{
 		{
 			name: "no fields added",
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
 					},
 				},
 			},
@@ -44,77 +44,129 @@ func TestEmit(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
-						"a":      "1",
-						"b":      "2",
-					},
-				},
-			},
-		},
-		{
-			name: "with fields on emit",
-			emitFields: logrus.Fields{
-				"emit": "test",
-			},
-			expect: []spiretest.LogEntry{
-				{
-					Level:   logrus.InfoLevel,
-					Message: "Audit log",
-					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
-						"emit":   "test",
-					},
-				},
-			},
-		},
-		{
-			name: "with fields on emit and added",
-			addFields: logrus.Fields{
-				"a": "1",
-				"b": "2",
-			},
-			emitFields: logrus.Fields{
-				"emit": "test",
-			},
-			expect: []spiretest.LogEntry{
-				{
-					Level:   logrus.InfoLevel,
-					Message: "Audit log",
-					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
-						"emit":   "test",
-						"a":      "1",
-						"b":      "2",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						"a":              "1",
+						"b":              "2",
 					},
 				},
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			auditLog := audit.New(log)
 			logHook.Reset()
 
 			auditLog.AddFields(tt.addFields)
-			auditLog.Emit(tt.emitFields)
+			auditLog.Audit()
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expect)
 		})
 	}
 }
 
-func TestEmitBatch(t *testing.T) {
+func TestAuditWithFields(t *testing.T) {
 	log, logHook := test.NewNullLogger()
 
 	for _, tt := range []struct {
-		name       string
-		status     *types.Status
-		expect     []spiretest.LogEntry
-		emitFields logrus.Fields
+		name            string
+		addFields       logrus.Fields
+		expect          []spiretest.LogEntry
+		parameterFields logrus.Fields
+	}{
+		{
+			name: "no fields added",
+			expect: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "with fields added",
+			addFields: logrus.Fields{
+				"a": "1",
+				"b": "2",
+			},
+			expect: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						"a":              "1",
+						"b":              "2",
+					},
+				},
+			},
+		},
+		{
+			name: "with parameter fields",
+			parameterFields: logrus.Fields{
+				"emit": "test",
+			},
+			expect: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						"emit":           "test",
+					},
+				},
+			},
+		},
+		{
+			name: "with parameter fields and added",
+			addFields: logrus.Fields{
+				"a": "1",
+				"b": "2",
+			},
+			parameterFields: logrus.Fields{
+				"emit": "test",
+			},
+			expect: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						"emit":           "test",
+						"a":              "1",
+						"b":              "2",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			auditLog := audit.New(log)
+			logHook.Reset()
+
+			auditLog.AddFields(tt.addFields)
+			auditLog.AuditWithFields(tt.parameterFields)
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expect)
+		})
+	}
+}
+
+func TestAuditWitTypesStatus(t *testing.T) {
+	log, logHook := test.NewNullLogger()
+
+	for _, tt := range []struct {
+		name            string
+		status          *types.Status
+		expect          []spiretest.LogEntry
+		parameterFields logrus.Fields
 	}{
 		{
 			name:   "no error no fields",
@@ -122,10 +174,10 @@ func TestEmitBatch(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
 					},
 				},
 			},
@@ -133,17 +185,17 @@ func TestEmitBatch(t *testing.T) {
 		{
 			name:   "no error with fields",
 			status: &types.Status{Code: int32(codes.OK), Message: "ok"},
-			emitFields: logrus.Fields{
+			parameterFields: logrus.Fields{
 				"emit": "test",
 			},
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
-						"emit":   "test",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						"emit":           "test",
 					},
 				},
 			},
@@ -154,30 +206,30 @@ func TestEmitBatch(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"status":         "error",
-						"status_code":    "Internal",
-						"status_message": "some error",
-						"type":           "audit",
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "some error",
+						telemetry.Type:          "audit",
 					},
 				},
 			},
 		},
 		{
-			name:       "error with fields",
-			status:     &types.Status{Code: int32(codes.Internal), Message: "some error"},
-			emitFields: logrus.Fields{"emit": "test"},
+			name:            "error with fields",
+			status:          &types.Status{Code: int32(codes.Internal), Message: "some error"},
+			parameterFields: logrus.Fields{"emit": "test"},
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"emit":           "test",
-						"status":         "error",
-						"status_code":    "Internal",
-						"status_message": "some error",
-						"type":           "audit",
+						"emit":                  "test",
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "some error",
+						telemetry.Type:          "audit",
 					},
 				},
 			},
@@ -187,13 +239,13 @@ func TestEmitBatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			auditLog := audit.New(log)
 			logHook.Reset()
-			auditLog.EmitBatch(tt.status, tt.emitFields)
+			auditLog.AuditWithTypesStatus(tt.parameterFields, tt.status)
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expect)
 		})
 	}
 }
 
-func TestEmitError(t *testing.T) {
+func TestAuditWithError(t *testing.T) {
 	log, logHook := test.NewNullLogger()
 
 	for _, tt := range []struct {
@@ -207,10 +259,10 @@ func TestEmitError(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"status": "success",
-						"type":   "audit",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
 					},
 				},
 			},
@@ -221,12 +273,12 @@ func TestEmitError(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"type":           "audit",
-						"status":         "error",
-						"status_code":    "InvalidArgument",
-						"status_message": "invalid argument",
+						telemetry.Type:          "audit",
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid argument",
 					},
 				},
 			},
@@ -237,12 +289,12 @@ func TestEmitError(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"type":           "audit",
-						"status":         "error",
-						"status_code":    "Unknown",
-						"status_message": "some error",
+						telemetry.Type:          "audit",
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Unknown",
+						telemetry.StatusMessage: "some error",
 					},
 				},
 			},
@@ -257,14 +309,14 @@ func TestEmitError(t *testing.T) {
 			expect: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Audit log",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"type":           "audit",
-						"status":         "error",
-						"status_code":    "InvalidArgument",
-						"status_message": "invalid argument",
-						"a":              "1",
-						"b":              "2",
+						telemetry.Type:          "audit",
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid argument",
+						"a":                     "1",
+						"b":                     "2",
 					},
 				},
 			},
@@ -276,7 +328,7 @@ func TestEmitError(t *testing.T) {
 			logHook.Reset()
 
 			auditLog.AddFields(tt.addFields)
-			auditLog.EmitError(tt.err)
+			auditLog.AuditWithError(tt.err)
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expect)
 		})
 	}
