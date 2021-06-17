@@ -140,6 +140,18 @@ const (
 	// to add clarity
 	CallerID = "caller_id"
 
+	// CallerUID tags an API caller user ID; should be used with other tags
+	// to add clarity
+	CallerUID = "caller_uid"
+
+	// CallerGID tags an API caller group ID; should be used with other tags
+	// to add clarity
+	CallerGID = "caller_gid"
+
+	// CallerPath tags an API caller binary path; should be used with other tags
+	// to add clarity
+	CallerPath = "caller_path"
+
 	// CGroupPath tags a linux CGroup path, most likely for use in attestation
 	CGroupPath = "cgroup_path"
 
@@ -211,12 +223,24 @@ const (
 	// JWT declares JWT-SVID type, clarifying metrics
 	JWT = "jwt"
 
+	// JWTAuthorityExpiresAt tags a JWT Authority expiration
+	JWTAuthorityExpiresAt = "jwt_authority_expires_at"
+
+	// JWTAuthorityPublicKey tags a JWT authority key ID
+	JWTAuthorityKeyID = "jwt_authority_key_id"
+
+	// JWTAuthorityPublicKey tags a JWT Authority public key
+	JWTAuthorityPublicKey = "jwt_authority_public_key"
+
 	// JWTKeys tags some count or list of JWT Keys. Should NEVER provide the actual keys, use
 	// Key IDs instead.
 	JWTKeys = "jwt_keys"
 
 	// Kid tags some key ID
 	Kid = "kid"
+
+	// Mode tags a bundle deletion mode
+	Mode = "mode"
 
 	// NewSerialNumber tags a certificate new serial number
 	NewSerialNumber = "new_serial_num"
@@ -226,6 +250,12 @@ const (
 
 	// Nonce tags some nonce for communication
 	Nonce = "nonce"
+
+	// PageSize tags a page size used on pagination
+	PageSize = "page_size"
+
+	// PageToken tags token used on pagination
+	PageToken = "page_token"
 
 	// ParentID tags parent ID for an entry
 	ParentID = "parent_id"
@@ -263,6 +293,9 @@ const (
 	// Reason is the reason for something
 	Reason = "reason"
 
+	// RefreshHint tags a bundle refresh hint
+	RefreshHint = "refresh_hint"
+
 	// RegistrationID tags some registration entry ID
 	RegistrationID = "entry_id"
 
@@ -272,6 +305,9 @@ const (
 
 	// RegistrationEntry tags a registration entry
 	RegistrationEntry = "registration_entry"
+
+	// RequestID tags a request identifier
+	RequestID = "request_id"
 
 	// ResourceNames tags some group of resources by name
 	ResourceNames = "resource_names"
@@ -285,6 +321,9 @@ const (
 	// Seconds tags some count of seconds; should be used with other tags and message
 	// to add clarity
 	Seconds = "seconds"
+
+	// SequenceNumber tags a bundle sequence number
+	SequenceNumber = "sequence_number"
 
 	// Selector tags some registration selector
 	Selector = "selector"
@@ -315,6 +354,12 @@ const (
 
 	// Status tags status of call (OK, or some error), or status of some process
 	Status = "status"
+
+	// StatusCode tags status codes of call
+	StatusCode = "status_code"
+
+	// StatusMessage tags status messages of call
+	StatusMessage = "status_message"
 
 	// Subject tags some subject (likely a SPIFFE ID, and likely for a token); should be used
 	// with other tags to add clarity

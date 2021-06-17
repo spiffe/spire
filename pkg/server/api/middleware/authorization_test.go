@@ -161,16 +161,16 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			ctxOut, err := m.Preprocess(ctxIn, tt.fullMethod, tt.request)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 
-			// No a good way to fake UUID generation, so I get it from fields, verify it is not emppy and set as expected
+			// Not a good way to fake UUID generation, so I get it from fields, verify it is not empty and set as expected
 			if hook.LastEntry() != nil {
-				requestID := hook.LastEntry().Data["request-id"]
+				requestID := hook.LastEntry().Data["request_id"]
 				assert.NotEmpty(t, requestID)
 
 				for _, e := range tt.expectLogs {
 					if e.Data == nil {
 						e.Data = logrus.Fields{}
 					}
-					e.Data["request-id"] = requestID
+					e.Data["request_id"] = requestID
 				}
 			}
 
