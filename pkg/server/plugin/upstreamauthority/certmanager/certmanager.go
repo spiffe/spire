@@ -140,7 +140,6 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	// polls, error.
 	obj := client.ObjectKey{Name: cr.GetName(), Namespace: cr.GetNamespace()}
 	for i := 0; true; i++ {
-
 		if i == 60*5 { // ~1.25 mins
 			log.Error("Failed to wait for CertificateRequest to become ready in time")
 			return errors.New("request did not become ready in time")
@@ -174,7 +173,7 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	caChain, err := pemutil.ParseCertificates(cr.Status.Certificate)
 	if err != nil {
 		log.Error("Failed to parse signed certificate", "error", err.Error())
-		return fmt.Errorf("failed to parse certificate: %s", err)
+		return fmt.Errorf("failed to parse certificate: %w", err)
 	}
 
 	// If the configured issuer did not populate the CA on the request we cannot
@@ -187,7 +186,7 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	upstreamRoot, err := pemutil.ParseCertificates(cr.Status.CA)
 	if err != nil {
 		log.Error("Failed to parse CA certificate returned from request", "error", err.Error())
-		return fmt.Errorf("failed to parse CA certificate: %s", err)
+		return fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
 
 	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{

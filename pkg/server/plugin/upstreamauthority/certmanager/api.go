@@ -11,7 +11,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -20,17 +19,12 @@ var (
 )
 
 func init() {
-	utilruntime.Must(addKnownTypes(scheme))
-}
-
-func addKnownTypes(scheme *runtime.Scheme) error {
 	schemeGroupVersion := schema.GroupVersion{Group: "cert-manager.io", Version: "v1"}
 	scheme.AddKnownTypes(schemeGroupVersion,
 		&cmapi.CertificateRequest{},
 		&cmapi.CertificateRequestList{},
 	)
 	metav1.AddToGroupVersion(scheme, schemeGroupVersion)
-	return nil
 }
 
 func (p *Plugin) buildCertificateRequest(request *upstreamauthorityv0.MintX509CARequest) (*cmapi.CertificateRequest, error) {
@@ -88,7 +82,7 @@ func (p *Plugin) cleanupStaleCertificateRequests(ctx context.Context) error {
 		return err
 	}
 
-	for _, cr := range crList.Items {
+	for i, cr := range crList.Items {
 		for _, cond := range []cmapi.CertificateRequestCondition{
 			cmapi.CertificateRequestCondition{
 				Type:   cmapi.CertificateRequestConditionDenied,
@@ -104,10 +98,10 @@ func (p *Plugin) cleanupStaleCertificateRequests(ctx context.Context) error {
 				Reason: cmapi.CertificateRequestReasonFailed,
 			},
 		} {
-			if ok, c := certificateRequestHasCondition(&cr, cond); ok {
+			if ok, c := certificateRequestHasCondition(&crList.Items[i], cond); ok {
 				log := p.log.With("namespace", cr.GetNamespace(), "name", cr.GetName(), "type", c.Type, "reason", c.Reason, "message", c.Message)
 				log.Debug("Deleting stale CertificateRequest")
-				if err := p.cmclient.Delete(ctx, &cr); err != nil {
+				if err := p.cmclient.Delete(ctx, &crList.Items[i]); err != nil {
 					return err
 				}
 

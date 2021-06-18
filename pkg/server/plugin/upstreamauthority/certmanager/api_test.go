@@ -9,7 +9,7 @@ import (
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck
 )
 
 func Test_cleanupStaleCertificateRequests(t *testing.T) {
@@ -224,7 +224,6 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func equalUnsorted(s1 []string, s2 []string) bool {
