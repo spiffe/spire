@@ -159,7 +159,7 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 		if req.JwtAuthority != nil {
 			fields[telemetry.JWTAuthorityExpiresAt] = req.JwtAuthority.ExpiresAt
 			fields[telemetry.JWTAuthorityKeyID] = req.JwtAuthority.KeyId
-			fields[telemetry.JWTAuthorityPublicKey] = api.HashByte(req.JwtAuthority.PublicKey)
+			fields[telemetry.JWTAuthorityPublicKeySHA256] = api.HashByte(req.JwtAuthority.PublicKey)
 		}
 		return fields
 	}
@@ -601,9 +601,9 @@ func fieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) log
 func fieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields {
 	fields := make(logrus.Fields, 3*len(jwtAuthorities))
 	for i, jwtAuthority := range jwtAuthorities {
-		fields[fmt.Sprintf("jwt_authority_expires_at.%d", i)] = jwtAuthority.ExpiresAt
-		fields[fmt.Sprintf("jwt_authority_key_id.%d", i)] = jwtAuthority.KeyId
-		fields[fmt.Sprintf("jwt_authority_public_key.%d", i)] = api.HashByte(jwtAuthority.PublicKey)
+		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityExpiresAt, i)] = jwtAuthority.ExpiresAt
+		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityKeyID, i)] = jwtAuthority.KeyId
+		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityPublicKeySHA256, i)] = api.HashByte(jwtAuthority.PublicKey)
 	}
 
 	return fields
@@ -612,7 +612,7 @@ func fieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields
 func fieldsFromX509AuthoritiesProto(x509Authorities []*types.X509Certificate) logrus.Fields {
 	fields := make(logrus.Fields, len(x509Authorities))
 	for i, x509Authority := range x509Authorities {
-		fields[fmt.Sprintf("x509_authorities_asn1.%d", i)] = api.HashByte(x509Authority.Asn1)
+		fields[fmt.Sprintf("%s.%d", telemetry.X509AuthoritiesASN1SHA256, i)] = api.HashByte(x509Authority.Asn1)
 	}
 
 	return fields

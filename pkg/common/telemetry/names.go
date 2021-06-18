@@ -229,8 +229,8 @@ const (
 	// JWTAuthorityPublicKey tags a JWT authority key ID
 	JWTAuthorityKeyID = "jwt_authority_key_id"
 
-	// JWTAuthorityPublicKey tags a JWT Authority public key
-	JWTAuthorityPublicKey = "jwt_authority_public_key"
+	// JWTAuthorityPublicKeySHA256 tags a JWT Authority public key
+	JWTAuthorityPublicKeySHA256 = "jwt_authority_public_key_sha256"
 
 	// JWTKeys tags some count or list of JWT Keys. Should NEVER provide the actual keys, use
 	// Key IDs instead.
@@ -408,6 +408,9 @@ const (
 
 	// X509 declared X509 SVID type, clarifying metrics
 	X509 = "x509"
+
+	// X509AuthoritiesASN1256 tags a X509 authority ASN1 encryted using SHA256
+	X509AuthoritiesASN1SHA256 = "x509_authorities_asn1_sha256"
 
 	// X509CAs tags some count or list of X509 CAs
 	X509CAs = "x509_cas"
