@@ -273,7 +273,7 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) (*Cli
 		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
 	case K8S:
 		if config.K8sAuth.K8sAuthRoleName == "" {
-			return nil, status.Error(codes.Internal, "k8s_auth_role_name is required")
+			return nil, status.Error(codes.InvalidArgument, "k8s_auth_role_name is required")
 		}
 		cp.K8sAuthMountPoint = config.K8sAuth.K8sAuthMountPoint
 		cp.K8sAuthRoleName = config.K8sAuth.K8sAuthRoleName
@@ -318,7 +318,7 @@ func parseAuthMethod(config *Configuration) (AuthMethod, error) {
 		return authMethod, nil
 	}
 
-	return 0, status.Error(codes.InvalidArgument, "must be configured one of these authentication method 'Token or Cert or AppRole or K8s'")
+	return 0, status.Error(codes.InvalidArgument, "must be configured one of these authentication method 'Token, Client Certificate, AppRole or Kubernetes")
 }
 
 func checkForAuthMethodConfigured(authMethod AuthMethod) error {

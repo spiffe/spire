@@ -205,7 +205,7 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 		if err != nil {
 			return nil, false, status.Errorf(codes.Internal, "failed to read k8s service account token: %v", err)
 		}
-		path := fmt.Sprintf("auth/%v/login", c.clientParams.K8sAuthMountPoint)
+		path := fmt.Sprintf("auth/%s/login", c.clientParams.K8sAuthMountPoint)
 		body := map[string]interface{}{
 			"role": c.clientParams.K8sAuthRoleName,
 			"jwt":  string(b),

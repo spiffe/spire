@@ -154,7 +154,7 @@ func TestConfigure(t *testing.T) {
 			name:            "Required parameters are not given",
 			configTmpl:      testK8sAuthNoRoleNameTpl,
 			wantAuth:        K8S,
-			expectCode:      codes.Internal,
+			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "k8s_auth_role_name is required",
 		},
 	} {
