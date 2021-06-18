@@ -95,9 +95,7 @@ func (e *Entry) CreateEntry() error {
 
 	err = errorFromStatus(resp.Results[0].Status)
 	switch status.Code(err) {
-	case codes.AlreadyExists:
-		fallthrough
-	case codes.OK:
+	case codes.OK, codes.AlreadyExists:
 		e.entryID = resp.Results[0].Entry.Id
 		e.SpiffeID = resp.Results[0].Entry.SpiffeId
 		return nil
