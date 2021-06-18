@@ -186,7 +186,7 @@ func (e *Entry) webhookParentID() (*spiretypes.SPIFFEID, error) {
 	}
 	return &spiretypes.SPIFFEID{
 		TrustDomain: e.c.TrustDomain,
-		Path:        fmt.Sprintf("spire/agent/k8s_psat/%s/%s", e.c.Cluster, nodeUID),
+		Path:        fmt.Sprintf("/spire/agent/k8s_psat/%s/%s", e.c.Cluster, nodeUID),
 	}, nil
 }
 
