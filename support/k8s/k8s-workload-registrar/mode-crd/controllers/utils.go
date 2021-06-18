@@ -41,7 +41,12 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	_ = spiffeidv1beta1.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	config, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		CertDir:            webhookCertDir,
 		LeaderElection:     leaderElection,
 		LeaderElectionID:   "spire-k8s-registrar-leader-election",
@@ -57,7 +62,11 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 }
 
 func NewKubeClientset() (*kubernetes.Clientset, error) {
-	config := ctrl.GetConfigOrDie()
+	config, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	return kubernetes.NewForConfig(config)
 }
 

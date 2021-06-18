@@ -241,7 +241,7 @@ func (c *CRDMode) certDirExistsAndReadOnly() (bool, error) {
 func getMyNodeName() (string, error) {
 	namespace, ok := os.LookupEnv("MY_NODE_NAME")
 	if !ok {
-		return "", fmt.Errorf("unable to get MY_NODE_NAME, ensure downward API is configured for this pod")
+		return "", errors.New("unable to get MY_NODE_NAME; ensure downward API is configured for this pod")
 	}
 
 	return namespace, nil
@@ -252,7 +252,7 @@ func getMyPodNamespace() (string, error) {
 	if !ok {
 		content, err := ioutil.ReadFile(namespaceFile)
 		if err != nil {
-			return "", fmt.Errorf("unable to get MY_POD_NAMESPACE, ensure downward API is configured for this pod")
+			return "", fmt.Errorf("unable to get MY_POD_NAMESPACE; ensure downward API is configured for this pod: %w", err)
 		}
 		return string(content), nil
 	}
@@ -263,7 +263,7 @@ func getMyPodNamespace() (string, error) {
 func getMyPodName() (string, error) {
 	name, ok := os.LookupEnv("MY_POD_NAME")
 	if !ok {
-		return "", fmt.Errorf("unable to get MY_POD_NAME, ensure downward API is configured for this pod")
+		return "", errors.New("unable to get MY_POD_NAME; ensure downward API is configured for this pod")
 	}
 
 	return name, nil
@@ -272,7 +272,7 @@ func getMyPodName() (string, error) {
 func getMyPodUID() (types.UID, error) {
 	uid, ok := os.LookupEnv("MY_POD_UID")
 	if !ok {
-		return "", fmt.Errorf("unable to get MY_POD_UID, ensure downward API is configured for this pod")
+		return "", errors.New("unable to get MY_POD_UID; ensure downward API is configured for this pod")
 	}
 
 	return types.UID(uid), nil
