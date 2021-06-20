@@ -146,7 +146,7 @@ path "pki/root/sign-intermediate" {
 |:----|:-----|:---------|:------------|:--------|
 | k8s_auth_mount_point | string | | Name of the mount point where the Kubernetes auth method is mounted | kubernetes |
 | k8s_auth_role_name   | string |✔| Name of the Vault role. The plugin authenticates against the named role | |
-| token_path           | string | | Path to the Kubernetes Service Account Token to use authentication with the Vault | `/var/run/secrets/kubernetes.io/serviceaccount/token` | 
+| token_path           | string |✔| Path to the Kubernetes Service Account Token to use authentication with the Vault | | 
 
 ```hcl
     UpstreamAuthority "vault" {

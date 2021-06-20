@@ -151,11 +151,18 @@ func TestConfigure(t *testing.T) {
 			expectMsgPrefix: "unable to decode configuration:",
 		},
 		{
-			name:            "Required parameters are not given",
+			name:            "Required parameters are not given / k8s_auth_role_name",
 			configTmpl:      testK8sAuthNoRoleNameTpl,
 			wantAuth:        K8S,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "k8s_auth_role_name is required",
+		},
+		{
+			name:            "Required parameters are not given / token_path",
+			configTmpl:      testK8sAuthNoTokenPathTpl,
+			wantAuth:        K8S,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "token_path is required",
 		},
 	} {
 		tt := tt

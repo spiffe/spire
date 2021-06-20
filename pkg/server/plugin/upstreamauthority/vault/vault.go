@@ -275,6 +275,9 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Configuration) (*Cli
 		if config.K8sAuth.K8sAuthRoleName == "" {
 			return nil, status.Error(codes.InvalidArgument, "k8s_auth_role_name is required")
 		}
+		if config.K8sAuth.TokenPath == "" {
+			return nil, status.Error(codes.InvalidArgument, "token_path is required")
+		}
 		cp.K8sAuthMountPoint = config.K8sAuth.K8sAuthMountPoint
 		cp.K8sAuthRoleName = config.K8sAuth.K8sAuthRoleName
 		cp.K8sAuthTokenPath = config.K8sAuth.TokenPath

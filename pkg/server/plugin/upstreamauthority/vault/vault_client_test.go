@@ -37,7 +37,6 @@ func TestNewClientConfigWithDefaultValues(t *testing.T) {
 		CertAuthMountPoint:    "", // Expect the default value to be used.
 		AppRoleAuthMountPoint: "", // Expect the default value to be used.
 		K8sAuthMountPoint:     "", // Expect the default value to be used.
-		K8sAuthTokenPath:      "", // Expect the default value to be used.
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
@@ -46,7 +45,6 @@ func TestNewClientConfigWithDefaultValues(t *testing.T) {
 	require.Equal(t, defaultCertMountPoint, cc.clientParams.CertAuthMountPoint)
 	require.Equal(t, defaultAppRoleMountPoint, cc.clientParams.AppRoleAuthMountPoint)
 	require.Equal(t, defaultK8sMountPoint, cc.clientParams.K8sAuthMountPoint)
-	require.Equal(t, defaultK8sTokenPath, cc.clientParams.K8sAuthTokenPath)
 }
 
 func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
@@ -57,7 +55,6 @@ func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
 		CertAuthMountPoint:    "test-tls-cert",
 		AppRoleAuthMountPoint: "test-approle",
 		K8sAuthMountPoint:     "test-k8s",
-		K8sAuthTokenPath:      "/path/to/token",
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
@@ -66,7 +63,6 @@ func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
 	require.Equal(t, "test-tls-cert", cc.clientParams.CertAuthMountPoint)
 	require.Equal(t, "test-approle", cc.clientParams.AppRoleAuthMountPoint)
 	require.Equal(t, "test-k8s", cc.clientParams.K8sAuthMountPoint)
-	require.Equal(t, "/path/to/token", cc.clientParams.K8sAuthTokenPath)
 }
 
 func TestNewAuthenticatedClientCertAuth(t *testing.T) {

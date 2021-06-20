@@ -32,7 +32,6 @@ const (
 	defaultPKIMountPoint     = "pki"
 	defaultAppRoleMountPoint = "approle"
 	defaultK8sMountPoint     = "kubernetes"
-	defaultK8sTokenPath      = "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 )
 
 type AuthMethod int
@@ -127,7 +126,6 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 		CertAuthMountPoint:    defaultCertMountPoint,
 		AppRoleAuthMountPoint: defaultAppRoleMountPoint,
 		K8sAuthMountPoint:     defaultK8sMountPoint,
-		K8sAuthTokenPath:      defaultK8sTokenPath,
 		PKIMountPoint:         defaultPKIMountPoint,
 	}
 	if err := mergo.Merge(cp, defaultParams); err != nil {

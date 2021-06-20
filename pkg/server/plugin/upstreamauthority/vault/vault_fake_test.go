@@ -21,7 +21,7 @@ const (
 var (
 	testConfigWithVaultAddrEnvTpl = `
 pki_mount_point = "test-pki"
-ca_cert_path = "testdata/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"	
 token_auth {
    token  = "test-token"
 }`
@@ -96,6 +96,16 @@ ca_cert_path = "testdata/keys/EC/root_cert.pem"
 k8s_auth {
    k8s_auth_mount_point = "test-k8s-auth"
    token_path = "testdata/k8s/token"
+}`
+
+	/* #nosec G101 */
+	testK8sAuthNoTokenPathTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
+k8s_auth {
+   k8s_auth_mount_point = "test-k8s-auth"
+   k8s_auth_role_name = "my-role"
 }`
 
 	testMultipleAuthConfigsTpl = `
