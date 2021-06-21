@@ -27,7 +27,7 @@ type auditLogMiddleware struct {
 
 func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	log := rpccontext.Logger(ctx)
-	if m.udsTrackerEnabled {
+	if rpccontext.CallerIsLocal(ctx) && m.udsTrackerEnabled {
 		fields, err := fieldsFromTracker(ctx)
 		if err != nil {
 			return nil, err
