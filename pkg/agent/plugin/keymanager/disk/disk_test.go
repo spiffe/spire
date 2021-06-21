@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -118,7 +117,7 @@ func TestBackwardsCompatWithDeprecatedKeyFile(t *testing.T) {
 		key := testkey.NewEC256(t)
 		data, err := x509.MarshalECPrivateKey(key)
 		require.NoError(t, err)
-		require.NoError(t, ioutil.WriteFile(deprecatedKeyPath, data, 0600))
+		require.NoError(t, os.WriteFile(deprecatedKeyPath, data, 0600))
 		return key
 	}
 
@@ -136,7 +135,7 @@ func TestBackwardsCompatWithDeprecatedKeyFile(t *testing.T) {
 	// Load the key from the deprecated key path and assert it matches the new
 	newKey, err := km.GenerateKey(context.Background(), "any-other-id", keymanager.ECP256)
 	require.NoError(t, err)
-	newDeprecatedKeyData, err := ioutil.ReadFile(deprecatedKeyPath)
+	newDeprecatedKeyData, err := os.ReadFile(deprecatedKeyPath)
 	require.NoError(t, err)
 	newDeprecatedKey, err := x509.ParseECPrivateKey(newDeprecatedKeyData)
 	require.NoError(t, err)

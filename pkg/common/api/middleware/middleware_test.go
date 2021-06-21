@@ -16,9 +16,9 @@ func TestChain(t *testing.T) {
 	// was called and in what order.
 	wrap := func(id string, m middleware.Middleware) middleware.Middleware {
 		return middleware.Funcs(
-			func(ctx context.Context, fullMethod string) (context.Context, error) {
+			func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 				preprocessCalls = append(preprocessCalls, id)
-				return m.Preprocess(ctx, fullMethod)
+				return m.Preprocess(ctx, fullMethod, req)
 			},
 			func(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
 				postprocessCalls = append(postprocessCalls, id)
@@ -44,7 +44,7 @@ func TestChain(t *testing.T) {
 		chain, a, b, c, d := setup()
 
 		// Preprocess and assert the wrap count for the returned context
-		ctx, err := chain.Preprocess(context.Background(), fakeFullMethod)
+		ctx, err := chain.Preprocess(context.Background(), fakeFullMethod, nil)
 		assert.NoError(t, err)
 		assert.Equal(t, 4, wrapCount(ctx))
 
@@ -64,7 +64,7 @@ func TestChain(t *testing.T) {
 
 		// Fail preprocessing and assert the error is returned
 		c.nextPreprocessErr = errFake
-		ctx, err := chain.Preprocess(context.Background(), fakeFullMethod)
+		ctx, err := chain.Preprocess(context.Background(), fakeFullMethod, nil)
 		assert.Equal(t, errFake, err)
 		assert.Nil(t, ctx)
 
@@ -119,7 +119,7 @@ func TestPostprocess(t *testing.T) {
 
 func testPreprocess(t *testing.T, f *fakeMiddleware, m middleware.Middleware) {
 	// Assert that the wrapped context is returned from the callback.
-	ctx, err := m.Preprocess(context.Background(), "FIRST")
+	ctx, err := m.Preprocess(context.Background(), "FIRST", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, wrapCount(ctx))
 
@@ -127,7 +127,7 @@ func testPreprocess(t *testing.T, f *fakeMiddleware, m middleware.Middleware) {
 
 	// Assert that errors are returned from the callback.
 	f.nextPreprocessErr = errFake
-	ctx, err = m.Preprocess(context.Background(), "SECOND")
+	ctx, err = m.Preprocess(context.Background(), "SECOND", nil)
 	assert.Equal(t, errFake, err)
 	assert.Nil(t, ctx)
 
@@ -152,7 +152,7 @@ func testPostprocess(t *testing.T, f *fakeMiddleware, m middleware.Middleware) {
 
 	// Assert that Preprocess returns the passed in context
 	ctx = wrapContext(ctx)
-	ctx, err := m.Preprocess(ctx, fakeFullMethod)
+	ctx, err := m.Preprocess(ctx, fakeFullMethod, nil)
 	assert.NoError(t, err, nil)
 	assert.Equal(t, 3, wrapCount(ctx))
 }

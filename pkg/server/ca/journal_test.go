@@ -3,7 +3,6 @@ package ca
 import (
 	"crypto/x509"
 	"encoding/pem"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -290,7 +289,7 @@ func (s *JournalSuite) writeString(path, data string) {
 }
 
 func (s *JournalSuite) writeBytes(path string, data []byte) {
-	s.Require().NoError(ioutil.WriteFile(path, data, 0600))
+	s.Require().NoError(os.WriteFile(path, data, 0600))
 }
 
 func (s *JournalSuite) now() time.Time {

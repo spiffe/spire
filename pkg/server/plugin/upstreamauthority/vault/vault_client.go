@@ -117,7 +117,7 @@ type SignCSRResponse struct {
 	CACertChainPEM []string
 }
 
-// NewClient returns a new *ClientConfig with default parameters.
+// NewClientConfig returns a new *ClientConfig with default parameters.
 func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, error) {
 	cc := &ClientConfig{
 		Logger: logger,
@@ -317,7 +317,7 @@ func (c *Client) SetToken(v string) {
 	c.vaultClient.SetToken(v)
 }
 
-// TLSAuth authenticates to vault server with TLS certificate method
+// Auth authenticates to vault server with TLS certificate method
 func (c *Client) Auth(path string, body map[string]interface{}) (*vapi.Secret, error) {
 	c.vaultClient.ClearToken()
 	secret, err := c.vaultClient.Logical().Write(path, body)

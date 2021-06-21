@@ -9,8 +9,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -382,7 +382,7 @@ func (f *fakeSVIDServer) GetBundle(ctx context.Context, req *bundlev1.GetBundleR
 }
 
 func assertFileData(t *testing.T, path string, expectedData string) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if assert.NoError(t, err) {
 		assert.Equal(t, expectedData, string(b))
 	}

@@ -3,7 +3,7 @@ package log
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 
@@ -39,7 +39,7 @@ func TestOutputFile(t *testing.T) {
 	msg := "This should get written"
 
 	for _, format := range []string{DefaultFormat, TextFormat, JSONFormat} {
-		f, err := ioutil.TempFile("", "testoutputfile")
+		f, err := os.CreateTemp("", "testoutputfile")
 		require.NoError(t, err)
 		tmpfile := f.Name()
 		defer os.Remove(tmpfile)
@@ -51,7 +51,7 @@ func TestOutputFile(t *testing.T) {
 
 		require.NoError(t, logger.Close())
 
-		log, err := ioutil.ReadAll(f)
+		log, err := io.ReadAll(f)
 		require.NoError(t, err)
 
 		if format == JSONFormat {

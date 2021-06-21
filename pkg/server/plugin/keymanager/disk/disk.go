@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"sync"
 
@@ -99,7 +98,7 @@ type entriesData struct {
 }
 
 func loadEntries(path string) ([]*keymanagerbase.KeyEntry, error) {
-	jsonBytes, err := ioutil.ReadFile(path)
+	jsonBytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil

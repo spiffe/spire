@@ -2,7 +2,7 @@ package entry
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 	"path"
 	"testing"
 
@@ -47,7 +47,7 @@ func TestParseEntryJSON(t *testing.T) {
 			p := testCase.testDataPath
 
 			if testCase.in != nil {
-				data, err := ioutil.ReadFile(testCase.testDataPath)
+				data, err := os.ReadFile(testCase.testDataPath)
 				assert.NoError(t, err)
 				_, err = testCase.in.Write(data)
 				assert.NoError(t, err)

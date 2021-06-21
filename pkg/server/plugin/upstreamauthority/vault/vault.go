@@ -58,13 +58,13 @@ type Configuration struct {
 	Namespace string `hcl:"namespace" json:"namespace"`
 }
 
-// TokenAuth represents parameters for token auth method
+// TokenAuthConfig represents parameters for token auth method
 type TokenAuthConfig struct {
 	// Token string to set into "X-Vault-Token" header
 	Token string `hcl:"token" json:"token"`
 }
 
-// CertAuth represents parameters for cert auth method
+// CertAuthConfig represents parameters for cert auth method
 type CertAuthConfig struct {
 	// Name of the mount point where Client Certificate Auth method is mounted. (e.g., /auth/<mount_point>/login)
 	// If the value is empty, use default mount point (/auth/cert)
@@ -80,7 +80,7 @@ type CertAuthConfig struct {
 	ClientKeyPath string `hcl:"client_key_path" json:"client_key_path"`
 }
 
-// AppRoleAuth represents parameters for AppRole auth method.
+// AppRoleAuthConfig represents parameters for AppRole auth method.
 type AppRoleAuthConfig struct {
 	// Name of the mount point where AppRole auth method is mounted. (e.g., /auth/<mount_point>/login)
 	// If the value is empty, use default mount point (/auth/approle)
@@ -245,7 +245,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	})
 }
 
-// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
+// PublishJWTKeyAndSubscribe is not implemented by the wrapper and returns a codes.Unimplemented status
 func (*Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
