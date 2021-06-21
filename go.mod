@@ -26,7 +26,6 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/containerd/containerd v1.3.2 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.4.2-0.20191008235115-448db5a783a0
 	github.com/docker/go-connections v0.4.0 // indirect
