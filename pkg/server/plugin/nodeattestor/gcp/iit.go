@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/hashicorp/hcl"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	hclog "github.com/hashicorp/go-hclog"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -20,6 +20,8 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -40,8 +42,8 @@ func builtin(p *IITAttestorPlugin) catalog.BuiltIn {
 	)
 }
 
-type tokenKeyRetriever interface {
-	retrieveKey(token *jwt.Token) (interface{}, error)
+type jwksRetriever interface {
+	retrieveJWKS(context.Context) (*jose.JSONWebKeySet, error)
 }
 
 type computeEngineClient interface {
@@ -54,11 +56,11 @@ type IITAttestorPlugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
-	config            *IITAttestorConfig
-	log               hclog.Logger
-	mtx               sync.Mutex
-	tokenKeyRetriever tokenKeyRetriever
-	client            computeEngineClient
+	config        *IITAttestorConfig
+	log           hclog.Logger
+	mtx           sync.Mutex
+	jwksRetriever jwksRetriever
+	client        computeEngineClient
 }
 
 // IITAttestorConfig is the config for IITAttestorPlugin.
@@ -83,8 +85,8 @@ type IITAttestorConfig struct {
 // New creates a new IITAttestorPlugin.
 func New() *IITAttestorPlugin {
 	return &IITAttestorPlugin{
-		tokenKeyRetriever: newGooglePublicKeyRetriever(googleCertURL),
-		client:            googleComputeEngineClient{},
+		jwksRetriever: newGooglePublicKeyRetriever(googleCertURL),
+		client:        googleComputeEngineClient{},
 	}
 }
 
@@ -100,7 +102,12 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return err
 	}
 
-	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, p.tokenKeyRetriever)
+	jwks, err := p.jwksRetriever.retrieveJWKS(stream.Context())
+	if err != nil {
+		return err
+	}
+
+	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, jwks)
 	if err != nil {
 		return err
 	}
@@ -260,7 +267,7 @@ type keyValue struct {
 	value string
 }
 
-func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAttestor_AttestServer, tokenRetriever tokenKeyRetriever) (gcp.ComputeEngine, error) {
+func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAttestor_AttestServer, jwks *jose.JSONWebKeySet) (gcp.ComputeEngine, error) {
 	req, err := stream.Recv()
 	if err != nil {
 		return gcp.ComputeEngine{}, err
@@ -271,14 +278,21 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAtt
 		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	identityToken := &gcp.IdentityToken{}
-	_, err = jwt.ParseWithClaims(string(payload), identityToken, tokenRetriever.retrieveKey)
+	token, err := jwt.ParseSigned(string(payload))
 	if err != nil {
-		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "unable to parse/validate the identity token: %v", err)
+		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "unable to parse the identity token: %v", err)
 	}
 
-	if identityToken.Audience != tokenAudience {
-		return gcp.ComputeEngine{}, status.Errorf(codes.PermissionDenied, "unexpected identity token audience %q", identityToken.Audience)
+	identityToken := &gcp.IdentityToken{}
+	if err := token.Claims(jwks, identityToken); err != nil {
+		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "failed to validate the identity token signature: %v", err)
+	}
+
+	if err := identityToken.Validate(jwt.Expected{
+		Audience: []string{tokenAudience},
+		Time:     time.Now(),
+	}); err != nil {
+		return gcp.ComputeEngine{}, status.Errorf(codes.PermissionDenied, "failed to validate the identity token claims: %v", err)
 	}
 
 	return identityToken.Google.ComputeEngine, nil
