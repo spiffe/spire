@@ -347,6 +347,11 @@ func (h *Handler) CreateFederatedBundle(ctx context.Context, request *registrati
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	if _, err := idutil.TrustDomainFromString(bundle.TrustDomainId); err != nil {
+		log.WithError(err).Error("Failed to validate SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
 	if bundle.TrustDomainId == h.TrustDomain.IDString() {
 		log.Error("Federated bundle id cannot match server trust domain")
 		return nil, status.Error(codes.InvalidArgument, "federated bundle id cannot match server trust domain")
@@ -436,6 +441,11 @@ func (h *Handler) UpdateFederatedBundle(ctx context.Context, request *registrati
 	bundle.TrustDomainId, err = idutil.NormalizeSpiffeID(bundle.TrustDomainId, idutil.AllowAnyTrustDomain())
 	if err != nil {
 		log.WithError(err).Error("Failed to normalize SPIFFE ID")
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if _, err := idutil.TrustDomainFromString(bundle.TrustDomainId); err != nil {
+		log.WithError(err).Error("Failed to validate SPIFFE ID")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 

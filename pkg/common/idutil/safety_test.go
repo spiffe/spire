@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,8 @@ func TestCheckIDStringNormalization(t *testing.T) {
 
 	// Assert the scheme is spiffe
 	assertBad("sparfe://example.org/workload",
+		"scheme must be 'spiffe'")
+	assertBad("sPiFfE://example.org/workload",
 		"scheme must be 'spiffe'")
 
 	// Test the common normalization cases
@@ -99,6 +102,8 @@ func TestCheckAgentIDStringNormalization(t *testing.T) {
 	// Assert the scheme is spiffe
 	assertBad("sparfe://example.org/workload",
 		"scheme must be 'spiffe'")
+	assertBad("sPiFfE://example.org/workload",
+		"scheme must be 'spiffe'")
 
 	// Agent ID cannot be the server ID
 	assertBad("spiffe://example.org/spire/server",
@@ -111,42 +116,45 @@ func TestCheckAgentIDStringNormalization(t *testing.T) {
 func testCommonCheckIDNormalization(assertGood func(string), assertBad func(string, string)) {
 	assertGood("spiffe://example.org")
 	assertGood("spiffe://example.org/workload")
-	assertGood("spiffe://example.org/workload/%E4%B8%96%E7%95%8C")
-	assertGood("sPiFfE://example.org/workload")
-	assertGood("spiffe://世界/workload")
-	assertGood("spiffe://example.org/世界")
-	assertGood("spiffe://%E4%B8%96%E7%95%8C/workload")
 
 	assertBad("spiffe://%45example.org/workload",
 		`parse "spiffe://%45example.org/workload": invalid URL escape "%45"`)
 	assertBad("spiffe://example.org/世界/%E4%B8%96%E7%95%8C",
-		`path cannot contain both non-ASCII and percent-encoded characters`)
+		"path can only contain [a-zA-Z0-9.-_]")
 	assertBad("spiffe://example.org/",
 		"path cannot have a trailing slash")
 	assertBad("spiffe://example.org/workload/",
 		"path cannot have a trailing slash")
 	assertBad("spiffe://eXaMplE.org/workload",
-		"trust domain name must be lowercase")
+		"trust domain can only contain [a-z0-9.-]")
 	assertBad("spiffe://example.org//workload",
-		"path cannot contain empty, '.', or '..' segments")
+		"path cannot contain empty segments")
 	assertBad("spiffe://example.org///workload",
-		"path cannot contain empty, '.', or '..' segments")
+		"path cannot contain empty segments")
 	assertBad("spiffe://example.org/./workload",
-		"path cannot contain empty, '.', or '..' segments")
+		"path cannot contain dot segments")
 	assertBad("spiffe://example.org/workload/../workload2",
-		"path cannot contain empty, '.', or '..' segments")
+		"path cannot contain dot segments")
 	assertBad("spiffe://example.org/workload/%2e%2e/workload2",
-		"path cannot contain percent-encoded ASCII characters")
+		"path can only contain [a-zA-Z0-9.-_]")
 	assertBad("spiffe://example.org/workload/%252e",
-		"path cannot contain percent-encoded ASCII characters")
+		"path can only contain [a-zA-Z0-9.-_]")
 	assertBad("spiffe://example.org/workload/%23",
-		"path cannot contain percent-encoded ASCII characters")
+		"path can only contain [a-zA-Z0-9.-_]")
 	assertBad("spiffe://example.org/workload/%00",
-		"path cannot contain percent-encoded ASCII characters")
+		"path can only contain [a-zA-Z0-9.-_]")
 	assertBad("spiffe://example.org/%2z",
 		`parse "spiffe://example.org/%2z": invalid URL escape "%2z"`)
 	assertBad("spiffe://example.org/workload/"+url.PathEscape("%E4%B8%96%E7%95%8C"),
-		"path cannot contain percent-encoded ASCII characters")
+		"path can only contain [a-zA-Z0-9.-_]")
+	assertBad("spiffe://example.org/workload/%E4%B8%96%E7%95%8C",
+		"path can only contain [a-zA-Z0-9.-_]")
+	assertBad("spiffe://世界/workload",
+		"trust domain can only contain [a-z0-9.-]")
+	assertBad("spiffe://example.org/世界",
+		"path can only contain [a-zA-Z0-9.-_]")
+	assertBad("spiffe://%E4%B8%96%E7%95%8C/workload",
+		"trust domain can only contain [a-z0-9.-]")
 
 	// Now test that the function responds favorably if the checks are
 	// disabled via the flag.
@@ -166,6 +174,10 @@ func testCommonCheckIDNormalization(assertGood func(string), assertBad func(stri
 	assertGood("spiffe://example.org/workload/%23")
 	assertGood("spiffe://example.org/workload/%00")
 	assertGood("spiffe://example.org/workload/" + url.PathEscape("%E4%B8%96%E7%95%8C"))
+	assertGood("spiffe://example.org/workload/%E4%B8%96%E7%95%8C")
+	assertGood("spiffe://世界/workload")
+	assertGood("spiffe://example.org/世界")
+	assertGood("spiffe://%E4%B8%96%E7%95%8C/workload")
 }
 
 func TestIDProtoString(t *testing.T) {
@@ -259,6 +271,34 @@ func TestIDFromProto(t *testing.T) {
 	id, err = IDFromProto(&types.SPIFFEID{TrustDomain: "example.org", Path: "/workload/%41%42%43"})
 	assert.NoError(err)
 	assert.Equal("spiffe://example.org/workload/%2541%2542%2543", id.String())
+}
+
+func TestTrustDomainFromString(t *testing.T) {
+	assertGood := func(s string, expected string) {
+		actual, err := TrustDomainFromString(s)
+		assert.NoError(t, err, "%s should have passed", s)
+		assert.Equal(t, expected, actual.String())
+	}
+	assertBad := func(s string, expectedErr string) {
+		actual, err := TrustDomainFromString(s)
+		assert.EqualError(t, err, expectedErr, "%s should have failed", s)
+		assert.Equal(t, spiffeid.TrustDomain{}, actual)
+	}
+
+	assertGood("example.org", "example.org")
+	assertGood("spiffe://example.org", "example.org")
+	assertGood("spiffe://example.org/path", "example.org")
+
+	assertBad("eXample.org", "trust domain can only contain [a-z0-9.-]")
+	assertBad("spiffe://eXample.org", "trust domain can only contain [a-z0-9.-]")
+	assertBad("spiffe://eXample.org/path", "trust domain can only contain [a-z0-9.-]")
+
+	SetAllowUnsafeIDs(true)
+	defer SetAllowUnsafeIDs(false)
+
+	assertGood("eXample.org", "example.org")
+	assertGood("spiffe://eXample.org", "example.org")
+	assertGood("spiffe://eXample.org/path", "example.org")
 }
 
 func TestJoinPathSegments(t *testing.T) {
