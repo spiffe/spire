@@ -12,8 +12,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -157,21 +157,21 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	keyPath := env.JoinPath(c.write, "key.pem")
 	bundlePath := env.JoinPath(c.write, "bundle.pem")
 
-	if err := ioutil.WriteFile(svidPath, svidPEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
+	if err := os.WriteFile(svidPath, svidPEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
 		return fmt.Errorf("unable to write SVID: %w", err)
 	}
 	if err := env.Printf("X509-SVID written to %s\n", svidPath); err != nil {
 		return err
 	}
 
-	if err := ioutil.WriteFile(keyPath, keyPEM.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(keyPath, keyPEM.Bytes(), 0600); err != nil {
 		return fmt.Errorf("unable to write key: %w", err)
 	}
 	if err := env.Printf("Private key written to %s\n", keyPath); err != nil {
 		return err
 	}
 
-	if err := ioutil.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
+	if err := os.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
 		return fmt.Errorf("unable to write bundle: %w", err)
 	}
 	return env.Printf("Root CAs written to %s\n", bundlePath)

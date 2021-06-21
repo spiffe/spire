@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -28,7 +28,7 @@ func TestLoadMode(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = ioutil.WriteFile(confPath, []byte(testMinimalConfig), 0600)
+	err = os.WriteFile(confPath, []byte(testMinimalConfig), 0600)
 	require.NoError(err)
 
 	config, err := LoadMode(confPath)
@@ -152,7 +152,7 @@ func TestLoadMode(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		t.Run(testCase.name, func(t *testing.T) {
-			err := ioutil.WriteFile(confPath, []byte(testCase.in), 0600)
+			err := os.WriteFile(confPath, []byte(testCase.in), 0600)
 			require.NoError(err)
 
 			actual, err := LoadMode(confPath)

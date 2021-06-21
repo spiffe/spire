@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
-	"io/ioutil"
 	"os"
 	"sort"
 	"sync"
@@ -45,7 +44,7 @@ func LoadJournal(path string) (*Journal, error) {
 		entries: new(JournalEntries),
 	}
 
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return j, nil
@@ -163,7 +162,7 @@ func migrateJSONFile(from, to string) (bool, error) {
 		PublicKeys map[string][]byte `json:"public_keys"`
 	}
 
-	jsonBytes, err := ioutil.ReadFile(from)
+	jsonBytes, err := os.ReadFile(from)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
