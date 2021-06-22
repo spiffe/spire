@@ -560,18 +560,3 @@ func parseTrustBundle(path string) ([]*x509.Certificate, error) {
 
 	return bundle, nil
 }
-
-// StringsFlag defines a custom type for string lists. Doing
-// this allows us to support repeatable string flags.
-type StringsFlag []string
-
-// String returns the string flag.
-func (s *StringsFlag) String() string {
-	return fmt.Sprint(*s)
-}
-
-// Set appends the string flag.
-func (s *StringsFlag) Set(val string) error {
-	*s = append(*s, val)
-	return nil
-}
