@@ -284,9 +284,12 @@ func (a *Agent) Status() (interface{}, error) {
 		errCh <- client.Start()
 	}()
 
-	err := <-errCh
-	if status.Code(err) == codes.Unavailable {
-		return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+	select {
+	case err := <-errCh:
+		if status.Code(err) == codes.Unavailable {
+			return nil, errors.New("workload api is unavailable") //nolint: golint // error is (ab)used for CLI output
+		}
+	case <-client.UpdateChan():
 	}
 
 	return health.Details{
