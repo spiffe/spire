@@ -68,6 +68,9 @@ type Config struct {
 	Telemetry telemetry.FileConfig
 
 	AllowUnauthenticatedVerifiers bool
+
+	// List of allowed claims response when calling ValidateJWTSVID using a foreign identity
+	AllowForeignJWTClaims []string
 }
 
 func New(c *Config) *Agent {

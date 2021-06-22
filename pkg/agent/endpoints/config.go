@@ -7,6 +7,7 @@ import (
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv2"
@@ -35,6 +36,10 @@ type Config struct {
 	DefaultBundleName string
 
 	AllowUnauthenticatedVerifiers bool
+
+	AllowForeignJWTClaims []string
+
+	TrustDomain spiffeid.TrustDomain
 
 	// Hooks used by the unit tests to assert that the configuration provided
 	// to each handler is correct and return fake handlers.

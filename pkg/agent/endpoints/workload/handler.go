@@ -44,6 +44,8 @@ type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
 	AllowUnauthenticatedVerifiers bool
+	AllowForeignJWTClaims         map[string]bool
+	TrustDomain                   spiffeid.TrustDomain
 }
 
 type Handler struct {
@@ -177,6 +179,22 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	log.WithField(telemetry.SPIFFEID, spiffeID).Debug("Successfully validated JWT")
+
+	id, err := spiffeid.FromString(spiffeID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unexpected SPIFFE ID: %v", err)
+	}
+
+	if !id.MemberOf(h.c.TrustDomain) {
+		filteredClaims := make(map[string]interface{})
+		for claim, value := range claims {
+			if isClaimAllowed(claim, h.c.AllowForeignJWTClaims) {
+				filteredClaims[claim] = value
+			}
+		}
+
+		claims = filteredClaims
+	}
 
 	s, err := structFromValues(claims)
 	if err != nil {
@@ -449,4 +467,13 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	return s, nil
+}
+
+func isClaimAllowed(claim string, allowedClaims map[string]bool) bool {
+	switch claim {
+	case "sub", "exp", "aud":
+		return true
+	default:
+		return allowedClaims[claim]
+	}
 }

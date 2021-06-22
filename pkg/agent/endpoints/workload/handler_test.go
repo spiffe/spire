@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -656,14 +657,16 @@ func TestValidateJWTSVID(t *testing.T) {
 	}}
 
 	for _, tt := range []struct {
-		name       string
-		svid       string
-		audience   string
-		updates    []*cache.WorkloadUpdate
-		attestErr  error
-		expectCode codes.Code
-		expectMsg  string
-		expectLogs []spiretest.LogEntry
+		name                  string
+		svid                  string
+		audience              string
+		updates               []*cache.WorkloadUpdate
+		attestErr             error
+		expectCode            codes.Code
+		expectMsg             string
+		expectLogs            []spiretest.LogEntry
+		expectResponse        *workloadPB.ValidateJWTSVIDResponse
+		allowForeignJWTClaims map[string]bool
 	}{
 		{
 			name:       "missing required audience",
@@ -741,6 +744,46 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       svid.Marshal(),
 			updates:    updatesWithBundleOnly,
 			expectCode: codes.OK,
+			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
+				SpiffeId: "spiffe://domain.test/workload",
+				Claims: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"aud": {
+							Kind: &structpb.Value_ListValue{
+								ListValue: &structpb.ListValue{
+									Values: []*structpb.Value{
+										{
+											Kind: &structpb.Value_StringValue{
+												StringValue: "AUDIENCE",
+											},
+										},
+									},
+								},
+							},
+						},
+						"exp": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: svid.Claims["exp"].(float64),
+							},
+						},
+						"iat": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: svid.Claims["iat"].(float64),
+							},
+						},
+						"iss": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "FAKECA",
+							},
+						},
+						"sub": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "spiffe://domain.test/workload",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name:       "success with federated SVID",
@@ -748,6 +791,84 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       federatedSVID.Marshal(),
 			updates:    updatesWithFederatedBundle,
 			expectCode: codes.OK,
+			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
+				SpiffeId: "spiffe://domain2.test/federated-workload",
+				Claims: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"aud": {
+							Kind: &structpb.Value_ListValue{
+								ListValue: &structpb.ListValue{
+									Values: []*structpb.Value{
+										{
+											Kind: &structpb.Value_StringValue{
+												StringValue: "AUDIENCE",
+											},
+										},
+									},
+								},
+							},
+						},
+						"exp": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: federatedSVID.Claims["exp"].(float64),
+							},
+						},
+						"sub": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "spiffe://domain2.test/federated-workload",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                  "success with federated SVID with allowed foreign claims",
+			audience:              "AUDIENCE",
+			svid:                  federatedSVID.Marshal(),
+			updates:               updatesWithFederatedBundle,
+			expectCode:            codes.OK,
+			allowForeignJWTClaims: map[string]bool{"iat": true, "iss": true},
+			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
+				SpiffeId: "spiffe://domain2.test/federated-workload",
+				Claims: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"aud": {
+							Kind: &structpb.Value_ListValue{
+								ListValue: &structpb.ListValue{
+									Values: []*structpb.Value{
+										{
+											Kind: &structpb.Value_StringValue{
+												StringValue: "AUDIENCE",
+											},
+										},
+									},
+								},
+							},
+						},
+						"iat": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: federatedSVID.Claims["iat"].(float64),
+							},
+						},
+						"iss": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "FAKECA",
+							},
+						},
+						"exp": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: federatedSVID.Claims["exp"].(float64),
+							},
+						},
+						"sub": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "spiffe://domain2.test/federated-workload",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name:       "failure with federated SVID",
@@ -773,9 +894,10 @@ func TestValidateJWTSVID(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				Updates:    tt.updates,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
+				Updates:               tt.updates,
+				AttestErr:             tt.attestErr,
+				ExpectLogs:            tt.expectLogs,
+				AllowForeignJWTClaims: tt.allowForeignJWTClaims,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -788,6 +910,7 @@ func TestValidateJWTSVID(t *testing.T) {
 						assert.Nil(t, resp)
 						return
 					}
+					spiretest.AssertProtoEqual(t, tt.expectResponse, resp)
 				})
 		})
 	}
@@ -802,6 +925,7 @@ type testParams struct {
 	ExpectLogs                    []spiretest.LogEntry
 	AsPID                         int
 	AllowUnauthenticatedVerifiers bool
+	AllowForeignJWTClaims         map[string]bool
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
@@ -815,9 +939,11 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	}
 
 	handler := workload.New(workload.Config{
+		TrustDomain:                   td,
 		Manager:                       manager,
 		Attestor:                      &FakeAttestor{err: params.AttestErr},
 		AllowUnauthenticatedVerifiers: params.AllowUnauthenticatedVerifiers,
+		AllowForeignJWTClaims:         params.AllowForeignJWTClaims,
 	})
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(

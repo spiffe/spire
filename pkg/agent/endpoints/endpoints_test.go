@@ -45,6 +45,8 @@ func TestEndpoints(t *testing.T) {
 		do              func(t *testing.T, conn *grpc.ClientConn)
 		expectedLogs    []spiretest.LogEntry
 		expectedMetrics []fakemetrics.MetricItem
+		expectClaims    map[string]bool
+		allowedClaims   []string
 	}{
 		{
 			name: "workload api fails without security header",
@@ -66,6 +68,8 @@ func TestEndpoints(t *testing.T) {
 					{Name: "status", Value: "InvalidArgument"},
 				}},
 			},
+			allowedClaims: []string{"c1"},
+			expectClaims:  map[string]bool{"c1": true},
 		},
 		{
 			name: "workload api has peertracker attestor plumbed",
@@ -162,18 +166,24 @@ func TestEndpoints(t *testing.T) {
 					Net:  "unix",
 					Name: udsPath,
 				},
-				Log:               log,
-				Metrics:           metrics,
-				Attestor:          FakeAttestor{},
-				Manager:           FakeManager{},
-				DefaultSVIDName:   "DefaultSVIDName",
-				DefaultBundleName: "DefaultBundleName",
+				Log:                   log,
+				Metrics:               metrics,
+				Attestor:              FakeAttestor{},
+				Manager:               FakeManager{},
+				DefaultSVIDName:       "DefaultSVIDName",
+				DefaultBundleName:     "DefaultBundleName",
+				AllowForeignJWTClaims: tt.allowedClaims,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
 					attestor, ok := c.Attestor.(peerTrackerAttestor)
 					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
+					if tt.expectClaims != nil {
+						assert.Equal(t, tt.expectClaims, c.AllowForeignJWTClaims)
+					} else {
+						assert.Empty(t, c.AllowForeignJWTClaims)
+					}
 					return FakeWorkloadAPIServer{Attestor: attestor}
 				},
 
