@@ -346,6 +346,15 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
+### `spire-server agent ban`
+
+Ban attested node given its spiffeID. A banned attested node is not able to re-attest.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the agent to ban (agent identity) | |
+
 ### `spire-server agent count`
 
 Displays the total number of attested nodes.
