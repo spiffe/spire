@@ -192,10 +192,6 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 
 // ListFederatedBundles returns an optionally paginated list of federated bundles.
 func (s *Service) ListFederatedBundles(ctx context.Context, req *bundlev1.ListFederatedBundlesRequest) (*bundlev1.ListFederatedBundlesResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
-		telemetry.PageSize:  req.PageSize,
-		telemetry.PageToken: req.PageToken,
-	})
 	log := rpccontext.Logger(ctx)
 
 	listReq := &datastore.ListBundlesRequest{}
