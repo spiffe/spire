@@ -191,6 +191,8 @@ func ensureLeadingSlash(p string) string {
 }
 
 func urlParse(id string) (*url.URL, error) {
+	// Detect an errant scheme beforehand since url.Parse will lowercase the
+	// scheme automatically.
 	if !strings.HasPrefix(id, "spiffe://") {
 		return nil, errors.New("scheme must be 'spiffe'")
 	}

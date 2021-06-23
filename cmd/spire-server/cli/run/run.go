@@ -91,6 +91,7 @@ type serverConfig struct {
 	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
 	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
 
+	// TODO: Remove for 1.1.0
 	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
@@ -374,10 +375,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 
-	td, err := common_cli.ParseTrustDomain(c.Server.TrustDomain, logger)
+	td, err := idutil.TrustDomainFromString(trustDomain)
 	if err != nil {
-		return nil, err
+		return td, fmt.Errorf("could not parse trust_domain %q: %w", trustDomain, err)
 	}
+	common_cli.WarnOnLongTrustDomainName(td, logger)
 	sc.TrustDomain = td
 
 	if c.Server.RateLimit.Attestation == nil {
