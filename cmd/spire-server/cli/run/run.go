@@ -375,9 +375,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 
-	td, err := idutil.TrustDomainFromString(trustDomain)
+	td, err := idutil.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
-		return td, fmt.Errorf("could not parse trust_domain %q: %w", trustDomain, err)
+		return nil, fmt.Errorf("could not parse trust_domain %q: %w", c.Server.TrustDomain, err)
 	}
 	common_cli.WarnOnLongTrustDomainName(td, logger)
 	sc.TrustDomain = td
