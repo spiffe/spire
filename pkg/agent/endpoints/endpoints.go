@@ -60,8 +60,8 @@ func New(c Config) *Endpoints {
 		}
 	}
 
-	allowedClaims := make(map[string]bool, len(c.AllowForeignJWTClaims))
-	for _, claim := range c.AllowForeignJWTClaims {
+	allowedClaims := make(map[string]bool, len(c.AllowedForeignJWTClaims))
+	for _, claim := range c.AllowedForeignJWTClaims {
 		allowedClaims[claim] = true
 	}
 
@@ -69,7 +69,7 @@ func New(c Config) *Endpoints {
 		Manager:                       c.Manager,
 		Attestor:                      attestor,
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
-		AllowForeignJWTClaims:         allowedClaims,
+		AllowedForeignJWTClaims:       allowedClaims,
 		TrustDomain:                   c.TrustDomain,
 	})
 

@@ -37,7 +37,7 @@ type Config struct {
 
 	AllowUnauthenticatedVerifiers bool
 
-	AllowForeignJWTClaims []string
+	AllowedForeignJWTClaims []string
 
 	TrustDomain spiffeid.TrustDomain
 

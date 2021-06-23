@@ -70,7 +70,7 @@ type Config struct {
 	AllowUnauthenticatedVerifiers bool
 
 	// List of allowed claims response when calling ValidateJWTSVID using a foreign identity
-	AllowForeignJWTClaims []string
+	AllowedForeignJWTClaims []string
 }
 
 func New(c *Config) *Agent {

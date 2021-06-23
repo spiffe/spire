@@ -44,7 +44,7 @@ type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
 	AllowUnauthenticatedVerifiers bool
-	AllowForeignJWTClaims         map[string]bool
+	AllowedForeignJWTClaims       map[string]bool
 	TrustDomain                   spiffeid.TrustDomain
 }
 
@@ -188,7 +188,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	if !id.MemberOf(h.c.TrustDomain) {
 		filteredClaims := make(map[string]interface{})
 		for claim, value := range claims {
-			if isClaimAllowed(claim, h.c.AllowForeignJWTClaims) {
+			if isClaimAllowed(claim, h.c.AllowedForeignJWTClaims) {
 				filteredClaims[claim] = value
 			}
 		}

@@ -166,13 +166,13 @@ func TestEndpoints(t *testing.T) {
 					Net:  "unix",
 					Name: udsPath,
 				},
-				Log:                   log,
-				Metrics:               metrics,
-				Attestor:              FakeAttestor{},
-				Manager:               FakeManager{},
-				DefaultSVIDName:       "DefaultSVIDName",
-				DefaultBundleName:     "DefaultBundleName",
-				AllowForeignJWTClaims: tt.allowedClaims,
+				Log:                     log,
+				Metrics:                 metrics,
+				Attestor:                FakeAttestor{},
+				Manager:                 FakeManager{},
+				DefaultSVIDName:         "DefaultSVIDName",
+				DefaultBundleName:       "DefaultBundleName",
+				AllowedForeignJWTClaims: tt.allowedClaims,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
@@ -180,9 +180,9 @@ func TestEndpoints(t *testing.T) {
 					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
 					if tt.expectClaims != nil {
-						assert.Equal(t, tt.expectClaims, c.AllowForeignJWTClaims)
+						assert.Equal(t, tt.expectClaims, c.AllowedForeignJWTClaims)
 					} else {
-						assert.Empty(t, c.AllowForeignJWTClaims)
+						assert.Empty(t, c.AllowedForeignJWTClaims)
 					}
 					return FakeWorkloadAPIServer{Attestor: attestor}
 				},

@@ -97,7 +97,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Agent.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.Agent.TrustDomain, "example.org")
 	assert.Equal(t, c.Agent.AllowUnauthenticatedVerifiers, true)
-	assert.Equal(t, []string{"c1", "c2", "c3"}, c.Agent.AllowForeignJWTClaims)
+	assert.Equal(t, []string{"c1", "c2", "c3"}, c.Agent.AllowedForeignJWTClaims)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -831,20 +831,20 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "allow_foreign_jwt_claims provided",
+			msg: "allowed_foreign_jwt_claims provided",
 			input: func(c *Config) {
-				c.Agent.AllowForeignJWTClaims = []string{"c1", "c2"}
+				c.Agent.AllowedForeignJWTClaims = []string{"c1", "c2"}
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, []string{"c1", "c2"}, c.AllowForeignJWTClaims)
+				require.Equal(t, []string{"c1", "c2"}, c.AllowedForeignJWTClaims)
 			},
 		},
 		{
-			msg: "allow_foreign_jwt_claims no provided",
+			msg: "allowed_foreign_jwt_claims no provided",
 			input: func(c *Config) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Empty(t, c.AllowForeignJWTClaims)
+				require.Empty(t, c.AllowedForeignJWTClaims)
 			},
 		},
 		{
