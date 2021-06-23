@@ -114,7 +114,7 @@ oIrPuyjOmscrC627wX3LGUHwPKtNArBT8lKFfda1B1BqAk0q1/ui/A==
 )
 
 const (
-	_testToken = "TEST-TOKEN"
+	testToken = "TEST-TOKEN"
 )
 
 func TestAPIServerClient(t *testing.T) {
@@ -231,7 +231,7 @@ func (s *ClientSuite) TestGetNodeSucceeds() {
 
 func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 	client := s.createDefectiveClient("")
-	status, err := client.ValidateToken(ctx, _testToken, []string{"aud1", "aud2"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1", "aud2"})
 	s.AssertErrorContains(err, "unable to get clientset")
 	s.Nil(status)
 }
@@ -244,7 +244,7 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
 		})
 
 	client := s.createClient(fakeClient)
-	status, err := client.ValidateToken(ctx, _testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "unable to query token review API")
 	s.Nil(status)
 }
@@ -257,7 +257,7 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsNilResponse() {
 		})
 
 	client := s.createClient(fakeClient)
-	status, err := client.ValidateToken(ctx, _testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response is nil")
 	s.Nil(status)
 }
@@ -270,7 +270,7 @@ func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
 		})
 
 	client := s.createClient(fakeClient)
-	status, err := client.ValidateToken(ctx, _testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response contains an error")
 	s.Nil(status)
 }
@@ -283,7 +283,7 @@ func (s *ClientSuite) TestValidateTokenSucceeds() {
 		})
 
 	client := s.createClient(fakeClient)
-	status, err := client.ValidateToken(ctx, _testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.NoError(err)
 	s.NotNil(status)
 	s.True(status.Authenticated)
