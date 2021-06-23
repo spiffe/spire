@@ -38,6 +38,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | UpstreamAuthority | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md) | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
 | UpstreamAuthority | [vault](/doc/plugin_server_upstreamauthority_vault.md) | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
+| UpstreamAuthority | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md) | Uses a referenced cert-manager Issuer to request intermediate signing certificates. |
 
 ## Server configuration file
 
