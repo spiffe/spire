@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -41,7 +41,7 @@ func (s *Suite) loadPlugin(t *testing.T) nodeattestor.NodeAttestor {
 	privateKeyPath := fixture.Join("nodeattestor", "sshpop", "agent_ssh_key")
 	certAuthoritiesPath := fixture.Join("nodeattestor", "sshpop", "ssh_cert_authority.pub")
 
-	certAuthority, err := ioutil.ReadFile(certAuthoritiesPath)
+	certAuthority, err := os.ReadFile(certAuthoritiesPath)
 	require.NoError(t, err)
 	serverConfig := fmt.Sprintf(`cert_authorities = [%q]`, certAuthority)
 

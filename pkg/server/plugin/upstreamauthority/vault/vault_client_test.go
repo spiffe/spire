@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -29,13 +29,14 @@ const (
 	testReqCSR            = "testdata/keys/EC/intermediate_csr.pem"
 )
 
-func TestNewClientConfigWithDefaultMountPoint(t *testing.T) {
+func TestNewClientConfigWithDefaultValues(t *testing.T) {
 	p := &ClientParams{
 		VaultAddr:             "http://example.org:8200/",
 		PKIMountPoint:         "", // Expect the default value to be used.
 		Token:                 "test-token",
 		CertAuthMountPoint:    "", // Expect the default value to be used.
 		AppRoleAuthMountPoint: "", // Expect the default value to be used.
+		K8sAuthMountPoint:     "", // Expect the default value to be used.
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
@@ -43,15 +44,17 @@ func TestNewClientConfigWithDefaultMountPoint(t *testing.T) {
 	require.Equal(t, defaultPKIMountPoint, cc.clientParams.PKIMountPoint)
 	require.Equal(t, defaultCertMountPoint, cc.clientParams.CertAuthMountPoint)
 	require.Equal(t, defaultAppRoleMountPoint, cc.clientParams.AppRoleAuthMountPoint)
+	require.Equal(t, defaultK8sMountPoint, cc.clientParams.K8sAuthMountPoint)
 }
 
-func TestNewClientConfigWithGivenMontPoint(t *testing.T) {
+func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
 	p := &ClientParams{
 		VaultAddr:             "http://example.org:8200/",
 		PKIMountPoint:         "test-pki",
 		Token:                 "test-token",
-		CertAuthMountPoint:    "test-tls-cert", // Expect the default value to be used.
+		CertAuthMountPoint:    "test-tls-cert",
 		AppRoleAuthMountPoint: "test-approle",
+		K8sAuthMountPoint:     "test-k8s",
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
@@ -59,6 +62,7 @@ func TestNewClientConfigWithGivenMontPoint(t *testing.T) {
 	require.Equal(t, "test-pki", cc.clientParams.PKIMountPoint)
 	require.Equal(t, "test-tls-cert", cc.clientParams.CertAuthMountPoint)
 	require.Equal(t, "test-approle", cc.clientParams.AppRoleAuthMountPoint)
+	require.Equal(t, "test-k8s", cc.clientParams.K8sAuthMountPoint)
 }
 
 func TestNewAuthenticatedClientCertAuth(t *testing.T) {
@@ -256,6 +260,63 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 	}
 }
 
+func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.K8sAuthResponseCode = 200
+	for _, tt := range []struct {
+		name      string
+		response  []byte
+		reusable  bool
+		namespace string
+	}{
+		{
+			name:     "K8s Authentication success / Token is renewable",
+			response: []byte(testK8sAuthResponse),
+			reusable: true,
+		},
+		{
+			name:     "K8s Authentication success / Token is not renewable",
+			response: []byte(testK8sAuthResponseNotRenewable),
+		},
+		{
+			name:      "K8s Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testK8sAuthResponse),
+			reusable:  true,
+			namespace: "test-ns",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.K8sAuthResponse = tt.response
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			cp := &ClientParams{
+				VaultAddr:        fmt.Sprintf("https://%v/", addr),
+				Namespace:        tt.namespace,
+				CACertPath:       testRootCert,
+				K8sAuthRoleName:  "my-role",
+				K8sAuthTokenPath: "testdata/k8s/token",
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			require.NoError(t, err)
+
+			client, reusable, err := cc.NewAuthenticatedClient(K8S)
+			require.NoError(t, err)
+			require.Equal(t, tt.reusable, reusable)
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
 func TestNewAuthenticatedClientCertAuthFailed(t *testing.T) {
 	fakeVaultServer := newFakeVaultServer()
 	fakeVaultServer.CertAuthResponseCode = 500
@@ -305,6 +366,46 @@ func TestNewAuthenticatedClientAppRoleAuthFailed(t *testing.T) {
 
 	_, _, err = cc.NewAuthenticatedClient(APPROLE)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/approle/login: Error making API request.")
+}
+
+func TestNewAuthenticatedClientK8sAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.K8sAuthResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:       &retry,
+		VaultAddr:        fmt.Sprintf("https://%v/", addr),
+		CACertPath:       testRootCert,
+		K8sAuthRoleName:  "my-role",
+		K8sAuthTokenPath: "testdata/k8s/token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	_, _, err = cc.NewAuthenticatedClient(K8S)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/kubernetes/login: Error making API request.")
+}
+
+func TestNewAuthenticatedClientK8sAuthInvalidPath(t *testing.T) {
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:       &retry,
+		VaultAddr:        "https://example.org:8200",
+		CACertPath:       testRootCert,
+		K8sAuthTokenPath: "invalid/k8s/token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	_, _, err = cc.NewAuthenticatedClient(K8S)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to read k8s service account token:")
 }
 
 func TestConfigureTLSWithCertAuth(t *testing.T) {
@@ -519,11 +620,11 @@ func newFakeVaultServer() *FakeVaultServerConfig {
 }
 
 func testClientCertificatePair() (tls.Certificate, error) {
-	cert, err := ioutil.ReadFile(testClientCert)
+	cert, err := os.ReadFile(testClientCert)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-	key, err := ioutil.ReadFile(testClientKey)
+	key, err := os.ReadFile(testClientKey)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -533,7 +634,7 @@ func testClientCertificatePair() (tls.Certificate, error) {
 
 func testRootCAs() (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	pem, err := ioutil.ReadFile(testRootCert)
+	pem, err := os.ReadFile(testRootCert)
 	if err != nil {
 		return nil, err
 	}

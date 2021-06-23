@@ -2,20 +2,21 @@ package gcp
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -23,6 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -60,7 +64,7 @@ func (s *IITAttestorSuite) SetupTest() {
 func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
 	attestor := new(nodeattestor.V1)
 	plugintest.Load(s.T(), BuiltIn(), attestor,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 	)
 	s.attestor = attestor
 	s.requireAttestError(s.T(), []byte("payload"), codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
@@ -71,35 +75,29 @@ func (s *IITAttestorSuite) TestErrorOnMissingPayload() {
 }
 
 func (s *IITAttestorSuite) TestErrorOnMissingKid() {
-	token := buildToken()
-	token.Header["kid"] = nil
-
-	payload := s.signToken(token)
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse/validate the identity token: identity token missing kid header")
+	payload := s.signToken(testKey, "", buildDefaultClaims())
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: square/go-jose: unsupported key type/format")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
 	claims := buildDefaultClaims()
-	claims["exp"] = 1
-	token := buildTokenWithClaims(claims)
+	claims.Expiry = jwt.NewNumericDate(time.Now().Add(-time.Hour))
 
-	payload := s.signToken(token)
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse/validate the identity token: token is expired")
+	payload := s.signToken(testKey, "kid", claims)
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): failed to validate the identity token claims: square/go-jose/jwt: validation failed, token is expired (exp)")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidAudience() {
 	claims := buildClaims(testProject, "invalid")
-	token := buildTokenWithClaims(claims)
 
-	payload := s.signToken(token)
-	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): unexpected identity token audience "invalid"`)
+	payload := s.signToken(testKey, "kid", claims)
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): failed to validate the identity token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)`)
 }
 
 func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
-	token := buildToken()
-	payload := s.signToken(token)
+	payload := s.signDefaultToken()
 
-	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
 		AgentId: testAgentID,
 	})
 
@@ -108,27 +106,21 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 	claims := buildClaims("project-whatever", tokenAudience)
-	token := buildTokenWithClaims(claims)
-	payload := s.signToken(token)
+	payload := s.signToken(testKey, "kid", claims)
 
 	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): identity token project ID "project-whatever" is not in the allow list`)
 }
 
-func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
+func (s *IITAttestorSuite) TestErrorOnInvalidSignature() {
 	alternativeKey := testkey.MustRSA2048()
 
-	token := buildToken()
+	payload := s.signToken(alternativeKey, "kid", buildDefaultClaims())
 
-	tokenString, err := token.SignedString(alternativeKey)
-	s.Require().NoError(err)
-
-	payload := []byte(tokenString)
-
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse/validate the identity token: crypto/rsa: verification error")
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: square/go-jose: error in cryptographic primitive")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidPayload() {
-	s.requireAttestError(s.T(), []byte("secret"), codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse/validate the identity token: token contains an invalid number of segments")
+	s.requireAttestError(s.T(), []byte("secret"), codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse the identity token: square/go-jose: compact JWS format must have three parts")
 }
 
 func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
@@ -141,12 +133,11 @@ use_instance_metadata = true
 service_account_file = "error_sa.json"
 `)
 
-	s.requireAttestError(s.T(), s.signToken(buildToken()), codes.Internal, `nodeattestor(gcp_iit): failed to fetch instance metadata: expected sa file "test_sa.json", got "error_sa.json"`)
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, `nodeattestor(gcp_iit): failed to fetch instance metadata: expected sa file "test_sa.json", got "error_sa.json"`)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccess() {
-	token := buildToken()
-	payload := s.signToken(token)
+	payload := s.signDefaultToken()
 
 	result, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
 	s.Require().NoError(err)
@@ -204,7 +195,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 		{Type: "gcp_iit", Value: "label:allowed-no-value:"},
 	}
 
-	result, err := s.attestor.Attest(context.Background(), s.signToken(buildToken()), expectNoChallenge)
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
 
 	util.SortSelectors(expectSelectors)
@@ -225,13 +216,13 @@ func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() 
 			},
 		},
 	})
-	s.requireAttestError(s.T(), s.signToken(buildToken()), codes.Internal, `nodeattestor(gcp_iit): metadata "allowed" exceeded value limit (20 > 10)`)
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, `nodeattestor(gcp_iit): metadata "allowed" exceeded value limit (20 > 10)`)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 	s.attestor = s.loadPluginForInstanceMetadata(&compute.Instance{})
 
-	result, err := s.attestor.Attest(context.Background(), s.signToken(buildToken()), expectNoChallenge)
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().NotNil(result)
 
@@ -246,7 +237,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 func (s *IITAttestorSuite) TestAttestFailureDueToMissingInstanceMetadata() {
 	s.attestor = s.loadPluginForInstanceMetadata(nil)
 
-	s.requireAttestError(s.T(), s.signToken(buildToken()), codes.Internal, "nodeattestor(gcp_iit): failed to fetch instance metadata: no instance found")
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, "nodeattestor(gcp_iit): failed to fetch instance metadata: no instance found")
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
@@ -255,10 +246,9 @@ projectid_allow_list = ["test-project"]
 agent_path_template = "{{ .InstanceID }}"
 `)
 
-	token := buildToken()
 	expectSVID := "spiffe://example.org/spire/agent/test-instance-id"
 
-	payload := s.signToken(token)
+	payload := s.signDefaultToken()
 	result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().NotNil(result)
@@ -270,7 +260,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 		var err error
 		plugintest.Load(t, BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
-			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(config),
 		)
@@ -315,7 +305,7 @@ projectid_allow_list = ["bar"]
 }
 
 func (s *IITAttestorSuite) TestFailToRecvStream() {
-	_, err := validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, testKeyRetriever{})
+	_, err := validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, nil)
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
@@ -327,26 +317,28 @@ projectid_allow_list = ["test-project"]
 
 func (s *IITAttestorSuite) loadPluginWithConfig(config string) nodeattestor.NodeAttestor {
 	p := New()
-	p.tokenKeyRetriever = testKeyRetriever{}
+	p.jwksRetriever = testKeyRetriever{}
 	p.client = s.client
 
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(p), v1,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.Configure(config),
 	)
 
 	return v1
 }
 
-func (s *IITAttestorSuite) signToken(token *jwt.Token) []byte {
-	signedToken, err := token.SignedString(testKey)
-	s.Require().NoError(err)
-	return []byte(signedToken)
+func (s *IITAttestorSuite) signToken(key crypto.Signer, kid string, claims interface{}) []byte {
+	return signToken(s.T(), key, kid, claims)
+}
+
+func (s *IITAttestorSuite) signDefaultToken() []byte {
+	return s.signToken(testKey, "kid", buildDefaultClaims())
 }
 
 func (s *IITAttestorSuite) requireAttestError(t *testing.T, payload []byte, expectCode codes.Code, expectMsg string) {
@@ -379,16 +371,20 @@ func (r *recvFailStream) Recv() (*nodeattestorv1.AttestRequest, error) {
 
 type testKeyRetriever struct{}
 
-func (testKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, error) {
-	if token.Header["kid"] == nil {
-		return nil, errors.New("identity token missing kid header")
-	}
-	return &testKey.PublicKey, nil
+func (testKeyRetriever) retrieveJWKS(ctx context.Context) (*jose.JSONWebKeySet, error) {
+	return &jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				KeyID: "kid",
+				Key:   testKey.Public(),
+			},
+		},
+	}, nil
 }
 
-func buildClaims(projectID string, audience string) jwt.MapClaims {
-	return jwt.MapClaims{
-		"google": &gcp.Google{
+func buildClaims(projectID string, audience string) gcp.IdentityToken {
+	return gcp.IdentityToken{
+		Google: gcp.Google{
 			ComputeEngine: gcp.ComputeEngine{
 				ProjectID:    projectID,
 				InstanceID:   testInstanceID,
@@ -396,22 +392,14 @@ func buildClaims(projectID string, audience string) jwt.MapClaims {
 				Zone:         testZone,
 			},
 		},
-		"aud": audience,
+		Claims: jwt.Claims{
+			Audience: []string{audience},
+		},
 	}
 }
 
-func buildDefaultClaims() jwt.MapClaims {
+func buildDefaultClaims() gcp.IdentityToken {
 	return buildClaims("test-project", tokenAudience)
-}
-
-func buildToken() *jwt.Token {
-	return buildTokenWithClaims(buildDefaultClaims())
-}
-
-func buildTokenWithClaims(claims jwt.Claims) *jwt.Token {
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "123"
-	return token
 }
 
 type fakeComputeEngineClient struct {
@@ -454,4 +442,19 @@ func stringPtr(s string) *string {
 
 func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+func signToken(t *testing.T, key crypto.Signer, kid string, claims interface{}) []byte {
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key: &jose.JSONWebKey{
+			Key:   cryptosigner.Opaque(key),
+			KeyID: kid,
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	require.NoError(t, err)
+	return []byte(token)
 }

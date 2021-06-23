@@ -2,7 +2,7 @@ package awssecret
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -30,17 +30,17 @@ func newFakeSecretsManagerClient(config *Configuration, region string) (secretsM
 		return nil, aws.ErrMissingRegion
 	}
 
-	cert, err := ioutil.ReadFile("testdata/keys/EC/cert.pem")
+	cert, err := os.ReadFile("testdata/keys/EC/cert.pem")
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := ioutil.ReadFile("testdata/keys/EC/private_key.pem")
+	key, err := os.ReadFile("testdata/keys/EC/private_key.pem")
 	if err != nil {
 		return nil, err
 	}
 
-	alternativeKey, err := ioutil.ReadFile("testdata/keys/EC/alternative_key.pem")
+	alternativeKey, err := os.ReadFile("testdata/keys/EC/alternative_key.pem")
 	if err != nil {
 		return nil, err
 	}

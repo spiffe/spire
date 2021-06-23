@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -817,7 +816,7 @@ func min(x, y time.Duration) time.Duration {
 
 func loadServerID(idPath string) (string, error) {
 	// get id from path
-	data, err := ioutil.ReadFile(idPath)
+	data, err := os.ReadFile(idPath)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return createServerID(idPath)
@@ -842,7 +841,7 @@ func createServerID(idPath string) (string, error) {
 	id := u.String()
 
 	// persist id
-	err = ioutil.WriteFile(idPath, []byte(id), 0600)
+	err = os.WriteFile(idPath, []byte(id), 0600)
 	if err != nil {
 		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
 	}

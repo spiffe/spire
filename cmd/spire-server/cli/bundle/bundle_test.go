@@ -3,7 +3,7 @@ package bundle
 import (
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -363,7 +363,7 @@ func TestSet(t *testing.T) {
 			if tt.fileData != "" {
 				tmpDir := spiretest.TempDir(t)
 				bundlePath := filepath.Join(tmpDir, "bundle_data")
-				require.NoError(t, ioutil.WriteFile(bundlePath, []byte(tt.fileData), 0600))
+				require.NoError(t, os.WriteFile(bundlePath, []byte(tt.fileData), 0600))
 				args = append(args, "-path", bundlePath)
 			}
 

@@ -3,7 +3,7 @@ package unix
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -257,7 +257,7 @@ func (s *Suite) TestAttest() {
 }
 
 func (s *Suite) writeFile(path string, data []byte) {
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, path), data, 0600))
+	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, path), data, 0600))
 }
 
 func (s *Suite) loadPlugin(t *testing.T, config string) workloadattestor.WorkloadAttestor {

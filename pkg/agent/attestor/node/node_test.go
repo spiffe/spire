@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"net/url"
@@ -448,7 +447,7 @@ func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, stri
 }
 
 func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
-	require.NoError(t, ioutil.WriteFile(path, data, mode))
+	require.NoError(t, os.WriteFile(path, data, mode))
 }
 
 func createCACertificate(t *testing.T) *x509.Certificate {

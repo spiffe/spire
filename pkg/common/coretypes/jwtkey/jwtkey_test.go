@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -35,6 +36,11 @@ var (
 	commonNoPublicKey  = &common.PublicKey{Kid: "ID", NotAfter: expiresAt.Unix()}
 	commonBadPublicKey = &common.PublicKey{Kid: "ID", PkixBytes: junk, NotAfter: expiresAt.Unix()}
 	commonNoExpiresAt  = &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes}
+	apiGood            = &apitypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()}
+	apiNoKeyID         = &apitypes.JWTKey{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()}
+	apiNoPublicKey     = &apitypes.JWTKey{KeyId: "ID", ExpiresAt: expiresAt.Unix()}
+	apiBadPublicKey    = &apitypes.JWTKey{KeyId: "ID", PublicKey: junk, ExpiresAt: expiresAt.Unix()}
+	apiNoExpiresAt     = &apitypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes}
 )
 
 func TestFromCommonProto(t *testing.T) {
@@ -286,6 +292,85 @@ func TestToPluginFromCommonProtos(t *testing.T) {
 
 	assertOK(t, []*common.PublicKey{commonGood}, []*plugintypes.JWTKey{pluginGood})
 	assertFail(t, []*common.PublicKey{commonNoKeyID}, "missing key ID for JWT key")
+	assertOK(t, nil, nil)
+}
+
+func TestToPluginFromAPIProto(t *testing.T) {
+	assertOK := func(t *testing.T, in *apitypes.JWTKey, expectOut *plugintypes.JWTKey) {
+		actualOut, err := jwtkey.ToPluginFromAPIProto(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoEqual(t, expectOut, actualOut)
+	}
+	assertFail := func(t *testing.T, in *apitypes.JWTKey, expectErr string) {
+		actualOut, err := jwtkey.ToPluginFromAPIProto(in)
+		spiretest.AssertErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, apiGood, pluginGood)
+	assertFail(t, apiNoKeyID, "missing key ID for JWT key")
+	assertFail(t, apiNoPublicKey, `missing public key for JWT key "ID"`)
+	assertFail(t, apiBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
+	assertOK(t, apiNoExpiresAt, pluginNoExpiresAt)
+	assertOK(t, nil, nil)
+}
+
+func TestToPluginFromAPIProtos(t *testing.T) {
+	assertOK := func(t *testing.T, in []*apitypes.JWTKey, expectOut []*plugintypes.JWTKey) {
+		actualOut, err := jwtkey.ToPluginFromAPIProtos(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoListEqual(t, expectOut, actualOut)
+	}
+
+	assertFail := func(t *testing.T, in []*apitypes.JWTKey, expectErr string) {
+		actualOut, err := jwtkey.ToPluginFromAPIProtos(in)
+		spiretest.RequireErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, []*apitypes.JWTKey{apiGood}, []*plugintypes.JWTKey{pluginGood})
+	assertFail(t, []*apitypes.JWTKey{apiNoKeyID}, "missing key ID for JWT key")
+	assertOK(t, nil, nil)
+}
+
+func TestToAPIProto(t *testing.T) {
+	assertOK := func(t *testing.T, in jwtkey.JWTKey, expectOut *apitypes.JWTKey) {
+		actualOut, err := jwtkey.ToAPIProto(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoEqual(t, expectOut, actualOut)
+	}
+
+	assertFail := func(t *testing.T, in jwtkey.JWTKey, expectErr string) {
+		actualOut, err := jwtkey.ToAPIProto(in)
+		spiretest.RequireErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, jwtKeyGood, apiGood)
+	assertFail(t, jwtKeyNoKeyID, "missing key ID for JWT key")
+	assertFail(t, jwtKeyNoPublicKey, `missing public key for JWT key "ID"`)
+	assertFail(t, jwtKeyBadPublicKey, `failed to marshal public key for JWT key "ID": `)
+	assertOK(t, jwtKeyNoExpiresAt, apiNoExpiresAt)
+}
+
+func TestToAPIFromPluginProto(t *testing.T) {
+	assertOK := func(t *testing.T, in *plugintypes.JWTKey, expectOut *apitypes.JWTKey) {
+		actualOut, err := jwtkey.ToAPIFromPluginProto(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoEqual(t, expectOut, actualOut)
+	}
+
+	assertFail := func(t *testing.T, in *plugintypes.JWTKey, expectErr string) {
+		actualOut, err := jwtkey.ToAPIFromPluginProto(in)
+		spiretest.RequireErrorPrefix(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, pluginGood, apiGood)
+	assertFail(t, pluginNoKeyID, "missing key ID for JWT key")
+	assertFail(t, pluginNoPublicKey, `missing public key for JWT key "ID"`)
+	assertFail(t, pluginBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
+	assertOK(t, pluginNoExpiresAt, apiNoExpiresAt)
 	assertOK(t, nil, nil)
 }
 

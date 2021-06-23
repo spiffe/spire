@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -134,7 +133,7 @@ type entriesData struct {
 }
 
 func loadEntries(path string) ([]*keymanagerbase.KeyEntry, error) {
-	jsonBytes, err := ioutil.ReadFile(path)
+	jsonBytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -211,7 +210,7 @@ func writeDeprecatedKey(path string, key crypto.Signer) error {
 }
 
 func loadDeprecatedKey(path string) (*keymanagerbase.KeyEntry, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		return nil, nil

@@ -3,7 +3,7 @@ package azure
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -136,7 +136,7 @@ func fakeTokenHTTPClient(statusCode int, body string) HTTPClient {
 		// return the response
 		return &http.Response{
 			StatusCode: statusCode,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
 	})
 }
@@ -160,7 +160,7 @@ func fakeMetadataHTTPClient(statusCode int, body string) HTTPClient {
 		// return the response
 		return &http.Response{
 			StatusCode: statusCode,
-			Body:       ioutil.NopCloser(strings.NewReader(body)),
+			Body:       io.NopCloser(strings.NewReader(body)),
 		}, nil
 	})
 }
