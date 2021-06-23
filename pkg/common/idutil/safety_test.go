@@ -26,11 +26,16 @@ func TestCheckIDURLNormalization(t *testing.T) {
 		assert.EqualError(t, CheckIDURLNormalization(u), expectedErr, "%s should have failed", id)
 	}
 
+	testCommonCheckIDNormalization(assertGood, assertBad)
+
 	// Assert the scheme is spiffe
 	assertBad("sparfe://example.org/workload",
 		"scheme must be 'spiffe'")
 
-	testCommonCheckIDNormalization(assertGood, assertBad)
+	SetAllowUnsafeIDs(true)
+	defer SetAllowUnsafeIDs(false)
+
+	assertGood("sparfe://example.org/workload")
 }
 
 func TestCheckIDStringNormalization(t *testing.T) {
@@ -41,14 +46,20 @@ func TestCheckIDStringNormalization(t *testing.T) {
 		assert.EqualError(t, CheckIDStringNormalization(id), expectedErr, "%s should have failed", id)
 	}
 
+	// Test the common normalization cases
+	testCommonCheckIDNormalization(assertGood, assertBad)
+
 	// Assert the scheme is spiffe
 	assertBad("sparfe://example.org/workload",
 		"scheme must be 'spiffe'")
 	assertBad("sPiFfE://example.org/workload",
 		"scheme must be 'spiffe'")
 
-	// Test the common normalization cases
-	testCommonCheckIDNormalization(assertGood, assertBad)
+	SetAllowUnsafeIDs(true)
+	defer SetAllowUnsafeIDs(false)
+
+	assertGood("sparfe://example.org/workload")
+	assertGood("sPiFfE://example.org/workload")
 }
 
 func TestCheckIDProtoNormalization(t *testing.T) {
@@ -99,6 +110,9 @@ func TestCheckAgentIDStringNormalization(t *testing.T) {
 		assert.EqualError(t, CheckAgentIDStringNormalization(id), expectedErr, "%s should have failed", id)
 	}
 
+	// Test the common normalization cases
+	testCommonCheckIDNormalization(assertGood, assertBad)
+
 	// Assert the scheme is spiffe
 	assertBad("sparfe://example.org/workload",
 		"scheme must be 'spiffe'")
@@ -109,8 +123,12 @@ func TestCheckAgentIDStringNormalization(t *testing.T) {
 	assertBad("spiffe://example.org/spire/server",
 		"server ID is not allowed for agents")
 
-	// Test the common normalization cases
-	testCommonCheckIDNormalization(assertGood, assertBad)
+	SetAllowUnsafeIDs(true)
+	defer SetAllowUnsafeIDs(false)
+
+	assertGood("sparfe://example.org/workload")
+	assertGood("sPiFfE://example.org/workload")
+	assertGood("spiffe://example.org/spire/server")
 }
 
 func testCommonCheckIDNormalization(assertGood func(string), assertBad func(string, string)) {
@@ -120,13 +138,13 @@ func testCommonCheckIDNormalization(assertGood func(string), assertBad func(stri
 	assertBad("spiffe://%45example.org/workload",
 		`parse "spiffe://%45example.org/workload": invalid URL escape "%45"`)
 	assertBad("spiffe://example.org/世界/%E4%B8%96%E7%95%8C",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/",
 		"path cannot have a trailing slash")
 	assertBad("spiffe://example.org/workload/",
 		"path cannot have a trailing slash")
 	assertBad("spiffe://eXaMplE.org/workload",
-		"trust domain can only contain [a-z0-9.-]")
+		"trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 	assertBad("spiffe://example.org//workload",
 		"path cannot contain empty segments")
 	assertBad("spiffe://example.org///workload",
@@ -136,25 +154,25 @@ func testCommonCheckIDNormalization(assertGood func(string), assertBad func(stri
 	assertBad("spiffe://example.org/workload/../workload2",
 		"path cannot contain dot segments")
 	assertBad("spiffe://example.org/workload/%2e%2e/workload2",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/workload/%252e",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/workload/%23",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/workload/%00",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/%2z",
 		`parse "spiffe://example.org/%2z": invalid URL escape "%2z"`)
 	assertBad("spiffe://example.org/workload/"+url.PathEscape("%E4%B8%96%E7%95%8C"),
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/workload/%E4%B8%96%E7%95%8C",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://世界/workload",
-		"trust domain can only contain [a-z0-9.-]")
+		"trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 	assertBad("spiffe://example.org/世界",
-		"path can only contain [a-zA-Z0-9.-_]")
+		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://%E4%B8%96%E7%95%8C/workload",
-		"trust domain can only contain [a-z0-9.-]")
+		"trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 
 	// Now test that the function responds favorably if the checks are
 	// disabled via the flag.
@@ -289,9 +307,9 @@ func TestTrustDomainFromString(t *testing.T) {
 	assertGood("spiffe://example.org", "example.org")
 	assertGood("spiffe://example.org/path", "example.org")
 
-	assertBad("eXample.org", "trust domain can only contain [a-z0-9.-]")
-	assertBad("spiffe://eXample.org", "trust domain can only contain [a-z0-9.-]")
-	assertBad("spiffe://eXample.org/path", "trust domain can only contain [a-z0-9.-]")
+	assertBad("eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+	assertBad("spiffe://eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+	assertBad("spiffe://eXample.org/path", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 
 	SetAllowUnsafeIDs(true)
 	defer SetAllowUnsafeIDs(false)

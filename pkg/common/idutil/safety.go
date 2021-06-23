@@ -177,7 +177,7 @@ func TrustDomainFromString(s string) (spiffeid.TrustDomain, error) {
 		// either trust domain name or trust domain ID otherwise some
 		// normalization occurred.
 		if !strings.HasPrefix(s, td.String()) && !strings.HasPrefix(s, td.IDString()) {
-			return spiffeid.TrustDomain{}, errors.New("trust domain can only contain [a-z0-9.-]")
+			return spiffeid.TrustDomain{}, errors.New("trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 		}
 	}
 	return td, nil
@@ -209,33 +209,33 @@ func validateComponents(td, path string) error {
 func validateTrustDomain(td string) error {
 	for i := 0; i < len(td); i++ {
 		if !isValidTrustDomainChar(td[i]) {
-			return errors.New("trust domain can only contain [a-z0-9.-]")
+			return errors.New("trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 		}
 	}
 	return nil
 }
 
 func validatePath(path string) error {
-	segment := 0
-	i := 0
-	for ; i < len(path); i++ {
-		c := path[i]
+	segmentStart := 0
+	segmentEnd := 0
+	for ; segmentEnd < len(path); segmentEnd++ {
+		c := path[segmentEnd]
 		if c == '/' {
-			switch path[segment:i] {
+			switch path[segmentStart:segmentEnd] {
 			case "/":
 				return errors.New("path cannot contain empty segments")
 			case "/.", "/..":
 				return errors.New("path cannot contain dot segments")
 			}
-			segment = i
+			segmentStart = segmentEnd
 			continue
 		}
 		if !isValidPathSegmentChar(c) {
-			return errors.New("path can only contain [a-zA-Z0-9.-_]")
+			return errors.New("path characters are limited to letters, numbers, dots, dashes, and underscores")
 		}
 	}
 
-	switch path[segment:i] {
+	switch path[segmentStart:segmentEnd] {
 	case "/":
 		return errors.New("path cannot have a trailing slash")
 	case "/.", "/..":
