@@ -6,8 +6,8 @@ import (
 	"encoding/pem"
 	"time"
 
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -27,7 +27,7 @@ func init() {
 	metav1.AddToGroupVersion(scheme, schemeGroupVersion)
 }
 
-func (p *Plugin) buildCertificateRequest(request *upstreamauthorityv0.MintX509CARequest) (*cmapi.CertificateRequest, error) {
+func (p *Plugin) buildCertificateRequest(request *upstreamauthorityv1.MintX509CARequest) (*cmapi.CertificateRequest, error) {
 	// Build PEM encoded CSR
 	csrBuf := new(bytes.Buffer)
 	err := pem.Encode(csrBuf, &pem.Block{

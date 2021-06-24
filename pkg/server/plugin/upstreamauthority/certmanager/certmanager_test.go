@@ -5,21 +5,24 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"io"
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck // this is deprecated; pkg/envtest is preferred for testing
 )
 
@@ -40,7 +43,7 @@ func Test_MintX509CA(t *testing.T) {
 		trustDomain = spiffeid.RequireTrustDomainFromString("example.com")
 		issuerName  = "test-issuer"
 		issuerKind  = "Issuer"
-		issuerGroup = "exmaple.cert-manager.io"
+		issuerGroup = "example.cert-manager.io"
 		namespace   = "spire"
 	)
 
@@ -51,112 +54,88 @@ func Test_MintX509CA(t *testing.T) {
 	intermediate, intermediatePEM := testingCAPEM(t)
 
 	tests := map[string]struct {
-		request              *upstreamauthorityv0.MintX509CARequest
-		updateCR             func(t *testing.T, cr *cmapi.CertificateRequest)
-		expX509CaChain       [][]byte
-		expUpstreamX509Roots [][]byte
-		expError             bool
+		csr                   []byte
+		preferredTTL          time.Duration
+		updateCR              func(t *testing.T, cr *cmapi.CertificateRequest)
+		expectX509CA          []*x509.Certificate
+		expectX509Authorities []*x509.Certificate
+		expectCode            codes.Code
+		expectMsgPrefix       string
 	}{
 		"a request that results in being denied should be deleted and an error returned": {
-			request: &upstreamauthorityv0.MintX509CARequest{
-				Csr:          csr,
-				PreferredTtl: 360000,
-			},
+			csr:          csr,
+			preferredTTL: 360000 * time.Second,
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionDenied, Status: cmapi.ConditionTrue})
 			},
-			expX509CaChain:       nil,
-			expUpstreamX509Roots: nil,
-			expError:             true,
+			expectCode:      codes.PermissionDenied,
+			expectMsgPrefix: "request has been denied",
 		},
 		"a request that results in failed should be deleted and an error returned": {
-			request: &upstreamauthorityv0.MintX509CARequest{
-				Csr:          csr,
-				PreferredTtl: 360000,
-			},
+			csr:          csr,
+			preferredTTL: 360000 * time.Second,
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionFalse, Reason: cmapi.CertificateRequestReasonFailed})
 			},
-			expX509CaChain:       nil,
-			expUpstreamX509Roots: nil,
-			expError:             true,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "request has failed",
 		},
 		"a request that is signed, but returns a invalid intermediate certificate should be deleted and error returned": {
-			request: &upstreamauthorityv0.MintX509CARequest{
-				Csr:          csr,
-				PreferredTtl: 360000,
-			},
+			csr:          csr,
+			preferredTTL: 360000 * time.Second,
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionTrue})
 				cr.Status.Certificate = []byte("bad certificate")
 				cr.Status.CA = rootPEM
 			},
-			expX509CaChain:       nil,
-			expUpstreamX509Roots: nil,
-			expError:             true,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(cert-manager): failed to parse certificate: no PEM blocks",
 		},
 		"a request that is signed, but returns a invalid root certificate should be deleted and error returned": {
-			request: &upstreamauthorityv0.MintX509CARequest{
-				Csr:          csr,
-				PreferredTtl: 360000,
-			},
+			csr:          csr,
+			preferredTTL: 360000 * time.Second,
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionTrue})
 				cr.Status.Certificate = intermediatePEM
 				cr.Status.CA = []byte("bad certificate")
 			},
-			expX509CaChain:       nil,
-			expUpstreamX509Roots: nil,
-			expError:             true,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(cert-manager): failed to parse CA certificate: no PEM blocks",
 		},
 		"a request that is signed, but does not set a CA should be deleted and an error returned": {
-			request: &upstreamauthorityv0.MintX509CARequest{
-				Csr:          csr,
-				PreferredTtl: 360000,
-			},
+			csr:          csr,
+			preferredTTL: 360000 * time.Second,
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionTrue})
 				cr.Status.Certificate = intermediatePEM
 			},
-			expX509CaChain:       nil,
-			expUpstreamX509Roots: nil,
-			expError:             true,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(cert-manager): no upstream CA root returned from request",
 		},
 		"a request that is signed should be deleted and return the intermediate and root certificate": {
-			request: &upstreamauthorityv0.MintX509CARequest{
-				Csr:          csr,
-				PreferredTtl: 360000,
-			},
+			csr:          csr,
+			preferredTTL: 360000 * time.Second,
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionTrue})
 				cr.Status.Certificate = intermediatePEM
 				cr.Status.CA = rootPEM
 			},
-			expX509CaChain:       [][]byte{intermediate.Raw},
-			expUpstreamX509Roots: [][]byte{root.Raw},
-			expError:             false,
+			expectX509CA:          []*x509.Certificate{intermediate},
+			expectX509Authorities: []*x509.Certificate{root},
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			cmclient := fakeclient.NewFakeClientWithScheme(scheme)
-			logOptions := hclog.DefaultOptions
-			logOptions.Level = hclog.Debug
-
 			crCreated := make(chan struct{}, 1)
 			staleCRsDeleted := make(chan struct{}, 1)
+
 			p := &Plugin{
-				log:         hclog.New(logOptions),
-				cmclient:    cmclient,
-				trustDomain: trustDomain.String(),
-				config: &Config{
-					IssuerName:  issuerName,
-					IssuerKind:  issuerKind,
-					IssuerGroup: issuerGroup,
-					Namespace:   namespace,
-				},
 				hooks: hooks{
+					newClient: func(configPath string) (client.Client, error) {
+						return cmclient, nil
+					},
 					onCreateCR: func() {
 						crCreated <- struct{}{}
 					},
@@ -165,21 +144,19 @@ func Test_MintX509CA(t *testing.T) {
 					},
 				},
 			}
-
-			registerFn := func(s *grpc.Server) {
-				upstreamauthorityv0.RegisterUpstreamAuthorityServer(s, p)
+			config := &Config{
+				IssuerName:  issuerName,
+				IssuerKind:  issuerKind,
+				IssuerGroup: issuerGroup,
+				Namespace:   namespace,
 			}
-			contextFn := func(ctx context.Context) context.Context {
-				return ctx
-			}
-
-			// Set create client and add to test
-			conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
-			defer done()
-
-			pluginClient := upstreamauthorityv0.NewUpstreamAuthorityClient(conn)
-			r, err := pluginClient.MintX509CA(context.TODO(), test.request)
-			require.NoError(t, err)
+			ua := new(upstreamauthority.V1)
+			plugintest.Load(t, builtin(p), ua,
+				plugintest.ConfigureJSON(config),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: trustDomain,
+				}),
+			)
 
 			go func() {
 				<-crCreated
@@ -197,12 +174,23 @@ func Test_MintX509CA(t *testing.T) {
 				assert.NoError(t, cmclient.Status().Update(context.TODO(), cr))
 			}()
 
-			resp, err := r.Recv()
-			require.Equal(t, test.expError, err != nil, "unexpected error", err)
+			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), csr, test.preferredTTL)
+			spiretest.RequireGRPCStatusContains(t, err, test.expectCode, test.expectMsgPrefix)
 
-			if resp != nil {
-				require.Equal(t, test.expX509CaChain, resp.X509CaChain, "unexpected X509CaChain")
-				require.Equal(t, test.expUpstreamX509Roots, resp.UpstreamX509Roots, "unexpected UpstreamX509Roots")
+			if test.expectCode != codes.OK {
+				assert.Nil(t, x509CA)
+				assert.Nil(t, x509Authorities)
+				assert.Nil(t, stream)
+			} else {
+				require.NotNil(t, stream)
+				require.Equal(t, test.expectX509CA, x509CA, "unexpected X509CaChain")
+
+				require.Equal(t, test.expectX509Authorities, x509Authorities, "unexpected UpstreamX509Roots")
+
+				// Plugin does not support streaming back changes so assert the
+				// stream returns EOF.
+				_, streamErr := stream.RecvUpstreamX509Authorities()
+				assert.True(t, errors.Is(streamErr, io.EOF))
 			}
 
 			// ensure that CertificateRequests are cleaned up
@@ -214,87 +202,170 @@ func Test_MintX509CA(t *testing.T) {
 	}
 }
 
-func Test_loadConfig(t *testing.T) {
+func Test_Configure(t *testing.T) {
 	tests := map[string]struct {
-		inpConfig string
-		expErr    bool
-		expConfig *Config
+		inpConfig          string
+		expectCode         codes.Code
+		expectMsgPrefix    string
+		expectConfig       *Config
+		expectConfigFile   string
+		overrideCoreConfig *catalog.CoreConfig
+		newClientErr       error
 	}{
 		"if config is malformed, expect error": {
-			inpConfig: `
-         issuer_name_foo = "my-issuer"
-			`,
-			expErr:    true,
-			expConfig: nil,
+			inpConfig:       "MALFORMED",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "failed to decode configuration file:",
 		},
 		"if config is missing an issuer_name, expect error": {
 			inpConfig: `
-				 issuer_kind = "my-kind"
-				 issuer_group = "my-group"
-				 namespace = "my-namespace"
-				 kube_config_file = "/path/to/config"
-			`,
-			expErr:    true,
-			expConfig: nil,
+		issuer_kind = "my-kind"
+		issuer_group = "my-group"
+		namespace = "my-namespace"
+		kube_config_file = "/path/to/config"
+		`,
+			expectConfig:    nil,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration has empty issuer_name property",
 		},
 		"if config is missing a namespace, expect error": {
 			inpConfig: `
-         issuer_name = "my-issuer"
-				 issuer_kind = "my-kind"
-				 issuer_group = "my-group"
-				 kube_config_file = "/path/to/config"
-			`,
-			expErr:    true,
-			expConfig: nil,
+		issuer_name = "my-issuer"
+		issuer_kind = "my-kind"
+		issuer_group = "my-group"
+		kube_config_file = "/path/to/config"
+		`,
+			expectConfig:    nil,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration has empty namespace property",
 		},
 		"if config is fully populated, return config": {
 			inpConfig: `
-         issuer_name = "my-issuer"
-				 issuer_kind = "my-kind"
-				 issuer_group = "my-group"
-				 namespace = "my-namespace"
-				 kube_config_file = "/path/to/config"
-			`,
-			expErr: false,
-			expConfig: &Config{
+		issuer_name = "my-issuer"
+		issuer_kind = "my-kind"
+		issuer_group = "my-group"
+		namespace = "my-namespace"
+		kube_config_file = "/path/to/config"
+		`,
+			expectConfig: &Config{
 				IssuerName:         "my-issuer",
 				IssuerKind:         "my-kind",
 				IssuerGroup:        "my-group",
 				Namespace:          "my-namespace",
 				KubeConfigFilePath: "/path/to/config",
 			},
+			expectConfigFile: "/path/to/config",
 		},
 		"if config is partly populated, expect defaulting": {
 			inpConfig: `
-         issuer_name = "my-issuer"
-				 namespace = "my-namespace"
-				 kube_config_file = "/path/to/config"
-			`,
-			expErr: false,
-			expConfig: &Config{
+		issuer_name = "my-issuer"
+		namespace = "my-namespace"
+		kube_config_file = "/path/to/config"
+		`,
+			expectConfig: &Config{
 				IssuerName:         "my-issuer",
 				IssuerKind:         "Issuer",
 				IssuerGroup:        "cert-manager.io",
 				Namespace:          "my-namespace",
 				KubeConfigFilePath: "/path/to/config",
 			},
+			expectConfigFile: "/path/to/config",
+		},
+		"no trust domain": {
+			inpConfig: `
+		issuer_name = "my-issuer"
+		namespace = "my-namespace"
+		kube_config_file = "/path/to/config"
+		`,
+			overrideCoreConfig: &catalog.CoreConfig{},
+			expectCode:         codes.InvalidArgument,
+			expectMsgPrefix:    "trust_domain is required",
+		},
+		"failed to create client": {
+			inpConfig: `
+		issuer_name = "my-issuer"
+		namespace = "my-namespace"
+		kube_config_file = "/path/to/config"
+		`,
+			newClientErr:     errors.New("some error"),
+			expectCode:       codes.Internal,
+			expectMsgPrefix:  "failed to create cert-manager client: some error",
+			expectConfigFile: "/path/to/config",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			plugin := New()
-			plugin.SetLogger(hclog.Default())
+			var err error
 
-			config, err := plugin.loadConfig(&spi.ConfigureRequest{
-				Configuration: test.inpConfig,
-			})
-
-			require.Equal(t, test.expErr, (err != nil))
-			if err != nil {
-				require.Equal(t, codes.InvalidArgument, status.Code(err))
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.Configure(test.inpConfig),
 			}
-			require.Equal(t, test.expConfig, config)
+
+			if test.overrideCoreConfig != nil {
+				options = append(options, plugintest.CoreConfig(*test.overrideCoreConfig))
+			} else {
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
+				}))
+			}
+
+			p := &Plugin{
+				hooks: hooks{
+					newClient: func(configPath string) (client.Client, error) {
+						assert.Equal(t, test.expectConfigFile, configPath)
+						if test.newClientErr != nil {
+							return nil, test.newClientErr
+						}
+						return fakeclient.NewFakeClientWithScheme(scheme), nil
+					},
+				},
+			}
+
+			plugintest.Load(t, builtin(p), nil, options...)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, test.expectCode, test.expectMsgPrefix)
+			if test.expectCode != codes.OK {
+				require.Nil(t, p.config)
+				require.Nil(t, p.cmclient)
+				return
+			}
+
+			require.Equal(t, test.expectConfig, p.config)
+			require.NotNil(t, p.cmclient)
 		})
 	}
+}
+
+func TestPublishJWTKey(t *testing.T) {
+	cmclient := fakeclient.NewFakeClientWithScheme(scheme)
+
+	p := &Plugin{
+		hooks: hooks{
+			newClient: func(configPath string) (client.Client, error) {
+				return cmclient, nil
+			},
+		},
+	}
+	config := &Config{
+		IssuerName:  "test-issuer",
+		IssuerKind:  "Issuer",
+		IssuerGroup: "example.cert-manager.io",
+		Namespace:   "spire",
+	}
+	ua := new(upstreamauthority.V1)
+	plugintest.Load(t, builtin(p), ua,
+		plugintest.ConfigureJSON(config),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.com"),
+		}),
+	)
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(testkey.NewEC256(t).Public())
+	require.NoError(t, err)
+
+	jwtAuthorities, stream, err := ua.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes})
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(cert-manager): publishing upstream is unsupported")
+	assert.Nil(t, jwtAuthorities)
+	assert.Nil(t, stream)
 }
