@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"text/template"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 var DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName }}/{{ .ProjectID }}/{{ .InstanceID }}"))
 
 type IdentityToken struct {
-	jwt.StandardClaims
+	jwt.Claims
 
 	AuthorizedParty string `json:"azp"`
 	Google          Google `json:"google"`

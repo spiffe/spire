@@ -1,0 +1,9 @@
+#!/bin/bash
+
+KUBECONFIG="${RUNDIR}/kubeconfig"
+if [ ! -f "${RUNDIR}/kubeconfig" ]; then
+    ./bin/kind get kubeconfig --name=cert-manager-test > "${RUNDIR}/kubeconfig"
+    ./bin/kind get kubeconfig --name=cert-manager-test > "conf/server/kubeconfig"
+fi
+export KUBECONFIG
+

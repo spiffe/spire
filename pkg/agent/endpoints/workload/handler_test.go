@@ -388,6 +388,28 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
+			name: "identity found but unexpected SPIFFE ID",
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+				identityFromX509SVID(x509SVID2),
+			},
+			spiffeID:   td.NewID("unexpected").String(),
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTSVID",
+					},
+				},
+			},
+		},
+		{
 			name:       "attest error",
 			audience:   []string{"AUDIENCE"},
 			attestErr:  errors.New("ohno"),
