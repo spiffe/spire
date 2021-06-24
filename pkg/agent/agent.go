@@ -280,9 +280,12 @@ func (a *Agent) checkWorkloadAPI() error {
 		errCh <- client.Start()
 	}()
 
-	err := <-errCh
-	if status.Code(err) == codes.Unavailable {
-		return errors.New("workload api is unavailable")
+	select {
+	case err := <-errCh:
+		if status.Code(err) == codes.Unavailable {
+			return errors.New("workload api is unavailable")
+		}
+	case <-client.UpdateChan():
 	}
 
 	return nil
