@@ -114,12 +114,6 @@ func Test_MintX509CA(t *testing.T) {
 				PreferredTtl: 360000,
 			},
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
-				require.Equal(t, namespace, cr.Namespace)
-				require.Equal(t, time.Hour*100, cr.Spec.Duration.Duration)
-				require.Equal(t, issuerName, cr.Spec.IssuerRef.Name)
-				require.Equal(t, issuerKind, cr.Spec.IssuerRef.Kind)
-				require.Equal(t, issuerGroup, cr.Spec.IssuerRef.Group)
-
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionTrue})
 				cr.Status.Certificate = intermediatePEM
 			},
@@ -133,12 +127,6 @@ func Test_MintX509CA(t *testing.T) {
 				PreferredTtl: 360000,
 			},
 			updateCR: func(t *testing.T, cr *cmapi.CertificateRequest) {
-				require.Equal(t, namespace, cr.Namespace)
-				require.Equal(t, time.Hour*100, cr.Spec.Duration.Duration)
-				require.Equal(t, issuerName, cr.Spec.IssuerRef.Name)
-				require.Equal(t, issuerKind, cr.Spec.IssuerRef.Kind)
-				require.Equal(t, issuerGroup, cr.Spec.IssuerRef.Group)
-
 				cr.Status.Conditions = append(cr.Status.Conditions, cmapi.CertificateRequestCondition{Type: cmapi.CertificateRequestConditionReady, Status: cmapi.ConditionTrue})
 				cr.Status.Certificate = intermediatePEM
 				cr.Status.CA = rootPEM
@@ -154,6 +142,9 @@ func Test_MintX509CA(t *testing.T) {
 			cmclient := fakeclient.NewFakeClientWithScheme(scheme)
 			logOptions := hclog.DefaultOptions
 			logOptions.Level = hclog.Debug
+
+			crCreated := make(chan struct{}, 1)
+			staleCRsDeleted := make(chan struct{}, 1)
 			p := &Plugin{
 				log:         hclog.New(logOptions),
 				cmclient:    cmclient,
@@ -163,6 +154,14 @@ func Test_MintX509CA(t *testing.T) {
 					IssuerKind:  issuerKind,
 					IssuerGroup: issuerGroup,
 					Namespace:   namespace,
+				},
+				hooks: hooks{
+					onCreateCR: func() {
+						crCreated <- struct{}{}
+					},
+					onCleanupStaleCRs: func() {
+						staleCRsDeleted <- struct{}{}
+					},
 				},
 			}
 
@@ -182,15 +181,10 @@ func Test_MintX509CA(t *testing.T) {
 			require.NoError(t, err)
 
 			go func() {
-				var cr *cmapi.CertificateRequest
-				for cr == nil {
-					time.Sleep(time.Nanosecond)
-					crList := &cmapi.CertificateRequestList{}
-					require.NoError(t, cmclient.List(context.TODO(), crList))
-					if len(crList.Items) > 0 {
-						cr = &crList.Items[0]
-					}
-				}
+				<-crCreated
+				crList := &cmapi.CertificateRequestList{}
+				require.NoError(t, cmclient.List(context.TODO(), crList))
+				cr := &crList.Items[0]
 
 				require.Equal(t, namespace, cr.Namespace)
 				require.Equal(t, time.Hour*100, cr.Spec.Duration.Duration)
@@ -211,6 +205,7 @@ func Test_MintX509CA(t *testing.T) {
 			}
 
 			// ensure that CertificateRequests are cleaned up
+			<-staleCRsDeleted
 			crList := &cmapi.CertificateRequestList{}
 			require.NoError(t, cmclient.List(context.TODO(), crList))
 			require.Len(t, crList.Items, 0, "expected no CertificateRequests to remain")
