@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck // this is deprecated; pkg/envtest is preferred for testing
 )
 
 func testingCAPEM(t *testing.T) (*x509.Certificate, []byte) {
