@@ -37,6 +37,12 @@ type Config struct {
 	KubeConfigFilePath string `hcl:"kube_config_file" json:"kube_config_file"`
 }
 
+// Event hooks used by unit tests to coordinate goroutines
+type hooks struct {
+	onCreateCR        func()
+	onCleanupStaleCRs func()
+}
+
 type Plugin struct {
 	log    hclog.Logger
 	config *Config
@@ -52,10 +58,19 @@ type Plugin struct {
 	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
 	// a way of opting in or out of forward build compatibility.
 	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
+
+	// Used for synchronization in unit tests
+	hooks hooks
 }
 
 func New() *Plugin {
-	return new(Plugin)
+	return &Plugin{
+		// noop hooks to avoid nil checks
+		hooks: hooks{
+			onCreateCR:        func() {},
+			onCleanupStaleCRs: func() {},
+		},
+	}
 }
 
 // SetLogger will be called by the catalog system to provide the plugin with
@@ -121,6 +136,8 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 		if err := p.cleanupStaleCertificateRequests(ctx); err != nil {
 			p.log.Error("Failed to optimistically clean-up stale CertificateRequests", "error", err.Error())
 		}
+
+		p.hooks.onCleanupStaleCRs()
 	}()
 
 	// Build the CertificateRequest object and create it
@@ -132,6 +149,8 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	if err := p.cmclient.Create(ctx, cr); err != nil {
 		return err
 	}
+
+	p.hooks.onCreateCR()
 
 	log := p.log.With("namespace", cr.GetNamespace(), "name", cr.GetName())
 	log.Info("Waiting for certificaterequest to be signed")
