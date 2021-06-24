@@ -183,17 +183,17 @@ func Test_MintX509CA(t *testing.T) {
 			go func() {
 				<-crCreated
 				crList := &cmapi.CertificateRequestList{}
-				require.NoError(t, cmclient.List(context.TODO(), crList))
+				assert.NoError(t, cmclient.List(context.TODO(), crList))
 				cr := &crList.Items[0]
 
-				require.Equal(t, namespace, cr.Namespace)
-				require.Equal(t, time.Hour*100, cr.Spec.Duration.Duration)
-				require.Equal(t, issuerName, cr.Spec.IssuerRef.Name)
-				require.Equal(t, issuerKind, cr.Spec.IssuerRef.Kind)
-				require.Equal(t, issuerGroup, cr.Spec.IssuerRef.Group)
+				assert.Equal(t, namespace, cr.Namespace)
+				assert.Equal(t, time.Hour*100, cr.Spec.Duration.Duration)
+				assert.Equal(t, issuerName, cr.Spec.IssuerRef.Name)
+				assert.Equal(t, issuerKind, cr.Spec.IssuerRef.Kind)
+				assert.Equal(t, issuerGroup, cr.Spec.IssuerRef.Group)
 
 				test.updateCR(t, cr)
-				require.NoError(t, cmclient.Status().Update(context.TODO(), cr))
+				assert.NoError(t, cmclient.Status().Update(context.TODO(), cr))
 			}()
 
 			resp, err := r.Recv()
