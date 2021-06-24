@@ -64,7 +64,13 @@ type Plugin struct {
 }
 
 func New() *Plugin {
-	return new(Plugin)
+	return &Plugin{
+		// noop hooks to avoid nil checks
+		hooks: hooks{
+			onCreateCR:        func() {},
+			onCleanupStaleCRs: func() {},
+		},
+	}
 }
 
 // SetLogger will be called by the catalog system to provide the plugin with
@@ -90,12 +96,6 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	// Used for adding labels to created CertificateRequests, which can be listed
 	// for cleanup.
 	p.trustDomain = req.GlobalConfig.TrustDomain
-
-	// noop hooks to avoid nil checks
-	p.hooks = hooks{
-		onCreateCR:        func() {},
-		onCleanupStaleCRs: func() {},
-	}
 
 	return &spi.ConfigureResponse{}, nil
 }
