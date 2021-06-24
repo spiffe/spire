@@ -60,10 +60,17 @@ func New(c Config) *Endpoints {
 		}
 	}
 
+	allowedClaims := make(map[string]struct{}, len(c.AllowedForeignJWTClaims))
+	for _, claim := range c.AllowedForeignJWTClaims {
+		allowedClaims[claim] = struct{}{}
+	}
+
 	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
 		Manager:                       c.Manager,
 		Attestor:                      attestor,
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
+		AllowedForeignJWTClaims:       allowedClaims,
+		TrustDomain:                   c.TrustDomain,
 	})
 
 	sdsv2Server := c.newSDSv2Server(sdsv2.Config{
