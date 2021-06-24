@@ -60,9 +60,9 @@ func New(c Config) *Endpoints {
 		}
 	}
 
-	allowedClaims := make(map[string]bool, len(c.AllowedForeignJWTClaims))
+	allowedClaims := make(map[string]struct{}, len(c.AllowedForeignJWTClaims))
 	for _, claim := range c.AllowedForeignJWTClaims {
-		allowedClaims[claim] = true
+		allowedClaims[claim] = struct{}{}
 	}
 
 	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{

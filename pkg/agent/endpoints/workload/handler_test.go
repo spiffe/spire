@@ -666,7 +666,7 @@ func TestValidateJWTSVID(t *testing.T) {
 		expectMsg               string
 		expectLogs              []spiretest.LogEntry
 		expectResponse          *workloadPB.ValidateJWTSVIDResponse
-		allowedForeignJWTClaims map[string]bool
+		allowedForeignJWTClaims map[string]struct{}
 	}{
 		{
 			name:       "missing required audience",
@@ -828,7 +828,7 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:                    federatedSVID.Marshal(),
 			updates:                 updatesWithFederatedBundle,
 			expectCode:              codes.OK,
-			allowedForeignJWTClaims: map[string]bool{"iat": true, "iss": true},
+			allowedForeignJWTClaims: map[string]struct{}{"iat": {}, "iss": {}},
 			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
 				SpiffeId: "spiffe://domain2.test/federated-workload",
 				Claims: &structpb.Struct{
@@ -925,7 +925,7 @@ type testParams struct {
 	ExpectLogs                    []spiretest.LogEntry
 	AsPID                         int
 	AllowUnauthenticatedVerifiers bool
-	AllowedForeignJWTClaims       map[string]bool
+	AllowedForeignJWTClaims       map[string]struct{}
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {

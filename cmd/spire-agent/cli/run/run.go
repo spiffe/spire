@@ -411,9 +411,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.ProfilingFreq = c.Agent.ProfilingFreq
 	ac.ProfilingNames = c.Agent.ProfilingNames
 
-	if len(c.Agent.AllowedForeignJWTClaims) > 0 {
-		ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
-	}
+	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry

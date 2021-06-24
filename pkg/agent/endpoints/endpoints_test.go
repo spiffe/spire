@@ -45,7 +45,7 @@ func TestEndpoints(t *testing.T) {
 		do              func(t *testing.T, conn *grpc.ClientConn)
 		expectedLogs    []spiretest.LogEntry
 		expectedMetrics []fakemetrics.MetricItem
-		expectClaims    map[string]bool
+		expectClaims    map[string]struct{}
 		allowedClaims   []string
 	}{
 		{
@@ -69,7 +69,7 @@ func TestEndpoints(t *testing.T) {
 				}},
 			},
 			allowedClaims: []string{"c1"},
-			expectClaims:  map[string]bool{"c1": true},
+			expectClaims:  map[string]struct{}{"c1": {}},
 		},
 		{
 			name: "workload api has peertracker attestor plumbed",
