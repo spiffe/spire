@@ -68,6 +68,7 @@ type agentConfig struct {
 	TrustBundleURL                string    `hcl:"trust_bundle_url"`
 	TrustDomain                   string    `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
+	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -409,6 +410,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.ProfilingPort = c.Agent.ProfilingPort
 	ac.ProfilingFreq = c.Agent.ProfilingFreq
 	ac.ProfilingNames = c.Agent.ProfilingNames
+
+	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
