@@ -9,7 +9,7 @@ import (
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck // this is deprecated; pkg/envtest is preferred for testing
 )
 
 func Test_cleanupStaleCertificateRequests(t *testing.T) {
