@@ -266,7 +266,7 @@ func TestRateLimits(t *testing.T) {
 				),
 				// Install a middleware downstream so that we can test what
 				// happens in postprocess if the handler is never invoked.
-				middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+				middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 					return ctx, tt.downstreamErr
 				}),
 			))

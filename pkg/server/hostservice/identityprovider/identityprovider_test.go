@@ -5,6 +5,9 @@ import (
 	"crypto/x509"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
@@ -17,6 +20,8 @@ import (
 )
 
 var (
+	td = spiffeid.RequireTrustDomainFromString("domain.test")
+
 	privateKey, _ = pemutil.ParsePrivateKey([]byte(`-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgiRwh3OhH038SIr6M
 ksd9t4OFaYrOVSm0UrCA3c2ou3ihRANCAAQ5SCPTyVgLgzamI5X+iVM7jYmAvyLx
@@ -27,26 +32,40 @@ T9/3uGMibjwZ41KKO09baULXYYG/RW+zv+Mzz+DD2LGveAOx28dcQTaK
 
 func TestFetchX509IdentityFailsIfDepsUnset(t *testing.T) {
 	hs := New(Config{
-		TrustDomainID: "spiffe://domain.test",
+		TrustDomain: td,
 	})
-	resp, err := hs.FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
-	st := status.Convert(err)
-	assert.Equal(t, "IdentityProvider host service has not been initialized", st.Message())
-	assert.Equal(t, codes.FailedPrecondition, st.Code())
-	assert.Nil(t, resp)
+
+	t.Run("v0", func(t *testing.T) {
+		resp, err := hs.V0().FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
+		st := status.Convert(err)
+		assert.Equal(t, "IdentityProvider host service has not been initialized", st.Message())
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+		assert.Nil(t, resp)
+	})
+	t.Run("v1", func(t *testing.T) {
+		resp, err := hs.V1().FetchX509Identity(context.Background(), &identityproviderv1.FetchX509IdentityRequest{})
+		st := status.Convert(err)
+		assert.Equal(t, "IdentityProvider host service has not been initialized", st.Message())
+		assert.Equal(t, codes.FailedPrecondition, st.Code())
+		assert.Nil(t, resp)
+	})
 }
 
 func TestFetchX509IdentitySuccess(t *testing.T) {
-	bundle := &common.Bundle{
+	bundleV0 := &common.Bundle{
 		TrustDomainId: "spiffe://domain.test",
 	}
 
+	bundleV1 := &plugintypes.Bundle{
+		TrustDomain: "domain.test",
+	}
+
 	ds := fakedatastore.New(t)
-	_, err := ds.CreateBundle(context.Background(), bundle)
+	_, err := ds.CreateBundle(context.Background(), bundleV0)
 	require.NoError(t, err)
 
 	hs := New(Config{
-		TrustDomainID: "spiffe://domain.test",
+		TrustDomain: td,
 	})
 
 	certChain := []*x509.Certificate{
@@ -68,11 +87,23 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resp, err := hs.FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.NotNil(t, resp.Identity)
-	require.Equal(t, [][]byte{{1}, {2}}, resp.Identity.CertChain)
-	require.Equal(t, privateKeyBytes, resp.Identity.PrivateKey)
-	spiretest.RequireProtoEqual(t, bundle, resp.Bundle)
+	t.Run("v0", func(t *testing.T) {
+		resp, err := hs.V0().FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Identity)
+		require.Equal(t, [][]byte{{1}, {2}}, resp.Identity.CertChain)
+		require.Equal(t, privateKeyBytes, resp.Identity.PrivateKey)
+		spiretest.RequireProtoEqual(t, bundleV0, resp.Bundle)
+	})
+
+	t.Run("v1", func(t *testing.T) {
+		resp, err := hs.V1().FetchX509Identity(context.Background(), &identityproviderv1.FetchX509IdentityRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Identity)
+		require.Equal(t, [][]byte{{1}, {2}}, resp.Identity.CertChain)
+		require.Equal(t, privateKeyBytes, resp.Identity.PrivateKey)
+		spiretest.RequireProtoEqual(t, bundleV1, resp.Bundle)
+	})
 }

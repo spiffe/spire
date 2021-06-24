@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -3327,7 +3327,7 @@ func (s *PluginSuite) TestBindVar() {
 }
 
 func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interface{}) {
-	entriesJSON, err := ioutil.ReadFile(filePath)
+	entriesJSON, err := os.ReadFile(filePath)
 	s.Require().NoError(err)
 
 	err = json.Unmarshal(entriesJSON, &jsonValue)

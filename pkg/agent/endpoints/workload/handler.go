@@ -79,14 +79,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 
 	var spiffeIDs []spiffeid.ID
-	identities := h.c.Manager.MatchingIdentities(selectors)
-	if len(identities) == 0 {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return nil, status.Error(codes.PermissionDenied, "no identity issued")
-	}
 
 	log = log.WithField(telemetry.Registered, true)
 
+	identities := h.c.Manager.MatchingIdentities(selectors)
 	for _, identity := range identities {
 		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
 			continue
@@ -99,6 +95,11 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		}
 
 		spiffeIDs = append(spiffeIDs, spiffeID)
+	}
+
+	if len(spiffeIDs) == 0 {
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	resp = new(workload.JWTSVIDResponse)

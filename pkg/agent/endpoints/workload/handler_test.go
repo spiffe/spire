@@ -387,6 +387,28 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
+			name: "identity found but unexpected SPIFFE ID",
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+				identityFromX509SVID(x509SVID2),
+			},
+			spiffeID:   td.NewID("unexpected").String(),
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTSVID",
+					},
+				},
+			},
+		},
+		{
 			name:       "attest error",
 			audience:   []string{"AUDIENCE"},
 			attestErr:  errors.New("ohno"),
@@ -822,7 +844,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
 		middleware.WithLogger(log),
-		middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+		middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 			return rpccontext.WithCallerPID(ctx, params.AsPID), nil
 		}),
 	))

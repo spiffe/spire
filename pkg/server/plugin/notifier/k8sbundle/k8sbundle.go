@@ -13,11 +13,11 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -68,7 +68,7 @@ type Plugin struct {
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProviderServiceClient
+	identityProvider identityproviderv1.IdentityProviderServiceClient
 	cancelWatcher    func()
 
 	hooks struct {
@@ -247,7 +247,7 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		// loaded after fetching the object so we can properly detect and
 		// correct a race updating the bundle (i.e.  read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
 		if err != nil {
 			return err
 		}
@@ -331,7 +331,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error)
-	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error)
+	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
 	Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error)
 }
@@ -356,7 +356,7 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 	}, nil
 }
 
-func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ConfigMap")
@@ -395,7 +395,7 @@ func (c apiServiceClient) GetList(ctx context.Context, config *pluginConfig) (ru
 	})
 }
 
-func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	apiService, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting APIService")
@@ -446,7 +446,7 @@ func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig
 	})
 }
 
-func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting MutatingWebhookConfiguration")
@@ -508,7 +508,7 @@ func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConf
 	})
 }
 
-func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ValidatingWebhookConfiguration")
@@ -556,12 +556,12 @@ func (c validatingWebhookClient) Watch(ctx context.Context, config *pluginConfig
 }
 
 // bundleData formats the bundle data for inclusion in the config map
-func bundleData(bundle *common.Bundle) string {
+func bundleData(bundle *plugintypes.Bundle) string {
 	bundleData := new(bytes.Buffer)
-	for _, rootCA := range bundle.RootCas {
+	for _, x509Authority := range bundle.X509Authorities {
 		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: rootCA.DerBytes,
+			Bytes: x509Authority.Asn1,
 		})
 	}
 	return bundleData.String()
