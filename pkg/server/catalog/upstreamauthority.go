@@ -27,8 +27,6 @@ func (repo *upstreamAuthorityRepository) Constraints() catalog.Constraints {
 func (repo *upstreamAuthorityRepository) Versions() []catalog.Version {
 	return []catalog.Version{
 		upstreamAuthorityV1{},
-		// TODO: remove v0 once all of the built-ins have been migrated to v1
-		upstreamAuthorityV0{},
 	}
 }
 
