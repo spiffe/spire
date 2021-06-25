@@ -251,12 +251,6 @@ const (
 	// Nonce tags some nonce for communication
 	Nonce = "nonce"
 
-	// PageSize tags a page size used on pagination
-	PageSize = "page_size"
-
-	// PageToken tags token used on pagination
-	PageToken = "page_token"
-
 	// ParentID tags parent ID for an entry
 	ParentID = "parent_id"
 
