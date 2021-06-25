@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spire
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+  namespace: spire
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: spire-ca
+  namespace: spire
+spec:
+  commonName: example.org
+  secretName: spire-ca
+  subject:
+    organizations:
+    - cert-manager.io
+  duration: 2160h
+  isCA: true
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: spire-ca
+  namespace: spire
+spec:
+  ca:
+    secretName: spire-ca

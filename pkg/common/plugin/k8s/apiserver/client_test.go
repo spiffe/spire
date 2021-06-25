@@ -8,18 +8,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	mock_clientset "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset"
-	mock_authv1 "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/authenticationv1"
-	mock_tokenreview "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/authenticationv1/tokenreview"
-	mock_corev1 "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/corev1"
-	mock_node "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/corev1/node"
-	mock_pod "github.com/spiffe/spire/test/mock/common/plugin/k8s/clientset/corev1/pod"
 	"github.com/spiffe/spire/test/spiretest"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	fake_authv1 "k8s.io/client-go/kubernetes/typed/authentication/v1/fake"
+	fake_corev1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 var (
@@ -126,30 +123,11 @@ func TestAPIServerClient(t *testing.T) {
 
 type ClientSuite struct {
 	spiretest.Suite
-	dir              string
-	mockCtrl         *gomock.Controller
-	mockClientset    *mock_clientset.MockInterface
-	mockCoreV1       *mock_corev1.MockCoreV1Interface
-	mockPods         *mock_pod.MockPodInterface
-	mockNodes        *mock_node.MockNodeInterface
-	mockAuthV1       *mock_authv1.MockAuthenticationV1Interface
-	mockTokenReviews *mock_tokenreview.MockTokenReviewInterface
+	dir string
 }
 
 func (s *ClientSuite) SetupTest() {
-	s.mockCtrl = gomock.NewController(s.T())
-	s.mockClientset = mock_clientset.NewMockInterface(s.mockCtrl)
-	s.mockCoreV1 = mock_corev1.NewMockCoreV1Interface(s.mockCtrl)
-	s.mockPods = mock_pod.NewMockPodInterface(s.mockCtrl)
-	s.mockNodes = mock_node.NewMockNodeInterface(s.mockCtrl)
-	s.mockAuthV1 = mock_authv1.NewMockAuthenticationV1Interface(s.mockCtrl)
-	s.mockTokenReviews = mock_tokenreview.NewMockTokenReviewInterface(s.mockCtrl)
-
 	s.dir = s.TempDir()
-}
-
-func (s *ClientSuite) TearDownTest() {
-	s.mockCtrl.Finish()
 }
 
 func (s *ClientSuite) TestGetPodFailsIfNamespaceIsEmpty() {
@@ -174,34 +152,32 @@ func (s *ClientSuite) TestGetPodFailsToLoadClient() {
 }
 
 func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
-	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
-	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
-	s.mockPods.EXPECT().Get(ctx, "PODNAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
+	fakeClient := fake.NewSimpleClientset()
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "unable to query pods API")
 	s.Nil(pod)
 }
 
 func (s *ClientSuite) TestGetPodFailsIfGetsNilPod() {
-	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
-	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
-	s.mockPods.EXPECT().Get(ctx, "PODNAME", metav1.GetOptions{}).Return(nil, nil)
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.CoreV1().(*fake_corev1.FakeCoreV1).PrependReactor("get", "pods",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, nil, nil
+		})
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.AssertErrorContains(err, "got nil pod for pod name: PODNAME")
 	s.Nil(pod)
 }
 
 func (s *ClientSuite) TestGetPodSucceeds() {
-	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
-	s.mockCoreV1.EXPECT().Pods("NAMESPACE").Return(s.mockPods).Times(1)
-	expectedPod := createPod("PODNAME")
-	s.mockPods.EXPECT().Get(ctx, "PODNAME", metav1.GetOptions{}).Return(expectedPod, nil)
+	fakeClient := fake.NewSimpleClientset(createPod("PODNAME", "NAMESPACE"))
+	expectedPod := createPod("PODNAME", "NAMESPACE")
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
 	s.NoError(err)
 	s.Equal(expectedPod, pod)
@@ -222,34 +198,32 @@ func (s *ClientSuite) TestGetNodeFailsToLoadClient() {
 }
 
 func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
-	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
-	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
-	s.mockNodes.EXPECT().Get(ctx, "NODENAME", metav1.GetOptions{}).Return(nil, errors.New("an error"))
+	fakeClient := fake.NewSimpleClientset()
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
 	s.AssertErrorContains(err, "unable to query nodes API")
 	s.Nil(node)
 }
 
 func (s *ClientSuite) TestGetNodeFailsIfGetsNilNode() {
-	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
-	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
-	s.mockNodes.EXPECT().Get(ctx, "NODENAME", metav1.GetOptions{}).Return(nil, nil)
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.CoreV1().(*fake_corev1.FakeCoreV1).PrependReactor("get", "nodes",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, nil, nil
+		})
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
 	s.AssertErrorContains(err, "got nil node for node name: NODENAME")
 	s.Nil(node)
 }
 
 func (s *ClientSuite) TestGetNodeSucceeds() {
-	s.mockClientset.EXPECT().CoreV1().Return(s.mockCoreV1).Times(1)
-	s.mockCoreV1.EXPECT().Nodes().Return(s.mockNodes).Times(1)
+	fakeClient := fake.NewSimpleClientset(createNode("NODENAME"))
 	expectedNode := createNode("NODENAME")
-	s.mockNodes.EXPECT().Get(ctx, "NODENAME", metav1.GetOptions{}).Return(expectedNode, nil)
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
 	s.NoError(err)
 	s.Equal(expectedNode, node)
@@ -263,54 +237,52 @@ func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 }
 
 func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
-	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
-	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
-	req := createTokenReview([]string{"aud1"})
-	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(nil, errors.New("an error"))
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, &authv1.TokenReview{}, errors.New("error creating token review")
+		})
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "unable to query token review API")
 	s.Nil(status)
 }
 
 func (s *ClientSuite) TestValidateTokenFailsIfGetsNilResponse() {
-	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
-	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
-	req := createTokenReview([]string{"aud1"})
-	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(nil, nil)
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, nil, nil
+		})
 
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response is nil")
 	s.Nil(status)
 }
 
 func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
-	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
-	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, &authv1.TokenReview{Status: authv1.TokenReviewStatus{Error: "an error"}}, nil
+		})
 
-	req := createTokenReview([]string{"aud1"})
-	resp := *req
-	resp.Status.Error = "an error"
-	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(&resp, nil)
-
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.AssertErrorContains(err, "token review API response contains an error")
 	s.Nil(status)
 }
 
 func (s *ClientSuite) TestValidateTokenSucceeds() {
-	s.mockClientset.EXPECT().AuthenticationV1().Return(s.mockAuthV1).Times(1)
-	s.mockAuthV1.EXPECT().TokenReviews().Return(s.mockTokenReviews).Times(1)
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, &authv1.TokenReview{Status: authv1.TokenReviewStatus{Authenticated: true}}, nil
+		})
 
-	req := createTokenReview([]string{"aud1"})
-	resp := *req
-	resp.Status.Authenticated = true
-	s.mockTokenReviews.EXPECT().Create(ctx, req, metav1.CreateOptions{}).Return(&resp, nil)
-
-	client := s.createClient()
+	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
 	s.NoError(err)
 	s.NotNil(status)
@@ -332,9 +304,9 @@ func (s *ClientSuite) TestLoadClientSucceds() {
 	s.NotNil(clientset)
 }
 
-func (s *ClientSuite) createClient() Client {
+func (s *ClientSuite) createClient(fakeClient kubernetes.Interface) Client {
 	fakeLoadClient := func(kubeConfigFilePath string) (kubernetes.Interface, error) {
-		return s.mockClientset, nil
+		return fakeClient, nil
 	}
 	return &client{
 		loadClientHook: fakeLoadClient,
@@ -351,9 +323,10 @@ func (s *ClientSuite) createDefectiveClient(kubeConfigFilePath string) Client {
 	}
 }
 
-func createPod(podName string) *v1.Pod {
+func createPod(podName, namespace string) *v1.Pod {
 	p := &v1.Pod{}
 	p.Name = podName
+	p.Namespace = namespace
 	return p
 }
 
@@ -361,15 +334,6 @@ func createNode(nodeName string) *v1.Node {
 	n := &v1.Node{}
 	n.Name = nodeName
 	return n
-}
-
-func createTokenReview(audience []string) *authv1.TokenReview {
-	return &authv1.TokenReview{
-		Spec: authv1.TokenReviewSpec{
-			Token:     testToken,
-			Audiences: audience,
-		},
-	}
 }
 
 func (s *ClientSuite) createSampleKubeConfigFile(kubeConfigPath string) {
