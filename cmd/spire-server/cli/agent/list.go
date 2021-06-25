@@ -75,8 +75,15 @@ func printAgents(env *common_cli.Env, agents ...*types.Agent) error {
 		if err := env.Printf("Expiration time   : %s\n", time.Unix(agent.X509SvidExpiresAt, 0)); err != nil {
 			return err
 		}
-		if err := env.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber); err != nil {
-			return err
+		// Banned agents will have an empty serial number
+		if agent.Banned {
+			if err := env.Printf("Banned            : %t\n", agent.Banned); err != nil {
+				return err
+			}
+		} else {
+			if err := env.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber); err != nil {
+				return err
+			}
 		}
 		if err := env.Println(); err != nil {
 			return err
