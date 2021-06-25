@@ -34,7 +34,7 @@ func (*banCommand) Name() string {
 }
 
 func (*banCommand) Synopsis() string {
-	return "Ban an attested agent given it SPIFFE ID"
+	return "Ban an attested agent given its SPIFFE ID"
 }
 
 // Run ban an agent given its SPIFFE ID
