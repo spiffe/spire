@@ -250,7 +250,7 @@ func isValidTrustDomainChar(c uint8) bool {
 		return true
 	case c >= '0' && c <= '9':
 		return true
-	case c == '.', c == '-':
+	case c == '.', c == '-', c == '_':
 		return true
 	default:
 		return false

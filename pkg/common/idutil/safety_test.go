@@ -134,6 +134,7 @@ func TestCheckAgentIDStringNormalization(t *testing.T) {
 func testCommonCheckIDNormalization(assertGood func(string), assertBad func(string, string)) {
 	assertGood("spiffe://example.org")
 	assertGood("spiffe://example.org/workload")
+	assertGood("spiffe://abcdefghijklmnopqrstuvwxyz0123456789.-_/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_")
 
 	assertBad("spiffe://%45example.org/workload",
 		`parse "spiffe://%45example.org/workload": invalid URL escape "%45"`)
@@ -306,6 +307,7 @@ func TestTrustDomainFromString(t *testing.T) {
 	assertGood("example.org", "example.org")
 	assertGood("spiffe://example.org", "example.org")
 	assertGood("spiffe://example.org/path", "example.org")
+	assertGood("abcdefghijklmnopqrstuvwxyz0123456789.-_", "abcdefghijklmnopqrstuvwxyz0123456789.-_")
 
 	assertBad("eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
 	assertBad("spiffe://eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
