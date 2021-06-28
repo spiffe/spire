@@ -27,6 +27,8 @@ func (h *caHealth) CheckHealth() health.State {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
+	ctx = health.CheckContext(ctx)
+
 	_, err := h.ca.SignX509SVID(ctx, X509SVIDParams{
 		SpiffeID:  h.td.NewID("/for/health/check/only"),
 		PublicKey: caHealthKey,

@@ -22,8 +22,6 @@ func (repo *notifierRepository) Constraints() catalog.Constraints {
 func (repo *notifierRepository) Versions() []catalog.Version {
 	return []catalog.Version{
 		notifierV1{},
-		// TODO: remove v0 once all of the built-ins have been migrated to v1
-		notifierV0{},
 	}
 }
 
