@@ -226,10 +226,12 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 
 	spiffeID := cert.URIs[0].String()
 
-	ca.c.Log.WithFields(logrus.Fields{
-		telemetry.SPIFFEID:   spiffeID,
-		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
-	}).Debug("Signed X509 SVID")
+	if !health.IsCheck(ctx) {
+		ca.c.Log.WithFields(logrus.Fields{
+			telemetry.SPIFFEID:   spiffeID,
+			telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
+		}).Debug("Signed X509 SVID")
+	}
 
 	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
 

@@ -5,6 +5,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	spireplugin "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
@@ -26,8 +27,6 @@ func (repo *upstreamAuthorityRepository) Constraints() catalog.Constraints {
 func (repo *upstreamAuthorityRepository) Versions() []catalog.Version {
 	return []catalog.Version{
 		upstreamAuthorityV1{},
-		// TODO: remove v0 once all of the built-ins have been migrated to v1
-		upstreamAuthorityV0{},
 	}
 }
 
@@ -43,6 +42,7 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 		vault.BuiltIn(),
 		spireplugin.BuiltIn(),
 		disk.BuiltIn(),
+		certmanager.BuiltIn(),
 	}
 }
 

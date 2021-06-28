@@ -123,6 +123,37 @@ func (DNSName) TableName() string {
 	return "dns_names"
 }
 
+// FederatedTrustDomain holds federated trust domains.
+// It has the information needed to get updated bundles of the
+// federated trust domain from a SPIFFE bundle endpoint server.
+type FederatedTrustDomain struct {
+	Model
+
+	// TrustDomain is the trust domain name (e.g., "example.org") to federate with.
+	TrustDomain string `gorm:"not null;unique_index"`
+
+	// BundleEndpointURL is the URL of the SPIFFE bundle endpoint that provides the trust
+	// bundle to federate with.
+	BundleEndpointURL string
+
+	// BundleEndpointProfile is the endpoint profile type.
+	BundleEndpointProfile string
+
+	// EndpointSPIFFEID specifies the expected SPIFFE ID of the
+	// SPIFFE bundle endpoint server when BundleEndpointProfile
+	// is "https_spiffe"
+	EndpointSPIFFEID string
+
+	// Implicit indicates wether the trust domain automatically federates with
+	// all registration entries by default or not.
+	Implicit bool
+}
+
+// TableName gets table name of FederatedTrustDomain
+func (FederatedTrustDomain) TableName() string {
+	return "federated_trust_domains"
+}
+
 // Migration holds database schema version number, and
 // the SPIRE Code version number
 type Migration struct {
