@@ -109,7 +109,7 @@ func (m *Manager) Run(ctx context.Context) error {
 func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDomain, updater BundleUpdater) error {
 	log := m.log.WithField("trust_domain", trustDomain)
 	log = log.WithField("bundle_endpoint_url", updater.TrustDomainConfig().EndpointURL)
-	log = log.WithField("endpoint_profile", updater.TrustDomainConfig().EndpointProfile.Name())
+	log = log.WithField("bundle_endpoint_profile", updater.TrustDomainConfig().EndpointProfile.Name())
 	for {
 		var nextRefresh time.Duration
 		log.Debug("Polling for bundle update")

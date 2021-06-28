@@ -1202,6 +1202,19 @@ func TestValidateConfig(t *testing.T) {
 			},
 			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint_url must be configured",
 		},
+		{
+			name: "bundle_endpoint_url must use the HTTPS protocol",
+			applyConf: func(c *Config) {
+				federatesWith := make(map[string]federatesWithConfig)
+				federatesWith["domain.test"] = federatesWithConfig{
+					BundleEndpointURL: "http://example.org/test",
+				}
+				c.Server.Federation = &federationConfig{
+					FederatesWith: federatesWith,
+				}
+			},
+			expectedErr: `federation.federates_with["domain.test"].bundle_endpoint_url must use the HTTPS protocol; URL found: "http://example.org/test"`,
+		},
 	}
 
 	for _, testCase := range testCases {

@@ -42,7 +42,7 @@ func TestBundleUpdater(t *testing.T) {
 		{
 			name:        "providing no bundle",
 			trustDomain: trustDomain,
-			err:         "local bundle not found",
+			err:         "local copy of bundle not found",
 		},
 		{
 			name:           "bundle has no changes",

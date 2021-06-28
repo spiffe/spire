@@ -66,7 +66,7 @@ func TestClient(t *testing.T) {
 			status:       http.StatusOK,
 			body:         `{"spiffe_refresh_hint": 10}`,
 			serverID:     serverID,
-			newClientErr: "no SPIFFE ID specified for SPIFFE Authentication",
+			newClientErr: `no SPIFFE ID specified for federation with "domain.test"`,
 		},
 		{
 			name:           "SPIFFE ID override",

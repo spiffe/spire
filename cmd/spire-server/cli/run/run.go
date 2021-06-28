@@ -436,13 +436,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 			var trustDomainConfig *bundleClient.TrustDomainConfig
 			switch {
+			case config.DeprecatedBundleEndpoint != nil && config.BundleEndpointProfile != nil:
+				return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: either the deprecated `bundle_endpoint` configuration section or the `bundle_endpoint_url` setting can be used, but not both", trustDomain)
 			case config.DeprecatedBundleEndpoint != nil:
-				sc.Log.Warn("The `bundle_endpoint` configurable is deprecated and will be removed in a future release. Please use `bundle_endpoint_url` and `bundle_endpoint_profile` to configure the federation relationships instead.")
+				sc.Log.Warn("The `bundle_endpoint` configurable inside `federates_with` is deprecated and will be removed in a future release. Please use `bundle_endpoint_url` and `bundle_endpoint_profile` to configure the federation with %q instead.", trustDomain)
 				trustDomainConfig, err = parseDeprecatedBundleEndpoint(config.DeprecatedBundleEndpoint)
 				if err != nil {
 					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 				}
-				trustDomainConfig.DeprecatedConfig = true
 				if httpsSPIFFE, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
 					if httpsSPIFFE.EndpointSPIFFEID.IsZero() {
 						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release in the https_spiffe profile.", trustDomain)
@@ -550,6 +551,16 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 }
 
 func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
+	// First check the number of bundle endpoint profiles in the config
+	objectList, ok := config.BundleEndpointProfile.(*ast.ObjectList)
+	if !ok {
+		return nil, errors.New("malformed configuration")
+	}
+	if len(objectList.Items) != 1 {
+		return nil, errors.New("exactly one bundle endpoint profile is expected")
+	}
+
+	// Parse the configuration
 	var data bytes.Buffer
 	if err := printer.DefaultConfig.Fprint(&data, config.BundleEndpointProfile); err != nil {
 		return nil, err
@@ -571,7 +582,7 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 		}
 		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
 	default:
-		return nil, errors.New("no bundle endpoint profile defined")
+		return nil, errors.New(`no bundle endpoint profile defined; current supported profiles are "https_spiffe" and 'https_web"`)
 	}
 
 	return &bundleClient.TrustDomainConfig{
@@ -597,7 +608,7 @@ func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpoint
 		if config.SpiffeID != "" {
 			spiffeID, err = spiffeid.FromString(config.SpiffeID)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("could not parse endpoint SPIFFE ID %q: %w", config.SpiffeID, err)
 			}
 		}
 
@@ -605,8 +616,9 @@ func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpoint
 	}
 
 	return &bundleClient.TrustDomainConfig{
-		EndpointURL:     fmt.Sprintf("https://%s:%d", config.Address, port),
-		EndpointProfile: endpointProfile,
+		DeprecatedConfig: true,
+		EndpointURL:      fmt.Sprintf("https://%s:%d", config.Address, port),
+		EndpointProfile:  endpointProfile,
 	}, nil
 }
 
@@ -650,12 +662,15 @@ func validateConfig(c *Config) error {
 		}
 
 		for td, tdConfig := range c.Server.Federation.FederatesWith {
-			if tdConfig.DeprecatedBundleEndpoint != nil {
+			switch {
+			case tdConfig.DeprecatedBundleEndpoint != nil:
 				if tdConfig.DeprecatedBundleEndpoint.Address == "" {
 					return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
 				}
-			} else if tdConfig.BundleEndpointURL == "" {
+			case tdConfig.BundleEndpointURL == "":
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must be configured", td)
+			case !strings.HasPrefix(strings.ToLower(tdConfig.BundleEndpointURL), "https"):
+				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must use the HTTPS protocol; URL found: %q", td, tdConfig.BundleEndpointURL)
 			}
 		}
 	}

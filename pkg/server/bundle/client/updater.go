@@ -99,11 +99,11 @@ func (u *bundleUpdater) newClient(ctx context.Context) (Client, error) {
 		}
 		localEndpointBundle, err := fetchBundleIfExists(ctx, u.c.DataStore, trustDomain)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch local bundle: %w", err)
+			return nil, fmt.Errorf("failed to fetch local copy of bundle for %q: %w", trustDomain, err)
 		}
 
 		if localEndpointBundle == nil {
-			return nil, errors.New("can't perform SPIFFE Authentication: local bundle not found")
+			return nil, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
 		}
 		config.SPIFFEAuth = &SPIFFEAuthConfig{
 			EndpointSpiffeID: spiffeAuth.EndpointSPIFFEID,

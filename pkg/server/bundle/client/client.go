@@ -3,7 +3,7 @@ package client
 import (
 	"context"
 	"crypto/x509"
-	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -63,7 +63,7 @@ func NewClient(config ClientConfig) (Client, error) {
 				// the deprecated config and will be removed in 1.1.0.
 				endpointID = idutil.ServerID(config.TrustDomain)
 			} else {
-				return nil, errors.New("no SPIFFE ID specified for SPIFFE Authentication")
+				return nil, fmt.Errorf("no SPIFFE ID specified for federation with %q", config.TrustDomain.String())
 			}
 		}
 
