@@ -42,7 +42,7 @@ func TestBundleUpdater(t *testing.T) {
 		{
 			name:        "providing no bundle",
 			trustDomain: trustDomain,
-			err:         "local bundle not found",
+			err:         "local copy of bundle not found",
 		},
 		{
 			name:           "bundle has no changes",
@@ -91,8 +91,10 @@ func TestBundleUpdater(t *testing.T) {
 				DataStore:   ds,
 				TrustDomain: testCase.trustDomain,
 				TrustDomainConfig: TrustDomainConfig{
-					EndpointAddress:  "ENDPOINT_ADDRESS",
-					EndpointSpiffeID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
+					EndpointURL: "ENDPOINT_ADDRESS",
+					EndpointProfile: HTTPSSPIFFEProfile{
+						EndpointSPIFFEID: trustDomain.ID(),
+					},
 				},
 				newClient: func(client ClientConfig) (Client, error) {
 					return testCase.client, nil
