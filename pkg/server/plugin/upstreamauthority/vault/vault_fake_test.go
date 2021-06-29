@@ -10,6 +10,7 @@ import (
 const (
 	defaultTLSAuthEndpoint          = "/v1/auth/cert/login"
 	defaultAppRoleAuthEndpoint      = "/v1/auth/approle/login"
+	defaultK8sAuthEndpoint          = "/v1/auth/kubernetes/login"
 	defaultSignIntermediateEndpoint = "/v1/pki/root/sign-intermediate"
 	defaultRenewEndpoint            = "/v1/auth/token/renew-self"
 	defaultLookupSelfEndpoint       = "/v1/auth/token/lookup-self"
@@ -20,7 +21,7 @@ const (
 var (
 	testConfigWithVaultAddrEnvTpl = `
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"	
 token_auth {
    token  = "test-token"
 }`
@@ -28,18 +29,18 @@ token_auth {
 	testCertAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 cert_auth {
    cert_auth_mount_point = "test-cert-auth"
    cert_auth_role_name = "test"
-   client_cert_path = "_test_data/keys/EC/client_cert.pem"
-   client_key_path  = "_test_data/keys/EC/client_key.pem"
+   client_cert_path = "testdata/keys/EC/client_cert.pem"
+   client_key_path  = "testdata/keys/EC/client_key.pem"
 }`
 
 	testCertAuthConfigWithEnvTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 cert_auth {
    cert_auth_mount_point = "test-cert-auth"
 }`
@@ -48,7 +49,7 @@ cert_auth {
 	testTokenAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {
    token  = "test-token"
 }`
@@ -57,13 +58,13 @@ token_auth {
 	testTokenAuthConfigWithEnvTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {}`
 
 	testAppRoleAuthConfigTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 approle_auth {
    approle_auth_mount_point = "test-approle-auth"
    approle_id = "test-approle-id"
@@ -73,15 +74,44 @@ approle_auth {
 	testAppRoleAuthConfigWithEnvTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 approle_auth {
    approle_auth_mount_point = "test-approle-auth"
+}`
+
+	testK8sAuthConfigTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
+k8s_auth {
+   k8s_auth_mount_point = "test-k8s-auth"
+   k8s_auth_role_name = "my-role"
+   token_path = "testdata/k8s/token"
+}`
+
+	testK8sAuthNoRoleNameTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
+k8s_auth {
+   k8s_auth_mount_point = "test-k8s-auth"
+   token_path = "testdata/k8s/token"
+}`
+
+	/* #nosec G101 */
+	testK8sAuthNoTokenPathTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
+k8s_auth {
+   k8s_auth_mount_point = "test-k8s-auth"
+   k8s_auth_role_name = "my-role"
 }`
 
 	testMultipleAuthConfigsTpl = `
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 cert_auth {}
 token_auth {}
 approle_auth {
@@ -94,7 +124,7 @@ approle_auth {
 namespace = "test-ns"
 vault_addr  = "{{ .Addr }}"
 pki_mount_point = "test-pki"
-ca_cert_path = "_test_data/keys/EC/root_cert.pem"
+ca_cert_path = "testdata/keys/EC/root_cert.pem"
 token_auth {
    token  = "test-token"
 }
@@ -161,6 +191,61 @@ token_auth {
   "lease_id": ""
 }`
 
+	testK8sAuthResponse = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": null,
+  "wrap_info": null,
+  "warnings": null,
+  "auth": {
+    "client_token": "s.scngmDktKCWVRhkggMiyV7E7",
+    "accessor": "",
+    "policies": ["default"],
+    "token_policies": ["default"],
+    "metadata": {
+      "role": "my-role",
+      "service_account_name": "spire-server",
+      "service_account_namespace": "spire",
+      "service_account_secret_name": "",
+      "service_account_uid": "6808b4c7-0b53-45f4-83f7-e8937756eeae"
+    },
+    "lease_duration": 3600,
+    "renewable": true,
+    "entity_id": "c69a6e0e-3f2c-98a0-39f9-e4d3d7cc294f",
+    "token_type": "service",
+    "orphan": true
+  }
+}
+`
+
+	testK8sAuthResponseNotRenewable = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": null,
+  "wrap_info": null,
+  "warnings": null,
+  "auth": {
+    "client_token": "b.AAAAAQIUprvfquccAKnvL....",
+    "accessor": "",
+    "policies": ["default"],
+    "token_policies": ["default"],
+    "metadata": {
+      "role": "my-role",
+      "service_account_name": "spire-server",
+      "service_account_namespace": "spire",
+      "service_account_secret_name": "",
+      "service_account_uid": "6808b4c7-0b53-45f4-83f7-e8937756eeae"
+    },
+    "lease_duration": 3600,
+    "renewable": false,
+    "entity_id": "c69a6e0e-3f2c-98a0-39f9-e4d3d7cc294f",
+    "token_type": "batch",
+    "orphan": true
+  }
+}`
+
 	testSignIntermediateResponse = `{
   "lease_id": "",
   "renewable": false,
@@ -180,6 +265,18 @@ token_auth {
   "lease_duration": 0,
   "data": {
     "certificate": "-----BEGIN CERTIFICATE-----\nMIIBmjCCAUCgAwIBAgIJAJQ2zT1xCwf9MAkGByqGSM49BAEwNTELMAkGA1UEBhMC\nVVMxDzANBgNVBAoMBlNQSUZGRTEVMBMGA1UEAwwMdGVzdC1yb290LWNhMB4XDTIw\nMDUyODA1NTgxOVoXDTMwMDUyNjA1NTgxOVowPTELMAkGA1UEBhMCVVMxDzANBgNV\nBAoMBlNQSUZGRTEdMBsGA1UEAwwUdGVzdC1pbnRlcm1lZGlhdGUtY2EwWTATBgcq\nhkjOPQIBBggqhkjOPQMBBwNCAAQl25uLXYCtUuC56HBfiuSPRihZh+XZFe1azAt8\nm4JFFQE0MKYBGmuv+dtxbb7S1DWDIWe+/TgnwPlvPZ2fG8H1ozIwMDAgBgNVHREE\nGTAXhhVzcGlmZmU6Ly9pbnRlcm1lZGlhdGUwDAYDVR0TBAUwAwEB/zAJBgcqhkjO\nPQQBA0kAMEYCIQC75fPz270uBP654XhWXTzAv+pEy2i3tUIbeinFXuhhYQIhAJdm\nEt2IvChBiw2vII7Be7LUQq20qF6YIWaZbIYVLwD3\n-----END CERTIFICATE-----",
+    "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIBjDCCATGgAwIBAgIJALZY6FEA9r6kMAoGCCqGSM49BAMCMDUxCzAJBgNVBAYT\nAlVTMQ8wDQYDVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTAeFw0y\nMDA1MjgwNTUxNTVaFw0zMDA1MjYwNTUxNTVaMDUxCzAJBgNVBAYTAlVTMQ8wDQYD\nVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTBZMBMGByqGSM49AgEG\nCCqGSM49AwEHA0IABO4U2vNH4ZuiexLCujPFh/r0fydL0Z+4JaVYh1Kx/m8KDFv7\ncaPNTZJwqNpZfvNxDO8YT0TGajLDmYI++/jZyBWjKjAoMBgGA1UdEQQRMA+GDXNw\naWZmZTovL3Jvb3QwDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAz+Pu\nb7yIGRTvWEj/ucQZXNnQc12GbWOPMO2dvA9I/BcCIQD0CeqIvkXunFMDy7SiyhgH\nvQpKl7ELFz1vtklgN2P8cg==\n-----END CERTIFICATE-----",
+    "serial_number": "39:dd:2e:90:b7:23:1f:8d:d3:7d:31:c5:1b:da:84:d0:5b:65:31:58"
+  },
+  "auth": null
+}`
+
+	testSignMalformedCertificateResponse = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "certificate": "malformed-cert",
     "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIBjDCCATGgAwIBAgIJALZY6FEA9r6kMAoGCCqGSM49BAMCMDUxCzAJBgNVBAYT\nAlVTMQ8wDQYDVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTAeFw0y\nMDA1MjgwNTUxNTVaFw0zMDA1MjYwNTUxNTVaMDUxCzAJBgNVBAYTAlVTMQ8wDQYD\nVQQKDAZTUElGRkUxFTATBgNVBAMMDHRlc3Qtcm9vdC1jYTBZMBMGByqGSM49AgEG\nCCqGSM49AwEHA0IABO4U2vNH4ZuiexLCujPFh/r0fydL0Z+4JaVYh1Kx/m8KDFv7\ncaPNTZJwqNpZfvNxDO8YT0TGajLDmYI++/jZyBWjKjAoMBgGA1UdEQQRMA+GDXNw\naWZmZTovL3Jvb3QwDAYDVR0TBAUwAwEB/zAKBggqhkjOPQQDAgNJADBGAiEAz+Pu\nb7yIGRTvWEj/ucQZXNnQc12GbWOPMO2dvA9I/BcCIQD0CeqIvkXunFMDy7SiyhgH\nvQpKl7ELFz1vtklgN2P8cg==\n-----END CERTIFICATE-----",
     "serial_number": "39:dd:2e:90:b7:23:1f:8d:d3:7d:31:c5:1b:da:84:d0:5b:65:31:58"
   },
@@ -313,6 +410,10 @@ type FakeVaultServerConfig struct {
 	AppRoleAuthReqHandler        func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
 	AppRoleAuthResponseCode      int
 	AppRoleAuthResponse          []byte
+	K8sAuthReqEndpoint           string
+	K8sAuthReqHandler            func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
+	K8sAuthResponseCode          int
+	K8sAuthResponse              []byte
 	SignIntermediateReqEndpoint  string
 	SignIntermediateReqHandler   func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	SignIntermediateResponseCode int
@@ -335,6 +436,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		CertAuthReqHandler:          defaultReqHandler,
 		AppRoleAuthReqEndpoint:      defaultAppRoleAuthEndpoint,
 		AppRoleAuthReqHandler:       defaultReqHandler,
+		K8sAuthReqEndpoint:          defaultK8sAuthEndpoint,
+		K8sAuthReqHandler:           defaultReqHandler,
 		SignIntermediateReqEndpoint: defaultSignIntermediateEndpoint,
 		SignIntermediateReqHandler:  defaultReqHandler,
 		RenewReqEndpoint:            defaultRenewEndpoint,
@@ -369,6 +472,7 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux := http.NewServeMux()
 	mux.HandleFunc(v.CertAuthReqEndpoint, v.CertAuthReqHandler(v.CertAuthResponseCode, v.CertAuthResponse))
 	mux.HandleFunc(v.AppRoleAuthReqEndpoint, v.AppRoleAuthReqHandler(v.AppRoleAuthResponseCode, v.AppRoleAuthResponse))
+	mux.HandleFunc(v.K8sAuthReqEndpoint, v.AppRoleAuthReqHandler(v.K8sAuthResponseCode, v.K8sAuthResponse))
 	mux.HandleFunc(v.SignIntermediateReqEndpoint, v.SignIntermediateReqHandler(v.SignIntermediateResponseCode, v.SignIntermediateResponse))
 	mux.HandleFunc(v.RenewReqEndpoint, v.RenewReqHandler(v.RenewResponseCode, v.RenewResponse))
 	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))

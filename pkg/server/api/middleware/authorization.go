@@ -34,7 +34,7 @@ type authorizationMiddleware struct {
 	authorizers map[string]Authorizer
 }
 
-func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string) (context.Context, error) {
+func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string, req interface{}) (context.Context, error) {
 	ctx, err := callerContextFromContext(ctx)
 	if err != nil {
 		return nil, err

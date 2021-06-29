@@ -3,7 +3,7 @@ package run
 import (
 	"bytes"
 	"crypto/x509/pkix"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1031,7 +1031,7 @@ func TestNewServerConfig(t *testing.T) {
 			logOptions: func(t *testing.T) []log.Option {
 				return []log.Option{
 					func(logger *log.Logger) error {
-						logger.SetOutput(ioutil.Discard)
+						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
 							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
@@ -1460,7 +1460,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 // TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
 // by values from the config file
 func TestLogOptions(t *testing.T) {
-	fd, err := ioutil.TempFile("", "test")
+	fd, err := os.CreateTemp("", "test")
 	require.NoError(t, err)
 	require.NoError(t, fd.Close())
 	defer os.Remove(fd.Name())

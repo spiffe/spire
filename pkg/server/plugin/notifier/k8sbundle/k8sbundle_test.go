@@ -12,9 +12,10 @@ import (
 	"sync"
 	"testing"
 
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -29,17 +30,17 @@ import (
 )
 
 var (
-	testBundle = &common.Bundle{
-		RootCas: []*common.Certificate{
-			{DerBytes: []byte("FOO")},
-			{DerBytes: []byte("BAR")},
+	testBundle = &plugintypes.Bundle{
+		X509Authorities: []*plugintypes.X509Certificate{
+			{Asn1: []byte("FOO")},
+			{Asn1: []byte("BAR")},
 		},
 	}
 
-	testBundle2 = &common.Bundle{
-		RootCas: []*common.Certificate{
-			{DerBytes: []byte("BAR")},
-			{DerBytes: []byte("BAZ")},
+	testBundle2 = &plugintypes.Bundle{
+		X509Authorities: []*plugintypes.X509Certificate{
+			{Asn1: []byte("BAR")},
+			{Asn1: []byte("BAZ")},
 		},
 	}
 
@@ -59,7 +60,7 @@ func TestNotifyFailsIfNotConfigured(t *testing.T) {
 	test := setupTest()
 	notifier := new(notifier.V1)
 	plugintest.Load(t, BuiltIn(), notifier,
-		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(test.identityProvider)),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
 	)
 
 	err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
@@ -70,7 +71,7 @@ func TestNotifyAndAdviseFailsIfNotConfigured(t *testing.T) {
 	test := setupTest()
 	notifier := new(notifier.V1)
 	plugintest.Load(t, BuiltIn(), notifier,
-		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(test.identityProvider)),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
 	)
 
 	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
@@ -318,7 +319,7 @@ func TestConfigureWithMalformedConfiguration(t *testing.T) {
 		notifier := new(notifier.V1)
 		plugintest.Load(t, BuiltIn(), notifier,
 			plugintest.CaptureConfigureError(&err),
-			plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(test.identityProvider)),
+			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
 			plugintest.Configure(configuration),
 		)
 
@@ -367,7 +368,7 @@ func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "wrong type, expecting config map")
@@ -480,7 +481,7 @@ func (s *test) loadPlugin(t *testing.T, configuration string) *notifier.V1 {
 	notifier := new(notifier.V1)
 	raw := New()
 	plugintest.Load(t, builtIn(raw), notifier,
-		plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(s.identityProvider)),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(s.identityProvider)),
 		plugintest.Configure(configuration),
 	)
 

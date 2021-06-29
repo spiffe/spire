@@ -10,7 +10,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -91,7 +90,7 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 }
 
 func writeFile(path string, data []byte, mode os.FileMode) {
-	err := ioutil.WriteFile(path, data, mode)
+	err := os.WriteFile(path, data, mode)
 	checkErr(err)
 }
 

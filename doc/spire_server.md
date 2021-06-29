@@ -38,6 +38,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | UpstreamAuthority | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md) | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
 | UpstreamAuthority | [vault](/doc/plugin_server_upstreamauthority_vault.md) | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates. |
 | UpstreamAuthority | [spire](/doc/plugin_server_upstreamauthority_spire.md) | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server. |
+| UpstreamAuthority | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md) | Uses a referenced cert-manager Issuer to request intermediate signing certificates. |
 
 ## Server configuration file
 
@@ -343,6 +344,15 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
+### `spire-server agent ban`
+
+Ban attested node given its spiffeID. A banned attested node is not able to re-attest.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the agent to ban (agent identity) | |
 
 ### `spire-server agent count`
 

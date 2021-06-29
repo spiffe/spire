@@ -28,6 +28,9 @@ func (cc *CLI) Run(args []string) int {
 	c := cli.NewCLI("spire-server", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
+		"agent ban": func() (cli.Command, error) {
+			return agent.NewBanCommand(), nil
+		},
 		"agent count": func() (cli.Command, error) {
 			return agent.NewCountCommand(), nil
 		},

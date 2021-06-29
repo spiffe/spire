@@ -11,7 +11,7 @@ import (
 
 // New returns a fake key manager
 func New(t *testing.T, dir string) keymanager.KeyManager {
-	km := new(keymanager.V0)
+	km := new(keymanager.V1)
 	if dir != "" {
 		plugintest.Load(t, disk.BuiltIn(), km, plugintest.Configuref("directory = %q", dir))
 	} else {

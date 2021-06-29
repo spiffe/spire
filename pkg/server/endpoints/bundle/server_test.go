@@ -8,7 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -139,7 +139,7 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			actual, err := ioutil.ReadAll(resp.Body)
+			actual, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			require.Equal(t, testCase.status, resp.StatusCode)

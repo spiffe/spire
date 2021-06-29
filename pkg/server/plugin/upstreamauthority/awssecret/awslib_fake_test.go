@@ -2,7 +2,7 @@ package awssecret
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -23,22 +23,34 @@ func (sm *fakeSecretsManagerClient) GetSecretValueWithContext(ctx aws.Context, i
 	return nil, fmt.Errorf("secret not found")
 }
 
-func newFakeSecretsManagerClient(config *Config, region string) (secretsManagerClient, error) {
+func newFakeSecretsManagerClient(config *Configuration, region string) (secretsManagerClient, error) {
 	sm := new(fakeSecretsManagerClient)
 
-	cert, err := ioutil.ReadFile("_test_data/keys/EC/cert.pem")
+	if region == "" {
+		return nil, aws.ErrMissingRegion
+	}
+
+	cert, err := os.ReadFile("testdata/keys/EC/cert.pem")
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := ioutil.ReadFile("_test_data/keys/EC/private_key.pem")
+	key, err := os.ReadFile("testdata/keys/EC/private_key.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	alternativeKey, err := os.ReadFile("testdata/keys/EC/alternative_key.pem")
 	if err != nil {
 		return nil, err
 	}
 
 	sm.storage = map[string]string{
-		"cert": string(cert),
-		"key":  string(key),
+		"cert":            string(cert),
+		"key":             string(key),
+		"alternative_key": string(alternativeKey),
+		"invalid_cert":    "no a certificate",
+		"invalid_key":     "no a key",
 	}
 
 	return sm, nil

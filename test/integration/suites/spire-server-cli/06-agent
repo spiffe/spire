@@ -62,6 +62,18 @@ echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-
 echo "$showResult" | grep "SPIFFE ID" | grep "$agentID3" || fail-now "unexpected SPIFFE ID for agent 3"
 echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 3"
 
+# Verify agent ban
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server agent ban -spiffeID "$agentID1" | grep "Agent banned successfully" || fail-now "failed to ban agent 1"
+
+# Verify agent list after ban
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server agent list | grep "Found 3 attested agents" || fail-now "failed to list the agents after ban"
+
+# Verify agent show after ban Agent 1
+docker-compose exec -T spire-server \
+	/opt/spire/bin/spire-server agent show -spiffeID $agentID1 | grep "Banned            : true" || fail-now "agent 1 was not banned"
+
 # Verify agent evict
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server agent evict -spiffeID "$agentID1" | grep "Agent evicted successfully" || fail-now "failed to evict agent 1"

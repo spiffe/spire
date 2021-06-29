@@ -1,7 +1,7 @@
 package peertracker
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -36,7 +36,7 @@ func (lf *ListenerFactory) ListenUnix(network string, laddr *net.UnixAddr) (*Lis
 
 func newNoopLogger() *logrus.Logger {
 	logger := logrus.New()
-	logger.Out = ioutil.Discard
+	logger.Out = io.Discard
 	return logger
 }
 

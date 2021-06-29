@@ -8,9 +8,10 @@ import (
 	"sync"
 	"testing"
 
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -84,7 +85,7 @@ func TestConfigure(t *testing.T) {
 			plugintest.Load(t, BuiltIn(), nil,
 				plugintest.Configure(tt.config),
 				plugintest.CaptureConfigureError(&err),
-				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)))
+				plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(idp)))
 			if tt.code != codes.OK {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.desc)
 				return
@@ -107,17 +108,17 @@ func TestNotifyAndAdviseBundleLoaded(t *testing.T) {
 }
 
 func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) {
-	bundle1 := &common.Bundle{RootCas: []*common.Certificate{{DerBytes: []byte("1")}}}
-	bundle2 := &common.Bundle{RootCas: []*common.Certificate{{DerBytes: []byte("2")}}}
+	bundle1 := &plugintypes.Bundle{X509Authorities: []*plugintypes.X509Certificate{{Asn1: []byte("1")}}}
+	bundle2 := &plugintypes.Bundle{X509Authorities: []*plugintypes.X509Certificate{{Asn1: []byte("2")}}}
 
 	for _, tt := range []struct {
 		name                  string
-		bundles               []*common.Bundle
+		bundles               []*plugintypes.Bundle
 		skipConfigure         bool
 		configureBucketClient func(client *fakeBucketClient) error
 		code                  codes.Code
 		desc                  string
-		expectedBundle        *common.Bundle
+		expectedBundle        *plugintypes.Bundle
 	}{
 		{
 			name:          "not configured",
@@ -149,7 +150,7 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 		},
 		{
 			name:    "failed to put object",
-			bundles: []*common.Bundle{bundle1},
+			bundles: []*plugintypes.Bundle{bundle1},
 			configureBucketClient: func(client *fakeBucketClient) error {
 				client.AppendPutObjectError(errors.New("ohno"))
 				return nil
@@ -159,13 +160,13 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 		},
 		{
 			name:           "success",
-			bundles:        []*common.Bundle{bundle1},
+			bundles:        []*plugintypes.Bundle{bundle1},
 			code:           codes.OK,
 			expectedBundle: bundle1,
 		},
 		{
 			name:    "success with conflict resolution",
-			bundles: []*common.Bundle{bundle1, bundle2},
+			bundles: []*plugintypes.Bundle{bundle1, bundle2},
 			configureBucketClient: func(client *fakeBucketClient) error {
 				client.AppendPutObjectError(&googleapi.Error{
 					Code: http.StatusPreconditionFailed,
@@ -180,7 +181,7 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 		},
 		{
 			name:    "failed with unrelated precondition failed error",
-			bundles: []*common.Bundle{bundle1, bundle2},
+			bundles: []*plugintypes.Bundle{bundle1, bundle2},
 			configureBucketClient: func(client *fakeBucketClient) error {
 				client.AppendPutObjectError(&googleapi.Error{
 					Code: http.StatusPreconditionFailed,
@@ -216,7 +217,7 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 			}
 
 			options := []plugintest.Option{
-				plugintest.HostServices(identityproviderv0.IdentityProviderServiceServer(idp)),
+				plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(idp)),
 			}
 			if !tt.skipConfigure {
 				options = append(options, plugintest.Configure(`

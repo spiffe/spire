@@ -3,7 +3,7 @@ package sshpop
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -48,7 +48,7 @@ func (s *Suite) SetupTest() {
 	require.NoError(err)
 	s.sshclient = sshclient
 
-	certAuthority, err := ioutil.ReadFile(certAuthoritiesPath)
+	certAuthority, err := os.ReadFile(certAuthoritiesPath)
 	require.NoError(err)
 	sshserver, err := sshpop.NewServer("example.org", fmt.Sprintf(`cert_authorities = [%q]`, certAuthority))
 	require.NoError(err)

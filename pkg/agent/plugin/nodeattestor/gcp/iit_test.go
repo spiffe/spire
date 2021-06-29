@@ -2,19 +2,23 @@ package gcp
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const testServiceAccount = "test-service-account"
@@ -88,15 +92,15 @@ func (s *Suite) TestUnexpectedStatus() {
 
 func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	require := s.Require()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"google": gcp.Google{
+	claims := gcp.IdentityToken{
+		Google: gcp.Google{
 			ComputeEngine: gcp.ComputeEngine{
 				ProjectID:  "project-123",
 				InstanceID: "instance-123",
 			},
 		},
-	})
-	s.body = s.signToken(token)
+	}
+	s.body = signToken(s.T(), testkey.NewRSA2048(s.T()), "kid", claims)
 
 	err := s.na.Attest(context.Background(), streamBuilder.ExpectAndBuild([]byte(s.body)))
 	require.NoError(err)
@@ -115,12 +119,6 @@ func (s *Suite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttest
 	attestor := new(nodeattestor.V1)
 	plugintest.Load(s.T(), BuiltIn(), attestor, options...)
 	return attestor
-}
-
-func (s *Suite) signToken(token *jwt.Token) string {
-	tokenString, err := token.SignedString([]byte("secret"))
-	s.NoError(err)
-	return tokenString
 }
 
 func TestRetrieveIdentity(t *testing.T) {
@@ -166,4 +164,19 @@ func TestRetrieveIdentity(t *testing.T) {
 			require.Contains(t, err.Error(), tt.expectErrContains)
 		})
 	}
+}
+
+func signToken(t *testing.T, key crypto.Signer, kid string, claims interface{}) string {
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key: &jose.JSONWebKey{
+			Key:   cryptosigner.Opaque(key),
+			KeyID: kid,
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	require.NoError(t, err)
+	return token
 }

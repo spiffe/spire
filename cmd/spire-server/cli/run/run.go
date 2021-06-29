@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -95,6 +94,7 @@ type serverConfig struct {
 	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
 	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
 
+	// TODO: Remove for 1.1.0
 	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
@@ -266,7 +266,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	}
 
 	// Return a friendly error if the file is missing
-	byteData, err := ioutil.ReadFile(path)
+	byteData, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
@@ -352,6 +352,13 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, err
 	}
 
+	// This is a terrible hack but is just a short-term band-aid.
+	// TODO: Deprecated and should be removed in 1.1
+	if c.Server.AllowUnsafeIDs != nil {
+		sc.Log.Warn("The insecure allow_unsafe_ids configurable is deprecated and will be removed in a future release.")
+		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
+	}
+
 	logOptions = append(logOptions,
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
@@ -390,10 +397,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 
-	td, err := common_cli.ParseTrustDomain(c.Server.TrustDomain, logger)
+	td, err := idutil.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not parse trust_domain %q: %w", c.Server.TrustDomain, err)
 	}
+	common_cli.WarnOnLongTrustDomainName(td, logger)
 	sc.TrustDomain = td
 
 	if c.Server.RateLimit.Attestation == nil {
@@ -429,7 +437,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		federatesWith := map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{}
 
 		for trustDomain, config := range c.Server.Federation.FederatesWith {
-			td, err := spiffeid.TrustDomainFromString(trustDomain)
+			td, err := idutil.TrustDomainFromString(trustDomain)
 			if err != nil {
 				return nil, err
 			}
@@ -531,12 +539,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
 		}
-	}
-
-	// This is a terrible hack but is just a short-term band-aid.
-	if c.Server.AllowUnsafeIDs != nil {
-		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
-		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
 	}
 
 	if c.Server.Experimental.CacheReloadInterval != "" {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
@@ -436,5 +435,5 @@ func (fs FakeFileSystem) Open(path string) (io.ReadCloser, error) {
 	if !ok {
 		return nil, os.ErrNotExist
 	}
-	return ioutil.NopCloser(strings.NewReader(data)), nil
+	return io.NopCloser(strings.NewReader(data)), nil
 }

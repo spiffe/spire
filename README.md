@@ -61,11 +61,12 @@ https://github.com/spiffe/spiffe.
 
 ### Security Assessments
 
-The [CNCF Special Interest Group for Security](https://github.com/cncf/sig-security) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following documents contain summary reports as well as the threat modeling material produced as part of the assessment:
+A third party security firm ([Cure53](https://cure53.de/)) completed a security audit of SPIFFE and SPIRE in February of 2021. Additionally, the [CNCF Technical Advisory Group for Security](https://github.com/cncf/tag-security) conducted two assessments on SPIFFE and SPIRE in 2018 and 2020. Please find the reports and supporting material, including the threat model exercise results, below.
 
-- [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.spiffe.io/scrutinizing-spire-security-9c82ba542019)
+- [Cure53 Security Audit Report](doc/cure53-report.pdf)
 - [SIG-Security SPIFFE/SPIRE Security Assessment: summary](https://github.com/cncf/sig-security/tree/master/assessments/projects/spiffe-spire)
-- [SIG-Security SPIFFE/SPIRE Security Assessment: full document](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
+- [SIG-Security SPIFFE/SPIRE Security Assessment: full assessment](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
+- [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.spiffe.io/scrutinizing-spire-security-9c82ba542019)
 
 ### Reporting Security Vulnerabilities
 
