@@ -15,6 +15,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `secret_access_key` | AWS secret access key | Value of `AWS_SECRET_ACCESS_KEY` environment variable |
 | `skip_block_device` | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation. | false |
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false |
+| `assume_role_arn_template`  | Template ARN of the role to assume | Empty string, Optional parameter.
 
 A sample configuration:
 
@@ -26,6 +27,18 @@ A sample configuration:
         }
     }
 ```
+
+If `assume_role_arn_template` is set, the spire server will assume the role as specified by the `assume_role_arn_template` after expanding the template. Currently only template variable available is `AccountID` from the AWS IID document sent by the spire agent to the spire server.
+
+In the following configuration,
+```
+    NodeAttestor "aws_iid" {
+        plugin_data {
+            assume_role_arn_template = "arn:aws:iam::{{.AccountID}}:role/spire-server-delegate"
+        }
+    }
+```
+assuming AWS IID dcoument sent from the spire agent contains `accountId : 12345678`, the spire server will assume "arn:aws:iam::12345678:role/spire-server-delegate" role before making any AWS call for the node attestation. If your use case does not require dynamic AccountID in the assume role, you could hardcode the AccountID in the assume_role_arn_template.
 
 ## Disabling Instance Profile Selectors
 In cases where spire-server is running in a location with no public internet access available, setting `disable_instance_profile_selectors = true` will prevent the server from making requests to `iam.amazonaws.com`. This is needed as spire-server will fail to attest nodes as it cannot retrieve the metadata information.
