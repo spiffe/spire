@@ -1,7 +1,8 @@
-name: PR Build
+name: Release Build
 on:
-  pull_request: {}
-  workflow_dispatch: {}
+  push:
+    tags:
+      - '^v[0-9].[0-9]+.[0-9]+$'
 env:
   GO_VERSION: 1.16.5
 jobs:
@@ -177,3 +178,59 @@ jobs:
           TERM: dumb
           CICD_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
         run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
+
+  publish-artifacts:
+    runs-on: ubuntu-18.04
+    needs: [integration]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download archived artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: binaries
+          path: ./artifacts/
+      - name: Create Release
+        env:
+          # GH_REPO is required for older releases of `gh`. Until we're
+          # reasonably confident that that the gh release is new enough,
+          # set GH_REPO to the repository to create the release in.
+          #
+          # See https://github.com/cli/cli/issues/3556
+          GH_REPO: ${{ github.repository }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Create the release against the annotated tag. The GITHUB_REF envvar
+        # includes the "refs/tags" prefix, which is fine to pass to `gh release
+        # create` for the reference to create the release from. However we
+        # strip off the prefix to give the release a nice title with just the
+        # version number.
+        #
+        # See https://docs.github.com/en/actions/reference/environment-variables.
+        run: gh release create "${GITHUB_REF}" ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
+
+  publish-images:
+    runs-on: ubuntu-18.04
+    needs: [integration]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download archived images
+        uses: actions/download-artifact@v2
+        with:
+          name: images
+          path: .
+      - name: Load archived images
+        run: zcat images.tar.gz | docker load
+      - name: Log in to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCR_JSON_KEY }}
+      # Push the images to GCR using the version number tag. The GITHUB_REF
+      # envvar includes the "refs/tags" prefix, which we strip to get just the
+      # version number.
+      #
+      # See https://docs.github.com/en/actions/reference/environment-variables.
+      - name: Push images
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/}"

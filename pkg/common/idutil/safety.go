@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"path"
-	"regexp"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -13,9 +11,6 @@ import (
 )
 
 var (
-	rePercentEncodedASCII = regexp.MustCompile(`%[0-7][[:xdigit:]]`)
-	rePercentEncoded      = regexp.MustCompile(`%[[:xdigit:]][[:xdigit:]]`)
-
 	allowUnsafeIDsPolicy bool
 )
 
@@ -51,7 +46,7 @@ func CheckIDStringNormalization(id string) error {
 
 	// Parse the URL. This will unescape the percent-encoded characters. If
 	// there are invalid percent-encoded characters, this function will fail.
-	u, err := url.Parse(id)
+	u, err := urlParse(id)
 	if err != nil {
 		return err
 	}
@@ -67,39 +62,12 @@ func CheckIDURLNormalization(u *url.URL) error {
 		return nil
 	}
 
-	// Rule out percent-encoded ASCII
-	if rePercentEncodedASCII.MatchString(u.EscapedPath()) {
-		return errors.New("path cannot contain percent-encoded ASCII characters")
-	}
-
-	// At this point, if RawPath is set, then the path contains non-ASCII
-	// characters, since percent-encoded ASCII was ruled out above. Ensure
-	// that there is no percent-encoded characters, since that would imply
-	// a mix-n-match of utf-8 and percent-encoded utf-8, which we want to
-	// reject since it wouldn't be normal to have this kind of path and it
-	// likely indicates either 1) a bug, or 2) malicious intent.
-	if u.RawPath != "" && rePercentEncoded.MatchString(u.RawPath) {
-		return errors.New("path cannot contain both non-ASCII and percent-encoded characters")
-	}
-
 	// Check the scheme and host
-	switch {
-	case u.Scheme != "spiffe":
+	if u.Scheme != "spiffe" {
 		return errors.New("scheme must be 'spiffe'")
-	case strings.ToLower(u.Host) != u.Host:
-		return errors.New("trust domain name must be lowercase")
 	}
 
-	// Check the path
-	switch {
-	case u.Path == "":
-	case u.Path[len(u.Path)-1] == '/':
-		return errors.New("path cannot have a trailing slash")
-	case u.Path != path.Clean(u.Path):
-		return errors.New("path cannot contain empty, '.', or '..' segments")
-	}
-
-	return nil
+	return validateComponents(u.Host, u.EscapedPath())
 }
 
 // IDProtoString constructs a URL string for the given ID protobuf. It does
@@ -143,7 +111,7 @@ func CheckAgentIDStringNormalization(agentID string) error {
 
 	// Parse the URL. This will unescape the percent-encoded characters. If
 	// there are invalid percent-encoded characters, this function will fail.
-	u, err := url.Parse(agentID)
+	u, err := urlParse(agentID)
 	if err != nil {
 		return err
 	}
@@ -176,13 +144,43 @@ func IDFromProto(id *types.SPIFFEID) (spiffeid.ID, error) {
 // FormatPath formats a path string. The function ensures a leading slash is
 // present.
 func FormatPath(format string, args ...interface{}) string {
+	// TODO: when the safety valve is removed, this function should:
+	// 1. not ensure the leading slash.
+	// 2. validate that the produced path is correct
 	return ensureLeadingSlash(fmt.Sprintf(format, args...))
 }
 
 // JoinPathSegments escapes path segments and joins them together. The
 // function also ensures a leading slash is present.
 func JoinPathSegments(segments ...string) string {
+	// TODO: when the safety valve is removed, this function should:
+	// 1. not ensure the leading slash.
+	// 2. validate that the produced path is correct
 	return ensureLeadingSlash(strings.Join(segments, "/"))
+}
+
+// TrustDomainFromString parses a trust domain from a string.
+func TrustDomainFromString(s string) (spiffeid.TrustDomain, error) {
+	td, err := spiffeid.TrustDomainFromString(s)
+	if err != nil {
+		return spiffeid.TrustDomain{}, err
+	}
+	if !allowUnsafeIDs() {
+		if err := validateTrustDomain(td.String()); err != nil {
+			return spiffeid.TrustDomain{}, err
+		}
+
+		// spiffeid.TrustDomainFromString currently "normalizes" the trust
+		// domain portion by lowercasing. We don't want to mask an "invalid"
+		// trust domain by this normalization, so we do this prefix check here
+		// to detect if it happened. The input string should prefix match
+		// either trust domain name or trust domain ID otherwise some
+		// normalization occurred.
+		if !strings.HasPrefix(s, td.String()) && !strings.HasPrefix(s, td.IDString()) {
+			return spiffeid.TrustDomain{}, errors.New("trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+		}
+	}
+	return td, nil
 }
 
 func ensureLeadingSlash(p string) string {
@@ -190,4 +188,86 @@ func ensureLeadingSlash(p string) string {
 		p = "/" + p
 	}
 	return p
+}
+
+func urlParse(id string) (*url.URL, error) {
+	// Detect an errant scheme beforehand since url.Parse will lowercase the
+	// scheme automatically.
+	if !strings.HasPrefix(id, "spiffe://") {
+		return nil, errors.New("scheme must be 'spiffe'")
+	}
+	return url.Parse(id)
+}
+
+func validateComponents(td, path string) error {
+	if err := validateTrustDomain(td); err != nil {
+		return err
+	}
+	return validatePath(path)
+}
+
+func validateTrustDomain(td string) error {
+	for i := 0; i < len(td); i++ {
+		if !isValidTrustDomainChar(td[i]) {
+			return errors.New("trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+		}
+	}
+	return nil
+}
+
+func validatePath(path string) error {
+	segmentStart := 0
+	segmentEnd := 0
+	for ; segmentEnd < len(path); segmentEnd++ {
+		c := path[segmentEnd]
+		if c == '/' {
+			switch path[segmentStart:segmentEnd] {
+			case "/":
+				return errors.New("path cannot contain empty segments")
+			case "/.", "/..":
+				return errors.New("path cannot contain dot segments")
+			}
+			segmentStart = segmentEnd
+			continue
+		}
+		if !isValidPathSegmentChar(c) {
+			return errors.New("path characters are limited to letters, numbers, dots, dashes, and underscores")
+		}
+	}
+
+	switch path[segmentStart:segmentEnd] {
+	case "/":
+		return errors.New("path cannot have a trailing slash")
+	case "/.", "/..":
+		return errors.New("path cannot contain dot segments")
+	}
+	return nil
+}
+
+func isValidTrustDomainChar(c uint8) bool {
+	switch {
+	case c >= 'a' && c <= 'z':
+		return true
+	case c >= '0' && c <= '9':
+		return true
+	case c == '.', c == '-', c == '_':
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidPathSegmentChar(c uint8) bool {
+	switch {
+	case c >= 'a' && c <= 'z':
+		return true
+	case c >= 'A' && c <= 'Z':
+		return true
+	case c >= '0' && c <= '9':
+		return true
+	case c == '.', c == '-', c == '_':
+		return true
+	default:
+		return false
+	}
 }

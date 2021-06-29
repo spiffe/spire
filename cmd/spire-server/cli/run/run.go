@@ -1,6 +1,7 @@
 package run
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509/pkix"
 	"errors"
@@ -15,6 +16,8 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
@@ -91,6 +94,7 @@ type serverConfig struct {
 	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
 	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
 
+	// TODO: Remove for 1.1.0
 	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
@@ -131,16 +135,34 @@ type bundleEndpointACMEConfig struct {
 }
 
 type federatesWithConfig struct {
-	BundleEndpoint federatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
-	UnusedKeys     []string                          `hcl:",unusedKeys"`
+	// TODO: Remove support for deprecated bundle_endpoint config in 1.1.0
+	DeprecatedBundleEndpoint *deprecatedFederatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
+
+	BundleEndpointURL     string   `hcl:"bundle_endpoint_url"`
+	BundleEndpointProfile ast.Node `hcl:"bundle_endpoint_profile"`
+	UnusedKeys            []string `hcl:",unusedKeys"`
 }
 
-type federatesWithBundleEndpointConfig struct {
+type deprecatedFederatesWithBundleEndpointConfig struct {
 	Address    string   `hcl:"address"`
 	Port       int      `hcl:"port"`
 	SpiffeID   string   `hcl:"spiffe_id"`
 	UseWebPKI  bool     `hcl:"use_web_pki"`
 	UnusedKeys []string `hcl:",unusedKeys"`
+}
+
+type bundleEndpointProfileConfig struct {
+	HTTPSSPIFFE *httpsSPIFFEProfileConfig `hcl:"https_spiffe"`
+	HTTPSWeb    *httpsWebProfileConfig    `hcl:"https_web"`
+	UnusedKeys  []string                  `hcl:",unusedKeys"`
+}
+
+type httpsSPIFFEProfileConfig struct {
+	EndpointSPIFFEID string   `hcl:"endpoint_spiffe_id"`
+	UnusedKeys       []string `hcl:",unusedKeys"`
+}
+
+type httpsWebProfileConfig struct {
 }
 
 type rateLimitConfig struct {
@@ -330,6 +352,13 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, err
 	}
 
+	// This is a terrible hack but is just a short-term band-aid.
+	// TODO: Deprecated and should be removed in 1.1
+	if c.Server.AllowUnsafeIDs != nil {
+		sc.Log.Warn("The insecure allow_unsafe_ids configurable is deprecated and will be removed in a future release.")
+		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
+	}
+
 	logOptions = append(logOptions,
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
@@ -368,10 +397,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 
-	td, err := common_cli.ParseTrustDomain(c.Server.TrustDomain, logger)
+	td, err := idutil.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not parse trust_domain %q: %w", c.Server.TrustDomain, err)
 	}
+	common_cli.WarnOnLongTrustDomainName(td, logger)
 	sc.TrustDomain = td
 
 	if c.Server.RateLimit.Attestation == nil {
@@ -405,33 +435,37 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 
 		federatesWith := map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{}
+
 		for trustDomain, config := range c.Server.Federation.FederatesWith {
-			port := defaultBundleEndpointPort
-			if config.BundleEndpoint.Port != 0 {
-				port = config.BundleEndpoint.Port
-			}
-			if config.BundleEndpoint.UseWebPKI && config.BundleEndpoint.SpiffeID != "" {
-				return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
-			}
-
-			var spiffeID spiffeid.ID
-			if config.BundleEndpoint.SpiffeID != "" {
-				spiffeID, err = spiffeid.FromString(config.BundleEndpoint.SpiffeID)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			td, err := spiffeid.TrustDomainFromString(trustDomain)
+			td, err := idutil.TrustDomainFromString(trustDomain)
 			if err != nil {
 				return nil, err
 			}
 
-			federatesWith[td] = bundleClient.TrustDomainConfig{
-				EndpointAddress:  fmt.Sprintf("%s:%d", config.BundleEndpoint.Address, port),
-				EndpointSpiffeID: spiffeID,
-				UseWebPKI:        config.BundleEndpoint.UseWebPKI,
+			var trustDomainConfig *bundleClient.TrustDomainConfig
+			switch {
+			case config.DeprecatedBundleEndpoint != nil && config.BundleEndpointProfile != nil:
+				return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: either the deprecated `bundle_endpoint` configuration section or the `bundle_endpoint_url` setting can be used, but not both", trustDomain)
+			case config.DeprecatedBundleEndpoint != nil:
+				sc.Log.Warn("The `bundle_endpoint` configurable inside `federates_with` is deprecated and will be removed in a future release. Please use `bundle_endpoint_url` and `bundle_endpoint_profile` to configure the federation with %q instead.", trustDomain)
+				trustDomainConfig, err = parseDeprecatedBundleEndpoint(config.DeprecatedBundleEndpoint)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
+				}
+				if httpsSPIFFE, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
+					if httpsSPIFFE.EndpointSPIFFEID.IsZero() {
+						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release in the https_spiffe profile.", trustDomain)
+					}
+				}
+			case config.BundleEndpointProfile != nil:
+				trustDomainConfig, err = parseBundleEndpointProfile(config)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
+				}
+			default:
+				return nil, fmt.Errorf("federation configuration for trust domain %q: missing bundle endpoint configuration", trustDomain)
 			}
+			federatesWith[td] = *trustDomainConfig
 		}
 		sc.Federation.FederatesWith = federatesWith
 	}
@@ -507,12 +541,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 	}
 
-	// This is a terrible hack but is just a short-term band-aid.
-	if c.Server.AllowUnsafeIDs != nil {
-		sc.Log.Warn("The insecure allow_unsafe_ids configurable will be deprecated in a future release.")
-		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
-	}
-
 	if c.Server.Experimental.CacheReloadInterval != "" {
 		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
 		if err != nil {
@@ -522,6 +550,78 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	return sc, nil
+}
+
+func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
+	// First check the number of bundle endpoint profiles in the config
+	objectList, ok := config.BundleEndpointProfile.(*ast.ObjectList)
+	if !ok {
+		return nil, errors.New("malformed configuration")
+	}
+	if len(objectList.Items) != 1 {
+		return nil, errors.New("exactly one bundle endpoint profile is expected")
+	}
+
+	// Parse the configuration
+	var data bytes.Buffer
+	if err := printer.DefaultConfig.Fprint(&data, config.BundleEndpointProfile); err != nil {
+		return nil, err
+	}
+	configString := data.String()
+	profileConfig := new(bundleEndpointProfileConfig)
+	if err := hcl.Decode(profileConfig, configString); err != nil {
+		return nil, fmt.Errorf("failed to decode configuration: %w", err)
+	}
+
+	var endpointProfile bundleClient.EndpointProfileInfo
+	switch {
+	case profileConfig.HTTPSWeb != nil:
+		endpointProfile = bundleClient.HTTPSWebProfile{}
+	case profileConfig.HTTPSSPIFFE != nil:
+		spiffeID, err := spiffeid.FromString(profileConfig.HTTPSSPIFFE.EndpointSPIFFEID)
+		if err != nil {
+			return nil, fmt.Errorf("could not get endpoint SPIFFE ID: %w", err)
+		}
+		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
+	default:
+		return nil, errors.New(`no bundle endpoint profile defined; current supported profiles are "https_spiffe" and 'https_web"`)
+	}
+
+	return &bundleClient.TrustDomainConfig{
+		EndpointURL:     config.BundleEndpointURL,
+		EndpointProfile: endpointProfile,
+	}, nil
+}
+
+func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpointConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
+	port := defaultBundleEndpointPort
+	if config.Port != 0 {
+		port = config.Port
+	}
+	if config.UseWebPKI && config.SpiffeID != "" {
+		return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
+	}
+
+	var endpointProfile bundleClient.EndpointProfileInfo
+	if config.UseWebPKI {
+		endpointProfile = bundleClient.HTTPSWebProfile{}
+	} else {
+		var spiffeID spiffeid.ID
+		if config.SpiffeID != "" {
+			spiffeID, err = spiffeid.FromString(config.SpiffeID)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse endpoint SPIFFE ID %q: %w", config.SpiffeID, err)
+			}
+		}
+
+		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
+	}
+
+	return &bundleClient.TrustDomainConfig{
+		DeprecatedConfig: true,
+		EndpointURL:      fmt.Sprintf("https://%s:%d", config.Address, port),
+		EndpointProfile:  endpointProfile,
+	}, nil
 }
 
 func validateConfig(c *Config) error {
@@ -564,8 +664,15 @@ func validateConfig(c *Config) error {
 		}
 
 		for td, tdConfig := range c.Server.Federation.FederatesWith {
-			if tdConfig.BundleEndpoint.Address == "" {
-				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
+			switch {
+			case tdConfig.DeprecatedBundleEndpoint != nil:
+				if tdConfig.DeprecatedBundleEndpoint.Address == "" {
+					return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
+				}
+			case tdConfig.BundleEndpointURL == "":
+				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must be configured", td)
+			case !strings.HasPrefix(strings.ToLower(tdConfig.BundleEndpointURL), "https"):
+				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must use the HTTPS protocol; URL found: %q", td, tdConfig.BundleEndpointURL)
 			}
 		}
 	}
@@ -607,7 +714,7 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 		// }
 
 		if c.Server.Federation != nil {
-			// TODO: Re-enable unused key detection for experimental config. See
+			// TODO: Re-enable unused key detection for federation config. See
 			// https://github.com/spiffe/spire/issues/1101 for more information
 			//
 			// if len(c.Server.Federation.UnusedKeys) != 0 {
@@ -624,11 +731,14 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 				}
 			}
 
-			for k, v := range c.Server.Federation.FederatesWith {
-				if len(v.UnusedKeys) != 0 {
-					detectedUnknown(fmt.Sprintf("federates_with %q", k), v.UnusedKeys)
-				}
-			}
+			// TODO: Re-enable unused key detection for bundle endpoint profile config. See
+			// https://github.com/spiffe/spire/issues/1101 for more information
+			//
+			// for k, v := range c.Server.Federation.FederatesWith {
+			//	if len(v.UnusedKeys) != 0 {
+			//		detectedUnknown(fmt.Sprintf("federates_with %q", k), v.UnusedKeys)
+			//	}
+			// }
 		}
 	}
 

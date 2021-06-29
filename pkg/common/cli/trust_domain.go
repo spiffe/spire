@@ -18,7 +18,11 @@ func ParseTrustDomain(trustDomain string, logger logrus.FieldLogger) (spiffeid.T
 	if err != nil {
 		return td, fmt.Errorf("could not parse trust_domain %q: %w", trustDomain, err)
 	}
+	WarnOnLongTrustDomainName(td, logger)
+	return td, nil
+}
 
+func WarnOnLongTrustDomainName(td spiffeid.TrustDomain, logger logrus.FieldLogger) {
 	// Warn on a non-conforming trust domain to avoid breaking backwards compatibility
 	if parsedDomain := td.String(); len(parsedDomain) > maxTrustDomainLength {
 		logger.WithField("trust_domain", parsedDomain).
@@ -26,6 +30,4 @@ func ParseTrustDomain(trustDomain string, logger logrus.FieldLogger) (spiffeid.T
 				"a longer trust domain name may impact interoperability",
 				maxTrustDomainLength)
 	}
-
-	return td, err
 }

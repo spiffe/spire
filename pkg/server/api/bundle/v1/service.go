@@ -8,6 +8,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -255,7 +256,7 @@ func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundlev1.
 func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, outputMask *types.BundleMask) *bundlev1.BatchCreateFederatedBundleResponse_Result {
 	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
 
-	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	td, err := idutil.TrustDomainFromString(b.TrustDomain)
 	if err != nil {
 		return &bundlev1.BatchCreateFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "trust domain argument is not valid", err),
@@ -307,7 +308,7 @@ func (s *Service) createFederatedBundle(ctx context.Context, b *types.Bundle, ou
 func (s *Service) setFederatedBundle(ctx context.Context, b *types.Bundle, outputMask *types.BundleMask) *bundlev1.BatchSetFederatedBundleResponse_Result {
 	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
 
-	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	td, err := idutil.TrustDomainFromString(b.TrustDomain)
 	if err != nil {
 		return &bundlev1.BatchSetFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "trust domain argument is not valid", err),
@@ -364,7 +365,7 @@ func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundlev1.
 func (s *Service) updateFederatedBundle(ctx context.Context, b *types.Bundle, inputMask, outputMask *types.BundleMask) *bundlev1.BatchUpdateFederatedBundleResponse_Result {
 	log := rpccontext.Logger(ctx).WithField(telemetry.TrustDomainID, b.TrustDomain)
 
-	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	td, err := idutil.TrustDomainFromString(b.TrustDomain)
 	if err != nil {
 		return &bundlev1.BatchUpdateFederatedBundleResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "trust domain argument is not valid", err),

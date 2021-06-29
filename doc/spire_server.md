@@ -113,7 +113,7 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
 A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
-Using the `federation` section you will be able to configure the bundle endpoints as follows:
+Using the `federation` section you will be able to set up SPIRE as a SPIFFE bundle endpoint server and also configure the federated trust domains that this SPIRE Server will fetch bundles from.
 ```hcl
 server {
     .
@@ -129,23 +129,20 @@ server {
             }
         }
         federates_with "domain1.test" {
-            bundle_endpoint {
-                address = "1.2.3.4"
-                port = 8443
-                use_web_pki = true
-            }
+            bundle_endpoint_url = "https://1.2.3.4:8443"
+            bundle_endpoint_profile "https_web" {}
         }
         federates_with "domain2.test" {
-            bundle_endpoint {
-                address = "5.6.7.8"
-                port = 8443
-                spiffe_id = "spiffe://domain2.test/beserver"
+            bundle_endpoint_url = "https://5.6.7.8:8443"
+            bundle_endpoint_profile "https_spiffe" {
+                endpoint_spiffe_id = "spiffe://domain2.test/beserver"
             }
         }
     }
 }
 ```
-Worth noting that the `federation.bundle_endpoint` and `federation.federates_with` sections are both optional.
+The `federation.bundle_endpoint` section is optional and is used to set up a SPIFFE bundle endpoint server in SPIRE Server.
+The `federation.federates_with` section is also optional and is used to configure the federation relationships with foreign trust domains. This section is used for each federated trust domain that SPIRE Server will periodically fetch the bundle.
 
 ### Configuration options for `federation.bundle_endpoint`
 This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
@@ -167,19 +164,20 @@ This optional section contains the configurables used by SPIRE Server to expose 
 
 ### Configuration options for `federation.federates_with["<trust domain>"].bundle_endpoint`
 
-The optional `federates_with` section is a map of `bundle_endpoint` configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This `bundle_endpoint` configurations have the following configurables:
+The optional `federates_with` section is a map of bundle endpoint profile configurations keyed by the name of the `"<trust domain>"` this server wants to federate with. This section has the following configurables:
 
 | Configuration   | Description                                                                                                                       | Default                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------| ---------------------------------------------------- |
-| address         | IP or DNS name of the bundle endpoint that provides the trust bundle to federate with `"<trust domain>"`                          |                                                      |
-| port            | Port number of the bundle endpoint                                                                                                | 443                                                  |
-| spiffe_id       | Expected SPIFFE ID of the bundle endpoint server. This is ignored if use_web_pki is true                                          | SPIRE Server SPIFFE ID within the `"<trust domain>"` |
-| use_web_pki     | If true, indicates that this server must use Web PKI to authenticate the bundle endpoint, otherwise SPIFFE authentication is used | false                                                |
+| bundle_endpoint_url | URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with. Must use the HTTPS protocol. | |
+| bundle_endpoint_profile "\<https_web\|https_spiffe\>" | Configuration of the SPIFFE endpoint profile type. | |
 
-To clarify, `address` and `port` are used to form the bundle endpoint URL to federate with `"<trust domain>"` as follows:
-```
-https://<address>:<port>/
-```
+SPIRE supports the `https_web` and `https_spiffe` bundle endpoint profiles.
+
+The `https_web` profile does not require additional settings.
+
+Trust domains configured with the `https_spiffe` bundle endpoint profile must specify the expected SPIFFE ID of the remote SPIFFE bundle endpoint server using the `endpoint_spiffe_id` setting as part of the configuration.
+
+For more information about the different profiles defined in SPIFFE, along with the security considerations for setting up SPIFFE Federation, please refer to the [SPIFFE Federation standard](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md).
 
 ## Telemetry configuration
 
@@ -346,6 +344,15 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | `-id`         | The trust domain SPIFFE ID of the bundle to delete. | |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
+### `spire-server agent ban`
+
+Ban attested node given its spiffeID. A banned attested node is not able to re-attest.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the agent to ban (agent identity) | |
 
 ### `spire-server agent count`
 
