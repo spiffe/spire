@@ -671,7 +671,7 @@ func validateConfig(c *Config) error {
 				}
 			case tdConfig.BundleEndpointURL == "":
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must be configured", td)
-			case !strings.HasPrefix(strings.ToLower(tdConfig.BundleEndpointURL), "https"):
+			case !strings.HasPrefix(strings.ToLower(tdConfig.BundleEndpointURL), "https://"):
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must use the HTTPS protocol; URL found: %q", td, tdConfig.BundleEndpointURL)
 			}
 		}
