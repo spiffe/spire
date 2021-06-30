@@ -280,7 +280,9 @@ func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundlev1.
 		r := s.createFederatedBundle(ctx, b, req.OutputMask)
 		results = append(results, r)
 
-		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, nil))
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, nil))
+		}
 	}
 
 	return &bundlev1.BatchCreateFederatedBundleResponse{
@@ -392,7 +394,9 @@ func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundlev1.
 		r := s.updateFederatedBundle(ctx, b, req.InputMask, req.OutputMask)
 		results = append(results, r)
 
-		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, req.InputMask))
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, req.InputMask))
+		}
 	}
 
 	return &bundlev1.BatchUpdateFederatedBundleResponse{
@@ -459,7 +463,9 @@ func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundlev1.Bat
 		r := s.setFederatedBundle(ctx, b, req.OutputMask)
 		results = append(results, r)
 
-		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, nil))
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromBundleProto(b, nil))
+		}
 	}
 
 	return &bundlev1.BatchSetFederatedBundleResponse{
@@ -481,10 +487,12 @@ func (s *Service) BatchDeleteFederatedBundle(ctx context.Context, req *bundlev1.
 		r := s.deleteFederatedBundle(ctx, log, trustDomain, mode)
 		results = append(results, r)
 
-		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, logrus.Fields{
-			telemetry.TrustDomainID: trustDomain,
-			telemetry.Mode:          mode,
-		})
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, logrus.Fields{
+				telemetry.TrustDomainID: trustDomain,
+				telemetry.Mode:          mode,
+			})
+		}
 	}
 
 	return &bundlev1.BatchDeleteFederatedBundleResponse{

@@ -184,7 +184,9 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreate
 	for _, eachEntry := range req.Entries {
 		r := s.createEntry(ctx, eachEntry, req.OutputMask)
 		results = append(results, r)
-		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromEntryProto(eachEntry, nil))
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, fieldsFromEntryProto(eachEntry, nil))
+		}
 	}
 
 	return &entryv1.BatchCreateEntryResponse{
@@ -248,7 +250,9 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entryv1.BatchUpdate
 	for _, eachEntry := range req.Entries {
 		e := s.updateEntry(ctx, eachEntry, req.InputMask, req.OutputMask)
 		results = append(results, e)
-		rpccontext.AuditRPCWithTypesStatus(ctx, e.Status, fieldsFromEntryProto(eachEntry, req.InputMask))
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, e.Status, fieldsFromEntryProto(eachEntry, req.InputMask))
+		}
 	}
 
 	return &entryv1.BatchUpdateEntryResponse{
@@ -262,7 +266,9 @@ func (s *Service) BatchDeleteEntry(ctx context.Context, req *entryv1.BatchDelete
 	for _, id := range req.Ids {
 		r := s.deleteEntry(ctx, id)
 		results = append(results, r)
-		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, logrus.Fields{telemetry.RegistrationID: id})
+		if _, ok := rpccontext.AuditLog(ctx); ok {
+			rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, logrus.Fields{telemetry.RegistrationID: id})
+		}
 	}
 
 	return &entryv1.BatchDeleteEntryResponse{
