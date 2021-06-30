@@ -66,6 +66,8 @@ type Config struct {
 
 	// CacheReloadInterval controls how often the in-memory entry cache reloads
 	CacheReloadInterval time.Duration
+
+	AuditLogEnabled bool
 }
 
 func (c *Config) makeOldAPIServers() OldAPIServers {
