@@ -178,6 +178,9 @@ const (
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
+	// Csr represents a presented Csr in hashed format
+	Csr = "csr"
+
 	// CsrSpiffeID represents the SPIFFE ID in a Certificate Signing Request.
 	CsrSpiffeID = "csr_spiffe_id"
 
@@ -277,6 +280,9 @@ const (
 
 	// Path declares some logic path, likely on the file system
 	Path = "path"
+
+	// Payload tags a Payload
+	Payload = "payload"
 
 	// Peer ID is the SPIFFE ID of a peer
 	PeerID = "peer_id"
@@ -394,6 +400,9 @@ const (
 
 	// SVIDUpdated tags that for some entity the SVID was updated
 	SVIDUpdated = "svid_updated"
+
+	// Token tags a token for an agent attesation
+	Token = "token"
 
 	// TTL functionality related to a time-to-live field; should be used
 	// with other tags to add clarity
