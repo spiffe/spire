@@ -21,6 +21,7 @@ type keyFetcher struct {
 	kmsClient   kmsClient
 	serverID    string
 	trustDomain string
+	encoder     *encoder
 }
 
 func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
@@ -47,10 +48,16 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
+			encodedSpireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
 			// ignore aliases/keys not belonging to this server
 			if !ok {
 				continue
+			}
+
+			// Decode key ID and log warn msg in case of error
+			spireKeyID, err := kf.encoder.decode(encodedSpireKeyID)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "cannot decode Key ID %q:%v", encodedSpireKeyID, err)
 			}
 
 			// The following checks are purely defensive but we want to ensure
@@ -140,5 +147,6 @@ func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
 	if trimmed == aliasName {
 		return "", false
 	}
-	return decodeKeyID(trimmed), true
+
+	return trimmed, true
 }

@@ -82,6 +82,7 @@ type Plugin struct {
 	serverID       string
 	scheduleDelete chan string
 	cancelTasks    context.CancelFunc
+	encoder        *encoder
 	hooks          pluginHooks
 }
 
@@ -106,6 +107,7 @@ func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, e
 			clk:       clock.New(),
 		},
 		scheduleDelete: make(chan string, 120),
+		encoder:        newEncoder(),
 	}
 }
 
@@ -137,6 +139,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		kmsClient:   kc,
 		serverID:    serverID,
 		trustDomain: req.CoreConfiguration.TrustDomain,
+		encoder:     p.encoder,
 	}
 	p.log.Debug("Fetching key aliases from KMS")
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -662,7 +665,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
-	return path.Join(p.aliasPrefixForServer(), encodeKeyID(spireKeyID))
+	return path.Join(p.aliasPrefixForServer(), p.encoder.encode(spireKeyID))
 }
 
 func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
@@ -851,21 +854,4 @@ func createServerID(idPath string) (string, error) {
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
-}
-
-// encodeKeyID maps "." and "+" characters to the asciihex value using "_" as
-// escape character. Currently KMS does not support those characters to be used
-// as alias name.
-func encodeKeyID(keyID string) string {
-	keyID = strings.ReplaceAll(keyID, ".", "_2e")
-	keyID = strings.ReplaceAll(keyID, "+", "_2b")
-	return keyID
-}
-
-// decodeKeyID decodes "." and "+" from the asciihex value using "_" as
-// escape character.
-func decodeKeyID(keyID string) string {
-	keyID = strings.ReplaceAll(keyID, "_2e", ".")
-	keyID = strings.ReplaceAll(keyID, "_2b", "+")
-	return keyID
 }
