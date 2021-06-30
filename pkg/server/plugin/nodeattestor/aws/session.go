@@ -51,7 +51,7 @@ func newAWSSession(accessKeyID, secretAccessKey, region, asssumeRoleArn string) 
 	if asssumeRoleArn != "" {
 		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConf.Credentials})
 		if err != nil {
-			return nil, err
+			return nil, status.Errorf(codes.Internal, "failed to create new session: %v", err)
 		}
 
 		awsConf.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{

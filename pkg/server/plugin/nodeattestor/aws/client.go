@@ -86,7 +86,7 @@ func (cc *clientsCache) getClient(region, accountID string) (Client, error) {
 	if cc.config.AssumeRoleArnTemplate != "" {
 		tmpl, err := template.New("assume-role-arn").Parse(cc.config.AssumeRoleArnTemplate)
 		if err != nil {
-			return nil, err
+			return nil, status.Errorf(codes.Internal, "failed to create template: %v", err)
 		}
 
 		data := struct {
@@ -95,14 +95,12 @@ func (cc *clientsCache) getClient(region, accountID string) (Client, error) {
 			AccountID: accountID,
 		}
 
-		err = tmpl.Execute(&asssumeRoleArn, data)
-		if err != nil {
-			return nil, err
+		if err = tmpl.Execute(&asssumeRoleArn, data); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to execute template: %v", err)
 		}
 	}
 
 	client, err := cc.newClient(cc.config, region, asssumeRoleArn.String())
-
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}

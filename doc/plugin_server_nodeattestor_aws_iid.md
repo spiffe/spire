@@ -38,7 +38,7 @@ In the following configuration,
         }
     }
 ```
-assuming AWS IID dcoument sent from the spire agent contains `accountId : 12345678`, the spire server will assume "arn:aws:iam::12345678:role/spire-server-delegate" role before making any AWS call for the node attestation. If your use case does not require dynamic AccountID in the assume role, you could hardcode the AccountID in the assume_role_arn_template.
+assuming AWS IID document sent from the spire agent contains `accountId : 12345678`, the spire server will assume "arn:aws:iam::12345678:role/spire-server-delegate" role before making any AWS call for the node attestation. If your use case does not require dynamic AccountID in the assume role, you could hardcode the AccountID in the assume_role_arn_template.
 
 ## Disabling Instance Profile Selectors
 In cases where spire-server is running in a location with no public internet access available, setting `disable_instance_profile_selectors = true` will prevent the server from making requests to `iam.amazonaws.com`. This is needed as spire-server will fail to attest nodes as it cannot retrieve the metadata information.
