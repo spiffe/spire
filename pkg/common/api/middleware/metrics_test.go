@@ -52,7 +52,7 @@ func TestWithMetrics(t *testing.T) {
 
 			metrics := fakemetrics.New()
 			m := middleware.WithMetrics(metrics)
-			ctx, err := m.Preprocess(context.Background(), fakeFullMethod)
+			ctx, err := m.Preprocess(context.Background(), fakeFullMethod, nil)
 			if tt.withExtraLabel {
 				rpccontext.AddMetricsLabel(ctx, "NAME", "VALUE")
 				expectedLabels = append(expectedLabels, telemetry.Label{Name: "NAME", Value: "VALUE"})

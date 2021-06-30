@@ -76,8 +76,10 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 	ds := fakedatastore.New(t)
 
 	trustDomainConfig := TrustDomainConfig{
-		EndpointAddress:  "ENDPOINT_ADDRESS",
-		EndpointSpiffeID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
+		EndpointURL: "ENDPOINT_URL",
+		EndpointProfile: HTTPSSPIFFEProfile{
+			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
+		},
 	}
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -153,4 +155,12 @@ func (u *fakeBundleUpdater) UpdateBundle(context.Context) (*bundleutil.Bundle, *
 	defer u.mu.Unlock()
 	u.updateCount++
 	return u.localBundle, u.endpointBundle, errors.New("UNUSED")
+}
+
+func (u *fakeBundleUpdater) TrustDomainConfig() TrustDomainConfig {
+	return TrustDomainConfig{
+		EndpointProfile: HTTPSSPIFFEProfile{
+			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://td.test/test"),
+		},
+	}
 }

@@ -4,8 +4,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -13,99 +13,62 @@ import (
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 const (
-	testRootCert          = "_test_data/keys/EC/root_cert.pem"
-	testInvalidRootCert   = "_test_data/keys/EC/invalid_root_cert.pem"
-	testServerCert        = "_test_data/keys/EC/server_cert.pem"
-	testServerKey         = "_test_data/keys/EC/server_key.pem"
-	testClientCert        = "_test_data/keys/EC/client_cert.pem"
-	testClientKey         = "_test_data/keys/EC/client_key.pem"
-	testInvalidClientCert = "_test_data/keys/EC/invalid_client_cert.pem"
-	testInvalidClientKey  = "_test_data/keys/EC/invalid_client_key.pem"
-	testReqCSR            = "_test_data/keys/EC/intermediate_csr.pem"
+	testRootCert          = "testdata/keys/EC/root_cert.pem"
+	testInvalidRootCert   = "testdata/keys/EC/invalid_root_cert.pem"
+	testServerCert        = "testdata/keys/EC/server_cert.pem"
+	testServerKey         = "testdata/keys/EC/server_key.pem"
+	testClientCert        = "testdata/keys/EC/client_cert.pem"
+	testClientKey         = "testdata/keys/EC/client_key.pem"
+	testInvalidClientCert = "testdata/keys/EC/invalid_client_cert.pem"
+	testInvalidClientKey  = "testdata/keys/EC/invalid_client_key.pem"
+	testReqCSR            = "testdata/keys/EC/intermediate_csr.pem"
 )
 
-func testClientCertificatePair() (tls.Certificate, error) {
-	cert, err := ioutil.ReadFile(testClientCert)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	key, err := ioutil.ReadFile(testClientKey)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-
-	return tls.X509KeyPair(cert, key)
-}
-
-func testRootCAs() (*x509.CertPool, error) {
-	pool := x509.NewCertPool()
-	pem, err := ioutil.ReadFile(testRootCert)
-	if err != nil {
-		return nil, err
-	}
-	ok := pool.AppendCertsFromPEM(pem)
-	if !ok {
-		return nil, err
-	}
-	return pool, nil
-}
-
-func TestVaultClient(t *testing.T) {
-	spiretest.Run(t, new(VaultClientSuite))
-}
-
-type VaultClientSuite struct {
-	spiretest.Suite
-
-	fakeVaultServer *FakeVaultServerConfig
-}
-
-func (vcs *VaultClientSuite) SetupTest() {
-	vcs.fakeVaultServer = NewFakeVaultServerConfig()
-	vcs.fakeVaultServer.ServerCertificatePemPath = testServerCert
-	vcs.fakeVaultServer.ServerKeyPemPath = testServerKey
-	vcs.fakeVaultServer.RenewResponseCode = 200
-	vcs.fakeVaultServer.RenewResponse = []byte(testRenewResponse)
-}
-
-func (vcs *VaultClientSuite) Test_NewClientConfig_WithDefaultMountPoint() {
+func TestNewClientConfigWithDefaultValues(t *testing.T) {
 	p := &ClientParams{
 		VaultAddr:             "http://example.org:8200/",
 		PKIMountPoint:         "", // Expect the default value to be used.
 		Token:                 "test-token",
 		CertAuthMountPoint:    "", // Expect the default value to be used.
 		AppRoleAuthMountPoint: "", // Expect the default value to be used.
+		K8sAuthMountPoint:     "", // Expect the default value to be used.
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
-	vcs.Require().NoError(err)
-	vcs.Require().Equal(defaultPKIMountPoint, cc.clientParams.PKIMountPoint)
-	vcs.Require().Equal(defaultCertMountPoint, cc.clientParams.CertAuthMountPoint)
-	vcs.Require().Equal(defaultAppRoleMountPoint, cc.clientParams.AppRoleAuthMountPoint)
+	require.NoError(t, err)
+	require.Equal(t, defaultPKIMountPoint, cc.clientParams.PKIMountPoint)
+	require.Equal(t, defaultCertMountPoint, cc.clientParams.CertAuthMountPoint)
+	require.Equal(t, defaultAppRoleMountPoint, cc.clientParams.AppRoleAuthMountPoint)
+	require.Equal(t, defaultK8sMountPoint, cc.clientParams.K8sAuthMountPoint)
 }
 
-func (vcs *VaultClientSuite) Test_NewClientConfig_WithGivenMontPoint() {
+func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
 	p := &ClientParams{
 		VaultAddr:             "http://example.org:8200/",
 		PKIMountPoint:         "test-pki",
 		Token:                 "test-token",
-		CertAuthMountPoint:    "test-tls-cert", // Expect the default value to be used.
+		CertAuthMountPoint:    "test-tls-cert",
 		AppRoleAuthMountPoint: "test-approle",
+		K8sAuthMountPoint:     "test-k8s",
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
-	vcs.Require().NoError(err)
-	vcs.Require().Equal("test-pki", cc.clientParams.PKIMountPoint)
-	vcs.Require().Equal("test-tls-cert", cc.clientParams.CertAuthMountPoint)
-	vcs.Require().Equal("test-approle", cc.clientParams.AppRoleAuthMountPoint)
+	require.NoError(t, err)
+	require.Equal(t, "test-pki", cc.clientParams.PKIMountPoint)
+	require.Equal(t, "test-tls-cert", cc.clientParams.CertAuthMountPoint)
+	require.Equal(t, "test-approle", cc.clientParams.AppRoleAuthMountPoint)
+	require.Equal(t, "test-k8s", cc.clientParams.K8sAuthMountPoint)
 }
 
-func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
-	vcs.fakeVaultServer.CertAuthResponseCode = 200
-	for _, c := range []struct {
+func TestNewAuthenticatedClientCertAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	for _, tt := range []struct {
 		name      string
 		response  []byte
 		reusable  bool
@@ -127,47 +90,49 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuth() {
 			namespace: "test-ns",
 		},
 	} {
-		c := c
-		vcs.Run(c.name, func() {
-			vcs.fakeVaultServer.CertAuthResponse = c.response
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.CertAuthResponse = tt.response
 
-			s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-			vcs.Require().NoError(err)
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
 
 			s.Start()
 			defer s.Close()
 
 			cp := &ClientParams{
 				VaultAddr:      fmt.Sprintf("https://%v/", addr),
-				Namespace:      c.namespace,
+				Namespace:      tt.namespace,
 				CACertPath:     testRootCert,
 				ClientCertPath: testClientCert,
 				ClientKeyPath:  testClientKey,
 			}
 			cc, err := NewClientConfig(cp, hclog.Default())
-			vcs.Require().NoError(err)
+			require.NoError(t, err)
 
 			client, reusable, err := cc.NewAuthenticatedClient(CERT)
-			vcs.Require().NoError(err)
-			vcs.Require().Equal(c.reusable, reusable)
+			require.NoError(t, err)
+			require.Equal(t, tt.reusable, reusable)
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
-				vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
 			}
 		})
 	}
 }
 
-func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
-	vcs.fakeVaultServer.LookupSelfResponseCode = 200
-	for _, c := range []struct {
-		name      string
-		token     string
-		response  []byte
-		reusable  bool
-		namespace string
-		err       string
+func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.LookupSelfResponseCode = 200
+	for _, tt := range []struct {
+		name            string
+		token           string
+		response        []byte
+		reusable        bool
+		namespace       string
+		expectCode      codes.Code
+		expectMsgPrefix string
 	}{
 		{
 			name:     "Token Authentication success / Token never expire",
@@ -194,51 +159,54 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_TokenAuth() {
 			namespace: "test-ns",
 		},
 		{
-			name:      "Token Authentication error / Token is empty",
-			token:     "",
-			response:  []byte(testCertAuthResponse),
-			reusable:  true,
-			namespace: "test-ns",
-			err:       "token is empty",
+			name:            "Token Authentication error / Token is empty",
+			token:           "",
+			response:        []byte(testCertAuthResponse),
+			reusable:        true,
+			namespace:       "test-ns",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "token is empty",
 		},
 	} {
-		c := c
-		vcs.Run(c.name, func() {
-			vcs.fakeVaultServer.LookupSelfResponse = c.response
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.LookupSelfResponse = tt.response
 
-			s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-			vcs.Require().NoError(err)
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
 
 			s.Start()
 			defer s.Close()
 
 			cp := &ClientParams{
 				VaultAddr:  fmt.Sprintf("https://%v/", addr),
-				Namespace:  c.namespace,
+				Namespace:  tt.namespace,
 				CACertPath: testRootCert,
-				Token:      c.token,
+				Token:      tt.token,
 			}
 			cc, err := NewClientConfig(cp, hclog.Default())
-			vcs.Require().NoError(err)
+			require.NoError(t, err)
 
 			client, reusable, err := cc.NewAuthenticatedClient(TOKEN)
-			if c.err != "" {
-				vcs.Require().Equal(err.Error(), c.err)
-			} else {
-				vcs.Require().NoError(err)
-				vcs.Require().Equal(c.reusable, reusable)
-				if cp.Namespace != "" {
-					headers := client.vaultClient.Headers()
-					vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
-				}
+			if tt.expectMsgPrefix != "" {
+				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.reusable, reusable)
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
 			}
 		})
 	}
 }
 
-func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
-	vcs.fakeVaultServer.AppRoleAuthResponseCode = 200
-	for _, c := range []struct {
+func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.AppRoleAuthResponseCode = 200
+	for _, tt := range []struct {
 		name      string
 		response  []byte
 		reusable  bool
@@ -260,43 +228,101 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuth() {
 			namespace: "test-ns",
 		},
 	} {
-		c := c
-		vcs.Run(c.name, func() {
-			vcs.fakeVaultServer.AppRoleAuthResponse = c.response
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.AppRoleAuthResponse = tt.response
 
-			s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-			vcs.Require().NoError(err)
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
 
 			s.Start()
 			defer s.Close()
 
 			cp := &ClientParams{
 				VaultAddr:       fmt.Sprintf("https://%v/", addr),
-				Namespace:       c.namespace,
+				Namespace:       tt.namespace,
 				CACertPath:      testRootCert,
 				AppRoleID:       "test-approle-id",
 				AppRoleSecretID: "test-approle-secret-id",
 			}
 			cc, err := NewClientConfig(cp, hclog.Default())
-			vcs.Require().NoError(err)
+			require.NoError(t, err)
 
 			client, reusable, err := cc.NewAuthenticatedClient(APPROLE)
-			vcs.Require().NoError(err)
-			vcs.Require().Equal(c.reusable, reusable)
+			require.NoError(t, err)
+			require.Equal(t, tt.reusable, reusable)
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
-				vcs.Require().Equal(cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
 			}
 		})
 	}
 }
 
-func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuthFailed() {
-	vcs.fakeVaultServer.CertAuthResponseCode = 500
+func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.K8sAuthResponseCode = 200
+	for _, tt := range []struct {
+		name      string
+		response  []byte
+		reusable  bool
+		namespace string
+	}{
+		{
+			name:     "K8s Authentication success / Token is renewable",
+			response: []byte(testK8sAuthResponse),
+			reusable: true,
+		},
+		{
+			name:     "K8s Authentication success / Token is not renewable",
+			response: []byte(testK8sAuthResponseNotRenewable),
+		},
+		{
+			name:      "K8s Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testK8sAuthResponse),
+			reusable:  true,
+			namespace: "test-ns",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.K8sAuthResponse = tt.response
 
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			cp := &ClientParams{
+				VaultAddr:        fmt.Sprintf("https://%v/", addr),
+				Namespace:        tt.namespace,
+				CACertPath:       testRootCert,
+				K8sAuthRoleName:  "my-role",
+				K8sAuthTokenPath: "testdata/k8s/token",
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			require.NoError(t, err)
+
+			client, reusable, err := cc.NewAuthenticatedClient(K8S)
+			require.NoError(t, err)
+			require.Equal(t, tt.reusable, reusable)
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
+func TestNewAuthenticatedClientCertAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
 
 	s.Start()
 	defer s.Close()
@@ -311,17 +337,18 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_CertAuthFailed() {
 	}
 
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	_, _, err = cc.NewAuthenticatedClient(CERT)
-	vcs.Require().Error(err)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/cert/login: Error making API request.")
 }
 
-func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuthFailed() {
-	vcs.fakeVaultServer.AppRoleAuthResponseCode = 500
+func TestNewAuthenticatedClientAppRoleAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.AppRoleAuthResponseCode = 500
 
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
 
 	s.Start()
 	defer s.Close()
@@ -335,13 +362,53 @@ func (vcs *VaultClientSuite) Test_NewAuthenticatedClient_AppRoleAuthFailed() {
 		AppRoleSecretID: "test-approle-secret-id",
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	_, _, err = cc.NewAuthenticatedClient(APPROLE)
-	vcs.Require().Error(err)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/approle/login: Error making API request.")
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_WithCertAuth() {
+func TestNewAuthenticatedClientK8sAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.K8sAuthResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:       &retry,
+		VaultAddr:        fmt.Sprintf("https://%v/", addr),
+		CACertPath:       testRootCert,
+		K8sAuthRoleName:  "my-role",
+		K8sAuthTokenPath: "testdata/k8s/token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	_, _, err = cc.NewAuthenticatedClient(K8S)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/kubernetes/login: Error making API request.")
+}
+
+func TestNewAuthenticatedClientK8sAuthInvalidPath(t *testing.T) {
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:       &retry,
+		VaultAddr:        "https://example.org:8200",
+		CACertPath:       testRootCert,
+		K8sAuthTokenPath: "invalid/k8s/token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	_, _, err = cc.NewAuthenticatedClient(K8S)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to read k8s service account token:")
+}
+
+func TestConfigureTLSWithCertAuth(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:      "http://example.org:8200",
 		ClientCertPath: testClientCert,
@@ -349,47 +416,47 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_WithCertAuth() {
 		CACertPath:     testRootCert,
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	tcc := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
 	cert, err := tcc.GetClientCertificate(&tls.CertificateRequestInfo{})
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	testCert, err := testClientCertificatePair()
-	vcs.Require().NoError(err)
-	vcs.Require().Equal(testCert.Certificate, cert.Certificate)
+	require.NoError(t, err)
+	require.Equal(t, testCert.Certificate, cert.Certificate)
 
 	testPool, err := testRootCAs()
-	vcs.Require().NoError(err)
-	vcs.Require().Equal(testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.NoError(t, err)
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_WithTokenAuth() {
+func TestConfigureTLSWithTokenAuth(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:  "http://example.org:8200",
 		CACertPath: testRootCert,
 		Token:      "test-token",
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	tcc := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
-	vcs.Require().Nil(tcc.GetClientCertificate)
+	require.Nil(t, tcc.GetClientCertificate)
 
 	testPool, err := testRootCAs()
-	vcs.Require().NoError(err)
-	vcs.Require().Equal(testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.NoError(t, err)
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_WithAppRoleAuth() {
+func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:       "http://example.org:8200",
 		CACertPath:      testRootCert,
@@ -397,21 +464,21 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_WithAppRoleAuth() {
 		AppRoleSecretID: "test-approle-secret",
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	tcc := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
-	vcs.Require().Nil(tcc.GetClientCertificate)
+	require.Nil(t, tcc.GetClientCertificate)
 
 	testPool, err := testRootCAs()
-	vcs.Require().NoError(err)
-	vcs.Require().Equal(testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.NoError(t, err)
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidCACert() {
+func TestConfigureTLSInvalidCACert(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:      "http://example.org:8200",
 		ClientCertPath: testClientCert,
@@ -419,14 +486,14 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidCACert() {
 		CACertPath:     testInvalidRootCert,
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().Error(err)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to load CA certificate: no PEM blocks")
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidClientKey() {
+func TestConfigureTLSInvalidClientKey(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:      "http://example.org:8200",
 		ClientCertPath: testClientCert,
@@ -434,14 +501,14 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidClientKey() {
 		CACertPath:     testRootCert,
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().Error(err)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to parse client cert and private-key: tls: failed to find any PEM data in key input")
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidClientCert() {
+func TestConfigureTLSInvalidClientCert(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:      "http://example.org:8200",
 		ClientCertPath: testInvalidClientCert,
@@ -449,35 +516,36 @@ func (vcs *VaultClientSuite) Test_ConfigureTLS_InvalidClientCert() {
 		CACertPath:     testRootCert,
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().Error(err)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to parse client cert and private-key: open testdata/keys/EC/invalid_client_cert.pem: no such file or directory")
 }
 
-func (vcs *VaultClientSuite) Test_ConfigureTLS_Require_ClientCertAndKey() {
+func TestConfigureTLSRequireClientCertAndKey(t *testing.T) {
 	cp := &ClientParams{
 		VaultAddr:      "http://example.org:8200",
 		ClientCertPath: testClientCert,
 		CACertPath:     testRootCert,
 	}
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	vcs.Require().EqualError(err, "both client cert and client key are required")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "both client cert and client key are required")
 }
 
-func (vcs *VaultClientSuite) Test_SignIntermediate() {
-	vcs.fakeVaultServer.CertAuthResponseCode = 200
-	vcs.fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
-	vcs.fakeVaultServer.SignIntermediateResponseCode = 200
-	vcs.fakeVaultServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+func TestSignIntermediate(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.SignIntermediateResponseCode = 200
+	fakeVaultServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
 
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
 
 	s.Start()
 	defer s.Close()
@@ -490,30 +558,31 @@ func (vcs *VaultClientSuite) Test_SignIntermediate() {
 	}
 
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	client, _, err := cc.NewAuthenticatedClient(CERT)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	testTTL := "0"
 	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	resp, err := client.SignIntermediate(testTTL, csr)
-	vcs.Require().NoError(err)
-	vcs.Require().NotNil(resp.CACertPEM)
-	vcs.Require().NotNil(resp.CACertChainPEM)
-	vcs.Require().NotNil(resp.CertPEM)
+	require.NoError(t, err)
+	require.NotNil(t, resp.CACertPEM)
+	require.NotNil(t, resp.CACertChainPEM)
+	require.NotNil(t, resp.CertPEM)
 }
 
-func (vcs *VaultClientSuite) Test_SignIntermediate_ErrorFromEndpoint() {
-	vcs.fakeVaultServer.CertAuthResponseCode = 200
-	vcs.fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
-	vcs.fakeVaultServer.SignIntermediateResponseCode = 500
-	vcs.fakeVaultServer.SignIntermediateResponse = []byte("test error")
+func TestSignIntermediateErrorFromEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.SignIntermediateResponseCode = 500
+	fakeVaultServer.SignIntermediateResponse = []byte("test error")
 
-	s, addr, err := vcs.fakeVaultServer.NewTLSServer()
-	vcs.Require().NoError(err)
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
 
 	s.Start()
 	defer s.Close()
@@ -528,15 +597,50 @@ func (vcs *VaultClientSuite) Test_SignIntermediate_ErrorFromEndpoint() {
 	}
 
 	cc, err := NewClientConfig(cp, hclog.Default())
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	client, _, err := cc.NewAuthenticatedClient(CERT)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	testTTL := "0"
 	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
-	vcs.Require().NoError(err)
+	require.NoError(t, err)
 
 	_, err = client.SignIntermediate(testTTL, csr)
-	vcs.Require().Error(err)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to sign intermediate: Error making API request.")
+}
+
+func newFakeVaultServer() *FakeVaultServerConfig {
+	fakeVaultServer := NewFakeVaultServerConfig()
+	fakeVaultServer.ServerCertificatePemPath = testServerCert
+	fakeVaultServer.ServerKeyPemPath = testServerKey
+	fakeVaultServer.RenewResponseCode = 200
+	fakeVaultServer.RenewResponse = []byte(testRenewResponse)
+	return fakeVaultServer
+}
+
+func testClientCertificatePair() (tls.Certificate, error) {
+	cert, err := os.ReadFile(testClientCert)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	key, err := os.ReadFile(testClientKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	return tls.X509KeyPair(cert, key)
+}
+
+func testRootCAs() (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	pem, err := os.ReadFile(testRootCert)
+	if err != nil {
+		return nil, err
+	}
+	ok := pool.AppendCertsFromPEM(pem)
+	if !ok {
+		return nil, err
+	}
+	return pool, nil
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -116,7 +115,7 @@ func parseEntryJSON(in io.Reader, path string) ([]*types.Entry, error) {
 		r = f
 	}
 
-	dat, err := ioutil.ReadAll(r)
+	dat, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

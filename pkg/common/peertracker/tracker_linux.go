@@ -5,7 +5,7 @@ package peertracker
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -149,7 +149,7 @@ func parseTaskStat(stat string) ([]string, error) {
 }
 
 func getStarttime(pid int32) (string, error) {
-	statBytes, err := ioutil.ReadFile(fmt.Sprintf("/proc/%v/stat", pid))
+	statBytes, err := os.ReadFile(fmt.Sprintf("/proc/%v/stat", pid))
 	if err != nil {
 		return "", fmt.Errorf("could not read caller stat: %w", err)
 	}

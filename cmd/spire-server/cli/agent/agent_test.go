@@ -20,7 +20,15 @@ import (
 )
 
 var (
-	testAgents              = []*types.Agent{{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent1"}}}
+	testAgents = []*types.Agent{
+		{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent1"}},
+	}
+	testAgentsWithBanned = []*types.Agent{
+		{
+			Id:     &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/banned"},
+			Banned: true,
+		},
+	}
 	testAgentsWithSelectors = []*types.Agent{
 		{
 			Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent2"},
@@ -49,6 +57,67 @@ func (s *agentTest) afterTest(t *testing.T) {
 	t.Logf("STDOUT:\n%s", s.stdout.String())
 	t.Logf("STDIN:\n%s", s.stdin.String())
 	t.Logf("STDERR:\n%s", s.stderr.String())
+}
+
+func TestBanHelp(t *testing.T) {
+	test := setupTest(t, agent.NewBanCommandWithEnv)
+
+	test.client.Help()
+	require.Equal(t, `Usage of agent ban:
+  -registrationUDSPath string
+    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
+  -spiffeID string
+    	The SPIFFE ID of the agent to ban (agent identity)
+`, test.stderr.String())
+}
+
+func TestBan(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		args             []string
+		expectReturnCode int
+		expectStdout     string
+		expectStderr     string
+		serverErr        error
+	}{
+		{
+			name:             "success",
+			args:             []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
+			expectReturnCode: 0,
+			expectStdout:     "Agent banned successfully\n",
+		},
+		{
+			name:             "no spiffe id",
+			expectReturnCode: 1,
+			expectStderr:     "Error: a SPIFFE ID is required\n",
+		},
+		{
+			name:             "wrong UDS path",
+			args:             []string{"-socketPath", "does-not-exist.sock"},
+			expectReturnCode: 1,
+			expectStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+		},
+		{
+			name:             "server error",
+			args:             []string{"-spiffeID", "spiffe://example.org/spire/agent/foo"},
+			serverErr:        status.Error(codes.Internal, "internal server error"),
+			expectReturnCode: 1,
+			expectStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t, agent.NewBanCommandWithEnv)
+			test.server.err = tt.serverErr
+
+			returnCode := test.client.Run(append(test.args, tt.args...))
+			require.Equal(t, tt.expectStdout, test.stdout.String())
+			require.Equal(t, tt.expectStderr, test.stderr.String())
+			require.Equal(t, tt.expectReturnCode, returnCode)
+		})
+	}
 }
 
 func TestEvictHelp(t *testing.T) {
@@ -80,7 +149,6 @@ func TestEvict(t *testing.T) {
 			expectedReturnCode: 0,
 			expectedStdout:     "Agent evicted successfully\n",
 		},
-
 		{
 			name:               "no spiffe id",
 			expectedReturnCode: 1,
@@ -287,6 +355,13 @@ func TestShow(t *testing.T) {
 			expectedReturnCode: 0,
 			expectedStdout:     "Selectors         : k8s_psat:agent_ns:spire\nSelectors         : k8s_psat:agent_sa:spire-agent\nSelectors         : k8s_psat:cluster:demo-cluster",
 		},
+		{
+			name:               "show banned",
+			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/banned"},
+			existentAgents:     testAgentsWithBanned,
+			expectedReturnCode: 0,
+			expectedStdout:     "Banned            : true",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,6 +415,10 @@ type fakeAgentServer struct {
 
 	agents []*types.Agent
 	err    error
+}
+
+func (s *fakeAgentServer) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, s.err
 }
 
 func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {

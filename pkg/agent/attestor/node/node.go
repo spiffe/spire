@@ -2,7 +2,6 @@ package attestor
 
 import (
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -14,8 +13,10 @@ import (
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
@@ -24,14 +25,12 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
 )
 
 type AttestationResult struct {
 	SVID   []*x509.Certificate
-	Key    crypto.Signer
+	Key    keymanager.Key
 	Bundle *bundleutil.Bundle
 }
 
@@ -100,40 +99,38 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 }
 
 // Load the current SVID and key. The returned SVID is nil to indicate a new SVID should be created.
-func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, crypto.Signer, error) {
-	km := a.c.Catalog.GetKeyManager()
-	key, err := km.GetKey(ctx)
-	switch status.Code(err) {
-	case codes.OK:
-	case codes.NotFound:
-	default:
+func (a *attestor) loadSVID(ctx context.Context) ([]*x509.Certificate, keymanager.Key, error) {
+	svidKM := keymanager.ForSVID(a.c.Catalog.GetKeyManager())
+	allKeys, err := svidKM.GetKeys(ctx)
+	if err != nil {
 		return nil, nil, fmt.Errorf("unable to load private key: %w", err)
 	}
 
 	svid := a.readSVIDFromDisk()
-
-	privateKeyExists := key != nil
-	svidExists := svid != nil
+	svidKey, svidKeyExists := findKeyForSVID(allKeys, svid)
+	svidExists := len(svid) > 0
 	svidIsExpired := IsSVIDExpired(svid, time.Now)
 
 	switch {
-	case privateKeyExists && svidExists && !svidIsExpired:
-		return svid, key, nil
-	case privateKeyExists && svidExists && svidIsExpired:
-		a.c.Log.WithField("expiry", svid[0].NotAfter).Warn("Private key recovered, but SVID is expired. Generating new keypair")
-	case privateKeyExists && !svidExists:
-		a.c.Log.Warn("Private key recovered, but no SVID found. Generating new keypair")
-	case !privateKeyExists && svidExists:
-		a.c.Log.Warn("SVID recovered, but no private key found. Generating new keypair")
+	case svidExists && svidKeyExists && !svidIsExpired:
+		return svid, svidKey, nil
+	case svidExists && svidKeyExists && svidIsExpired:
+		a.c.Log.WithField("expiry", svid[0].NotAfter).Warn("SVID key recovered, but SVID is expired. Generating new keypair")
+	case svidExists && !svidKeyExists && len(allKeys) == 0:
+		a.c.Log.Warn("SVID recovered, but no keys found. Generating new keypair")
+	case svidExists && !svidKeyExists && len(allKeys) > 0:
+		a.c.Log.Warn("SVID recovered, but no SVID key found. Generating new keypair")
+	case !svidExists && len(allKeys) > 0:
+		a.c.Log.Warn("Keys recovered, but no SVID found. Generating new keypair")
 	default:
 		// Neither private key nor SVID were found.
 	}
 
-	key, err = km.GenerateKey(ctx)
+	svidKey, err = svidKM.GenerateKey(ctx, svidKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to generate private key: %w", err)
 	}
-	return nil, key, nil
+	return nil, svidKey, nil
 }
 
 // IsSVIDExpired returns true if the X.509 SVID provided is expired
@@ -188,7 +185,7 @@ func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
+func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 
@@ -213,10 +210,17 @@ func (a *attestor) newSVID(ctx context.Context, key crypto.Signer, bundle *bundl
 	if err != nil {
 		return nil, nil, err
 	}
+
+	svidKM := keymanager.ForSVID(a.c.Catalog.GetKeyManager())
+	if err := svidKM.SetKey(ctx, key); err != nil {
+		return nil, nil, fmt.Errorf("failed to set agent key: %w", err)
+	}
+
 	newBundle, err := a.getBundle(ctx, conn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get updated bundle: %w", err)
 	}
+
 	return newSVID, newBundle, nil
 }
 
@@ -240,7 +244,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	// SPIFFE ID. This is not a security feature but rather a check that we've
 	// reached what appears to be the right trust domain server.
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true, //nolint: gosec
+		InsecureSkipVerify: true, //nolint: gosec // this is required in order to do non-hostname based verification
 		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			a.c.Log.Warn("Insecure bootstrap enabled; skipping server certificate verification")
 			if len(rawCerts) == 0 {
@@ -262,8 +266,22 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	}
 
 	return grpc.DialContext(ctx, a.c.ServerAddress,
-		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
+		// TODO: port to non-deprecated option
+		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck // not ready to port
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
+}
+
+func findKeyForSVID(keys []keymanager.Key, svid []*x509.Certificate) (keymanager.Key, bool) {
+	if len(svid) == 0 {
+		return nil, false
+	}
+	for _, key := range keys {
+		equal, err := cryptoutil.PublicKeyEqual(svid[0].PublicKey, key.Public())
+		if err == nil && equal {
+			return key, true
+		}
+	}
+	return nil, false
 }

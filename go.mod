@@ -26,7 +26,6 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/containerd/containerd v1.3.2 // indirect
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.4.2-0.20191008235115-448db5a783a0
 	github.com/docker/go-connections v0.4.0 // indirect
@@ -58,8 +57,8 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.6
-	github.com/spiffe/spire-api-sdk v1.0.0-pre.0.20210318220945-7ff3eb0759ce
-	github.com/spiffe/spire-plugin-sdk v1.0.0-pre.0.20210517201859-df5ca7fa7ac1
+	github.com/spiffe/spire-api-sdk v1.0.0
+	github.com/spiffe/spire-plugin-sdk v1.0.0
 	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/tally v3.3.12+incompatible
 	github.com/zeebo/errs v1.2.2

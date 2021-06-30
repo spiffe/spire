@@ -1,12 +1,14 @@
 package api
 
 import (
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -15,7 +17,7 @@ func BundleToProto(b *common.Bundle) (*types.Bundle, error) {
 		return nil, errors.New("no bundle provided")
 	}
 
-	td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
+	td, err := idutil.TrustDomainFromString(b.TrustDomainId)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +58,7 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 		return nil, errors.New("no bundle provided")
 	}
 
-	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
+	td, err := idutil.TrustDomainFromString(b.TrustDomain)
 	if err != nil {
 		return nil, err
 	}
@@ -127,4 +129,13 @@ func ParseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
 	}
 
 	return jwtKeys, nil
+}
+
+func HashByte(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:])
 }

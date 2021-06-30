@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
@@ -23,12 +23,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
-	return middleware.Chain(
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, auditLogEnabled bool) middleware.Middleware {
+	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		middleware.WithAuthorization(Authorization(log, ds, clk)),
 		middleware.WithRateLimits(RateLimits(rlConf)),
+	}
+
+	if auditLogEnabled {
+		// Add audit log with UDS tracking enabled
+		chain = append(chain, middleware.WithAuditLog(true))
+	}
+
+	return middleware.Chain(
+		chain...,
 	)
 }
 

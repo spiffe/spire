@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -34,7 +34,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = ioutil.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
+	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
 	require.NoError(err)
 
 	config, err := LoadConfig(confPath)

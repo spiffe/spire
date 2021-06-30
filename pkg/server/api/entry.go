@@ -141,7 +141,7 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 	if mask.FederatesWith {
 		federatesWith = make([]string, 0, len(e.FederatesWith))
 		for _, trustDomainName := range e.FederatesWith {
-			td, err := spiffeid.TrustDomainFromString(trustDomainName)
+			td, err := idutil.TrustDomainFromString(trustDomainName)
 			if err != nil {
 				return nil, fmt.Errorf("invalid federated trust domain: %w", err)
 			}

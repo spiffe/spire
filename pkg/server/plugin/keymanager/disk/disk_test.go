@@ -39,7 +39,7 @@ func TestGenerateKeyBeforeConfigure(t *testing.T) {
 	plugintest.Load(t, disk.BuiltIn(), km)
 
 	_, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): not configured")
+	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): failed to generate key: not configured")
 }
 
 func TestGenerateKeyPersistence(t *testing.T) {

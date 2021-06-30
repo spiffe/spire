@@ -70,7 +70,7 @@ func TestScanForBadEntries(t *testing.T) {
 					Message: "Ignoring entry with invalid spiffeID; this entry will be automatically deleted by a future release",
 					Data: logrus.Fields{
 						"entry_id":  "SOME-ID",
-						"error":     "path cannot contain empty, '.', or '..' segments",
+						"error":     "path cannot contain empty segments",
 						"parent_id": "spiffe://example.org/node",
 						"spiffe_id": "spiffe://example.org//workload",
 					},
@@ -87,7 +87,7 @@ func TestScanForBadEntries(t *testing.T) {
 					Message: "Ignoring entry with invalid parentID; this entry will be automatically deleted by a future release",
 					Data: logrus.Fields{
 						"entry_id":  "SOME-ID",
-						"error":     "path cannot contain empty, '.', or '..' segments",
+						"error":     "path cannot contain empty segments",
 						"parent_id": "spiffe://example.org//node",
 						"spiffe_id": "spiffe://example.org/workload",
 					},

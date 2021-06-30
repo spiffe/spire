@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"crypto"
 	"crypto/x509"
 	"sync"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
@@ -19,7 +19,7 @@ import (
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
 	SVID             []*x509.Certificate
-	SVIDKey          crypto.Signer
+	SVIDKey          keymanager.Key
 	Bundle           *cache.Bundle
 	Catalog          catalog.Catalog
 	TrustDomain      spiffeid.TrustDomain

@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -27,7 +28,7 @@ type RotatorConfig struct {
 	ServerAddr  string
 	// Initial SVID and key
 	SVID    []*x509.Certificate
-	SVIDKey crypto.Signer
+	SVIDKey keymanager.Key
 
 	BundleStream *cache.BundleStream
 

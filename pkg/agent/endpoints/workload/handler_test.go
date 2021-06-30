@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -351,7 +352,48 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
+			name:       "spiffe_id set, but not a valid SPIFFE ID",
+			audience:   []string{"AUDIENCE"},
+			spiffeID:   "foo",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid requested SPIFFE ID: spiffeid: invalid scheme",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid requested SPIFFE ID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTSVID",
+						"spiffe_id":     "foo",
+						logrus.ErrorKey: "spiffeid: invalid scheme",
+					},
+				},
+			},
+		},
+		{
 			name:       "no identity issued",
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTSVID",
+					},
+				},
+			},
+		},
+		{
+			name: "identity found but unexpected SPIFFE ID",
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+				identityFromX509SVID(x509SVID2),
+			},
+			spiffeID:   td.NewID("unexpected").String(),
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
@@ -400,6 +442,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					Message: "Could not fetch JWT-SVID",
 					Data: logrus.Fields{
 						"service":       "WorkloadAPI",
+						"spiffe_id":     "spiffe://domain.test/one",
 						"method":        "FetchJWTSVID",
 						"registered":    "true",
 						logrus.ErrorKey: "ohno",
@@ -636,14 +679,16 @@ func TestValidateJWTSVID(t *testing.T) {
 	}}
 
 	for _, tt := range []struct {
-		name       string
-		svid       string
-		audience   string
-		updates    []*cache.WorkloadUpdate
-		attestErr  error
-		expectCode codes.Code
-		expectMsg  string
-		expectLogs []spiretest.LogEntry
+		name                    string
+		svid                    string
+		audience                string
+		updates                 []*cache.WorkloadUpdate
+		attestErr               error
+		expectCode              codes.Code
+		expectMsg               string
+		expectLogs              []spiretest.LogEntry
+		expectResponse          *workloadPB.ValidateJWTSVIDResponse
+		allowedForeignJWTClaims map[string]struct{}
 	}{
 		{
 			name:       "missing required audience",
@@ -721,6 +766,46 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       svid.Marshal(),
 			updates:    updatesWithBundleOnly,
 			expectCode: codes.OK,
+			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
+				SpiffeId: "spiffe://domain.test/workload",
+				Claims: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"aud": {
+							Kind: &structpb.Value_ListValue{
+								ListValue: &structpb.ListValue{
+									Values: []*structpb.Value{
+										{
+											Kind: &structpb.Value_StringValue{
+												StringValue: "AUDIENCE",
+											},
+										},
+									},
+								},
+							},
+						},
+						"exp": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: svid.Claims["exp"].(float64),
+							},
+						},
+						"iat": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: svid.Claims["iat"].(float64),
+							},
+						},
+						"iss": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "FAKECA",
+							},
+						},
+						"sub": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "spiffe://domain.test/workload",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name:       "success with federated SVID",
@@ -728,6 +813,84 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       federatedSVID.Marshal(),
 			updates:    updatesWithFederatedBundle,
 			expectCode: codes.OK,
+			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
+				SpiffeId: "spiffe://domain2.test/federated-workload",
+				Claims: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"aud": {
+							Kind: &structpb.Value_ListValue{
+								ListValue: &structpb.ListValue{
+									Values: []*structpb.Value{
+										{
+											Kind: &structpb.Value_StringValue{
+												StringValue: "AUDIENCE",
+											},
+										},
+									},
+								},
+							},
+						},
+						"exp": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: federatedSVID.Claims["exp"].(float64),
+							},
+						},
+						"sub": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "spiffe://domain2.test/federated-workload",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                    "success with federated SVID with allowed foreign claims",
+			audience:                "AUDIENCE",
+			svid:                    federatedSVID.Marshal(),
+			updates:                 updatesWithFederatedBundle,
+			expectCode:              codes.OK,
+			allowedForeignJWTClaims: map[string]struct{}{"iat": {}, "iss": {}},
+			expectResponse: &workloadPB.ValidateJWTSVIDResponse{
+				SpiffeId: "spiffe://domain2.test/federated-workload",
+				Claims: &structpb.Struct{
+					Fields: map[string]*structpb.Value{
+						"aud": {
+							Kind: &structpb.Value_ListValue{
+								ListValue: &structpb.ListValue{
+									Values: []*structpb.Value{
+										{
+											Kind: &structpb.Value_StringValue{
+												StringValue: "AUDIENCE",
+											},
+										},
+									},
+								},
+							},
+						},
+						"iat": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: federatedSVID.Claims["iat"].(float64),
+							},
+						},
+						"iss": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "FAKECA",
+							},
+						},
+						"exp": {
+							Kind: &structpb.Value_NumberValue{
+								NumberValue: federatedSVID.Claims["exp"].(float64),
+							},
+						},
+						"sub": {
+							Kind: &structpb.Value_StringValue{
+								StringValue: "spiffe://domain2.test/federated-workload",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name:       "failure with federated SVID",
@@ -753,9 +916,10 @@ func TestValidateJWTSVID(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				Updates:    tt.updates,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
+				Updates:                 tt.updates,
+				AttestErr:               tt.attestErr,
+				ExpectLogs:              tt.expectLogs,
+				AllowedForeignJWTClaims: tt.allowedForeignJWTClaims,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -768,6 +932,7 @@ func TestValidateJWTSVID(t *testing.T) {
 						assert.Nil(t, resp)
 						return
 					}
+					spiretest.AssertProtoEqual(t, tt.expectResponse, resp)
 				})
 		})
 	}
@@ -782,6 +947,7 @@ type testParams struct {
 	ExpectLogs                    []spiretest.LogEntry
 	AsPID                         int
 	AllowUnauthenticatedVerifiers bool
+	AllowedForeignJWTClaims       map[string]struct{}
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
@@ -795,14 +961,16 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	}
 
 	handler := workload.New(workload.Config{
+		TrustDomain:                   td,
 		Manager:                       manager,
 		Attestor:                      &FakeAttestor{err: params.AttestErr},
 		AllowUnauthenticatedVerifiers: params.AllowUnauthenticatedVerifiers,
+		AllowedForeignJWTClaims:       params.AllowedForeignJWTClaims,
 	})
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
 		middleware.WithLogger(log),
-		middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+		middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 			return rpccontext.WithCallerPID(ctx, params.AsPID), nil
 		}),
 	))

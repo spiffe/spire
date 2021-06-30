@@ -7,7 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"testing"
@@ -1847,7 +1847,7 @@ func serializedConfiguration(accessKeyID, secretAccessKey, region string, keyMet
 func getKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := path.Join(tempDir, validServerIDFile)
-	err := ioutil.WriteFile(tempFilePath, []byte(validServerID), 0600)
+	err := os.WriteFile(tempFilePath, []byte(validServerID), 0600)
 	if err != nil {
 		t.Error(err)
 	}

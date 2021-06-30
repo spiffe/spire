@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -13,11 +13,12 @@ import (
 	"github.com/aws/aws-sdk-go/service/acmpca"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -38,12 +39,13 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *PCAPlugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		upstreamauthorityv0.UpstreamAuthorityPluginServer(p),
+		upstreamauthorityv1.UpstreamAuthorityPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
-// PCAPluginConfiguration provides configuration context for the plugin
-type PCAPluginConfiguration struct {
+// Configuration provides configuration context for the plugin
+type Configuration struct {
 	Region                  string `hcl:"region" json:"region"`
 	Endpoint                string `hcl:"endpoint" json:"endpoint"`
 	CertificateAuthorityARN string `hcl:"certificate_authority_arn" json:"certificate_authority_arn"`
@@ -55,20 +57,26 @@ type PCAPluginConfiguration struct {
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
 type PCAPlugin struct {
-	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
+	configv1.UnsafeConfigServer
 
 	log hclog.Logger
 
-	pcaClient               PCAClient
+	mtx       sync.Mutex
+	pcaClient PCAClient
+	config    *configuration
+
+	hooks struct {
+		clock     clock.Clock
+		newClient func(config *Configuration) (PCAClient, error)
+	}
+}
+
+type configuration struct {
 	certificateAuthorityArn string
 	signingAlgorithm        string
 	caSigningTemplateArn    string
 	supplementalBundle      []*x509.Certificate
-
-	hooks struct {
-		clock     clock.Clock
-		newClient func(config *PCAPluginConfiguration) (PCAClient, error)
-	}
 }
 
 // New returns an instantiated plugin
@@ -76,150 +84,156 @@ func New() *PCAPlugin {
 	return newPlugin(newPCAClient)
 }
 
-func newPlugin(newClient func(config *PCAPluginConfiguration) (PCAClient, error)) *PCAPlugin {
+func newPlugin(newClient func(config *Configuration) (PCAClient, error)) *PCAPlugin {
 	p := &PCAPlugin{}
 	p.hooks.clock = clock.New()
 	p.hooks.newClient = newClient
 	return p
 }
 
-func (m *PCAPlugin) SetLogger(log hclog.Logger) {
-	m.log = log
+func (p *PCAPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 // Configure sets up the plugin for use as an upstream authority
-func (m *PCAPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	config, err := m.validateConfig(req)
+func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	config, err := p.validateConfig(req)
 	if err != nil {
 		return nil, err
 	}
 
+	var supplementalBundle []*x509.Certificate
 	if config.SupplementalBundlePath != "" {
-		m.log.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", config.SupplementalBundlePath)
-		m.supplementalBundle, err = pemutil.LoadCertificates(config.SupplementalBundlePath)
+		p.log.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", config.SupplementalBundlePath)
+		supplementalBundle, err = pemutil.LoadCertificates(config.SupplementalBundlePath)
 		if err != nil {
-			return nil, err
+			return nil, status.Errorf(codes.InvalidArgument, "failed to load supplemental bundle: %v", err)
 		}
 	}
 
 	// Create the client
-	m.pcaClient, err = m.hooks.newClient(config)
+	pcaClient, err := p.hooks.newClient(config)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
 
 	// Perform a check for the presence of the CA
-	m.log.Info("Looking up certificate authority from ACM", "certificate_authority_arn", config.CertificateAuthorityARN)
-	describeResponse, err := m.pcaClient.DescribeCertificateAuthorityWithContext(ctx, &acmpca.DescribeCertificateAuthorityInput{
+	p.log.Info("Looking up certificate authority from ACM", "certificate_authority_arn", config.CertificateAuthorityARN)
+	describeResponse, err := pcaClient.DescribeCertificateAuthorityWithContext(ctx, &acmpca.DescribeCertificateAuthorityInput{
 		CertificateAuthorityArn: aws.String(config.CertificateAuthorityARN),
 	})
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to describe CertificateAuthority: %v", err)
 	}
 
 	// Ensure the CA is set to ACTIVE
 	caStatus := aws.StringValue(describeResponse.CertificateAuthority.Status)
 	if caStatus != "ACTIVE" {
-		m.log.Warn("Certificate is in an invalid state for issuance",
+		p.log.Warn("Certificate is in an invalid state for issuance",
 			"certificate_authority_arn", config.CertificateAuthorityARN,
 			"status", caStatus)
 	}
 
 	// If a signing algorithm has been provided, use it.
 	// Otherwise, fall back to the pre-configured value on the CA
-	if config.SigningAlgorithm != "" {
-		m.signingAlgorithm = config.SigningAlgorithm
-	} else {
-		signingAlgortithm := aws.StringValue(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
-		m.log.Info("No signing algorithm specified, using the CA default", "signing_algorithm", signingAlgortithm)
-		m.signingAlgorithm = signingAlgortithm
+	signingAlgorithm := config.SigningAlgorithm
+	if signingAlgorithm == "" {
+		signingAlgorithm = aws.StringValue(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
+		p.log.Info("No signing algorithm specified, using the CA default", "signing_algorithm", signingAlgorithm)
 	}
 
 	// If a CA signing template ARN has been provided, use it.
 	// Otherwise, fall back to the default value (PathLen=0)
-	if config.CASigningTemplateARN != "" {
-		m.caSigningTemplateArn = config.CASigningTemplateARN
-	} else {
-		m.log.Info("No CA signing template ARN specified, using the default", "ca_signing_template_arn", defaultCASigningTemplateArn)
-		m.caSigningTemplateArn = defaultCASigningTemplateArn
+	caSigningTemplateArn := config.CASigningTemplateARN
+	if caSigningTemplateArn == "" {
+		p.log.Info("No CA signing template ARN specified, using the default", "ca_signing_template_arn", defaultCASigningTemplateArn)
+		caSigningTemplateArn = defaultCASigningTemplateArn
 	}
 
-	// Add remaining values to plugin
-	m.certificateAuthorityArn = config.CertificateAuthorityARN
+	// Set local vars
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 
-	return &spi.ConfigureResponse{}, nil
-}
+	p.pcaClient = pcaClient
+	p.config = &configuration{
+		supplementalBundle:      supplementalBundle,
+		signingAlgorithm:        signingAlgorithm,
+		caSigningTemplateArn:    caSigningTemplateArn,
+		certificateAuthorityArn: config.CertificateAuthorityARN,
+	}
 
-// GetPluginInfo returns information about this plugin to Spire server
-func (*PCAPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 // MintX509CA mints an X509CA by submitting the CSR to ACM to be signed by the certificate authority
-func (m *PCAPlugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	ctx := stream.Context()
 
-	csrBuf := new(bytes.Buffer)
-	err := pem.Encode(csrBuf, &pem.Block{
-		Type:  csrRequestType,
-		Bytes: request.Csr,
-	})
+	config, err := p.getConfig()
 	if err != nil {
 		return err
 	}
 
+	csrBuf := new(bytes.Buffer)
+	if err := pem.Encode(csrBuf, &pem.Block{
+		Type:  csrRequestType,
+		Bytes: request.Csr,
+	}); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to encode csr from request: %v", err)
+	}
+
 	// Have ACM sign the certificate
-	m.log.Info("Submitting CSR to ACM", "signing_algorithm", m.signingAlgorithm)
+	p.log.Info("Submitting CSR to ACM", "signing_algorithm", config.signingAlgorithm)
 	validityPeriod := time.Second * time.Duration(request.PreferredTtl)
-	issueResponse, err := m.pcaClient.IssueCertificateWithContext(ctx, &acmpca.IssueCertificateInput{
-		CertificateAuthorityArn: aws.String(m.certificateAuthorityArn),
-		SigningAlgorithm:        aws.String(m.signingAlgorithm),
+
+	issueResponse, err := p.pcaClient.IssueCertificateWithContext(ctx, &acmpca.IssueCertificateInput{
+		CertificateAuthorityArn: aws.String(config.certificateAuthorityArn),
+		SigningAlgorithm:        aws.String(config.signingAlgorithm),
 		Csr:                     csrBuf.Bytes(),
-		TemplateArn:             aws.String(m.caSigningTemplateArn),
+		TemplateArn:             aws.String(config.caSigningTemplateArn),
 		Validity: &acmpca.Validity{
 			Type:  aws.String(acmpca.ValidityPeriodTypeAbsolute),
-			Value: aws.Int64(m.hooks.clock.Now().Add(validityPeriod).Unix()),
+			Value: aws.Int64(p.hooks.clock.Now().Add(validityPeriod).Unix()),
 		},
 	})
-
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed submitting CSR: %v", err)
 	}
 
 	// Using the output of the `IssueCertificate` call, poll ACM until
 	// the certificate has been issued
 	certificateArn := issueResponse.CertificateArn
 
-	m.log.Info("Waiting for issuance from ACM", "certificate_arn", aws.StringValue(certificateArn))
+	p.log.Info("Waiting for issuance from ACM", "certificate_arn", aws.StringValue(certificateArn))
 	getCertificateInput := &acmpca.GetCertificateInput{
-		CertificateAuthorityArn: aws.String(m.certificateAuthorityArn),
+		CertificateAuthorityArn: aws.String(config.certificateAuthorityArn),
 		CertificateArn:          certificateArn,
 	}
-	err = m.pcaClient.WaitUntilCertificateIssuedWithContext(ctx, getCertificateInput)
+	err = p.pcaClient.WaitUntilCertificateIssuedWithContext(ctx, getCertificateInput)
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed waiting for issuance: %v", err)
 	}
-	m.log.Info("Certificate issued", "certificate_arn", aws.StringValue(certificateArn))
+	p.log.Info("Certificate issued", "certificate_arn", aws.StringValue(certificateArn))
 
 	// Finally get the certificate contents
-	m.log.Info("Retrieving certificate and chain from ACM", "certificate_arn", aws.StringValue(certificateArn))
-	getResponse, err := m.pcaClient.GetCertificateWithContext(ctx, getCertificateInput)
+	p.log.Info("Retrieving certificate and chain from ACM", "certificate_arn", aws.StringValue(certificateArn))
+	getResponse, err := p.pcaClient.GetCertificateWithContext(ctx, getCertificateInput)
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed to get cerficates: %v", err)
 	}
 
 	// Parse the cert from the response
 	cert, err := pemutil.ParseCertificate([]byte(aws.StringValue(getResponse.Certificate)))
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed to parse certificate from response: %v", err)
 	}
 
 	// Parse the chain from the response
 	certChain, err := pemutil.ParseCertificates([]byte(aws.StringValue(getResponse.CertificateChain)))
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed to parse certificate chain from response: %v", err)
 	}
-	m.log.Info("Certificate and chain received", "certificate_arn", aws.StringValue(certificateArn))
+	p.log.Info("Certificate and chain received", "certificate_arn", aws.StringValue(certificateArn))
 
 	// ACM's API outputs the certificate chain from a GetCertificate call in the following
 	// order: A (signed by B) -> B (signed by ROOT) -> ROOT.
@@ -230,44 +244,54 @@ func (m *PCAPlugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, s
 
 	// The last certificate returned from the chain is the root.
 	upstreamRoot := certChain[len(certChain)-1]
-	bundle := x509util.DedupeCertificates([]*x509.Certificate{upstreamRoot}, m.supplementalBundle)
+	bundle := x509util.DedupeCertificates([]*x509.Certificate{upstreamRoot}, config.supplementalBundle)
 
-	derBundle := x509util.RawCertsFromCertificates(bundle)
+	upstreamX509Roots, err := x509certificate.ToPluginProtos(bundle)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
+	}
 
 	// All else comprises the chain (including the issued certificate)
-	derChain := [][]byte{cert.Raw}
-	derChain = append(derChain, x509util.RawCertsFromCertificates(certChain[:len(certChain)-1])...)
+	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, certChain[:len(certChain)-1]...))
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
+	}
 
-	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
-		X509CaChain:       derChain,
-		UpstreamX509Roots: derBundle,
+	return stream.Send(&upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509CAChain,
+		UpstreamX509Roots: upstreamX509Roots,
 	})
 }
 
-// validateConfig returns an error if any configuration provided does not meet acceptable criteria
-func (m *PCAPlugin) validateConfig(req *spi.ConfigureRequest) (*PCAPluginConfiguration, error) {
-	config := new(PCAPluginConfiguration)
+// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
+func (*PCAPlugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
+}
 
-	if err := hcl.Decode(&config, req.Configuration); err != nil {
-		return nil, err
+func (p *PCAPlugin) getConfig() (*configuration, error) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	if p.config == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	return p.config, nil
+}
+
+// validateConfig returns an error if any configuration provided does not meet acceptable criteria
+func (p *PCAPlugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {
+	config := new(Configuration)
+
+	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	if config.Region == "" {
-		return nil, errors.New("configuration is missing a region")
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
 	}
 
 	if config.CertificateAuthorityARN == "" {
-		return nil, errors.New("configuration is missing a certificate authority ARN")
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing a certificate authority ARN")
 	}
 
 	return config, nil
-}
-
-// PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
-func (m *PCAPlugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
-	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "aws-pca: "+format, args...)
 }
