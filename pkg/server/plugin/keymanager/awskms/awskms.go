@@ -3,7 +3,6 @@ package awskms
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -312,8 +311,8 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 
 func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
 	oldEntry, hasOldEntry := p.entries[entry.PublicKey.Id]
-	switch {
-	case !hasOldEntry:
+
+	if !hasOldEntry {
 		// create alias
 		_, err := p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
 			AliasName:   aws.String(entry.AliasName),
@@ -323,33 +322,7 @@ func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
 			return status.Errorf(codes.Internal, "failed to create alias: %v", err)
 		}
 		p.log.Debug("Alias created", aliasNameTag, entry.AliasName, keyArnTag, entry.Arn)
-	case oldEntry.AliasName != entry.AliasName:
-		// provides backward compatibility
-		// if there is an old entry with a different alias from the new entry
-		// that entry was created with a previous version of the plugin that didn't support encoding
-		// we need to create an alias for the new entry
-		_, err := p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
-			AliasName:   aws.String(entry.AliasName),
-			TargetKeyId: &entry.Arn,
-		})
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to create alias: %v", err)
-		}
-		p.log.Debug("Alias created", aliasNameTag, entry.AliasName, keyArnTag, entry.Arn)
-
-		// TODO: do this on a separated task like delete
-		_, err = p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: &oldEntry.AliasName})
-		if err != nil {
-			p.log.Error("Failed to delete deprecated alias", reasonTag, fmt.Errorf("AWS API DeleteAlias failed: %w", err))
-		}
-
-		select {
-		case p.scheduleDelete <- oldEntry.Arn:
-			p.log.Debug("Key enqueued for deletion", keyArnTag, oldEntry.Arn)
-		default:
-			p.log.Error("Failed to enqueue key for deletion", keyArnTag, oldEntry.Arn)
-		}
-	default:
+	} else {
 		// update alias
 		_, err := p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
 			AliasName:   aws.String(entry.AliasName),
@@ -377,7 +350,7 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	// add results to cache
 	for _, e := range keyEntries {
 		p.entries[e.PublicKey.Id] = *e
-		p.log.Debug("Key loaded", keyArnTag, e.Arn, aliasNameTag, e.AliasName, "spire_key_id", e.PublicKey.Id)
+		p.log.Debug("Key loaded", keyArnTag, e.Arn, aliasNameTag, e.AliasName)
 	}
 }
 
@@ -690,9 +663,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
-	// Encode into a set of characters that fits into what is supported by alias name
-	encodedKeyID := encodeKeyID(spireKeyID)
-	return path.Join(p.aliasPrefixForServer(), encodedKeyID)
+	return path.Join(p.aliasPrefixForServer(), encodeKeyID(spireKeyID))
 }
 
 func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
@@ -754,7 +725,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	}
 
 	if config.KeyMetadataFile == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing key metadata file")
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id file path")
 	}
 
 	return config, nil
@@ -883,22 +854,19 @@ func makeFingerprint(pkixData []byte) string {
 	return hex.EncodeToString(s[:])
 }
 
-// Encode into a slightly different version of base64.
-// The end result is limited to characters supported by KMS alias [a-zA-Z0-9/_-]
+// encodeKeyID maps "." and "+" characters to the asciihex value using "_" as
+// escape character. Currently KMS does not support those characters to be used
+// as alias name.
 func encodeKeyID(keyID string) string {
-	encoded := base64.StdEncoding.EncodeToString([]byte(keyID))
-	encoded = strings.ReplaceAll(encoded, "+", "-")
-	encoded = strings.ReplaceAll(encoded, "=", "_")
-	return encoded
+	keyID = strings.ReplaceAll(keyID, ".", "_2e")
+	keyID = strings.ReplaceAll(keyID, "+", "_2b")
+	return keyID
 }
 
-// Decode from a slightly different version of base64
-func decodeKeyID(encodedKeyID string) (string, error) {
-	encodedKeyID = strings.ReplaceAll(encodedKeyID, "-", "+")
-	encodedKeyID = strings.ReplaceAll(encodedKeyID, "_", "=")
-	keyID, err := base64.StdEncoding.DecodeString(encodedKeyID)
-	if err != nil {
-		return "", err
-	}
-	return string(keyID), nil
+// decodeKeyID decodes "." and "+" from the asciihex value using "_" as
+// escape character.
+func decodeKeyID(keyID string) string {
+	keyID = strings.ReplaceAll(keyID, "_2e", ".")
+	keyID = strings.ReplaceAll(keyID, "_2b", "+")
+	return keyID
 }
