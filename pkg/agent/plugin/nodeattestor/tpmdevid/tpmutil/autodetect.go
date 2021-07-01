@@ -2,7 +2,6 @@ package tpmutil
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"path"
 	"regexp"
@@ -34,7 +33,7 @@ func AutoDetectTPMPath(baseTPMDir string) (string, error) {
 				// there is only one TPM device.
 
 			case deviceNameMatch && deviceFound:
-				return "", fmt.Errorf("more than one possible TPM device was found")
+				return "", errors.New("more than one possible TPM device was found")
 
 			default:
 			}

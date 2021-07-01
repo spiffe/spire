@@ -240,7 +240,7 @@ func TestAidAttestationFailiures(t *testing.T) {
 	}{
 		{
 			name:         "AidAttestation fails if a new session cannot be started",
-			expErr:       `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot load DevID key on TPM`,
+			expErr:       `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot load DevID key on TPM`,
 			openTPMFail:  true,
 			serverStream: streamBuilder.Build(),
 		},
@@ -300,13 +300,13 @@ func TestAidAttestationFailiures(t *testing.T) {
 		},
 		{
 			name:                              "AidAttestation fails if a wrong endorsement hierarchy password is provided",
-			expErr:                            `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot create endorsement key`,
+			expErr:                            `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot create endorsement key`,
 			wrongEndorsementHierarchyPassword: true,
 			serverStream:                      streamBuilder.Build(),
 		},
 		{
 			name:                        "AidAttestation fails if a wrong owner hierarchy password is provided",
-			expErr:                      `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable start a new TPM session: cannot load DevID key on TPM`,
+			expErr:                      `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot load DevID key on TPM`,
 			wrongOwnerHierarchyPassword: true,
 			serverStream:                streamBuilder.Build(),
 		},

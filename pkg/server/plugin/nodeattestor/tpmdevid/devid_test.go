@@ -170,10 +170,10 @@ func TestAttestFailiures(t *testing.T) {
 	require.NoError(t, err)
 
 	// We need to close this TPM simulator before creating a new one (the
-	// library only support one simulator running at the same time)
+	// library only supports one simulator running at the same time)
 	anotherSim.Close()
 
-	// Setup the main TPM simulator
+	// Set up the main TPM simulator
 	setupSimulator(t, provisioningCA)
 	defer teardownSimulator(t)
 

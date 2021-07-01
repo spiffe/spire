@@ -36,7 +36,7 @@ var (
 	}
 )
 
-// OpenSimulatedTPM works in the same way than tpmutil.OpenTPM() but it ignores
+// openSimulatedTPM works in the same way than tpmutil.OpenTPM() but it ignores
 // the path argument and opens a connection to a simulated TPM.
 func openSimulatedTPM(tpmPath string) (io.ReadWriteCloser, error) {
 	if tpmPath == "" {
@@ -99,7 +99,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name:   "NewSesion fails if DevID blobs cannot be loaded",
-			expErr: "cannot load DevID key on TPM: tpm2.Public decoding failed: decoding TPMT_PUBLIC: unexpected EOF",
+			expErr: "cannot load DevID key on TPM: tpm2.DecodePublic failed: decoding TPMT_PUBLIC: unexpected EOF",
 			scfg: &tpmutil.SessionConfig{
 				DevicePath: "/dev/tpmrm0",
 				DevIDPriv:  []byte("not a private key blob"),
@@ -164,7 +164,7 @@ func TestNewSession(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			// Run hook if exist, generally used to intentionally cause an error
+			// Run hook if exists, generally used to intentionally cause an error
 			// and test more code paths.
 			if tt.hook != nil {
 				closer := tt.hook(t)

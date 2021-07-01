@@ -89,7 +89,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		Log:        p.log,
 	})
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable start a new TPM session: %v", err)
+		return status.Errorf(codes.Internal, "unable to start a new TPM session: %v", err)
 	}
 	defer tpm.Close()
 
@@ -105,7 +105,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to get endorsement public key: %v", err)
 	}
 
-	// Certify DevID in in the same TPM than AK
+	// Certify DevID is in the same TPM than AK
 	id, sig, err := tpm.CertifyDevIDKey()
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to certify DevID key: %v", err)
@@ -160,7 +160,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	// Solve Credential Activation challenge
 	var credActChallengeResp []byte
 	if challenges.CredActivation == nil {
-		return status.Errorf(codes.Internal, "received empty credential activation challenge from server")
+		return status.Error(codes.Internal, "received empty credential activation challenge from server")
 	}
 
 	credActChallengeResp, err = tpm.SolveCredActivationChallenge(

@@ -32,7 +32,7 @@ func (k *SigningKey) Close() error {
 	return tpm2.FlushContext(k.rw, k.Handle)
 }
 
-// Sign request the TPM to sign the given data using this key
+// Sign requests the TPM to sign the given data using this key
 func (k *SigningKey) Sign(data []byte) ([]byte, error) {
 	digest, token, err := tpm2.Hash(k.rw, k.sigHashAlg, data, tpm2.HandlePlatform)
 	if err != nil {

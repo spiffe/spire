@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -108,7 +109,7 @@ func New(endorsementHierarchyPassword, ownerHierarchyPassword string) (*TPMSimul
 // certificate and key are generated.
 func NewProvisioningCA(c *ProvisioningConf) (*ProvisioningAuthority, error) {
 	if c == nil {
-		return nil, fmt.Errorf("provisioning config is nil")
+		return nil, errors.New("provisioning config is nil")
 	}
 
 	var rootCertificate *x509.Certificate
@@ -137,7 +138,7 @@ func NewProvisioningCA(c *ProvisioningConf) (*ProvisioningAuthority, error) {
 		}
 
 	default:
-		return nil, fmt.Errorf("the root certificate or private key is nil but not both")
+		return nil, errors.New("the root certificate or private key is nil but not both")
 	}
 
 	provisioningAuthority := &ProvisioningAuthority{
@@ -171,7 +172,7 @@ func NewProvisioningCA(c *ProvisioningConf) (*ProvisioningAuthority, error) {
 	return provisioningAuthority, nil
 }
 
-// Chain returns the leaf and intermediates certificates in DER format
+// Chain returns the leaf and intermediate certificates in DER format
 func (c *Credential) Chain() [][]byte {
 	chain := [][]byte{c.Certificate.Raw}
 	for _, intermediate := range c.Intermediates {
@@ -181,7 +182,7 @@ func (c *Credential) Chain() [][]byte {
 	return chain
 }
 
-// ChainPem returns the leaf and intermediates certificates in PEM format
+// ChainPem returns the leaf and intermediate certificates in PEM format
 func (c *Credential) ChainPem() []byte {
 	chain := []*x509.Certificate{c.Certificate}
 	chain = append(chain, c.Intermediates...)
@@ -367,7 +368,7 @@ func (p *ProvisioningAuthority) issueCertificate(publicKey interface{}) (*x509.C
 		privateKey = p.RootKey
 
 	default:
-		return nil, fmt.Errorf("the intermediate certificate or private key is nil but not both")
+		return nil, errors.New("the intermediate certificate or private key is nil but not both")
 	}
 
 	return createCertificate(publicKey, &x509.Certificate{

@@ -133,7 +133,7 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 	return tpm, nil
 }
 
-// Close unloads TPM loaded objects and close the connection to the TPM.
+// Close unloads TPM loaded objects and closes the connection to the TPM.
 func (c *Session) Close() {
 	if c.devID != nil {
 		err := c.devID.Close()
@@ -169,7 +169,7 @@ func (c *Session) Close() {
 	}
 }
 
-// SolveDevIDChallenge request the TPM to sign the provided nonce using the loaded
+// SolveDevIDChallenge requests the TPM to sign the provided nonce using the loaded
 // DevID credentials.
 func (c *Session) SolveDevIDChallenge(nonce []byte) ([]byte, error) {
 	signedNonce, err := c.devID.Sign(nonce)
@@ -222,9 +222,9 @@ func (c *Session) GetEKCert() ([]byte, error) {
 		return nil, fmt.Errorf("failed to read NV index %08x: %w", EKCertificateHandleRSA, err)
 	}
 
-	// In some TPMs, when we read bytes from a NV index, the readed content
-	// includes the DER encoded x509 certificate + trailing data. We need to
-	// remove that trailing bytes in order to make the certificate parseable by
+	// In some TPMs, when we read bytes from an NV index, the content read
+	// includes the DER encoded x.509 certificate + trailing data. We need to
+	// remove those trailing bytes in order to make the certificate parseable by
 	// the server that uses x509.ParseCertificate().
 	var ekCert asn1.RawValue
 	_, err = asn1.Unmarshal(ekCertAndTrailingBytes, &ekCert)
@@ -261,7 +261,7 @@ func (c *Session) GetAKPublic() []byte {
 func (c *Session) loadKey(pubKey, privKey []byte, parentKeyPassword, keyPassword string) (*SigningKey, error) {
 	pub, err := tpm2.DecodePublic(pubKey)
 	if err != nil {
-		return nil, fmt.Errorf("tpm2.Public decoding failed: %w", err)
+		return nil, fmt.Errorf("tpm2.DecodePublic failed: %w", err)
 	}
 
 	canSign := pub.Attributes&tpm2.FlagSign != 0
@@ -382,7 +382,7 @@ func (c *Session) createPolicySessionForEK() (tpmutil.Handle, error) {
 		},
 		hSession, // policyHandle:	Handle for the policy session being extended.
 		nil,      // policyNonce:	The policy nonce for the session (can be the Empty Buffer).
-		nil,      // cpHash:		Digest of the command parameters to which this authorization is limited. (If it is not limited, the parameter will be the Empty Buffer).
+		nil,      // cpHash:		Digest of the command parameters to which this authorization is limited (if it is not limited, the parameter will be the Empty Buffer).
 		nil,      // policyRef:		Reference to a policy relating to the authorization.
 		0,        // expiry: 		Time when authorization will expire measured in seconds (zero means no expiration).
 	)
