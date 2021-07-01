@@ -62,7 +62,7 @@ func (e *encoder) decode(keyID string) (string, error) {
 }
 
 // getAllowedAliasCharset returns a map with the allowed characters for alias name.
-// Allowed pattern is: alias/^[a-zA-Z0-9/_-]+$
+// Allowed pattern for alias name is: alias/^[a-zA-Z0-9/_-]+$
 func getAllowedAliasCharset() map[rune]struct{} {
 	allowedKMSChars := make(map[rune]struct{})
 
@@ -78,8 +78,9 @@ func getAllowedAliasCharset() map[rune]struct{} {
 		allowedKMSChars[v] = struct{}{}
 	}
 
+	// Underscore is allowed but we don't include it since it is used
+	// as escape character.
 	allowedKMSChars['/'] = struct{}{}
-	allowedKMSChars['_'] = struct{}{}
 	allowedKMSChars['-'] = struct{}{}
 
 	return allowedKMSChars
