@@ -108,10 +108,9 @@ The following steps must be completed one week prior to release:
 The following steps must be completed to perform a release:
 * Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it**. If a version branch was created for the realease, cherry-pick the final CHANGELOG changes into the version branch once they are merged.
 * If releasing from main and the current state of the main branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG. If releasing from a version branch, the candidate commit is now the one that has the CHANGELOG changes cherry-picked in the branch.
-* Cut two annotated tags against the release candidate named `vX.X.X` and `proto/spire/vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
-  * The first line of the annotation should be `X.X.X` followed by the CHANGELOG. Refer to previous annotated tags as an example.
-  * The `proto/spire/vX.X.X` tag is needed for proper versioning of the github.com/spiffe/spire/proto/spire go module and can be omitted if/when that go module is no longer in the SPIRE repository.
-* Push the tags to SPIRE, and watch the build to completion.
+* Cut an annotated tag against the release candidate named `vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
+  * The first line of the annotation should be `vX.X.X` followed by the CHANGELOG. **There should be a newline between the version and the CHANGELOG**.
+* Push the annotated tag to SPIRE, and watch the build to completion.
   * If the build fails, or anything unusual is encountered, abort the release.
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub rendering bug that you will notice before completing this task.

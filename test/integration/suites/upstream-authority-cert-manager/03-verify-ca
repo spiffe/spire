@@ -1,0 +1,36 @@
+#!/bin/bash
+
+source init-kubectl
+
+expLeafIssuer="issuer=C = US, O = SPIFFE"
+expLeafURI="URI:spiffe://example.org/ns/foo/sa/bar"
+expCASubject="subject=O = cert-manager.io, CN = example.org"
+
+log-debug "verifying CA..."
+
+./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- /opt/spire/bin/spire-server x509 mint -spiffeID spiffe://example.org/ns/foo/sa/bar -write .
+leafURIResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat svid.pem | openssl x509 -noout -text | grep URI | sed 's/^ *//g')
+leafIssuerResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat svid.pem | openssl x509 -noout -issuer)
+caSubjectResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat bundle.pem | openssl x509 -noout -subject)
+
+if [ "$leafURIResult" != "$expLeafURI" ]; then
+  fail-now "unexpected SPIFFE ID in resulting certificate, exp=$expLeafURI got=$leafURIResult"
+fi
+log-info "got expected SPIFFE ID result"
+
+if [ "$leafIssuerResult" != "$expLeafIssuer" ]; then
+  fail-now "unexpected Issuer in resulting certificate, exp=$expLeafIssuer got=$leafIssuerResult"
+fi
+log-info "got expected Issuer result"
+
+if [ "$caSubjectResult" != "$expCASubject" ]; then
+  fail-now "unexpected Subject in resulting CA bundle, exp=$expCASubject got=$caSubjectResult"
+fi
+log-info "got expected CA bundle result"
+
+log-debug "ensuring CertificateRequest has been cleaned-up"
+exitingRequests=$(./bin/kubectl get cr -n spire --selector="cert-manager.spiffe.io/trust-domain==example.org" -oname | wc -l)
+if [ "$exitingRequests" -ne 0 ]; then
+  ./bin/kubectl get cr -n spire --selector="cert-manager.spiffe.io/trust-domain==example.org" -oname
+  fail-now "expected CertificateRequest to be cleaned-up, got=$exitingRequests"
+fi

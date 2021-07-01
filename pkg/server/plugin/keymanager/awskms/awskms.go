@@ -112,6 +112,8 @@ func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, e
 // SetLogger sets a logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
+
+	p.log.Warn("The %q KeyManager plugin does not currently support ACME. If you are using (or plan on using) ACME for federation, please choose a different KeyManager", pluginName)
 }
 
 // Configure sets up the plugin

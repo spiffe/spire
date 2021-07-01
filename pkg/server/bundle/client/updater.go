@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -30,6 +31,9 @@ type BundleUpdater interface {
 	// returned if it can be successfully downloaded, is different from the
 	// local bundle, and is successfully stored.
 	UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error)
+
+	// TrustDomainConfig returns the configuration for the updater
+	TrustDomainConfig() TrustDomainConfig
 }
 
 type bundleUpdater struct {
@@ -47,45 +51,63 @@ func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 }
 
 func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
-	localBundleOrNil, err := fetchBundleIfExists(ctx, u.c.DataStore, u.c.TrustDomain)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch local bundle: %w", err)
-	}
-
-	client, err := u.newClient(localBundleOrNil)
+	client, err := u.newClient(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	endpointBundle, err := client.FetchBundle(ctx)
+	localFederatedBundleOrNil, err := fetchBundleIfExists(ctx, u.c.DataStore, u.c.TrustDomain)
 	if err != nil {
-		return localBundleOrNil, nil, fmt.Errorf("failed to fetch endpoint bundle: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch local federated bundle: %w", err)
 	}
 
-	if localBundleOrNil != nil && endpointBundle.EqualTo(localBundleOrNil) {
-		return localBundleOrNil, nil, nil
-	}
-
-	_, err = u.c.DataStore.SetBundle(ctx, endpointBundle.Proto())
+	fetchedFederatedBundle, err := client.FetchBundle(ctx)
 	if err != nil {
-		return localBundleOrNil, nil, fmt.Errorf("failed to store endpoint bundle: %w", err)
+		return localFederatedBundleOrNil, nil, fmt.Errorf("failed to fetch federated bundle from endpoint: %w", err)
 	}
 
-	return localBundleOrNil, endpointBundle, nil
+	if localFederatedBundleOrNil != nil && fetchedFederatedBundle.EqualTo(localFederatedBundleOrNil) {
+		return localFederatedBundleOrNil, nil, nil
+	}
+
+	_, err = u.c.DataStore.SetBundle(ctx, fetchedFederatedBundle.Proto())
+	if err != nil {
+		return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", err)
+	}
+
+	return localFederatedBundleOrNil, fetchedFederatedBundle, nil
 }
 
-func (u *bundleUpdater) newClient(localBundleOrNil *bundleutil.Bundle) (Client, error) {
+func (u *bundleUpdater) TrustDomainConfig() TrustDomainConfig {
+	return u.c.TrustDomainConfig
+}
+
+func (u *bundleUpdater) newClient(ctx context.Context) (Client, error) {
 	config := ClientConfig{
-		TrustDomain:     u.c.TrustDomain,
-		EndpointAddress: u.c.EndpointAddress,
+		TrustDomain:      u.c.TrustDomain,
+		EndpointURL:      u.c.EndpointURL,
+		DeprecatedConfig: u.c.DeprecatedConfig,
 	}
-	if !u.c.UseWebPKI {
-		if localBundleOrNil == nil {
-			return nil, errs.New("local bundle not found")
+
+	if spiffeAuth, ok := u.c.EndpointProfile.(HTTPSSPIFFEProfile); ok {
+		trustDomain := spiffeAuth.EndpointSPIFFEID.TrustDomain()
+
+		// This is to preserve behavioral compatibility when using
+		// the deprecated config and will be removed in 1.1.0.
+		if u.c.DeprecatedConfig && trustDomain.IsZero() {
+			trustDomain = u.c.TrustDomain
+		}
+		localEndpointBundle, err := fetchBundleIfExists(ctx, u.c.DataStore, trustDomain)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch local copy of bundle for %q: %w", trustDomain, err)
+		}
+
+		if localEndpointBundle == nil {
+			return nil, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
 		}
 		config.SPIFFEAuth = &SPIFFEAuthConfig{
-			EndpointSpiffeID: u.c.EndpointSpiffeID,
-			RootCAs:          localBundleOrNil.RootCAs(),
+			EndpointSpiffeID: spiffeAuth.EndpointSPIFFEID,
+			RootCAs:          localEndpointBundle.RootCAs(),
 		}
 	}
 	return u.c.newClient(config)

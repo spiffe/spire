@@ -31,13 +31,14 @@ func TestV1(t *testing.T) {
 	resultWithSelectors := &nodeattestor.AttestResult{AgentID: agentID, Selectors: selectors}
 
 	for _, tt := range []struct {
-		test          string
-		plugin        *fakeV1Plugin
-		payload       string
-		responseErr   error
-		expectCode    codes.Code
-		expectMessage string
-		expectResult  *nodeattestor.AttestResult
+		test           string
+		plugin         *fakeV1Plugin
+		payload        string
+		responseErr    error
+		expectAnyError bool
+		expectCode     codes.Code
+		expectMessage  string
+		expectResult   *nodeattestor.AttestResult
 	}{
 		{
 			test:          "payload cannot be empty",
@@ -46,18 +47,16 @@ func TestV1(t *testing.T) {
 			expectMessage: "payload cannot be empty",
 		},
 		{
-			test:          "plugin closes stream immediately",
-			plugin:        &fakeV1Plugin{preRecvError: &nilErr},
-			payload:       "unused",
-			expectCode:    codes.Internal,
-			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
+			test:           "plugin closes stream immediately",
+			plugin:         &fakeV1Plugin{preRecvError: &nilErr},
+			payload:        "unused",
+			expectAnyError: true,
 		},
 		{
-			test:          "plugin fails immediately",
-			plugin:        &fakeV1Plugin{preRecvError: &ohnoErr},
-			payload:       "unused",
-			expectCode:    codes.Unknown,
-			expectMessage: "nodeattestor(test): ohno",
+			test:           "plugin fails immediately",
+			plugin:         &fakeV1Plugin{preRecvError: &ohnoErr},
+			payload:        "unused",
+			expectAnyError: true,
 		},
 		{
 			test:          "plugin closes stream after receiving data but before responding",
@@ -130,7 +129,12 @@ func TestV1(t *testing.T) {
 					return challenge, tt.responseErr
 				},
 			)
-			if tt.expectCode != codes.OK {
+			switch {
+			case tt.expectAnyError:
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "nodeattestor(test): ")
+				return
+			case tt.expectCode != codes.OK:
 				spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMessage)
 				return
 			}
