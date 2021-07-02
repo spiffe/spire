@@ -268,21 +268,6 @@ func TestConfigure(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:             "key with wrong encoding",
-			err:              "cannot decode Key ID \"wrong-encoding_\":unable to decode: missing values after escape character",
-			code:             codes.Internal,
-			configureRequest: configureRequestWithDefaults(t),
-			fakeEntries: []fakeKeyEntry{
-				{
-					AliasName: aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/wrong-encoding_"),
-					KeyID:     aws.String(keyID),
-					KeySpec:   types.CustomerMasterKeySpecRsa4096,
-					Enabled:   false,
-					PublicKey: []byte("foo"),
-				},
-			},
-		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -1813,110 +1798,6 @@ func TestDisposeKeys(t *testing.T) {
 				_, ok := storedKeys[*expected.KeyID]
 				require.True(t, ok, "Expected key was not present on end result: %q", *expected.KeyID)
 			}
-		})
-	}
-}
-
-func TestEncodeKeyID(t *testing.T) {
-	e := newEncoder()
-	for _, tt := range []struct {
-		name           string
-		input          string
-		expectedOutput string
-	}{
-		{
-			name: "empty string",
-		},
-		{
-			name:           "no encoding required",
-			input:          "abc",
-			expectedOutput: "abc",
-		},
-		{
-			name:           "special characters at the beginning",
-			input:          ".?abc",
-			expectedOutput: "_2e_3fabc",
-		},
-		{
-			name:           "special characters in the middle",
-			input:          "a.?bc",
-			expectedOutput: "a_2e_3fbc",
-		},
-		{
-			name:           "special characters at the end",
-			input:          "abc.?",
-			expectedOutput: "abc_2e_3f",
-		},
-		{
-			name:           "special character with only 1 hex digit",
-			input:          "abc" + string(rune(1)),
-			expectedOutput: "abc_01",
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			result := e.encode(tt.input)
-			require.Equal(t, tt.expectedOutput, result)
-		})
-	}
-}
-
-func TestDecodeKeyID(t *testing.T) {
-	e := newEncoder()
-	for _, tt := range []struct {
-		name           string
-		input          string
-		expectedOutput string
-		expectedErr    string
-	}{
-		{
-			name: "empty string",
-		},
-		{
-			name:           "no encoding required",
-			input:          "abc",
-			expectedOutput: "abc",
-		},
-		{
-			name:           "special characters at the beginning",
-			input:          "_2e_3fabc",
-			expectedOutput: ".?abc",
-		},
-		{
-			name:           "special characters in the middle",
-			input:          "a_2e_3fbc",
-			expectedOutput: "a.?bc",
-		},
-		{
-			name:           "special characters at the end",
-			input:          "abc_2e_3f",
-			expectedOutput: "abc.?",
-		},
-		{
-			name:        "wrong encoding: missing characters",
-			input:       "abc_",
-			expectedErr: "unable to decode: missing values after escape character",
-		},
-		{
-			name:        "wrong encoding: incomplete characters",
-			input:       "abc_3",
-			expectedErr: "unable to decode: missing values after escape character",
-		},
-		{
-			name:        "wrong encoding: non hexa character",
-			input:       "abc_gg",
-			expectedErr: "unable to decode: encoding/hex: invalid byte: U+0067 'g'",
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := e.decode(tt.input)
-			if tt.expectedErr != "" {
-				require.EqualError(t, err, tt.expectedErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.expectedOutput, result)
 		})
 	}
 }
