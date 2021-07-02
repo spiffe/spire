@@ -140,5 +140,5 @@ func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
 	if trimmed == aliasName {
 		return "", false
 	}
-	return trimmed, true
+	return decodeKeyID(trimmed), true
 }
