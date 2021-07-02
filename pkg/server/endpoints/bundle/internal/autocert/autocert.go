@@ -261,6 +261,21 @@ func (m *Manager) TLSConfig() *tls.Config {
 			"h2", "http/1.1", // enable HTTP/2
 			acme.ALPNProto, // enable tls-alpn ACME challenges
 		},
+
+		// Limit the cipher suites to a small subset for broad KeyManager
+		// support, as some KeyManagers have signature algorithm limitations
+		// (e.g. AWS KMS). Since we exclusively use RSA2048 and ECP256 keys,
+		// this means limiting the cipher suites to those that use SHA256.
+		// See issue #2302.
+		// TODO: embellish the KeyManager interface to return the list of
+		// supported algorithms so that this list can be generated dynamically.
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+		},
 	}
 }
 
