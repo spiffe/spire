@@ -1852,11 +1852,6 @@ func TestEncodeKeyID(t *testing.T) {
 			input:          "abc" + string(rune(1)),
 			expectedOutput: "abc_01",
 		},
-		{
-			name:           "encode escape character",
-			input:          "acme_account+key",
-			expectedOutput: "acme_5faccount_2bkey",
-		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -1896,11 +1891,6 @@ func TestDecodeKeyID(t *testing.T) {
 			name:           "special characters at the end",
 			input:          "abc_2e_3f",
 			expectedOutput: "abc.?",
-		},
-		{
-			name:           "decode escape character",
-			input:          "acme_5faccount_2bkey",
-			expectedOutput: "acme_account+key",
 		},
 		{
 			name:        "wrong encoding: missing characters",
