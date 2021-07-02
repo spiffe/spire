@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/sat"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
 )
 
@@ -44,6 +45,7 @@ func (repo *nodeAttestorRepository) BuiltIns() []catalog.BuiltIn {
 		psat.BuiltIn(),
 		sat.BuiltIn(),
 		sshpop.BuiltIn(),
+		tpmdevid.BuiltIn(),
 		x509pop.BuiltIn(),
 	}
 }
