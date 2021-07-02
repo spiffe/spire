@@ -314,6 +314,13 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
+			name: "success: non existing key with special characters",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   "bundle-acme-foo.bar+rsa",
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
 			name: "success: replace old key",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
@@ -322,6 +329,33 @@ func TestGenerateKey(t *testing.T) {
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName:            aws.String(aliasName),
+					KeyID:                aws.String(keyID),
+					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
+					Enabled:              true,
+					PublicKey:            []byte("foo"),
+					AliasLastUpdatedDate: &unixEpoch,
+				},
+			},
+			waitForDelete: true,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Key deleted",
+					Data: logrus.Fields{
+						keyArnTag: KeyArn,
+					},
+				},
+			},
+		},
+		{
+			name: "success: replace old key with special characters",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   "bundle-acme-foo.bar+rsa",
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/bundle-acme-foo_2ebar_2brsa"),
 					KeyID:                aws.String(keyID),
 					KeySpec:              types.CustomerMasterKeySpecEccNistP256,
 					Enabled:              true,
@@ -576,6 +610,11 @@ func TestGenerateKey(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+
+			_, err = ts.plugin.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{
+				KeyId: tt.request.KeyId,
+			})
+			require.NoError(t, err)
 
 			if !tt.waitForDelete {
 				return
@@ -894,6 +933,19 @@ func TestGetPublicKey(t *testing.T) {
 
 				{
 					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
+					KeySpec:   types.CustomerMasterKeySpecRsa4096,
+					Enabled:   true,
+					PublicKey: []byte("foo"),
+				},
+			},
+		},
+		{
+			name:  "existing key with special characters",
+			keyID: "bundle-acme-foo.bar+rsa",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/bundle-acme-foo_2ebar_2brsa"),
 					KeyID:     aws.String(keyID),
 					KeySpec:   types.CustomerMasterKeySpecRsa4096,
 					Enabled:   true,
