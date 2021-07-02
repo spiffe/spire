@@ -64,24 +64,23 @@ type Config struct {
 }
 
 type serverConfig struct {
-	AuditLogEnabled bool               `hcl:"auditlog_enabled"`
-	BindAddress     string             `hcl:"bind_address"`
-	BindPort        int                `hcl:"bind_port"`
-	CAKeyType       string             `hcl:"ca_key_type"`
-	CASubject       *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL           string             `hcl:"ca_ttl"`
-	DataDir         string             `hcl:"data_dir"`
-	DefaultSVIDTTL  string             `hcl:"default_svid_ttl"`
-	Experimental    experimentalConfig `hcl:"experimental"`
-	Federation      *federationConfig  `hcl:"federation"`
-	JWTIssuer       string             `hcl:"jwt_issuer"`
-	JWTKeyType      string             `hcl:"jwt_key_type"`
-	LogFile         string             `hcl:"log_file"`
-	LogLevel        string             `hcl:"log_level"`
-	LogFormat       string             `hcl:"log_format"`
-	RateLimit       rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath      string             `hcl:"socket_path"`
-	TrustDomain     string             `hcl:"trust_domain"`
+	BindAddress    string             `hcl:"bind_address"`
+	BindPort       int                `hcl:"bind_port"`
+	CAKeyType      string             `hcl:"ca_key_type"`
+	CASubject      *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL          string             `hcl:"ca_ttl"`
+	DataDir        string             `hcl:"data_dir"`
+	DefaultSVIDTTL string             `hcl:"default_svid_ttl"`
+	Experimental   experimentalConfig `hcl:"experimental"`
+	Federation     *federationConfig  `hcl:"federation"`
+	JWTIssuer      string             `hcl:"jwt_issuer"`
+	JWTKeyType     string             `hcl:"jwt_key_type"`
+	LogFile        string             `hcl:"log_file"`
+	LogLevel       string             `hcl:"log_level"`
+	LogFormat      string             `hcl:"log_format"`
+	RateLimit      rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath     string             `hcl:"socket_path"`
+	TrustDomain    string             `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -397,7 +396,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.DataDir = c.Server.DataDir
-	sc.AuditLogEnabled = c.Server.AuditLogEnabled
 
 	td, err := idutil.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
