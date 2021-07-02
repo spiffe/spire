@@ -906,9 +906,11 @@ func TestFetchJWTSVID(t *testing.T) {
 
 func TestStorableSVIDsSync(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			switch count {
 			case 1:

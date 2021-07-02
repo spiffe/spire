@@ -237,7 +237,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 
 	spiffeID, err := spiffeid.FromString(record.Entry.SpiffeId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse SPIFFE ID: %v", err)
+		return nil, fmt.Errorf("failed to parse SPIFFE ID: %w", err)
 	}
 
 	return &svidstore.X509SVID{
