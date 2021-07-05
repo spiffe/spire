@@ -14,15 +14,17 @@ func (repo *svidStoreRepository) Binder() interface{} {
 }
 
 func (repo *svidStoreRepository) Constraints() catalog.Constraints {
-	return catalog.AtLeastOne()
+	return catalog.MaybeOne()
 }
 
 func (repo *svidStoreRepository) Versions() []catalog.Version {
-	return []catalog.Version{svidStoreV1{}}
+	return []catalog.Version{
+		svidStoreV1{},
+	}
 }
 
 func (repo *svidStoreRepository) LegacyVersion() (catalog.Version, bool) {
-	return svidStoreV1{}, true
+	return nil, false
 }
 
 func (repo *svidStoreRepository) BuiltIns() []catalog.BuiltIn {

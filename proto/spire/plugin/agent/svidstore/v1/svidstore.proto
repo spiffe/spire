@@ -2,20 +2,12 @@ syntax = "proto3";
 package spire.agent.svidstore;
 option go_package = "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1;svidstorev1";
 
-import "spire/common/plugin/plugin.proto";
-
 service SVIDStore {
     // Puts an X509-SVID in a configured secrets store
     rpc PutX509SVID(PutX509SVIDRequest) returns (PutX509SVIDResponse);
 
     // Deletes a secrets from a secrets store
     rpc DeleteX509SVID(DeleteX509SVIDRequest) returns (DeleteX509SVIDResponse);
-
-    // Applies the plugin configuration and returns configuration errors
-    rpc Configure(spire.common.plugin.ConfigureRequest) returns (spire.common.plugin.ConfigureResponse);
-
-    // Returns the version and related metadata of the plugin 
-    rpc GetPluginInfo(spire.common.plugin.GetPluginInfoRequest) returns (spire.common.plugin.GetPluginInfoResponse);
 }
 
 message PutX509SVIDRequest {

@@ -4,7 +4,6 @@ package svidstorev1
 
 import (
 	context "context"
-	plugin "github.com/spiffe/spire/proto/spire/common/plugin"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -23,10 +22,6 @@ type SVIDStoreClient interface {
 	PutX509SVID(ctx context.Context, in *PutX509SVIDRequest, opts ...grpc.CallOption) (*PutX509SVIDResponse, error)
 	// Deletes a secrets from a secrets store
 	DeleteX509SVID(ctx context.Context, in *DeleteX509SVIDRequest, opts ...grpc.CallOption) (*DeleteX509SVIDResponse, error)
-	// Applies the plugin configuration and returns configuration errors
-	Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error)
-	// Returns the version and related metadata of the plugin
-	GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error)
 }
 
 type sVIDStoreClient struct {
@@ -55,24 +50,6 @@ func (c *sVIDStoreClient) DeleteX509SVID(ctx context.Context, in *DeleteX509SVID
 	return out, nil
 }
 
-func (c *sVIDStoreClient) Configure(ctx context.Context, in *plugin.ConfigureRequest, opts ...grpc.CallOption) (*plugin.ConfigureResponse, error) {
-	out := new(plugin.ConfigureResponse)
-	err := c.cc.Invoke(ctx, "/spire.agent.svidstore.SVIDStore/Configure", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *sVIDStoreClient) GetPluginInfo(ctx context.Context, in *plugin.GetPluginInfoRequest, opts ...grpc.CallOption) (*plugin.GetPluginInfoResponse, error) {
-	out := new(plugin.GetPluginInfoResponse)
-	err := c.cc.Invoke(ctx, "/spire.agent.svidstore.SVIDStore/GetPluginInfo", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // SVIDStoreServer is the server API for SVIDStore service.
 // All implementations must embed UnimplementedSVIDStoreServer
 // for forward compatibility
@@ -81,10 +58,6 @@ type SVIDStoreServer interface {
 	PutX509SVID(context.Context, *PutX509SVIDRequest) (*PutX509SVIDResponse, error)
 	// Deletes a secrets from a secrets store
 	DeleteX509SVID(context.Context, *DeleteX509SVIDRequest) (*DeleteX509SVIDResponse, error)
-	// Applies the plugin configuration and returns configuration errors
-	Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error)
-	// Returns the version and related metadata of the plugin
-	GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error)
 	mustEmbedUnimplementedSVIDStoreServer()
 }
 
@@ -97,12 +70,6 @@ func (UnimplementedSVIDStoreServer) PutX509SVID(context.Context, *PutX509SVIDReq
 }
 func (UnimplementedSVIDStoreServer) DeleteX509SVID(context.Context, *DeleteX509SVIDRequest) (*DeleteX509SVIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteX509SVID not implemented")
-}
-func (UnimplementedSVIDStoreServer) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Configure not implemented")
-}
-func (UnimplementedSVIDStoreServer) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetPluginInfo not implemented")
 }
 func (UnimplementedSVIDStoreServer) mustEmbedUnimplementedSVIDStoreServer() {}
 
@@ -153,42 +120,6 @@ func _SVIDStore_DeleteX509SVID_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SVIDStore_Configure_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(plugin.ConfigureRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SVIDStoreServer).Configure(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.agent.svidstore.SVIDStore/Configure",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SVIDStoreServer).Configure(ctx, req.(*plugin.ConfigureRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _SVIDStore_GetPluginInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(plugin.GetPluginInfoRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SVIDStoreServer).GetPluginInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/spire.agent.svidstore.SVIDStore/GetPluginInfo",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SVIDStoreServer).GetPluginInfo(ctx, req.(*plugin.GetPluginInfoRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // SVIDStore_ServiceDesc is the grpc.ServiceDesc for SVIDStore service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -203,14 +134,6 @@ var SVIDStore_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteX509SVID",
 			Handler:    _SVIDStore_DeleteX509SVID_Handler,
-		},
-		{
-			MethodName: "Configure",
-			Handler:    _SVIDStore_Configure_Handler,
-		},
-		{
-			MethodName: "GetPluginInfo",
-			Handler:    _SVIDStore_GetPluginInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
