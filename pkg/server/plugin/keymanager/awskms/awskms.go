@@ -112,8 +112,6 @@ func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, e
 // SetLogger sets a logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
-
-	p.log.Warn("The %q KeyManager plugin does not currently support ACME. If you are using (or plan on using) ACME for federation, please choose a different KeyManager", pluginName)
 }
 
 // Configure sets up the plugin
@@ -664,7 +662,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 }
 
 func (p *Plugin) aliasFromSpireKeyID(spireKeyID string) string {
-	return path.Join(p.aliasPrefixForServer(), spireKeyID)
+	return path.Join(p.aliasPrefixForServer(), encodeKeyID(spireKeyID))
 }
 
 func (p *Plugin) descriptionFromSpireKeyID(spireKeyID string) string {
@@ -853,4 +851,21 @@ func createServerID(idPath string) (string, error) {
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
+}
+
+// encodeKeyID maps "." and "+" characters to the asciihex value using "_" as
+// escape character. Currently KMS does not support those characters to be used
+// as alias name.
+func encodeKeyID(keyID string) string {
+	keyID = strings.ReplaceAll(keyID, ".", "_2e")
+	keyID = strings.ReplaceAll(keyID, "+", "_2b")
+	return keyID
+}
+
+// decodeKeyID decodes "." and "+" from the asciihex value using "_" as
+// escape character.
+func decodeKeyID(keyID string) string {
+	keyID = strings.ReplaceAll(keyID, "_2e", ".")
+	keyID = strings.ReplaceAll(keyID, "_2b", "+")
+	return keyID
 }
