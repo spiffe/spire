@@ -18,5 +18,5 @@ An additional consequence of using the KeyManager to back the ACME key is that
 it imposes algorithmic restrictions. For example, AWS KMS only supports a
 limited set of signature algorithms for each key size (e.g. SHA256 for ECP256
 keys). Ideally the KeyManager plugin would be able to advertise the supported
-key algorithms, but until that is in place, we restrict the cipher suites
-supported by the server in the TLS handshake (see issue #2302).
+key algorithms, but until that is in place, we restrict the signature
+algorithms supported by the key during the TLS handshake (see issue #2302).
