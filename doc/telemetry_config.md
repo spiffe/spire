@@ -15,13 +15,14 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ### Telemetry configuration syntax
 
-| Configuration          | Type          | Description  | Default |
-| ----------------       | ------------- | ------------ | ------- |
-| `InMem`                | `InMem`       | In-memory configuration            | running |
-| `Prometheus`           | `Prometheus`  | Prometheus configuration           | |
-| `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations   | |
-| `Statsd`               | `[]Statsd`    | List of Statsd configurations      | |
-| `M3`                   | `[]M3`        | List of M3 configurations          | |
+| Configuration          | Type                     | Description                        | Default |
+| ----------------       | ------------------------ | ---------------------------------- | ------- |
+| `InMem`                | `InMem`                  | In-memory configuration            | running |
+| `Prometheus`           | `Prometheus`             | Prometheus configuration           | |
+| `DogStatsd`            | `[]DogStatsd`            | List of DogStatsd configurations   | |
+| `Statsd`               | `[]Statsd`               | List of Statsd configurations      | |
+| `M3`                   | `[]M3`                   | List of M3 configurations          | |
+| `Options`              | `[]MetricsConfigOptions` | Additional telemetry configurations| |
 
 #### `Prometheus`
 
@@ -74,6 +75,13 @@ telemetry {
 
         InMem {
             enabled = false
+        }
+
+        Options = {
+            AllowedLabels = []
+            BlockedLabels = []
+            AllowedPrefixes = []
+            BlockedPrefixes = []
         }
 }
 ```
