@@ -126,6 +126,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			PodAnnotation:      c.PodAnnotation,
 			Scheme:             mgr.GetScheme(),
 			TrustDomain:        c.TrustDomain,
+			IdentityTemplate:   c.IdentityTemplate,
 		}).SetupWithManager(mgr)
 		if err != nil {
 			return err
