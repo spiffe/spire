@@ -64,7 +64,13 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		middleware.LogMisconfiguration(ctx, "Authorization misconfigured (method not registered); this is a bug")
 		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q (method not registered)", methodName)
 	}
-	return authorizer.AuthorizeCaller(ctx)
+
+	authorizedCtx, err := authorizer.AuthorizeCaller(ctx)
+	if err != nil {
+		rpccontext.Logger(ctx).Errorf("Failed to authenticate caller: %v", err)
+		return nil, err
+	}
+	return authorizedCtx, nil
 }
 
 func (m *authorizationMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {
