@@ -17,6 +17,8 @@ package controllers
 
 import (
 	"context"
+	"log"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
@@ -31,6 +33,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	PodNameIdLabel           string = "{{pod-name}}"
+	PodUidIdLabel            string = "{{pod-uid}}"
+	NamespaceIdLabel         string = "{{namespace}}"
+	PodServiceAccountIdLabel string = "{{service-account}}"
+)
+
 // PodReconcilerConfig holds the config passed in when creating the reconciler
 type PodReconcilerConfig struct {
 	Client             client.Client
@@ -42,6 +51,7 @@ type PodReconcilerConfig struct {
 	PodAnnotation      string
 	Scheme             *runtime.Scheme
 	TrustDomain        string
+	IdentityTemplate   string
 }
 
 // PodReconciler holds the runtime configuration and state of this controller
@@ -184,9 +194,40 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 
 	// the controller has not been configured with a pod label or a pod annotation.
 	// create an entry based on the service account.
-	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	//return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	return makeID(r.c.TrustDomain, r.getIdentityTemplate(pod))
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
 	return makeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
+}
+
+func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) string {
+	template := r.c.IdentityTemplate
+	log.Printf("**** using template %s", template)
+	fields := strings.Split(template, "/")
+	svid := ""
+	for _, field := range fields {
+		if strings.HasPrefix(field, "{{") && strings.HasSuffix(field, "}}") {
+
+			switch field {
+			case PodServiceAccountIdLabel:
+				svid += "/" + pod.Spec.ServiceAccountName
+			case NamespaceIdLabel:
+				svid += "/" + pod.Namespace
+			case PodNameIdLabel:
+				svid += "/" + pod.Name
+			case PodUidIdLabel:
+				svid += "/" + string(pod.UID)
+			default:
+				log.Printf("***Error invalid template label")
+			}
+
+		} else {
+			svid += "/" + field
+		}
+
+	}
+	return svid
+	//return fmt.Sprintf("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }

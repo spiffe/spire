@@ -23,10 +23,11 @@ import (
 const (
 	defaultLogLevel = "info"
 
-	modeCRD       = "crd"
-	modeWebhook   = "webhook"
-	modeReconcile = "reconcile"
-	defaultMode   = modeWebhook
+	modeCRD                 = "crd"
+	modeWebhook             = "webhook"
+	modeReconcile           = "reconcile"
+	defaultMode             = modeWebhook
+	defaultIdentityTemplate = "ns/{{namespace}}/sa/{{service-account}}"
 )
 
 type Mode interface {
@@ -48,6 +49,7 @@ type CommonMode struct {
 	PodAnnotation      string   `hcl:"pod_annotation"`
 	Mode               string   `hcl:"mode"`
 	DisabledNamespaces []string `hcl:"disabled_namespaces"`
+	IdentityTemplate   string   `hcl:"identity_template"`
 	serverAPI          ServerAPIClients
 }
 
@@ -84,6 +86,15 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	}
 	if c.DisabledNamespaces == nil {
 		c.DisabledNamespaces = defaultDisabledNamespaces()
+	}
+	if c.IdentityTemplate == "" {
+		// use default format: namespace and service account
+		c.IdentityTemplate = defaultIdentityTemplate
+	}
+	if strings.HasPrefix(c.IdentityTemplate, "spiffe://") ||
+		strings.HasPrefix(c.IdentityTemplate, "//") ||
+		strings.HasPrefix(c.IdentityTemplate, "/") {
+		return errs.New("identity template cannot start with spiffe://, // or /")
 	}
 
 	return nil

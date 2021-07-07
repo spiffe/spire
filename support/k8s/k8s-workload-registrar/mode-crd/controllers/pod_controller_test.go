@@ -16,6 +16,7 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
 	"testing"
 
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -30,8 +31,11 @@ import (
 )
 
 const (
-	PodName      string = "test-pod"
-	PodNamespace string = "default"
+	PodName           string = "test-pod"
+	PodNamespace      string = "default"
+	PodServiceAccount string = "serviceAccount"
+
+	defaultIdentityTemplate string = "ns/" + NamespaceIdLabel + "/sa/" + PodServiceAccountIdLabel
 )
 
 func TestPodController(t *testing.T) {
@@ -51,33 +55,57 @@ func (s *PodControllerTestSuite) SetupSuite() {
 // It then updates the label and ensures the SPIFFE ID is updated.
 func (s *PodControllerTestSuite) TestPodLabel() {
 	tests := []struct {
-		PodLabel      string
-		PodAnnotation string
-		first         string
-		second        string
+		PodLabel         string
+		PodAnnotation    string
+		first            string
+		second           string
+		expectedSpiffe   string
+		identityTemplate string
+		uid              string
 	}{
 		{
-			PodLabel: "spiffe",
-			first:    "test-label",
-			second:   "new-test-label",
+			PodLabel:         "spiffe",
+			first:            "test-label",
+			second:           "new-test-label",
+			identityTemplate: defaultIdentityTemplate,
 		},
 		{
-			PodAnnotation: "spiffe",
-			first:         "test-annotation",
-			second:        "new-test-annotation",
+			PodAnnotation:    "spiffe",
+			first:            "test-annotation",
+			second:           "new-test-annotation",
+			identityTemplate: defaultIdentityTemplate,
+		},
+		{
+			// Default template
+			identityTemplate: defaultIdentityTemplate,
+			first:            fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			second:           fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+		},
+		{
+			// Default, template provided
+			identityTemplate: "ns/{{namespace}}/sa/{{service-account}}/podName/{{pod-name}}",
+			uid:              "012",
+			first:            fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			second:           fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+		},
+		{
+			identityTemplate: "ns/{{namespace}}/sa/{{service-account}}/podName/{{pod-name}}",
+			first:            "ns/" + PodNamespace + "/sa/serviceAccount/podName/" + PodName,
+			second:           "ns/" + PodNamespace + "/sa/serviceAccount/podName/" + PodName,
 		},
 	}
 
 	for _, test := range tests {
 		p := NewPodReconciler(PodReconcilerConfig{
-			Client:        s.k8sClient,
-			Cluster:       s.cluster,
-			Ctx:           s.ctx,
-			Log:           s.log,
-			PodLabel:      test.PodLabel,
-			PodAnnotation: test.PodAnnotation,
-			Scheme:        s.scheme,
-			TrustDomain:   s.trustDomain,
+			Client:           s.k8sClient,
+			Cluster:          s.cluster,
+			Ctx:              s.ctx,
+			Log:              s.log,
+			PodLabel:         test.PodLabel,
+			PodAnnotation:    test.PodAnnotation,
+			Scheme:           s.scheme,
+			TrustDomain:      s.trustDomain,
+			IdentityTemplate: test.identityTemplate,
 		})
 
 		pod := corev1.Pod{
@@ -92,12 +120,14 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 					Name:  "test-pod",
 					Image: "test-pod",
 				}},
-				NodeName: "test-node",
+				NodeName:           "test-node",
+				ServiceAccountName: "serviceAccount",
 			},
 		}
 		err := s.k8sClient.Create(s.ctx, &pod)
 		s.Require().NoError(err)
 		s.reconcile(p)
+
 		labelSelector := labels.Set(map[string]string{
 			"podUid": string(pod.ObjectMeta.UID),
 		})
