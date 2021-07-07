@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+
+	"github.com/gorilla/handlers"
 )
 
 type Handler struct {
@@ -21,7 +23,7 @@ func NewHandler(domain string, source JWKSSource) *Handler {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/.well-known/openid-configuration", http.HandlerFunc(h.serveWellKnown))
+	mux.Handle("/.well-known/openid-configuration", handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
 	mux.Handle("/keys", http.HandlerFunc(h.serveKeys))
 
 	h.Handler = mux
@@ -34,13 +36,21 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Scheme == "" {
+		if r.TLS == nil {
+			r.URL.Scheme = "http"
+		} else {
+			r.URL.Scheme = "https"
+		}
+	}
+
 	issuerURL := url.URL{
-		Scheme: "https",
+		Scheme: r.URL.Scheme,
 		Host:   h.domain,
 	}
 
 	jwksURI := url.URL{
-		Scheme: "https",
+		Scheme: r.URL.Scheme,
 		Host:   h.domain,
 		Path:   "/keys",
 	}
