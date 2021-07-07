@@ -300,6 +300,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		// from impacted selector indices, and add the selector diff to the
 		// notify set.
 		c.diffSelectors(existingEntry, newEntry, selAdd, selRem)
+		selectorsChanged := len(selAdd) > 0 || len(selRem) > 0
 		c.addSelectorIndicesRecord(selAdd, record)
 		c.delSelectorIndicesRecord(selRem, record)
 
@@ -324,10 +325,10 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			}
 		}
 
-		// Determine if something related to this record changed outside of the
-		// selectors and if so, make sure subscribers for all entry selectors
+		// If any selectors or federated bundles were changed, then make
+		// sure subscribers for the new and extisting entry selector sets
 		// are notified.
-		if federatedBundlesChanged || c.selectorsDifferent(existingEntry, newEntry) {
+		if federatedBundlesChanged || selectorsChanged {
 			if existingEntry != nil {
 				notifySet, selSetDone := allocSelectorSet()
 				defer selSetDone()
@@ -480,27 +481,6 @@ func (c *Cache) diffSelectors(existingEntry, newEntry *common.RegistrationEntry,
 	}
 }
 
-func (c *Cache) selectorsDifferent(existingEntry, newEntry *common.RegistrationEntry) bool {
-	if newEntry == nil || existingEntry == nil || len(existingEntry.Selectors) != len(newEntry.Selectors) {
-		return true
-	}
-
-	set, setDone := allocSelectorSet()
-	defer setDone()
-	set.Merge(newEntry.Selectors...)
-	for _, selector := range existingEntry.Selectors {
-		s := makeSelector(selector)
-		if _, ok := set[s]; ok {
-			// selector already exists in entry
-			delete(set, s)
-		} else {
-			// selector has been removed from entry
-			return true
-		}
-	}
-
-	return len(set) != 0
-}
 func (c *Cache) diffFederatesWith(existingEntry, newEntry *common.RegistrationEntry, added, removed stringSet) {
 	// Make a set of all the selectors being added
 	if newEntry != nil {
