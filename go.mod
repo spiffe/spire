@@ -30,6 +30,7 @@ require (
 	github.com/docker/docker v1.4.2-0.20191008235115-448db5a783a0
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad
+	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-logr/logr v0.1.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/go-sql-driver/mysql v1.5.0
@@ -39,6 +40,7 @@ require (
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-tpm v0.3.2
 	github.com/google/go-tpm-tools v0.2.1
+	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/hashicorp/go-plugin v1.4.0
 	github.com/hashicorp/golang-lru v0.5.1
