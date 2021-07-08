@@ -83,7 +83,28 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 // ListAgents returns an optionally filtered and/or paginated list of agents.
 func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest) (*agentv1.ListAgentsResponse, error) {
 	log := rpccontext.Logger(ctx)
-	// TODO: ADD filters fields
+
+	parseRequest := func() logrus.Fields {
+		fields := logrus.Fields{}
+
+		if req.Filter != nil {
+			if req.Filter.ByAttestationType != "" {
+				fields[telemetry.NodeAttestorType] = req.Filter.ByAttestationType
+			}
+
+			if req.Filter.ByBanned != nil {
+				fields[telemetry.ByBanned] = req.Filter.ByBanned.Value
+			}
+
+			if req.Filter.BySelectorMatch != nil {
+				fields[telemetry.BySelectorMatch] = req.Filter.BySelectorMatch.Match.String()
+				fields[telemetry.BySelectors] = api.SelectorFieldFromProto(req.Filter.BySelectorMatch.Selectors)
+			}
+		}
+
+		return fields
+	}
+	rpccontext.AddRPCAuditFields(ctx, parseRequest())
 
 	listReq := &datastore.ListAttestedNodesRequest{}
 
@@ -263,7 +284,6 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.NodeAttestorType: params.Data.Type,
-		telemetry.Payload:          api.HashByte(params.Data.Payload),
 	})
 
 	log = log.WithField(telemetry.NodeAttestorType, params.Data.Type)
@@ -363,9 +383,6 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 // RenewAgent renews the SVID of the agent with the given SpiffeID.
 func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest) (*agentv1.RenewAgentResponse, error) {
 	log := rpccontext.Logger(ctx)
-	if req.Params != nil && len(req.Params.Csr) > 0 {
-		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.Csr: api.HashByte(req.Params.Csr)})
-	}
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to renew agent rate limiting", err)
@@ -384,6 +401,8 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	if len(req.Params.Csr) == 0 {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
+
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.Csr: api.HashByte(req.Params.Csr)})
 
 	agentSVID, err := s.signSvid(ctx, callerID, req.Params.Csr, log)
 	if err != nil {
@@ -422,9 +441,6 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 
 		if req.Ttl > 0 {
 			fields[telemetry.TTL] = req.Ttl
-		}
-		if req.Token != "" {
-			fields[telemetry.Token] = api.HashByte([]byte(req.Token))
 		}
 		return fields
 	}
