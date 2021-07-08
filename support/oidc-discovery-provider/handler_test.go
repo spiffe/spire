@@ -28,8 +28,8 @@ func TestHandlerHTTPS(t *testing.T) {
 			path:   "/.well-known/openid-configuration",
 			code:   http.StatusOK,
 			body: `{
-  "issuer": "https://domain.test",
-  "jwks_uri": "https://domain.test/keys",
+  "issuer": "https://localhost",
+  "jwks_uri": "https://localhost/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
     "id_token"
@@ -138,8 +138,8 @@ func TestHandlerHTTP(t *testing.T) {
 			path:   "/.well-known/openid-configuration",
 			code:   http.StatusOK,
 			body: `{
-  "issuer": "http://domain.test",
-  "jwks_uri": "http://domain.test/keys",
+  "issuer": "http://localhost",
+  "jwks_uri": "http://localhost/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
     "id_token"
@@ -331,6 +331,7 @@ func TestHandlerProxied(t *testing.T) {
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)
 			r.Header.Add("X-Forwarded-Scheme", "https")
+			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
 			h := NewHandler("domain.test", source)
