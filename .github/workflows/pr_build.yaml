@@ -147,6 +147,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          # The "upgrade" integration test needs the history to ensure
+          # that the version number in the source code has been bumped as
+          # expected. This action does not fetch tags unless we supply a
+          # fetch depth of zero.
+          fetch-depth: 0
       - name: Setup go
         uses: actions/setup-go@v2
         with:
