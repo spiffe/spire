@@ -46,12 +46,12 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 
 	issuerURL := url.URL{
 		Scheme: r.URL.Scheme,
-		Host:   h.domain,
+		Host:   r.Host,
 	}
 
 	jwksURI := url.URL{
 		Scheme: r.URL.Scheme,
-		Host:   h.domain,
+		Host:   r.Host,
 		Path:   "/keys",
 	}
 
