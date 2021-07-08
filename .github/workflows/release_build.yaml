@@ -154,6 +154,15 @@ jobs:
           # expected. This action does not fetch tags unless we supply a
           # fetch depth of zero.
           fetch-depth: 0
+      # Even though we've just checked out the code, checkout@v2 has a bug
+      # where it overwrites the local annotated tag, dropping the annotation.
+      # The "upgrade" integration test is designed to only consider annotated
+      # tags as version tags. We don't really want to soften this stance, so
+      # instead we'll re-fetch the tags.
+      #
+      # See https://github.com/actions/checkout/issues/290
+      - name: Fix tag annotations
+        run: git fetch --tags --force
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -187,7 +196,7 @@ jobs:
 
   publish-artifacts:
     runs-on: ubuntu-18.04
-    needs: [integration]
+    needs: [lint, unit-test, artifacts, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -216,7 +225,7 @@ jobs:
 
   publish-images:
     runs-on: ubuntu-18.04
-    needs: [integration]
+    needs: [lint, unit-test, artifacts, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
