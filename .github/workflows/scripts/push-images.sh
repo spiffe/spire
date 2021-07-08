@@ -9,6 +9,6 @@ fi
 
 for img in spire-server spire-agent k8s-workload-registrar oidc-discovery-provider; do
     gcrimg=gcr.io/spiffe-io/"$img":"${IMAGETAG}"
-    docker tag "$img" "$gcrimg"
+    docker tag "$img":latest-local "$gcrimg"
     docker push "$gcrimg"
 done
