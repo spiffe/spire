@@ -244,8 +244,9 @@ jobs:
           password: ${{ secrets.GCR_JSON_KEY }}
       # Push the images to GCR using the version number tag. The GITHUB_REF
       # envvar includes the "refs/tags" prefix, which we strip to get just the
-      # version number.
+      # version number. Note that the image tag for our release images DOES NOT
+      # have the `v` prefix, so that is stripped as well.
       #
       # See https://docs.github.com/en/actions/reference/environment-variables.
       - name: Push images
-        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/}"
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/v}"
