@@ -97,10 +97,8 @@ jobs:
           key: ${{ runner.os }}-tools-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-tools-
-      # This is the same as the PR build workflow except that provide the
-      # version number via the TAG envvar (without the "v" prefix).
       - name: Build artifacts
-        run: TAG="${GITHUB_REF#refs/tags/v}" ./.github/workflows/scripts/build_artifacts.sh
+        run: ./.github/workflows/scripts/build_artifacts.sh
       - name: Archive artifacts
         uses: actions/upload-artifact@v2
         with:
