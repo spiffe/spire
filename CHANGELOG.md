@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.0.0] - 2021-07-08
+
+### Added
+- The `vault` UpstreamAuthority plugin now supports Kubernetes service account authentication (#2356)
+- A new `cert-manager` UpstreamAuthority plugin is now available (#2274)
+- SPIRE Server CLI can now be used to ban agents (#2374)
+- SPIRE Server CLI now has `count` subcommands for agents, entries, and bundles (#2128)
+- SPIRE Server can now be configured for SPIFFE federation using the configurables defined by the spec (#2340)
+- SPIRE Server and Agent now expose the standard gRPC health service (#2057, #2058)
+- SPIFFE bundle endpoint URL is now configurable in the `federates_with` configuation block (#2340)
+- SPIRE Agent may now optionally provided unregistered callers with a bundle for SVID validation via the `allow_unauthenticated_verifiers` configurable (#2102)
+- SPIRE Server JWT key type is now independently configurable via `jwt_key_type` (#1991)
+- Registration entries can now be queried/filtered by `federates_with` when calling the entry API (#1967)
+
+### Changed
+- SPIRE Server's SVID now uses the key type configured as `ca_key_type` (#2269)
+- Caller address is now logged for agent API calls resulting in an error (#2281)
+- Agent SVID renewals are now logged by the server at the INFO level (#2309)
+- Workload API JWT-SVID profile will now return an error if the caller is unidentified (#2369)
+- Workload API JWT-SVID profile will no longer return non-SPIFFE claims on validated JWTs from foreign trust domains (#2372)
+- SPIRE artifact tarball no longer extracts `.` to avoid inadvertent changes in directory permisions (#2219)
+- SPIRE Server default socket path is now `/tmp/spire-server/private/api.sock` (#2075)
+- SPIRE Agent default socket path is now `/tmp/spire-agent/public/api.sock` (#2075)
+
+### Deprecated
+- SPIRE Server federation configuration in the `federates_with` `bundle_endpoint` block is now deprecated (#2340)
+- SPIRE Server `gcp_iit` NodeAttestor configurable `projectid_whitelist` is deprecated in favor of `projectid_allow_list` (#2253)
+- SPIRE Server `k8s_sat` and `k8s_psat` NodeAttestor configurable `service_account_whitelist` is deprecated in favor of `service_account_allow_list` (#2253)
+- SPIRE Sever `registration_uds_path`/`-registrationUDSPath` configurable and flag has been deprecateed in favor of `socket_path`/`-socketPath` (#2075)
+
+### Removed
+- SPIRE Server no longer supports SPIFFE IDs with UTF-8 (#2368)
+- SPIRE Server no longer supports the legacy Node API (#2093)
+- SPIRE Server experimental configurable `allow_agentless_node_attestors` has been removed (#2098)
+- The `aws_iid` NodeResolver plugin has been removed as it has been obviated (#2191)
+- The `noop` NodeResolver plugin has been removed (#2189)
+- The `proto/spire` go module has been removed in favor of the new SDKs (#2161)
+- The deprected `enable_sds` configurable has been removed (#2021)
+- The deprecated `experimental bundle` CLI subcommands have been removed (#2062)
+- SPIRE Server experimental configurables related to federation have been removed (#2062)
+- SPIRE Server bundle endpoint no longer supports TLS signature schemes utilizing non-SHA256 hashes when ACME is enabled (#2397)
+
+### Fixed
+- Fixed a bug that caused health check failures in agents that have registration entries describing them (#2370)
+- SPIRE Agent no longer logs a message when invoking a healthcheck via the CLI (#2058)
+- Fixed a bug that caused federation to fail when using ACME in conjunction with the `aws_kms` KeyManager plugin (#2390)
+
+## [0.12.3] - 2021-05-17
+
+### Added
+- The `k8s-workload-registrar` now supports federation (#2160)
+- The `k8s_bundle` notifier plugin can now keep API service CA bundles up to date (#2193)
+- SPIRE Server internal cache reload timing can now be tuned (experimental) (#2169)
+
+### Changed
+- Prometheus metrics that are emitted infrequently will no longer disappear after emission (#2239)
+- The `k8s-workload-registrar` now uses paging to support very large deployments of 10,000+ pods (#2227)
+
+### Fixed
+- Fixed a bug that sometimes caused newly attested agents to not receive their full set of selectors (#2242)
+- Fixed several bugs related to the handling of SPIRE Server API paging (#2251)
+
 ## [0.12.2] - 2021-04-14
 
 ### Added
