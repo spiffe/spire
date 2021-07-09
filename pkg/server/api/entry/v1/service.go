@@ -77,6 +77,8 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 	}
 
 	if req.Filter != nil {
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromListEntryFilter(s.td, req.Filter))
+
 		if req.Filter.ByParentId != nil {
 			parentID, err := api.TrustDomainMemberIDFromProto(s.td, req.Filter.ByParentId)
 			if err != nil {
@@ -506,7 +508,7 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 	if inputMask == nil || inputMask.FederatesWith {
 		federatesWith := strings.Join(proto.FederatesWith, ",")
 		if federatesWith != "" {
-			fields[telemetry.FederatedWith] = federatesWith
+			fields[telemetry.FederatesWith] = federatesWith
 		}
 	}
 
@@ -531,6 +533,34 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 
 	if inputMask == nil || inputMask.RevisionNumber {
 		fields[telemetry.RevisionNumber] = proto.RevisionNumber
+	}
+
+	return fields
+}
+
+func fieldsFromListEntryFilter(td spiffeid.TrustDomain, filter *entryv1.ListEntriesRequest_Filter) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if filter.ByParentId != nil {
+		if parentID, err := api.TrustDomainMemberIDFromProto(td, filter.ByParentId); err == nil {
+			fields[telemetry.ParentID] = parentID.String()
+		}
+	}
+
+	if filter.BySpiffeId != nil {
+		if id, err := api.TrustDomainWorkloadIDFromProto(td, filter.BySpiffeId); err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
+		}
+	}
+
+	if filter.BySelectors != nil {
+		fields[telemetry.BySelectorMatch] = filter.BySelectors.Match.String()
+		fields[telemetry.BySelectors] = api.SelectorFieldFromProto(filter.BySelectors.Selectors)
+	}
+
+	if filter.ByFederatesWith != nil {
+		fields[telemetry.FederatesWithMatch] = filter.ByFederatesWith.Match.String()
+		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
 	}
 
 	return fields

@@ -136,6 +136,12 @@ const (
 	// Audience tags some audience for a token
 	Audience = "audience"
 
+	// BySelectorMatch tags Match used when filtering by Selectors
+	BySelectorMatch = "by_selector_match"
+
+	// BySelectors tags selectors used when filtering
+	BySelectors = "by_selectors"
+
 	// CallerAddr labels an API caller address
 	CallerAddr = "caller_addr"
 
@@ -221,7 +227,10 @@ const (
 	FederatedRemoved = "fed_rem"
 
 	// FederatesWith tags a federates with list
-	FederatedWith = "federates_with"
+	FederatesWith = "federates_with"
+
+	// FederatesWithMatch tags a federates with match filter
+	FederatesWithMatch = "federates_with_match"
 
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
