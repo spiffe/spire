@@ -1427,10 +1427,15 @@ func TestRenewAgent(t *testing.T) {
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "Unknown",
 						telemetry.StatusMessage: "rejecting request due to renew agent rate limiting: rate limit fails",
+						telemetry.Csr:           csrHash,
 					},
 				},
 			},
-			req:            &agentv1.RenewAgentRequest{},
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
+					Csr: csr,
+				},
+			},
 			expectCode:     codes.Unknown,
 			expectMsg:      "rejecting request due to renew agent rate limiting: rate limit fails",
 			rateLimiterErr: errors.New("rate limit fails"),
