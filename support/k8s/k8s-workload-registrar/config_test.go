@@ -43,6 +43,7 @@ func TestLoadMode(t *testing.T) {
 			LogLevel:           defaultLogLevel,
 			Mode:               "webhook",
 			DisabledNamespaces: []string{"kube-system", "kube-public"},
+			IdentityTemplate:   defaultIdentityTemplate,
 		},
 		Addr:       ":8443",
 		CertPath:   defaultCertPath,
@@ -68,6 +69,7 @@ func TestLoadMode(t *testing.T) {
 					Cluster:            "CLUSTER",
 					Mode:               "webhook",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					IdentityTemplate:   defaultIdentityTemplate,
 				},
 				Addr:                           ":8443",
 				CertPath:                       defaultCertPath,
@@ -90,6 +92,7 @@ func TestLoadMode(t *testing.T) {
 				trust_domain = "TRUSTDOMAINOVERRIDE"
 				cluster = "CLUSTEROVERRIDE"
 				pod_label = "PODLABEL"
+				identity_template = "ns/{{namespace}}/sa/{{service-account}}"
 			`,
 			out: &WebhookMode{
 				CommonMode: CommonMode{
@@ -102,6 +105,7 @@ func TestLoadMode(t *testing.T) {
 					PodLabel:           "PODLABEL",
 					Mode:               "webhook",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					IdentityTemplate:   defaultIdentityTemplate,
 				},
 				Addr:                           ":1234",
 				CertPath:                       "CERTOVERRIDE",
