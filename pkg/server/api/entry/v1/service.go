@@ -3,7 +3,6 @@ package entry
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -473,31 +472,23 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 		fields[telemetry.RegistrationID] = proto.Id
 	}
 
-	if inputMask == nil || inputMask.SpiffeId {
-		if proto.SpiffeId != nil {
-			id, err := idutil.IDFromProto(proto.SpiffeId)
-			if err == nil {
-				fields[telemetry.SPIFFEID] = id.String()
-			}
+	if (inputMask == nil || inputMask.SpiffeId) && proto.SpiffeId != nil {
+		id, err := idutil.IDFromProto(proto.SpiffeId)
+		if err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
 		}
 	}
 
-	if inputMask == nil || inputMask.ParentId {
-		if proto.ParentId != nil {
-			id, err := idutil.IDFromProto(proto.ParentId)
-			if err == nil {
-				fields[telemetry.ParentID] = id.String()
-			}
+	if (inputMask == nil || inputMask.ParentId) && proto.ParentId != nil {
+		id, err := idutil.IDFromProto(proto.ParentId)
+		if err == nil {
+			fields[telemetry.ParentID] = id.String()
 		}
 	}
 
 	if inputMask == nil || inputMask.Selectors {
-		selectors := []string{}
-		for _, selector := range proto.Selectors {
-			selectors = append(selectors, fmt.Sprintf("%s:%s", selector.Type, selector.Value))
-		}
-		if len(selectors) > 0 {
-			fields[telemetry.Selectors] = strings.Join(selectors, ",")
+		if selectors := api.SelectorFieldFromProto(proto.Selectors); selectors != "" {
+			fields[telemetry.Selectors] = selectors
 		}
 	}
 
@@ -506,8 +497,7 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 	}
 
 	if inputMask == nil || inputMask.FederatesWith {
-		federatesWith := strings.Join(proto.FederatesWith, ",")
-		if federatesWith != "" {
+		if federatesWith := strings.Join(proto.FederatesWith, ","); federatesWith != "" {
 			fields[telemetry.FederatesWith] = federatesWith
 		}
 	}
@@ -525,8 +515,7 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 	}
 
 	if inputMask == nil || inputMask.DnsNames {
-		dnsNames := strings.Join(proto.DnsNames, ",")
-		if dnsNames != "" {
+		if dnsNames := strings.Join(proto.DnsNames, ","); dnsNames != "" {
 			fields[telemetry.DNSName] = dnsNames
 		}
 	}

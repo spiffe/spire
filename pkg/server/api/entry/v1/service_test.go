@@ -322,8 +322,8 @@ func TestListEntries(t *testing.T) {
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request:         &entryv1.ListEntriesRequest{},
 			expectLogs: []spiretest.LogEntry{
-				// Error is expected when trying to parse a malformed RegitrationEntry into types Entry,
-				// but test case will not fails, just log it.
+				// Error is expected when trying to parse a malformed RegistrationEntry into types.Entry,
+				// but test case will not fail, just log it.
 				{
 					Level:   logrus.ErrorLevel,
 					Message: fmt.Sprintf("Failed to convert entry: %q", badEntry.EntryId),

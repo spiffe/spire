@@ -330,7 +330,7 @@ const (
 	// RetryInterval tags some interval for retry logic
 	RetryInterval = "retry_interval"
 
-	// RevisionNumber tags a regitration entry revision number
+	// RevisionNumber tags a registration entry revision number
 	RevisionNumber = "revision_number"
 
 	// Schema tags database schema version
