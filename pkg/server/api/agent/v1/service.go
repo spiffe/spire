@@ -92,7 +92,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 	// Parse proto filter into datastore request
 	if req.Filter != nil {
 		filter := req.Filter
-		rpccontext.AddRPCAuditFields(ctx, fieldsFromFilterRequest(req.Filter))
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromFilterRequest(filter))
 
 		var byBanned *bool
 		if filter.ByBanned != nil {
