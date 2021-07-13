@@ -338,12 +338,10 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		}
 
 		if federatedBundlesChanged || selectorsChanged {
-			if newEntry != nil {
-				notifySet, selSetDone := allocSelectorSet()
-				defer selSetDone()
-				notifySet.Merge(newEntry.Selectors...)
-				notifySets = append(notifySets, notifySet)
-			}
+			notifySet, selSetDone := allocSelectorSet()
+			defer selSetDone()
+			notifySet.Merge(newEntry.Selectors...)
+			notifySets = append(notifySets, notifySet)
 		}
 
 		// Invoke the svid checker callback for this record
@@ -352,10 +350,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		}
 
 		// Log all the details of the update to the DEBUG log
-		//
-		// TODO: This is a bit verbose and could be trimmed in the future
-		// when the cache implementation has stabilized.
-		if len(selAdd) > 0 || len(selRem) > 0 || len(fedAdd) > 0 || len(fedRem) > 0 {
+		if federatedBundlesChanged || selectorsChanged {
 			log := c.log.WithFields(logrus.Fields{
 				telemetry.Entry:    newEntry.EntryId,
 				telemetry.SPIFFEID: newEntry.SpiffeId,
