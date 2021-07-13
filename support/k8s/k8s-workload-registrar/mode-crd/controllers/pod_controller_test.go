@@ -34,8 +34,6 @@ const (
 	PodName           string = "test-pod"
 	PodNamespace      string = "default"
 	PodServiceAccount string = "serviceAccount"
-
-	defaultIdentityTemplatex string = "ns/{{.Pod." + NamespaceIDLabel + "}}/sa/{{.Pod." + PodServiceAccountIDLabel + "}}"
 )
 
 func TestPodController(t *testing.T) {
@@ -145,7 +143,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		s.reconcile(p)
 
 		labelSelector := labels.Set(map[string]string{
-			//"podUid": string(pod.ObjectMeta.UID),
+			// "podUid": string(pod.ObjectMeta.UID),
 		})
 
 		// Verify that exactly 1 SPIFFE ID  resource was created for this pod
