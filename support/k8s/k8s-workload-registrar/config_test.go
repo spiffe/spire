@@ -43,7 +43,6 @@ func TestLoadMode(t *testing.T) {
 			LogLevel:           defaultLogLevel,
 			Mode:               "webhook",
 			DisabledNamespaces: []string{"kube-system", "kube-public"},
-			IdentityTemplate:   defaultIdentityTemplate,
 		},
 		Addr:       ":8443",
 		CertPath:   defaultCertPath,
@@ -69,7 +68,6 @@ func TestLoadMode(t *testing.T) {
 					Cluster:            "CLUSTER",
 					Mode:               "webhook",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
-					IdentityTemplate:   defaultIdentityTemplate,
 				},
 				Addr:                           ":8443",
 				CertPath:                       defaultCertPath,
@@ -92,7 +90,6 @@ func TestLoadMode(t *testing.T) {
 				trust_domain = "TRUSTDOMAINOVERRIDE"
 				cluster = "CLUSTEROVERRIDE"
 				pod_label = "PODLABEL"
-				identity_template = "ns/{{namespace}}/sa/{{service-account}}"
 			`,
 			out: &WebhookMode{
 				CommonMode: CommonMode{
@@ -105,7 +102,6 @@ func TestLoadMode(t *testing.T) {
 					PodLabel:           "PODLABEL",
 					Mode:               "webhook",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
-					IdentityTemplate:   defaultIdentityTemplate,
 				},
 				Addr:                           ":1234",
 				CertPath:                       "CERTOVERRIDE",
@@ -114,6 +110,51 @@ func TestLoadMode(t *testing.T) {
 				InsecureSkipClientVerification: true,
 			},
 		},
+		{
+			name: "identity_template",
+			in: `
+				log_level = "LEVELOVERRIDE"
+				log_path = "PATHOVERRIDE"
+				addr = ":1234"
+				cert_path = "CERTOVERRIDE"
+				key_path = "KEYOVERRIDE"
+				cacert_path = "CACERTOVERRIDE"
+				insecure_skip_client_verification = true
+				server_socket_path = "SOCKETPATHOVERRIDE"
+				trust_domain = "TRUSTDOMAINOVERRIDE"
+				cluster = "CLUSTEROVERRIDE"
+				pod_label = "PODLABEL"
+				identity_template = "region/{{.Context.region}}/cluster_name/{{.Context.cluster_name}}/ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}"
+				context {
+					region = "EU-DE"
+					cluster_name = "MYCLUSTER"
+				}
+			`,
+			out: &WebhookMode{
+				CommonMode: CommonMode{
+					LogLevel:           "LEVELOVERRIDE",
+					LogPath:            "PATHOVERRIDE",
+					ServerSocketPath:   "SOCKETPATHOVERRIDE",
+					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
+					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					Cluster:            "CLUSTEROVERRIDE",
+					PodLabel:           "PODLABEL",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					IdentityTemplate:   "region/{{.Context.region}}/cluster_name/{{.Context.cluster_name}}/ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
+					Context: map[string]string{
+						"region":       "EU-DE",
+						"cluster_name": "MYCLUSTER",
+					},
+				},
+				Addr:                           ":1234",
+				CertPath:                       "CERTOVERRIDE",
+				KeyPath:                        "KEYOVERRIDE",
+				CaCertPath:                     "CACERTOVERRIDE",
+				InsecureSkipClientVerification: true,
+			},
+		},
+
 		{
 			name: "bad HCL",
 			in:   `INVALID`,
