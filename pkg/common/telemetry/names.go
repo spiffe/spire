@@ -106,6 +106,9 @@ const (
 	// (agent or server)
 	StorePrivateKey = "store_private_key"
 
+	// StoreSVIDUpdates related to storing a SVID updates
+	StoreSVIDUpdates = "store_svid_updates"
+
 	// Sync functionality for syncing (such as CA manager updates). Should
 	// be used with other tags to add clarity
 	Sync = "sync"
@@ -309,6 +312,9 @@ const (
 	// RetryInterval tags some interval for retry logic
 	RetryInterval = "retry_interval"
 
+	// Revision tags entity revision number
+	Revision = "revision"
+
 	// Schema tags database schema version
 	Schema = "schema"
 
@@ -440,6 +446,9 @@ const (
 	// Cache functionality related to a cache
 	Cache = "cache"
 
+	// Cache type tag
+	CacheType = "cache_type"
+
 	// CacheManager functionality related to a cache manager
 	CacheManager = "cache_manager"
 
@@ -521,6 +530,9 @@ const (
 
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
+
+	// SVIDStore tags an SVID store plugin/type (eg. gcp, aws...)
+	SVIDStore = "svid_store"
 
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
@@ -664,6 +676,9 @@ const (
 
 	// ServerKeyManager attached to all operations related to the server KeyManager interface
 	ServerKeyManager = "server_key_manager"
+
+	// Store functionality related to SVID Store service
+	Store = "store"
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"

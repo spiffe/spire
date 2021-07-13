@@ -24,6 +24,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -79,6 +80,7 @@ func TestInitializationFailure(t *testing.T) {
 		BundleCachePath: path.Join(dir, "bundle.der"),
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 	m := newManager(c)
 	require.Error(t, m.Initialize(context.Background()))
@@ -210,9 +212,10 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
-	m, closer := initializeAndRunNewManager(t, c)
+	m, closer := initializeAndRunNewManager(t, c, nil)
 	defer closer()
 
 	svid := m.svid.State().SVID
@@ -304,9 +307,10 @@ func TestSVIDRotation(t *testing.T) {
 		RotationInterval: baseTTLSeconds / 2,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
-	m, closer := initializeAndRunNewManager(t, c)
+	m, closer := initializeAndRunNewManager(t, c, nil)
 	defer closer()
 
 	svid := m.svid.State().SVID
@@ -411,6 +415,7 @@ func TestSynchronization(t *testing.T) {
 		SyncInterval:     time.Hour,
 		Clk:              clk,
 		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -561,6 +566,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -633,6 +639,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
 		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -695,6 +702,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
 		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -759,6 +767,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SyncInterval:     syncInterval,
 		Clk:              clk,
 		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -818,6 +827,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Metrics:         &telemetry.Blackhole{},
 		Catalog:         cat,
 		Clk:             clk,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
@@ -892,6 +902,99 @@ func TestFetchJWTSVID(t *testing.T) {
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.Error(t, err)
 	require.Nil(t, svid)
+}
+
+func TestStorableSVIDsSync(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			switch count {
+			case 1:
+				return makeGetAuthorizedEntriesResponse(t, "resp2", "resp4"), nil
+			case 2:
+				return makeGetAuthorizedEntriesResponse(t, "resp2", "resp5"), nil
+			default:
+				return nil, fmt.Errorf("unexpected getAuthorizedEntries call count: %d", count)
+			}
+		},
+		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
+			switch count {
+			case 1:
+				return makeBatchNewX509SVIDEntries("resp2", "resp4")
+			case 2:
+				return makeBatchNewX509SVIDEntries("resp2", "resp5")
+			default:
+				return nil
+			}
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+
+	c := &Config{
+		ServerAddr:      api.addr,
+		SVID:            baseSVID,
+		SVIDKey:         baseSVIDKey,
+		Log:             testLogger,
+		TrustDomain:     trustDomain,
+		SVIDCachePath:   path.Join(dir, "svid.der"),
+		BundleCachePath: path.Join(dir, "bundle.der"),
+		Bundle:          api.bundle,
+		Metrics:         &telemetry.Blackhole{},
+		Clk:             clk,
+		Catalog:         cat,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+	}
+
+	isStorableEntry := func(entry *common.RegistrationEntry) bool {
+		for _, s := range entry.Selectors {
+			if s.Type == "fakestore" {
+				return true
+			}
+		}
+		return false
+	}
+
+	m, closer := initializeAndRunNewManager(t, c, isStorableEntry)
+	defer closer()
+
+	validateResponse := func(records []*storecache.Record, entries []*common.RegistrationEntry) {
+		require.NotEmpty(t, entries)
+
+		// Expected entries, and verify that SVIDs is up to date
+		for i, record := range records {
+			require.Len(t, records, len(entries))
+			require.Equal(t, entries[i], record.Entry)
+
+			// Verify record has latests SVIDs
+			chain := api.lastestSVIDs[record.Entry.EntryId]
+			require.Equal(t, chain, record.Svid.Chain)
+		}
+	}
+
+	// Fist call will take resp4 and create SVIDs since it is the first call
+	entries := regEntriesMap["resp4"]
+	records := m.svidStoreCache.Records()
+	validateResponse(records, entries)
+
+	// manually synchronize again
+	if err := m.synchronize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second call will take resp5 and update SVID, this tests is not testing the process to update cache
+	// but that is updating based on sync
+	entries = regEntriesMap["resp5"]
+	records = m.svidStoreCache.Records()
+	validateResponse(records, entries)
 }
 
 func makeGetAuthorizedEntriesResponse(t *testing.T, respKeys ...string) *entryv1.GetAuthorizedEntriesResponse {
@@ -995,6 +1098,9 @@ type mockAPI struct {
 
 	clk clock.Clock
 
+	// Add latests SVIDs per entry, to verify returned SVIDs are valid
+	lastestSVIDs map[string][]*x509.Certificate
+
 	agentv1.UnimplementedAgentServer
 	bundlev1.UnimplementedBundleServer
 	entryv1.UnimplementedEntryServer
@@ -1005,11 +1111,12 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	ca, caKey := createCA(t, config.clk)
 
 	h := &mockAPI{
-		t:      t,
-		c:      config,
-		bundle: bundleutil.BundleFromRootCA(trustDomain, ca),
-		caKey:  caKey,
-		clk:    config.clk,
+		t:            t,
+		c:            config,
+		bundle:       bundleutil.BundleFromRootCA(trustDomain, ca),
+		caKey:        caKey,
+		clk:          config.clk,
+		lastestSVIDs: make(map[string][]*x509.Certificate),
 	}
 	serverID := idutil.ServerID(trustDomain)
 	h.svid = createSVIDWithKey(t, config.clk, ca, caKey, serverID, time.Hour, serverKey)
@@ -1082,6 +1189,10 @@ func (h *mockAPI) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 			continue
 		}
 		svid := h.newSVIDFromCSR(spiffeid.RequireFromString(entry.SpiffeId), param.Csr)
+
+		// Keep latests SVIDs per entry
+		h.lastestSVIDs[entry.EntryId] = svid
+
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
 			Status: api.OK(),
 			Svid: &types.X509SVID{
@@ -1219,8 +1330,11 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKe
 	return []*x509.Certificate{svid}
 }
 
-func initializeAndRunNewManager(t *testing.T, c *Config) (m *manager, closer func()) {
+func initializeAndRunNewManager(t *testing.T, c *Config, isStorableEntry func(*common.RegistrationEntry) bool) (m *manager, closer func()) {
 	m = newManager(c)
+	if isStorableEntry != nil {
+		m.hooks.isStorableEntry = isStorableEntry
+	}
 	return m, initializeAndRunManager(t, m)
 }
 
