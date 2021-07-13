@@ -1,9 +1,8 @@
 package aws
 
 import (
-	"bytes"
+	"fmt"
 	"sync"
-	"text/template"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -82,25 +81,12 @@ func (cc *clientsCache) getClient(region, accountID string) (Client, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	var asssumeRoleArn bytes.Buffer
-	if cc.config.AssumeRoleArnTemplate != "" {
-		tmpl, err := template.New("assume-role-arn").Parse(cc.config.AssumeRoleArnTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create template: %v", err)
-		}
-
-		data := struct {
-			AccountID string
-		}{
-			AccountID: accountID,
-		}
-
-		if err = tmpl.Execute(&asssumeRoleArn, data); err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to execute template: %v", err)
-		}
+	var asssumeRoleArn string
+	if cc.config.AssumeRole != "" {
+		asssumeRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cc.config.AssumeRole)
 	}
 
-	client, err := cc.newClient(cc.config, region, asssumeRoleArn.String())
+	client, err := cc.newClient(cc.config, region, asssumeRoleArn)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}

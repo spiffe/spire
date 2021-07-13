@@ -113,7 +113,7 @@ type IIDAttestorConfig struct {
 	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors"`
 	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate               string   `hcl:"agent_path_template"`
-	AssumeRoleArnTemplate           string   `hcl:"assume_role_arn_template"`
+	AssumeRole                      string   `hcl:"assume_role"`
 	pathTemplate                    *template.Template
 	trustDomain                     string
 	awsCaCertPublicKey              *rsa.PublicKey
