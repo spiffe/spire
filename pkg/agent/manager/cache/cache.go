@@ -573,11 +573,9 @@ func (c *Cache) notifyBySelectorSet(sets ...selectorSet) {
 		subs, subsDone := c.getSubscribers(set)
 		defer subsDone()
 		for sub := range subs {
-			if sub.set.SuperSetOf(set) {
-				if _, notified := notifiedSubs[sub]; !notified {
-					c.notify(sub)
-					notifiedSubs[sub] = struct{}{}
-				}
+			if _, notified := notifiedSubs[sub]; !notified && sub.set.SuperSetOf(set) {
+				c.notify(sub)
+				notifiedSubs[sub] = struct{}{}
 			}
 		}
 	}
