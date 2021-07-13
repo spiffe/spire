@@ -79,21 +79,21 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		{
 			// Default format, template provided
 			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			uid:              "012",
-			first:            fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
-			second:           fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			//uid:              "012",
+			first:  fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			second: fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
 		},
 		{
 			// Testing provided identity template, corresponding to a default format:
 			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
-			first:            "ns/" + PodNamespace + "/sa/serviceAccount",
-			second:           "ns/" + PodNamespace + "/sa/serviceAccount",
+			first:            "ns/" + PodNamespace + "/sa/" + PodServiceAccount,
+			second:           "ns/" + PodNamespace + "/sa/" + PodServiceAccount,
 		},
 		{
 			// Testing provided identity template:
 			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			first:            "ns/" + PodNamespace + "/sa/serviceAccount/podName/" + PodName,
-			second:           "ns/" + PodNamespace + "/sa/serviceAccount/podName/" + PodName,
+			first:            "ns/" + PodNamespace + "/sa/" + PodServiceAccount + "/podName/" + PodName,
+			second:           "ns/" + PodNamespace + "/sa/" + PodServiceAccount + "/podName/" + PodName,
 		},
 		{
 			// Testing provided identity template with an additional identity context:
@@ -104,6 +104,12 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 			identityTemplate: "region/{{.Context.region}}/cluster/{{.Context.cluster_name}}/podName/{{.Pod.pod_name}}",
 			first:            "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
 			second:           "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
+		},
+		{
+			// Testing all possible Pod arguments:
+			identityTemplate: fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameIDLabel, NamespaceIDLabel, PodServiceAccountIDLabel, PodHostnameLabel, PodNodeNameLabel),
+			first:            PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
+			second:           PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
 		},
 	}
 
@@ -127,7 +133,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 				Namespace:   PodNamespace,
 				Labels:      map[string]string{"spiffe": test.first},
 				Annotations: map[string]string{"spiffe": test.first},
-				//	UID:         types.UID(test.uid),
+				UID:         types.UID(test.uid),
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{
@@ -135,6 +141,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 					Image: "test-pod",
 				}},
 				NodeName:           "test-node",
+				Hostname:           "hostname",
 				ServiceAccountName: "serviceAccount",
 			},
 		}
@@ -143,7 +150,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		s.reconcile(p)
 
 		labelSelector := labels.Set(map[string]string{
-			// "podUid": string(pod.ObjectMeta.UID),
+			"podUid": string(pod.ObjectMeta.UID),
 		})
 
 		// Verify that exactly 1 SPIFFE ID  resource was created for this pod

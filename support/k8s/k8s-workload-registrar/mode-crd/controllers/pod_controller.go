@@ -40,6 +40,8 @@ const (
 	PodUIDLabel              string = "pod_uid"
 	NamespaceIDLabel         string = "namespace"
 	PodServiceAccountIDLabel string = "service_account"
+	PodHostnameLabel         string = "hostname"
+	PodNodeNameLabel         string = "node_name"
 )
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
@@ -223,11 +225,14 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) string {
 	}
 
 	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
-	podInfo := map[string]string{}
-	podInfo[PodServiceAccountIDLabel] = pod.Spec.ServiceAccountName
-	podInfo[NamespaceIDLabel] = pod.Namespace
-	podInfo[PodNameIDLabel] = pod.Name
-	podInfo[PodUIDLabel] = string(pod.UID)
+	podInfo := map[string]string{
+		PodServiceAccountIDLabel: pod.Spec.ServiceAccountName,
+		NamespaceIDLabel:         pod.Namespace,
+		PodNameIDLabel:           pod.Name,
+		PodUIDLabel:              string(pod.UID),
+		PodHostnameLabel:         pod.Spec.Hostname,
+		PodNodeNameLabel:         pod.Spec.NodeName,
+	}
 
 	templateMaps := IdentityMaps{
 		Context: r.c.Context,
