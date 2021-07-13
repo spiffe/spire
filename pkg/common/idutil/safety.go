@@ -177,7 +177,7 @@ func TrustDomainFromString(s string) (spiffeid.TrustDomain, error) {
 		// either trust domain name or trust domain ID otherwise some
 		// normalization occurred.
 		if !strings.HasPrefix(s, td.String()) && !strings.HasPrefix(s, td.IDString()) {
-			return spiffeid.TrustDomain{}, errors.New("trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+			return spiffeid.TrustDomain{}, errors.New("trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 		}
 	}
 	return td, nil
@@ -209,7 +209,7 @@ func validateComponents(td, path string) error {
 func validateTrustDomain(td string) error {
 	for i := 0; i < len(td); i++ {
 		if !isValidTrustDomainChar(td[i]) {
-			return errors.New("trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+			return errors.New("trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 		}
 	}
 	return nil

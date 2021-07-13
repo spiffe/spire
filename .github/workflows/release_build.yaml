@@ -2,7 +2,7 @@ name: Release Build
 on:
   push:
     tags:
-      - '^v[0-9].[0-9]+.[0-9]+$'
+      - 'v[0-9].[0-9]+.[0-9]+'
 env:
   GO_VERSION: 1.16.5
 jobs:
@@ -148,6 +148,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          # The "upgrade" integration test needs the history to ensure
+          # that the version number in the source code has been bumped as
+          # expected. This action does not fetch tags unless we supply a
+          # fetch depth of zero.
+          fetch-depth: 0
+      # Even though we've just checked out the code, checkout@v2 has a bug
+      # where it overwrites the local annotated tag, dropping the annotation.
+      # The "upgrade" integration test is designed to only consider annotated
+      # tags as version tags. We don't really want to soften this stance, so
+      # instead we'll re-fetch the tags.
+      #
+      # See https://github.com/actions/checkout/issues/290
+      - name: Fix tag annotations
+        run: git fetch --tags --force
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -176,12 +191,14 @@ jobs:
           NUM_RUNNERS: ${{ matrix.num_runners }}
           THIS_RUNNER: ${{ matrix.runner_id }}
           TERM: dumb
-          CICD_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+          # We don't need to specify CICD_TARGET_BRANCH since the upgrade
+          # integration test will detect the annotated tag for version checking.
+          # CICD_TARGET_BRANCH:
         run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
 
   publish-artifacts:
     runs-on: ubuntu-18.04
-    needs: [integration]
+    needs: [lint, unit-test, artifacts, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -199,18 +216,12 @@ jobs:
           # See https://github.com/cli/cli/issues/3556
           GH_REPO: ${{ github.repository }} 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # Create the release against the annotated tag. The GITHUB_REF envvar
-        # includes the "refs/tags" prefix, which is fine to pass to `gh release
-        # create` for the reference to create the release from. However we
-        # strip off the prefix to give the release a nice title with just the
-        # version number.
-        #
-        # See https://docs.github.com/en/actions/reference/environment-variables.
-        run: gh release create "${GITHUB_REF}" ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
+        # Create the release using the version number as the title
+        run: gh release create "${GITHUB_REF#refs/tags/}" ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
 
   publish-images:
     runs-on: ubuntu-18.04
-    needs: [integration]
+    needs: [lint, unit-test, artifacts, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -227,10 +238,6 @@ jobs:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCR_JSON_KEY }}
-      # Push the images to GCR using the version number tag. The GITHUB_REF
-      # envvar includes the "refs/tags" prefix, which we strip to get just the
-      # version number.
-      #
-      # See https://docs.github.com/en/actions/reference/environment-variables.
+      # Push the images to GCR using the version number (without the "v" prefix).
       - name: Push images
-        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/}"
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/v}"
