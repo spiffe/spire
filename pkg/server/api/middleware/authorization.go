@@ -52,7 +52,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))
 	}
 
-	allow, err := m.opaAuth(ctx, req, methodName)
+	ctx, allow, err := m.opaAuth(ctx, req, methodName)
 	if err != nil {
 		rpccontext.Logger(ctx).WithError(err).Error("Failed to authenticate caller")
 		return nil, err

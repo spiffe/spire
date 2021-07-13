@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, fullMethod string) (allow bool, err error) {
+func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, fullMethod string) (context.Context, bool, error) {
 	if m.policyEngine == nil {
-		return false, errors.New("No policy engine object found")
+		return ctx, false, errors.New("No policy engine object found")
 	}
 
 	var (
@@ -33,86 +33,100 @@ func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, 
 
 	result, err := m.policyEngine.Eval(ctx, input)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
-	allow, err = reconcileResult(ctx, result, m.entryFetcher, m.agentAuthorizer)
+	ctx, allow, err := reconcileResult(ctx, result, m.entryFetcher, m.agentAuthorizer)
 	if err != nil {
-		return false, err
+		return ctx, false, err
 	}
 
-	return allow, nil
+	return ctx, allow, nil
 }
 
-func reconcileResult(ctx context.Context, res policy.Result, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) (allow bool, err error) {
+func reconcileResult(ctx context.Context, res policy.Result, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) (context.Context, bool, error) {
 	// Check things in order of cost
 	if res.Allow {
-		return true, nil
+		return ctx, true, nil
 	}
 
 	// Check local
 	if res.AllowIfLocal && rpccontext.CallerIsLocal(ctx) {
-		return true, nil
+		return ctx, true, nil
 	}
 
 	// Get entries
 	if res.AllowIfAdmin || res.AllowIfDownstream {
-		_, entries, err := WithCallerEntries(ctx, entryFetcher)
+		ctx, entries, err := WithCallerEntries(ctx, entryFetcher)
 		if err != nil {
-			return false, err
+			return ctx, false, err
 		}
 
-		if res.AllowIfAdmin && isAdmin(entries) {
-			return true, nil
+		if res.AllowIfAdmin {
+			if ctx, ok := isAdmin(ctx, entries); ok {
+				return ctx, true, nil
+			}
 		}
 
-		if res.AllowIfDownstream && isDownstream(entries) {
-			return true, nil
+		if res.AllowIfDownstream {
+			if ctx, ok := isDownstream(ctx, entries); ok {
+				return ctx, true, nil
+			}
 		}
 	}
 
 	if res.AllowIfAgent {
-		isAgent, err := isAgent(ctx, agentAuthorizer)
+		ctx, isAgent, err := isAgent(ctx, agentAuthorizer)
 		if err == nil && isAgent {
-			return true, nil
+			return ctx, true, nil
 		}
 	}
 
-	return false, nil
+	return ctx, false, nil
 }
 
-func isAdmin(entries []*types.Entry) bool {
+func isAdmin(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
 	adminEntries := make([]*types.Entry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Admin {
 			adminEntries = append(adminEntries, entry)
 		}
 	}
-	return len(adminEntries) != 0
+
+	if len(adminEntries) == 0 {
+		return ctx, false
+	}
+	return rpccontext.WithCallerAdminEntries(ctx, adminEntries), true
 }
 
-func isDownstream(entries []*types.Entry) bool {
+func isDownstream(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
 	downstreamEntries := make([]*types.Entry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Downstream {
 			downstreamEntries = append(downstreamEntries, entry)
 		}
 	}
-	return len(downstreamEntries) != 0
+
+	if len(downstreamEntries) == 0 {
+		return ctx, false
+	}
+	return rpccontext.WithCallerDownstreamEntries(ctx, downstreamEntries), true
 }
 
-func isAgent(ctx context.Context, agentAuthorizer AgentAuthorizer) (bool, error) {
+func isAgent(ctx context.Context, agentAuthorizer AgentAuthorizer) (context.Context, bool, error) {
 	agentSVID, ok := rpccontext.CallerX509SVID(ctx)
 	if !ok {
-		return false, status.Error(codes.PermissionDenied, "caller does not have an X509-SVID")
+		return ctx, false, status.Error(codes.PermissionDenied, "caller does not have an X509-SVID")
 	}
 
 	agentID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return false, status.Error(codes.PermissionDenied, "caller does not have a SPIFFE ID")
+		return ctx, false, status.Error(codes.PermissionDenied, "caller does not have a SPIFFE ID")
 	}
 
-	err := agentAuthorizer.AuthorizeAgent(ctx, agentID, agentSVID)
+	if err := agentAuthorizer.AuthorizeAgent(ctx, agentID, agentSVID); err != nil {
+		return ctx, false, nil
+	}
 
-	return err == nil, nil
+	return rpccontext.WithAgentCaller(ctx), true, nil
 }
