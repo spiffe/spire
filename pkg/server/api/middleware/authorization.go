@@ -13,19 +13,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type Authorizer interface {
-	// Name returns the name of the authorizer. The value may be included in
-	// logs and messages returned to callers on authorization failure.
-	Name() string
-
-	// AuthorizeCaller is called by the authorization middleware to determine
-	// if a caller is authorized. The caller is retrievable on the passed in
-	// context. On success, the method returns the (potentially embellished)
-	// context passed into the function. On failure, the method returns an
-	// error and the returned context is ignored.
-	AuthorizeCaller(ctx context.Context) (context.Context, error)
-}
-
 func WithAuthorization(policyEngine *policy.Engine, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) middleware.Middleware {
 	return &authorizationMiddleware{
 		policyEngine:    policyEngine,
