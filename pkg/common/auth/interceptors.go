@@ -12,10 +12,6 @@ type Authorizer interface {
 	AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error)
 }
 
-type RequestAuthorizer interface {
-	AuthorizeCall(ctx context.Context, req interface{}, fullMethod string) (context.Context, error)
-}
-
 type AuthorizerFunc func(ctx context.Context, fullMethod string) (context.Context, error)
 
 func (fn AuthorizerFunc) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
@@ -23,7 +19,7 @@ func (fn AuthorizerFunc) AuthorizeCall(ctx context.Context, fullMethod string) (
 }
 
 func UnaryAuthorizeCall(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	ctx, err := authorizeCall(ctx, info.Server, req, info.FullMethod)
+	ctx, err := authorizeCall(ctx, info.Server, info.FullMethod)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +27,7 @@ func UnaryAuthorizeCall(ctx context.Context, req interface{}, info *grpc.UnarySe
 }
 
 func StreamAuthorizeCall(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	ctx, err := authorizeCall(ss.Context(), srv, nil, info.FullMethod)
+	ctx, err := authorizeCall(ss.Context(), srv, info.FullMethod)
 	if err != nil {
 		return err
 	}
@@ -42,10 +38,7 @@ func StreamAuthorizeCall(srv interface{}, ss grpc.ServerStream, info *grpc.Strea
 	})
 }
 
-func authorizeCall(ctx context.Context, srv interface{}, req interface{}, fullMethod string) (context.Context, error) {
-	if authorizer, ok := srv.(RequestAuthorizer); ok && req != nil {
-		return authorizer.AuthorizeCall(ctx, req, fullMethod)
-	}
+func authorizeCall(ctx context.Context, srv interface{}, fullMethod string) (context.Context, error) {
 	authorizer, ok := srv.(Authorizer)
 	if !ok {
 		return nil, status.Errorf(codes.PermissionDenied, "server unable to provide authorization for method %q", fullMethod)
