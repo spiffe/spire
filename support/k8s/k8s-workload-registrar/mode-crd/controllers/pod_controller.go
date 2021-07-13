@@ -16,9 +16,11 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"html/template"
 	"log"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
@@ -34,10 +36,10 @@ import (
 )
 
 const (
-	PodNameIdLabel           string = "{{pod-name}}"
-	PodUidIdLabel            string = "{{pod-uid}}"
-	NamespaceIdLabel         string = "{{namespace}}"
-	PodServiceAccountIdLabel string = "{{service-account}}"
+	PodNameIDLabel           string = "pod_name"
+	PodUIDLabel              string = "pod_uid"
+	NamespaceIDLabel         string = "namespace"
+	PodServiceAccountIDLabel string = "service_account"
 )
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
@@ -52,6 +54,12 @@ type PodReconcilerConfig struct {
 	Scheme             *runtime.Scheme
 	TrustDomain        string
 	IdentityTemplate   string
+	Context            map[string]string
+}
+
+type IdentityMaps struct {
+	Context map[string]string
+	Pod     map[string]string
 }
 
 // PodReconciler holds the runtime configuration and state of this controller
@@ -193,8 +201,8 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
-	// create an entry based on the service account.
-	//return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	// create an entry using provided identity_template.
+	// return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 	return makeID(r.c.TrustDomain, r.getIdentityTemplate(pod))
 }
 
@@ -203,31 +211,33 @@ func (r *PodReconciler) podParentID(nodeName string) string {
 }
 
 func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) string {
-	template := r.c.IdentityTemplate
-	log.Printf("**** using template %s", template)
-	fields := strings.Split(template, "/")
-	svid := ""
-	for _, field := range fields {
-		if strings.HasPrefix(field, "{{") && strings.HasSuffix(field, "}}") {
-
-			switch field {
-			case PodServiceAccountIdLabel:
-				svid += "/" + pod.Spec.ServiceAccountName
-			case NamespaceIdLabel:
-				svid += "/" + pod.Namespace
-			case PodNameIdLabel:
-				svid += "/" + pod.Name
-			case PodUidIdLabel:
-				svid += "/" + string(pod.UID)
-			default:
-				log.Printf("***Error invalid template label")
-			}
-
-		} else {
-			svid += "/" + field
-		}
-
+	tpl := r.c.IdentityTemplate
+	if tpl == "" {
+		// if template not provided, use the default value:
+		return fmt.Sprintf("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 	}
-	return svid
-	//return fmt.Sprintf("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	tmpl, err := template.New("IdentityTemplate").Parse(tpl)
+	if err != nil {
+		r.c.Log.WithError(err).Errorf("Error parsing the template %v", tpl)
+		log.Fatal(err)
+	}
+
+	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
+	podInfo := map[string]string{}
+	podInfo[PodServiceAccountIDLabel] = pod.Spec.ServiceAccountName
+	podInfo[NamespaceIDLabel] = pod.Namespace
+	podInfo[PodNameIDLabel] = pod.Name
+	podInfo[PodUIDLabel] = string(pod.UID)
+
+	templateMaps := IdentityMaps{
+		Context: r.c.Context,
+		Pod:     podInfo,
+	}
+	var svid bytes.Buffer
+	err = tmpl.Execute(&svid, templateMaps)
+	if err != nil {
+		r.c.Log.WithError(err).Errorf("Error executing the template %v with maps: %#v", tpl, templateMaps)
+		log.Fatal(err)
+	}
+	return svid.String()
 }

@@ -23,11 +23,10 @@ import (
 const (
 	defaultLogLevel = "info"
 
-	modeCRD                 = "crd"
-	modeWebhook             = "webhook"
-	modeReconcile           = "reconcile"
-	defaultMode             = modeWebhook
-	defaultIdentityTemplate = "ns/{{namespace}}/sa/{{service-account}}"
+	modeCRD       = "crd"
+	modeWebhook   = "webhook"
+	modeReconcile = "reconcile"
+	defaultMode   = modeWebhook
 )
 
 type Mode interface {
@@ -37,19 +36,20 @@ type Mode interface {
 }
 
 type CommonMode struct {
-	LogFormat          string   `hcl:"log_format"`
-	LogLevel           string   `hcl:"log_level"`
-	LogPath            string   `hcl:"log_path"`
-	TrustDomain        string   `hcl:"trust_domain"`
-	ServerSocketPath   string   `hcl:"server_socket_path"`
-	AgentSocketPath    string   `hcl:"agent_socket_path"`
-	ServerAddress      string   `hcl:"server_address"`
-	Cluster            string   `hcl:"cluster"`
-	PodLabel           string   `hcl:"pod_label"`
-	PodAnnotation      string   `hcl:"pod_annotation"`
-	Mode               string   `hcl:"mode"`
-	DisabledNamespaces []string `hcl:"disabled_namespaces"`
-	IdentityTemplate   string   `hcl:"identity_template"`
+	LogFormat          string            `hcl:"log_format"`
+	LogLevel           string            `hcl:"log_level"`
+	LogPath            string            `hcl:"log_path"`
+	TrustDomain        string            `hcl:"trust_domain"`
+	ServerSocketPath   string            `hcl:"server_socket_path"`
+	AgentSocketPath    string            `hcl:"agent_socket_path"`
+	ServerAddress      string            `hcl:"server_address"`
+	Cluster            string            `hcl:"cluster"`
+	PodLabel           string            `hcl:"pod_label"`
+	PodAnnotation      string            `hcl:"pod_annotation"`
+	Mode               string            `hcl:"mode"`
+	DisabledNamespaces []string          `hcl:"disabled_namespaces"`
+	IdentityTemplate   string            `hcl:"identity_template"`
+	Context            map[string]string `hcl:"context"`
 	serverAPI          ServerAPIClients
 }
 
@@ -87,10 +87,10 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	if c.DisabledNamespaces == nil {
 		c.DisabledNamespaces = defaultDisabledNamespaces()
 	}
-	if c.IdentityTemplate == "" {
-		// use default format: namespace and service account
-		c.IdentityTemplate = defaultIdentityTemplate
+	if c.IdentityTemplate == "" && c.Context != nil {
+		return errs.New("context defined without identity_template")
 	}
+	// IdentityTemplate represents the format after the trust domain and as such, it must not begin with spiffe://, // or /
 	if strings.HasPrefix(c.IdentityTemplate, "spiffe://") ||
 		strings.HasPrefix(c.IdentityTemplate, "//") ||
 		strings.HasPrefix(c.IdentityTemplate, "/") {
