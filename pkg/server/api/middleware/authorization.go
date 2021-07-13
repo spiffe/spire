@@ -23,7 +23,7 @@ type Authorizer interface {
 	// context. On success, the method returns the (potentially embellished)
 	// context passed into the function. On failure, the method returns an
 	// error and the returned context is ignored.
-	AuthorizeCaller(ctx context.Context, req interface{}) (context.Context, error)
+	AuthorizeCaller(ctx context.Context) (context.Context, error)
 }
 
 func WithAuthorization(policyEngine *policy.Engine, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) middleware.Middleware {

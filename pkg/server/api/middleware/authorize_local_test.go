@@ -22,14 +22,14 @@ func TestLocalAuthorizer(t *testing.T) {
 
 	t.Run("caller is local", func(t *testing.T) {
 		ctxIn := rpccontext.WithLocalCaller(context.Background())
-		ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
+		ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
 		require.NoError(t, err)
 		require.Equal(t, ctxIn, ctxOut)
 	})
 
 	t.Run("caller is not local", func(t *testing.T) {
 		ctxIn := context.Background()
-		ctxOut, err := authorizer.AuthorizeCaller(ctxIn, nil)
+		ctxOut, err := authorizer.AuthorizeCaller(ctxIn)
 		spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "caller is not local")
 		assert.Nil(t, ctxOut)
 	})
