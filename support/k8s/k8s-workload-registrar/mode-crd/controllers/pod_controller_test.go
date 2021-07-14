@@ -60,6 +60,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		identityTemplate string
 		context          map[string]string
 		uid              string
+		err              string
 	}{
 		{
 			PodLabel: "spiffe",
@@ -105,10 +106,20 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 			second:           "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
 		},
 		{
-			// Testing other Pod arguments:
+			// Testing identity template with other Pod arguments:
 			identityTemplate: fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameIDLabel, NamespaceIDLabel, PodServiceAccountIDLabel, PodHostnameLabel, PodNodeNameLabel),
 			first:            PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
 			second:           PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
+		},
+		{
+			// Testing invalid identity template:
+			identityTemplate: "invalid/",
+			err:              "invalid SVID, ends with /",
+		},
+		{
+			// Testing identity template with a missing context value:
+			identityTemplate: "region/{{.Context.region}}",
+			err:              "template refrences a value not included in context map",
 		},
 	}
 
@@ -146,7 +157,14 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		}
 		err := s.k8sClient.Create(s.ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		err = s.reconcile(p)
+		if err != nil {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), test.err)
+			err = s.k8sClient.Delete(s.ctx, &pod)
+			s.Require().NoError(err)
+			continue
+		}
 
 		labelSelector := labels.Set(map[string]string{
 			"podUid": string(pod.ObjectMeta.UID),
@@ -192,7 +210,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 	}
 }
 
-func (s *PodControllerTestSuite) reconcile(p *PodReconciler) {
+func (s *PodControllerTestSuite) reconcile(p *PodReconciler) error {
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      PodName,
@@ -201,8 +219,15 @@ func (s *PodControllerTestSuite) reconcile(p *PodReconciler) {
 	}
 
 	_, err := p.Reconcile(req)
+	if err != nil {
+		return err
+	}
 	s.Require().NoError(err)
 
 	_, err = s.r.Reconcile(req)
+	if err != nil {
+		return err
+	}
 	s.Require().NoError(err)
+	return nil
 }
