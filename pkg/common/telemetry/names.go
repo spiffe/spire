@@ -136,6 +136,9 @@ const (
 	// Audience tags some audience for a token
 	Audience = "audience"
 
+	// ByBanned tags filtering by banned agents
+	ByBanned = "by_banned"
+
 	// BySelectorMatch tags Match used when filtering by Selectors
 	BySelectorMatch = "by_selector_match"
 
@@ -177,6 +180,9 @@ const (
 
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
+
+	// Csr represents a presented Csr in hashed format. It's hashed using the hex-encoded SHA256 checksum.
+	Csr = "csr"
 
 	// CsrSpiffeID represents the SPIFFE ID in a Certificate Signing Request.
 	CsrSpiffeID = "csr_spiffe_id"
