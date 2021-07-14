@@ -55,6 +55,8 @@ The following configuration directives are specific to `"crd"` mode:
 | `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. Only needed if manually creating entries | `false` |
 | `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
+| `identity_template`        | string  | optional | The template for custom SVID format |  |
+| `context`                  | map[string]string | optional | The map of key/value pairs of arbitrary string parameters for specified by `identity_template` | |
 
 The following configuration directives are specific to `"reconcile"` mode:
 
@@ -190,6 +192,26 @@ The following configuration is required before `"crd"` mode can be used:
    * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
    * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
    * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
+1. The CRD mode allows custom format of the SVID via `identity_template` with Pod specific values, and provided `context` map of string arguments. Currently supported Pod arguments:
+    * `Pod.pod_name` - name of the pod
+    * `Pod.pod_uid` - pod UID
+    * `Pod.service_account` - service account associated with the pod
+    * `Pod.hostname` - hostname of the pod
+    * `Pod.node_name` - name of the node hosting a pod
+
+```
+identity_template = "region/{{.Context.region}}/cluster_name/{{.Context.cluster_name}}/ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}"
+context {
+  region = "EU-DE"
+  cluster_name = "MYCLUSTER"
+}
+```
+
+assuming `namespace=test` and `service_account=default`:
+
+```
+spiffe://example.org/region/EU-DE/cluster_name/MYCLUSTER/ns/test/sa/default
+```
 
 #### CRD mode Security Considerations
 It is imperative to only grant trusted users access to manually create SpiffeId custom resources. Users with access have the ability to issue any SpiffeId

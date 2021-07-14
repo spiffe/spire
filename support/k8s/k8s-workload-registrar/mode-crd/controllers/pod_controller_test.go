@@ -79,9 +79,8 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		{
 			// Default format, template provided
 			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			//uid:              "012",
-			first:  fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
-			second: fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			first:            fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			second:           fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
 		},
 		{
 			// Testing provided identity template, corresponding to a default format:
@@ -106,7 +105,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 			second:           "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
 		},
 		{
-			// Testing all possible Pod arguments:
+			// Testing other Pod arguments:
 			identityTemplate: fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameIDLabel, NamespaceIDLabel, PodServiceAccountIDLabel, PodHostnameLabel, PodNodeNameLabel),
 			first:            PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
 			second:           PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
