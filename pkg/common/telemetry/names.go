@@ -124,6 +124,9 @@ const (
 	// Address tags some network address
 	Address = "address"
 
+	// Admin tags admin access
+	Admin = "admin"
+
 	// Agent SPIFFE ID
 	AgentID = "agent_id"
 
@@ -132,6 +135,12 @@ const (
 
 	// Audience tags some audience for a token
 	Audience = "audience"
+
+	// BySelectorMatch tags Match used when filtering by Selectors
+	BySelectorMatch = "by_selector_match"
+
+	// BySelectors tags selectors used when filtering
+	BySelectors = "by_selectors"
 
 	// CallerAddr labels an API caller address
 	CallerAddr = "caller_addr"
@@ -184,6 +193,9 @@ const (
 	// DNS name is a name which is resolvable with DNS
 	DNSName = "dns_name"
 
+	// Downstream tags if entry is a downstream
+	Downstream = "downstream"
+
 	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
@@ -198,6 +210,9 @@ const (
 	// Expiration tags an expiration time for some entity
 	Expiration = "expiration"
 
+	// ExpiresAt tags registration entry expiration
+	ExpiresAt = "expires_at"
+
 	// ExpiryCheckDuration tags duration for an expiry check; should be used with other tags
 	// to add clarity
 	ExpiryCheckDuration = "expiry_check_duration"
@@ -210,6 +225,12 @@ const (
 
 	// FederatedRemoved labels some count of federated bundles that have been removed from an entity
 	FederatedRemoved = "fed_rem"
+
+	// FederatesWith tags a federates with list
+	FederatesWith = "federates_with"
+
+	// FederatesWithMatch tags a federates with match filter
+	FederatesWithMatch = "federates_with_match"
 
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
@@ -308,6 +329,9 @@ const (
 
 	// RetryInterval tags some interval for retry logic
 	RetryInterval = "retry_interval"
+
+	// RevisionNumber tags a registration entry revision number
+	RevisionNumber = "revision_number"
 
 	// Schema tags database schema version
 	Schema = "schema"
