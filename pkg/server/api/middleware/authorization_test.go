@@ -140,10 +140,11 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to authenticate caller: rpc error: code = Unauthenticated desc = oh no!",
+					Message: "Failed to authenticate caller",
 					Data: logrus.Fields{
 						telemetry.CallerAddr: "2.2.2.2:2",
 						telemetry.CallerID:   "spiffe://example.org/workload",
+						logrus.ErrorKey:      "rpc error: code = Unauthenticated desc = oh no!",
 					},
 				},
 			},

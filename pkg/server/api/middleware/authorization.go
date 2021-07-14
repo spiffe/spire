@@ -67,7 +67,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 
 	authorizedCtx, err := authorizer.AuthorizeCaller(ctx)
 	if err != nil {
-		rpccontext.Logger(ctx).Errorf("Failed to authenticate caller: %v", err)
+		rpccontext.Logger(ctx).WithError(err).Error("Failed to authenticate caller")
 		return nil, err
 	}
 	return authorizedCtx, nil
