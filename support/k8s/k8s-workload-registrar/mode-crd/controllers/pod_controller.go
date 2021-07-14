@@ -18,9 +18,7 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"html/template"
-	"log"
+	"text/template"
 
 	"github.com/sirupsen/logrus"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
@@ -203,9 +201,14 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
-	// create an entry using provided identity_template.
-	// return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
-	return makeID(r.c.TrustDomain, r.getIdentityTemplate(pod))
+	if r.c.IdentityTemplate != "" {
+		// create an entry using provided identity template.
+		return makeID(r.c.TrustDomain, r.getIdentityTemplate(pod))
+	}
+
+	// the controller has not been configured with a specific identity format.
+	// create an entry based on the service account.
+	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
@@ -214,14 +217,9 @@ func (r *PodReconciler) podParentID(nodeName string) string {
 
 func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) string {
 	tpl := r.c.IdentityTemplate
-	if tpl == "" {
-		// if template not provided, use the default value:
-		return fmt.Sprintf("ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
-	}
 	tmpl, err := template.New("IdentityTemplate").Parse(tpl)
 	if err != nil {
-		r.c.Log.WithError(err).Errorf("Error parsing the template %v", tpl)
-		log.Fatal(err)
+		r.c.Log.WithError(err).Errorf("Error parsing the template (%v)", tpl)
 	}
 
 	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
@@ -241,8 +239,7 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) string {
 	var svid bytes.Buffer
 	err = tmpl.Execute(&svid, templateMaps)
 	if err != nil {
-		r.c.Log.WithError(err).Errorf("Error executing the template %v with maps: %#v", tpl, templateMaps)
-		log.Fatal(err)
+		r.c.Log.WithError(err).Errorf("Error executing the template (%v) with maps: %#v", tpl, templateMaps)
 	}
 	return svid.String()
 }
