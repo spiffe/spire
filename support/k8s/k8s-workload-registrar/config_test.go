@@ -154,6 +154,42 @@ func TestLoadMode(t *testing.T) {
 				InsecureSkipClientVerification: true,
 			},
 		},
+		{
+			name: "identity_template no context",
+			in: `
+				log_level = "LEVELOVERRIDE"
+				log_path = "PATHOVERRIDE"
+				addr = ":1234"
+				cert_path = "CERTOVERRIDE"
+				key_path = "KEYOVERRIDE"
+				cacert_path = "CACERTOVERRIDE"
+				insecure_skip_client_verification = true
+				server_socket_path = "SOCKETPATHOVERRIDE"
+				trust_domain = "TRUSTDOMAINOVERRIDE"
+				cluster = "CLUSTEROVERRIDE"
+				pod_label = "PODLABEL"
+				identity_template = "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}"
+			`,
+			out: &WebhookMode{
+				CommonMode: CommonMode{
+					LogLevel:           "LEVELOVERRIDE",
+					LogPath:            "PATHOVERRIDE",
+					ServerSocketPath:   "SOCKETPATHOVERRIDE",
+					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
+					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					Cluster:            "CLUSTEROVERRIDE",
+					PodLabel:           "PODLABEL",
+					Mode:               "webhook",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					IdentityTemplate:   "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
+				},
+				Addr:                           ":1234",
+				CertPath:                       "CERTOVERRIDE",
+				KeyPath:                        "KEYOVERRIDE",
+				CaCertPath:                     "CACERTOVERRIDE",
+				InsecureSkipClientVerification: true,
+			},
+		},
 
 		{
 			name: "bad HCL",
@@ -191,6 +227,39 @@ func TestLoadMode(t *testing.T) {
 				pod_annotation = "PODANNOTATION"
 			`,
 			err: "workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation",
+		},
+		{
+			name: "orphaned context",
+			in: `
+				trust_domain = "TRUSTDOMAIN"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				context {
+					region = "EU-DE"
+					cluster_name = "MYCLUSTER"
+				}
+			`,
+			err: "context defined without identity_template",
+		},
+		{
+			name: "missing context",
+			in: `
+				trust_domain = "TRUSTDOMAIN"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				identity_template = "region/{{.Context.region}}"
+			`,
+			err: "identity_template refrences non-existing context",
+		},
+		{
+			name: "invalid identity_template",
+			in: `
+				trust_domain = "TRUSTDOMAIN"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				identity_template = "spiffe://TRUSTDOMAIN/region"
+			`,
+			err: "identity template cannot start with spiffe:// or /",
 		},
 	}
 
