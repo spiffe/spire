@@ -8,7 +8,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/test/plugintest"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -54,9 +55,9 @@ func New(t *testing.T, name string, config Config) nodeattestor.NodeAttestor {
 		config: config,
 	}
 
-	v0 := new(nodeattestor.V1)
-	plugintest.Load(t, catalog.MakeBuiltIn(name, nodeattestorv1.NodeAttestorPluginServer(plugin)), v0)
-	return v0
+	v1 := new(nodeattestor.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn(name, nodeattestorv1.NodeAttestorPluginServer(plugin)), v1)
+	return v1
 }
 
 type nodeAttestor struct {
@@ -69,17 +70,17 @@ type nodeAttestor struct {
 func (p *nodeAttestor) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) (err error) {
 	req, err := stream.Recv()
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
 	payload := req.GetPayload()
 	if payload == nil {
-		return errs.New("request is missing payload")
+		return status.Error(codes.InvalidArgument, "request is missing payload")
 	}
 
 	id, ok := p.config.Payloads[string(payload)]
 	if !ok {
-		return errs.New("no ID configured for attestation data %q", string(payload))
+		return status.Errorf(codes.FailedPrecondition, "no ID configured for attestation data %q", string(payload))
 	}
 
 	// challenge/response loop
@@ -89,17 +90,17 @@ func (p *nodeAttestor) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) (
 				Challenge: []byte(challenge),
 			},
 		}); err != nil {
-			return errs.Wrap(err)
+			return err
 		}
 
 		responseReq, err := stream.Recv()
 		if err != nil {
-			return errs.Wrap(err)
+			return err
 		}
 
 		challengeResponse := responseReq.GetChallengeResponse()
 		if challenge != string(challengeResponse) {
-			return errs.New("invalid response to echo challenge %q: got %q", challenge, string(challengeResponse))
+			return status.Errorf(codes.InvalidArgument, "invalid response to echo challenge %q: got %q", challenge, string(challengeResponse))
 		}
 	}
 
@@ -112,11 +113,7 @@ func (p *nodeAttestor) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) (
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
-		return errs.Wrap(err)
-	}
-
-	return nil
+	return stream.Send(resp)
 }
 
 func (p *nodeAttestor) getAgentID(id string) string {
