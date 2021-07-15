@@ -188,7 +188,8 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		pod.Annotations["spiffe"] = test.second
 		err = s.k8sClient.Update(s.ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		err = s.reconcile(p)
+		s.Require().NoError(err)
 
 		// Verify that there is still exactly 1 SPIFFE ID resource for this pod
 		spiffeIDList = spiffeidv1beta1.SpiffeIDList{}
@@ -206,7 +207,8 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		// Delete Pod
 		err = s.k8sClient.Delete(s.ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		err = s.reconcile(p)
+		s.Require().NoError(err)
 	}
 }
 
