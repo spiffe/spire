@@ -11,7 +11,6 @@ import (
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/agent/keymanager/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/plugintest"
@@ -127,7 +126,7 @@ func TestMultiSVIDKeyManager(t *testing.T) {
 }
 
 type fakeV0Plugin struct {
-	keymanagerv0.UnsafeKeyManagerServer
+	keymanagerv0.UnimplementedKeyManagerServer
 
 	key *ecdsa.PrivateKey
 	mtx sync.RWMutex
@@ -180,12 +179,4 @@ func (m *fakeV0Plugin) FetchPrivateKey(context.Context, *keymanagerv0.FetchPriva
 	}
 
 	return &keymanagerv0.FetchPrivateKeyResponse{PrivateKey: privateKey}, nil
-}
-
-func (m *fakeV0Plugin) Configure(context.Context, *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (m *fakeV0Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
 }
