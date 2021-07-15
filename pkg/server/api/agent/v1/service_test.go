@@ -19,8 +19,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/agent/v1"
+	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -64,23 +65,17 @@ var (
 		},
 	}
 
-	testNodeSelectors = map[string]*datastore.NodeSelectors{
+	testNodeSelectors = map[string][]*common.Selector{
 		agent1: {
-			SpiffeId: agent1,
-			Selectors: []*common.Selector{
-				{
-					Type:  "node-selector-type-1",
-					Value: "node-selector-value-1",
-				},
+			{
+				Type:  "node-selector-type-1",
+				Value: "node-selector-value-1",
 			},
 		},
 		agent2: {
-			SpiffeId: agent2,
-			Selectors: []*common.Selector{
-				{
-					Type:  "node-selector-type-2",
-					Value: "node-selector-value-2",
-				},
+			{
+				Type:  "node-selector-type-2",
+				Value: "node-selector-value-2",
 			},
 		},
 	}
@@ -93,8 +88,8 @@ var (
 			X509SvidExpiresAt:    testNodes[agent1].CertNotAfter,
 			Selectors: []*types.Selector{
 				{
-					Type:  testNodeSelectors[agent1].Selectors[0].Type,
-					Value: testNodeSelectors[agent1].Selectors[0].Value,
+					Type:  testNodeSelectors[agent1][0].Type,
+					Value: testNodeSelectors[agent1][0].Value,
 				},
 			},
 		},
@@ -105,8 +100,8 @@ var (
 			X509SvidExpiresAt:    testNodes[agent2].CertNotAfter,
 			Selectors: []*types.Selector{
 				{
-					Type:  testNodeSelectors[agent2].Selectors[0].Type,
-					Value: testNodeSelectors[agent2].Selectors[0].Value,
+					Type:  testNodeSelectors[agent2][0].Type,
+					Value: testNodeSelectors[agent2][0].Value,
 				},
 			},
 			Banned: true,
@@ -134,21 +129,61 @@ func TestCountAgents(t *testing.T) {
 			name:  "0 nodes",
 			count: 0,
 			resp:  &agentv1.CountAgentsResponse{Count: 0},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:  "1 node",
 			count: 1,
 			resp:  &agentv1.CountAgentsResponse{Count: 1},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:  "2 nodes",
 			count: 2,
 			resp:  &agentv1.CountAgentsResponse{Count: 2},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:  "3 nodes",
 			count: 3,
 			resp:  &agentv1.CountAgentsResponse{Count: 3},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:    "ds error",
@@ -161,6 +196,16 @@ func TestCountAgents(t *testing.T) {
 					Message: "Failed to count agents",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "rpc error: code = Internal desc = some error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to count agents: some error",
 					},
 				},
 			},
@@ -226,11 +271,7 @@ func TestListAgents(t *testing.T) {
 	}
 	_, err := test.ds.CreateAttestedNode(ctx, node1)
 	require.NoError(t, err)
-	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  node1.SpiffeId,
-			Selectors: node1.Selectors},
-	})
+	err = test.ds.SetNodeSelectors(ctx, node1.SpiffeId, node1.Selectors)
 	require.NoError(t, err)
 
 	node2ID := spiffeid.Must("example.org", "node2")
@@ -248,11 +289,7 @@ func TestListAgents(t *testing.T) {
 	}
 	_, err = test.ds.CreateAttestedNode(ctx, node2)
 	require.NoError(t, err)
-	_, err = test.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  node2.SpiffeId,
-			Selectors: node2.Selectors},
-	})
+	err = test.ds.SetNodeSelectors(ctx, node2.SpiffeId, node2.Selectors)
 	require.NoError(t, err)
 
 	node3ID := spiffeid.Must("example.org", "node3")
@@ -287,6 +324,16 @@ func TestListAgents(t *testing.T) {
 					{Id: api.ProtoFromID(node1ID), AttestationType: "t1"},
 					{Id: api.ProtoFromID(node2ID), AttestationType: "t2"},
 					{Id: api.ProtoFromID(node3ID), AttestationType: "t3"},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -326,6 +373,16 @@ func TestListAgents(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name: "mask all false",
@@ -337,6 +394,16 @@ func TestListAgents(t *testing.T) {
 					{Id: api.ProtoFromID(node1ID)},
 					{Id: api.ProtoFromID(node2ID)},
 					{Id: api.ProtoFromID(node3ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -353,6 +420,17 @@ func TestListAgents(t *testing.T) {
 					{Id: api.ProtoFromID(node1ID)},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.NodeAttestorType: "t1",
+					},
+				},
+			},
 		},
 		{
 			name: "by banned true",
@@ -365,6 +443,17 @@ func TestListAgents(t *testing.T) {
 			expectResp: &agentv1.ListAgentsResponse{
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node3ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.ByBanned: "true",
+					},
 				},
 			},
 		},
@@ -380,6 +469,17 @@ func TestListAgents(t *testing.T) {
 				Agents: []*types.Agent{
 					{Id: api.ProtoFromID(node1ID)},
 					{Id: api.ProtoFromID(node2ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.ByBanned: "false",
+					},
 				},
 			},
 		},
@@ -402,6 +502,18 @@ func TestListAgents(t *testing.T) {
 					{Id: api.ProtoFromID(node1ID)},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     "a:1,b:2",
+					},
+				},
+			},
 		},
 		{
 			name: "with pagination",
@@ -415,6 +527,16 @@ func TestListAgents(t *testing.T) {
 					{Id: api.ProtoFromID(node2ID)},
 				},
 				NextPageToken: "2",
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
 			},
 		},
 		{
@@ -436,6 +558,18 @@ func TestListAgents(t *testing.T) {
 						logrus.ErrorKey: "missing selector type",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "error",
+						telemetry.Type:            "audit",
+						telemetry.StatusCode:      "InvalidArgument",
+						telemetry.StatusMessage:   "failed to parse selectors: missing selector type",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     ":1",
+					},
+				},
 			},
 		},
 		{
@@ -450,6 +584,16 @@ func TestListAgents(t *testing.T) {
 					Message: "Failed to list agents",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "some error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to list agents: some error",
 					},
 				},
 			},
@@ -503,6 +647,15 @@ func TestBanAgent(t *testing.T) {
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
+					},
+				},
 			},
 		},
 		{
@@ -516,6 +669,16 @@ func TestBanAgent(t *testing.T) {
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid agent ID: request must specify SPIFFE ID",
 					},
 				},
 			},
@@ -536,6 +699,16 @@ func TestBanAgent(t *testing.T) {
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
+					},
+				},
 			},
 		},
 		{
@@ -551,6 +724,16 @@ func TestBanAgent(t *testing.T) {
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `"spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
 					},
 				},
 			},
@@ -571,6 +754,16 @@ func TestBanAgent(t *testing.T) {
 						logrus.ErrorKey: `"spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: "spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
+					},
+				},
 			},
 		},
 		{
@@ -587,6 +780,16 @@ func TestBanAgent(t *testing.T) {
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `"spiffe://another-example.org/spire/agent/agent-1" is not a member of trust domain "example.org"`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: "spiffe://another-example.org/spire/agent/agent-1" is not a member of trust domain "example.org"`,
 					},
 				},
 			},
@@ -607,6 +810,17 @@ func TestBanAgent(t *testing.T) {
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "spire/agent/agent-2").String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/spire/agent/agent-2",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "agent not found",
+					},
+				},
 			},
 		},
 		{
@@ -625,6 +839,17 @@ func TestBanAgent(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "unknown datastore error",
 						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/spire/agent/agent-1",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to ban agent: unknown datastore error",
 					},
 				},
 			},
@@ -702,6 +927,15 @@ func TestDeleteAgent(t *testing.T) {
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/node1",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/node1",
+					},
+				},
 			},
 			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
@@ -718,6 +952,16 @@ func TestDeleteAgent(t *testing.T) {
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "trust domain is empty",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid agent ID: trust domain is empty",
 					},
 				},
 			},
@@ -740,6 +984,17 @@ func TestDeleteAgent(t *testing.T) {
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/notfound",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/spire/agent/notfound",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "agent not found",
+					},
+				},
 			},
 			code: codes.NotFound,
 			err:  "agent not found",
@@ -760,6 +1015,16 @@ func TestDeleteAgent(t *testing.T) {
 						logrus.ErrorKey: `"spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: "spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
+					},
+				},
 			},
 			code: codes.InvalidArgument,
 			err:  `invalid agent ID: "spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
@@ -778,6 +1043,16 @@ func TestDeleteAgent(t *testing.T) {
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: `"spiffe://another.org/spire/agent/node1" is not a member of trust domain "example.org"`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: "spiffe://another.org/spire/agent/node1" is not a member of trust domain "example.org"`,
 					},
 				},
 			},
@@ -802,6 +1077,17 @@ func TestDeleteAgent(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "some error",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/node1",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/spire/agent/node1",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to remove agent: some error",
 					},
 				},
 			},
@@ -863,11 +1149,33 @@ func TestGetAgent(t *testing.T) {
 			name:  "success agent-1",
 			req:   &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"}},
 			agent: expectedAgents[agent1],
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
+					},
+				},
+			},
 		},
 		{
 			name:  "success agent-2",
 			req:   &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-2"}},
 			agent: expectedAgents[agent2],
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-2",
+					},
+				},
+			},
 		},
 		{
 			name: "success - with mask",
@@ -883,6 +1191,17 @@ func TestGetAgent(t *testing.T) {
 				X509SvidExpiresAt:    expectedAgents[agent1].X509SvidExpiresAt,
 				X509SvidSerialNumber: expectedAgents[agent1].X509SvidSerialNumber,
 			},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
+					},
+				},
+			},
 		},
 		{
 			name: "success - with all false mask",
@@ -890,6 +1209,17 @@ func TestGetAgent(t *testing.T) {
 				OutputMask: &types.AgentMask{}},
 			agent: &types.Agent{
 				Id: expectedAgents[agent1].Id,
+			},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
+					},
+				},
 			},
 		},
 		{
@@ -901,6 +1231,16 @@ func TestGetAgent(t *testing.T) {
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "request must specify SPIFFE ID",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid agent ID: request must specify SPIFFE ID",
 					},
 				},
 			},
@@ -918,6 +1258,16 @@ func TestGetAgent(t *testing.T) {
 						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: `invalid agent ID: spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
+					},
+				},
 			},
 			err:  `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
 			code: codes.InvalidArgument,
@@ -931,6 +1281,17 @@ func TestGetAgent(t *testing.T) {
 					Message: "Agent not found",
 					Data: logrus.Fields{
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/does-not-exist",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/spire/agent/does-not-exist",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "agent not found",
 					},
 				},
 			},
@@ -947,6 +1308,17 @@ func TestGetAgent(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "datastore error",
 						telemetry.SPIFFEID: "spiffe://example.org/spire/agent/agent-1",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/spire/agent/agent-1",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to fetch agent: datastore error",
 					},
 				},
 			},
@@ -990,14 +1362,17 @@ func TestRenewAgent(t *testing.T) {
 	// Create a test CSR with empty template
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)
+	csrHash := api.HashByte(csr)
 
 	renewingMessage := spiretest.LogEntry{
-		Level:   logrus.DebugLevel,
+		Level:   logrus.InfoLevel,
 		Message: "Renewing agent SVID",
 	}
 
-	_, malformedError := x509.ParseCertificateRequest([]byte("malformed csr"))
+	malformedCsr := []byte("malformed csr")
+	_, malformedError := x509.ParseCertificateRequest(malformedCsr)
 	require.Error(t, malformedError)
+	malformedCsrHash := api.HashByte(malformedCsr)
 
 	for _, tt := range []struct {
 		name string
@@ -1017,6 +1392,15 @@ func TestRenewAgent(t *testing.T) {
 			createNode: cloneAttestedNode(defaultNode),
 			expectLogs: []spiretest.LogEntry{
 				renewingMessage,
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						telemetry.Csr:    csrHash,
+					},
+				},
 			},
 			req: &agentv1.RenewAgentRequest{
 				Params: &agentv1.AgentX509SVIDParams{
@@ -1035,8 +1419,23 @@ func TestRenewAgent(t *testing.T) {
 						logrus.ErrorKey: "rate limit fails",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unknown",
+						telemetry.StatusMessage: "rejecting request due to renew agent rate limiting: rate limit fails",
+						telemetry.Csr:           csrHash,
+					},
+				},
 			},
-			req:            &agentv1.RenewAgentRequest{},
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
+					Csr: csr,
+				},
+			},
 			expectCode:     codes.Unknown,
 			expectMsg:      "rejecting request due to renew agent rate limiting: rate limit fails",
 			rateLimiterErr: errors.New("rate limit fails"),
@@ -1048,6 +1447,16 @@ func TestRenewAgent(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Caller ID missing from request context",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "caller ID missing from request context",
+					},
 				},
 			},
 			req:          &agentv1.RenewAgentRequest{},
@@ -1062,6 +1471,17 @@ func TestRenewAgent(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.Csr:           csrHash,
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "agent not found",
+					},
 				},
 			},
 			req: &agentv1.RenewAgentRequest{
@@ -1081,6 +1501,16 @@ func TestRenewAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: missing CSR",
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "missing CSR",
+					},
+				},
 			},
 			req: &agentv1.RenewAgentRequest{
 				Params: &agentv1.AgentX509SVIDParams{},
@@ -1099,10 +1529,21 @@ func TestRenewAgent(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey: malformedError.Error()},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.Csr:           malformedCsrHash,
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: fmt.Sprintf("failed to parse CSR: %v", malformedError.Error()),
+					},
+				},
 			},
 			req: &agentv1.RenewAgentRequest{
 				Params: &agentv1.AgentX509SVIDParams{
-					Csr: []byte("malformed CSR"),
+					Csr: malformedCsr,
 				},
 			},
 			expectCode: codes.InvalidArgument,
@@ -1116,6 +1557,16 @@ func TestRenewAgent(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: params cannot be nil",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "params cannot be nil",
+					},
 				},
 			},
 			req:        &agentv1.RenewAgentRequest{},
@@ -1132,6 +1583,17 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Failed to sign X509 SVID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "X509 CA is not available for signing",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.Csr:           csrHash,
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to sign X509 SVID: X509 CA is not available for signing",
 					},
 				},
 			},
@@ -1157,6 +1619,17 @@ func TestRenewAgent(t *testing.T) {
 					Message: "Failed to update agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "some error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.Csr:           csrHash,
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to update agent: some error",
 					},
 				},
 			},
@@ -1247,12 +1720,34 @@ func TestCreateJoinToken(t *testing.T) {
 			request: &agentv1.CreateJoinTokenRequest{
 				Ttl: 1000,
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						telemetry.TTL:    "1000",
+					},
+				},
+			},
 		},
 		{
 			name: "Success Custom Value Join Token",
 			request: &agentv1.CreateJoinTokenRequest{
 				Ttl:   1000,
 				Token: "token goes here",
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						telemetry.TTL:    "1000",
+					},
+				},
 			},
 		},
 		{
@@ -1262,15 +1757,51 @@ func TestCreateJoinToken(t *testing.T) {
 			},
 			err:  "ttl is required, you must provide one",
 			code: codes.InvalidArgument,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: ttl is required, you must provide one",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "ttl is required, you must provide one",
+					},
+				},
+			},
 		},
 		{
 			name: "Fail Datastore Error",
-			err:  "failed to create token: datatore broken",
+			err:  "failed to create token: datastore broken",
 			request: &agentv1.CreateJoinTokenRequest{
 				Ttl: 1000,
 			},
-			dsError: errors.New("datatore broken"),
+			dsError: errors.New("datastore broken"),
 			code:    codes.Internal,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to create token",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "datastore broken",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to create token: datastore broken",
+						telemetry.TTL:           "1000",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
@@ -1279,6 +1810,8 @@ func TestCreateJoinToken(t *testing.T) {
 			test.ds.SetNextError(tt.dsError)
 
 			result, err := test.client.CreateJoinToken(context.Background(), tt.request)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
 			if tt.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				return
@@ -1300,6 +1833,28 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 	})
 	require.Error(t, err)
 	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `invalid agent ID: "spiffe://badtd.org/invalid" is not a member of trust domain "example.org"`)
+	expectLogs := []spiretest.LogEntry{
+		{
+			Level:   logrus.ErrorLevel,
+			Message: "Invalid argument: invalid agent ID",
+			Data: logrus.Fields{
+				logrus.ErrorKey: `"spiffe://badtd.org/invalid" is not a member of trust domain "example.org"`,
+			},
+		},
+		{
+			Level:   logrus.InfoLevel,
+			Message: "API accessed",
+			Data: logrus.Fields{
+				telemetry.Status:        "error",
+				telemetry.Type:          "audit",
+				telemetry.StatusCode:    "InvalidArgument",
+				telemetry.StatusMessage: `invalid agent ID: "spiffe://badtd.org/invalid" is not a member of trust domain "example.org"`,
+				telemetry.TTL:           "1000",
+			},
+		},
+	}
+	spiretest.AssertLogs(t, test.logHook.AllEntries(), expectLogs)
+	test.logHook.Reset()
 
 	token, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
@@ -1307,6 +1862,19 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 	})
 	require.NoError(t, err)
 	spiretest.RequireGRPCStatusContains(t, err, codes.OK, "")
+	expectLogs = []spiretest.LogEntry{
+		{
+			Level:   logrus.InfoLevel,
+			Message: "API accessed",
+			Data: logrus.Fields{
+				telemetry.Status:   "success",
+				telemetry.Type:     "audit",
+				telemetry.SPIFFEID: "spiffe://example.org/valid",
+				telemetry.TTL:      "1000",
+			},
+		},
+	}
+	spiretest.AssertLogs(t, test.logHook.AllEntries(), expectLogs)
 
 	listEntries, err := test.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
 	require.NoError(t, err)
@@ -1348,6 +1916,16 @@ func TestAttestAgent(t *testing.T) {
 						logrus.ErrorKey: "missing params",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed param: missing params",
+					},
+				},
 			},
 		},
 
@@ -1366,6 +1944,16 @@ func TestAttestAgent(t *testing.T) {
 					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing attestation data",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed param: missing attestation data",
 					},
 				},
 			},
@@ -1390,6 +1978,16 @@ func TestAttestAgent(t *testing.T) {
 					Message: "Invalid argument: malformed param",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "missing X509-SVID parameters",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed param: missing X509-SVID parameters",
 					},
 				},
 			},
@@ -1417,6 +2015,16 @@ func TestAttestAgent(t *testing.T) {
 						logrus.ErrorKey: "missing attestation data type",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed param: missing attestation data type",
+					},
+				},
 			},
 		},
 
@@ -1442,6 +2050,16 @@ func TestAttestAgent(t *testing.T) {
 						logrus.ErrorKey: "missing CSR",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed param: missing CSR",
+					},
+				},
 			},
 		},
 
@@ -1457,6 +2075,16 @@ func TestAttestAgent(t *testing.T) {
 					Message: "Rejecting request due to attest agent rate limiting",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "rpc error: code = Unknown desc = rate limit fails",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unknown",
+						telemetry.StatusMessage: "rejecting request due to attest agent rate limiting: rate limit fails",
 					},
 				},
 			},
@@ -1475,6 +2103,17 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.NodeAttestorType: "join_token",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "failed to attest: join token does not exist or has already been used",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
 			},
 		},
 
@@ -1482,6 +2121,27 @@ func TestAttestAgent(t *testing.T) {
 			name:       "attest with join token",
 			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			expectedID: td.NewID("/spire/agent/join_token/test_token"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.NodeAttestorType: "join_token",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
+			},
 		},
 
 		{
@@ -1498,6 +2158,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.AgentID:          td.NewID("/spire/agent/join_token/banned_token").String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "PermissionDenied",
+						telemetry.StatusMessage:    "failed to attest: agent is banned",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/banned_token",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
 			},
 		},
 
@@ -1511,6 +2183,17 @@ func TestAttestAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: join token expired",
 					Data: logrus.Fields{
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "join token expired",
 						telemetry.NodeAttestorType: "join_token",
 					},
 				},
@@ -1531,6 +2214,17 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.NodeAttestorType: "join_token",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "failed to attest: join token does not exist or has already been used",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
 			},
 		},
 
@@ -1541,6 +2235,27 @@ func TestAttestAgent(t *testing.T) {
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "resolved"},
 				{Type: "test_type", Value: "result"},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
 			},
 		},
 
@@ -1553,6 +2268,27 @@ func TestAttestAgent(t *testing.T) {
 				{Type: "test_type", Value: "resolved"},
 				{Type: "test_type", Value: "result"},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
 		},
 
 		{
@@ -1563,6 +2299,27 @@ func TestAttestAgent(t *testing.T) {
 				{Type: "test_type", Value: "challenge"},
 				{Type: "test_type", Value: "resolved_too"},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_challenge",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_challenge",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
 		},
 
 		{
@@ -1571,6 +2328,27 @@ func TestAttestAgent(t *testing.T) {
 			expectedID: td.NewID("/spire/agent/test_type/id_attested_before"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "attested_before"},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_attested_before",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_attested_before",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
 			},
 		},
 
@@ -1588,6 +2366,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.AgentID:          td.NewID("/spire/agent/test_type/id_banned").String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "PermissionDenied",
+						telemetry.StatusMessage:    "failed to attest: agent is banned",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_banned",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
 			},
 		},
 
@@ -1602,6 +2392,17 @@ func TestAttestAgent(t *testing.T) {
 					Message: "Error getting node attestor",
 					Data: logrus.Fields{
 						logrus.ErrorKey:            "could not find node attestor type \"bad_type\"",
+						telemetry.NodeAttestorType: "bad_type",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "FailedPrecondition",
+						telemetry.StatusMessage:    "error getting node attestor: could not find node attestor type \"bad_type\"",
 						telemetry.NodeAttestorType: "bad_type",
 					},
 				},
@@ -1623,6 +2424,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.AgentID:          td.NewID("/spire/agent/test_type/id_with_result").String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    fmt.Sprintf("failed to parse CSR: %v", expectedCsrErr.Error()),
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
 			},
 		},
 
@@ -1641,6 +2454,17 @@ func TestAttestAgent(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 						logrus.ErrorKey:            "some error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to fetch join token: some error",
+						telemetry.NodeAttestorType: "join_token",
 					},
 				},
 			},
@@ -1664,6 +2488,17 @@ func TestAttestAgent(t *testing.T) {
 						logrus.ErrorKey:            "some error",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to delete join token: some error",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
 			},
 		},
 
@@ -1685,6 +2520,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.NodeAttestorType: "join_token",
 						logrus.ErrorKey:            "some error",
 						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to fetch agent: some error",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.NodeAttestorType: "join_token",
 					},
 				},
 			},
@@ -1712,6 +2559,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to update selectors: some error",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
 			},
 		},
 
@@ -1737,6 +2596,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to create attested agent: some error",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
 			},
 		},
 
@@ -1758,6 +2629,18 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.NodeAttestorType: "test_type",
 						logrus.ErrorKey:            "some error",
 						telemetry.AgentID:          td.NewID("/spire/agent/test_type/id_attested_before").String(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to update attested agent: some error",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_attested_before",
+						telemetry.NodeAttestorType: "test_type",
 					},
 				},
 			},
@@ -1809,12 +2692,19 @@ func TestAttestAgent(t *testing.T) {
 			switch {
 			case tt.expectCode != codes.OK:
 				require.Nil(t, result)
-				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 			default:
+				// Clean address on logs
+				for _, e := range test.logHook.AllEntries() {
+					if _, ok := e.Data[telemetry.Address]; ok {
+						e.Data[telemetry.Address] = ""
+					}
+				}
+
 				require.NotNil(t, result)
 				test.assertAttestAgentResult(t, tt.expectedID, result)
 				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors)
 			}
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 		})
 	}
 }
@@ -1870,16 +2760,25 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		rateLimiter: rateLimiter,
 	}
 
-	contextFn := func(ctx context.Context) context.Context {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
 		if test.withCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)
 		}
-		return ctx
-	}
+		return ctx, nil
+	})
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
+		ppMiddleware,
+		// Add audit log with uds tracking disabled
+		middleware.WithAuditLog(false),
+	))
 
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
+	)
+	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
 	test.done = done
 	test.client = agentv1.NewAgentClient(conn)
 
@@ -1974,7 +2873,7 @@ func (s *serviceTest) createTestNodes(ctx context.Context, t *testing.T) {
 		require.NoError(t, err)
 
 		// set selectors to the test node
-		_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{Selectors: testNodeSelectors[testNode.SpiffeId]})
+		err = s.ds.SetNodeSelectors(ctx, testNode.SpiffeId, testNodeSelectors[testNode.SpiffeId])
 		require.NoError(t, err)
 	}
 }
@@ -2003,12 +2902,9 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	require.NotNil(t, attestedAgent)
 	require.Equal(t, expectedID, attestedAgent.SpiffeId)
 
-	agentSelectors, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: expectedID,
-	})
+	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
-	require.NotNil(t, agentSelectors.Selectors)
-	require.EqualValues(t, expectedSelectors, agentSelectors.Selectors.Selectors)
+	require.EqualValues(t, expectedSelectors, agentSelectors)
 }
 
 type fakeRateLimiter struct {

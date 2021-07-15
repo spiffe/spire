@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
@@ -63,13 +64,13 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	}
 
 	// Instantiate and provide host services
-	metricsService := metricsservice.New(metricsservice.Config{
-		Metrics: config.Metrics,
-	})
 	hostServices := []catalog.HostServiceServer{
 		{
-			ServiceServer: metricsv0.MetricsServiceServiceServer(metricsService),
+			ServiceServer: metricsv0.MetricsServiceServiceServer(metricsservice.V0(config.Metrics)),
 			LegacyType:    "MetricsService",
+		},
+		{
+			ServiceServer: metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
 	}
 

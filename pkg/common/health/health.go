@@ -52,8 +52,6 @@ type Checkable interface {
 // Checker is responsible for running health checks and serving the healthcheck HTTP paths
 type Checker interface {
 	AddCheck(name string, checkable Checkable) error
-	ReadyState() (bool, interface{})
-	LiveState() (bool, interface{})
 }
 
 type ServableChecker interface {

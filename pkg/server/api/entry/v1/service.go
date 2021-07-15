@@ -3,20 +3,21 @@ package entry
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // Config defines the service configuration.
@@ -56,6 +57,7 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return &entryv1.CountEntriesResponse{Count: count}, nil
 }
@@ -74,14 +76,14 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 	}
 
 	if req.Filter != nil {
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromListEntryFilter(s.td, req.Filter))
+
 		if req.Filter.ByParentId != nil {
 			parentID, err := api.TrustDomainMemberIDFromProto(s.td, req.Filter.ByParentId)
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
 			}
-			listReq.ByParentId = &wrapperspb.StringValue{
-				Value: parentID.String(),
-			}
+			listReq.ByParentID = parentID.String()
 		}
 
 		if req.Filter.BySpiffeId != nil {
@@ -89,9 +91,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
 			}
-			listReq.BySpiffeId = &wrapperspb.StringValue{
-				Value: spiffeID.String(),
-			}
+			listReq.BySpiffeID = spiffeID.String()
 		}
 
 		if req.Filter.BySelectors != nil {
@@ -146,6 +146,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 		applyMask(entry, req.OutputMask)
 		resp.Entries = append(resp.Entries, entry)
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return resp, nil
 }
@@ -157,6 +158,7 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 	if req.Id == "" {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing ID", nil)
 	}
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.RegistrationID: req.Id})
 	log = log.WithField(telemetry.RegistrationID, req.Id)
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, req.Id)
 	if err != nil {
@@ -172,6 +174,7 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert entry", err)
 	}
 	applyMask(entry, req.OutputMask)
+	rpccontext.AuditRPC(ctx)
 
 	return entry, nil
 }
@@ -180,7 +183,11 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreateEntryRequest) (*entryv1.BatchCreateEntryResponse, error) {
 	var results []*entryv1.BatchCreateEntryResponse_Result
 	for _, eachEntry := range req.Entries {
-		results = append(results, s.createEntry(ctx, eachEntry, req.OutputMask))
+		r := s.createEntry(ctx, eachEntry, req.OutputMask)
+		results = append(results, r)
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			return fieldsFromEntryProto(eachEntry, nil)
+		})
 	}
 
 	return &entryv1.BatchCreateEntryResponse{
@@ -244,6 +251,9 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entryv1.BatchUpdate
 	for _, eachEntry := range req.Entries {
 		e := s.updateEntry(ctx, eachEntry, req.InputMask, req.OutputMask)
 		results = append(results, e)
+		rpccontext.AuditRPCWithTypesStatus(ctx, e.Status, func() logrus.Fields {
+			return fieldsFromEntryProto(eachEntry, req.InputMask)
+		})
 	}
 
 	return &entryv1.BatchUpdateEntryResponse{
@@ -255,7 +265,11 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entryv1.BatchUpdate
 func (s *Service) BatchDeleteEntry(ctx context.Context, req *entryv1.BatchDeleteEntryRequest) (*entryv1.BatchDeleteEntryResponse, error) {
 	var results []*entryv1.BatchDeleteEntryResponse_Result
 	for _, id := range req.Ids {
-		results = append(results, s.deleteEntry(ctx, id))
+		r := s.deleteEntry(ctx, id)
+		results = append(results, r)
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			return logrus.Fields{telemetry.RegistrationID: id}
+		})
 	}
 
 	return &entryv1.BatchDeleteEntryResponse{
@@ -311,6 +325,7 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entryv1.GetAuth
 	resp := &entryv1.GetAuthorizedEntriesResponse{
 		Entries: entries,
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return resp, nil
 }
@@ -378,12 +393,8 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 
 func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeId: &wrapperspb.StringValue{
-			Value: e.SpiffeId,
-		},
-		ByParentId: &wrapperspb.StringValue{
-			Value: e.ParentId,
-		},
+		BySpiffeID: e.SpiffeId,
+		ByParentID: e.ParentId,
 		BySelectors: &datastore.BySelectors{
 			Match:     datastore.Exact,
 			Selectors: e.Selectors,
@@ -448,4 +459,98 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		Status: api.OK(),
 		Entry:  tEntry,
 	}
+}
+
+func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if proto == nil {
+		return fields
+	}
+
+	if proto.Id != "" {
+		fields[telemetry.RegistrationID] = proto.Id
+	}
+
+	if (inputMask == nil || inputMask.SpiffeId) && proto.SpiffeId != nil {
+		id, err := idutil.IDFromProto(proto.SpiffeId)
+		if err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
+		}
+	}
+
+	if (inputMask == nil || inputMask.ParentId) && proto.ParentId != nil {
+		id, err := idutil.IDFromProto(proto.ParentId)
+		if err == nil {
+			fields[telemetry.ParentID] = id.String()
+		}
+	}
+
+	if inputMask == nil || inputMask.Selectors {
+		if selectors := api.SelectorFieldFromProto(proto.Selectors); selectors != "" {
+			fields[telemetry.Selectors] = selectors
+		}
+	}
+
+	if inputMask == nil || inputMask.Ttl {
+		fields[telemetry.TTL] = proto.Ttl
+	}
+
+	if inputMask == nil || inputMask.FederatesWith {
+		if federatesWith := strings.Join(proto.FederatesWith, ","); federatesWith != "" {
+			fields[telemetry.FederatesWith] = federatesWith
+		}
+	}
+
+	if inputMask == nil || inputMask.Admin {
+		fields[telemetry.Admin] = proto.Admin
+	}
+
+	if inputMask == nil || inputMask.Downstream {
+		fields[telemetry.Downstream] = proto.Downstream
+	}
+
+	if inputMask == nil || inputMask.ExpiresAt {
+		fields[telemetry.ExpiresAt] = proto.ExpiresAt
+	}
+
+	if inputMask == nil || inputMask.DnsNames {
+		if dnsNames := strings.Join(proto.DnsNames, ","); dnsNames != "" {
+			fields[telemetry.DNSName] = dnsNames
+		}
+	}
+
+	if inputMask == nil || inputMask.RevisionNumber {
+		fields[telemetry.RevisionNumber] = proto.RevisionNumber
+	}
+
+	return fields
+}
+
+func fieldsFromListEntryFilter(td spiffeid.TrustDomain, filter *entryv1.ListEntriesRequest_Filter) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if filter.ByParentId != nil {
+		if parentID, err := api.TrustDomainMemberIDFromProto(td, filter.ByParentId); err == nil {
+			fields[telemetry.ParentID] = parentID.String()
+		}
+	}
+
+	if filter.BySpiffeId != nil {
+		if id, err := api.TrustDomainWorkloadIDFromProto(td, filter.BySpiffeId); err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
+		}
+	}
+
+	if filter.BySelectors != nil {
+		fields[telemetry.BySelectorMatch] = filter.BySelectors.Match.String()
+		fields[telemetry.BySelectors] = api.SelectorFieldFromProto(filter.BySelectors.Selectors)
+	}
+
+	if filter.ByFederatesWith != nil {
+		fields[telemetry.FederatesWithMatch] = filter.ByFederatesWith.Match.String()
+		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
+	}
+
+	return fields
 }

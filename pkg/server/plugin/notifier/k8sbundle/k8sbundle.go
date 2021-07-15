@@ -13,12 +13,11 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
-	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -36,10 +35,6 @@ import (
 	aggregator "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
 
-var (
-	k8sErr = errs.Class("k8s-bundle")
-)
-
 const (
 	defaultNamespace    = "spire"
 	defaultConfigMap    = "spire-bundle"
@@ -52,7 +47,8 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtIn(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn("k8sbundle",
-		notifierv0.NotifierPluginServer(p),
+		notifierv1.NotifierPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -66,12 +62,13 @@ type pluginConfig struct {
 }
 
 type Plugin struct {
-	notifierv0.UnsafeNotifierServer
+	notifierv1.UnsafeNotifierServer
+	configv1.UnsafeConfigServer
 
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProviderServiceClient
+	identityProvider identityproviderv1.IdentityProviderServiceClient
 	cancelWatcher    func()
 
 	hooks struct {
@@ -91,45 +88,45 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 	if !broker.BrokerClient(&p.identityProvider) {
-		return k8sErr.New("IdentityProvider host service is required")
+		return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
 	}
 	return nil
 }
 
-func (p *Plugin) Notify(ctx context.Context, req *notifierv0.NotifyRequest) (*notifierv0.NotifyResponse, error) {
+func (p *Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifierv0.NotifyRequest_BundleUpdated); ok {
+	if _, ok := req.Event.(*notifierv1.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundle for details on why.
 		if err := p.updateBundles(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifierv0.NotifyResponse{}, nil
+	return &notifierv1.NotifyResponse{}, nil
 }
 
-func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndAdviseRequest) (*notifierv0.NotifyAndAdviseResponse, error) {
+func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifierv0.NotifyAndAdviseRequest_BundleLoaded); ok {
+	if _, ok := req.Event.(*notifierv1.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundle for details on why.
 		if err := p.updateBundles(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifierv0.NotifyAndAdviseResponse{}, nil
+	return &notifierv1.NotifyAndAdviseResponse{}, nil
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	config := new(pluginConfig)
-	if err := hcl.Decode(&config, req.Configuration); err != nil {
-		return nil, k8sErr.New("unable to decode configuration: %v", err)
+	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
 	if config.Namespace == "" {
@@ -143,21 +140,17 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	}
 
 	if err = p.setConfig(config); err != nil {
-		return nil, k8sErr.New("unable to set configuration: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to set configuration: %v", err)
 	}
 
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *Plugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) getConfig() (*pluginConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, k8sErr.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }
@@ -206,7 +199,7 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error) {
 	clients, err := p.hooks.newKubeClient(c)
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed to create kube client: %v", err)
 	}
 
 	var updateErrs string
@@ -235,7 +228,7 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 	}
 
 	if len(updateErrs) > 0 {
-		return k8sErr.New("unable to update: %s", strings.TrimSuffix(updateErrs, ", "))
+		return status.Errorf(codes.Internal, "unable to update: %s", strings.TrimSuffix(updateErrs, ", "))
 	}
 	return nil
 }
@@ -247,14 +240,14 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		// on updates from other servers.
 		obj, err := client.Get(ctx, namespace, name)
 		if err != nil {
-			return k8sErr.New("unable to get object %s/%s: %v", namespace, name, err)
+			return status.Errorf(codes.Internal, "unable to get object %s/%s: %v", namespace, name, err)
 		}
 
 		// Load bundle data from the registration api. The bundle has to be
 		// loaded after fetching the object so we can properly detect and
 		// correct a race updating the bundle (i.e.  read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
 		if err != nil {
 			return err
 		}
@@ -269,7 +262,7 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 		// Patch the bundle, handling version conflicts
 		patchBytes, err := json.Marshal(patch)
 		if err != nil {
-			return k8sErr.New("unable to marshal patch: %v", err)
+			return status.Errorf(codes.Internal, "unable to marshal patch: %v", err)
 		}
 		return client.Patch(ctx, namespace, name, patchBytes)
 	})
@@ -278,11 +271,11 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 	clientset, err := newKubeClientset(c.KubeConfigFilePath)
 	if err != nil {
-		return nil, k8sErr.Wrap(err)
+		return nil, err
 	}
 	aggregatorClientset, err := newAggregatorClientset(c.KubeConfigFilePath)
 	if err != nil {
-		return nil, k8sErr.Wrap(err)
+		return nil, err
 	}
 
 	clients := []kubeClient{configMapClient{Clientset: clientset}}
@@ -338,7 +331,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error)
-	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error)
+	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
 	Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error)
 }
@@ -363,7 +356,7 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 	}, nil
 }
 
-func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ConfigMap")
@@ -402,7 +395,7 @@ func (c apiServiceClient) GetList(ctx context.Context, config *pluginConfig) (ru
 	})
 }
 
-func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	apiService, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting APIService")
@@ -453,7 +446,7 @@ func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig
 	})
 }
 
-func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting MutatingWebhookConfiguration")
@@ -515,7 +508,7 @@ func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConf
 	})
 }
 
-func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv0.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ValidatingWebhookConfiguration")
@@ -563,12 +556,12 @@ func (c validatingWebhookClient) Watch(ctx context.Context, config *pluginConfig
 }
 
 // bundleData formats the bundle data for inclusion in the config map
-func bundleData(bundle *common.Bundle) string {
+func bundleData(bundle *plugintypes.Bundle) string {
 	bundleData := new(bytes.Buffer)
-	for _, rootCA := range bundle.RootCas {
+	for _, x509Authority := range bundle.X509Authorities {
 		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: rootCA.DerBytes,
+			Bytes: x509Authority.Asn1,
 		})
 	}
 	return bundleData.String()

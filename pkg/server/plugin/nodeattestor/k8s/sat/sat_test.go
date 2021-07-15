@@ -11,8 +11,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,11 +20,11 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/plugintest"
@@ -127,7 +127,7 @@ func (s *AttestorSuite) TearDownTest() {
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 	attestor := new(nodeattestor.V1)
 	plugintest.Load(s.T(), BuiltIn(), attestor,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 	)
 	s.attestor = attestor
 	s.requireAttestError([]byte("payload"), codes.FailedPrecondition, "nodeattestor(k8s_sat): not configured")
@@ -135,7 +135,7 @@ func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
 
 func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	agentID := "spiffe://example.org/spire/agent/k8s_sat/FOO/UUID"
-	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
 		AgentId: agentID,
 	})
 
@@ -283,7 +283,7 @@ func (s *AttestorSuite) TestConfigure() {
 		var err error
 		plugintest.Load(s.T(), BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
-			plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(config),
 		)
@@ -338,7 +338,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireErrorContains(err, `failed to load cluster "FOO" service account keys`)
 
 	// no keys in PEM file
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
+	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
 	err = doConfig(coreConfig, fmt.Sprintf(`clusters = {
 		"FOO" = {
 			service_account_key_file = %q
@@ -351,7 +351,7 @@ func (s *AttestorSuite) TestConfigure() {
 func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	fooPKCS1KeyPath := filepath.Join(s.dir, "foo-pkcs1.pem")
 	fooPKCS1Bytes := x509.MarshalPKCS1PublicKey(&s.fooKey.PublicKey)
-	s.Require().NoError(ioutil.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(os.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: fooPKCS1Bytes,
 	}), 0600))
@@ -359,7 +359,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	fooPKIXKeyPath := filepath.Join(s.dir, "foo-pkix.pem")
 	fooPKIXBytes, err := x509.MarshalPKIXPublicKey(s.fooKey.Public())
 	s.Require().NoError(err)
-	s.Require().NoError(ioutil.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(os.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: fooPKIXBytes,
 	}), 0600))
@@ -367,13 +367,13 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	barPKIXKeyPath := filepath.Join(s.dir, "bar-pkix.pem")
 	barPKIXBytes, err := x509.MarshalPKIXPublicKey(s.barKey.Public())
 	s.Require().NoError(err)
-	s.Require().NoError(ioutil.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(os.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: barPKIXBytes,
 	}), 0600))
 
 	plugintest.Load(s.T(), BuiltIn(), nil,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
@@ -419,7 +419,7 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	}
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(attestor), v1,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
@@ -474,10 +474,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600); err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
 }
 
 func createTokenStatus(namespace, serviceAccountName string, authenticated bool) *authv1.TokenReviewStatus {

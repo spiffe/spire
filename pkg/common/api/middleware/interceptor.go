@@ -12,7 +12,7 @@ func Interceptors(middleware Middleware) (grpc.UnaryServerInterceptor, grpc.Stre
 
 func UnaryInterceptor(middleware Middleware) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		ctx, err := middleware.Preprocess(ctx, info.FullMethod)
+		ctx, err := middleware.Preprocess(ctx, info.FullMethod, req)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func UnaryInterceptor(middleware Middleware) grpc.UnaryServerInterceptor {
 
 func StreamInterceptor(middleware Middleware) grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx, err := middleware.Preprocess(ss.Context(), info.FullMethod)
+		ctx, err := middleware.Preprocess(ss.Context(), info.FullMethod, nil)
 		if err != nil {
 			return err
 		}

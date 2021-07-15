@@ -29,11 +29,7 @@ func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 
-	if err := dir.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return dir.Close()
 }
 
 func write(tmpPath string, data []byte, mode os.FileMode) error {
@@ -52,9 +48,5 @@ func write(tmpPath string, data []byte, mode os.FileMode) error {
 		return err
 	}
 
-	if err := file.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return file.Close()
 }

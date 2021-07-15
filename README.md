@@ -1,7 +1,7 @@
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
-[![Build Status](https://travis-ci.com/spiffe/spire.svg?branch=main)](https://travis-ci.com/github/spiffe/spire)
+[![Build Status](https://github.com/spiffe/spire/actions/workflows/pr_build.yaml/badge.svg)](https://github.com/spiffe/spire/actions/workflows/pr_build.yaml)
 [![Coverage Status](https://coveralls.io/repos/github/spiffe/spire/badge.svg?branch=main)](https://coveralls.io/github/spiffe/spire?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/spiffe/spire)](https://goreportcard.com/report/github.com/spiffe/spire)
 [![Slack Status](https://slack.spiffe.io/badge.svg)](https://slack.spiffe.io)
@@ -11,7 +11,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 
 - [Get SPIRE](#get-spire)
 - [Learn about SPIRE](#learn-about-spire)
-- [Integrate with SPIRE](#integrate-about-spire)
+- [Integrate with SPIRE](#integrate-with-spire)
 - [Contribute to SPIRE](#contribute-to-spire)
 - [Further Reading](#further-reading)
 - [Security](#security)
@@ -61,11 +61,12 @@ https://github.com/spiffe/spiffe.
 
 ### Security Assessments
 
-The [CNCF Special Interest Group for Security](https://github.com/cncf/sig-security) has conducted two assessments on SPIFFE and SPIRE design and configuration with respect to security.  The following documents contain summary reports as well as the threat modeling material produced as part of the assessment:
+A third party security firm ([Cure53](https://cure53.de/)) completed a security audit of SPIFFE and SPIRE in February of 2021. Additionally, the [CNCF Technical Advisory Group for Security](https://github.com/cncf/tag-security) conducted two assessments on SPIFFE and SPIRE in 2018 and 2020. Please find the reports and supporting material, including the threat model exercise results, below.
 
-- [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.spiffe.io/scrutinizing-spire-security-9c82ba542019)
+- [Cure53 Security Audit Report](doc/cure53-report.pdf)
 - [SIG-Security SPIFFE/SPIRE Security Assessment: summary](https://github.com/cncf/sig-security/tree/master/assessments/projects/spiffe-spire)
-- [SIG-Security SPIFFE/SPIRE Security Assessment: full document](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
+- [SIG-Security SPIFFE/SPIRE Security Assessment: full assessment](https://github.com/cncf/sig-security/blob/master/assessments/projects/spiffe-spire/self-assessment.md)
+- [Scrutinizing SPIRE to Sensibly Strengthen SPIFFE Security](https://blog.spiffe.io/scrutinizing-spire-security-9c82ba542019)
 
 ### Reporting Security Vulnerabilities
 

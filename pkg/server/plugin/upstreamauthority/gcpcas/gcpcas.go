@@ -14,11 +14,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"google.golang.org/api/iterator"
 	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
 	"google.golang.org/grpc/codes"
@@ -37,6 +38,13 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		upstreamauthorityv1.UpstreamAuthorityPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
+}
+
 type CertificateAuthoritySpec struct {
 	Project    string `hcl:"project_name"`
 	Location   string `hcl:"region_name"`
@@ -48,7 +56,7 @@ func (spec *CertificateAuthoritySpec) caParentPath() string {
 	return path.Join("projects", spec.Project, "locations", spec.Location)
 }
 
-type Config struct {
+type Configuration struct {
 	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block"`
 }
 
@@ -58,16 +66,15 @@ type CAClient interface {
 }
 
 type Plugin struct {
-	// gRPC requires embedding either the "Unimplemented" or "Unsafe" stub as
-	// a way of opting in or out of forward build compatibility.
-	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
+	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
+	configv1.UnsafeConfigServer
 
 	// mu is a mutex that protects the configuration. Plugins may at some point
 	// need to support hot-reloading of configuration (by receiving another
 	// call to Configure). So we need to prevent the configuration from
 	// being used concurrently and make sure it is updated atomically.
 	mu sync.Mutex
-	c  *Config
+	c  *Configuration
 
 	log hclog.Logger
 
@@ -80,7 +87,7 @@ type Plugin struct {
 // catalog requires to provide the plugin with a logger and host service
 // broker as well as the UpstreamAuthority itself.
 var _ pluginsdk.NeedsLogger = (*Plugin)(nil)
-var _ upstreamauthorityv0.UpstreamAuthorityServer = (*Plugin)(nil)
+var _ upstreamauthorityv1.UpstreamAuthorityServer = (*Plugin)(nil)
 
 func New() *Plugin {
 	p := &Plugin{}
@@ -104,7 +111,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 // The stream should be kept open in the face of transient errors
 // encountered while tracking changes to the upstream X.509 roots as SPIRE
 // core will not reopen a closed stream until the next X.509 CA rotation.
-func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	ctx := stream.Context()
 
 	minted, err := p.mintX509CA(ctx, request.Csr, request.PreferredTtl)
@@ -115,16 +122,16 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	return stream.Send(minted)
 }
 
-// PublishJWTKey is not yet supported. It will return with GRPC Unimplemented error
-func (p *Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
+// PublishJWTKeyAndSubscribe is not yet supported. It will return with GRPC Unimplemented error
+func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	p.log.Warn("This plugin relies on GCP Certificate Authority Service which is currently in Beta")
 	// Parse HCL config payload into config struct
-	config := new(Config)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
+	config := new(Configuration)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 	// Without a project and location, we can never locate CAs
@@ -145,14 +152,10 @@ func (p *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*
 	// Swap out the current configuration with the new configuration
 	p.setConfig(config)
 
-	return &plugin.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
-}
-
-func (p *Plugin) getConfig() (*Config, error) {
+func (p *Plugin) getConfig() (*Configuration, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -163,13 +166,13 @@ func (p *Plugin) getConfig() (*Config, error) {
 	return p.c, nil
 }
 
-func (p *Plugin) setConfig(c *Config) {
+func (p *Plugin) setConfig(c *Configuration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.c = c
 }
 
-func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthorityv0.MintX509CAResponse, error) {
+func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthorityv1.MintX509CAResponse, error) {
 	p.log.Debug("Request to GCP_CAS to mint new X509")
 	csrParsed, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
@@ -302,7 +305,10 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	fullChain := []*x509.Certificate{cert}
 	fullChain = append(fullChain, certChain[:len(certChain)-1]...)
 
-	derChain := x509util.RawCertsFromCertificates(fullChain)
+	x509CAChain, err := x509certificate.ToPluginProtos(fullChain)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
+	}
 
 	// The last certificate returned from the chain is the root, so we seed the trust bundle with that.
 	rootBundle := []*x509.Certificate{certChain[len(certChain)-1]}
@@ -324,17 +330,16 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	// We may well have specified multiple paths to the same root.
 	rootBundle = x509util.DedupeCertificates(rootBundle)
-	derBundle := x509util.RawCertsFromCertificates(rootBundle)
+	upstreamX509Roots, err := x509certificate.ToPluginProtos(rootBundle)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
+	}
 
 	p.log.Info("Successfully minted new X509")
-	return &upstreamauthorityv0.MintX509CAResponse{
-		X509CaChain:       derChain,
-		UpstreamX509Roots: derBundle,
+	return &upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509CAChain,
+		UpstreamX509Roots: upstreamX509Roots,
 	}, nil
-}
-
-func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, upstreamauthorityv0.UpstreamAuthorityPluginServer(p))
 }
 
 func getClient(ctx context.Context) (CAClient, error) {

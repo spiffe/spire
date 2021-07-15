@@ -29,7 +29,7 @@ wait-mysql-container-initialized() {
 wait-mysql-container-ready() {
     service=$1
     # Wait up to two minutes for mysql to be available. It should come up
-    # pretty quick on developer machines but Travis is slow.
+    # pretty quick on developer machines but CI/CD is slow.
     local max_ready_checks=40
     local ready_check_interval=3
     for ((i = 1; i <= max_ready_checks; i++)); do

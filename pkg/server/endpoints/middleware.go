@@ -12,23 +12,32 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig) middleware.Middleware {
-	return middleware.Chain(
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, auditLogEnabled bool) middleware.Middleware {
+	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		middleware.WithAuthorization(Authorization(log, ds, clk)),
 		middleware.WithRateLimits(RateLimits(rlConf)),
+	}
+
+	if auditLogEnabled {
+		// Add audit log with UDS tracking enabled
+		chain = append(chain, middleware.WithAuditLog(true))
+	}
+
+	return middleware.Chain(
+		chain...,
 	)
 }
 
@@ -85,9 +94,7 @@ func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clo
 func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 	return middleware.EntryFetcherFunc(func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
 		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-			BySpiffeId: &wrapperspb.StringValue{
-				Value: id.String(),
-			},
+			BySpiffeID: id.String(),
 		})
 		if err != nil {
 			return nil, err
@@ -103,7 +110,7 @@ func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
 func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
 	return middleware.AgentAuthorizerFunc(func(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 		id := agentID.String()
-		log := log.WithField(telemetry.AgentID, id)
+		log := rpccontext.Logger(ctx)
 
 		permissionDenied := func(reason types.PermissionDeniedDetails_Reason, format string, args ...interface{}) error {
 			st := status.Newf(codes.PermissionDenied, format, args...)

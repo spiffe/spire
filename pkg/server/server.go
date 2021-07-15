@@ -15,7 +15,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
@@ -23,15 +22,12 @@ import (
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"google.golang.org/grpc"
 )
 
@@ -82,9 +78,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	metricsService := metricsservice.New(metricsservice.Config{
-		Metrics: metrics,
-	})
 
 	telemetry.EmitVersion(metrics)
 	uptime.ReportMetrics(ctx, metrics)
@@ -95,20 +88,20 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// to do its job. RPC's from plugins to the identity provider before
 	// SetDeps() has been called will fail with a PreCondition status.
 	identityProvider := identityprovider.New(identityprovider.Config{
-		TrustDomainID: s.config.TrustDomain.IDString(),
+		TrustDomain: s.config.TrustDomain,
 	})
+
+	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	// Create the agent store host service. It will not be functional
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, metricsService)
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker)
 	if err != nil {
 		return err
 	}
 	defer cat.Close()
-
-	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
@@ -236,8 +229,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider identityproviderv0.IdentityProviderServer, agentStore agentstorev0.AgentStoreServer,
-	metricsService metricsv0.MetricsServiceServer) (*catalog.Repository, error) {
+func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
+	healthChecker health.Checker) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
@@ -245,7 +238,7 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		PluginConfig:     s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
-		MetricsService:   metricsService,
+		HealthChecker:    healthChecker,
 	})
 }
 
@@ -319,6 +312,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Uptime:              uptime.Uptime,
 		Clock:               clock.New(),
 		CacheReloadInterval: s.config.CacheReloadInterval,
+		AuditLogEnabled:     s.config.AuditLogEnabled,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

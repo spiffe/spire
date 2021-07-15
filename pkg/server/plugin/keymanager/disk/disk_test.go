@@ -17,11 +17,13 @@ import (
 )
 
 func TestKeyManagerContract(t *testing.T) {
-	keymanagertest.Test(t, func(t *testing.T) keymanager.KeyManager {
-		dir := spiretest.TempDir(t)
-		km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
-		require.NoError(t, err)
-		return km
+	keymanagertest.Test(t, keymanagertest.Config{
+		Create: func(t *testing.T) keymanager.KeyManager {
+			dir := spiretest.TempDir(t)
+			km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
+			require.NoError(t, err)
+			return km
+		},
 	})
 }
 
@@ -37,7 +39,7 @@ func TestGenerateKeyBeforeConfigure(t *testing.T) {
 	plugintest.Load(t, disk.BuiltIn(), km)
 
 	_, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): not configured")
+	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): failed to generate key: not configured")
 }
 
 func TestGenerateKeyPersistence(t *testing.T) {

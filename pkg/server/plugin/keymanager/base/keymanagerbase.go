@@ -30,7 +30,6 @@ type KeyEntry struct {
 // used when not provided.
 type Funcs struct {
 	WriteEntries       func(ctx context.Context, entries []*KeyEntry) error
-	GenerateRSA1024Key func() (*rsa.PrivateKey, error)
 	GenerateRSA2048Key func() (*rsa.PrivateKey, error)
 	GenerateRSA4096Key func() (*rsa.PrivateKey, error)
 	GenerateEC256Key   func() (*ecdsa.PrivateKey, error)
@@ -49,9 +48,6 @@ type Base struct {
 // New creates a new base key manager using the provided Funcs. Default
 // implementations are provided for any that aren't set.
 func New(funcs Funcs) *Base {
-	if funcs.GenerateRSA1024Key == nil {
-		funcs.GenerateRSA1024Key = generateRSA1024Key
-	}
 	if funcs.GenerateRSA2048Key == nil {
 		funcs.GenerateRSA2048Key = generateRSA2048Key
 	}
@@ -85,39 +81,8 @@ func (m *Base) SetEntries(entries []*KeyEntry) {
 
 // GenerateKey implements the KeyManager RPC of the same name.
 func (m *Base) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
-	if req.KeyId == "" {
-		return nil, status.Error(codes.InvalidArgument, "key id is required")
-	}
-	if req.KeyType == keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE {
-		return nil, status.Error(codes.InvalidArgument, "key type is required")
-	}
-
-	newEntry, err := m.generateKeyEntry(req.KeyId, req.KeyType)
-	if err != nil {
-		return nil, err
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	oldEntry, hasEntry := m.entries[req.KeyId]
-
-	m.entries[req.KeyId] = newEntry
-
-	if m.funcs.WriteEntries != nil {
-		if err := m.funcs.WriteEntries(ctx, entriesSliceFromMap(m.entries)); err != nil {
-			if hasEntry {
-				m.entries[req.KeyId] = oldEntry
-			} else {
-				delete(m.entries, req.KeyId)
-			}
-			return nil, err
-		}
-	}
-
-	return &keymanagerv1.GenerateKeyResponse{
-		PublicKey: clonePublicKey(newEntry.PublicKey),
-	}, nil
+	resp, err := m.generateKey(ctx, req)
+	return resp, prefixStatus(err, "failed to generate key")
 }
 
 // GetPublicKey implements the KeyManager RPC of the same name.
@@ -153,6 +118,47 @@ func (m *Base) GetPublicKeys(ctx context.Context, req *keymanagerv1.GetPublicKey
 
 // SignData implements the KeyManager RPC of the same name.
 func (m *Base) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
+	resp, err := m.signData(req)
+	return resp, prefixStatus(err, "failed to sign data")
+}
+
+func (m *Base) generateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
+	if req.KeyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
+	}
+	if req.KeyType == keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE {
+		return nil, status.Error(codes.InvalidArgument, "key type is required")
+	}
+
+	newEntry, err := m.generateKeyEntry(req.KeyId, req.KeyType)
+	if err != nil {
+		return nil, err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	oldEntry, hasEntry := m.entries[req.KeyId]
+
+	m.entries[req.KeyId] = newEntry
+
+	if m.funcs.WriteEntries != nil {
+		if err := m.funcs.WriteEntries(ctx, entriesSliceFromMap(m.entries)); err != nil {
+			if hasEntry {
+				m.entries[req.KeyId] = oldEntry
+			} else {
+				delete(m.entries, req.KeyId)
+			}
+			return nil, err
+		}
+	}
+
+	return &keymanagerv1.GenerateKeyResponse{
+		PublicKey: clonePublicKey(newEntry.PublicKey),
+	}, nil
+}
+
+func (m *Base) signData(req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
@@ -172,7 +178,7 @@ func (m *Base) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) 
 			return nil, status.Error(codes.InvalidArgument, "PSS options are nil")
 		}
 		if opts.PssOptions.HashAlgorithm == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM {
-			return nil, status.Error(codes.InvalidArgument, "hash algorithm is required")
+			return nil, status.Error(codes.InvalidArgument, "hash algorithm in PSS options is required")
 		}
 		signerOpts = &rsa.PSSOptions{
 			SaltLength: int(opts.PssOptions.SaltLength),
@@ -214,14 +220,12 @@ func (m *Base) generateKeyEntry(keyID string, keyType keymanagerv1.KeyType) (e *
 		privateKey, err = m.funcs.GenerateEC256Key()
 	case keymanagerv1.KeyType_EC_P384:
 		privateKey, err = m.funcs.GenerateEC384Key()
-	case keymanagerv1.KeyType_RSA_1024:
-		privateKey, err = m.funcs.GenerateRSA1024Key()
 	case keymanagerv1.KeyType_RSA_2048:
 		privateKey, err = m.funcs.GenerateRSA2048Key()
 	case keymanagerv1.KeyType_RSA_4096:
 		privateKey, err = m.funcs.GenerateRSA4096Key()
 	default:
-		return nil, status.Errorf(codes.InvalidArgument, "unknown key type %q", keyType)
+		return nil, status.Errorf(codes.InvalidArgument, "unable to generate key %q for unknown key type %q", keyID, keyType)
 	}
 	if err != nil {
 		return nil, err
@@ -229,7 +233,7 @@ func (m *Base) generateKeyEntry(keyID string, keyType keymanagerv1.KeyType) (e *
 
 	entry, err := makeKeyEntry(keyID, keyType, privateKey)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to make key entry: %v", err)
+		return nil, status.Errorf(codes.Internal, "unable to make key entry for new key %q: %v", keyID, err)
 	}
 
 	return entry, nil
@@ -238,7 +242,7 @@ func (m *Base) generateKeyEntry(keyID string, keyType keymanagerv1.KeyType) (e *
 func makeKeyEntry(keyID string, keyType keymanagerv1.KeyType, privateKey crypto.Signer) (*KeyEntry, error) {
 	pkixData, err := x509.MarshalPKIXPublicKey(privateKey.Public())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal public key for entry %q: %w", keyID, err)
 	}
 
 	return &KeyEntry{
@@ -257,25 +261,23 @@ func MakeKeyEntryFromKey(id string, privateKey crypto.PrivateKey) (*KeyEntry, er
 	case *ecdsa.PrivateKey:
 		keyType, err := ecdsaKeyType(privateKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to make key entry for key %q: %w", id, err)
 		}
 		return makeKeyEntry(id, keyType, privateKey)
 	case *rsa.PrivateKey:
 		keyType, err := rsaKeyType(privateKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to make key entry for key %q: %w", id, err)
 		}
 		return makeKeyEntry(id, keyType, privateKey)
 	default:
-		return nil, fmt.Errorf("unexpected private key type %T", privateKey)
+		return nil, fmt.Errorf("unexpected private key type %T for key %q", privateKey, id)
 	}
 }
 
 func rsaKeyType(privateKey *rsa.PrivateKey) (keymanagerv1.KeyType, error) {
 	bits := privateKey.N.BitLen()
 	switch bits {
-	case 1024:
-		return keymanagerv1.KeyType_RSA_1024, nil
 	case 2048:
 		return keymanagerv1.KeyType_RSA_2048, nil
 	case 4096:
@@ -295,10 +297,6 @@ func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanagerv1.KeyType, error) {
 		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("no EC key type for EC curve: %s",
 			privateKey.Curve.Params().Name)
 	}
-}
-
-func generateRSA1024Key() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, 1024) //nolint: gosec
 }
 
 func generateRSA2048Key() (*rsa.PrivateKey, error) {
@@ -347,4 +345,12 @@ func SortKeyEntries(entries []*KeyEntry) {
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Id < entries[j].Id
 	})
+}
+
+func prefixStatus(err error, prefix string) error {
+	st := status.Convert(err)
+	if st.Code() != codes.OK {
+		return status.Error(st.Code(), prefix+": "+st.Message())
+	}
+	return err
 }

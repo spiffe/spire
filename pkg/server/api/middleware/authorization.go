@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 
+	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -34,7 +35,7 @@ type authorizationMiddleware struct {
 	authorizers map[string]Authorizer
 }
 
-func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string) (context.Context, error) {
+func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string, req interface{}) (context.Context, error) {
 	ctx, err := callerContextFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -47,6 +48,13 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	if id, ok := rpccontext.CallerID(ctx); ok {
 		fields[telemetry.CallerID] = id.String()
 	}
+	// Add request ID to logger, it simplify debugging when calling batch endpints
+	requestID, err := uuid.NewV4()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create request ID: %v", err)
+	}
+	fields[telemetry.RequestID] = requestID.String()
+
 	if len(fields) > 0 {
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))
 	}

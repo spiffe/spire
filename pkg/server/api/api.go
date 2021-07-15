@@ -8,7 +8,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -49,14 +48,4 @@ func AttestedNodeToProto(node *common.AttestedNode, selectors []*types.Selector)
 		Selectors:            selectors,
 		Banned:               nodeutil.IsAgentBanned(node),
 	}, nil
-}
-
-// NodeSelectorsToProto converts node selectors from the given
-// *datastore.NodeSelectors to []*types.Selector
-func NodeSelectorsToProto(nodeSelectors *datastore.NodeSelectors) ([]*types.Selector, error) {
-	if nodeSelectors == nil {
-		return nil, errors.New("missing node selectors")
-	}
-
-	return ProtoFromSelectors(nodeSelectors.Selectors), nil
 }

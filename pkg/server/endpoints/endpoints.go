@@ -26,11 +26,12 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
@@ -69,6 +70,7 @@ type Endpoints struct {
 	Metrics                      telemetry.Metrics
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
+	AuditLogEnabled              bool
 }
 
 type OldAPIServers struct {
@@ -129,6 +131,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		AuditLogEnabled:              c.AuditLogEnabled,
 	}, nil
 }
 
@@ -199,10 +202,18 @@ func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.U
 }
 
 func (e *Endpoints) createUDSServer(unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
-	return grpc.NewServer(
+	options := []grpc.ServerOption{
 		grpc.UnaryInterceptor(unaryInterceptor),
 		grpc.StreamInterceptor(streamInterceptor),
-		grpc.Creds(auth.UntrackedUDSCredentials()))
+	}
+
+	if e.AuditLogEnabled {
+		options = append(options, grpc.Creds(peertracker.NewCredentials()))
+	} else {
+		options = append(options, grpc.Creds(auth.UntrackedUDSCredentials()))
+	}
+
+	return grpc.NewServer(options...)
 }
 
 // runTCPServer will start the server and block until it exits or we are dying.
@@ -234,7 +245,17 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.UDSAddr.String())
-	l, err := net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+	var l net.Listener
+	var err error
+	if e.AuditLogEnabled {
+		unixListener := &peertracker.ListenerFactory{
+			Log: e.Log,
+		}
+		l, err = unixListener.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+	} else {
+		l, err = net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -333,7 +354,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	oldUnary, oldStream := wrapWithDeprecationLogging(log, auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall)
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuditLogEnabled))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }

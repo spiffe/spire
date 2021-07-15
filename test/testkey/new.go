@@ -13,14 +13,6 @@ import (
 
 var keys Keys
 
-func NewRSA1024(tb testing.TB) *rsa.PrivateKey {
-	return keys.NewRSA1024(tb)
-}
-
-func MustRSA1024() *rsa.PrivateKey {
-	return keys.MustRSA1024()
-}
-
 func NewRSA2048(tb testing.TB) *rsa.PrivateKey {
 	return keys.NewRSA2048(tb)
 }
@@ -56,37 +48,10 @@ func MustEC384() *ecdsa.PrivateKey {
 type Keys struct {
 	mtx sync.Mutex
 
-	rsa1024Idx int
 	rsa2048Idx int
 	rsa4096Idx int
 	ec256Idx   int
 	ec384Idx   int
-}
-
-func (ks *Keys) NewRSA1024(tb testing.TB) *rsa.PrivateKey {
-	key, err := ks.NextRSA1024()
-	require.NoError(tb, err)
-	return key
-}
-
-func (ks *Keys) MustRSA1024() *rsa.PrivateKey {
-	key, err := ks.NextRSA1024()
-	check(err)
-	return key
-}
-
-func (ks *Keys) NextRSA1024() (*rsa.PrivateKey, error) {
-	ks.mtx.Lock()
-	defer ks.mtx.Unlock()
-	if ks.rsa1024Idx >= len(RSA1024Keys) {
-		return nil, fmt.Errorf("exhausted %d pregenerated RSA-1024 test keys in test; use generate.sh to increase amount or refactor test to use less keys", len(RSA1024Keys))
-	}
-	key, err := pemutil.ParseRSAPrivateKey([]byte(RSA1024Keys[ks.rsa1024Idx]))
-	if err != nil {
-		return nil, err
-	}
-	ks.rsa1024Idx++
-	return key, nil
 }
 
 func (ks *Keys) NewRSA2048(tb testing.TB) *rsa.PrivateKey {

@@ -5,7 +5,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,8 +18,6 @@ type Deps struct {
 }
 
 type AgentStore struct {
-	agentstorev0.UnsafeAgentStoreServer
-
 	mu   sync.RWMutex
 	deps *Deps
 }
@@ -46,8 +45,22 @@ func (s *AgentStore) getDeps() (*Deps, error) {
 	return s.deps, nil
 }
 
-func (s *AgentStore) GetAgentInfo(ctx context.Context, req *agentstorev0.GetAgentInfoRequest) (*agentstorev0.GetAgentInfoResponse, error) {
-	deps, err := s.getDeps()
+func (s *AgentStore) V0() agentstorev0.AgentStoreServer {
+	return &agentStoreV0{s: s}
+}
+
+func (s *AgentStore) V1() agentstorev1.AgentStoreServer {
+	return &agentStoreV1{s: s}
+}
+
+type agentStoreV0 struct {
+	agentstorev0.UnsafeAgentStoreServer
+
+	s *AgentStore
+}
+
+func (v0 *agentStoreV0) GetAgentInfo(ctx context.Context, req *agentstorev0.GetAgentInfoRequest) (*agentstorev0.GetAgentInfoResponse, error) {
+	deps, err := v0.s.getDeps()
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +75,33 @@ func (s *AgentStore) GetAgentInfo(ctx context.Context, req *agentstorev0.GetAgen
 
 	return &agentstorev0.GetAgentInfoResponse{
 		Info: &agentstorev0.AgentInfo{
+			AgentId: req.AgentId,
+		},
+	}, nil
+}
+
+type agentStoreV1 struct {
+	agentstorev1.UnsafeAgentStoreServer
+
+	s *AgentStore
+}
+
+func (v1 *agentStoreV1) GetAgentInfo(ctx context.Context, req *agentstorev1.GetAgentInfoRequest) (*agentstorev1.GetAgentInfoResponse, error) {
+	deps, err := v1.s.getDeps()
+	if err != nil {
+		return nil, err
+	}
+
+	attestedNode, err := deps.DataStore.FetchAttestedNode(ctx, req.AgentId)
+	if err != nil {
+		return nil, err
+	}
+	if attestedNode == nil {
+		return nil, status.Error(codes.NotFound, "no such agent")
+	}
+
+	return &agentstorev1.GetAgentInfoResponse{
+		Info: &agentstorev1.AgentInfo{
 			AgentId: req.AgentId,
 		},
 	}, nil

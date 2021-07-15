@@ -3,7 +3,6 @@ package run
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -25,7 +24,7 @@ import (
 )
 
 func TestDownloadTrustBundle(t *testing.T) {
-	testTB, _ := ioutil.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
+	testTB, _ := os.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
 	cases := []struct {
 		msg          string
 		status       int
@@ -98,6 +97,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Agent.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.Agent.TrustDomain, "example.org")
 	assert.Equal(t, c.Agent.AllowUnauthenticatedVerifiers, true)
+	assert.Equal(t, []string{"c1", "c2", "c3"}, c.Agent.AllowedForeignJWTClaims)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -831,6 +831,23 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "allowed_foreign_jwt_claims provided",
+			input: func(c *Config) {
+				c.Agent.AllowedForeignJWTClaims = []string{"c1", "c2"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []string{"c1", "c2"}, c.AllowedForeignJWTClaims)
+			},
+		},
+		{
+			msg: "allowed_foreign_jwt_claims no provided",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Empty(t, c.AllowedForeignJWTClaims)
+			},
+		},
+		{
 			msg:         "admin_socket_path same folder as socket_path",
 			expectError: true,
 			input: func(c *Config) {
@@ -871,7 +888,7 @@ func TestNewAgentConfig(t *testing.T) {
 			logOptions: func(t *testing.T) []log.Option {
 				return []log.Option{
 					func(logger *log.Logger) error {
-						logger.SetOutput(ioutil.Discard)
+						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
 							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
@@ -1084,7 +1101,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 // TestLogOptions verifies the log options given to NewAgentConfig are applied, and are overridden
 // by values from the config file
 func TestLogOptions(t *testing.T) {
-	fd, err := ioutil.TempFile("", "test")
+	fd, err := os.CreateTemp("", "test")
 	require.NoError(t, err)
 	require.NoError(t, fd.Close())
 	defer os.Remove(fd.Name())

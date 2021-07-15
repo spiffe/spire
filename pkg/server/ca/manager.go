@@ -25,7 +25,7 @@ import (
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -125,10 +125,7 @@ func (m *Manager) Initialize(ctx context.Context) error {
 	if err := m.loadJournal(ctx); err != nil {
 		return err
 	}
-	if err := m.rotate(ctx); err != nil {
-		return err
-	}
-	return nil
+	return m.rotate(ctx)
 }
 
 func (m *Manager) Run(ctx context.Context) error {

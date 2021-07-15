@@ -17,6 +17,7 @@ The plugin accepts the following configuration options:
 | cert_auth        | struct |  | Configuration for the Client Certificate authentication method | |
 | token_auth       | struct |  | Configuration for the Token authentication method | |
 | approle_auth     | struct |  | Configuration for the AppRole authentication method | |
+| k8s_auth         | struct |  | Configuration for the Kubernetes authentication method | |
 
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
@@ -135,6 +136,34 @@ path "pki/root/sign-intermediate" {
 
             // If specify the approle_id and approle_secret as an environment variable and use the default mount point, set the empty structure.
             // approle_auth {}
+        }
+    }
+```
+
+## Kubernetes Authentication
+
+| key | type | required | description | default |
+|:----|:-----|:---------|:------------|:--------|
+| k8s_auth_mount_point | string | | Name of the mount point where the Kubernetes auth method is mounted | kubernetes |
+| k8s_auth_role_name   | string |✔| Name of the Vault role. The plugin authenticates against the named role | |
+| token_path           | string |✔| Path to the Kubernetes Service Account Token to use authentication with the Vault | | 
+
+```hcl
+    UpstreamAuthority "vault" {
+        plugin_data {
+            vault_addr = "https://vault.example.org/"
+            pki_mount_point = "test-pki"
+            ca_cert_path = "/path/to/ca-cert.pem"
+            k8s_auth {
+               k8s_auth_mount_point = "my-k8s-auth"
+               k8s_auth_role_name = "my-role"
+               token_path = "/path/to/sa-token"
+            }
+            
+            // If specify role name and use the default mount point and token_path
+            // k8s_auth {
+            //   k8s_auth_role_name = "my-role"
+            // }            
         }
     }
 ```

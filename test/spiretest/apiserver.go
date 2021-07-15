@@ -11,11 +11,19 @@ import (
 	"google.golang.org/grpc"
 )
 
+func NewAPIServerWithMiddleware(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
+	return newAPIServer(t, registerFn, server)
+}
+
 func NewAPIServer(t *testing.T, registerFn func(s *grpc.Server), contextFn func(ctx context.Context) context.Context) (*grpc.ClientConn, func()) {
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(unaryInterceptor(contextFn)),
 		grpc.StreamInterceptor(streamInterceptor(contextFn)),
 	)
+	return newAPIServer(t, registerFn, server)
+}
+
+func newAPIServer(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
 	registerFn(server)
 
 	listener, err := net.Listen("tcp", "localhost:0")

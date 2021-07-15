@@ -105,6 +105,7 @@ go_path := PATH="$(go_bin_dir):$(PATH)"
 golangci_lint_version = v1.39.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
+golangci_lint_cache = $(golangci_lint_dir)/cache
 
 protoc_version = 3.14.0
 ifeq ($(arch1),aarch64)
@@ -173,12 +174,6 @@ mockgen_mocks = \
 	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
 	test/mock/agent/client,github.com/spiffe/spire/pkg/agent/client,Client \
 	test/mock/common/plugin/k8s/apiserver,github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver,Client \
-	test/mock/common/plugin/k8s/clientset,k8s.io/client-go/kubernetes,Interface \
-	test/mock/common/plugin/k8s/clientset/corev1,k8s.io/client-go/kubernetes/typed/core/v1,CoreV1Interface \
-	test/mock/common/plugin/k8s/clientset/corev1/pod,k8s.io/client-go/kubernetes/typed/core/v1,PodInterface \
-	test/mock/common/plugin/k8s/clientset/corev1/node,k8s.io/client-go/kubernetes/typed/core/v1,NodeInterface \
-	test/mock/common/plugin/k8s/clientset/authenticationv1,k8s.io/client-go/kubernetes/typed/authentication/v1,AuthenticationV1Interface \
-	test/mock/common/plugin/k8s/clientset/authenticationv1/tokenreview,k8s.io/client-go/kubernetes/typed/authentication/v1,TokenReviewInterface \
 	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,Docker \
 
 # The following vars are used in rule construction
@@ -214,14 +209,10 @@ go_test_flags := -timeout=60s
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
-	# circleci executors don't have enough memory to run compilation with
-	# high parallism
 	go_flags += -p=$(GOPARALLEL)
 endif
 
 ifneq ($(GOVERBOSE),)
-	# circleci executors don't have enough memory to run compilation with
-	# high parallism
 	go_flags += -v
 endif
 
@@ -359,7 +350,7 @@ oidc-discovery-provider-image: Dockerfile
 #############################################################################
 
 .PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image
+scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
 
 .PHONY: spire-server-scratch-image
 spire-server-scratch-image: Dockerfile
@@ -402,7 +393,7 @@ endif
 lint: lint-code
 
 lint-code: $(golangci_lint_bin) | go-check
-	$(E)PATH="$(go_bin_dir):$(PATH)" $(golangci_lint_bin) run ./...
+	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
 
 #############################################################################
@@ -529,6 +520,7 @@ $(golangci_lint_bin):
 	@echo "Installing golangci-lint $(golangci_lint_version)..."
 	$(E)rm -rf $(dir $(golangci_lint_dir))
 	$(E)mkdir -p $(golangci_lint_dir)
+	$(E)mkdir -p $(golangci_lint_cache)
 	$(E)curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)

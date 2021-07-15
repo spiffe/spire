@@ -65,14 +65,11 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return err
 	}
 
-	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
 		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
 			ChallengeResponse: challengeRes,
 		},
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // Configure configures the Plugin.

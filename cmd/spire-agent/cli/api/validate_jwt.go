@@ -63,11 +63,7 @@ func (c *validateJWTCommand) run(ctx context.Context, env *common_cli.Env, clien
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal claims: %w", err)
 	}
-	if err := env.Println("Claims    :", string(claims)); err != nil {
-		return err
-	}
-
-	return nil
+	return env.Println("Claims    :", string(claims))
 }
 
 func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *workloadClient) (*workload.ValidateJWTSVIDResponse, error) {
