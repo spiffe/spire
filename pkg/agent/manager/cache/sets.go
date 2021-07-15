@@ -124,6 +124,15 @@ func (set selectorSet) In(ss ...*common.Selector) bool {
 	return true
 }
 
+func (set selectorSet) SuperSetOf(other selectorSet) bool {
+	for k := range other {
+		if _, ok := set[k]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // unique set of cache records, allocated from a pool
 type recordSet map[*cacheRecord]struct{}
 
