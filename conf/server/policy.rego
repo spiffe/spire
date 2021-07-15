@@ -1,16 +1,15 @@
 package spire
 
-# Result contains two fields:
+# Query from the SPIRE server is for the result variable.
 #
-# allow - the API call should be allowed
-#
-# By default each "api" object has several flags:
-#
-# allow_any:bool - if true, sets allow to true
-# allow_admin:bool - if true, allows the call if input.admin is true
-# allow_localn:bool - if true, allows the call if input.local is true
-# allow_downstream:bool - if true, allows the call if input.downstream is true
-
+# The fields of the result are the following:
+# - `allow`: a boolean that if true, will authorize the call
+# - `allow_if_local`: a boolean that if true, will authorize the call only if the
+#   caller is a local UNIX socket call
+# - `allow_if_admin`:a boolean that if true, will authorize the call only if the
+#   caller is a SPIFFE ID with the Admin flag set
+# - `allow_if_downstream:bool`: a boolean that if true, will authorize the call
+#   only if the caller is a SPIFFE ID that is downstream
 
 result = {
   "allow": allow, 
@@ -36,7 +35,6 @@ allow_if_admin = true {
     r.full_method == input.full_method 
     
     r.allow_admin
-    #input.admin
 }
 
 # Local allow check
@@ -45,7 +43,6 @@ allow_if_local = true {
     r.full_method == input.full_method 
     
     r.allow_local
-    # input.local
 }
 
 
@@ -55,7 +52,6 @@ allow_if_downstream = true {
     r.full_method == input.full_method 
     
     r.allow_downstream
-    #input.admin
 }
 
 
@@ -65,7 +61,6 @@ allow_if_agent = true {
     r.full_method == input.full_method 
     
     r.allow_agent
-    #input.admin
 }
 
 # Any allow check

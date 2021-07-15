@@ -158,36 +158,12 @@ const defaultPermissionData = `
 			"full_method": "/grpc.health.v1.Health/Watch",
 			"allow_local": true
 		}
-    ],
-     "custom-entry-create-roles": [
-        {
-            "namespace": "spiffe://example.org/stateless/",
-            "role": "registrar",
-            "user": "spiffe://example.org/schedulers/stateless"
-        },
-        {
-            "namespace": "spiffe://example.org/batch/",
-            "role": "registrar",
-            "user": "spiffe://example.org/schedulers/batch"
-        }
     ]
 }
 `
 
 const defaultPolicyRego = `
 package spire
-
-# Result contains two fields:
-#
-# allow - the API call should be allowed
-#
-# By default each "api" object has several flags:
-#
-# allow_any:bool - if true, sets allow to true
-# allow_admin:bool - if true, allows the call if input.admin is true
-# allow_localn:bool - if true, allows the call if input.local is true
-# allow_downstream:bool - if true, allows the call if input.downstream is true
-
 
 result = {
   "allow": allow,
@@ -214,7 +190,6 @@ allow_if_admin = true {
     r.full_method == input.full_method
 
     r.allow_admin
-    #input.admin
 }
 
 # Local allow check
@@ -223,7 +198,6 @@ allow_if_local = true {
     r.full_method == input.full_method
 
     r.allow_local
-    # input.local
 }
 
 
@@ -233,7 +207,6 @@ allow_if_downstream = true {
     r.full_method == input.full_method
 
     r.allow_downstream
-    #input.admin
 }
 
 
@@ -243,7 +216,6 @@ allow_if_agent = true {
     r.full_method == input.full_method
 
     r.allow_agent
-    #input.admin
 }
 
 # Any allow check

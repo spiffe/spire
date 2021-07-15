@@ -155,17 +155,5 @@
 			"full_method": "/grpc.health.v1.Health/Watch",
 			"allow_local": true
 		}
-    ],
-     "custom-entry-create-roles": [
-        {
-            "namespace": "spiffe://example.org/stateless/",
-            "role": "registrar",
-            "user": "spiffe://example.org/schedulers/stateless"
-        },
-        {
-            "namespace": "spiffe://example.org/batch/",
-            "role": "registrar",
-            "user": "spiffe://example.org/schedulers/batch"
-        }
     ]
 }
