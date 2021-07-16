@@ -38,9 +38,9 @@ func AuditRPCWithError(ctx context.Context, err error) {
 	}
 }
 
-func AuditRPCWithTypesStatus(ctx context.Context, s *types.Status, fields logrus.Fields) {
+func AuditRPCWithTypesStatus(ctx context.Context, s *types.Status, fieldsFunc func() logrus.Fields) {
 	if auditLog, ok := AuditLog(ctx); ok {
-		auditLog.AuditWithTypesStatus(fields, s)
+		auditLog.AuditWithTypesStatus(fieldsFunc(), s)
 	}
 }
 
