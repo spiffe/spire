@@ -2787,7 +2787,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 func (s *serviceTest) setupAttestor(t *testing.T) {
 	attestorConfig := fakeservernodeattestor.Config{
-		Data: map[string]string{
+		Payloads: map[string]string{
 			"payload_attested_before": "id_attested_before",
 			"payload_with_challenge":  "id_with_challenge",
 			"payload_with_result":     "id_with_result",
