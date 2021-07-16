@@ -1,9 +1,13 @@
 package aws
 
 import (
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -12,6 +16,7 @@ import (
 type SessionConfig struct {
 	AccessKeyID     string `hcl:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key"`
+	AssumeRole      string `hcl:"assume_role"`
 }
 
 func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey string) error {
@@ -33,7 +38,7 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 }
 
 // newAWSSession create an AWS Session from the config and given region
-func newAWSSession(accessKeyID, secretAccessKey, region string) (*session.Session, error) {
+func newAWSSession(accessKeyID, secretAccessKey, region, asssumeRoleArn string) (*session.Session, error) {
 	var awsConf *aws.Config
 	if secretAccessKey != "" && accessKeyID != "" {
 		creds := credentials.NewStaticCredentials(accessKeyID, secretAccessKey, "")
@@ -41,5 +46,20 @@ func newAWSSession(accessKeyID, secretAccessKey, region string) (*session.Sessio
 	} else {
 		awsConf = &aws.Config{Region: &region}
 	}
+
+	// Optional: Assuming role
+	if asssumeRoleArn != "" {
+		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConf.Credentials})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create new session: %v", err)
+		}
+
+		awsConf.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
+			Client:   sts.New(staticsess),
+			RoleARN:  asssumeRoleArn,
+			Duration: 15 * time.Minute,
+		})
+	}
+
 	return session.NewSession(awsConf)
 }
