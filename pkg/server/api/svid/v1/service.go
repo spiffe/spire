@@ -116,7 +116,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		telemetry.SPIFFEID:  id.String(),
 		telemetry.DNSName:   strings.Join(csr.DNSNames, ","),
 		telemetry.Subject:   csr.Subject,
-		telemetry.ExpiresAt: x509SVID[0].NotAfter.UTC().Unix(),
+		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
 	})
 
 	return &svidv1.MintX509SVIDResponse{
@@ -262,7 +262,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		Svid: &types.X509SVID{
 			Id:        entry.SpiffeId,
 			CertChain: x509util.RawCertsFromCertificates(x509Svid),
-			ExpiresAt: x509Svid[0].NotAfter.UTC().Unix(),
+			ExpiresAt: x509Svid[0].NotAfter.Unix(),
 		},
 		Status: api.OK(),
 	}
@@ -389,7 +389,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		rawRootCerts = append(rawRootCerts, cert.DerBytes)
 	}
 	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
-		telemetry.ExpiresAt: x509CASvid[0].NotAfter.UTC().Unix(),
+		telemetry.ExpiresAt: x509CASvid[0].NotAfter.Unix(),
 	})
 
 	return &svidv1.NewDownstreamX509CAResponse{
