@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -51,6 +52,9 @@ func TestServiceMintX509SVID(t *testing.T) {
 	x509CA := test.ca.X509CA()
 	now := test.ca.Clock().Now().UTC()
 	expiredAt := now.Add(test.ca.X509SVIDTTL())
+	expiresAtStr := strconv.FormatInt(expiredAt.Unix(), 10)
+	customExpiresAt := now.Add(10 * time.Second)
+	expiresAtCustomStr := strconv.FormatInt(customExpiresAt.Unix(), 10)
 
 	for _, tt := range []struct {
 		name        string
@@ -78,13 +82,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
 						Data: logrus.Fields{
-							telemetry.Status:   "success",
-							telemetry.Type:     "audit",
-							telemetry.SPIFFEID: "spiffe://example.org/workload1",
-							telemetry.Csr:      api.HashByte(csr),
-							telemetry.TTL:      "0",
-							telemetry.DNSName:  "",
-							telemetry.Subject:  "",
+							telemetry.Status:    "success",
+							telemetry.Type:      "audit",
+							telemetry.SPIFFEID:  "spiffe://example.org/workload1",
+							telemetry.Csr:       api.HashByte(csr),
+							telemetry.TTL:       "0",
+							telemetry.DNSName:   "",
+							telemetry.Subject:   "",
+							telemetry.ExpiresAt: expiresAtStr,
 						},
 					},
 				}
@@ -95,7 +100,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			csrTemplate: &x509.CertificateRequest{
 				URIs: []*url.URL{workloadID.URL()},
 			},
-			expiredAt: now.Add(10 * time.Second),
+			expiredAt: customExpiresAt,
 			subject:   "O=SPIRE,C=US",
 			ttl:       10 * time.Second,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
@@ -104,13 +109,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
 						Data: logrus.Fields{
-							telemetry.Status:   "success",
-							telemetry.Type:     "audit",
-							telemetry.SPIFFEID: "spiffe://example.org/workload1",
-							telemetry.Csr:      api.HashByte(csr),
-							telemetry.TTL:      "10",
-							telemetry.DNSName:  "",
-							telemetry.Subject:  "",
+							telemetry.Status:    "success",
+							telemetry.Type:      "audit",
+							telemetry.SPIFFEID:  "spiffe://example.org/workload1",
+							telemetry.Csr:       api.HashByte(csr),
+							telemetry.TTL:       "10",
+							telemetry.DNSName:   "",
+							telemetry.Subject:   "",
+							telemetry.ExpiresAt: expiresAtCustomStr,
 						},
 					},
 				}
@@ -131,13 +137,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
 						Data: logrus.Fields{
-							telemetry.Status:   "success",
-							telemetry.Type:     "audit",
-							telemetry.SPIFFEID: "spiffe://example.org/workload1",
-							telemetry.Csr:      api.HashByte(csr),
-							telemetry.TTL:      "0",
-							telemetry.DNSName:  "dns1,dns2",
-							telemetry.Subject:  "",
+							telemetry.Status:    "success",
+							telemetry.Type:      "audit",
+							telemetry.SPIFFEID:  "spiffe://example.org/workload1",
+							telemetry.Csr:       api.HashByte(csr),
+							telemetry.TTL:       "0",
+							telemetry.DNSName:   "dns1,dns2",
+							telemetry.Subject:   "",
+							telemetry.ExpiresAt: expiresAtStr,
 						},
 					},
 				}
@@ -160,13 +167,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
 						Data: logrus.Fields{
-							telemetry.Status:   "success",
-							telemetry.Type:     "audit",
-							telemetry.SPIFFEID: "spiffe://example.org/workload1",
-							telemetry.Csr:      api.HashByte(csr),
-							telemetry.TTL:      "0",
-							telemetry.DNSName:  "",
-							telemetry.Subject:  "O=ORG,C=EN+C=US",
+							telemetry.Status:    "success",
+							telemetry.Type:      "audit",
+							telemetry.SPIFFEID:  "spiffe://example.org/workload1",
+							telemetry.Csr:       api.HashByte(csr),
+							telemetry.TTL:       "0",
+							telemetry.DNSName:   "",
+							telemetry.Subject:   "O=ORG,C=EN+C=US",
+							telemetry.ExpiresAt: expiresAtStr,
 						},
 					},
 				}
@@ -191,13 +199,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
 						Data: logrus.Fields{
-							telemetry.Status:   "success",
-							telemetry.Type:     "audit",
-							telemetry.SPIFFEID: "spiffe://example.org/workload1",
-							telemetry.Csr:      api.HashByte(csr),
-							telemetry.TTL:      "0",
-							telemetry.DNSName:  "dns1,dns2",
-							telemetry.Subject:  "O=ORG,C=EN+C=US",
+							telemetry.Status:    "success",
+							telemetry.Type:      "audit",
+							telemetry.SPIFFEID:  "spiffe://example.org/workload1",
+							telemetry.Csr:       api.HashByte(csr),
+							telemetry.TTL:       "0",
+							telemetry.DNSName:   "dns1,dns2",
+							telemetry.Subject:   "O=ORG,C=EN+C=US",
+							telemetry.ExpiresAt: expiresAtStr,
 						},
 					},
 				}
@@ -1130,6 +1139,11 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 	x509CA := test.ca.X509CA()
 	now := test.ca.Clock().Now().UTC()
 
+	expiresAtFromTTLEntry := now.Add(time.Duration(ttlEntry.Ttl) * time.Second).Unix()
+	expiresAtFromTTLEntryStr := strconv.FormatInt(expiresAtFromTTLEntry, 10)
+	expiresAtFromCA := now.Add(test.ca.X509SVIDTTL()).Unix()
+	expiresAtFromCAStr := strconv.FormatInt(expiresAtFromCA, 10)
+
 	_, invalidCsrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
 	require.Error(t, invalidCsrErr)
 
@@ -1169,6 +1183,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: "workload",
 							telemetry.Csr:            api.HashByte(m["workload"]),
+							telemetry.ExpiresAt:      expiresAtFromCAStr,
 						},
 					},
 				}
@@ -1191,6 +1206,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: "ttl",
 							telemetry.Csr:            api.HashByte(m["ttl"]),
+							telemetry.ExpiresAt:      expiresAtFromTTLEntryStr,
 						},
 					},
 				}
@@ -1213,6 +1229,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: "dns",
 							telemetry.Csr:            api.HashByte(m["dns"]),
+							telemetry.ExpiresAt:      expiresAtFromCAStr,
 						},
 					},
 				}
@@ -1244,6 +1261,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: "workload",
 							telemetry.Csr:            api.HashByte(m["workload"]),
+							telemetry.ExpiresAt:      expiresAtFromCAStr,
 						},
 					},
 					{
@@ -1274,6 +1292,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: "dns",
 							telemetry.Csr:            api.HashByte(m["dns"]),
+							telemetry.ExpiresAt:      expiresAtFromCAStr,
 						},
 					},
 				}
@@ -1760,6 +1779,9 @@ func TestNewDownstreamX509CA(t *testing.T) {
 	x509CA := test.ca.X509CA()
 	_, csrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
 
+	now := test.ca.Clock().Now().UTC()
+	expiresAtFromCA := now.Add(test.ca.X509SVIDTTL()).Unix()
+
 	for _, tt := range []downstreamCaTest{
 		{
 			name:           "Malformed CSR",
@@ -1909,6 +1931,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 							telemetry.Type:          "audit",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TrustDomainID: "spiffe://example.org",
+							telemetry.ExpiresAt:     strconv.FormatInt(expiresAtFromCA, 10),
 						},
 					},
 				}

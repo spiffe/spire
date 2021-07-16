@@ -113,9 +113,10 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
 	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
-		telemetry.SPIFFEID: id.String(),
-		telemetry.DNSName:  strings.Join(csr.DNSNames, ","),
-		telemetry.Subject:  csr.Subject,
+		telemetry.SPIFFEID:  id.String(),
+		telemetry.DNSName:   strings.Join(csr.DNSNames, ","),
+		telemetry.Subject:   csr.Subject,
+		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
 	})
 
 	return &svidv1.MintX509SVIDResponse{
@@ -163,10 +164,16 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 		r := s.newX509SVID(ctx, svidParam, entriesMap)
 		results = append(results, r)
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
-			return logrus.Fields{
+			fields := logrus.Fields{
 				telemetry.Csr:            api.HashByte(svidParam.Csr),
 				telemetry.RegistrationID: svidParam.EntryId,
 			}
+
+			if r.Svid != nil {
+				fields[telemetry.ExpiresAt] = r.Svid.ExpiresAt
+			}
+
+			return fields
 		})
 	}
 
@@ -381,7 +388,9 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	for _, cert := range bundle.RootCas {
 		rawRootCerts = append(rawRootCerts, cert.DerBytes)
 	}
-	rpccontext.AuditRPC(ctx)
+	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
+		telemetry.ExpiresAt: x509CASvid[0].NotAfter.Unix(),
+	})
 
 	return &svidv1.NewDownstreamX509CAResponse{
 		CaCertChain:     x509util.RawCertsFromCertificates(x509CASvid),
