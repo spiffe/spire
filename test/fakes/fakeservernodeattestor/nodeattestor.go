@@ -1,17 +1,15 @@
 package fakeservernodeattestor
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/plugintest"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -26,16 +24,16 @@ type Config struct {
 	// Defaults to "example.org" if empty.
 	TrustDomain string
 
-	// Data is a map from attestation data (as a string) to the associated id
-	// produced by the attestor. For example, a mapping from "DATA" ==> "FOO
-	// means that an attestation request with the data "DATA" would result in
-	// an attestation response with the SPIFFE ID:
+	// Payloads is a map from attestation payload (as a string) to the
+	// associated id produced by the attestor. For example, a mapping from
+	// "DATA" ==> "FOO means that an attestation request with the data "DATA"
+	// would result in an attestation response with the SPIFFE ID:
 	//
 	// spiffe://<trustdomain>/spire/agent/<name>/<ID>
 	//
 	// For example, "spiffe://example.org/spire/agent/foo/bar"
 	// In case ReturnLiteral is true value will be returned as base id
-	Data map[string]string
+	Payloads map[string]string
 
 	// Challenges is a map from ID to a list of echo challenges. The response
 	// to each challenge is expected to match the challenge value.
@@ -44,7 +42,7 @@ type Config struct {
 	// Selectors is a map from ID to a list of selector values to return with that id.
 	Selectors map[string][]string
 
-	// Return literal from Data map
+	// Return literal from Payloads map
 	ReturnLiteral bool
 }
 
@@ -57,71 +55,65 @@ func New(t *testing.T, name string, config Config) nodeattestor.NodeAttestor {
 		config: config,
 	}
 
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(t, catalog.MakeBuiltIn(name, nodeattestorv0.NodeAttestorPluginServer(plugin)), v0)
-	return v0
+	v1 := new(nodeattestor.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn(name, nodeattestorv1.NodeAttestorPluginServer(plugin)), v1)
+	return v1
 }
 
 type nodeAttestor struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
 
 	name   string
 	config Config
 }
 
-func (p *nodeAttestor) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) (err error) {
+func (p *nodeAttestor) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) (err error) {
 	req, err := stream.Recv()
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
-	if req.AttestationData == nil {
-		return errs.New("request is missing attestation data")
+	payload := req.GetPayload()
+	if payload == nil {
+		return status.Error(codes.InvalidArgument, "request is missing payload")
 	}
 
-	if req.AttestationData.Type != p.name {
-		return errs.New("request has wrong attestation data type: expected %q got %q", p.name, req.AttestationData.Type)
-	}
-
-	id, ok := p.config.Data[string(req.AttestationData.Data)]
+	id, ok := p.config.Payloads[string(payload)]
 	if !ok {
-		return errs.New("no ID configured for attestation data %q", string(req.AttestationData.Data))
+		return status.Errorf(codes.FailedPrecondition, "no ID configured for attestation data %q", string(payload))
 	}
 
 	// challenge/response loop
 	for _, challenge := range p.config.Challenges[id] {
-		if err := stream.Send(&nodeattestorv0.AttestResponse{
-			Challenge: []byte(challenge),
+		if err := stream.Send(&nodeattestorv1.AttestResponse{
+			Response: &nodeattestorv1.AttestResponse_Challenge{
+				Challenge: []byte(challenge),
+			},
 		}); err != nil {
-			return errs.Wrap(err)
+			return err
 		}
 
 		responseReq, err := stream.Recv()
 		if err != nil {
-			return errs.Wrap(err)
+			return err
 		}
 
-		if challenge != string(responseReq.Response) {
-			return errs.New("invalid response to echo challenge %q: got %q", challenge, string(responseReq.Response))
+		challengeResponse := responseReq.GetChallengeResponse()
+		if challenge != string(challengeResponse) {
+			return status.Errorf(codes.InvalidArgument, "invalid response to echo challenge %q: got %q", challenge, string(challengeResponse))
 		}
 	}
 
-	resp := &nodeattestorv0.AttestResponse{
-		AgentId: p.getAgentID(id),
+	resp := &nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId:       p.getAgentID(id),
+				SelectorValues: p.config.Selectors[id],
+			},
+		},
 	}
 
-	for _, value := range p.config.Selectors[id] {
-		resp.Selectors = append(resp.Selectors, &common.Selector{
-			Type:  p.name,
-			Value: value,
-		})
-	}
-
-	if err := stream.Send(resp); err != nil {
-		return errs.Wrap(err)
-	}
-
-	return nil
+	return stream.Send(resp)
 }
 
 func (p *nodeAttestor) getAgentID(id string) string {
@@ -130,12 +122,4 @@ func (p *nodeAttestor) getAgentID(id string) string {
 	}
 
 	return fmt.Sprintf("spiffe://%s/spire/agent/%s/%s", p.config.TrustDomain, p.name, id)
-}
-
-func (p *nodeAttestor) Configure(context.Context, *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
-	return &plugin.ConfigureResponse{}, nil
-}
-
-func (p *nodeAttestor) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
 }
