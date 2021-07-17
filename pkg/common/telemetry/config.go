@@ -11,7 +11,15 @@ type MetricsConfig struct {
 	Sinks       []Sink
 }
 
+type MetricsConfigOptions struct {
+	AllowedPrefixes []string // A list of metric prefixes to allow, with '.' as the separator
+	BlockedPrefixes []string // A list of metric prefixes to block, with '.' as the separator
+	AllowedLabels   []string // A list of metric labels to allow, with '.' as the separator
+	BlockedLabels   []string // A list of metric labels to block, with '.' as the separator
+}
+
 type FileConfig struct {
+	Options    MetricsConfigOptions
 	Prometheus *PrometheusConfig `hcl:"Prometheus"`
 	DogStatsd  []DogStatsdConfig `hcl:"DogStatsd"`
 	Statsd     []StatsdConfig    `hcl:"Statsd"`
