@@ -23,47 +23,47 @@ this [rego policy](/conf/server/policy.rego) and [permissions data
 binding](/conf/server/permissions.json). These encode the following behavior:
 
 
-| API | Authorized if (OR) |
-| ------------- | ----------- |
-| /spire.api.server.svid.v1.SVID/MintX509SVID | local or admin|
-| /spire.api.server.svid.v1.SVID/MintJWTSVID | local, admin |
-| /spire.api.server.svid.v1.SVID/BatchNewX509SVID | agent |
-| /spire.api.server.svid.v1.SVID/NewJWTSVID | agent |
-| /spire.api.server.svid.v1.SVID/NewDownstreamX509CA | downstream |
-| /spire.api.server.bundle.v1.Bundle/GetBundle | any |
-| /spire.api.server.bundle.v1.Bundle/AppendBundle | local, admin |
-| /spire.api.server.bundle.v1.Bundle/PublishJWTAuthority | downstream |
-| /spire.api.server.bundle.v1.Bundle/CountBundles | local, admin |
-| /spire.api.server.bundle.v1.Bundle/ListFederatedBundles | local, admin |
-| /spire.api.server.bundle.v1.Bundle/GetFederatedBundle | local, admin, agent |
-| /spire.api.server.bundle.v1.Bundle/BatchCreateFederatedBundle | local, admin |
-| /spire.api.server.bundle.v1.Bundle/BatchUpdateFederatedBundle | local, admin |
-| /spire.api.server.bundle.v1.Bundle/BatchSetFederatedBundle | local, admin |
-| /spire.api.server.bundle.v1.Bundle/BatchDeleteFederatedBundle | local, admin |
-| /spire.api.server.debug.v1.Debug/GetInfo | local |
-| /spire.api.server.entry.v1.Entry/CountEntries | local, admin |
-| /spire.api.server.entry.v1.Entry/ListEntries | local, admin |
-| /spire.api.server.entry.v1.Entry/GetEntry | local, admin |
-| /spire.api.server.entry.v1.Entry/BatchCreateEntry | local, admin |
-| /spire.api.server.entry.v1.Entry/BatchUpdateEntry | local, admin |
-| /spire.api.server.entry.v1.Entry/BatchDeleteEntry | local, admin |
-| /spire.api.server.entry.v1.Entry/GetAuthlocalOrAdmin orizedEntries | agent |
-| /spire.api.server.agent.v1.Agent/CountAgents | local, admin |
-| /spire.api.server.agent.v1.Agent/ListAgents | local, admin |
-| /spire.api.server.agent.v1.Agent/GetAgent | local, admin |
-| /spire.api.server.agent.v1.Agent/DeleteAgent | local, admin |
-| /spire.api.server.agent.v1.Agent/BanAgent | local, admin |
-| /spire.api.server.agent.v1.Agent/AttestAgent | any |
-| /spire.api.server.agent.v1.Agent/RenewAgent | agent |
-| /spire.api.server.agent.v1.Agent/CreateJoinToken | local, admin |
-| /grpc.health.v1.Health/Check | local |
-| /grpc.health.v1.Health/Watch | local |
+| API                                                           | Authorized if (OR)      |
+| ------------------------------------------------------------- | ----------------------- |
+| /spire.api.server.svid.v1.SVID/MintX509SVID                   | local, admin            |
+| /spire.api.server.svid.v1.SVID/MintJWTSVID                    | local, admin            |
+| /spire.api.server.svid.v1.SVID/BatchNewX509SVID               | agent                   |
+| /spire.api.server.svid.v1.SVID/NewJWTSVID                     | agent                   |
+| /spire.api.server.svid.v1.SVID/NewDownstreamX509CA            | downstream              |
+| /spire.api.server.bundle.v1.Bundle/GetBundle                  | any                     |
+| /spire.api.server.bundle.v1.Bundle/AppendBundle               | local, admin            |
+| /spire.api.server.bundle.v1.Bundle/PublishJWTAuthority        | downstream              |
+| /spire.api.server.bundle.v1.Bundle/CountBundles               | local, admin            |
+| /spire.api.server.bundle.v1.Bundle/ListFederatedBundles       | local, admin            |
+| /spire.api.server.bundle.v1.Bundle/GetFederatedBundle         | local, admin, agent     |
+| /spire.api.server.bundle.v1.Bundle/BatchCreateFederatedBundle | local, admin            |
+| /spire.api.server.bundle.v1.Bundle/BatchUpdateFederatedBundle | local, admin            |
+| /spire.api.server.bundle.v1.Bundle/BatchSetFederatedBundle    | local, admin            |
+| /spire.api.server.bundle.v1.Bundle/BatchDeleteFederatedBundle | local, admin            |
+| /spire.api.server.debug.v1.Debug/GetInfo                      | local                   |
+| /spire.api.server.entry.v1.Entry/CountEntries                 | local, admin            |
+| /spire.api.server.entry.v1.Entry/ListEntries                  | local, admin            |
+| /spire.api.server.entry.v1.Entry/GetEntry                     | local, admin            |
+| /spire.api.server.entry.v1.Entry/BatchCreateEntry             | local, admin            |
+| /spire.api.server.entry.v1.Entry/BatchUpdateEntry             | local, admin            |
+| /spire.api.server.entry.v1.Entry/BatchDeleteEntry             | local, admin            |
+| /spire.api.server.entry.v1.Entry/GetAuthorizedEntries         | agent                   |
+| /spire.api.server.agent.v1.Agent/CountAgents                  | local, admin            |
+| /spire.api.server.agent.v1.Agent/ListAgents                   | local, admin            |
+| /spire.api.server.agent.v1.Agent/GetAgent                     | local, admin            |
+| /spire.api.server.agent.v1.Agent/DeleteAgent                  | local, admin            |
+| /spire.api.server.agent.v1.Agent/BanAgent                     | local, admin            |
+| /spire.api.server.agent.v1.Agent/AttestAgent                  | any                     |
+| /spire.api.server.agent.v1.Agent/RenewAgent                   | agent                   |
+| /spire.api.server.agent.v1.Agent/CreateJoinToken              | local, admin            |
+| /grpc.health.v1.Health/Check                                  | local                   |
+| /grpc.health.v1.Health/Watch                                  | local                   |
 
 If multiple are specified in the authorized column, it is an disjunction of the
 listed options. Where the options are:
 - local: local caller through UNIX socket
-- admin: caller has a SPIFFE ID with an "Admin" flag
-- downstream: caller is a downstream SPIFFE ID
+- admin: caller has an admin SPIFFE ID
+- downstream: caller has a downstream SPIFFE ID
 - agent: caller is an agent
 
 # Details of the policy engine
@@ -117,14 +117,15 @@ The inputs that are passed into the policy are:
 | ------------- | ----------- | ------- |
 | caller        | The SPIFFE ID (if available) of the caller | spiffe://example.org/workload1 |
 | full_method   | The full method name of the API call | /spire.api.server.svid.v1.SVID/MintJWTSVID |
-| req           | The API call request body | { "filter": {} } |
+| req           | The API call request body (not available on client or bidirectional streaming RPC calls) | { "filter": {} } |
 
 The request (`req`) is the marshalled JSON object from the [SPIRE
-api sdk](https://github.com/spiffe/spire-api-sdk/).
+api sdk](https://github.com/spiffe/spire-api-sdk/). Note that it is not
+available on client or bidirectional streaming RPC API calls.
 
 ## Permissions file (databinding)
 
-The permissoins file consists of a JSON blob which represents the data that is
+The permissions file consists of a JSON blob which represents the data that is
 used in the evaluation of the policy. This is generally free-form and can be
 used in the rego policy in any way. Data in this JSON blob is pre-compiled into
 the policy evaluation on the policy engine evaluation. Therefore, there it is
@@ -162,75 +163,16 @@ document.
 
 #### Default policy.rego
 
-```
-package spire
-
-result = {
-  "allow": allow,
-  "allow_if_admin": allow_if_admin,
-  "allow_if_local": allow_if_local,
-  "allow_if_downstream": allow_if_downstream,
-  "allow_if_agent": allow_if_agent,
-}
-
-
-### DEFAULT POLICY START ###
-
-default allow_if_admin = false
-default allow_if_downstream = false
-default allow_if_local = false
-default allow_if_agent = false
-default allow = false
-
-
-# Admin allow check
-allow_if_admin = true {
-    r := data.apis[_]
-    r.full_method == input.full_method
-
-    r.allow_admin
-}
-
-# Local allow check
-allow_if_local = true {
-    r := data.apis[_]
-    r.full_method == input.full_method
-
-    r.allow_local
-}
-
-
-# Downstream allow check
-allow_if_downstream = true {
-    r := data.apis[_]
-    r.full_method == input.full_method
-
-    r.allow_downstream
-}
-
-
-# Agent allow check
-allow_if_agent = true {
-    r := data.apis[_]
-    r.full_method == input.full_method
-
-    r.allow_agent
-}
-
-# Any allow check
-allow = true {
-    r := data.apis[_]
-    r.full_method == input.full_method
-    r.allow_any
-}
-
-### DEFAULT POLICY ENDSTART  ###
-```
+The default rego policy is located [here](/pkg/server/policy/policy.rego).
 
 #### Default permissions.json (databindings)
 
-Here's an exerpt from the current `permissions.json`. It contains a field "apis"
-that has a list of APIs that is current being configured with the rego policy.
+The default permissions.json is located [here](/pkg/server/policy/permissions.json).
+
+The default permissions file contains a field called "apis".
+This field has a list of APIs that is current being configured with the rego
+policy.
+
 The fields of each object are as follows:
 
 | field             | Description | Example |
@@ -241,61 +183,6 @@ The fields of each object are as follows:
 | allow_admin       | if true, sets result.allow_if_admin to true | |
 | allow_downstream  | if true, sets result.allow_if_downstream to true | |
 | allow_agent       | if true, sets result.allow_if_agent to true | |
-
-This API object is used to easily toggle basic authorization decisions for the
-different APIs.
-```
-{
-    "apis": [
-        {
-            "full_method": "/spire.api.server.svid.v1.SVID/MintX509SVID",
-            "allow_admin": true,
-            "allow_local": true
-        },
-        {
-            "full_method": "/spire.api.server.svid.v1.SVID/MintJWTSVID",
-            "allow_admin": true,
-            "allow_local": true
-        },
-        {
-            "full_method": "/spire.api.server.svid.v1.SVID/BatchNewX509SVID",
-            "allow_agent": true
-        },
-        {
-            "full_method": "/spire.api.server.svid.v1.SVID/NewJWTSVID",
-            "allow_agent": true
-        },
-        {
-            "full_method": "/spire.api.server.svid.v1.SVID/NewDownstreamX509CA",
-            "allow_downstream": true
-        },
-        {
-            "full_method": "/spire.api.server.bundle.v1.Bundle/GetBundle",
-            "allow_any": true
-        },
-        {
-            "full_method": "/spire.api.server.bundle.v1.Bundle/AppendBundle",
-            "allow_admin": true,
-            "allow_local": true
-        },
-        {
-            "full_method": "/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority",
-            "allow_downstream": true
-        },
-        {
-            "full_method": "/spire.api.server.bundle.v1.Bundle/CountBundles",
-            "allow_admin": true,
-            "allow_local": true
-        },
-        {
-            "full_method": "/spire.api.server.bundle.v1.Bundle/ListFederatedBundles",
-            "allow_admin": true,
-            "allow_local": true
-        },
-        ...
-    ]
-}
-```
 
 # Extending the policy
 
