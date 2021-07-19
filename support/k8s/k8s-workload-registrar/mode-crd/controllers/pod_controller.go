@@ -16,19 +16,32 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"strings"
+	"text/template"
 
 	"github.com/sirupsen/logrus"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	PodNameIDLabel           string = "pod_name"
+	PodUIDLabel              string = "pod_uid"
+	NamespaceIDLabel         string = "namespace"
+	PodServiceAccountIDLabel string = "service_account"
+	PodHostnameLabel         string = "hostname"
+	PodNodeNameLabel         string = "node_name"
 )
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
@@ -42,6 +55,13 @@ type PodReconcilerConfig struct {
 	PodAnnotation      string
 	Scheme             *runtime.Scheme
 	TrustDomain        string
+	IdentityTemplate   string
+	Context            map[string]string
+}
+
+type IdentityMaps struct {
+	Context map[string]string
+	Pod     map[string]string
 }
 
 // PodReconciler holds the runtime configuration and state of this controller
@@ -75,7 +95,7 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := r.c.Ctx
 
 	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
-		if !errors.IsNotFound(err) {
+		if !k8serrors.IsNotFound(err) {
 			r.c.Log.WithError(err).Error("Unable to get Pod")
 			return ctrl.Result{}, err
 		}
@@ -93,7 +113,10 @@ func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // updateorCreatePodEntry attempts to create a new SpiffeID resource.
 func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.Pod) (ctrl.Result, error) {
-	spiffeIDURI := r.podSpiffeID(pod)
+	spiffeIDURI, err := r.podSpiffeID(pod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	// If we have no spiffe ID for the pod, do nothing
 	if spiffeIDURI == "" {
 		return ctrl.Result{}, nil
@@ -122,7 +145,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 			},
 		},
 	}
-	err := setOwnerRef(pod, spiffeID, r.c.Scheme)
+	err = setOwnerRef(pod, spiffeID, r.c.Scheme)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -134,7 +157,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		Namespace: spiffeID.ObjectMeta.Namespace,
 	}, &existing)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// Create new entry
 			return ctrl.Result{}, r.Create(ctx, spiffeID)
 		}
@@ -161,15 +184,15 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored
-func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
+func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 	if r.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if labelValue, ok := pod.Labels[r.c.PodLabel]; ok {
-			return makeID(r.c.TrustDomain, "%s", labelValue)
+			return makeID(r.c.TrustDomain, "%s", labelValue), nil
 		}
-		return ""
+		return "", nil
 	}
 
 	if r.c.PodAnnotation != "" {
@@ -177,16 +200,69 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) string {
 		// has that annotation, use the value to construct the pod entry. otherwise
 		// ignore the pod altogether.
 		if annotationValue, ok := pod.Annotations[r.c.PodAnnotation]; ok {
-			return makeID(r.c.TrustDomain, "%s", annotationValue)
+			return makeID(r.c.TrustDomain, "%s", annotationValue), nil
 		}
-		return ""
+		return "", nil
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
+	if r.c.IdentityTemplate != "" {
+		// create an entry using provided identity template.
+		svid, err := r.getIdentityTemplate(pod)
+		if err != nil {
+			return "", err
+		}
+		return makeID(r.c.TrustDomain, svid), nil
+	}
+
+	// the controller has not been configured with a specific identity format.
 	// create an entry based on the service account.
-	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName)
+	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName), nil
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
 	return makeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
+}
+
+func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
+	tpl := r.c.IdentityTemplate
+	tmpl, err := template.New("IdentityTemplate").Parse(tpl)
+	if err != nil {
+		r.c.Log.WithError(err).Errorf("error parsing the template %q", tpl)
+		return "", err
+	}
+
+	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
+	podInfo := map[string]string{
+		PodServiceAccountIDLabel: pod.Spec.ServiceAccountName,
+		NamespaceIDLabel:         pod.Namespace,
+		PodNameIDLabel:           pod.Name,
+		PodUIDLabel:              string(pod.UID),
+		PodHostnameLabel:         pod.Spec.Hostname,
+		PodNodeNameLabel:         pod.Spec.NodeName,
+	}
+
+	templateMaps := IdentityMaps{
+		Context: r.c.Context,
+		Pod:     podInfo,
+	}
+	var svid bytes.Buffer
+	err = tmpl.Execute(&svid, templateMaps)
+	if err != nil {
+		r.c.Log.WithError(err).Errorf("Error executing the template %q with maps: %#v", tpl, templateMaps)
+		return svid.String(), err
+	}
+	// detect missing context values
+	if strings.Contains(svid.String(), "<no value>") {
+		err := errors.New("template references a value not included in context map")
+		r.c.Log.WithError(err).Errorf("SVID: %s", svid.String())
+		return svid.String(), err
+	}
+	// depending on runtime values, the SVID might end up with trailing '/' that is illegal
+	if strings.HasSuffix(svid.String(), "/") {
+		err := errors.New("invalid SVID, ends with /")
+		r.c.Log.WithError(err).Errorf("SVID: %s", svid.String())
+		return svid.String(), err
+	}
+	return svid.String(), nil
 }
