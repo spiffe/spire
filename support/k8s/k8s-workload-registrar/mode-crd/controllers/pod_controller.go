@@ -254,7 +254,7 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
 	}
 	// detect missing context values
 	if strings.Contains(svid.String(), "<no value>") {
-		err := errors.New("template refrences a value not included in context map")
+		err := errors.New("template references a value not included in context map")
 		r.c.Log.WithError(err).Errorf("SVID: %s", svid.String())
 		return svid.String(), err
 	}
