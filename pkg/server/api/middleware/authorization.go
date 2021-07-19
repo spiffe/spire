@@ -8,31 +8,23 @@ import (
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type Authorizer interface {
-	// Name returns the name of the authorizer. The value may be included in
-	// logs and messages returned to callers on authorization failure.
-	Name() string
-
-	// AuthorizeCaller is called by the authorization middleware to determine
-	// if a caller is authorized. The caller is retrievable on the passed in
-	// context. On success, the method returns the (potentially embellished)
-	// context passed into the function. On failure, the method returns an
-	// error and the returned context is ignored.
-	AuthorizeCaller(ctx context.Context) (context.Context, error)
-}
-
-func WithAuthorization(authorizers map[string]Authorizer) middleware.Middleware {
+func WithAuthorization(policyEngine *policy.Engine, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) middleware.Middleware {
 	return &authorizationMiddleware{
-		authorizers: authorizers,
+		policyEngine:    policyEngine,
+		entryFetcher:    entryFetcher,
+		agentAuthorizer: agentAuthorizer,
 	}
 }
 
 type authorizationMiddleware struct {
-	authorizers map[string]Authorizer
+	policyEngine    *policy.Engine
+	entryFetcher    EntryFetcher
+	agentAuthorizer AgentAuthorizer
 }
 
 func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string, req interface{}) (context.Context, error) {
@@ -45,7 +37,8 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	if !rpccontext.CallerIsLocal(ctx) {
 		fields[telemetry.CallerAddr] = rpccontext.CallerAddr(ctx).String()
 	}
-	if id, ok := rpccontext.CallerID(ctx); ok {
+	id, ok := rpccontext.CallerID(ctx)
+	if ok {
 		fields[telemetry.CallerID] = id.String()
 	}
 	// Add request ID to logger, it simplify debugging when calling batch endpints
@@ -59,18 +52,18 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))
 	}
 
-	authorizer, ok := m.authorizers[methodName]
-	if !ok {
-		middleware.LogMisconfiguration(ctx, "Authorization misconfigured (method not registered); this is a bug")
-		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q (method not registered)", methodName)
-	}
-
-	authorizedCtx, err := authorizer.AuthorizeCaller(ctx)
+	ctx, allow, err := m.opaAuth(ctx, req, methodName)
 	if err != nil {
 		rpccontext.Logger(ctx).WithError(err).Error("Failed to authenticate caller")
 		return nil, err
 	}
-	return authorizedCtx, nil
+	if allow {
+		return ctx, nil
+	}
+
+	deniedErr := status.Errorf(codes.PermissionDenied, "Authorization denied for method %v", methodName)
+	rpccontext.Logger(ctx).WithError(deniedErr).Error("Failed to authenticate caller")
+	return nil, deniedErr
 }
 
 func (m *authorizationMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {

@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/endpoints/registration"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"golang.org/x/net/context"
 )
@@ -53,6 +54,9 @@ type Config struct {
 
 	// CA Manager
 	Manager *ca.Manager
+
+	// Makes policy decisions
+	PolicyEngine *policy.Engine
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics

@@ -1,0 +1,159 @@
+{
+    "apis": [
+		{
+			"full_method": "/spire.api.server.svid.v1.SVID/MintX509SVID",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.svid.v1.SVID/MintJWTSVID",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.svid.v1.SVID/BatchNewX509SVID",
+			"allow_agent": true
+		},
+		{
+			"full_method": "/spire.api.server.svid.v1.SVID/NewJWTSVID",
+			"allow_agent": true
+		},
+		{
+			"full_method": "/spire.api.server.svid.v1.SVID/NewDownstreamX509CA",
+			"allow_downstream": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/GetBundle",
+			"allow_any": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/AppendBundle",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority",
+			"allow_downstream": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/CountBundles",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/ListFederatedBundles",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/GetFederatedBundle",
+			"allow_admin": true,
+			"allow_local": true,
+			"allow_agent": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/BatchCreateFederatedBundle",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/BatchUpdateFederatedBundle",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/BatchSetFederatedBundle",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/BatchDeleteFederatedBundle",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.debug.v1.Debug/GetInfo",
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/CountEntries",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/ListEntries",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/GetEntry",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/BatchCreateEntry",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/BatchUpdateEntry",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/BatchDeleteEntry",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.entry.v1.Entry/GetAuthorizedEntries",
+			"allow_agent": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/CountAgents",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/ListAgents",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/GetAgent",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/DeleteAgent",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/BanAgent",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/AttestAgent",
+			"allow_any": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/RenewAgent",
+			"allow_agent": true
+		},
+		{
+			"full_method": "/spire.api.server.agent.v1.Agent/CreateJoinToken",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
+			"full_method": "/grpc.health.v1.Health/Check",
+			"allow_local": true
+		},
+		{
+			"full_method": "/grpc.health.v1.Health/Watch",
+			"allow_local": true
+		}
+    ]
+}

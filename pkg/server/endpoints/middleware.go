@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
@@ -23,11 +24,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, auditLogEnabled bool) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *policy.Engine, auditLogEnabled bool) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithAuthorization(Authorization(log, ds, clk)),
+		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(log, ds, clk)),
 		middleware.WithRateLimits(RateLimits(rlConf)),
 	}
 
@@ -39,56 +40,6 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 	return middleware.Chain(
 		chain...,
 	)
-}
-
-func Authorization(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) map[string]middleware.Authorizer {
-	agentAuthorizer := AgentAuthorizer(log, ds, clk)
-	entryFetcher := EntryFetcher(ds)
-
-	any := middleware.AuthorizeAny()
-	local := middleware.AuthorizeLocal()
-	agent := middleware.AuthorizeAgent(agentAuthorizer)
-	downstream := middleware.AuthorizeDownstream(entryFetcher)
-	admin := middleware.AuthorizeAdmin(entryFetcher)
-
-	localOrAdmin := middleware.AuthorizeAnyOf(local, admin)
-	localOrAdminOrAgent := middleware.AuthorizeAnyOf(local, admin, agent)
-
-	return map[string]middleware.Authorizer{
-		"/spire.api.server.svid.v1.SVID/MintX509SVID":                   localOrAdmin,
-		"/spire.api.server.svid.v1.SVID/MintJWTSVID":                    localOrAdmin,
-		"/spire.api.server.svid.v1.SVID/BatchNewX509SVID":               agent,
-		"/spire.api.server.svid.v1.SVID/NewJWTSVID":                     agent,
-		"/spire.api.server.svid.v1.SVID/NewDownstreamX509CA":            downstream,
-		"/spire.api.server.bundle.v1.Bundle/GetBundle":                  any,
-		"/spire.api.server.bundle.v1.Bundle/AppendBundle":               localOrAdmin,
-		"/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority":        downstream,
-		"/spire.api.server.bundle.v1.Bundle/CountBundles":               localOrAdmin,
-		"/spire.api.server.bundle.v1.Bundle/ListFederatedBundles":       localOrAdmin,
-		"/spire.api.server.bundle.v1.Bundle/GetFederatedBundle":         localOrAdminOrAgent,
-		"/spire.api.server.bundle.v1.Bundle/BatchCreateFederatedBundle": localOrAdmin,
-		"/spire.api.server.bundle.v1.Bundle/BatchUpdateFederatedBundle": localOrAdmin,
-		"/spire.api.server.bundle.v1.Bundle/BatchSetFederatedBundle":    localOrAdmin,
-		"/spire.api.server.bundle.v1.Bundle/BatchDeleteFederatedBundle": localOrAdmin,
-		"/spire.api.server.debug.v1.Debug/GetInfo":                      local,
-		"/spire.api.server.entry.v1.Entry/CountEntries":                 localOrAdmin,
-		"/spire.api.server.entry.v1.Entry/ListEntries":                  localOrAdmin,
-		"/spire.api.server.entry.v1.Entry/GetEntry":                     localOrAdmin,
-		"/spire.api.server.entry.v1.Entry/BatchCreateEntry":             localOrAdmin,
-		"/spire.api.server.entry.v1.Entry/BatchUpdateEntry":             localOrAdmin,
-		"/spire.api.server.entry.v1.Entry/BatchDeleteEntry":             localOrAdmin,
-		"/spire.api.server.entry.v1.Entry/GetAuthorizedEntries":         agent,
-		"/spire.api.server.agent.v1.Agent/CountAgents":                  localOrAdmin,
-		"/spire.api.server.agent.v1.Agent/ListAgents":                   localOrAdmin,
-		"/spire.api.server.agent.v1.Agent/GetAgent":                     localOrAdmin,
-		"/spire.api.server.agent.v1.Agent/DeleteAgent":                  localOrAdmin,
-		"/spire.api.server.agent.v1.Agent/BanAgent":                     localOrAdmin,
-		"/spire.api.server.agent.v1.Agent/AttestAgent":                  any,
-		"/spire.api.server.agent.v1.Agent/RenewAgent":                   agent,
-		"/spire.api.server.agent.v1.Agent/CreateJoinToken":              localOrAdmin,
-		"/grpc.health.v1.Health/Check":                                  local,
-		"/grpc.health.v1.Health/Watch":                                  local,
-	}
 }
 
 func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {

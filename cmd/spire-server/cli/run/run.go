@@ -34,6 +34,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/policy"
 )
 
 const (
@@ -82,8 +83,9 @@ type serverConfig struct {
 	SocketPath     string             `hcl:"socket_path"`
 	TrustDomain    string             `hcl:"trust_domain"`
 
-	ConfigPath string
-	ExpandEnv  bool
+	PolicyEngine *policy.EngineConfig `hcl:"policy_engine"`
+	ConfigPath   string
+	ExpandEnv    bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -548,6 +550,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.CacheReloadInterval = interval
 	}
+
+	sc.PolicyEngineConfig = c.Server.PolicyEngine
 
 	return sc, nil
 }

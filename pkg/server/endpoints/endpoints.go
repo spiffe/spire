@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"github.com/spiffe/spire/pkg/server/svid"
 	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
@@ -71,6 +72,7 @@ type Endpoints struct {
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	AuditLogEnabled              bool
+	PolicyEngine                 *policy.Engine
 }
 
 type OldAPIServers struct {
@@ -118,6 +120,14 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
+	pe := c.PolicyEngine
+	if pe == nil {
+		pe, err = policy.DefaultAuthPolicy()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Endpoints{
 		OldAPIServers:                oldAPIServers,
 		TCPAddr:                      c.TCPAddr,
@@ -132,6 +142,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
+		PolicyEngine:                 pe,
 	}, nil
 }
 
@@ -141,7 +152,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 // server is returned.
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.Log.Debug("Initializing API endpoints")
-
 	unaryInterceptor, streamInterceptor := e.makeInterceptors()
 
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
@@ -354,7 +364,7 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 
 	oldUnary, oldStream := wrapWithDeprecationLogging(log, auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall)
 
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuditLogEnabled))
+	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.PolicyEngine, e.AuditLogEnabled))
 
 	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
 }
