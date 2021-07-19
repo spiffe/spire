@@ -15,7 +15,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
@@ -27,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"google.golang.org/grpc"
@@ -122,7 +122,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	policyEngine, err := policy.NewEngine(s.config.PolicyEngineConfig)
+	policyEngine, err := policy.NewEngineOrDefault(s.config.PolicyEngineConfig)
 	if err != nil {
 		return err
 	}

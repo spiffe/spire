@@ -2,11 +2,11 @@ package middleware
 
 import (
 	"context"
+	"errors"
 
-	"github.com/pkg/errors"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/policy"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

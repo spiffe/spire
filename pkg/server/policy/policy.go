@@ -4,13 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
+	"fmt"
 	"os"
 
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/storage"
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/util"
+)
+
+const (
+	allowKey             = "allow"
+	allowIfAdminKey      = "allow_if_admin"
+	allowIfDownstreamKey = "allow_if_downstream"
+	allowIfAgentKey      = "allow_if_agent"
+	allowIfLocalKey      = "allow_if_local"
 )
 
 // Engine drives policy management.
@@ -49,11 +57,20 @@ type Result struct {
 	AllowIfAgent      bool `json:"allow_if_agent"`
 }
 
+// NewEngineOrDefault returns a new policy engine. Or if no
+// config is provided, provides the default policy
+func NewEngineOrDefault(cfg *EngineConfig) (*Engine, error) {
+	if cfg == nil || cfg.FileProvider == nil {
+		return DefaultAuthPolicy()
+	}
+	return NewEngine(cfg)
+}
+
 // NewEngine returns a new policy engine. Or nil if no
 // config is provided.
 func NewEngine(cfg *EngineConfig) (*Engine, error) {
 	if cfg == nil || cfg.FileProvider == nil {
-		return nil, nil
+		return nil, errors.New("policy engine config provided is invalid")
 	}
 
 	module, err := os.ReadFile(cfg.FileProvider.PolicyPath)
@@ -73,7 +90,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 // DefaultAuthPolicy returns the default policy engine
 func DefaultAuthPolicy() (*Engine, error) {
 	var json map[string]interface{}
-	err := util.UnmarshalJSON([]byte(defaultPermissionData), &json)
+	err := util.UnmarshalJSON(defaultPermissionsData, &json)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +134,7 @@ func (e *Engine) testPolicy() error {
 		}
 
 		if _, err := e.Eval(ctx, inp); err != nil {
-			return fmt.Errorf("policy is misconfigured: %v", err)
+			return fmt.Errorf("policy is misconfigured: %w", err)
 		}
 	}
 	return nil
@@ -136,12 +153,9 @@ func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err erro
 	}
 
 	exp := rs[0].Expressions[0]
-	resultMap := exp.Value.(map[string]interface{})
-
-	var ok bool
-	result.Allow, ok = resultMap["allow"].(bool)
+	resultMap, ok := exp.Value.(map[string]interface{})
 	if !ok {
-		return result, errors.New("policy: result did not contain \"allow\" bool value")
+		return result, errors.New("Unexpected type in evaluating policy result expression")
 	}
 
 	getBoolValue := func(name string) (bool, error) {
@@ -152,23 +166,24 @@ func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err erro
 		return value, nil
 	}
 
+	if result.Allow, err = getBoolValue(allowKey); err != nil {
+		return Result{}, err
+	}
+
 	if result.AllowIfAdmin, err = getBoolValue(allowIfAdminKey); err != nil {
 		return Result{}, err
 	}
 
-	result.AllowIfLocal, ok = resultMap["allow_if_local"].(bool)
-	if !ok {
-		return result, errors.New("policy: result did not contain \"allow_if_local\" bool value")
+	if result.AllowIfLocal, err = getBoolValue(allowIfLocalKey); err != nil {
+		return Result{}, err
 	}
 
-	result.AllowIfDownstream, ok = resultMap["allow_if_downstream"].(bool)
-	if !ok {
-		return result, errors.New("policy: result did not contain \"allow_if_downstream\" bool value")
+	if result.AllowIfDownstream, err = getBoolValue(allowIfDownstreamKey); err != nil {
+		return Result{}, err
 	}
 
-	result.AllowIfAgent, ok = resultMap["allow_if_agent"].(bool)
-	if !ok {
-		return result, errors.New("policy: result did not contain \"allow_if_agent\" bool value")
+	if result.AllowIfAgent, err = getBoolValue(allowIfAgentKey); err != nil {
+		return Result{}, err
 	}
 
 	return result, nil

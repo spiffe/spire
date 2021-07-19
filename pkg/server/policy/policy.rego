@@ -7,9 +7,11 @@ package spire
 # - `allow_if_local`: a boolean that if true, will authorize the call only if the
 #   caller is a local UNIX socket call
 # - `allow_if_admin`:a boolean that if true, will authorize the call only if the
-#   caller is a SPIFFE ID with the Admin flag set
-# - `allow_if_downstream:bool`: a boolean that if true, will authorize the call
-#   only if the caller is a SPIFFE ID that is downstream
+#   caller has an admin SPIFFE ID
+# - `allow_if_downstream`: a boolean that if true, will authorize the call
+#   only if the caller has a downstream SPIFFE ID
+# - `allow_if_agent`: a boolean that if true, will authorize the call only if
+#   the caller is an agent
 
 result = {
   "allow": allow, 

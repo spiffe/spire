@@ -7,7 +7,7 @@ import (
 
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/util"
-	"github.com/spiffe/spire/pkg/common/policy"
+	"github.com/spiffe/spire/pkg/server/policy"
 	"github.com/stretchr/testify/require"
 )
 
