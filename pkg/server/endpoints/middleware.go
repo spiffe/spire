@@ -28,7 +28,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		middleware.WithAuthorization(Authorization(log, ds, clk)),
-		middleware.WithRateLimits(RateLimits(rlConf)),
+		middleware.WithRateLimits(RateLimits(rlConf), metrics),
 	}
 
 	if auditLogEnabled {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"golang.org/x/time/rate"
@@ -83,9 +84,10 @@ func PerIPLimit(limit int) api.RateLimiter {
 //
 // The WithRateLimits middleware depends on the Logger and Authorization
 // middlewares.
-func WithRateLimits(rateLimits map[string]api.RateLimiter) middleware.Middleware {
+func WithRateLimits(rateLimits map[string]api.RateLimiter, metrics telemetry.Metrics) middleware.Middleware {
 	return rateLimitsMiddleware{
 		limiters: rateLimits,
+		metrics:  metrics,
 	}
 }
 
@@ -188,6 +190,7 @@ func (lim *perIPLimiter) getLimiter(ip string) rawRateLimiter {
 
 type rateLimitsMiddleware struct {
 	limiters map[string]api.RateLimiter
+	metrics  telemetry.Metrics
 }
 
 func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
@@ -196,7 +199,7 @@ func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string,
 		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")
 		return nil, status.Errorf(codes.Internal, "rate limiting misconfigured for %q", fullMethod)
 	}
-	return rpccontext.WithRateLimiter(ctx, &rateLimiterWrapper{rateLimiter: rateLimiter}), nil
+	return rpccontext.WithRateLimiter(ctx, &rateLimiterWrapper{rateLimiter: rateLimiter, metrics: i.metrics}), nil
 }
 
 func (i rateLimitsMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
@@ -255,10 +258,17 @@ func logLimiterMisuse(ctx context.Context, rateLimiter api.RateLimiter, used boo
 type rateLimiterWrapper struct {
 	rateLimiter api.RateLimiter
 	used        bool
+	metrics     telemetry.Metrics
 }
 
-func (w *rateLimiterWrapper) RateLimit(ctx context.Context, count int) error {
+func (w *rateLimiterWrapper) RateLimit(ctx context.Context, count int) (err error) {
 	w.used = true
+	switch w.rateLimiter.(type) {
+	case *perCallLimiter, *perIPLimiter:
+		counter := telemetry.StartCall(w.metrics, "rateLimit", getNames(ctx)...)
+		defer counter.Done(&err)
+	}
+
 	return w.rateLimiter.RateLimit(ctx, count)
 }
 
@@ -266,7 +276,15 @@ func (w *rateLimiterWrapper) Used() bool {
 	return w.used
 }
 
-func waitN(ctx context.Context, limiter rawRateLimiter, count int) error {
+func getNames(ctx context.Context) []string {
+	names, ok := rpccontext.Names(ctx)
+	if ok {
+		return names.MetricKey
+	}
+	return []string{}
+}
+
+func waitN(ctx context.Context, limiter rawRateLimiter, count int) (err error) {
 	// limiter.WaitN already provides this check but the error returned is not
 	// strongly typed and is a little messy. Lifting this check so we can
 	// provide a clean error message.
@@ -274,7 +292,7 @@ func waitN(ctx context.Context, limiter rawRateLimiter, count int) error {
 		return status.Errorf(codes.ResourceExhausted, "rate (%d) exceeds burst size (%d)", count, limiter.Burst())
 	}
 
-	err := limiter.WaitN(ctx, count)
+	err = limiter.WaitN(ctx, count)
 	switch {
 	case err == nil:
 		return nil
