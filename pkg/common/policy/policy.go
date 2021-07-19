@@ -56,7 +56,7 @@ func NewEngine(cfg *EngineConfig) (*Engine, error) {
 		return nil, nil
 	}
 
-	module, err := ioutil.ReadFile(cfg.FileProvider.PolicyPath)
+	module, err := os.ReadFile(cfg.FileProvider.PolicyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -112,14 +112,12 @@ func (e *Engine) testPolicy() error {
 	ctx := context.Background()
 	for _, i := range sampleInputs {
 		var inp Input
-		err := json.Unmarshal([]byte(i), &inp)
-		if err != nil {
+		if err := json.Unmarshal([]byte(i), &inp); err != nil {
 			return err
 		}
 
-		_, err = e.Eval(ctx, inp)
-		if err != nil {
-			return errors.New("policy initialization: issue testing configured policy")
+		if _, err := e.Eval(ctx, inp); err != nil {
+			return fmt.Errorf("policy is misconfigured: %v", err)
 		}
 	}
 	return nil
@@ -146,9 +144,16 @@ func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err erro
 		return result, errors.New("policy: result did not contain \"allow\" bool value")
 	}
 
-	result.AllowIfAdmin, ok = resultMap["allow_if_admin"].(bool)
-	if !ok {
-		return result, errors.New("policy: result did not contain \"allow_if_admin\" bool value")
+	getBoolValue := func(name string) (bool, error) {
+		value, ok := resultMap[name].(bool)
+		if !ok {
+			return false, fmt.Errorf("policy: result did not contain %q bool value", name)
+		}
+		return value, nil
+	}
+
+	if result.AllowIfAdmin, err = getBoolValue(allowIfAdminKey); err != nil {
+		return Result{}, err
 	}
 
 	result.AllowIfLocal, ok = resultMap["allow_if_local"].(bool)

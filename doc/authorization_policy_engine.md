@@ -106,7 +106,7 @@ The fields of the result are the following:
   caller is a local UNIX socket call
 - `allow_if_admin`:a boolean that if true, will authorize the call only if the
   caller is a SPIFFE ID with the Admin flag set
-- `allow_if_downstream:bool`: a boolean that if true, will authorize the call 
+- `allow_if_downstream`: a boolean that if true, will authorize the call 
   only if the caller is a SPIFFE ID that is downstream
 
 The inputs that are passed into the policy are:
@@ -126,7 +126,7 @@ api sdk](https://github.com/spiffe/spire-api-sdk/).
 
 The permissoins file consists of a JSON blob which represents the data that is
 used in the evaluation of the policy. This is generally free-form and can be
-used in the rego policy in anyway. Data in this JSON blob is pre-compiled into
+used in the rego policy in any way. Data in this JSON blob is pre-compiled into
 the policy evaluation on the policy engine evaluation. Therefore, there it is
 recommended to put as much data as possible in the databinding so that it can be
 optimized by the policy engine.
@@ -299,7 +299,7 @@ different APIs.
 
 # Extending the policy
 
-Here are some ideas of how the rego policy can be extended.
+This section contains examples of how the authorization policy can be extended.
 
 ## Example 1: Entry creation namespacing restrictions
 
