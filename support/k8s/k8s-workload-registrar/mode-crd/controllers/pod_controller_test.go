@@ -194,7 +194,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		{
 			// Test identity template with a missing context value:
 			identityTemplate: "region/{{.Context.region}}",
-			err:              "template refrences a value not included in context map",
+			err:              "template references a value not included in context map",
 		},
 	}
 
