@@ -122,7 +122,7 @@ func acmeListener(log logrus.FieldLogger, config *Config) net.Listener {
 		HostPolicy: autocert.HostWhitelist(config.Domain),
 		Prompt: func(tosURL string) bool {
 			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
-			return true
+			return config.ACME.ToSAccepted
 		},
 	}
 	return m.Listener()

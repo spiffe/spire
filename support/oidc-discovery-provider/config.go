@@ -24,8 +24,7 @@ type Config struct {
 	LogRequests bool `hcl:"log_requests"`
 
 	// Domain is the domain this provider will be hosted under. It is used
-	// as the domain when building the JWKS URI. It is also used when obtaining
-	// obtaining certs via ACME (unless InsecureAddr is specified).
+	// when obtaining obtaining certs via ACME (unless InsecureAddr is specified).
 	Domain string
 
 	// InsecureAddr is the insecure HTTP address. When set, the server does not
