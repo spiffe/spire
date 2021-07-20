@@ -30,23 +30,26 @@ The provider has the following command line flags:
 The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                  | Type    | Required?   | Description                                              | Default  |
-| -------------------- | --------| ----------- | -------------------------------------------------------- | -------- |
-| `acme`               | section | required[1] | Provides the ACME configuration.                         |          |
-| `domain`             | string  | required    | The domain the provider is being served from.            |          |
-| `insecure_addr`      | string  | required[1] | Exposes the service on http.                             |          |
-| `listen_socket_path` | string  | required[1] | Path on disk to listen with a Unix Domain Socket.        |          |
-| `log_format`         | string  | optional    | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
-| `log_level`          | string  | required    | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
-| `log_path`           | string  | optional    | Path on disk to write the log.                           |          |
-| `log_requests`       | bool    | optional    | If true, all HTTP requests are logged at the debug level | false    |
-| `registration_api`   | section | required[2] | (Deprecated) Provides Registration API details.          |          |
-| `server_api`         | section | required[2] | Provides SPIRE Server API details.                       |          |
-| `workload_api`       | section | required[2] | Provides Workload API details.                           |          |
+| Key                     | Type    | Required?      | Description                                              | Default  |
+| ----------------------  | --------| -------------- | -------------------------------------------------------- | -------- |
+| `acme`                  | section | required[1]    | Provides the ACME configuration.                         |          |
+| `domain`                | string  | required       | The domain the provider is being served from.            |          |
+| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             | `":80"`  |
+| `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.        | `false`  |
+| `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.        |          |
+| `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
+| `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
+| `log_path`              | string  | optional       | Path on disk to write the log.                           |          |
+| `log_requests`          | bool    | optional       | If true, all HTTP requests are logged at the debug level | false    |
+| `registration_api`      | section | required[2]    | (Deprecated) Provides Registration API details.          |          |
+| `server_api`            | section | required[2]    | Provides SPIRE Server API details.                       |          |
+| `workload_api`          | section | required[2]    | Provides Workload API details.                           |          |
 
 [1]: One of `acme` or `listen_socket_path` must be defined.
 
 [2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document. The `registration_api` section is deprecated; the `server_api` section should be used in its place.
+
+[3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_scheme` or `listen_socket_path`.
 
 #### ACME Section
 
