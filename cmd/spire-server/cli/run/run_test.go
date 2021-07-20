@@ -1479,7 +1479,7 @@ func TestHasExpectedTTLs(t *testing.T) {
 	}
 }
 
-func TestCalcCATTL(t *testing.T) {
+func TestMinCATTL(t *testing.T) {
 	for _, v := range []struct {
 		svidTTL time.Duration
 		expect  string
@@ -1504,12 +1504,16 @@ func TestCalcCATTL(t *testing.T) {
 			svidTTL: 24 * time.Hour,
 			expect:  "144h",
 		},
+		{
+			svidTTL: 0,
+			expect:  "6h",
+		},
 	} {
-		assert.Equal(t, v.expect, calcCATTL(v.svidTTL))
+		assert.Equal(t, v.expect, minCATTL(v.svidTTL))
 	}
 }
 
-func TestCalcSVIDTTL(t *testing.T) {
+func TestMinSVIDTTL(t *testing.T) {
 	for _, v := range []struct {
 		caTTL  time.Duration
 		expect string
@@ -1534,8 +1538,12 @@ func TestCalcSVIDTTL(t *testing.T) {
 			caTTL:  24 * time.Hour,
 			expect: "4h",
 		},
+		{
+			caTTL:  0,
+			expect: "4h",
+		},
 	} {
-		assert.Equal(t, v.expect, calcSVIDTTL(v.caTTL))
+		assert.Equal(t, v.expect, minSVIDTTL(v.caTTL))
 	}
 }
 
