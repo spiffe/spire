@@ -45,7 +45,7 @@ func run(configPath string) error {
 	}
 	defer source.Close()
 
-	var handler http.Handler = NewHandler(config.Domain, source)
+	var handler http.Handler = NewHandler(config.Domain, source, config.AllowInsecureScheme)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

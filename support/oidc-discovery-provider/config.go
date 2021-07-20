@@ -27,6 +27,14 @@ type Config struct {
 	// when obtaining certs via ACME (unless ListenSocketPath is specified).
 	Domain string
 
+	// AllowInsecureScheme returns the oidc-discovery-response using URLs served
+	// at HTTP. This option should only be used for testing purposes as it
+	// exposes you to some security threats. In general you will only use this
+	// option allong with the InsecureAddr or ListenSocketPath on a local
+	// development environment.
+	// Do NOT use this in online or production environments.
+	AllowInsecureScheme bool `hcl:"allow_insecure_scheme"`
+
 	// InsecureAddr is the insecure HTTP address. When set, the server does not
 	// perform ACME to obtain certificates and serves HTTP instead of HTTPS.
 	// It is only intended for testing purposes or if the server is

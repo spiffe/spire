@@ -10,16 +10,18 @@ import (
 )
 
 type Handler struct {
-	domain string
-	source JWKSSource
+	domain              string
+	source              JWKSSource
+	allowInsecureScheme bool
 
 	http.Handler
 }
 
-func NewHandler(domain string, source JWKSSource) *Handler {
+func NewHandler(domain string, source JWKSSource, allowInsecureScheme bool) *Handler {
 	h := &Handler{
-		domain: domain,
-		source: source,
+		domain:              domain,
+		source:              source,
+		allowInsecureScheme: allowInsecureScheme,
 	}
 
 	mux := http.NewServeMux()
@@ -35,13 +37,16 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	if r.URL.Scheme == "" {
-		if r.TLS == nil {
-			r.URL.Scheme = "http"
-		} else {
-			r.URL.Scheme = "https"
+	if h.allowInsecureScheme {
+		if r.URL.Scheme == "" {
+			if r.TLS == nil {
+				r.URL.Scheme = "http"
+			} else {
+				r.URL.Scheme = "https"
+			}
 		}
+	} else {
+		r.URL.Scheme = "https"
 	}
 
 	issuerURL := url.URL{
