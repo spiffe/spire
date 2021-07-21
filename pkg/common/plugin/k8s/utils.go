@@ -36,7 +36,6 @@ type SATClaims struct {
 		Namespace      string `json:"namespace"`
 		ServiceAccount struct {
 			Name string `json:"name"`
-			UID  string `json:"uid"`
 		} `json:"serviceaccount"`
 	} `json:"kubernetes.io"`
 }
