@@ -29,6 +29,16 @@ type SATClaims struct {
 	jwt.Claims
 	Namespace          string `json:"kubernetes.io/serviceaccount/namespace"`
 	ServiceAccountName string `json:"kubernetes.io/serviceaccount/service-account.name"`
+
+	// This struct is included in case that a projected service account token is
+	// parsed as a regular service account token
+	K8s struct {
+		Namespace      string `json:"namespace"`
+		ServiceAccount struct {
+			Name string `json:"name"`
+			UID  string `json:"uid"`
+		} `json:"serviceaccount"`
+	} `json:"kubernetes.io"`
 }
 
 // PSATClaims represents claims in a projected service account token, for example:
