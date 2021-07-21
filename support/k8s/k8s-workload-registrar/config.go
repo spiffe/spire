@@ -36,20 +36,18 @@ type Mode interface {
 }
 
 type CommonMode struct {
-	LogFormat          string            `hcl:"log_format"`
-	LogLevel           string            `hcl:"log_level"`
-	LogPath            string            `hcl:"log_path"`
-	TrustDomain        string            `hcl:"trust_domain"`
-	ServerSocketPath   string            `hcl:"server_socket_path"`
-	AgentSocketPath    string            `hcl:"agent_socket_path"`
-	ServerAddress      string            `hcl:"server_address"`
-	Cluster            string            `hcl:"cluster"`
-	PodLabel           string            `hcl:"pod_label"`
-	PodAnnotation      string            `hcl:"pod_annotation"`
-	Mode               string            `hcl:"mode"`
-	DisabledNamespaces []string          `hcl:"disabled_namespaces"`
-	IdentityTemplate   string            `hcl:"identity_template"`
-	Context            map[string]string `hcl:"context"`
+	LogFormat          string   `hcl:"log_format"`
+	LogLevel           string   `hcl:"log_level"`
+	LogPath            string   `hcl:"log_path"`
+	TrustDomain        string   `hcl:"trust_domain"`
+	ServerSocketPath   string   `hcl:"server_socket_path"`
+	AgentSocketPath    string   `hcl:"agent_socket_path"`
+	ServerAddress      string   `hcl:"server_address"`
+	Cluster            string   `hcl:"cluster"`
+	PodLabel           string   `hcl:"pod_label"`
+	PodAnnotation      string   `hcl:"pod_annotation"`
+	Mode               string   `hcl:"mode"`
+	DisabledNamespaces []string `hcl:"disabled_namespaces"`
 	serverAPI          ServerAPIClients
 }
 
@@ -86,19 +84,6 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	}
 	if c.DisabledNamespaces == nil {
 		c.DisabledNamespaces = defaultDisabledNamespaces()
-	}
-	// eliminate orphaned context
-	if c.Context != nil && c.IdentityTemplate == "" {
-		return errs.New("context defined without identity_template")
-	}
-	//
-	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(c.IdentityTemplate, "{{.Context.") {
-		return errs.New("identity_template refrences non-existing context")
-	}
-	// IdentityTemplate represents the format after the trust domain and as such, it must not begin with spiffe://, // or /
-	if strings.HasPrefix(c.IdentityTemplate, "spiffe://") ||
-		strings.HasPrefix(c.IdentityTemplate, "/") {
-		return errs.New("identity template cannot start with spiffe:// or /")
 	}
 
 	return nil
