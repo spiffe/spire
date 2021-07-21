@@ -15,6 +15,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	// Add auth providers to authenticate to clusters to verify tokens
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
 const (

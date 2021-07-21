@@ -534,10 +534,17 @@ func (m *Manager) cacheGet(ctx context.Context, ck certKey) (*tls.Certificate, e
 	if err != nil {
 		return nil, ErrCacheMiss
 	}
+
 	tlscert := &tls.Certificate{
 		Certificate: pubDER,
 		PrivateKey:  privKey,
 		Leaf:        leaf,
+		// Limit the supported signature algorithms to those that use SHA256
+		// to align with a minimum set supported by known key managers.
+		// See issue #2302.
+		// TODO: Query the key manager for supported algorithms to determine
+		// this set dynamically.
+		SupportedSignatureAlgorithms: supportedSignatureAlgorithms(privKey),
 	}
 	return tlscert, nil
 }
@@ -1113,6 +1120,12 @@ func (s *certState) tlscert() (*tls.Certificate, error) {
 		PrivateKey:  s.key,
 		Certificate: s.cert,
 		Leaf:        s.leaf,
+		// Limit the supported signature algorithms to those that use SHA256
+		// to align with a minimum set supported by known key managers.
+		// See issue #2302.
+		// TODO: Query the key manager for supported algorithms to determine
+		// this set dynamically.
+		SupportedSignatureAlgorithms: supportedSignatureAlgorithms(s.key),
 	}, nil
 }
 
@@ -1197,6 +1210,17 @@ func (r *lockedMathRand) int63n(max int64) int64 {
 	n := r.rnd.Int63n(max)
 	r.Unlock()
 	return n
+}
+
+func supportedSignatureAlgorithms(privKey crypto.Signer) []tls.SignatureScheme {
+	var out []tls.SignatureScheme
+	switch privKey.Public().(type) {
+	case *ecdsa.PublicKey:
+		out = []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256}
+	case *rsa.PublicKey:
+		out = []tls.SignatureScheme{tls.PKCS1WithSHA256, tls.PSSWithSHA256}
+	}
+	return out
 }
 
 // For easier testing.

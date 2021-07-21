@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ type kmsClientFake struct {
 	store                  fakeStore
 	mu                     sync.RWMutex
 	testKeys               testkey.Keys
+	validAliasName         *regexp.Regexp
 	createKeyErr           error
 	describeKeyErr         error
 	getPublicKeyErr        error
@@ -45,6 +47,10 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 	return &kmsClientFake{
 		t:     t,
 		store: newFakeStore(c),
+
+		// Valid KMS alias name must match the expression below:
+		// https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax
+		validAliasName: regexp.MustCompile(`alias[a-zA-Z0-9/_-]+$`),
 	}
 }
 
@@ -252,6 +258,10 @@ func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasI
 	defer k.mu.RUnlock()
 	if k.createAliasErr != nil {
 		return nil, k.createAliasErr
+	}
+
+	if !k.validAliasName.MatchString(*input.AliasName) {
+		return nil, fmt.Errorf("unsupported KMS alias name: %v", *input.AliasName)
 	}
 
 	err := k.store.SaveAlias(*input.TargetKeyId, *input.AliasName)

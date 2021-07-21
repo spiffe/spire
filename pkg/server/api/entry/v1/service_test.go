@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
+	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -51,21 +53,61 @@ func TestCountEntries(t *testing.T) {
 			name:  "0 entries",
 			count: 0,
 			resp:  &entryv1.CountEntriesResponse{Count: 0},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:  "1 entries",
 			count: 1,
 			resp:  &entryv1.CountEntriesResponse{Count: 1},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:  "2 entries",
 			count: 2,
 			resp:  &entryv1.CountEntriesResponse{Count: 2},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:  "3 entries",
 			count: 3,
 			resp:  &entryv1.CountEntriesResponse{Count: 3},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:    "ds error",
@@ -78,6 +120,16 @@ func TestCountEntries(t *testing.T) {
 					Message: "Failed to count entries",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "rpc error: code = Internal desc = ds error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to count entries: ds error",
 					},
 				},
 			},
@@ -154,11 +206,10 @@ func TestListEntries(t *testing.T) {
 		},
 	}
 	badRegEntry := &common.RegistrationEntry{
-		ParentId: parentID.String(),
+		ParentId: td.NewID("malformed").String(),
 		SpiffeId: "zzz://malformed id",
 		Selectors: []*common.Selector{
-			{Type: "unix", Value: "uid:1000"},
-			{Type: "unix", Value: "gid:1000"},
+			{Type: "unix", Value: "uid:1001"},
 		},
 	}
 
@@ -213,7 +264,7 @@ func TestListEntries(t *testing.T) {
 		name                  string
 		err                   string
 		code                  codes.Code
-		logMsg                string
+		expectLogs            []spiretest.LogEntry
 		dsError               error
 		expectedNextPageToken string
 		expectedEntries       []*types.Entry
@@ -249,12 +300,46 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.BySelectorMatch:    "MATCH_EXACT",
+						telemetry.BySelectors:        "unix:uid:1000,unix:gid:1000",
+						telemetry.FederatesWith:      "spiffe://domain1.org",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+						telemetry.ParentID:           "spiffe://example.org/parent",
+						telemetry.SPIFFEID:           "spiffe://example.org/child",
+					},
+				},
+			},
 		},
 		{
 			name:            "empty request",
-			logMsg:          "Failed to convert entry: ",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request:         &entryv1.ListEntriesRequest{},
+			expectLogs: []spiretest.LogEntry{
+				// Error is expected when trying to parse a malformed RegistrationEntry into types.Entry,
+				// but test case will not fail, just log it.
+				{
+					Level:   logrus.ErrorLevel,
+					Message: fmt.Sprintf("Failed to convert entry: %q", badEntry.EntryId),
+					Data: logrus.Fields{
+						logrus.ErrorKey: `invalid SPIFFE ID: spiffeid: unable to parse: parse "zzz://malformed id": invalid character " " in host name`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by parent ID",
@@ -264,6 +349,17 @@ func TestListEntries(t *testing.T) {
 					ByParentId: protoParentID,
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.ParentID: "spiffe://example.org/parent",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by SPIFFE ID",
@@ -271,6 +367,17 @@ func TestListEntries(t *testing.T) {
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: protoChildID,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/child",
+					},
 				},
 			},
 		},
@@ -284,6 +391,18 @@ func TestListEntries(t *testing.T) {
 							{Type: "unix", Value: "uid:1000"},
 						},
 						Match: types.SelectorMatch_MATCH_EXACT,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     "unix:uid:1000",
 					},
 				},
 			},
@@ -303,6 +422,18 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_SUBSET",
+						telemetry.BySelectors:     "unix:uid:1000,unix:gid:1000,unix:user:me",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by federates with exact match (no subset)",
@@ -319,6 +450,18 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+						telemetry.FederatesWith:      "spiffe://domain1.org,domain2.org",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by federates with exact match (no superset)",
@@ -330,6 +473,18 @@ func TestListEntries(t *testing.T) {
 							federatedTd.IDString(),
 						},
 						Match: types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+						telemetry.FederatesWith:      "spiffe://domain1.org",
 					},
 				},
 			},
@@ -350,6 +505,18 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+						telemetry.FederatesWith:      "spiffe://domain1.org,spiffe://domain2.org,domain2.org",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by federates with exact match (not federated)",
@@ -361,6 +528,18 @@ func TestListEntries(t *testing.T) {
 							notFederatedTd.String(),
 						},
 						Match: types.FederatesWithMatch_MATCH_EXACT,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+						telemetry.FederatesWith:      "domain3.org",
 					},
 				},
 			},
@@ -381,6 +560,18 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_SUBSET",
+						telemetry.FederatesWith:      "spiffe://domain1.org,domain2.org,spiffe://domain3.org",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by federates with subset match (no superset)",
@@ -392,6 +583,18 @@ func TestListEntries(t *testing.T) {
 							federatedTd.IDString(),
 						},
 						Match: types.FederatesWithMatch_MATCH_SUBSET,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_SUBSET",
+						telemetry.FederatesWith:      "spiffe://domain1.org",
 					},
 				},
 			},
@@ -412,6 +615,18 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_SUBSET",
+						telemetry.FederatesWith:      "spiffe://domain1.org,spiffe://domain2.org,domain2.org",
+					},
+				},
+			},
 		},
 		{
 			name:            "filter by federates with subset match (not federated)",
@@ -426,6 +641,18 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "success",
+						telemetry.Type:               "audit",
+						telemetry.FederatesWithMatch: "MATCH_SUBSET",
+						telemetry.FederatesWith:      "domain3.org",
+					},
+				},
+			},
 		},
 		{
 			name:                  "page",
@@ -434,34 +661,98 @@ func TestListEntries(t *testing.T) {
 			request: &entryv1.ListEntriesRequest{
 				PageSize: 1,
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:    "ds error",
 			err:     "failed to list entries: ds error",
 			code:    codes.Internal,
-			logMsg:  "Failed to list entries",
 			dsError: errors.New("ds error"),
 			request: &entryv1.ListEntriesRequest{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to list entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "ds error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to list entries: ds error",
+					},
+				},
+			},
 		},
 		{
-			name:   "bad parent ID filter",
-			err:    "malformed parent ID filter: trust domain is empty",
-			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: malformed parent ID filter",
+			name: "bad parent ID filter",
+			err:  "malformed parent ID filter: trust domain is empty",
+			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByParentId: badID,
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: malformed parent ID filter",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "trust domain is empty",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed parent ID filter: trust domain is empty",
+					},
+				},
+			},
 		},
 		{
-			name:   "bad SPIFFE ID filter",
-			err:    "malformed SPIFFE ID filter: trust domain is empty",
-			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: malformed SPIFFE ID filter",
+			name: "bad SPIFFE ID filter",
+			err:  "malformed SPIFFE ID filter: trust domain is empty",
+			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: badID,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: malformed SPIFFE ID filter",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "trust domain is empty",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "malformed SPIFFE ID filter: trust domain is empty",
+					},
 				},
 			},
 		},
@@ -469,19 +760,38 @@ func TestListEntries(t *testing.T) {
 			name:            "bad selectors filter (no selectors)",
 			err:             "malformed selectors filter: empty selector set",
 			code:            codes.InvalidArgument,
-			logMsg:          "Invalid argument: malformed selectors filter",
 			expectedEntries: []*types.Entry{expectedChild, expectedSecondChild},
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: malformed selectors filter",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "empty selector set",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "error",
+						telemetry.Type:            "audit",
+						telemetry.StatusCode:      "InvalidArgument",
+						telemetry.StatusMessage:   "malformed selectors filter: empty selector set",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     "",
+					},
+				},
+			},
 		},
 		{
-			name:   "bad selectors filter (bad selector)",
-			err:    "malformed selectors filter: missing selector type",
-			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: malformed selectors filter",
+			name: "bad selectors filter (bad selector)",
+			err:  "malformed selectors filter: missing selector type",
+			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
@@ -491,23 +801,63 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: malformed selectors filter",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "missing selector type",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "error",
+						telemetry.Type:            "audit",
+						telemetry.StatusCode:      "InvalidArgument",
+						telemetry.StatusMessage:   "malformed selectors filter: missing selector type",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     ":uid:1000",
+					},
+				},
+			},
 		},
 		{
-			name:   "bad federates with filter (no trust domains)",
-			err:    "malformed federates with filter: empty trust domain set",
-			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: malformed federates with filter",
+			name: "bad federates with filter (no trust domains)",
+			err:  "malformed federates with filter: empty trust domain set",
+			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: malformed federates with filter",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "empty trust domain set",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "error",
+						telemetry.Type:               "audit",
+						telemetry.StatusCode:         "InvalidArgument",
+						telemetry.StatusMessage:      "malformed federates with filter: empty trust domain set",
+						telemetry.FederatesWith:      "",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+					},
+				},
+			},
 		},
 		{
-			name:   "bad federates with filter (bad trust domain)",
-			err:    "malformed federates with filter: spiffeid: trust domain is empty",
-			code:   codes.InvalidArgument,
-			logMsg: "Invalid argument: malformed federates with filter",
+			name: "bad federates with filter (bad trust domain)",
+			err:  "malformed federates with filter: spiffeid: trust domain is empty",
+			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
@@ -517,19 +867,37 @@ func TestListEntries(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: malformed federates with filter",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "spiffeid: trust domain is empty",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:             "error",
+						telemetry.Type:               "audit",
+						telemetry.StatusCode:         "InvalidArgument",
+						telemetry.StatusMessage:      "malformed federates with filter: spiffeid: trust domain is empty",
+						telemetry.FederatesWith:      "",
+						telemetry.FederatesWithMatch: "MATCH_EXACT",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
 			ds.SetNextError(tt.dsError)
 
 			// exercise
 			entries, err := test.client.ListEntries(context.Background(), tt.request)
-
-			// assert
-			if tt.logMsg != "" {
-				require.Contains(t, test.logHook.LastEntry().Message, tt.logMsg)
-			}
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 
 			if tt.err != "" {
 				require.Nil(t, entries)
@@ -607,6 +975,17 @@ func TestGetEntry(t *testing.T) {
 				ParentId: true,
 				SpiffeId: true,
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.RegistrationID: goodEntry.EntryId,
+					},
+				},
+			},
 		},
 		{
 			name:    "no outputMask",
@@ -626,12 +1005,34 @@ func TestGetEntry(t *testing.T) {
 				Downstream:    true,
 				ExpiresAt:     expiresAt,
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.RegistrationID: goodEntry.EntryId,
+					},
+				},
+			},
 		},
 		{
 			name:        "outputMask all false",
 			entryID:     goodEntry.EntryId,
 			expectEntry: &types.Entry{Id: goodEntry.EntryId},
 			outputMask:  &types.EntryMask{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.RegistrationID: goodEntry.EntryId,
+					},
+				},
+			},
 		},
 		{
 			name: "missing ID",
@@ -641,6 +1042,16 @@ func TestGetEntry(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: missing ID",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "missing ID",
+					},
 				},
 			},
 		},
@@ -656,6 +1067,17 @@ func TestGetEntry(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.RegistrationID: goodEntry.EntryId,
 						logrus.ErrorKey:          "ds error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: goodEntry.EntryId,
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.StatusCode:     "Internal",
+						telemetry.StatusMessage:  "failed to fetch entry: ds error",
 					},
 				},
 			},
@@ -674,6 +1096,17 @@ func TestGetEntry(t *testing.T) {
 						telemetry.RegistrationID: "invalidEntryID",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.StatusCode:     "NotFound",
+						telemetry.StatusMessage:  "entry not found",
+						telemetry.RegistrationID: "invalidEntryID",
+					},
+				},
 			},
 		},
 		{
@@ -688,6 +1121,17 @@ func TestGetEntry(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.RegistrationID: malformedEntry.EntryId,
 						logrus.ErrorKey:          "invalid SPIFFE ID: spiffeid: invalid scheme",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.StatusCode:     "Internal",
+						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
+						telemetry.RegistrationID: malformedEntry.EntryId,
 					},
 				},
 			},
@@ -789,10 +1233,64 @@ func TestBatchCreateEntry(t *testing.T) {
 			name: "multiple entries",
 			expectLogs: []spiretest.LogEntry{
 				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.RevisionNumber: "0",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.TTL:            "60",
+					},
+				},
+				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "invalid DNS name: empty or only whitespace",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to convert entry: invalid DNS name: empty or only whitespace",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/agent",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value",
+						telemetry.SPIFFEID:       "spiffe://example.org/malformed",
+						telemetry.TTL:            "0",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "entry2",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/agent",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload2",
+						telemetry.TTL:            "0",
 					},
 				},
 			},
@@ -879,6 +1377,27 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 			reqEntries:      []*types.Entry{testEntry},
 			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.TTL:            "60",
+					},
+				},
+			},
 		},
 		{
 			name: "output mask all false",
@@ -893,6 +1412,27 @@ func TestBatchCreateEntry(t *testing.T) {
 			outputMask:      &types.EntryMask{},
 			reqEntries:      []*types.Entry{testEntry},
 			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.TTL:            "60",
+					},
+				},
+			},
 		},
 		{
 			name:          "no entries to add",
@@ -937,6 +1477,25 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.TTL:            "60",
+					},
+				},
+			},
 		},
 		{
 			name: "returns existing similar entry",
@@ -969,6 +1528,26 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.Selectors:      "unix:gid:1000,unix:uid:1000",
+						telemetry.RevisionNumber: "0",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.TTL:            "20",
+						telemetry.StatusCode:     "AlreadyExists",
+						telemetry.StatusMessage:  "similar entry already exists",
+					},
+				},
+			},
 		},
 		{
 			name: "invalid entry",
@@ -988,6 +1567,21 @@ func TestBatchCreateEntry(t *testing.T) {
 						logrus.ErrorKey: "invalid parent ID: trust domain is empty",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.ExpiresAt:      "0",
+						telemetry.RevisionNumber: "0",
+						telemetry.TTL:            "0",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
+					},
+				},
 			},
 			reqEntries: []*types.Entry{
 				{
@@ -1004,6 +1598,27 @@ func TestBatchCreateEntry(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "creating error",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.TTL:            "60",
+						telemetry.StatusCode:     "Internal",
+						telemetry.StatusMessage:  "failed to create entry: creating error",
 					},
 				},
 			},
@@ -1030,6 +1645,28 @@ func TestBatchCreateEntry(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "invalid SPIFFE ID: spiffeid: invalid scheme",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "error",
+						telemetry.Type:   "audit",
+
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.TTL:            "60",
+						telemetry.StatusCode:     "Internal",
+						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
 				},
 			},
@@ -1149,10 +1786,39 @@ func TestBatchDeleteEntry(t *testing.T) {
 
 				expectedLogs := []spiretest.LogEntry{
 					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[fooSpiffeID].EntryId,
+						},
+					},
+					{
 						Level:   logrus.ErrorLevel,
 						Message: "Entry not found",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: "not found",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: "not found",
+							telemetry.StatusCode:     "NotFound",
+							telemetry.StatusMessage:  "entry not found",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[barSpiffeID].EntryId,
 						},
 					},
 				}
@@ -1188,6 +1854,17 @@ func TestBatchDeleteEntry(t *testing.T) {
 							Level:   logrus.ErrorLevel,
 							Message: "Invalid argument: missing entry ID",
 						},
+						{
+							Level:   logrus.InfoLevel,
+							Message: "API accessed",
+							Data: logrus.Fields{
+								telemetry.Status:         "error",
+								telemetry.Type:           "audit",
+								telemetry.RegistrationID: "",
+								telemetry.StatusCode:     "InvalidArgument",
+								telemetry.StatusMessage:  "missing entry ID",
+							},
+						},
 					}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
@@ -1216,6 +1893,17 @@ func TestBatchDeleteEntry(t *testing.T) {
 								logrus.ErrorKey:          "some error",
 							},
 						},
+						{
+							Level:   logrus.InfoLevel,
+							Message: "API accessed",
+							Data: logrus.Fields{
+								telemetry.Status:         "error",
+								telemetry.Type:           "audit",
+								telemetry.RegistrationID: m[fooSpiffeID].EntryId,
+								telemetry.StatusCode:     "Internal",
+								telemetry.StatusMessage:  "failed to delete entry: some error",
+							},
+						},
 					}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
@@ -1240,6 +1928,17 @@ func TestBatchDeleteEntry(t *testing.T) {
 							Message: "Entry not found",
 							Data: logrus.Fields{
 								telemetry.RegistrationID: "invalid id",
+							},
+						},
+						{
+							Level:   logrus.InfoLevel,
+							Message: "API accessed",
+							Data: logrus.Fields{
+								telemetry.Status:         "error",
+								telemetry.Type:           "audit",
+								telemetry.RegistrationID: "invalid id",
+								telemetry.StatusCode:     "NotFound",
+								telemetry.StatusMessage:  "entry not found",
 							},
 						},
 					}
@@ -1334,11 +2033,31 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			name:           "success",
 			fetcherEntries: []*types.Entry{proto.Clone(&entry1).(*types.Entry), proto.Clone(&entry2).(*types.Entry)},
 			expectEntries:  []*types.Entry{&entry1, &entry2},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:           "success, no entries",
 			fetcherEntries: []*types.Entry{},
 			expectEntries:  []*types.Entry{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:           "success with output mask",
@@ -1362,6 +2081,16 @@ func TestGetAuthorizedEntries(t *testing.T) {
 				ParentId:  true,
 				Selectors: true,
 			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:           "success with output mask all false",
@@ -1375,6 +2104,16 @@ func TestGetAuthorizedEntries(t *testing.T) {
 				},
 			},
 			outputMask: &types.EntryMask{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
 		},
 		{
 			name:         "no caller id",
@@ -1385,6 +2124,16 @@ func TestGetAuthorizedEntries(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Caller ID missing from request context",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "caller ID missing from request context",
+					},
 				},
 			},
 		},
@@ -1399,6 +2148,16 @@ func TestGetAuthorizedEntries(t *testing.T) {
 					Message: "Failed to fetch entries",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "rpc error: code = Internal desc = fetcher fails",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to fetch entries: fetcher fails",
 					},
 				},
 			},
@@ -1499,15 +2258,25 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 		ef:      ef,
 	}
 
-	contextFn := func(ctx context.Context) context.Context {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.withCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)
 		}
-		return ctx
-	}
+		return ctx, nil
+	})
 
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
+		ppMiddleware,
+		// Add audit log with uds tracking disabled
+		middleware.WithAuditLog(false),
+	))
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
+	)
+
+	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
 	test.done = done
 	test.client = entryv1.NewEntryClient(conn)
 
@@ -1589,6 +2358,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.ParentID:       "spiffe://example.org/parentUpdated",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Update Spiffe Id",
@@ -1617,6 +2400,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					Entry: &types.Entry{
 						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}},
 				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.SPIFFEID:       "spiffe://example.org/workloadUpdated",
+						},
+					},
+				}
 			},
 		},
 		{
@@ -1659,6 +2456,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Selectors:      "unix:uid:2000",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Update Multiple Selectors",
@@ -1687,6 +2498,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 						},
 					},
 				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Selectors:      "unix:uid:2000,unix:gid:2000",
+						},
+					},
+				}
 			},
 		},
 		{
@@ -1718,6 +2543,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.TTL:            "1000",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Update FederatesWith",
@@ -1747,6 +2586,19 @@ func TestBatchUpdateEntry(t *testing.T) {
 						FederatesWith: []string{},
 					},
 				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
 			},
 		},
 		{
@@ -1778,6 +2630,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Admin:          "false",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Update Downstream",
@@ -1807,6 +2673,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Downstream: false,
 					},
 				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Downstream:     "false",
+						},
+					},
+				}
 			},
 		},
 		{
@@ -1838,6 +2718,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.ExpiresAt:      "999",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Update DnsNames",
@@ -1868,6 +2762,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.DNSName:        "dnsUpdated",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Don't Update TTL",
@@ -1897,6 +2805,19 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Fail Invalid Spiffe Id",
@@ -1923,6 +2844,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "invalid spiffe ID: trust domain is empty",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is empty",
 						},
 					},
 				}
@@ -1955,6 +2887,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 							logrus.ErrorKey:          "invalid parent ID: trust domain is empty",
 						},
 					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
+						},
+					},
 				}
 			},
 		},
@@ -1983,6 +2926,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Data: logrus.Fields{
 							"error":                  "invalid parent ID: trust domain is empty",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
 						},
 					},
 				}
@@ -2015,6 +2969,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is empty",
+						},
+					},
 				}
 			},
 		},
@@ -2045,6 +3010,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to convert entry: selector list is empty",
+						},
+					},
 				}
 			},
 		},
@@ -2073,6 +3049,18 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							logrus.ErrorKey:          "datastore error",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "Internal",
+							telemetry.StatusMessage:  "failed to update entry: datastore error",
+							telemetry.ParentID:       "spiffe://example.org/workload",
 						},
 					},
 				}
@@ -2110,6 +3098,28 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Admin:          "false",
+							telemetry.DNSName:        "dns3,dns4",
+							telemetry.Downstream:     "false",
+							telemetry.ExpiresAt:      "999999999",
+							telemetry.ParentID:       "spiffe://example.org/validUpdated",
+							telemetry.RevisionNumber: "0",
+							telemetry.Selectors:      "unix:uid:9999",
+							telemetry.SPIFFEID:       "spiffe://example.org/validUpdated",
+							telemetry.TTL:            "500000",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Nil Output Mask",
@@ -2145,6 +3155,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.TTL:            "500000",
+						},
+					},
+				}
+			},
 		},
 		{
 			name:           "Success Empty Input Mask",
@@ -2170,6 +3194,19 @@ func TestBatchUpdateEntry(t *testing.T) {
 						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 					},
 				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
 			},
 		},
 		{
@@ -2198,6 +3235,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 					Entry:  &types.Entry{},
 				},
 			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.TTL:            "500000",
+						},
+					},
+				}
+			},
 		},
 	} {
 		tt := tt
@@ -2224,6 +3275,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				spiffeToIDMap[createResp.Results[i].Entry.SpiffeId.Path] = createResp.Results[i].Entry.Id
 			}
 			ds.SetNextError(tt.dsError)
+			// Clean creation logs
+			test.logHook.Reset()
 
 			// Actually do the update, with the proper IDs
 			resp, err := test.client.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
@@ -2233,9 +3286,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if tt.expectLogs != nil {
-				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs(spiffeToIDMap))
-			}
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs(spiffeToIDMap))
 			if tt.err != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
 				require.Nil(t, resp)

@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/api/audit"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/spiretest"
@@ -62,6 +63,7 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 	contextFn := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		ctx = rpccontext.WithCallerAdminEntries(ctx, []*types.Entry{{Admin: true}})
+		ctx = rpccontext.WithAuditLog(ctx, audit.New(log))
 		return ctx
 	}
 

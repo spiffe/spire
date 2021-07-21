@@ -31,7 +31,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -275,11 +274,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	p.clients.configure(config.SessionConfig)
 
 	return &configv1.ConfigureResponse{}, nil
-}
-
-// GetPluginInfo returns the version and related metadata of the installed plugin.
-func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
 }
 
 // SetLogger sets this plugin's logger
