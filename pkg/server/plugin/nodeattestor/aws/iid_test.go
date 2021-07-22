@@ -117,7 +117,7 @@ func (s *IIDAttestorSuite) TestErrorOnAlreadyAttested() {
 
 	client := mock_aws.NewMockClient(mockCtrl)
 
-	mockGetEC2Client := func(config *SessionConfig, region string) (Client, error) {
+	mockGetEC2Client := func(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
 		return client, nil
 	}
 	clients := newClientsCache(mockGetEC2Client)
@@ -401,7 +401,7 @@ func (s *IIDAttestorSuite) TestClientAndIDReturns() {
 
 			client := mock_aws.NewMockClient(mockCtl)
 
-			mockGetEC2Client := func(config *SessionConfig, region string) (Client, error) {
+			mockGetEC2Client := func(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
 				return client, nil
 			}
 			clients := newClientsCache(mockGetEC2Client)
