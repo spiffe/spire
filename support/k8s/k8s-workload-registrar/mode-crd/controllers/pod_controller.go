@@ -46,36 +46,57 @@ const (
 
 // PodReconcilerConfig holds the config passed in when creating the reconciler
 type PodReconcilerConfig struct {
-	Client             client.Client
-	Cluster            string
-	Ctx                context.Context
-	DisabledNamespaces []string
-	Log                logrus.FieldLogger
-	PodLabel           string
-	PodAnnotation      string
-	Scheme             *runtime.Scheme
-	TrustDomain        string
-	IdentityTemplate   string
-	Context            map[string]string
+	Client                client.Client
+	Cluster               string
+	Ctx                   context.Context
+	DisabledNamespaces    []string
+	Log                   logrus.FieldLogger
+	PodLabel              string
+	PodAnnotation         string
+	Scheme                *runtime.Scheme
+	TrustDomain           string
+	IdentityTemplate      string
+	Context               map[string]string
+	IdentityTemplateLabel string
 }
 
+// PodInfo is created for every processed Pod and it holds pod specific information
+type PodInfo struct {
+	PodServiceAccountIDLabel string
+	NamespaceIDLabel         string
+	PodNameIDLabel           string
+	PodUIDLabel              string
+	PodHostnameLabel         string
+	PodNodeNameLabel         string
+}
+
+// IdentityMaps is used for forming the text from the templates
 type IdentityMaps struct {
 	Context map[string]string
-	Pod     map[string]string
+	Pod     PodInfo
 }
 
 // PodReconciler holds the runtime configuration and state of this controller
 type PodReconciler struct {
 	client.Client
-	c PodReconcilerConfig
+	c             PodReconcilerConfig
+	identityTempl *template.Template
 }
 
 // NewPodReconciler creates a new PodReconciler object
-func NewPodReconciler(config PodReconcilerConfig) *PodReconciler {
-	return &PodReconciler{
-		Client: config.Client,
-		c:      config,
+func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
+
+	tpl := config.IdentityTemplate
+	tmpl, err := template.New("IdentityTemplate").Parse(tpl)
+	if err != nil {
+		config.Log.WithError(err).Errorf("error parsing the template %q", tpl)
+		return &PodReconciler{}, err
 	}
+	return &PodReconciler{
+		Client:        config.Client,
+		c:             config,
+		identityTempl: tmpl,
+	}, nil
 }
 
 // SetupWithManager adds a controller manager to manage this reconciler
@@ -212,12 +233,22 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
+		if r.c.IdentityTemplateLabel != "" {
+			if labelValue, ok := pod.Labels[r.c.IdentityTemplateLabel]; ok {
+				if strings.EqualFold("true", labelValue) {
+					return makeID(r.c.TrustDomain, svid), nil
+				}
+			}
+			return "", nil
+		}
 		return makeID(r.c.TrustDomain, svid), nil
 	}
 
-	// the controller has not been configured with a specific identity format.
-	// create an entry based on the service account.
-	return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName), nil
+	// the controller has not been configured with any required format. This should not happen, since the
+	// config_crd prevents this case.
+	// return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName), nil
+	return "", nil
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
@@ -225,15 +256,9 @@ func (r *PodReconciler) podParentID(nodeName string) string {
 }
 
 func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
-	tpl := r.c.IdentityTemplate
-	tmpl, err := template.New("IdentityTemplate").Parse(tpl)
-	if err != nil {
-		r.c.Log.WithError(err).Errorf("error parsing the template %q", tpl)
-		return "", err
-	}
 
 	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
-	podInfo := map[string]string{
+	podInfo := PodInfo{
 		PodServiceAccountIDLabel: pod.Spec.ServiceAccountName,
 		NamespaceIDLabel:         pod.Namespace,
 		PodNameIDLabel:           pod.Name,
@@ -247,9 +272,9 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
 		Pod:     podInfo,
 	}
 	var svid bytes.Buffer
-	err = tmpl.Execute(&svid, templateMaps)
+	err := r.identityTempl.Execute(&svid, templateMaps)
 	if err != nil {
-		r.c.Log.WithError(err).Errorf("Error executing the template %q with maps: %#v", tpl, templateMaps)
+		r.c.Log.WithError(err).Errorf("Error executing the template %q with maps: %#v", r.c.IdentityTemplate, templateMaps)
 		return svid.String(), err
 	}
 	// detect missing context values

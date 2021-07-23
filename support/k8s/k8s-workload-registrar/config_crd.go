@@ -155,19 +155,25 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = controllers.NewPodReconciler(controllers.PodReconcilerConfig{
-			Client:             mgr.GetClient(),
-			Cluster:            c.Cluster,
-			Ctx:                ctx,
-			DisabledNamespaces: c.DisabledNamespaces,
-			Log:                log,
-			PodLabel:           c.PodLabel,
-			PodAnnotation:      c.PodAnnotation,
-			Scheme:             mgr.GetScheme(),
-			TrustDomain:        c.TrustDomain,
-			IdentityTemplate:   c.IdentityTemplate,
-			Context:            c.Context,
-		}).SetupWithManager(mgr)
+		
+		p, err := controllers.NewPodReconciler(controllers.PodReconcilerConfig{
+			Client:                mgr.GetClient(),
+			Cluster:               c.Cluster,
+			Ctx:                   ctx,
+			DisabledNamespaces:    c.DisabledNamespaces,
+			Log:                   log,
+			PodLabel:              c.PodLabel,
+			PodAnnotation:         c.PodAnnotation,
+			Scheme:                mgr.GetScheme(),
+			TrustDomain:           c.TrustDomain,
+			IdentityTemplate:      c.IdentityTemplate,
+			Context:               c.Context,
+			IdentityTemplateLabel: c.IdentityTemplateLabel,
+		})
+		if err != nil {
+			return err
+		}
+		err = p.SetupWithManager(mgr)
 		if err != nil {
 			return err
 		}

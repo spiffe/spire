@@ -71,7 +71,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 	}
 
 	for _, test := range tests {
-		p := NewPodReconciler(PodReconcilerConfig{
+		p, err := NewPodReconciler(PodReconcilerConfig{
 			Client:        s.k8sClient,
 			Cluster:       s.cluster,
 			Ctx:           s.ctx,
@@ -81,6 +81,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 			Scheme:        s.scheme,
 			TrustDomain:   s.trustDomain,
 		})
+		s.Require().NoError(err)
 
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -97,7 +98,7 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 				NodeName: "test-node",
 			},
 		}
-		err := s.k8sClient.Create(s.ctx, &pod)
+		err = s.k8sClient.Create(s.ctx, &pod)
 		s.Require().NoError(err)
 		s.reconcile(p)
 		labelSelector := labels.Set(map[string]string{
@@ -147,21 +148,29 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 // TestIdentityTemplate checks the various formats of the SPIFFE ID provided via IdentityTemplate.
 func (s *PodControllerTestSuite) TestIdentityTemplate() {
 	tests := []struct {
-		identityTemplate string
-		context          map[string]string
-		expectedSVID     string
-		uid              string
-		err              string
+		identityTemplate      string
+		identityTemplateLabel string
+		labelValue            string
+		context               map[string]string
+		expectedSVID          string
+		uid                   string
+		err                   string
 	}{
-		{
-			// Default format, without the template
-			expectedSVID: fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
-		},
+
 		{
 			// Default format, template provided
-			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			expectedSVID:     fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			identityTemplate:      "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}001",
+			identityTemplateLabel: "IDENTITYLABEL",
+			labelValue:            "true",
+			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s/podName/%s001", PodNamespace, PodServiceAccount, PodName),
 		},
+		// {
+		// 	// Default format, template provided
+		// 	identityTemplate:      "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}001x",
+		// 	identityTemplateLabel: "IDENTITYLABEL",
+		// 	labelValue:            "false",
+		// 	expectedSVID:          fmt.Sprintf("ns/%s/sa/%s/podName/%s001x", PodNamespace, PodServiceAccount, PodName),
+		// },
 		{
 			// Test provided identity template corresponding to a default format:
 			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
@@ -199,22 +208,26 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 	}
 
 	for _, test := range tests {
-		p := NewPodReconciler(PodReconcilerConfig{
-			Client:           s.k8sClient,
-			Cluster:          s.cluster,
-			Ctx:              s.ctx,
-			Log:              s.log,
-			Scheme:           s.scheme,
-			TrustDomain:      s.trustDomain,
-			IdentityTemplate: test.identityTemplate,
-			Context:          test.context,
+		p, err := NewPodReconciler(PodReconcilerConfig{
+			Client:                s.k8sClient,
+			Cluster:               s.cluster,
+			Ctx:                   s.ctx,
+			Log:                   s.log,
+			Scheme:                s.scheme,
+			TrustDomain:           s.trustDomain,
+			IdentityTemplate:      test.identityTemplate,
+			Context:               test.context,
+			IdentityTemplateLabel: test.identityTemplateLabel,
 		})
+		s.Require().NoError(err)
 
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      PodName,
 				Namespace: PodNamespace,
-				UID:       types.UID(test.uid),
+				Labels:    map[string]string{test.identityTemplateLabel: test.labelValue},
+				// UID:       types.UID(test.uid),
+				// UID: types.UID(strconv.Itoa(i)),
 			},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{{
@@ -226,7 +239,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 				ServiceAccountName: PodServiceAccount,
 			},
 		}
-		err := s.k8sClient.Create(s.ctx, &pod)
+		err = s.k8sClient.Create(s.ctx, &pod)
 		s.Require().NoError(err)
 		req := ctrl.Request{
 			NamespacedName: types.NamespacedName{
@@ -234,7 +247,6 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 				Namespace: PodNamespace,
 			},
 		}
-
 		_, err = p.Reconcile(req)
 		if err != nil {
 			s.Require().Error(err)
@@ -276,6 +288,11 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		err = s.k8sClient.Delete(s.ctx, &pod)
 		s.Require().NoError(err)
 		s.reconcile(p)
+		spiffeIDList = spiffeidv1beta1.SpiffeIDList{}
+		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+			LabelSelector: labelSelector.AsSelector(),
+		})
+		s.Require().NoError(err)
 	}
 }
 
