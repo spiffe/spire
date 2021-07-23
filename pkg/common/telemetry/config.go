@@ -12,19 +12,19 @@ type MetricsConfig struct {
 }
 
 type MetricsConfigOptions struct {
-	AllowedPrefixes []string // A list of metric prefixes to allow, with '.' as the separator
-	BlockedPrefixes []string // A list of metric prefixes to block, with '.' as the separator
-	AllowedLabels   []string // A list of metric labels to allow, with '.' as the separator
-	BlockedLabels   []string // A list of metric labels to block, with '.' as the separator
+	AllowedPrefixes []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
+	BlockedPrefixes []string `hcl:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
+	AllowedLabels   []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
+	BlockedLabels   []string `hcl:"BlockedLabels"`   // A list of metric labels to block, with '.' as the separator
 }
 
 type FileConfig struct {
-	Options    MetricsConfigOptions
-	Prometheus *PrometheusConfig `hcl:"Prometheus"`
-	DogStatsd  []DogStatsdConfig `hcl:"DogStatsd"`
-	Statsd     []StatsdConfig    `hcl:"Statsd"`
-	M3         []M3Config        `hcl:"M3"`
-	InMem      *InMem            `hcl:"InMem"`
+	Options    MetricsConfigOptions `hcl:"Options"`
+	Prometheus *PrometheusConfig    `hcl:"Prometheus"`
+	DogStatsd  []DogStatsdConfig    `hcl:"DogStatsd"`
+	Statsd     []StatsdConfig       `hcl:"Statsd"`
+	M3         []M3Config           `hcl:"M3"`
+	InMem      *InMem               `hcl:"InMem"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
