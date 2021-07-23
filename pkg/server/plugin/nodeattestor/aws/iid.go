@@ -112,6 +112,7 @@ type IIDAttestorConfig struct {
 	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors"`
 	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate               string   `hcl:"agent_path_template"`
+	AssumeRole                      string   `hcl:"assume_role"`
 	pathTemplate                    *template.Template
 	trustDomain                     string
 	awsCaCertPublicKey              *rsa.PublicKey
@@ -155,7 +156,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
-	awsClient, err := p.clients.getClient(attestationData.Region)
+	awsClient, err := p.clients.getClient(attestationData.Region, attestationData.AccountID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get client: %v", err)
 	}
