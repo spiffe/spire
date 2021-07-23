@@ -24,15 +24,16 @@ const (
 
 type CRDMode struct {
 	CommonMode
-	AddSvcDNSName    bool              `hcl:"add_svc_dns_name"`
-	LeaderElection   bool              `hcl:"leader_election"`
-	MetricsBindAddr  string            `hcl:"metrics_bind_addr"`
-	PodController    bool              `hcl:"pod_controller"`
-	WebhookEnabled   bool              `hcl:"webhook_enabled"`
-	WebhookCertDir   string            `hcl:"webhook_cert_dir"`
-	WebhookPort      int               `hcl:"webhook_port"`
-	IdentityTemplate string            `hcl:"identity_template"`
-	Context          map[string]string `hcl:"context"`
+	AddSvcDNSName         bool              `hcl:"add_svc_dns_name"`
+	LeaderElection        bool              `hcl:"leader_election"`
+	MetricsBindAddr       string            `hcl:"metrics_bind_addr"`
+	PodController         bool              `hcl:"pod_controller"`
+	WebhookEnabled        bool              `hcl:"webhook_enabled"`
+	WebhookCertDir        string            `hcl:"webhook_cert_dir"`
+	WebhookPort           int               `hcl:"webhook_port"`
+	IdentityTemplate      string            `hcl:"identity_template"`
+	IdentityTemplateLabel string            `hcl:"identity_template_label"`
+	Context               map[string]string `hcl:"context"`
 }
 
 func (c *CRDMode) ParseConfig(hclConfig string) error {
@@ -54,18 +55,39 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		c.WebhookPort = defaultWebhookPort
 	}
 
+	if c.IdentityTemplate != "" && c.CommonMode.PodAnnotation != "" {
+		return errs.New("workload registration configuration is incorrect, can't specify both identity_template and pod_annotation")
+	}
+
+	if c.IdentityTemplate != "" && c.CommonMode.PodLabel != "" {
+		return errs.New("workload registration configuration is incorrect, can't specify both identity_template and pod_label")
+	}
+
+	// eliminate orphaned identity_template_label
+	if c.IdentityTemplateLabel != "" && c.IdentityTemplate == "" {
+		return errs.New("identity_template_label defined without identity_template")
+	}
+
 	// eliminate orphaned context
 	if c.Context != nil && c.IdentityTemplate == "" {
 		return errs.New("context defined without identity_template")
 	}
-	//
+
+	// eliminate reference to non-existing context
 	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(c.IdentityTemplate, "{{.Context.") {
 		return errs.New("identity_template references non-existing context")
 	}
+
 	// IdentityTemplate represents the format following the trust domain and as such, it must not begin with spiffe://, // or /
 	if strings.HasPrefix(c.IdentityTemplate, "spiffe://") ||
 		strings.HasPrefix(c.IdentityTemplate, "/") {
-		return errs.New("identity template cannot start with spiffe:// or /")
+		return errs.New("identity_template cannot start with spiffe:// or /")
+	}
+
+	if c.CommonMode.Mode == modeCRD {
+		if c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
+			return errs.New("in crd mode, only one workload registration mode is allowed: identity_template, pod_annotation or pod_label")
+		}
 	}
 
 	return nil
