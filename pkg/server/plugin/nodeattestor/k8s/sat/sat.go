@@ -197,8 +197,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 		}
 		if !claims.Expiry.Time().IsZero() {
 			// This is an indication that this may be a projected service account token
-			p.log.Warn(`The service account token has an expiration time, which is an indication that may be a projected service account token.
-			If your cluster supports Service Account Token Volume Projection you should instead consider using the "k8s_psat" attestor. Please look at https://github.com/spiffe/spire/blob/main/doc/plugin_server_nodeattestor_k8s_sat.md#security-considerations for details about security considerations when using the "k8s_sat" attestor.`)
+			p.log.Warn("The service account token has an expiration time, which is an indication that may be a projected service account token. If your cluster supports Service Account Token Volume Projection you should instead consider using the `k8s_psat` attestor. Please look at https://github.com/spiffe/spire/blob/main/doc/plugin_server_nodeattestor_k8s_sat.md#security-considerations for details about security considerations when using the `k8s_sat` attestor.")
 
 			// Validate the time with leeway
 			if err := claims.ValidateWithLeeway(jwt.Expected{
@@ -243,7 +242,7 @@ func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace st
 		namespace = claims.K8s.Namespace
 	} else {
 		if claims.K8s.Namespace != "" {
-			return "", "", errors.New("malformed token: namespace found in two places")
+			return "", "", errors.New("malformed token: namespace found in two claims")
 		}
 		namespace = claims.Namespace
 	}
@@ -255,7 +254,7 @@ func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace st
 		serviceAccountName = claims.K8s.ServiceAccount.Name
 	} else {
 		if claims.K8s.ServiceAccount.Name != "" {
-			return "", "", errors.New("malformed token: service account name found in two places")
+			return "", "", errors.New("malformed token: service account name found in two claims")
 		}
 		serviceAccountName = claims.ServiceAccountName
 	}

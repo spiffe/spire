@@ -208,7 +208,7 @@ func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
 	builder = builder.Claims(claims)
 	token, err := builder.CompactSerialize()
 	s.Require().NoError(err)
-	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: namespace found in two places")
+	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: namespace found in two claims")
 
 	// Clear the namespace from the SAT space but leave the duplicated service account name
 	claims.K8s.Namespace = ""
@@ -218,7 +218,7 @@ func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
 	builder = builder.Claims(claims)
 	token, err = builder.CompactSerialize()
 	s.Require().NoError(err)
-	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: service account name found in two places")
+	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: service account name found in two claims")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
