@@ -36,6 +36,10 @@ var (
 	}
 )
 
+type noopRateLimiter interface {
+	noop()
+}
+
 // rawRateLimiter represents the raw limiter functionality.
 type rawRateLimiter interface {
 	WaitN(ctx context.Context, count int) error
@@ -97,11 +101,15 @@ func (noLimit) RateLimit(ctx context.Context, count int) error {
 	return nil
 }
 
+func (noLimit) noop() {}
+
 type disabledLimit struct{}
 
 func (disabledLimit) RateLimit(ctx context.Context, count int) error {
 	return nil
 }
+
+func (disabledLimit) noop() {}
 
 type perCallLimiter struct {
 	limiter rawRateLimiter
@@ -263,8 +271,7 @@ type rateLimiterWrapper struct {
 
 func (w *rateLimiterWrapper) RateLimit(ctx context.Context, count int) (err error) {
 	w.used = true
-	switch w.rateLimiter.(type) {
-	case *perCallLimiter, *perIPLimiter:
+	if _, noop := w.rateLimiter.(noopRateLimiter); !noop {
 		counter := telemetry.StartCall(w.metrics, "rateLimit", getNames(ctx)...)
 		defer counter.Done(&err)
 	}
