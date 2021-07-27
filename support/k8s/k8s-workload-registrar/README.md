@@ -52,11 +52,12 @@ The following configuration directives are specific to `"crd"` mode:
 | `leader_election`          | bool    | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
 | `metrics_bind_addr`        | string  | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
 | `pod_controller`           | bool    | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
-| `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. Only needed if manually creating entries | `false` |
+| `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates. Only needed if manually creating entries | `false` |
 | `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
-| `identity_template`        | string  | optional | The template for custom SVID format |  |
-| `context`                  | map[string]string | optional | The map of key/value pairs of arbitrary string parameters for specified by `identity_template` | |
+| `identity_template`        | string  | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) |  |
+| `identity_template_label`  | string  | optional | Pod label for selecting pods that get SVID defined by `identity_template` format. If not set, applies to all the pods |  |
+| `context`                  | map[string]string | optional | The map of key/value pairs of arbitrary string parameters to be used by `identity_template` | |
 
 The following configuration directives are specific to `"reconcile"` mode:
 
@@ -79,9 +80,18 @@ cluster = "production"
 
 ## Workload Registration
 When running in webhook, reconcile, or crd mode with `pod_controller=true` entries will be automatically created for
-Pods. There are three workload registration modes. If you use Service Account Based, don't specify either `pod_label`
-or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you use Annotation Based,
-specify only `pod_annotation`.
+Pods. There are following workload registration modes:
+
+| Registration Mode | pod_label | pod_annotation | identity_template | Service Account Based |
+| ----------------- | --------- | -------------- | ----------------- | --------------- |
+| `webhook`   | as specified by pod_label | as specified by pod_annotation | _unavailable_ | service account |
+| `reconcile` | as specified by pod_label | as specified by pod_annotation | _unavailable_ | service account |
+| `crd`       | as specified by pod_label | as specified by pod_annotation | as specified by identity_template | _unavailable_ |
+
+For `webhook` and `reconcile` modes, if you use [Service Account Based](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you use Annotation Based, specify only `pod_annotation`.
+
+For `crd` mode, you must select only one workload registration mode, either `pod_label`,
+`pod_annotation` or `identity_template`.
 
 It may take several seconds for newly created SVIDs to become available to workloads.
 
@@ -164,6 +174,58 @@ Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
 
 Pods that don't contain the pod annotation are ignored.
 
+### Identity Template Based Workload Registration
+
+Identity template based workload registration provides a way for customizing the format of the SVID. The format of the identity is cluster scoped. The template can reference arbitrary values provided in `context` map of strings, and the following Pod specific arguments:
+
+* Pod.pod_name
+* Pod.pod_uid
+* Pod.namespace
+* Pod.service_account
+* Pod.hostname
+* Pod.node_name
+
+For example if the registrar was configured with the following:
+```
+identity_template = "region/{{.Context.region}}/cluster/{{.Context.cluster_name}}/sa/{{.Pod.service_account}}/pod_name/{{.Pod.pod_name}}"
+context {
+  region = "US-NORTH"
+  cluster_name = "MYCLUSTER"
+}
+```
+and the _example-workload_ pod was deployed in _production_ namespace and _myserviceacct_ service account, the following registration entry would be created:
+```
+Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
+SPIFFE ID     : spiffe://example.org/region/US-NORTH/cluster/MYCLUSTER/sa/myserviceacct/pod_name/example-workload
+Parent ID     : ...
+TTL           : default
+Selector      : k8s:ns:production
+Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
+```
+
+If `identity_template_label` is defined in the registrar configuration:
+
+```
+identity_template_label = "enable_identity_template"
+```
+
+only pods with the same label set to `true` would get identity SVID.
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    enable_identity_template: true
+spec:
+  containers:
+  ...
+```
+Pods that don't contain the pod label are ignored.
+
+If `identity_template_label` is empty or omitted, all the pods will receive the identity.
+
+
 ## Deployment
 
 The registrar can either be deployed as standalone deployment, or as a container in the SPIRE server pod.
@@ -192,26 +254,7 @@ The following configuration is required before `"crd"` mode can be used:
    * This creates a new ValidatingWebhookConfiguration and Service, both named `k8s-workload-registrar`
    * Make sure to add your CA Bundle to the ValidatingWebhookConfiguration where it says `<INSERT BASE64 CA BUNDLE HERE>`
    * Additionally a Secret that volume mounts the certificate and key to use for the webhook. See `webhook_cert_dir` configuration option above.
-1. The CRD mode allows custom format of the SVID via `identity_template` with Pod specific values, and provided `context` map of string arguments. Currently supported Pod arguments:
-    * `Pod.pod_name` - name of the pod
-    * `Pod.pod_uid` - pod UID
-    * `Pod.service_account` - service account associated with the pod
-    * `Pod.hostname` - hostname of the pod
-    * `Pod.node_name` - name of the node hosting a pod
-
-```
-identity_template = "region/{{.Context.region}}/cluster_name/{{.Context.cluster_name}}/ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}"
-context {
-  region = "EU-DE"
-  cluster_name = "MYCLUSTER"
-}
-```
-
-assuming `namespace=test` and `service_account=default`:
-
-```
-spiffe://example.org/region/EU-DE/cluster_name/MYCLUSTER/ns/test/sa/default
-```
+1. The CRD mode allows custom format of the SVID via `identity_template` with Pod specific values, and provided `context` map of string arguments. See [Identity Template Based Workload Registration](#identity-template-based-workload-registration)
 
 #### CRD mode Security Considerations
 It is imperative to only grant trusted users access to manually create SpiffeId custom resources. Users with access have the ability to issue any SpiffeId
