@@ -56,8 +56,8 @@ type PodReconcilerConfig struct {
 	Scheme                *runtime.Scheme
 	TrustDomain           string
 	IdentityTemplate      string
-	Context               map[string]string
 	IdentityTemplateLabel string
+	Context               map[string]string
 }
 
 // PodInfo is created for every processed Pod and it holds pod specific information
@@ -65,7 +65,7 @@ type PodInfo struct {
 	PodServiceAccountIDLabel string
 	NamespaceIDLabel         string
 	PodNameIDLabel           string
-	PodUIDLabel              string
+	PodUIDLabel              types.UID
 	PodHostnameLabel         string
 	PodNodeNameLabel         string
 }
@@ -85,11 +85,9 @@ type PodReconciler struct {
 
 // NewPodReconciler creates a new PodReconciler object
 func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
-
-	tpl := config.IdentityTemplate
-	tmpl, err := template.New("IdentityTemplate").Parse(tpl)
+	tmpl, err := template.New("IdentityTemplate").Parse(config.IdentityTemplate)
 	if err != nil {
-		config.Log.WithError(err).Errorf("error parsing the template %q", tpl)
+		config.Log.WithError(err).Errorf("error parsing the template %q", config.IdentityTemplate)
 		return &PodReconciler{}, err
 	}
 	return &PodReconciler{
@@ -226,29 +224,31 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 		return "", nil
 	}
 
-	// the controller has not been configured with a pod label or a pod annotation.
-	if r.c.IdentityTemplate != "" {
-		// create an entry using provided identity template.
-		svid, err := r.getIdentityTemplate(pod)
-		if err != nil {
-			return "", err
-		}
-
-		if r.c.IdentityTemplateLabel != "" {
-			if labelValue, ok := pod.Labels[r.c.IdentityTemplateLabel]; ok {
-				if strings.EqualFold("true", labelValue) {
-					return makeID(r.c.TrustDomain, svid), nil
-				}
-			}
-			return "", nil
-		}
-		return makeID(r.c.TrustDomain, svid), nil
+	// the controller has not been configured with a pod label or a pod annotation, so identity_template must be set
+	// as it is enforced in config_crd 
+	if r.c.IdentityTemplate == "" {
+		// this is just a sanity check
+		return "", nil
 	}
 
-	// the controller has not been configured with any required format. This should not happen, since the
-	// config_crd prevents this case.
-	// return makeID(r.c.TrustDomain, "ns/%s/sa/%s", pod.Namespace, pod.Spec.ServiceAccountName), nil
-	return "", nil
+	// if identity_template_label is not provided, all pods get the template formatted SVID
+	if r.c.IdentityTemplateLabel != "" {
+		// if identity_template_label is provided, only pods that have this label=`true` get the template formatted SVID
+		if labelValue, ok := pod.Labels[r.c.IdentityTemplateLabel]; ok {
+			if !strings.EqualFold("true", labelValue) {
+				return "", nil
+			}
+		} else {
+			return "", nil
+		}
+	}
+
+	// create an entry using provided identity template.
+	svid, err := r.getIdentityTemplate(pod)
+	if err != nil {
+		return "", err
+	}
+	return makeID(r.c.TrustDomain, svid), nil
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {
@@ -262,7 +262,7 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
 		PodServiceAccountIDLabel: pod.Spec.ServiceAccountName,
 		NamespaceIDLabel:         pod.Namespace,
 		PodNameIDLabel:           pod.Name,
-		PodUIDLabel:              string(pod.UID),
+		PodUIDLabel:              pod.UID,
 		PodHostnameLabel:         pod.Spec.Hostname,
 		PodNodeNameLabel:         pod.Spec.NodeName,
 	}

@@ -55,12 +55,8 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		c.WebhookPort = defaultWebhookPort
 	}
 
-	if c.IdentityTemplate != "" && c.CommonMode.PodAnnotation != "" {
-		return errs.New("workload registration configuration is incorrect, can't specify both identity_template and pod_annotation")
-	}
-
-	if c.IdentityTemplate != "" && c.CommonMode.PodLabel != "" {
-		return errs.New("workload registration configuration is incorrect, can't specify both identity_template and pod_label")
+	if c.IdentityTemplate != "" && (c.CommonMode.PodAnnotation != "" || c.CommonMode.PodLabel != "") {
+		return errs.New("workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label")
 	}
 
 	// eliminate orphaned identity_template_label
@@ -74,7 +70,8 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 	}
 
 	// eliminate reference to non-existing context
-	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(c.IdentityTemplate, "{{.Context.") {
+	// strip out the blanc space first
+	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ",""), "{{.Context.") {
 		return errs.New("identity_template references non-existing context")
 	}
 
@@ -84,10 +81,9 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		return errs.New("identity_template cannot start with spiffe:// or /")
 	}
 
-	if c.CommonMode.Mode == modeCRD {
-		if c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
-			return errs.New("in crd mode, only one workload registration mode is allowed: identity_template, pod_annotation or pod_label")
-		}
+	// one, and only one, workload registartion identity format must be selected.
+	if c.CommonMode.Mode == modeCRD && c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
+		return errs.New("in crd mode, but no workload registration mode set")
 	}
 
 	return nil
@@ -155,7 +151,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		
 		p, err := controllers.NewPodReconciler(controllers.PodReconcilerConfig{
 			Client:                mgr.GetClient(),
 			Cluster:               c.Cluster,
