@@ -483,16 +483,17 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			printMaxSVIDTTL(sc.CATTL),
 		)
 
-		if sc.SVIDTTL < ca.MaxSVIDTTL() {
+		switch {
+		case sc.SVIDTTL < ca.MaxSVIDTTL():
 			// The SVID TTL is smaller than our cap, but the CA TTL
 			// is not large enough to accommodate it
 			sc.Log.Warn(msgCATTLTooSmall)
-		} else if sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()) {
+		case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()):
 			// The SVID TTL is larger than our cap, it needs to be
 			// decreased no matter what. Additionally, the CA TTL is
 			// too small to accommodate the maximum SVID TTL.
 			sc.Log.Warn(msgSVIDTTLTooLargeAndCATTLTooSmall)
-		} else {
+		default:
 			// The SVID TTL is larger than our cap and needs to be
 			// decreased.
 			sc.Log.Warn(msgSVIDTTLTooLarge)
