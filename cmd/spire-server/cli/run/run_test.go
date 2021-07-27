@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -1411,71 +1412,119 @@ func TestLogOptions(t *testing.T) {
 	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
 }
 
-func TestHasExpectedTTLs(t *testing.T) {
+func TestHasCompatibleTTLs(t *testing.T) {
 	cases := []struct {
-		msg             string
-		caTTL           time.Duration
-		svidTTL         time.Duration
-		hasExpectedTTLs bool
+		msg               string
+		caTTL             time.Duration
+		svidTTL           time.Duration
+		hasCompatibleTTLs bool
 	}{
-		// ca_ttl isn't less than default_svid_ttl * 6
 		{
-			msg:             "Both values are default values",
-			caTTL:           0,
-			svidTTL:         0,
-			hasExpectedTTLs: true,
+			msg:               "Both values are default values",
+			caTTL:             0,
+			svidTTL:           0,
+			hasCompatibleTTLs: true,
 		},
 		{
-			msg:             "ca_ttl is 7h and default_svid_ttl is default value 1h",
-			caTTL:           time.Hour * 7,
-			svidTTL:         0,
-			hasExpectedTTLs: true,
+			msg:               "ca_ttl is large enough for the default SVID TTL",
+			caTTL:             time.Hour * 7,
+			svidTTL:           0,
+			hasCompatibleTTLs: true,
 		},
 		{
-			msg:             "ca_ttl is default value 24h and default_svid_ttl is 3h",
-			caTTL:           0,
-			svidTTL:         time.Hour * 3,
-			hasExpectedTTLs: true,
+			msg:               "ca_ttl is not large enough for the default SVID TTL",
+			caTTL:             time.Minute * 1,
+			svidTTL:           0,
+			hasCompatibleTTLs: false,
 		},
 		{
-			msg:             "ca_ttl is 70h and default_svid_ttl is 10h",
-			caTTL:           time.Hour * 70,
-			svidTTL:         time.Hour * 10,
-			hasExpectedTTLs: true,
+			msg:               "default_svid_ttl is small enough for the default CA TTL",
+			caTTL:             0,
+			svidTTL:           time.Hour * 3,
+			hasCompatibleTTLs: true,
 		},
 		{
-			msg:             "ca_ttl is 1152h and default_svid_ttl is 192h",
-			caTTL:           time.Hour * 1152,
-			svidTTL:         time.Hour * 192,
-			hasExpectedTTLs: true,
-		},
-		// ca_ttl is less than default_svid_ttl * 6
-		{
-			msg:             "ca_ttl is 5h and default_svid_ttl is default value 1h",
-			caTTL:           time.Hour * 5,
-			svidTTL:         0,
-			hasExpectedTTLs: false,
+			msg:               "default_svid_ttl is not small enough for the default CA TTL",
+			caTTL:             0,
+			svidTTL:           time.Hour * 24,
+			hasCompatibleTTLs: false,
 		},
 		{
-			msg:             "ca_ttl is default value 24h and default_svid_ttl is 5h",
-			caTTL:           0,
-			svidTTL:         time.Hour * 5,
-			hasExpectedTTLs: false,
+			msg:               "default_svid_ttl is small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           time.Hour * 1,
+			hasCompatibleTTLs: true,
 		},
 		{
-			msg:             "ca_ttl is 50h and default_svid_ttl is 10h",
-			caTTL:           time.Hour * 50,
-			svidTTL:         time.Hour * 10,
-			hasExpectedTTLs: false,
+			msg:               "default_svid_ttl is not small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           time.Hour * 23,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_svid_ttl is larger than the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           time.Hour * 25,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_svid_ttl is small enough for the configured CA TTL but larger than the max",
+			caTTL:             time.Hour * 24 * 7 * 4 * 6, // Six months
+			svidTTL:           time.Hour * 24 * 7 * 2,     // Two weeks
+			hasCompatibleTTLs: false,
 		},
 	}
 
 	for _, testCase := range cases {
 		testCase := testCase
+		if testCase.caTTL == 0 {
+			testCase.caTTL = ca.DefaultCATTL
+		}
+		if testCase.svidTTL == 0 {
+			testCase.svidTTL = ca.DefaultX509SVIDTTL
+		}
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			require.Equal(t, testCase.hasExpectedTTLs, hasExpectedTTLs(testCase.caTTL, testCase.svidTTL))
+			require.Equal(t, testCase.hasCompatibleTTLs, hasCompatibleTTLs(testCase.caTTL, testCase.svidTTL))
 		})
+	}
+}
+
+func TestMaxSVIDTTL(t *testing.T) {
+	for _, v := range []struct {
+		caTTL  time.Duration
+		expect string
+	}{
+		{
+			caTTL:  10 * time.Second,
+			expect: "1s",
+		},
+		{
+			caTTL:  15 * time.Second,
+			expect: "2s",
+		},
+		{
+			caTTL:  10 * time.Minute,
+			expect: "1m40s",
+		},
+		{
+			caTTL:  22 * time.Minute,
+			expect: "3m40s",
+		},
+		{
+			caTTL:  24 * time.Hour,
+			expect: "4h",
+		},
+		{
+			caTTL:  0,
+			expect: "4h",
+		},
+	} {
+		if v.caTTL == 0 {
+			v.caTTL = ca.DefaultCATTL
+		}
+
+		assert.Equal(t, v.expect, printMaxSVIDTTL(v.caTTL))
 	}
 }
 
@@ -1509,41 +1558,11 @@ func TestMinCATTL(t *testing.T) {
 			expect:  "6h",
 		},
 	} {
-		assert.Equal(t, v.expect, minCATTL(v.svidTTL))
-	}
-}
+		if v.svidTTL == 0 {
+			v.svidTTL = ca.DefaultX509SVIDTTL
+		}
 
-func TestMinSVIDTTL(t *testing.T) {
-	for _, v := range []struct {
-		caTTL  time.Duration
-		expect string
-	}{
-		{
-			caTTL:  10 * time.Second,
-			expect: "1s",
-		},
-		{
-			caTTL:  15 * time.Second,
-			expect: "2s",
-		},
-		{
-			caTTL:  10 * time.Minute,
-			expect: "1m40s",
-		},
-		{
-			caTTL:  22 * time.Minute,
-			expect: "3m40s",
-		},
-		{
-			caTTL:  24 * time.Hour,
-			expect: "4h",
-		},
-		{
-			caTTL:  0,
-			expect: "4h",
-		},
-	} {
-		assert.Equal(t, v.expect, minSVIDTTL(v.caTTL))
+		assert.Equal(t, v.expect, printMinCATTL(v.svidTTL))
 	}
 }
 

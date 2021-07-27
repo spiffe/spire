@@ -458,10 +458,45 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CATTL = ttl
 	}
 
-	if !hasExpectedTTLs(sc.CATTL, sc.SVIDTTL) {
-		sc.Log.Warnf("The default_svid_ttl is too high for the configured ca_ttl value. SVIDs with shorter lifetimes may be issued. "+
-			"Please set default_svid_ttl to %v or less, or ca_ttl to %v or more, to guarantee the default_svid_ttl lifetime when CA rotations are scheduled.",
-			minSVIDTTL(sc.CATTL), minCATTL(sc.SVIDTTL))
+	// If the configured TTLs can lead to surprises, then do our best to log an
+	// accurate message and guide the user to resolution
+	if !hasCompatibleTTLs(sc.CATTL, sc.SVIDTTL) {
+		msgCATTLTooSmall := fmt.Sprintf(
+			"The default_svid_ttl is too high for the configured ca_ttl value. "+
+				"SVIDs with shorter lifetimes may be issued. "+
+				"Please set the default_svid_ttl to %v or less, or the ca_ttl to %v or more, "+
+				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
+			printMaxSVIDTTL(sc.CATTL), printMinCATTL(sc.SVIDTTL),
+		)
+		msgSVIDTTLTooLargeAndCATTLTooSmall := fmt.Sprintf(
+			"The default_svid_ttl is too high and the ca_ttl is too low."+
+				"SVIDs with shorter lifetimes may be issued. "+
+				"Please set the default_svid_ttl to %v or less, and the ca_ttl to %v or more, "+
+				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
+			printDuration(ca.MaxSVIDTTL()), printMinCATTL(ca.MaxSVIDTTL()),
+		)
+		msgSVIDTTLTooLarge := fmt.Sprintf(
+			"The default_svid_ttl is too high. "+
+				"SVIDs with shorter lifetimes may be issued. "+
+				"Please set the default_svid_ttl to %v or less "+
+				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
+			printMaxSVIDTTL(sc.CATTL),
+		)
+
+		if sc.SVIDTTL < ca.MaxSVIDTTL() {
+			// The SVID TTL is smaller than our cap, but the CA TTL
+			// is not large enough to accommodate it
+			sc.Log.Warn(msgCATTLTooSmall)
+		} else if sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()) {
+			// The SVID TTL is larger than our cap, it needs to be
+			// decreased no matter what. Additionally, the CA TTL is
+			// too small to accommodate the maximum SVID TTL.
+			sc.Log.Warn(msgSVIDTTLTooLargeAndCATTLTooSmall)
+		} else {
+			// The SVID TTL is larger than our cap and needs to be
+			// decreased.
+			sc.Log.Warn(msgSVIDTTLTooLarge)
+		}
 	}
 
 	if c.Server.CAKeyType != "" {
@@ -675,11 +710,13 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:  "0.0.0.0",
-			BindPort:     8081,
-			LogLevel:     defaultLogLevel,
-			LogFormat:    log.DefaultFormat,
-			Experimental: experimentalConfig{},
+			BindAddress:    "0.0.0.0",
+			BindPort:       8081,
+			CATTL:          ca.DefaultCATTL.String(),
+			LogLevel:       defaultLogLevel,
+			LogFormat:      log.DefaultFormat,
+			DefaultSVIDTTL: ca.DefaultX509SVIDTTL.String(),
+			Experimental:   experimentalConfig{},
 		},
 	}
 }
@@ -699,37 +736,24 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	}
 }
 
-// hasExpectedTTLs checks if we can guarantee the configured SVID TTL given the
+// hasCompatibleTTLs checks if we can guarantee the configured SVID TTL given the
 // configurd CA TTL. If we detect that a new SVIDs TTL may be cut short due to
 // a scheduled CA rotation, this function will return false.
-func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
-	if caTTL == 0 {
-		caTTL = ca.DefaultCATTL
-	}
-	if svidTTL == 0 {
-		svidTTL = ca.DefaultX509SVIDTTL
-	}
-
-	return ca.MinSVIDTTLForCATTL(caTTL) >= svidTTL
+func hasCompatibleTTLs(caTTL, svidTTL time.Duration) bool {
+	return ca.MaxSVIDTTLForCATTL(caTTL) >= svidTTL
 }
 
-// minSVIDTTL calculates the display string for a sufficiently short SVID TTL
-func minSVIDTTL(caTTL time.Duration) string {
-	if caTTL == 0 {
-		caTTL = ca.DefaultCATTL
-	}
-	return shortTimeDurationString(ca.MinSVIDTTLForCATTL(caTTL))
+// maxSVIDTTL calculates the display string for a sufficiently short SVID TTL
+func printMaxSVIDTTL(caTTL time.Duration) string {
+	return printDuration(ca.MaxSVIDTTLForCATTL(caTTL))
 }
 
 // minCATTL calculates the display string for a sufficiently large CA TTL
-func minCATTL(svidTTL time.Duration) string {
-	if svidTTL == 0 {
-		svidTTL = ca.DefaultX509SVIDTTL
-	}
-	return shortTimeDurationString(ca.MinCATTLForSVIDTTL(svidTTL))
+func printMinCATTL(svidTTL time.Duration) string {
+	return printDuration(ca.MinCATTLForSVIDTTL(svidTTL))
 }
 
-func shortTimeDurationString(d time.Duration) string {
+func printDuration(d time.Duration) string {
 	s := d.Truncate(time.Second).String()
 	if strings.HasSuffix(s, "m0s") {
 		s = s[:len(s)-2]

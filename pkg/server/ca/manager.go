@@ -1033,20 +1033,31 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 	}, nil
 }
 
+// MaxSVIDTTL returns the maximum SVID lifetime that can be guaranteed to not
+// be cut artificially short by a scheduled rotation.
+func MaxSVIDTTL() time.Duration {
+	return activationThresholdCap
+}
+
+// MaxSVIDTTLForCATTL returns the maximum SVID TTL that can be guaranteed given
+// a specific CA TTL. In other words, given a CA TTL, what is the largest SVID
+// TTL that is guaranteed to not be cut artificially short by a scheduled
+// rotation?
+func MaxSVIDTTLForCATTL(caTTL time.Duration) time.Duration {
+	maxTTL := caTTL / activationThresholdDivisor
+	if maxTTL > activationThresholdCap {
+		maxTTL = activationThresholdCap
+	}
+
+	return maxTTL
+}
+
 // MinCATTLForSVIDTTL returns the minimum CA TTL necessary to guarantee an SVID
 // TTL of the provided value. In other words, given an SVID TTL, what is the
 // minimum CA TTL that will guarantee that the SVIDs lifetime won't be cut
 // artificially short by a scheduled rotation?
 func MinCATTLForSVIDTTL(svidTTL time.Duration) time.Duration {
 	return svidTTL * activationThresholdDivisor
-}
-
-// MinSVIDTTLForCATTL returns the minimum SVID TTL that can be guaranteed given
-// a specific CA TTL. In other words, given a CA TTL, what is the smallest SVID
-// TTL that is guaranteed to not be cut artificially short by a scheduled
-// rotation?
-func MinSVIDTTLForCATTL(caTTL time.Duration) time.Duration {
-	return caTTL / activationThresholdDivisor
 }
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
