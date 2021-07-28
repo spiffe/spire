@@ -22,6 +22,9 @@ type Config struct {
 
 	Log logrus.FieldLogger
 
+	// If true enables audit logs
+	AuditLogEnabled bool
+
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 

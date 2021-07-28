@@ -30,35 +30,44 @@ func TestV0(t *testing.T) {
 	resultWithSelectors := &nodeattestor.AttestResult{AgentID: agentID, Selectors: selectors}
 
 	for _, tt := range []struct {
-		test          string
-		plugin        *fakeV0Plugin
-		payload       string
-		responseErr   error
-		expectCode    codes.Code
-		expectMessage string
-		expectResult  *nodeattestor.AttestResult
+		test           string
+		plugin         *fakeV0Plugin
+		payload        string
+		responseErr    error
+		expectAnyError bool
+		expectCode     codes.Code
+		expectMessage  string
+		expectResult   *nodeattestor.AttestResult
 	}{
+		{
+			test:          "payload cannot be empty",
+			plugin:        &fakeV0Plugin{},
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "payload cannot be empty",
+		},
 		{
 			test:          "plugin closes stream immediately",
 			plugin:        &fakeV0Plugin{preRecvError: &nilErr},
+			payload:       "unused",
 			expectCode:    codes.Internal,
 			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
 		},
 		{
-			test:          "plugin fails immediately",
-			plugin:        &fakeV0Plugin{preRecvError: &ohnoErr},
-			expectCode:    codes.Unknown,
-			expectMessage: "nodeattestor(test): ohno",
+			test:           "plugin fails immediately",
+			plugin:         &fakeV0Plugin{preRecvError: &ohnoErr},
+			payload:        "unused",
+			expectAnyError: true,
 		},
 		{
-			test:          "plugin closes stream after receiving data but before responding",
-			plugin:        &fakeV0Plugin{postRecvError: &nilErr},
-			expectCode:    codes.Internal,
-			expectMessage: "nodeattestor(test): plugin closed stream unexpectedly",
+			test:           "plugin closes stream after receiving data but before responding",
+			plugin:         &fakeV0Plugin{postRecvError: &nilErr},
+			payload:        "unused",
+			expectAnyError: true,
 		},
 		{
 			test:          "plugin fails after receiving data but before responding",
 			plugin:        &fakeV0Plugin{postRecvError: &ohnoErr},
+			payload:       "unused",
 			expectCode:    codes.Unknown,
 			expectMessage: "nodeattestor(test): ohno",
 		},
@@ -72,6 +81,7 @@ func TestV0(t *testing.T) {
 		{
 			test:          "challenge response",
 			plugin:        &fakeV0Plugin{},
+			payload:       "unused",
 			expectCode:    codes.InvalidArgument,
 			expectMessage: "nodeattestor(test): attestation failed by test",
 		},
@@ -118,7 +128,12 @@ func TestV0(t *testing.T) {
 					return challenge, tt.responseErr
 				},
 			)
-			if tt.expectCode != codes.OK {
+			switch {
+			case tt.expectAnyError:
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "nodeattestor(test): ")
+				return
+			case tt.expectCode != codes.OK:
 				spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMessage)
 				return
 			}

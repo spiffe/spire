@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func EnsureNotAttested(ctx context.Context, store agentstorev0.AgentStoreClient, agentID string) error {
+func EnsureNotAttested(ctx context.Context, store agentstorev1.AgentStoreClient, agentID string) error {
 	attested, err := IsAttested(ctx, store, agentID)
 	switch {
 	case err != nil:
@@ -22,8 +22,8 @@ func EnsureNotAttested(ctx context.Context, store agentstorev0.AgentStoreClient,
 	}
 }
 
-func IsAttested(ctx context.Context, store agentstorev0.AgentStoreClient, agentID string) (bool, error) {
-	_, err := store.GetAgentInfo(ctx, &agentstorev0.GetAgentInfoRequest{
+func IsAttested(ctx context.Context, store agentstorev1.AgentStoreClient, agentID string) (bool, error) {
+	_, err := store.GetAgentInfo(ctx, &agentstorev1.GetAgentInfoRequest{
 		AgentId: agentID,
 	})
 	switch status.Code(err) {
@@ -32,6 +32,6 @@ func IsAttested(ctx context.Context, store agentstorev0.AgentStoreClient, agentI
 	case codes.NotFound:
 		return false, nil
 	default:
-		return false, fmt.Errorf("unable to get agent info: %v", err)
+		return false, fmt.Errorf("unable to get agent info: %w", err)
 	}
 }

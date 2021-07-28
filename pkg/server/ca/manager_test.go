@@ -9,7 +9,6 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -450,7 +449,7 @@ func (s *ManagerSuite) TestMigration() {
 	// assert that we migrate on load by writing junk data to the old JSON file
 	// and making sure initialization fails. The journal tests exercise this
 	// code more carefully.
-	s.Require().NoError(ioutil.WriteFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON"), 0600))
+	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON"), 0600))
 	s.m = NewManager(s.selfSignedConfig())
 	err := s.m.Initialize(context.Background())
 	s.RequireErrorContains(err, "failed to migrate old JSON data: unable to decode JSON")
@@ -576,11 +575,6 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 		checkJWTKey       func(*testing.T, crypto.Signer)
 	}{
 		{
-			name:        "self-signed with defaults",
-			checkX509CA: expectEC256,
-			checkJWTKey: expectEC256,
-		},
-		{
 			name:          "self-signed with RSA 2048",
 			x509CAKeyType: keymanager.RSA2048,
 			jwtKeyType:    keymanager.RSA2048,
@@ -614,12 +608,6 @@ func (s *ManagerSuite) TestAlternateKeyTypes() {
 			jwtKeyType:    keymanager.RSA2048,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectRSA2048,
-		},
-		{
-			name:              "upstream-signed with defaults",
-			upstreamAuthority: upstreamAuthority,
-			checkX509CA:       expectEC256,
-			checkJWTKey:       expectEC256,
 		},
 		{
 			name:              "upstream-signed with RSA 2048",
@@ -697,7 +685,7 @@ func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
 }
 
 func (s *ManagerSuite) selfSignedConfig() ManagerConfig {
-	return s.selfSignedConfigWithKeyTypes(0, 0)
+	return s.selfSignedConfigWithKeyTypes(keymanager.ECP256, keymanager.ECP256)
 }
 
 func (s *ManagerSuite) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType keymanager.KeyType) ManagerConfig {
@@ -900,7 +888,7 @@ func (s *ManagerSuite) waitForBundleUpdatedNotification(ch <-chan *common.Bundle
 	}
 }
 
-func (s *ManagerSuite) countLogEntries(level logrus.Level, message string) int { //nolint
+func (s *ManagerSuite) countLogEntries(level logrus.Level, message string) int {
 	count := 0
 	for _, e := range s.logHook.AllEntries() {
 		if e.Message == message && level == e.Level {

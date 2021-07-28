@@ -2,21 +2,20 @@ package gcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 )
 
 const (
@@ -31,12 +30,15 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *IITAttestorPlugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(gcp.PluginName, nodeattestorv0.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(gcp.PluginName,
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
 // IITAttestorPlugin implements GCP nodeattestation in the agent.
 type IITAttestorPlugin struct {
-	nodeattestorv0.UnsafeNodeAttestorServer
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	mtx    sync.RWMutex
 	config *IITAttestorConfig
@@ -44,7 +46,6 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig configures a IITAttestorPlugin.
 type IITAttestorConfig struct {
-	trustDomain       spiffeid.TrustDomain
 	IdentityTokenHost string `hcl:"identity_token_host"`
 	ServiceAccount    string `hcl:"service_account"`
 }
@@ -54,9 +55,9 @@ func New() *IITAttestorPlugin {
 	return &IITAttestorPlugin{}
 }
 
-// FetchAttestationData fetches attestation data from the GCP metadata server and sends an attestation response
+// AidAttestation fetches attestation data from the GCP metadata server and sends an attestation response
 // on given stream.
-func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttestor_FetchAttestationDataServer) error {
+func (p *IITAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
 	c, err := p.getConfig()
 	if err != nil {
 		return err
@@ -64,35 +65,21 @@ func (p *IITAttestorPlugin) FetchAttestationData(stream nodeattestorv0.NodeAttes
 
 	identityToken, err := retrieveInstanceIdentityToken(identityTokenURL(c.IdentityTokenHost, c.ServiceAccount))
 	if err != nil {
-		return newErrorf("unable to retrieve valid identity token: %v", err)
+		return status.Errorf(codes.Internal, "unable to retrieve valid identity token: %v", err)
 	}
 
-	return stream.Send(&nodeattestorv0.FetchAttestationDataResponse{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: identityToken,
+	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: identityToken,
 		},
 	})
 }
 
-func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := &IITAttestorConfig{}
-	if err := hcl.Decode(config, req.Configuration); err != nil {
-		return nil, newErrorf("unable to decode configuration: %v", err)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-
-	if req.GlobalConfig == nil {
-		return nil, newError("global configuration is required")
-	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, newError("trust_domain is required")
-	}
-
-	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
-	if err != nil {
-		return nil, err
-	}
-	config.trustDomain = td
 
 	if config.ServiceAccount == "" {
 		config.ServiceAccount = defaultServiceAccount
@@ -106,12 +93,7 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReq
 	defer p.mtx.Unlock()
 	p.config = config
 
-	return &spi.ConfigureResponse{}, nil
-}
-
-// GetPluginInfo returns the version and other metadata of the plugin.
-func (*IITAttestorPlugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
@@ -119,7 +101,7 @@ func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {
 	defer p.mtx.Unlock()
 
 	if p.config == nil {
-		return nil, newError("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }
@@ -157,17 +139,9 @@ func retrieveInstanceIdentityToken(url string) ([]byte, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	bytes, err := ioutil.ReadAll(resp.Body)
+	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 	return bytes, nil
-}
-
-func newError(msg string) error {
-	return errors.New("gcp-iit: " + msg)
-}
-
-func newErrorf(format string, args ...interface{}) error {
-	return fmt.Errorf("gcp-iit: "+format, args...)
 }

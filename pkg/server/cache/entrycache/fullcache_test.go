@@ -15,8 +15,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	sqlds "github.com/spiffe/spire/pkg/server/plugin/datastore/sql"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	sqlds "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
@@ -635,12 +635,7 @@ func createRegistrationEntry(ctx context.Context, tb testing.TB, ds datastore.Da
 }
 
 func setNodeSelectors(ctx context.Context, tb testing.TB, ds datastore.DataStore, spiffeID string, selectors ...*common.Selector) {
-	_, err := ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  spiffeID,
-			Selectors: selectors,
-		},
-	})
+	err := ds.SetNodeSelectors(ctx, spiffeID, selectors)
 	require.NoError(tb, err)
 }
 

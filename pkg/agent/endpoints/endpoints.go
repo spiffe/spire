@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -59,10 +60,17 @@ func New(c Config) *Endpoints {
 		}
 	}
 
+	allowedClaims := make(map[string]struct{}, len(c.AllowedForeignJWTClaims))
+	for _, claim := range c.AllowedForeignJWTClaims {
+		allowedClaims[claim] = struct{}{}
+	}
+
 	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
 		Manager:                       c.Manager,
 		Attestor:                      attestor,
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
+		AllowedForeignJWTClaims:       allowedClaims,
+		TrustDomain:                   c.TrustDomain,
 	})
 
 	sdsv2Server := c.newSDSv2Server(sdsv2.Config{
@@ -126,7 +134,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		e.log.Info("Stopping Workload and SDS APIs")
 		server.Stop()
 		err = <-errChan
-		if err == grpc.ErrServerStopped {
+		if errors.Is(err, grpc.ErrServerStopped) {
 			err = nil
 		}
 	}
@@ -143,11 +151,11 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 
 	l, err := unixListener.ListenUnix(e.addr.Network(), e.addr)
 	if err != nil {
-		return nil, fmt.Errorf("create UDS listener: %s", err)
+		return nil, fmt.Errorf("create UDS listener: %w", err)
 	}
 
 	if err := os.Chmod(e.addr.String(), os.ModePerm); err != nil {
-		return nil, fmt.Errorf("unable to change UDS permissions: %v", err)
+		return nil, fmt.Errorf("unable to change UDS permissions: %w", err)
 	}
 	return l, nil
 }

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -67,7 +67,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		Audience: c.audience,
 	})
 	if err != nil {
-		return fmt.Errorf("unable to mint SVID: %v", err)
+		return fmt.Errorf("unable to mint SVID: %w", err)
 	}
 	token := resp.Svid.Token
 	if err := c.validateToken(token, env); err != nil {
@@ -76,21 +76,15 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	// Print in stdout
 	if c.write == "" {
-		if err := env.Println(token); err != nil {
-			return err
-		}
-		return nil
+		return env.Println(token)
 	}
 
 	// Save in file
 	tokenPath := env.JoinPath(c.write)
-	if err := ioutil.WriteFile(tokenPath, []byte(token), 0600); err != nil {
-		return fmt.Errorf("unable to write token: %v", err)
+	if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+		return fmt.Errorf("unable to write token: %w", err)
 	}
-	if err := env.Printf("JWT-SVID written to %s\n", tokenPath); err != nil {
-		return err
-	}
-	return nil
+	return env.Printf("JWT-SVID written to %s\n", tokenPath)
 }
 
 func (c *mintCommand) validateToken(token string, env *common_cli.Env) error {

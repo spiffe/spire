@@ -103,6 +103,7 @@ func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bin
 	var impl interface{}
 	if p.isLegacy() {
 		if legacyVersion, ok := pluginRepo.LegacyVersion(); ok {
+			p.log.Warn("Legacy plugins are deprecated and will be unsupported in a future release. Please migrate the plugin to use the Plugin SDK.")
 			impl = p.bindFacade(pluginRepo, legacyVersion.New())
 		} else {
 			return nil, fmt.Errorf("no legacy version available for plugin type %q", p.info.Type())

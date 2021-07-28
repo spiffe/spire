@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -43,7 +42,7 @@ func loadParamData(in io.Reader, fn string) ([]byte, error) {
 		r = f
 	}
 
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 // printX509Authorities print provided certificates into writer
@@ -60,7 +59,7 @@ func printX509Authorities(out io.Writer, certs []*types.X509Certificate) error {
 func printCACertsPEM(out io.Writer, caCerts []byte) error {
 	certs, err := x509.ParseCertificates(caCerts)
 	if err != nil {
-		return fmt.Errorf("unable to parse certificates ASN.1 DER data: %v", err)
+		return fmt.Errorf("unable to parse certificates ASN.1 DER data: %w", err)
 	}
 
 	for _, cert := range certs {
@@ -127,7 +126,7 @@ func x509CertificatesFromProto(proto []*types.X509Certificate) ([]*x509.Certific
 	for i, auth := range proto {
 		cert, err := x509.ParseCertificate(auth.Asn1)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse root CA %d: %v", i, err)
+			return nil, fmt.Errorf("unable to parse root CA %d: %w", i, err)
 		}
 		certs = append(certs, cert)
 	}
@@ -141,7 +140,7 @@ func jwtKeysFromProto(proto []*types.JWTKey) (map[string]crypto.PublicKey, error
 	for i, publicKey := range proto {
 		jwtSigningKey, err := x509.ParsePKIXPublicKey(publicKey.PublicKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse JWT signing key %d: %v", i, err)
+			return nil, fmt.Errorf("unable to parse JWT signing key %d: %w", i, err)
 		}
 		keys[publicKey.KeyId] = jwtSigningKey
 	}

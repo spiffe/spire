@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 func TestWithAuthorizationPreprocess(t *testing.T) {
@@ -56,6 +57,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 
 	for _, tt := range []struct {
 		name          string
+		request       interface{}
 		fullMethod    string
 		peer          *peer.Peer
 		authorizerErr error
@@ -72,6 +74,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				{
 					Level:   logrus.InfoLevel,
 					Message: "Authorizer called",
+					Data:    logrus.Fields{},
 				},
 			},
 		},
@@ -123,6 +126,26 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Authorization misconfigured (method not registered); this is a bug",
+					Data:    logrus.Fields{},
+				},
+			},
+		},
+		{
+			name:          "authorize fails",
+			fullMethod:    fakeFullMethod,
+			authorizerErr: status.Error(codes.Unauthenticated, "oh no!"),
+			peer:          mtlsPeer,
+			expectCode:    codes.Unauthenticated,
+			expectMsg:     "oh no!",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to authenticate caller",
+					Data: logrus.Fields{
+						telemetry.CallerAddr: "2.2.2.2:2",
+						telemetry.CallerID:   "spiffe://example.org/workload",
+						logrus.ErrorKey:      "rpc error: code = Unauthenticated desc = oh no!",
+					},
 				},
 			},
 		},
@@ -133,6 +156,10 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				// Assert the context is set and has the caller information.
 				require.NotNil(t, ctx, "authorizer was not called")
 				assert.Equal(t, rpccontext.CallerAddr(ctx), tt.peer.Addr)
+
+				if tt.authorizerErr != nil {
+					return nil, tt.authorizerErr
+				}
 
 				// Logging here allows us to assert that the right fields were
 				// added to the logger.
@@ -155,8 +182,22 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				ctxIn = peer.NewContext(ctxIn, tt.peer)
 			}
 
-			ctxOut, err := m.Preprocess(ctxIn, tt.fullMethod)
+			ctxOut, err := m.Preprocess(ctxIn, tt.fullMethod, tt.request)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+
+			// Not a good way to fake UUID generation, so I get it from fields, verify it is not empty and set as expected
+			if hook.LastEntry() != nil {
+				requestID := hook.LastEntry().Data["request_id"]
+				assert.NotEmpty(t, requestID)
+
+				for _, e := range tt.expectLogs {
+					if e.Data == nil {
+						e.Data = logrus.Fields{}
+					}
+					e.Data["request_id"] = requestID
+				}
+			}
+
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
 
 			// Assert the properties of the context returned by Preprocess.

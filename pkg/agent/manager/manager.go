@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -108,14 +107,9 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID)
 	m.storeBundle(m.cache.Bundle())
 
-	err := m.storePrivateKey(ctx, m.c.SVIDKey)
-	if err != nil {
-		return fmt.Errorf("failed to store private key: %v", err)
-	}
-
 	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 
-	err = m.synchronize(ctx)
+	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
 		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
 		m.deleteSVID()
@@ -133,7 +127,7 @@ func (m *manager) Run(ctx context.Context) error {
 		m.svid.Run)
 
 	switch {
-	case err == nil || err == context.Canceled:
+	case err == nil || errors.Is(err, context.Canceled):
 		m.c.Log.Info("Cache manager stopped")
 		return nil
 	case nodeutil.ShouldAgentReattest(err):
@@ -202,7 +196,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 	case cachedSVID == nil:
 		return nil, err
 	case rotationutil.JWTSVIDExpired(cachedSVID, now):
-		return nil, fmt.Errorf("unable to renew JWT for %q (err=%v)", spiffeID, err)
+		return nil, fmt.Errorf("unable to renew JWT for %q (err=%w)", spiffeID, err)
 	default:
 		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("Unable to renew JWT; returning cached copy")
 		return cachedSVID, nil
@@ -272,13 +266,6 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 			return nil
 		case <-svidStream.Changes():
 			s := svidStream.Next().(svid.State)
-
-			err := m.storePrivateKey(ctx, s.Key)
-			if err != nil {
-				m.c.Log.WithError(err).Error("Failed to store private key")
-				continue
-			}
-
 			m.storeSVID(s.SVID)
 		}
 	}
@@ -313,11 +300,6 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	if err != nil {
 		m.c.Log.WithError(err).Error("Could not store bundle")
 	}
-}
-
-func (m *manager) storePrivateKey(ctx context.Context, key crypto.Signer) error {
-	km := m.c.Catalog.GetKeyManager()
-	return km.SetKey(ctx, key)
 }
 
 func (m *manager) deleteSVID() {

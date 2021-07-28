@@ -2,18 +2,19 @@ package sshpop
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
@@ -24,174 +25,119 @@ func TestSSHPoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p         nodeattestorv0.NodeAttestorClient
+	attestor  nodeattestor.NodeAttestor
 	sshclient *sshpop.Client
 	sshserver *sshpop.Server
 }
 
 func (s *Suite) SetupTest() {
-	s.p = s.newPlugin()
-	s.configure()
+	s.attestor = s.loadPlugin(s.T())
 }
 
-func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(s.T(), BuiltIn(), v0)
-	return v0.NodeAttestorClient
-}
-
-func (s *Suite) configure() {
-	require := s.Require()
+func (s *Suite) loadPlugin(t *testing.T) nodeattestor.NodeAttestor {
+	v1 := new(nodeattestor.V1)
 
 	certificatePath := fixture.Join("nodeattestor", "sshpop", "agent_ssh_key-cert.pub")
 	privateKeyPath := fixture.Join("nodeattestor", "sshpop", "agent_ssh_key")
 	certAuthoritiesPath := fixture.Join("nodeattestor", "sshpop", "ssh_cert_authority.pub")
 
-	certAuthority, err := ioutil.ReadFile(certAuthoritiesPath)
-	require.NoError(err)
+	certAuthority, err := os.ReadFile(certAuthoritiesPath)
+	require.NoError(t, err)
 	serverConfig := fmt.Sprintf(`cert_authorities = [%q]`, certAuthority)
 
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: serverConfig,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	require.NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
+	plugintest.Load(s.T(), BuiltIn(), v1,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(serverConfig),
+	)
 
 	sshserver, err := sshpop.NewServer("example.org", serverConfig)
-	require.NoError(err)
+	require.NoError(t, err)
 	s.sshserver = sshserver
 
 	clientConfig := fmt.Sprintf(`
 		host_key_path = %q
 		host_cert_path = %q`, privateKeyPath, certificatePath)
-	sshclient, err := sshpop.NewClient("example.org", clientConfig)
-	require.NoError(err)
+	sshclient, err := sshpop.NewClient(clientConfig)
+	require.NoError(t, err)
 	s.sshclient = sshclient
+
+	return v1
 }
 
 func (s *Suite) TestAttestSuccess() {
-	require := s.Require()
-
 	client := s.sshclient.NewHandshake()
-
-	stream, done := s.attest()
-	defer done()
 
 	// send down good attestation data
 	attestationData, err := client.AttestationData()
-	require.NoError(err)
-	err = stream.Send(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "sshpop",
-			Data: attestationData,
-		},
-	})
-	require.NoError(err)
+	require.NoError(s.T(), err)
 
-	// receive and parse challenge
-	resp, err := stream.Recv()
-	require.NoError(err)
-	require.Equal("", resp.AgentId)
-	s.NotEmpty(resp.Challenge)
+	result, err := s.attestor.Attest(context.Background(), attestationData, func(ctx context.Context, challenge []byte) ([]byte, error) {
+		require.NotEmpty(s.T(), challenge)
+		challengeRes, err := client.RespondToChallenge(challenge)
+		require.NoError(s.T(), err)
 
-	// calculate and send the response
-	challengeRes, err := client.RespondToChallenge(resp.Challenge)
-	require.NoError(err)
-	err = stream.Send(&nodeattestorv0.AttestRequest{
-		Response: challengeRes,
+		return challengeRes, nil
 	})
-	require.NoError(err)
 
 	// receive the attestation result
-	resp, err = stream.Recv()
-	require.NoError(err)
-	require.Equal("spiffe://example.org/spire/agent/sshpop/21Aic_muK032oJMhLfU1_CMNcGmfAnvESeuH5zyFw_g", resp.AgentId)
-	require.Nil(resp.Challenge)
-	require.Len(resp.Selectors, 0)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "spiffe://example.org/spire/agent/sshpop/21Aic_muK032oJMhLfU1_CMNcGmfAnvESeuH5zyFw_g", result.AgentID)
+	require.Len(s.T(), result.Selectors, 0)
 }
 
 func (s *Suite) TestAttestFailure() {
-	require := s.Require()
-
-	attestFails := func(attestationData *common.AttestationData, expected string) {
-		stream, done := s.attest()
-		defer done()
-
-		require.NoError(stream.Send(&nodeattestorv0.AttestRequest{
-			AttestationData: attestationData,
-		}))
-
-		resp, err := stream.Recv()
-		s.errorContains(err, expected)
-		require.Nil(resp)
+	attestFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, payload []byte, expectCode codes.Code, expectMessage string) {
+		result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
+		spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMessage)
+		require.Nil(nil, result)
 	}
 
-	challengeResponseFails := func(response string, expected string) {
-		stream, done := s.attest()
-		defer done()
-
+	challengeResponseFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, response string, expectCode codes.Code, expectMessage string) {
 		client := s.sshclient.NewHandshake()
 		attestationData, err := client.AttestationData()
-		require.NoError(err)
-		err = stream.Send(&nodeattestorv0.AttestRequest{
-			AttestationData: &common.AttestationData{
-				Type: "sshpop",
-				Data: attestationData,
-			},
-		})
-		require.NoError(err)
+		require.NoError(t, err)
 
-		resp, err := stream.Recv()
-		require.NoError(err)
-		s.NotNil(resp)
-
-		require.NoError(stream.Send(&nodeattestorv0.AttestRequest{
-			Response: []byte(response),
-		}))
-
-		resp, err = stream.Recv()
-		s.errorContains(err, expected)
-		require.Nil(resp)
+		doChallenge := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			require.NotEmpty(t, challenge)
+			return []byte(response), nil
+		}
+		result, err := attestor.Attest(context.Background(), attestationData, doChallenge)
+		spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMessage)
+		require.Nil(t, result)
 	}
 
-	// not configured yet
-	stream, err := s.newPlugin().Attest(context.Background())
-	require.NoError(err)
-	defer func() {
-		require.NoError(stream.CloseSend())
-	}()
-	resp, err := stream.Recv()
-	s.RequireGRPCStatus(err, codes.Unknown, "sshpop: not configured")
-	require.Nil(resp)
+	s.T().Run("not configured", func(t *testing.T) {
+		attestor := new(nodeattestor.V1)
+		plugintest.Load(t, BuiltIn(), attestor)
 
-	// unexpected data type
-	attestFails(&common.AttestationData{Type: "foo"}, "sshpop: expected attestation type \"sshpop\" but got \"foo\"")
+		attestFails(t, attestor, []byte("payload"), codes.FailedPrecondition, "nodeattestor(sshpop): not configured")
+	})
 
-	// malformed challenge response
-	challengeResponseFails("", "sshpop: failed to unmarshal challenge response")
+	s.T().Run("no attestation payload", func(t *testing.T) {
+		attestor := new(nodeattestor.V1)
+		plugintest.Load(t, BuiltIn(), attestor)
 
-	// invalid response
-	challengeResponseFails("{}", "sshpop: failed to combine nonces")
+		attestFails(t, attestor, nil, codes.InvalidArgument, "payload cannot be empty")
+	})
+
+	s.T().Run("malformed payload", func(t *testing.T) {
+		attestor := s.loadPlugin(t)
+		attestFails(t, attestor, []byte("payload"), codes.Internal, "nodeattestor(sshpop): failed to unmarshal data")
+	})
+
+	s.T().Run("malformed challenge response", func(t *testing.T) {
+		attestor := s.loadPlugin(t)
+		challengeResponseFails(t, attestor, "", codes.Internal, "nodeattestor(sshpop): failed to unmarshal challenge response")
+	})
+
+	s.T().Run("invalid response", func(t *testing.T) {
+		attestor := s.loadPlugin(t)
+		challengeResponseFails(t, attestor, "{}", codes.Internal, "failed to combine nonces")
+	})
 }
 
-func (s *Suite) TestGetPluginInfo() {
-	require := s.Require()
-
-	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	require.NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *Suite) attest() (nodeattestorv0.NodeAttestor_AttestClient, func()) {
-	stream, err := s.p.Attest(context.Background())
-	s.Require().NoError(err)
-	return stream, func() {
-		s.Require().NoError(stream.CloseSend())
-	}
-}
-
-func (s *Suite) errorContains(err error, substring string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), substring)
+func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+	return nil, errors.New("challenge is not expected")
 }

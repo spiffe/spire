@@ -5,6 +5,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awspca"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	spireplugin "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
@@ -24,7 +25,9 @@ func (repo *upstreamAuthorityRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *upstreamAuthorityRepository) Versions() []catalog.Version {
-	return []catalog.Version{upstreamAuthorityV0{}}
+	return []catalog.Version{
+		upstreamAuthorityV1{},
+	}
 }
 
 func (repo *upstreamAuthorityRepository) LegacyVersion() (catalog.Version, bool) {
@@ -39,10 +42,16 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 		vault.BuiltIn(),
 		spireplugin.BuiltIn(),
 		disk.BuiltIn(),
+		certmanager.BuiltIn(),
 	}
 }
+
+type upstreamAuthorityV1 struct{}
+
+func (upstreamAuthorityV1) New() catalog.Facade { return new(upstreamauthority.V1) }
+func (upstreamAuthorityV1) Deprecated() bool    { return false }
 
 type upstreamAuthorityV0 struct{}
 
 func (upstreamAuthorityV0) New() catalog.Facade { return new(upstreamauthority.V0) }
-func (upstreamAuthorityV0) Deprecated() bool    { return false }
+func (upstreamAuthorityV0) Deprecated() bool    { return true }

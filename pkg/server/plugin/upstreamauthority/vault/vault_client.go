@@ -4,14 +4,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
 	"github.com/imdario/mergo"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
@@ -29,6 +31,7 @@ const (
 	defaultCertMountPoint    = "cert"
 	defaultPKIMountPoint     = "pki"
 	defaultAppRoleMountPoint = "approle"
+	defaultK8sMountPoint     = "kubernetes"
 )
 
 type AuthMethod int
@@ -38,6 +41,7 @@ const (
 	CERT
 	TOKEN
 	APPROLE
+	K8S
 )
 
 type TokenStatus int
@@ -80,6 +84,13 @@ type ClientParams struct {
 	AppRoleID string
 	// A credential set of AppRole
 	AppRoleSecretID string
+	// Name of the mount point where Kubernetes auth method is mounted. (e.g., /auth/<mount_point>/login)
+	K8sAuthMountPoint string
+	// Name of the Vault role.
+	// The plugin authenticates against the named role.
+	K8sAuthRoleName string
+	// Path to a K8s Service Account Token to be used when auth method is 'k8s'
+	K8sAuthTokenPath string
 	// If true, client accepts any certificates.
 	// It should be used only test environment so on.
 	TLSSKipVerify bool
@@ -106,7 +117,7 @@ type SignCSRResponse struct {
 	CACertChainPEM []string
 }
 
-// NewClient returns a new *ClientConfig with default parameters.
+// NewClientConfig returns a new *ClientConfig with default parameters.
 func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, error) {
 	cc := &ClientConfig{
 		Logger: logger,
@@ -114,10 +125,11 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 	defaultParams := &ClientParams{
 		CertAuthMountPoint:    defaultCertMountPoint,
 		AppRoleAuthMountPoint: defaultAppRoleMountPoint,
+		K8sAuthMountPoint:     defaultK8sMountPoint,
 		PKIMountPoint:         defaultPKIMountPoint,
 	}
 	if err := mergo.Merge(cp, defaultParams); err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unable to merge client params: %v", err)
 	}
 	cc.clientParams = cp
 	return cc, nil
@@ -137,7 +149,7 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 	}
 	vc, err := vapi.NewClient(config)
 	if err != nil {
-		return nil, false, err
+		return nil, false, status.Errorf(codes.Internal, "unable to create Vault client: %v", err)
 	}
 
 	if c.clientParams.Namespace != "" {
@@ -160,7 +172,7 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 			return nil, false, err
 		}
 		if sec == nil {
-			return nil, false, errors.New("lookup self response is nil")
+			return nil, false, status.Error(codes.Internal, "lookup self response is nil")
 		}
 	case CERT:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
@@ -171,7 +183,7 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 			return nil, false, err
 		}
 		if sec == nil {
-			return nil, false, errors.New("tls cert authentication response is nil")
+			return nil, false, status.Error(codes.Internal, "tls cert authentication response is nil")
 		}
 	case APPROLE:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
@@ -184,7 +196,24 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 			return nil, false, err
 		}
 		if sec == nil {
-			return nil, false, errors.New("approle authentication response is nil")
+			return nil, false, status.Error(codes.Internal, "approle authentication response is nil")
+		}
+	case K8S:
+		b, err := os.ReadFile(c.clientParams.K8sAuthTokenPath)
+		if err != nil {
+			return nil, false, status.Errorf(codes.Internal, "failed to read k8s service account token: %v", err)
+		}
+		path := fmt.Sprintf("auth/%s/login", c.clientParams.K8sAuthMountPoint)
+		body := map[string]interface{}{
+			"role": c.clientParams.K8sAuthRoleName,
+			"jwt":  string(b),
+		}
+		sec, err = client.Auth(path, body)
+		if err != nil {
+			return nil, false, err
+		}
+		if sec == nil {
+			return nil, false, status.Error(codes.Internal, "k8s authentication response is nil")
 		}
 	}
 
@@ -201,20 +230,20 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod) (client *Client
 	return client, reusable, nil
 }
 
-func isTokenReusable(status TokenStatus) (bool, error) {
-	switch status {
+func isTokenReusable(tokenStatus TokenStatus) (bool, error) {
+	switch tokenStatus {
 	case NeverExpire, Renewable:
 		return true, nil
 	case NotRenewable:
 		return false, nil
 	default:
-		return false, errors.New("invalid token status")
+		return false, status.Error(codes.InvalidArgument, "invalid token status")
 	}
 }
 
 func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, logger hclog.Logger) (TokenStatus, error) {
 	if sec == nil || sec.Auth == nil {
-		return 0, errors.New("secret is nil")
+		return 0, status.Error(codes.InvalidArgument, "secret is nil")
 	}
 
 	if sec.Auth.LeaseDuration == 0 {
@@ -250,18 +279,18 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	case c.clientParams.ClientCertPath != "" && c.clientParams.ClientKeyPath != "":
 		c, err := tls.LoadX509KeyPair(c.clientParams.ClientCertPath, c.clientParams.ClientKeyPath)
 		if err != nil {
-			return fmt.Errorf("failed to parse client cert and private-key: %v", err)
+			return status.Errorf(codes.InvalidArgument, "failed to parse client cert and private-key: %v", err)
 		}
 		clientCert = c
 		foundClientCert = true
 	case c.clientParams.ClientCertPath != "" || c.clientParams.ClientKeyPath != "":
-		return fmt.Errorf("both client cert and client key are required")
+		return status.Error(codes.InvalidArgument, "both client cert and client key are required")
 	}
 
 	if c.clientParams.CACertPath != "" {
 		certs, err := pemutil.LoadCertificates(c.clientParams.CACertPath)
 		if err != nil {
-			return fmt.Errorf("failed to load CA certificate: %v", err)
+			return status.Errorf(codes.InvalidArgument, "failed to load CA certificate: %v", err)
 		}
 		pool := x509.NewCertPool()
 		for _, cert := range certs {
@@ -288,17 +317,17 @@ func (c *Client) SetToken(v string) {
 	c.vaultClient.SetToken(v)
 }
 
-// TLSAuth authenticates to vault server with TLS certificate method
+// Auth authenticates to vault server with TLS certificate method
 func (c *Client) Auth(path string, body map[string]interface{}) (*vapi.Secret, error) {
 	c.vaultClient.ClearToken()
 	secret, err := c.vaultClient.Logical().Write(path, body)
 	if err != nil {
-		return nil, fmt.Errorf("authentication failed %v: %v", path, err)
+		return nil, status.Errorf(codes.Unauthenticated, "authentication failed %v: %v", path, err)
 	}
 
 	tokenID, err := secret.TokenID()
 	if err != nil {
-		return nil, fmt.Errorf("authentication is successful, but could not get token: %v", err)
+		return nil, status.Errorf(codes.Internal, "authentication is successful, but could not get token: %v", err)
 	}
 	c.vaultClient.SetToken(tokenID)
 	return secret, nil
@@ -306,26 +335,26 @@ func (c *Client) Auth(path string, body map[string]interface{}) (*vapi.Secret, e
 
 func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
 	if token == "" {
-		return nil, errors.New("token is empty")
+		return nil, status.Error(codes.InvalidArgument, "token is empty")
 	}
 	c.SetToken(token)
 
 	secret, err := c.vaultClient.Logical().Read("auth/token/lookup-self")
 	if err != nil {
-		return nil, fmt.Errorf("token lookup failed: %v", err)
+		return nil, status.Errorf(codes.Internal, "token lookup failed: %v", err)
 	}
 
 	id, err := secret.TokenID()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unable to get TokenID: %v", err)
 	}
 	renewable, err := secret.TokenIsRenewable()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unable to determine if token is renewable: %v", err)
 	}
 	ttl, err := secret.TokenTTL()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unable to get token ttl: %v", err)
 	}
 	secret.Auth = &vapi.SecretAuth{
 		ClientToken:   id,
@@ -354,28 +383,28 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	path := fmt.Sprintf("/%s/root/sign-intermediate", c.clientParams.PKIMountPoint)
 	s, err := c.vaultClient.Logical().Write(path, reqData)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to sign intermediate: %v", err)
 	}
 
 	resp := &SignCSRResponse{}
 
 	certData, ok := s.Data["certificate"]
 	if !ok {
-		return nil, errors.New("request is successful, but certificate data is empty")
+		return nil, status.Error(codes.Internal, "request is successful, but certificate data is empty")
 	}
 	cert, ok := certData.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected certificate data type %T but got %T", cert, certData)
+		return nil, status.Errorf(codes.Internal, "expected certificate data type %T but got %T", cert, certData)
 	}
 	resp.CertPEM = cert
 
 	caCertData, ok := s.Data["issuing_ca"]
 	if !ok {
-		return nil, errors.New("request is successful, but issuing_ca data is empty")
+		return nil, status.Error(codes.Internal, "request is successful, but issuing_ca data is empty")
 	}
 	caCert, ok := caCertData.(string)
 	if !ok {
-		return nil, fmt.Errorf("expected issuing_ca data type %T but got %T", caCert, caCertData)
+		return nil, status.Errorf(codes.Internal, "expected issuing_ca data type %T but got %T", caCert, caCertData)
 	}
 	resp.CACertPEM = caCert
 
@@ -384,13 +413,13 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	} else {
 		caChainCertsObj, ok := caChainData.([]interface{})
 		if !ok {
-			return nil, fmt.Errorf("expected ca_chain data type %T but got %T", caChainCertsObj, caChainData)
+			return nil, status.Errorf(codes.Internal, "expected ca_chain data type %T but got %T", caChainCertsObj, caChainData)
 		}
 		var caChainCerts []string
 		for _, caChainCertObj := range caChainCertsObj {
 			caChainCert, ok := caChainCertObj.(string)
 			if !ok {
-				return nil, fmt.Errorf("expected ca_chain element data type %T but got %T", caChainCert, caChainCertObj)
+				return nil, status.Errorf(codes.Internal, "expected ca_chain element data type %T but got %T", caChainCert, caChainCertObj)
 			}
 			caChainCerts = append(caChainCerts, caChainCert)
 		}

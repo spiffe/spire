@@ -5,7 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 // NewCertPool creates a new *x509.CertPool based on the certificates given
@@ -31,7 +31,7 @@ func LoadCertPool(path string) (*x509.CertPool, error) {
 // LoadCertificates loads one or more certificates into an []*x509.Certificate from
 // a PEM file on disk.
 func LoadCertificates(path string) ([]*x509.Certificate, error) {
-	rest, err := ioutil.ReadFile(path)
+	rest, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func LoadCertificates(path string) ([]*x509.Certificate, error) {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse certificate in block %d: %v", blockno, err)
+			return nil, fmt.Errorf("unable to parse certificate in block %d: %w", blockno, err)
 		}
 		certs = append(certs, cert)
 	}

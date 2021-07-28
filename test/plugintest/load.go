@@ -12,12 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type Plugin interface {
+	catalog.Configurer
+	io.Closer
+}
+
 // Load loads a built-in plugin for testing with the given options. The plugin
 // facade can be nil. If one of the Configure* options is given, the plugin
 // will also be configured. The plugin will unload when the test is over. The
-// returned closer may be called to unload the built-in before then, but can
-// otherwise be ignored.
-func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, options ...Option) io.Closer {
+// function returns a plugin interface that can be closed to unload the
+// built-in before the test is finished or used to reconfigure the plugin, but
+// can otherwise be ignored.
+func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, options ...Option) Plugin {
 	conf := &config{
 		builtInConfig: catalog.BuiltInConfig{
 			Log: nullLogger(),
@@ -55,7 +61,13 @@ func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, op
 		}
 	}
 
-	return conn
+	return struct {
+		catalog.Configurer
+		io.Closer
+	}{
+		Configurer: configurer,
+		Closer:     conn,
+	}
 }
 
 func nullLogger() logrus.FieldLogger {

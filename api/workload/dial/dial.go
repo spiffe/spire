@@ -9,7 +9,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"google.golang.org/grpc"
 )
@@ -27,7 +26,7 @@ func Dial(ctx context.Context, addr net.Addr) (*grpc.ClientConn, error) {
 
 	// Workload API is unauthenticated
 	d := dialer(addr.Network())
-	return grpc.DialContext(ctx, addr.String(), grpc.WithInsecure(), grpc.WithDialer(d)) //nolint: staticcheck
+	return grpc.DialContext(ctx, addr.String(), grpc.WithInsecure(), grpc.WithContextDialer(d))
 }
 
 func addrFromEnv() (net.Addr, error) {
@@ -38,7 +37,7 @@ func addrFromEnv() (net.Addr, error) {
 
 	u, err := url.Parse(val)
 	if err != nil {
-		return nil, fmt.Errorf("parse address from env: %v", err)
+		return nil, fmt.Errorf("parse address from env: %w", err)
 	}
 
 	switch u.Scheme {
@@ -64,7 +63,7 @@ func parseTCPAddr(u *url.URL) (net.Addr, error) {
 
 	port, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("tcp port is not an integer: %v", err)
+		return nil, fmt.Errorf("tcp port is not an integer: %w", err)
 	}
 
 	addr := &net.TCPAddr{
@@ -96,8 +95,8 @@ func parseUDSAddr(u *url.URL) (net.Addr, error) {
 	return addr, nil
 }
 
-func dialer(network string) func(addr string, timeout time.Duration) (net.Conn, error) {
-	return func(addr string, timeout time.Duration) (net.Conn, error) {
-		return net.DialTimeout(network, addr, timeout)
+func dialer(network string) func(ctx context.Context, addr string) (net.Conn, error) {
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
 	}
 }

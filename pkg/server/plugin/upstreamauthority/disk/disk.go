@@ -3,7 +3,6 @@ package disk
 import (
 	"context"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -15,12 +14,13 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/andres-erbsen/clock"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -29,7 +29,8 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn("disk",
-		upstreamauthorityv0.UpstreamAuthorityPluginServer(p),
+		upstreamauthorityv1.UpstreamAuthorityPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -42,28 +43,28 @@ type Configuration struct {
 }
 
 type Plugin struct {
-	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
+	configv1.UnsafeConfigServer
 
-	log   hclog.Logger
-	clock clock.Clock
-
-	_testOnlyShouldVerify bool
+	log hclog.Logger
 
 	mtx        sync.Mutex
 	config     *Configuration
 	certs      *caCerts
 	upstreamCA *x509svid.UpstreamCA
+
+	// test hooks
+	clock clock.Clock
 }
 
 type caCerts struct {
-	certChain   [][]byte
-	trustBundle [][]byte
+	certChain   []*x509.Certificate
+	trustBundle []*x509.Certificate
 }
 
 func New() *Plugin {
 	return &Plugin{
-		clock:                 clock.New(),
-		_testOnlyShouldVerify: true,
+		clock: clock.New(),
 	}
 }
 
@@ -71,30 +72,30 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
-	if err := hcl.Decode(&config, req.Configuration); err != nil {
-		return nil, err
+	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if req.GlobalConfig == nil {
-		return nil, errors.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
 
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, errors.New("trust_domain is required")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 
-	trustDomain, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
 	}
 	config.trustDomain = trustDomain
 
 	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load upstream CA: %v", err)
+		return nil, err
 	}
 
 	// Set local vars from config struct
@@ -105,14 +106,10 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi
 	p.certs = certs
 	p.upstreamCA = upstreamCA
 
-	return &spi.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
-func (*Plugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
-}
-
-func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	ctx := stream.Context()
 
 	upstreamCA, upstreamCerts, err := p.reloadCA()
@@ -122,17 +119,28 @@ func (p *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 
 	cert, err := upstreamCA.SignCSR(ctx, request.Csr, time.Second*time.Duration(request.PreferredTtl))
 	if err != nil {
-		return err
+		// TODO: provide more granular status codes
+		return status.Errorf(codes.Internal, "unable to sign CSR: %v", err)
 	}
 
-	return stream.Send(&upstreamauthorityv0.MintX509CAResponse{
-		X509CaChain:       append([][]byte{cert.Raw}, upstreamCerts.certChain...),
-		UpstreamX509Roots: upstreamCerts.trustBundle,
+	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, upstreamCerts.certChain...))
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
+	}
+
+	upstreamX509Roots, err := x509certificate.ToPluginProtos(upstreamCerts.trustBundle)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
+	}
+
+	return stream.Send(&upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509CAChain,
+		UpstreamX509Roots: upstreamX509Roots,
 	})
 }
 
-func (*Plugin) PublishJWTKey(*upstreamauthorityv0.PublishJWTKeyRequest, upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
-	return makeError(codes.Unimplemented, "publishing upstream is unsupported")
+func (*Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
 func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
@@ -148,7 +156,7 @@ func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 		upstreamCA = p.upstreamCA
 		upstreamCerts = p.certs
 	default:
-		return nil, nil, fmt.Errorf("no cached CA and failed to load CA: %v", err)
+		return nil, nil, fmt.Errorf("no cached CA and failed to load CA: %w", err)
 	}
 
 	return upstreamCA, upstreamCerts, nil
@@ -157,12 +165,12 @@ func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.UpstreamCA, *caCerts, error) {
 	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to load upstream CA key: %v", err)
 	}
 
 	certs, err := pemutil.LoadCertificates(config.CertFilePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to load upstream CA cert: %v", err)
 	}
 	// pemutil guarantees at least 1 cert
 	caCert := certs[0]
@@ -174,14 +182,14 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 		// exactly one cert. This cert is reused for the trust bundle and
 		// config.BundleFilePath is ignored
 		if len(certs) != 1 {
-			return nil, nil, errors.New("with no bundle_file_path configured only self-signed CAs are supported")
+			return nil, nil, status.Error(codes.InvalidArgument, "with no bundle_file_path configured only self-signed CAs are supported")
 		}
 		trustBundle = certs
 		certs = nil
 	} else {
 		bundleCerts, err := pemutil.LoadCertificates(config.BundleFilePath)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, status.Errorf(codes.InvalidArgument, "unable to load upstream CA bundle: %v", err)
 		}
 		trustBundle = append(trustBundle, bundleCerts...)
 	}
@@ -192,34 +200,29 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 		return nil, nil, err
 	}
 	if !matched {
-		return nil, nil, errors.New("certificate and private key does not match")
+		return nil, nil, status.Error(codes.InvalidArgument, "unable to load upstream CA: certificate and private key do not match")
 	}
 
-	if p._testOnlyShouldVerify {
-		intermediates := x509.NewCertPool()
-		roots := x509.NewCertPool()
-		for _, c := range certs {
-			intermediates.AddCert(c)
-		}
-		for _, c := range trustBundle {
-			roots.AddCert(c)
-		}
-		selfVerifyOpts := x509.VerifyOptions{
-			Intermediates: intermediates,
-			Roots:         roots,
-		}
-		_, err = caCert.Verify(selfVerifyOpts)
-		if err != nil {
-			return nil, nil, errors.New("certificate cannot be validated with the provided bundle or is not self-signed")
-		}
+	intermediates := x509.NewCertPool()
+	roots := x509.NewCertPool()
+	for _, c := range certs {
+		intermediates.AddCert(c)
+	}
+	for _, c := range trustBundle {
+		roots.AddCert(c)
+	}
+	selfVerifyOpts := x509.VerifyOptions{
+		Intermediates: intermediates,
+		Roots:         roots,
+	}
+	_, err = caCert.Verify(selfVerifyOpts)
+	if err != nil {
+		return nil, nil, status.Error(codes.InvalidArgument, "unable to load upstream CA: certificate cannot be validated with the provided bundle or is not self-signed")
 	}
 
-	caCerts := &caCerts{}
-	for _, cert := range certs {
-		caCerts.certChain = append(caCerts.certChain, cert.Raw)
-	}
-	for _, cert := range trustBundle {
-		caCerts.trustBundle = append(caCerts.trustBundle, cert.Raw)
+	caCerts := &caCerts{
+		certChain:   certs,
+		trustBundle: trustBundle,
 	}
 
 	return x509svid.NewUpstreamCA(
@@ -229,8 +232,4 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 			Clock: p.clock,
 		},
 	), caCerts, nil
-}
-
-func makeError(code codes.Code, format string, args ...interface{}) error {
-	return status.Errorf(code, "upstreamauthority-disk: "+format, args...)
 }

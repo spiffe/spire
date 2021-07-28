@@ -8,7 +8,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/resources/mgmt/resources"
 	"github.com/Azure/go-autorest/autorest"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // apiClient is an interface representing all of the API methods the resolver
@@ -54,18 +55,18 @@ func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principal
 	filter := fmt.Sprintf("resourceType eq 'Microsoft.Compute/virtualMachines' and identity/principalId eq '%s'", principalID)
 	result, err := c.r.List(ctx, filter, "", nil)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", status.Errorf(codes.Internal, "unable to list virtual machine by principal: %v", err)
 	}
 
 	values := result.Values()
 	if len(values) == 0 {
-		return "", errs.New("principal %q not found", principalID)
+		return "", status.Errorf(codes.Internal, "principal %q not found", principalID)
 	}
 	if len(values) > 1 {
-		return "", errs.New("expected one result for principal %q at most", principalID)
+		return "", status.Errorf(codes.Internal, "expected one result for principal %q at most", principalID)
 	}
 	if values[0].ID == nil || *values[0].ID == "" {
-		return "", errs.New("resource missing ID")
+		return "", status.Error(codes.Internal, "virtual machine resource missing ID")
 	}
 
 	return *values[0].ID, nil
@@ -74,7 +75,7 @@ func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principal
 func (c *azureClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*compute.VirtualMachine, error) {
 	vm, err := c.v.Get(ctx, resourceGroup, name, "")
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, status.Errorf(codes.Internal, "unable to get virtual machine: %v", err)
 	}
 	return &vm, nil
 }
@@ -82,7 +83,7 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, resourceGroup strin
 func (c *azureClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*network.Interface, error) {
 	ni, err := c.n.Get(ctx, resourceGroup, name, "")
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, status.Errorf(codes.Internal, "unable to get network interface: %v", err)
 	}
 	return &ni, nil
 }

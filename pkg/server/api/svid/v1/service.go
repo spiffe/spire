@@ -3,6 +3,7 @@ package svid
 import (
 	"context"
 	"crypto/x509"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -16,7 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -57,6 +58,10 @@ type Service struct {
 
 func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.Csr: api.HashByte(req.Csr),
+		telemetry.TTL: req.Ttl,
+	})
 
 	if len(req.Csr) == 0 {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
@@ -84,7 +89,6 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 	}
 
 	if err := api.VerifyTrustDomainWorkloadID(s.td, id); err != nil {
-		log.Errorf("Invalid CSR: %v", err)
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
@@ -108,6 +112,12 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
+	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
+		telemetry.SPIFFEID:  id.String(),
+		telemetry.DNSName:   strings.Join(csr.DNSNames, ","),
+		telemetry.Subject:   csr.Subject,
+		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
+	})
 
 	return &svidv1.MintX509SVIDResponse{
 		Svid: &types.X509SVID{
@@ -119,10 +129,12 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 }
 
 func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
+	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(req.Id, req.Audience, req.Ttl))
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
 		return nil, err
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return &svidv1.MintJWTSVIDResponse{
 		Svid: jwtsvid,
@@ -149,7 +161,20 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 	var results []*svidv1.BatchNewX509SVIDResponse_Result
 	for _, svidParam := range req.Params {
 		//  Create new SVID
-		results = append(results, s.newX509SVID(ctx, svidParam, entriesMap))
+		r := s.newX509SVID(ctx, svidParam, entriesMap)
+		results = append(results, r)
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			fields := logrus.Fields{
+				telemetry.Csr:            api.HashByte(svidParam.Csr),
+				telemetry.RegistrationID: svidParam.EntryId,
+			}
+
+			if r.Svid != nil {
+				fields[telemetry.ExpiresAt] = r.Svid.ExpiresAt
+			}
+
+			return fields
+		})
 	}
 
 	return &svidv1.BatchNewX509SVIDResponse{Results: results}, nil
@@ -237,7 +262,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		Svid: &types.X509SVID{
 			Id:        entry.SpiffeId,
 			CertChain: x509util.RawCertsFromCertificates(x509Svid),
-			ExpiresAt: x509Svid[0].NotAfter.UTC().Unix(),
+			ExpiresAt: x509Svid[0].NotAfter.Unix(),
 		},
 		Status: api.OK(),
 	}
@@ -285,6 +310,10 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 
 func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest) (resp *svidv1.NewJWTSVIDResponse, err error) {
 	log := rpccontext.Logger(ctx)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.RegistrationID: req.EntryId,
+		telemetry.Audience:       strings.Join(req.Audience, ","),
+	})
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
@@ -305,6 +334,9 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 	if err != nil {
 		return nil, err
 	}
+	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
+		telemetry.TTL: entry.Ttl,
+	})
 
 	return &svidv1.NewJWTSVIDResponse{
 		Svid: jwtsvid,
@@ -313,6 +345,10 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 
 func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
 	log := rpccontext.Logger(ctx)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.Csr:           api.HashByte(req.Csr),
+		telemetry.TrustDomainID: s.td.IDString(),
+	})
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to downstream CA signing rate limit", err)
@@ -352,11 +388,33 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	for _, cert := range bundle.RootCas {
 		rawRootCerts = append(rawRootCerts, cert.DerBytes)
 	}
+	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
+		telemetry.ExpiresAt: x509CASvid[0].NotAfter.Unix(),
+	})
 
 	return &svidv1.NewDownstreamX509CAResponse{
 		CaCertChain:     x509util.RawCertsFromCertificates(x509CASvid),
 		X509Authorities: rawRootCerts,
 	}, nil
+}
+
+func (s Service) fieldsFromJWTSvidParams(protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
+	fields := logrus.Fields{
+		telemetry.TTL: ttl,
+	}
+	if protoID != nil {
+		// Dont care about parsing error
+		id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
+		if err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
+		}
+	}
+
+	if len(audience) > 0 {
+		fields[telemetry.Audience] = strings.Join(audience, ",")
+	}
+
+	return fields
 }
 
 func parseAndCheckCSR(ctx context.Context, csrBytes []byte) (*x509.CertificateRequest, error) {

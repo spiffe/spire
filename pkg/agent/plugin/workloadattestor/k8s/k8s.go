@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -479,7 +478,7 @@ func (p *Plugin) readFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return ioutil.ReadAll(f)
+	return io.ReadAll(f)
 }
 
 func (p *Plugin) getNodeName(name string, env string) string {

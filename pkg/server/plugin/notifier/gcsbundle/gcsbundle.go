@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"sync"
 
@@ -11,13 +12,12 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
-	notifierv0 "github.com/spiffe/spire/proto/spire/plugin/server/notifier/v0"
-	"github.com/zeebo/errs"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -30,7 +30,8 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtIn(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn("gcs_bundle",
-		notifierv0.NotifierPluginServer(p),
+		notifierv1.NotifierPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -47,12 +48,13 @@ type pluginConfig struct {
 }
 
 type Plugin struct {
-	notifierv0.UnsafeNotifierServer
+	notifierv1.UnsafeNotifierServer
+	configv1.UnsafeConfigServer
 
 	mu               sync.RWMutex
 	log              hclog.Logger
 	config           *pluginConfig
-	identityProvider identityproviderv0.IdentityProviderServiceClient
+	identityProvider identityproviderv1.IdentityProviderServiceClient
 
 	hooks struct {
 		newBucketClient func(ctx context.Context, configPath string) (bucketClient, error)
@@ -76,39 +78,39 @@ func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 	return nil
 }
 
-func (p *Plugin) Notify(ctx context.Context, req *notifierv0.NotifyRequest) (*notifierv0.NotifyResponse, error) {
+func (p *Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifierv0.NotifyRequest_BundleUpdated); ok {
+	if _, ok := req.Event.(*notifierv1.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifierv0.NotifyResponse{}, nil
+	return &notifierv1.NotifyResponse{}, nil
 }
 
-func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv0.NotifyAndAdviseRequest) (*notifierv0.NotifyAndAdviseResponse, error) {
+func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if _, ok := req.Event.(*notifierv0.NotifyAndAdviseRequest_BundleLoaded); ok {
+	if _, ok := req.Event.(*notifierv1.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundleObject for details on why.
 		if err := p.updateBundleObject(ctx, config); err != nil {
 			return nil, err
 		}
 	}
-	return &notifierv0.NotifyAndAdviseResponse{}, nil
+	return &notifierv1.NotifyAndAdviseResponse{}, nil
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp *spi.ConfigureResponse, err error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	config := new(pluginConfig)
-	if err := hcl.Decode(&config, req.Configuration); err != nil {
+	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
@@ -120,11 +122,7 @@ func (p *Plugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (resp
 	}
 
 	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *Plugin) GetPluginInfo(ctx context.Context, req *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) getConfig() (*pluginConfig, error) {
@@ -162,7 +160,7 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 		// be loaded after fetching the generation so we can properly detect
 		// and correct a race updating the bundle (i.e. read-modify-write
 		// semantics).
-		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv0.FetchX509IdentityRequest{})
+		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
 		if err != nil {
 			st := status.Convert(err)
 			return status.Errorf(st.Code(), "unable to fetch bundle from SPIRE server: %v", st.Message())
@@ -194,7 +192,7 @@ func newGCSBucketClient(ctx context.Context, serviceAccountFile string) (bucketC
 	}
 	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	return &gcsBucketClient{
@@ -205,10 +203,10 @@ func newGCSBucketClient(ctx context.Context, serviceAccountFile string) (bucketC
 func (c *gcsBucketClient) GetObjectGeneration(ctx context.Context, bucket, object string) (int64, error) {
 	attrs, err := c.client.Bucket(bucket).Object(object).Attrs(ctx)
 	if err != nil {
-		if err == storage.ErrObjectNotExist {
+		if errors.Is(err, storage.ErrObjectNotExist) {
 			return 0, nil
 		}
-		return 0, errs.Wrap(err)
+		return 0, err
 	}
 	return attrs.Generation, nil
 }
@@ -228,10 +226,7 @@ func (c *gcsBucketClient) PutObject(ctx context.Context, bucket, object string, 
 	if _, err := w.Write(data); err != nil {
 		return err
 	}
-	if err := w.Close(); err != nil {
-		return err
-	}
-	return nil
+	return w.Close()
 }
 
 func (c *gcsBucketClient) Close() error {
@@ -239,20 +234,22 @@ func (c *gcsBucketClient) Close() error {
 }
 
 // bundleData formats the bundle data for storage in GCS
-func bundleData(bundle *common.Bundle) []byte {
+func bundleData(bundle *plugintypes.Bundle) []byte {
 	bundleData := new(bytes.Buffer)
-	for _, rootCA := range bundle.RootCas {
+	for _, x509Authority := range bundle.X509Authorities {
 		// no need to check the error since we're encoding into a memory buffer
 		_ = pem.Encode(bundleData, &pem.Block{
 			Type:  "CERTIFICATE",
-			Bytes: rootCA.DerBytes,
+			Bytes: x509Authority.Asn1,
 		})
 	}
 	return bundleData.Bytes()
 }
 
 func isConditionNotMetError(err error) bool {
-	if e, ok := err.(*googleapi.Error); ok && e.Code == http.StatusPreconditionFailed {
+	var e *googleapi.Error
+	ok := errors.As(err, &e)
+	if ok && e.Code == http.StatusPreconditionFailed {
 		for _, errorItem := range e.Errors {
 			if errorItem.Reason == "conditionNotMet" {
 				return true

@@ -11,6 +11,7 @@ import (
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
@@ -69,7 +70,7 @@ func (r *rotator) runRotation(ctx context.Context) error {
 		case err != nil && rotationutil.X509Expired(r.clk.Now(), r.state.Value().(State).SVID[0]):
 			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 			// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
-			return fmt.Errorf("current SVID has already expired and rotation failed: %v", err)
+			return fmt.Errorf("current SVID has already expired and rotation failed: %w", err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 			return err
@@ -138,7 +139,14 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	defer r.rotMtx.Unlock()
 	r.c.Log.Debug("Rotating agent SVID")
 
-	key, err := r.c.Catalog.GetKeyManager().GenerateKey(ctx)
+	svidKM := keymanager.ForSVID(r.c.Catalog.GetKeyManager())
+
+	var existingKey keymanager.Key
+	if state, ok := r.state.Value().(State); ok && state.Key != nil {
+		existingKey, _ = state.Key.(keymanager.Key)
+	}
+
+	key, err := svidKM.GenerateKey(ctx, existingKey)
 	if err != nil {
 		return err
 	}
@@ -155,6 +163,10 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 
 	certs, err := x509.ParseCertificates(svid.CertChain)
 	if err != nil {
+		return err
+	}
+
+	if err := svidKM.SetKey(ctx, key); err != nil {
 		return err
 	}
 

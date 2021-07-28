@@ -61,7 +61,8 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		config.dialContext = grpc.DialContext
 	}
 	client, err := config.dialContext(ctx, config.Address,
-		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck
+		// TODO: port to non-deprecated option
+		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck // not ready to port
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithBlock(),
 		grpc.WithReturnConnectionError(),
@@ -74,7 +75,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	case errors.Is(err, context.DeadlineExceeded):
 		return nil, fmt.Errorf("failed to dial %s: timed out", config.Address)
 	default:
-		return nil, fmt.Errorf("failed to dial %s: %v", config.Address, err)
+		return nil, fmt.Errorf("failed to dial %s: %w", config.Address, err)
 	}
 	return client, nil
 }

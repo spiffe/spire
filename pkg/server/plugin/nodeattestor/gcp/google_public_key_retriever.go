@@ -1,64 +1,55 @@
 package gcp
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	"gopkg.in/square/go-jose.v2"
 )
 
 type googlePublicKeyRetriever struct {
 	url    string
 	expiry time.Time
 
-	mtx          sync.Mutex
-	certificates map[string]*x509.Certificate
+	mtx  sync.Mutex
+	jwks *jose.JSONWebKeySet
 }
 
 func newGooglePublicKeyRetriever(url string) *googlePublicKeyRetriever {
 	return &googlePublicKeyRetriever{
-		url:          url,
-		certificates: make(map[string]*x509.Certificate),
+		url:  url,
+		jwks: &jose.JSONWebKeySet{},
 	}
 }
 
-func (r *googlePublicKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, error) {
-	if token.Header["kid"] == nil {
-		return nil, errors.New("token is missing kid value")
-	}
-	kid, ok := token.Header["kid"].(string)
-	if !ok || kid == "" {
-		return nil, errors.New("token has unexpected kid value")
-	}
-	if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-		return nil, fmt.Errorf("unexpected signing method: %T", token.Method)
-	}
-
+func (r *googlePublicKeyRetriever) retrieveJWKS(ctx context.Context) (*jose.JSONWebKeySet, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
 	if r.expiry.IsZero() || time.Now().After(r.expiry) {
-		err := r.downloadCertificates()
-		if err != nil {
+		if err := r.downloadJWKS(ctx); err != nil {
 			return nil, err
 		}
 	}
-	cert, ok := r.certificates[kid]
-	if !ok {
-		return nil, errors.New("no public key found for kid")
-	}
-	return cert.PublicKey, nil
+	return r.jwks, nil
 }
 
-func (r *googlePublicKeyRetriever) downloadCertificates() error {
-	resp, err := http.Get(r.url)
+func (r *googlePublicKeyRetriever) downloadJWKS(ctx context.Context) error {
+	req, err := http.NewRequest("GET", r.url, nil)
+	if err != nil {
+		return err
+	}
+
+	req = req.WithContext(ctx)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -68,17 +59,12 @@ func (r *googlePublicKeyRetriever) downloadCertificates() error {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
 	var data map[string]string
-	if err := json.Unmarshal(bytes, &data); err != nil {
-		return fmt.Errorf("unable to unmarshal certificate response: %v", err)
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return fmt.Errorf("unable to unmarshal certificate response: %w", err)
 	}
 
-	certificates := make(map[string]*x509.Certificate)
+	jwks := new(jose.JSONWebKeySet)
 	for k, v := range data {
 		block, _ := pem.Decode([]byte(v))
 		if block == nil {
@@ -88,7 +74,11 @@ func (r *googlePublicKeyRetriever) downloadCertificates() error {
 		if err != nil {
 			return fmt.Errorf("unable to unmarshal certificate response: malformed certificate PEM")
 		}
-		certificates[k] = cert
+		jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
+			KeyID:        k,
+			Key:          cert.PublicKey,
+			Certificates: []*x509.Certificate{cert},
+		})
 	}
 
 	r.expiry = time.Time{}
@@ -97,6 +87,6 @@ func (r *googlePublicKeyRetriever) downloadCertificates() error {
 			r.expiry = t
 		}
 	}
-	r.certificates = certificates
+	r.jwks = jwks
 	return nil
 }

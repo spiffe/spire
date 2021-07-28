@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/spiffe/spire/pkg/common/diskutil"
@@ -18,14 +17,14 @@ func ReadBundle(bundleCachePath string) ([]*x509.Certificate, error) {
 		return nil, ErrNotCached
 	}
 
-	data, err := ioutil.ReadFile(bundleCachePath)
+	data, err := os.ReadFile(bundleCachePath)
 	if err != nil {
-		return nil, fmt.Errorf("error reading bundle at %s: %s", bundleCachePath, err)
+		return nil, fmt.Errorf("error reading bundle at %s: %w", bundleCachePath, err)
 	}
 
 	bundle, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing bundle at %s: %s", bundleCachePath, err)
+		return nil, fmt.Errorf("error parsing bundle at %s: %w", bundleCachePath, err)
 	}
 	return bundle, nil
 }
@@ -47,17 +46,17 @@ func StoreBundle(bundleCachePath string, bundle []*x509.Certificate) error {
 // if there was some reason by which the SVID couldn't be loaded along
 // with the error reason.
 func ReadSVID(svidCachePath string) ([]*x509.Certificate, error) {
-	data, err := ioutil.ReadFile(svidCachePath)
+	data, err := os.ReadFile(svidCachePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNotCached
 		}
-		return nil, fmt.Errorf("error reading SVID at %s: %s", svidCachePath, err)
+		return nil, fmt.Errorf("error reading SVID at %s: %w", svidCachePath, err)
 	}
 
 	certChain, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing SVID at %s: %s", svidCachePath, err)
+		return nil, fmt.Errorf("error parsing SVID at %s: %w", svidCachePath, err)
 	}
 	return certChain, nil
 }

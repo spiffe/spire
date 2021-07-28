@@ -2,8 +2,6 @@ package spireplugin
 
 import (
 	"context"
-	"crypto/x509"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,11 +11,16 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/bundle"
+	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -36,11 +39,19 @@ type Configuration struct {
 }
 
 func BuiltIn() catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, upstreamauthorityv0.UpstreamAuthorityPluginServer(New()))
+	return builtin(New())
+}
+
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		upstreamauthorityv1.UpstreamAuthorityPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 type Plugin struct {
-	upstreamauthorityv0.UnsafeUpstreamAuthorityServer
+	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
+	configv1.UnsafeConfigServer
 
 	log hclog.Logger
 
@@ -57,101 +68,105 @@ type Plugin struct {
 
 	bundleMtx     sync.RWMutex
 	bundleVersion uint64
-	currentBundle *types.Bundle
+	currentBundle *plugintypes.Bundle
 }
 
 func New() *Plugin {
 	return &Plugin{
-		currentBundle: &types.Bundle{},
+		currentBundle: &plugintypes.Bundle{},
 	}
 }
 
-func (m *Plugin) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
-	config := Configuration{}
+	config := new(Configuration)
 
-	if err := hcl.Decode(&config, req.Configuration); err != nil {
-		return nil, err
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if req.GlobalConfig == nil {
-		return nil, errors.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
 
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, errors.New("trust_domain is required")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 
 	// Create trust domain
-	td, err := spiffeid.TrustDomainFromString(req.GlobalConfig.TrustDomain)
+	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
 	if err != nil {
-		return nil, fmt.Errorf("malformed trustdomain: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
 	}
-	m.trustDomain = td
+	p.trustDomain = td
 
 	// Set config
-	m.config = &config
+	p.config = config
 
 	// Create spire-server client
-	serverAddr := fmt.Sprintf("%s:%s", m.config.ServerAddr, m.config.ServerPort)
-	workloadAPISocket := fmt.Sprintf("unix://%s", m.config.WorkloadAPISocket)
-	m.serverClient = newServerClient(td.NewID(idutil.ServerIDPath), serverAddr, workloadAPISocket, m.log)
+	serverAddr := fmt.Sprintf("%s:%s", p.config.ServerAddr, p.config.ServerPort)
+	workloadAPISocket := fmt.Sprintf("unix://%s", p.config.WorkloadAPISocket)
+	p.serverClient = newServerClient(td.NewID(idutil.ServerIDPath), serverAddr, workloadAPISocket, p.log)
 
-	return &plugin.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
-func (m *Plugin) GetPluginInfo(context.Context, *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
-func (m *Plugin) SetLogger(log hclog.Logger) {
-	m.log = log
-}
-
-func (m *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
-	err := m.subscribeToPolling(stream.Context())
+func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
+	err := p.subscribeToPolling(stream.Context())
 	if err != nil {
 		return err
 	}
-	defer m.unsubscribeToPolling()
+	defer p.unsubscribeToPolling()
 
-	certChain, roots, err := m.serverClient.newDownstreamX509CA(stream.Context(), request.Csr)
+	certChain, roots, err := p.serverClient.newDownstreamX509CA(stream.Context(), request.Csr)
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "unable to request a new Downstream X509CA: %v", err)
 	}
 
-	var bundles []*types.X509Certificate
+	var bundles []*plugintypes.X509Certificate
 	for _, cert := range roots {
-		bundles = append(bundles, &types.X509Certificate{
-			Asn1: cert.Raw,
-		})
+		pluginCert, err := x509certificate.ToPluginProto(cert)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse X.509 authorities: %v", err)
+		}
+
+		bundles = append(bundles, pluginCert)
 	}
 
 	// Set X509 Authorities
-	m.setBundleX509Authorities(bundles)
+	p.setBundleX509Authorities(bundles)
 
-	rootCAs := []*types.X509Certificate{}
-	rawChain := certsToRawCerts(certChain)
+	rootCAs := []*plugintypes.X509Certificate{}
+
+	x509CAChain, err := x509certificate.ToPluginProtos(certChain)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
+	}
+
 	ticker := clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
 	for {
-		newRootCAs := m.getBundle().X509Authorities
+		newRootCAs := p.getBundle().X509Authorities
 		// Send response with new X509 authorities
 		if !areRootsEqual(rootCAs, newRootCAs) {
 			rootCAs = newRootCAs
-			err := stream.Send(&upstreamauthorityv0.MintX509CAResponse{
-				X509CaChain:       rawChain,
-				UpstreamX509Roots: typeX509AuthoritiesToRaw(rootCAs),
+			err := stream.Send(&upstreamauthorityv1.MintX509CAResponse{
+				X509CaChain:       x509CAChain,
+				UpstreamX509Roots: rootCAs,
 			})
 			if err != nil {
-				m.log.Error("Cannot send X.509 CA chain and roots", "error", err)
+				p.log.Error("Cannot send X.509 CA chain and roots", "error", err)
 				return err
 			}
-			if rawChain != nil {
-				rawChain = nil
+			if len(x509CAChain) > 0 {
+				x509CAChain = nil
 			}
 		}
 		select {
@@ -162,35 +177,49 @@ func (m *Plugin) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stre
 	}
 }
 
-func (m *Plugin) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
-	err := m.subscribeToPolling(stream.Context())
+func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKeyRequest, stream upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+	err := p.subscribeToPolling(stream.Context())
 	if err != nil {
 		return err
 	}
-	defer m.unsubscribeToPolling()
+	defer p.unsubscribeToPolling()
+
+	jwtKey, err := jwtkey.ToAPIFromPluginProto(req.JwtKey)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to parse JWTKey into api JWTKey: %v", err)
+	}
 
 	// Publish JWT authority
-	resp, err := m.serverClient.publishJWTAuthority(stream.Context(), req.JwtKey)
+	resp, err := p.serverClient.publishJWTAuthority(stream.Context(), jwtKey)
 	if err != nil {
 		return err
+	}
+
+	var jwtKeys []*plugintypes.JWTKey
+	for _, jwtKey := range resp {
+		pluginKey, err := jwtkey.ToPluginFromAPIProto(jwtKey)
+		if err != nil {
+			return err
+		}
+		jwtKeys = append(jwtKeys, pluginKey)
 	}
 
 	// Set JWT authority
-	m.setBundleJWTAuthorities(resp)
+	p.setBundleJWTAuthorities(jwtKeys)
 
-	keys := []*types.JWTKey{}
+	keys := []*plugintypes.JWTKey{}
 	ticker := clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
 	for {
-		newKeys := m.getBundle().JwtAuthorities
+		newKeys := p.getBundle().JwtAuthorities
 		// Send response when new JWT authority
 		if !arePublicKeysEqual(keys, newKeys) {
 			keys = newKeys
-			err := stream.Send(&upstreamauthorityv0.PublishJWTKeyResponse{
-				UpstreamJwtKeys: typeJWTAuthoritiesToProto(keys),
+			err := stream.Send(&upstreamauthorityv1.PublishJWTKeyResponse{
+				UpstreamJwtKeys: keys,
 			})
 			if err != nil {
-				m.log.Error("Cannot send upstream JWT keys", "error", err)
+				p.log.Error("Cannot send upstream JWT keys", "error", err)
 				return err
 			}
 		}
@@ -202,106 +231,107 @@ func (m *Plugin) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, st
 	}
 }
 
-func (m *Plugin) pollBundleUpdates(ctx context.Context) {
+func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 	ticker := clk.Ticker(upstreamPollFreq)
 	defer ticker.Stop()
 	for {
-		preFetchCallVersion := m.getBundleVersion()
-		resp, err := m.serverClient.getBundle(ctx)
+		preFetchCallVersion := p.getBundleVersion()
+		resp, err := p.serverClient.getBundle(ctx)
 		if err != nil {
-			m.log.Warn("Failed to fetch bundle while polling", "error", err)
+			p.log.Warn("Failed to fetch bundle while polling", "error", err)
 		} else {
-			m.setBundleIfVersionMatches(resp, preFetchCallVersion)
+			err := p.setBundleIfVersionMatches(resp, preFetchCallVersion)
+			if err != nil {
+				p.log.Warn("Failed to set bundle while polling", "error", err)
+			}
 		}
 
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			m.serverClient.release()
-			m.log.Debug("Poll bundle updates context done", "reason", ctx.Err())
+			p.serverClient.release()
+			p.log.Debug("Poll bundle updates context done", "reason", ctx.Err())
 			return
 		}
 	}
 }
 
-func (m *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) {
-	m.bundleMtx.Lock()
-	defer m.bundleMtx.Unlock()
+func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) error {
+	p.bundleMtx.Lock()
+	defer p.bundleMtx.Unlock()
 
-	if m.bundleVersion == expectedVersion {
-		m.currentBundle = cloneBundle(b)
+	if p.bundleVersion == expectedVersion {
+		currentBundle, err := bundle.ToPluginFromAPIProto(b)
+		if err != nil {
+			return err
+		}
+		p.currentBundle = currentBundle
 	}
+
+	return nil
 }
 
-func (m *Plugin) getBundle() *types.Bundle {
-	m.bundleMtx.RLock()
-	defer m.bundleMtx.RUnlock()
-	return m.currentBundle
+func (p *Plugin) getBundle() *plugintypes.Bundle {
+	p.bundleMtx.RLock()
+	defer p.bundleMtx.RUnlock()
+	return p.currentBundle
 }
 
-func (m *Plugin) setBundleJWTAuthorities(keys []*types.JWTKey) {
-	m.bundleMtx.Lock()
-	defer m.bundleMtx.Unlock()
-	m.currentBundle.JwtAuthorities = keys
-	m.bundleVersion++
+func (p *Plugin) setBundleJWTAuthorities(keys []*plugintypes.JWTKey) {
+	p.bundleMtx.Lock()
+	defer p.bundleMtx.Unlock()
+	p.currentBundle.JwtAuthorities = keys
+	p.bundleVersion++
 }
 
-func (m *Plugin) setBundleX509Authorities(rootCAs []*types.X509Certificate) {
-	m.bundleMtx.Lock()
-	defer m.bundleMtx.Unlock()
-	m.currentBundle.X509Authorities = rootCAs
-	m.bundleVersion++
+func (p *Plugin) setBundleX509Authorities(rootCAs []*plugintypes.X509Certificate) {
+	p.bundleMtx.Lock()
+	defer p.bundleMtx.Unlock()
+	p.currentBundle.X509Authorities = rootCAs
+	p.bundleVersion++
 }
 
-func (m *Plugin) getBundleVersion() uint64 {
-	m.bundleMtx.RLock()
-	defer m.bundleMtx.RUnlock()
-	return m.bundleVersion
+func (p *Plugin) getBundleVersion() uint64 {
+	p.bundleMtx.RLock()
+	defer p.bundleMtx.RUnlock()
+	return p.bundleVersion
 }
 
-func (m *Plugin) subscribeToPolling(streamCtx context.Context) error {
-	m.pollMtx.Lock()
-	defer m.pollMtx.Unlock()
-	if m.currentPollSubscribers == 0 {
-		if err := m.startPolling(streamCtx); err != nil {
+func (p *Plugin) subscribeToPolling(streamCtx context.Context) error {
+	p.pollMtx.Lock()
+	defer p.pollMtx.Unlock()
+	if p.currentPollSubscribers == 0 {
+		if err := p.startPolling(streamCtx); err != nil {
 			return err
 		}
 	}
-	m.currentPollSubscribers++
+	p.currentPollSubscribers++
 	return nil
 }
 
-func (m *Plugin) unsubscribeToPolling() {
-	m.pollMtx.Lock()
-	defer m.pollMtx.Unlock()
-	m.currentPollSubscribers--
-	if m.currentPollSubscribers == 0 {
+func (p *Plugin) unsubscribeToPolling() {
+	p.pollMtx.Lock()
+	defer p.pollMtx.Unlock()
+	p.currentPollSubscribers--
+	if p.currentPollSubscribers == 0 {
 		// TODO: may we relase server here?
-		m.stopPolling()
+		p.stopPolling()
 	}
 }
 
-func (m *Plugin) startPolling(streamCtx context.Context) error {
+func (p *Plugin) startPolling(streamCtx context.Context) error {
 	var pollCtx context.Context
-	pollCtx, m.stopPolling = context.WithCancel(context.Background())
+	pollCtx, p.stopPolling = context.WithCancel(context.Background())
 
-	if err := m.serverClient.start(streamCtx); err != nil {
-		return fmt.Errorf("failed to start server client: %v", err)
+	if err := p.serverClient.start(streamCtx); err != nil {
+		return err
 	}
 
-	go m.pollBundleUpdates(pollCtx)
+	go p.pollBundleUpdates(pollCtx)
 	return nil
 }
 
-func certsToRawCerts(certs []*x509.Certificate) [][]byte {
-	var rawCerts [][]byte
-	for _, cert := range certs {
-		rawCerts = append(rawCerts, cert.Raw)
-	}
-	return rawCerts
-}
-
-func areRootsEqual(a, b []*types.X509Certificate) bool {
+func areRootsEqual(a, b []*plugintypes.X509Certificate) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -313,7 +343,7 @@ func areRootsEqual(a, b []*types.X509Certificate) bool {
 	return true
 }
 
-func arePublicKeysEqual(a, b []*types.JWTKey) bool {
+func arePublicKeysEqual(a, b []*plugintypes.JWTKey) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -323,32 +353,4 @@ func arePublicKeysEqual(a, b []*types.JWTKey) bool {
 		}
 	}
 	return true
-}
-
-// typeX509AuthoritiesToRaw parses X509 authorities to raw certificates
-func typeX509AuthoritiesToRaw(certs []*types.X509Certificate) [][]byte {
-	var raws [][]byte
-	for _, cert := range certs {
-		raws = append(raws, cert.Asn1)
-	}
-
-	return raws
-}
-
-// typeJWTAuthoritiesToProto parse keys to common public keys
-func typeJWTAuthoritiesToProto(keys []*types.JWTKey) []*common.PublicKey {
-	var commonKeys []*common.PublicKey
-	for _, key := range keys {
-		commonKeys = append(commonKeys, &common.PublicKey{
-			PkixBytes: key.PublicKey,
-			Kid:       key.KeyId,
-			NotAfter:  key.ExpiresAt,
-		})
-	}
-
-	return commonKeys
-}
-
-func cloneBundle(b *types.Bundle) *types.Bundle {
-	return proto.Clone(b).(*types.Bundle)
 }

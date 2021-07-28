@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path"
 )
 
@@ -74,7 +74,7 @@ func LoadKey(path string) (*ecdsa.PrivateKey, error) {
 
 // LoadPEM reads and parses the PEM structure at the specified path
 func LoadPEM(path string) (*pem.Block, error) {
-	dat, err := ioutil.ReadFile(path)
+	dat, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -88,14 +88,14 @@ func LoadPEM(path string) (*pem.Block, error) {
 }
 
 func LoadBundle(path string) ([]*x509.Certificate, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("error reading bundle at %s: %s", path, err)
+		return nil, fmt.Errorf("error reading bundle at %s: %w", path, err)
 	}
 
 	bundle, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing bundle at %s: %s", path, err)
+		return nil, fmt.Errorf("error parsing bundle at %s: %w", path, err)
 	}
 	return bundle, nil
 }

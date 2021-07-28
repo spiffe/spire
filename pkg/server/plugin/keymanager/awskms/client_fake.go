@@ -3,9 +3,13 @@ package awskms
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +21,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/spiffe/spire/test/testkey"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type kmsClientFake struct {
@@ -24,6 +30,7 @@ type kmsClientFake struct {
 	store                  fakeStore
 	mu                     sync.RWMutex
 	testKeys               testkey.Keys
+	validAliasName         *regexp.Regexp
 	createKeyErr           error
 	describeKeyErr         error
 	getPublicKeyErr        error
@@ -40,6 +47,10 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 	return &kmsClientFake{
 		t:     t,
 		store: newFakeStore(c),
+
+		// Valid KMS alias name must match the expression below:
+		// https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax
+		validAliasName: regexp.MustCompile(`alias[a-zA-Z0-9/_-]+$`),
 	}
 }
 
@@ -50,31 +61,21 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 		return nil, k.createKeyErr
 	}
 
-	var privateKey crypto.PrivateKey
-	var publicKey crypto.PublicKey
-
+	var privateKey crypto.Signer
 	switch input.CustomerMasterKeySpec {
 	case types.CustomerMasterKeySpecEccNistP256:
-		key := k.testKeys.NewEC256(k.t)
-		privateKey = key
-		publicKey = &key.PublicKey
+		privateKey = k.testKeys.NewEC256(k.t)
 	case types.CustomerMasterKeySpecEccNistP384:
-		key := k.testKeys.NewEC384(k.t)
-		privateKey = key
-		publicKey = &key.PublicKey
+		privateKey = k.testKeys.NewEC384(k.t)
 	case types.CustomerMasterKeySpecRsa2048:
-		key := k.testKeys.NewRSA2048(k.t)
-		privateKey = key
-		publicKey = &key.PublicKey
+		privateKey = k.testKeys.NewRSA2048(k.t)
 	case types.CustomerMasterKeySpecRsa4096:
-		key := k.testKeys.NewRSA4096(k.t)
-		privateKey = key
-		publicKey = &key.PublicKey
+		privateKey = k.testKeys.NewRSA4096(k.t)
 	default:
 		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec)
 	}
 
-	pkixData, err := x509.MarshalPKIXPublicKey(publicKey)
+	pkixData, err := x509.MarshalPKIXPublicKey(privateKey.Public())
 	if err != nil {
 		return nil, err
 	}
@@ -200,13 +201,56 @@ func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...
 		return nil, k.signErr
 	}
 
-	_, err := k.store.FetchKeyEntry(*input.KeyId)
+	if input.MessageType != types.MessageTypeDigest {
+		return nil, status.Error(codes.InvalidArgument, "plugin should be signing over a digest")
+	}
+
+	entry, err := k.store.FetchKeyEntry(*input.KeyId)
 	if err != nil {
 		return nil, err
 	}
 
-	//TODO: do actual signing
-	return &kms.SignOutput{Signature: input.Message}, nil
+	signRSA := func(opts crypto.SignerOpts) ([]byte, error) {
+		if _, ok := entry.privateKey.(*rsa.PrivateKey); !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid signing algorithm %q for RSA key", input.SigningAlgorithm)
+		}
+		return entry.privateKey.Sign(rand.Reader, input.Message, opts)
+	}
+	signECDSA := func(opts crypto.SignerOpts) ([]byte, error) {
+		if _, ok := entry.privateKey.(*ecdsa.PrivateKey); !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid signing algorithm %q for ECDSA key", input.SigningAlgorithm)
+		}
+		return entry.privateKey.Sign(rand.Reader, input.Message, opts)
+	}
+
+	var signature []byte
+	switch input.SigningAlgorithm {
+	case types.SigningAlgorithmSpecRsassaPssSha256:
+		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA256, SaltLength: rsa.PSSSaltLengthEqualsHash})
+	case types.SigningAlgorithmSpecRsassaPssSha384:
+		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA384, SaltLength: rsa.PSSSaltLengthEqualsHash})
+	case types.SigningAlgorithmSpecRsassaPssSha512:
+		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA512, SaltLength: rsa.PSSSaltLengthEqualsHash})
+	case types.SigningAlgorithmSpecRsassaPkcs1V15Sha256:
+		signature, err = signRSA(crypto.SHA256)
+	case types.SigningAlgorithmSpecRsassaPkcs1V15Sha384:
+		signature, err = signRSA(crypto.SHA384)
+	case types.SigningAlgorithmSpecRsassaPkcs1V15Sha512:
+		signature, err = signRSA(crypto.SHA512)
+	case types.SigningAlgorithmSpecEcdsaSha256:
+		signature, err = signECDSA(crypto.SHA256)
+	case types.SigningAlgorithmSpecEcdsaSha384:
+		signature, err = signECDSA(crypto.SHA384)
+	case types.SigningAlgorithmSpecEcdsaSha512:
+		signature, err = signECDSA(crypto.SHA512)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported signing algorithm: %s", input.SigningAlgorithm)
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to sign digest: %v", err)
+	}
+
+	return &kms.SignOutput{Signature: signature}, nil
 }
 
 func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasInput, opts ...func(*kms.Options)) (*kms.CreateAliasOutput, error) {
@@ -214,6 +258,10 @@ func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasI
 	defer k.mu.RUnlock()
 	if k.createAliasErr != nil {
 		return nil, k.createAliasErr
+	}
+
+	if !k.validAliasName.MatchString(*input.AliasName) {
+		return nil, fmt.Errorf("unsupported KMS alias name: %v", *input.AliasName)
 	}
 
 	err := k.store.SaveAlias(*input.TargetKeyId, *input.AliasName)
@@ -396,7 +444,7 @@ type fakeKeyEntry struct {
 	AliasName            *string // Only one alias per key. "Real" KMS supports many aliases per key
 	AliasLastUpdatedDate *time.Time
 	PublicKey            []byte
-	privateKey           crypto.PrivateKey
+	privateKey           crypto.Signer
 	Enabled              bool
 	KeySpec              types.CustomerMasterKeySpec
 }

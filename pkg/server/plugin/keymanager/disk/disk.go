@@ -4,16 +4,15 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	keymanagerv0 "github.com/spiffe/spire/proto/spire/plugin/server/keymanager/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,7 +22,9 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *KeyManager) catalog.BuiltIn {
-	return catalog.MakeBuiltIn("disk", keymanagerv0.KeyManagerPluginServer(p))
+	return catalog.MakeBuiltIn("disk",
+		keymanagerv1.KeyManagerPluginServer(p),
+		configv1.ConfigServiceServer(p))
 }
 
 type configuration struct {
@@ -32,6 +33,7 @@ type configuration struct {
 
 type KeyManager struct {
 	*keymanagerbase.Base
+	configv1.UnimplementedConfigServer
 
 	mu     sync.Mutex
 	config *configuration
@@ -45,9 +47,9 @@ func New() *KeyManager {
 	return m
 }
 
-func (m *KeyManager) Configure(ctx context.Context, req *plugin.ConfigureRequest) (*plugin.ConfigureResponse, error) {
+func (m *KeyManager) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(configuration)
-	if err := hcl.Decode(config, req.Configuration); err != nil {
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
@@ -62,7 +64,7 @@ func (m *KeyManager) Configure(ctx context.Context, req *plugin.ConfigureRequest
 		return nil, err
 	}
 
-	return &plugin.ConfigureResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (m *KeyManager) configure(config *configuration) error {
@@ -77,10 +79,6 @@ func (m *KeyManager) configure(config *configuration) error {
 
 	m.config = config
 	return nil
-}
-
-func (m *KeyManager) GetPluginInfo(ctx context.Context, req *plugin.GetPluginInfoRequest) (*plugin.GetPluginInfoResponse, error) {
-	return &plugin.GetPluginInfoResponse{}, nil
 }
 
 func (m *KeyManager) writeEntries(ctx context.Context, entries []*keymanagerbase.KeyEntry) error {
@@ -100,7 +98,7 @@ type entriesData struct {
 }
 
 func loadEntries(path string) ([]*keymanagerbase.KeyEntry, error) {
-	jsonBytes, err := ioutil.ReadFile(path)
+	jsonBytes, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -145,7 +143,7 @@ func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
 		return status.Errorf(codes.Internal, "unable to marshal entries: %v", err)
 	}
 
-	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0644); err != nil {
+	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0600); err != nil {
 		return status.Errorf(codes.Internal, "unable to write entries: %v", err)
 	}
 

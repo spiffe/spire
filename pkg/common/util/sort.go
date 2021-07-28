@@ -33,6 +33,7 @@ func SortRegistrationEntries(entries []*common.RegistrationEntry) {
 	// entry comparison relies on them being sorted
 	for _, entry := range entries {
 		SortSelectors(entry.Selectors)
+		sort.Strings(entry.FederatesWith)
 	}
 
 	// second, sort the registration entries

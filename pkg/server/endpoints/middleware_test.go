@@ -13,8 +13,9 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -92,8 +93,9 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Unable to look up agent information",
 					Data: map[string]interface{}{
-						logrus.ErrorKey:   "fetch failed",
-						telemetry.AgentID: agentID.String(),
+						logrus.ErrorKey:      "fetch failed",
+						telemetry.CallerID:   agentID.String(),
+						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
 			},
@@ -113,7 +115,8 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent SVID is expired",
 					Data: map[string]interface{}{
-						telemetry.AgentID: agentID.String(),
+						telemetry.CallerID:   agentID.String(),
+						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
 			},
@@ -128,7 +131,8 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent is not attested",
 					Data: map[string]interface{}{
-						telemetry.AgentID: agentID.String(),
+						telemetry.CallerID:   agentID.String(),
+						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
 			},
@@ -146,7 +150,8 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent is banned",
 					Data: map[string]interface{}{
-						telemetry.AgentID: agentID.String(),
+						telemetry.CallerID:   agentID.String(),
+						telemetry.CallerAddr: "127.0.0.1",
 					},
 				},
 			},
@@ -165,7 +170,8 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent SVID is not active",
 					Data: map[string]interface{}{
-						telemetry.AgentID:          agentID.String(),
+						telemetry.CallerID:         agentID.String(),
+						telemetry.CallerAddr:       "127.0.0.1",
 						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
 						telemetry.SerialNumber:     "NEW",
 					},
@@ -196,7 +202,8 @@ func TestAgentAuthorizer(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Unable to activate the new agent SVID",
 					Data: map[string]interface{}{
-						telemetry.AgentID:          agentID.String(),
+						telemetry.CallerID:         agentID.String(),
+						telemetry.CallerAddr:       "127.0.0.1",
 						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
 						telemetry.SerialNumber:     "CURRENT",
 						telemetry.NewSerialNumber:  agentSVID.SerialNumber.String(),
@@ -235,7 +242,12 @@ func TestAgentAuthorizer(t *testing.T) {
 				clk.Set(tt.time)
 			}
 			authorizer := AgentAuthorizer(log, ds, clk)
-			err := authorizer.AuthorizeAgent(context.Background(), agentID, agentSVID)
+			ctx := context.Background()
+			ctx = rpccontext.WithLogger(ctx, log.WithFields(logrus.Fields{
+				telemetry.CallerAddr: "127.0.0.1",
+				telemetry.CallerID:   agentID,
+			}))
+			err := authorizer.AuthorizeAgent(ctx, agentID, agentSVID)
 			spiretest.RequireGRPCStatus(t, err, tt.expectedCode, tt.expectedMsg)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectedLogs)
 
@@ -275,12 +287,7 @@ func createEntry(t testing.TB, ds datastore.DataStore, entryIn *common.Registrat
 }
 
 func setNodeSelectors(t testing.TB, ds datastore.DataStore, id spiffeid.ID, selectors []*common.Selector) {
-	_, err := ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  id.String(),
-			Selectors: selectors,
-		},
-	})
+	err := ds.SetNodeSelectors(context.Background(), id.String(), selectors)
 	require.NoError(t, err)
 }
 

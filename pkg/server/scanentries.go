@@ -7,7 +7,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	serverTelemetry "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
 var (

@@ -9,9 +9,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -141,15 +143,16 @@ func TestPerIPLimitGC(t *testing.T) {
 
 func TestRateLimits(t *testing.T) {
 	for _, tt := range []struct {
-		name           string
-		method         string
-		prepareCtx     func(context.Context) context.Context
-		rateLimitCount int
-		returnErr      error
-		downstreamErr  error
-		expectLogs     []spiretest.LogEntry
-		expectCode     codes.Code
-		expectMsg      string
+		name            string
+		method          string
+		prepareCtx      func(context.Context) context.Context
+		rateLimitCount  int
+		returnErr       error
+		downstreamErr   error
+		expectLogs      []spiretest.LogEntry
+		expectCode      codes.Code
+		expectMsg       string
+		expectedMetrics []fakemetrics.MetricItem
 	}{
 		{
 			name:       "RPC fails if method not configured for rate limiting",
@@ -226,6 +229,19 @@ func TestRateLimits(t *testing.T) {
 			name:           "does not log when rate limiter used by limited handler",
 			method:         "/fake.Service/WithLimit",
 			rateLimitCount: 1,
+			expectedMetrics: []fakemetrics.MetricItem{
+				{
+					Type:   fakemetrics.IncrCounterWithLabelsType,
+					Key:    []string{"rateLimit"},
+					Val:    1,
+					Labels: []telemetry.Label{{Name: "status", Value: "OK"}},
+				},
+				{
+					Type:   fakemetrics.MeasureSinceWithLabelsType,
+					Key:    append([]string{"rateLimit"}, "elapsed_time"),
+					Labels: []telemetry.Label{{Name: "status", Value: "OK"}},
+				},
+			},
 		},
 		{
 			name:           "returns resource exhausted when rate limiting fails",
@@ -233,6 +249,19 @@ func TestRateLimits(t *testing.T) {
 			rateLimitCount: 3,
 			expectCode:     codes.ResourceExhausted,
 			expectMsg:      "rate (3) exceeds burst size (2)",
+			expectedMetrics: []fakemetrics.MetricItem{
+				{
+					Type:   fakemetrics.IncrCounterWithLabelsType,
+					Key:    []string{"rateLimit"},
+					Val:    1,
+					Labels: []telemetry.Label{{Name: "status", Value: "ResourceExhausted"}},
+				},
+				{
+					Type:   fakemetrics.MeasureSinceWithLabelsType,
+					Key:    append([]string{"rateLimit"}, "elapsed_time"),
+					Labels: []telemetry.Label{{Name: "status", Value: "ResourceExhausted"}},
+				},
+			},
 		},
 	} {
 		tt := tt
@@ -255,6 +284,7 @@ func TestRateLimits(t *testing.T) {
 				}
 				return struct{}{}, nil
 			}
+			metrics := fakemetrics.New()
 
 			unaryInterceptor := middleware.UnaryInterceptor(middleware.Chain(
 				WithRateLimits(
@@ -263,10 +293,11 @@ func TestRateLimits(t *testing.T) {
 						"/fake.Service/DisabledLimit": DisabledLimit(),
 						"/fake.Service/WithLimit":     PerCallLimit(2),
 					},
+					metrics,
 				),
 				// Install a middleware downstream so that we can test what
 				// happens in postprocess if the handler is never invoked.
-				middleware.Preprocess(func(ctx context.Context, fullMethod string) (context.Context, error) {
+				middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 					return ctx, tt.downstreamErr
 				}),
 			))
@@ -279,6 +310,7 @@ func TestRateLimits(t *testing.T) {
 				assert.Nil(t, resp)
 			}
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
+			assert.Equal(t, tt.expectedMetrics, metrics.AllMetrics())
 		})
 	}
 }

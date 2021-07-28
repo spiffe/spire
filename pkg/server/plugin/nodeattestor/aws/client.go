@@ -1,12 +1,15 @@
 package aws
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -35,7 +38,7 @@ type clientsCache struct {
 	newClient newClientCallback
 }
 
-type newClientCallback func(config *SessionConfig, region string) (Client, error)
+type newClientCallback func(config *SessionConfig, region string, asssumeRoleARN string) (Client, error)
 
 func newClientsCache(newClient newClientCallback) *clientsCache {
 	return &clientsCache{
@@ -51,8 +54,10 @@ func (cc *clientsCache) configure(config SessionConfig) {
 	cc.mu.Unlock()
 }
 
-func (cc *clientsCache) getClient(region string) (Client, error) {
+func (cc *clientsCache) getClient(region, accountID string) (Client, error) {
 	// do an initial check to see if p client for this region already exists
+	cacheKey := accountID + "@" + region
+
 	cc.mu.RLock()
 	client, ok := cc.clients[region]
 	cc.mu.RUnlock()
@@ -67,28 +72,33 @@ func (cc *clientsCache) getClient(region string) (Client, error) {
 	// more than one thread could be racing to create p client (since we had
 	// to drop the read lock to take the write lock), so double check somebody
 	// hasn't beat us to it.
-	client, ok = cc.clients[region]
+	client, ok = cc.clients[cacheKey]
 	if ok {
 		return client, nil
 	}
 
 	if cc.config == nil {
-		return nil, iidError.New("not configured")
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	client, err := cc.newClient(cc.config, region)
+	var asssumeRoleArn string
+	if cc.config.AssumeRole != "" {
+		asssumeRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cc.config.AssumeRole)
+	}
+
+	client, err := cc.newClient(cc.config, region, asssumeRoleArn)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
 
-	cc.clients[region] = client
+	cc.clients[cacheKey] = client
 	return client, nil
 }
 
-func newClient(config *SessionConfig, region string) (Client, error) {
-	sess, err := newAWSSession(config.AccessKeyID, config.SecretAccessKey, region)
+func newClient(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
+	sess, err := newAWSSession(config.AccessKeyID, config.SecretAccessKey, region, asssumeRoleARN)
 	if err != nil {
-		return nil, iidError.Wrap(err)
+		return nil, err
 	}
 
 	return struct {

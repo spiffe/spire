@@ -10,29 +10,30 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
-	"github.com/spiffe/spire/proto/spire/common"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
-	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
 	pluginName = "k8s_sat"
-)
 
-var (
-	satError = errs.Class("k8s-sat")
+	// If there are clock differences between the agent and server then token
+	// validation may fail unless we give a little leeway.
+	tokenLeeway = time.Minute * 5
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -41,7 +42,8 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *AttestorPlugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn("k8s_sat",
-		nodeattestorv0.NodeAttestorPluginServer(p),
+		nodeattestorv1.NodeAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
 	)
 }
 
@@ -85,6 +87,8 @@ type attestorConfig struct {
 
 type AttestorPlugin struct {
 	nodeattestorbase.Base
+	nodeattestorv1.UnsafeNodeAttestorServer
+	configv1.UnsafeConfigServer
 
 	mu     sync.RWMutex
 	config *attestorConfig
@@ -92,10 +96,9 @@ type AttestorPlugin struct {
 
 	hooks struct {
 		newUUID func() (string, error)
+		now     func() time.Time
 	}
 }
-
-var _ nodeattestorv0.NodeAttestorServer = (*AttestorPlugin)(nil)
 
 func New() *AttestorPlugin {
 	p := &AttestorPlugin{}
@@ -106,6 +109,7 @@ func New() *AttestorPlugin {
 		}
 		return u.String(), nil
 	}
+	p.hooks.now = time.Now
 	return p
 }
 
@@ -114,10 +118,10 @@ func (p *AttestorPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer) error {
+func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	req, err := stream.Recv()
 	if err != nil {
-		return satError.Wrap(err)
+		return err
 	}
 
 	config, err := p.getConfig()
@@ -125,34 +129,27 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer)
 		return err
 	}
 
-	if req.AttestationData == nil {
-		return satError.New("missing attestation data")
-	}
-
-	if dataType := req.AttestationData.Type; dataType != pluginName {
-		return satError.New("unexpected attestation data type %q", dataType)
-	}
-
-	if req.AttestationData.Data == nil {
-		return satError.New("missing attestation data payload")
+	payload := req.GetPayload()
+	if payload == nil {
+		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	attestationData := new(k8s.SATAttestationData)
-	if err := json.Unmarshal(req.AttestationData.Data, attestationData); err != nil {
-		return satError.New("failed to unmarshal data payload: %v", err)
+	if err := json.Unmarshal(payload, attestationData); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to unmarshal attestation data: %v", err)
 	}
 
 	if attestationData.Cluster == "" {
-		return satError.New("missing cluster in attestation data")
+		return status.Error(codes.InvalidArgument, "missing cluster in attestation data")
 	}
 
 	if attestationData.Token == "" {
-		return satError.New("missing token in attestation data")
+		return status.Error(codes.InvalidArgument, "missing token in attestation data")
 	}
 
 	cluster := config.clusters[attestationData.Cluster]
 	if cluster == nil {
-		return satError.New("not configured for cluster %q", attestationData.Cluster)
+		return status.Errorf(codes.InvalidArgument, "not configured for cluster %q", attestationData.Cluster)
 	}
 
 	uuid, err := p.hooks.newUUID()
@@ -166,9 +163,9 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer)
 	attested, err := p.IsAttested(stream.Context(), agentID)
 	switch {
 	case err != nil:
-		return satError.Wrap(err)
+		return err
 	case attested:
-		return satError.New("SAT has already been used to attest an agent with the same UUID")
+		return status.Error(codes.PermissionDenied, "SAT has already been used to attest an agent with the same UUID")
 	}
 
 	var namespace, serviceAccountName string
@@ -176,84 +173,116 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv0.NodeAttestor_AttestServer)
 		// Empty audience is used since SAT does not support audiences
 		tokenStatus, err := cluster.client.ValidateToken(stream.Context(), attestationData.Token, []string{})
 		if err != nil {
-			return satError.New("unable to validate token with TokenReview API: %v", err)
+			return status.Errorf(codes.Internal, "unable to validate token with TokenReview API: %v", err)
 		}
 
 		if !tokenStatus.Authenticated {
-			return satError.New("token not authenticated according to TokenReview API")
+			return status.Error(codes.PermissionDenied, "token not authenticated according to TokenReview API")
 		}
 
 		namespace, serviceAccountName, err = k8s.GetNamesFromTokenStatus(tokenStatus)
 		if err != nil {
-			return satError.New("fail to parse username from token review status: %v", err)
+			return status.Errorf(codes.Internal, "fail to parse username from token review status: %v", err)
 		}
 	} else {
 		token, err := jwt.ParseSigned(attestationData.Token)
 		if err != nil {
-			return satError.New("unable to parse token: %v", err)
+			return status.Errorf(codes.InvalidArgument, "unable to parse token: %v", err)
 		}
 
 		claims := new(k8s.SATClaims)
 		err = verifyTokenSignature(cluster.serviceAccountKeys, token, claims)
 		if err != nil {
-			return satError.Wrap(err)
+			return err
+		}
+		if !claims.Expiry.Time().IsZero() {
+			// This is an indication that this may be a projected service account token
+			p.log.Warn("The service account token has an expiration time, which is an indication that may be a projected service account token. If your cluster supports Service Account Token Volume Projection you should instead consider using the `k8s_psat` attestor. Please look at https://github.com/spiffe/spire/blob/main/doc/plugin_server_nodeattestor_k8s_sat.md#security-considerations for details about security considerations when using the `k8s_sat` attestor.")
+
+			// Validate the time with leeway
+			if err := claims.ValidateWithLeeway(jwt.Expected{
+				Time: p.hooks.now(),
+			}, tokenLeeway); err != nil {
+				return status.Errorf(codes.InvalidArgument, "unable to validate token claims: %v", err)
+			}
 		}
 
-		// TODO: service account tokens don't currently expire.... when they do, validate the time (with leeway)
-		if err := claims.Validate(jwt.Expected{
-			Issuer: "kubernetes/serviceaccount",
-		}); err != nil {
-			return satError.New("unable to validate token claims: %v", err)
+		namespace, serviceAccountName, err = p.getNamesFromClaims(claims)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "error parsing token claims: %v", err)
 		}
-
-		if claims.Namespace == "" {
-			return satError.New("token missing namespace claim")
-		}
-
-		if claims.ServiceAccountName == "" {
-			return satError.New("token missing service account name claim")
-		}
-
-		namespace = claims.Namespace
-		serviceAccountName = claims.ServiceAccountName
 	}
 
 	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
 	if !cluster.serviceAccounts[fullServiceAccountName] {
-		return satError.New("%q is not an allowed service account", fullServiceAccountName)
+		return status.Errorf(codes.PermissionDenied, "%q is not an allowed service account", fullServiceAccountName)
 	}
 
-	return stream.Send(&nodeattestorv0.AttestResponse{
-		AgentId: agentID,
-		Selectors: []*common.Selector{
-			k8s.MakeSelector(pluginName, "cluster", attestationData.Cluster),
-			k8s.MakeSelector(pluginName, "agent_ns", namespace),
-			k8s.MakeSelector(pluginName, "agent_sa", serviceAccountName),
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId: agentID,
+				SelectorValues: []string{
+					k8s.MakeSelectorValue("cluster", attestationData.Cluster),
+					k8s.MakeSelectorValue("agent_ns", namespace),
+					k8s.MakeSelectorValue("agent_sa", serviceAccountName),
+				},
+			},
 		},
 	})
 }
 
-func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureRequest) (*spi.ConfigureResponse, error) {
+// getNamesFromClaims parses claims from a k8s.SATClaims struct
+// to extract the namespace and service account name
+func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace string, serviceAccountName string, err error) {
+	if claims.Namespace == "" {
+		if claims.K8s.Namespace == "" {
+			return "", "", errors.New("token missing namespace claim")
+		}
+		namespace = claims.K8s.Namespace
+	} else {
+		if claims.K8s.Namespace != "" {
+			return "", "", errors.New("malformed token: namespace found in two claims")
+		}
+		namespace = claims.Namespace
+	}
+
+	if claims.ServiceAccountName == "" {
+		if claims.K8s.ServiceAccount.Name == "" {
+			return "", "", errors.New("token missing service account name claim")
+		}
+		serviceAccountName = claims.K8s.ServiceAccount.Name
+	} else {
+		if claims.K8s.ServiceAccount.Name != "" {
+			return "", "", errors.New("malformed token: service account name found in two claims")
+		}
+		serviceAccountName = claims.ServiceAccountName
+	}
+
+	return namespace, serviceAccountName, nil
+}
+
+func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	hclConfig := new(AttestorConfig)
-	if err := hcl.Decode(hclConfig, req.Configuration); err != nil {
-		return nil, satError.New("unable to decode configuration: %v", err)
+	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
-	if req.GlobalConfig == nil {
-		return nil, satError.New("global configuration is required")
+	if req.CoreConfiguration == nil {
+		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
-	if req.GlobalConfig.TrustDomain == "" {
-		return nil, satError.New("global configuration missing trust domain")
+	if req.CoreConfiguration.TrustDomain == "" {
+		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
 	}
 
 	if len(hclConfig.Clusters) == 0 {
-		return nil, satError.New("configuration must have at least one cluster")
+		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one cluster")
 	}
 
 	config := &attestorConfig{
-		trustDomain: req.GlobalConfig.TrustDomain,
+		trustDomain: req.CoreConfiguration.TrustDomain,
 		clusters:    make(map[string]*clusterConfig),
 	}
-	config.trustDomain = req.GlobalConfig.TrustDomain
+	config.trustDomain = req.CoreConfiguration.TrustDomain
 	for name, cluster := range hclConfig.Clusters {
 		var serviceAccountKeys []crypto.PublicKey
 		var apiserverClient apiserver.Client
@@ -262,16 +291,16 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 			apiserverClient = apiserver.New(cluster.KubeConfigFile)
 		} else {
 			if cluster.ServiceAccountKeyFile == "" {
-				return nil, satError.New("cluster %q configuration missing service account key file", name)
+				return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration missing service account key file", name)
 			}
 
 			serviceAccountKeys, err = loadServiceAccountKeys(cluster.ServiceAccountKeyFile)
 			if err != nil {
-				return nil, satError.New("failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
+				return nil, status.Errorf(codes.InvalidArgument, "failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
 			}
 
 			if len(serviceAccountKeys) == 0 {
-				return nil, satError.New("cluster %q has no service account keys in %q", name, cluster.ServiceAccountKeyFile)
+				return nil, status.Errorf(codes.InvalidArgument, "cluster %q has no service account keys in %q", name, cluster.ServiceAccountKeyFile)
 			}
 		}
 
@@ -282,7 +311,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 		}
 
 		if len(cluster.ServiceAccountAllowList) == 0 {
-			return nil, satError.New("cluster %q configuration must have at least one service account allowed", name)
+			return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration must have at least one service account allowed", name)
 		}
 
 		serviceAccounts := make(map[string]bool)
@@ -299,18 +328,14 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *spi.ConfigureReques
 	}
 
 	p.setConfig(config)
-	return &spi.ConfigureResponse{}, nil
-}
-
-func (p *AttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
-		return nil, satError.New("not configured")
+		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
 }
@@ -325,19 +350,19 @@ func verifyTokenSignature(keys []crypto.PublicKey, token *jwt.JSONWebToken, clai
 	var lastErr error
 	for _, key := range keys {
 		if err := token.Claims(key, claims); err != nil {
-			lastErr = fmt.Errorf("unable to verify token: %v", err)
+			lastErr = status.Errorf(codes.InvalidArgument, "unable to verify token: %v", err)
 			continue
 		}
 		return nil
 	}
 	if lastErr == nil {
-		lastErr = errors.New("token signed by unknown authority")
+		lastErr = status.Error(codes.InvalidArgument, "token signed by unknown authority")
 	}
 	return lastErr
 }
 
 func loadServiceAccountKeys(path string) ([]crypto.PublicKey, error) {
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

@@ -2,25 +2,31 @@ package gcp
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
+	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -33,18 +39,7 @@ const (
 )
 
 var (
-	testKey, _ = pemutil.ParseRSAPrivateKey([]byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBzAIBAAJhAMnVzWSZn20CtcFaWh1Uuoh7NObRt9z84h8zzuIVSNkeJV6Dei0v
-8FGp3ZilrU3MDM6WsuFTUVo21qBTOTnYKuEI0bk7pTgZk9CN6aF0iZbzyrvsU6hy
-b09dN0PFBc5A2QIDAQABAmEAqSpioQvFPKfF0M46s1S9lwC1ATULRtRJbd+NaZ5v
-VVLX/VRzRYZlhPy7d2J9U7ROFjSM+Fng8S1knrHAK0ka/ZfYOl1ZLoMexpBovebM
-mGcsCHrHz4eBN8B1Y+8JRhkBAjEA7fTLjbz3M7za1nGODqWsoBv33yJHGh9GIaf9
-umpx3qpFZCVsqHgCvmalAu+IXAz5AjEA2SPTRcddrGVsDnSOYot3eCArVOIxgI+r
-H9A4cjS4cp4W4nBZhb+08/IYtDfYdirhAjAtl8LMtJE045GWlwld+xZ5UwKKSVoQ
-Qj/AwRxXdH++5ycGijkoil4UNzyUtGqPIJkCMQC5g9ola8ekWqKPVxWvK+jOQO3E
-f9w7MoPJkmQnbtOHWXnDzKkvlDJNmTFyB6RwkQECMQDp+GR2I305amG9isTzm7UU
-8pJxbXLymDwR4A7x5vwH6x2gLBgpat21QAR14W4dYEg=
------END RSA PRIVATE KEY-----`))
+	testKey = testkey.MustRSA2048()
 )
 
 func TestIITAttestorPlugin(t *testing.T) {
@@ -55,7 +50,7 @@ type IITAttestorSuite struct {
 	spiretest.Suite
 
 	agentStore *fakeagentstore.AgentStore
-	p          nodeattestorv0.NodeAttestorClient
+	attestor   nodeattestor.NodeAttestor
 
 	client *fakeComputeEngineClient
 }
@@ -63,171 +58,100 @@ type IITAttestorSuite struct {
 func (s *IITAttestorSuite) SetupTest() {
 	s.agentStore = fakeagentstore.New()
 	s.client = newFakeComputeEngineClient()
-	s.p = s.newPlugin()
-	s.configure()
+	s.attestor = s.loadPlugin()
 }
 
 func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
-	p := s.newPlugin()
-	stream, err := p.Attest(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-	resp, err := stream.Recv()
-	s.RequireErrorContains(err, "gcp-iit: not configured")
-	s.Require().Nil(resp)
+	attestor := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), attestor,
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+	)
+	s.attestor = attestor
+	s.requireAttestError(s.T(), []byte("payload"), codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
 }
 
-func (s *IITAttestorSuite) TestErrorOnInvalidToken() {
-	_, err := s.attest(&nodeattestorv0.AttestRequest{})
-	s.RequireErrorContains(err, "gcp-iit: request missing attestation data")
-}
-
-func (s *IITAttestorSuite) TestErrorOnInvalidType() {
-	_, err := s.attest(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "foo",
-		},
-	})
-	s.RequireErrorContains(err, `gcp-iit: unexpected attestation data type "foo"`)
+func (s *IITAttestorSuite) TestErrorOnMissingPayload() {
+	s.requireAttestError(s.T(), nil, codes.InvalidArgument, "payload cannot be empty")
 }
 
 func (s *IITAttestorSuite) TestErrorOnMissingKid() {
-	token := buildToken()
-	token.Header["kid"] = nil
-
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-
-	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, "identity token missing kid header")
+	payload := s.signToken(testKey, "", buildDefaultClaims())
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: square/go-jose: unsupported key type/format")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
 	claims := buildDefaultClaims()
-	claims["exp"] = 1
-	token := buildTokenWithClaims(claims)
+	claims.Expiry = jwt.NewNumericDate(time.Now().Add(-time.Hour))
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-
-	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token is expired")
+	payload := s.signToken(testKey, "kid", claims)
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): failed to validate the identity token claims: square/go-jose/jwt: validation failed, token is expired (exp)")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidAudience() {
 	claims := buildClaims(testProject, "invalid")
-	token := buildTokenWithClaims(claims)
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-
-	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, `gcp-iit: unexpected identity token audience "invalid"`)
+	payload := s.signToken(testKey, "kid", claims)
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): failed to validate the identity token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)`)
 }
 
 func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
-	token := buildToken()
+	payload := s.signDefaultToken()
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-
-	s.agentStore.SetAgentInfo(&agentstorev0.AgentInfo{
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
 		AgentId: testAgentID,
 	})
 
-	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, "gcp-iit: IIT has already been used to attest an agent")
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): IIT has already been used to attest an agent")
 }
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
 	claims := buildClaims("project-whatever", tokenAudience)
-	token := buildTokenWithClaims(claims)
+	payload := s.signToken(testKey, "kid", claims)
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, `gcp-iit: identity token project ID "project-whatever" is not in the allow list`)
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): identity token project ID "project-whatever" is not in the allow list`)
 }
 
-func (s *IITAttestorSuite) TestErrorOnInvalidAlgorithm() {
-	token := buildToken()
+func (s *IITAttestorSuite) TestErrorOnInvalidSignature() {
+	alternativeKey := testkey.MustRSA2048()
 
-	tokenString, _ := token.SignedString([]byte("secret"))
+	payload := s.signToken(alternativeKey, "kid", buildDefaultClaims())
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: []byte(tokenString),
-	}
-
-	_, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
-	s.RequireErrorContains(err, "gcp-iit: unable to parse/validate the identity token: token contains an invalid number of segments")
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: square/go-jose: error in cryptographic primitive")
 }
 
-func (s *IITAttestorSuite) TestErrorOnBadSVIDTemplate() {
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-projectid_allow_list = ["test-project"]
-agent_path_template = "{{ .InstanceID "
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.RequireErrorContains(err, "failed to parse agent path template")
+func (s *IITAttestorSuite) TestErrorOnInvalidPayload() {
+	s.requireAttestError(s.T(), []byte("secret"), codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse the identity token: square/go-jose: compact JWS format must have three parts")
 }
 
 func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
 	// mismatch SA file
 	s.client.setInstance(&compute.Instance{})
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
+
+	s.attestor = s.loadPluginWithConfig(`
 projectid_allow_list = ["test-project"]
 use_instance_metadata = true
 service_account_file = "error_sa.json"
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
-	_, err = s.attest(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
-		},
-	})
-	s.RequireErrorContains(err, "gcp-iit: failed to fetch instance metadata: expected sa file \"test_sa.json\", got \"error_sa.json\"")
+`)
+
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, `nodeattestor(gcp_iit): failed to fetch instance metadata: expected sa file "test_sa.json", got "error_sa.json"`)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccess() {
-	token := buildToken()
+	payload := s.signDefaultToken()
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-	res, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
+	result, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&nodeattestorv0.AttestResponse{
-		AgentId: testAgentID,
-		Selectors: []*common.Selector{
-			{Type: "gcp_iit", Value: "project-id:" + testProject},
-			{Type: "gcp_iit", Value: "zone:" + testZone},
-			{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
-		},
-	}, res)
+
+	s.Require().Equal(testAgentID, result.AgentID)
+	s.RequireProtoListEqual([]*common.Selector{
+		{Type: "gcp_iit", Value: "project-id:test-project"},
+		{Type: "gcp_iit", Value: "zone:test-zone"},
+		{Type: "gcp_iit", Value: "instance-name:test-instance-name"},
+	}, result.Selectors)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
-	s.configureForInstanceMetadata(&compute.Instance{
+	s.attestor = s.loadPluginForInstanceMetadata(&compute.Instance{
 		Tags: &compute.Tags{
 			Items: []string{"tag-1", "tag-2"},
 		},
@@ -257,37 +181,32 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 		},
 	})
 
-	expected := &nodeattestorv0.AttestResponse{
-		AgentId: testAgentID,
-		Selectors: []*common.Selector{
-			{Type: "gcp_iit", Value: "project-id:" + testProject},
-			{Type: "gcp_iit", Value: "zone:" + testZone},
-			{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
-			{Type: "gcp_iit", Value: "tag:tag-1"},
-			{Type: "gcp_iit", Value: "tag:tag-2"},
-			{Type: "gcp_iit", Value: "sa:service-account-1"},
-			{Type: "gcp_iit", Value: "sa:service-account-2"},
-			{Type: "gcp_iit", Value: "metadata:allowed:ALLOWED"},
-			{Type: "gcp_iit", Value: "metadata:allowed-no-value:"},
-			{Type: "gcp_iit", Value: "label:allowed:ALLOWED"},
-			{Type: "gcp_iit", Value: "label:allowed-no-value:"},
-		},
+	expectSelectors := []*common.Selector{
+		{Type: "gcp_iit", Value: "project-id:" + testProject},
+		{Type: "gcp_iit", Value: "zone:" + testZone},
+		{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
+		{Type: "gcp_iit", Value: "tag:tag-1"},
+		{Type: "gcp_iit", Value: "tag:tag-2"},
+		{Type: "gcp_iit", Value: "sa:service-account-1"},
+		{Type: "gcp_iit", Value: "sa:service-account-2"},
+		{Type: "gcp_iit", Value: "metadata:allowed:ALLOWED"},
+		{Type: "gcp_iit", Value: "metadata:allowed-no-value:"},
+		{Type: "gcp_iit", Value: "label:allowed:ALLOWED"},
+		{Type: "gcp_iit", Value: "label:allowed-no-value:"},
 	}
-	actual, err := s.attest(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
-		},
-	})
+
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
 
-	util.SortSelectors(actual.Selectors)
-	util.SortSelectors(expected.Selectors)
-	s.RequireProtoEqual(expected, actual)
+	util.SortSelectors(expectSelectors)
+	util.SortSelectors(result.Selectors)
+
+	s.RequireProtoListEqual(expectSelectors, result.Selectors)
+	s.Require().Equal(testAgentID, result.AgentID)
 }
 
 func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() {
-	s.configureForInstanceMetadata(&compute.Instance{
+	s.attestor = s.loadPluginForInstanceMetadata(&compute.Instance{
 		Metadata: &compute.Metadata{
 			Items: []*compute.MetadataItems{
 				{
@@ -297,208 +216,175 @@ func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() 
 			},
 		},
 	})
-
-	_, err := s.attest(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
-		},
-	})
-	s.RequireErrorContains(err, `gcp-iit: metadata "allowed" exceeded value limit (20 > 10)`)
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, `nodeattestor(gcp_iit): metadata "allowed" exceeded value limit (20 > 10)`)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
-	s.configureForInstanceMetadata(&compute.Instance{})
+	s.attestor = s.loadPluginForInstanceMetadata(&compute.Instance{})
 
-	res, err := s.attest(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
-		},
-	})
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
-	s.RequireProtoEqual(&nodeattestorv0.AttestResponse{
-		AgentId: testAgentID,
-		Selectors: []*common.Selector{
-			{Type: "gcp_iit", Value: "project-id:" + testProject},
-			{Type: "gcp_iit", Value: "zone:" + testZone},
-			{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
-		},
-	}, res)
+	s.Require().NotNil(result)
+
+	s.Require().Equal(testAgentID, result.AgentID)
+	s.RequireProtoListEqual([]*common.Selector{
+		{Type: "gcp_iit", Value: "project-id:" + testProject},
+		{Type: "gcp_iit", Value: "zone:" + testZone},
+		{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
+	}, result.Selectors)
 }
 
 func (s *IITAttestorSuite) TestAttestFailureDueToMissingInstanceMetadata() {
-	s.configureForInstanceMetadata(nil)
+	s.attestor = s.loadPluginForInstanceMetadata(nil)
 
-	res, err := s.attest(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: gcp.PluginName,
-			Data: s.signToken(buildToken()),
-		},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "gcp-iit: failed to fetch instance metadata: no instance found")
-	s.Require().Nil(res)
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, "nodeattestor(gcp_iit): failed to fetch instance metadata: no instance found")
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
+	attestor := s.loadPluginWithConfig(`
 projectid_allow_list = ["test-project"]
 agent_path_template = "{{ .InstanceID }}"
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
+`)
 
-	token := buildToken()
 	expectSVID := "spiffe://example.org/spire/agent/test-instance-id"
 
-	data := &common.AttestationData{
-		Type: gcp.PluginName,
-		Data: s.signToken(token),
-	}
-	res, err := s.attest(&nodeattestorv0.AttestRequest{AttestationData: data})
+	payload := s.signDefaultToken()
+	result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
 	s.Require().NoError(err)
-	s.Require().NotNil(res)
-	s.Require().Equal(expectSVID, res.AgentId)
+	s.Require().NotNil(result)
+	s.Require().Equal(expectSVID, result.AgentID)
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
-	require := s.Require()
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
+		var err error
+		plugintest.Load(t, BuiltIn(), nil,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+			plugintest.CoreConfig(coreConfig),
+			plugintest.Configure(config),
+		)
+		return err
+	}
 
-	// malformed
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `trust_domain`,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+	coreConfig := catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}
+
+	s.T().Run("malformed", func(t *testing.T) {
+		err := doConfig(t, coreConfig, "trust_domain")
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
 	})
-	s.RequireErrorContains(err, "gcp-iit: unable to decode configuration")
-	require.Nil(resp)
 
-	// missing global configuration
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
+	s.T().Run("missing trust domain", func(t *testing.T) {
+		err := doConfig(t, catalog.CoreConfig{}, `
 projectid_allow_list = ["bar"]
-`})
-	s.RequireErrorContains(err, "gcp-iit: global configuration is required")
-	require.Nil(resp)
-
-	// missing trust domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-projectid_allow_list = ["bar"]
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireErrorContains(err, "gcp-iit: trust_domain is required")
-	require.Nil(resp)
-
-	// missing projectID allow list
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: ``,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
+		`)
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "trust_domain is required")
 	})
-	s.RequireErrorContains(err, "gcp-iit: projectid_allow_list is required")
-	require.Nil(resp)
-	// success
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-projectid_allow_list = ["bar"]
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"}})
-	require.NoError(err)
-	require.NotNil(resp)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
-}
 
-func (s *IITAttestorSuite) TestGetPluginInfo() {
-	require := s.Require()
-	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	require.NoError(err)
-	require.NotNil(resp)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
+	s.T().Run("missing projectID allow list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, "")
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "projectid_allow_list is required")
+	})
+
+	s.T().Run("bad SVID template", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+projectid_allow_list = ["test-project"]
+agent_path_template = "{{ .InstanceID "
+`)
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent path template")
+	})
+
+	s.T().Run("success", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+projectid_allow_list = ["bar"]
+		`)
+		require.NoError(t, err)
+	})
 }
 
 func (s *IITAttestorSuite) TestFailToRecvStream() {
-	_, err := validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, gcp.PluginName, testKeyRetriever{})
+	_, err := validateAttestationAndExtractIdentityMetadata(&recvFailStream{}, nil)
 	s.Require().EqualError(err, "failed to recv from stream")
 }
 
-func (s *IITAttestorSuite) newPlugin() nodeattestorv0.NodeAttestorClient {
+func (s *IITAttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
+	return s.loadPluginWithConfig(`
+projectid_allow_list = ["test-project"]
+	`)
+}
+
+func (s *IITAttestorSuite) loadPluginWithConfig(config string) nodeattestor.NodeAttestor {
 	p := New()
-	p.tokenKeyRetriever = testKeyRetriever{}
+	p.jwksRetriever = testKeyRetriever{}
 	p.client = s.client
 
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(s.T(), builtin(p), v0,
-		plugintest.HostServices(agentstorev0.AgentStoreServiceServer(s.agentStore)),
+	v1 := new(nodeattestor.V1)
+	plugintest.Load(s.T(), builtin(p), v1,
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+		plugintest.Configure(config),
 	)
-	return v0.NodeAttestorClient
+
+	return v1
 }
 
-func (s *IITAttestorSuite) configure() {
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
-projectid_allow_list = ["test-project"]
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
+func (s *IITAttestorSuite) signToken(key crypto.Signer, kid string, claims interface{}) []byte {
+	return signToken(s.T(), key, kid, claims)
 }
 
-func (s *IITAttestorSuite) attest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
-	stream, err := s.p.Attest(context.Background())
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-	s.Require().NoError(err)
-	err = stream.Send(req)
-	s.Require().NoError(err)
-	return stream.Recv()
+func (s *IITAttestorSuite) signDefaultToken() []byte {
+	return s.signToken(testKey, "kid", buildDefaultClaims())
 }
 
-func (s *IITAttestorSuite) signToken(token *jwt.Token) []byte {
-	signedToken, err := token.SignedString(testKey)
-	s.Require().NoError(err)
-	return []byte(signedToken)
+func (s *IITAttestorSuite) requireAttestError(t *testing.T, payload []byte, expectCode codes.Code, expectMsg string) {
+	result, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
+	spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMsg)
+	require.Nil(t, result)
 }
 
-func (s *IITAttestorSuite) configureForInstanceMetadata(instance *compute.Instance) {
+func (s *IITAttestorSuite) loadPluginForInstanceMetadata(instance *compute.Instance) nodeattestor.NodeAttestor {
 	s.client.setInstance(instance)
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
+	return s.loadPluginWithConfig(`
 projectid_allow_list = ["test-project"]
 use_instance_metadata = true
 allowed_label_keys = ["allowed", "allowed-no-value"]
 allowed_metadata_keys = ["allowed", "allowed-no-value"]
 max_metadata_value_size = 10
 service_account_file = "test_sa.json"
-`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
+`)
 }
 
 // Test helpers
 
 type recvFailStream struct {
-	nodeattestorv0.NodeAttestor_AttestServer
+	nodeattestorv1.NodeAttestor_AttestServer
 }
 
-func (r *recvFailStream) Recv() (*nodeattestorv0.AttestRequest, error) {
+func (r *recvFailStream) Recv() (*nodeattestorv1.AttestRequest, error) {
 	return nil, errors.New("failed to recv from stream")
 }
 
 type testKeyRetriever struct{}
 
-func (testKeyRetriever) retrieveKey(token *jwt.Token) (interface{}, error) {
-	if token.Header["kid"] == nil {
-		return nil, errors.New("identity token missing kid header")
-	}
-	return &testKey.PublicKey, nil
+func (testKeyRetriever) retrieveJWKS(ctx context.Context) (*jose.JSONWebKeySet, error) {
+	return &jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				KeyID: "kid",
+				Key:   testKey.Public(),
+			},
+		},
+	}, nil
 }
 
-func buildClaims(projectID string, audience string) jwt.MapClaims {
-	return jwt.MapClaims{
-		"google": &gcp.Google{
+func buildClaims(projectID string, audience string) gcp.IdentityToken {
+	return gcp.IdentityToken{
+		Google: gcp.Google{
 			ComputeEngine: gcp.ComputeEngine{
 				ProjectID:    projectID,
 				InstanceID:   testInstanceID,
@@ -506,22 +392,14 @@ func buildClaims(projectID string, audience string) jwt.MapClaims {
 				Zone:         testZone,
 			},
 		},
-		"aud": audience,
+		Claims: jwt.Claims{
+			Audience: []string{audience},
+		},
 	}
 }
 
-func buildDefaultClaims() jwt.MapClaims {
+func buildDefaultClaims() gcp.IdentityToken {
 	return buildClaims("test-project", tokenAudience)
-}
-
-func buildToken() *jwt.Token {
-	return buildTokenWithClaims(buildDefaultClaims())
-}
-
-func buildTokenWithClaims(claims jwt.Claims) *jwt.Token {
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = "123"
-	return token
 }
 
 type fakeComputeEngineClient struct {
@@ -560,4 +438,23 @@ func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, pro
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+	return nil, errors.New("challenge is not expected")
+}
+
+func signToken(t *testing.T, key crypto.Signer, kid string, claims interface{}) []byte {
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key: &jose.JSONWebKey{
+			Key:   cryptosigner.Opaque(key),
+			KeyID: kid,
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	require.NoError(t, err)
+	return []byte(token)
 }

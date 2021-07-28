@@ -26,34 +26,6 @@ func (c *Checker) AddCheck(name string, checkable health.Checkable) error {
 	return nil
 }
 
-func (c *Checker) LiveState() (bool, interface{}) {
-	live := true
-	details := make(map[string]interface{})
-
-	for name, checkable := range c.checkables {
-		if !checkable.CheckHealth().Live {
-			live = false
-		}
-
-		details[name] = checkable.CheckHealth().LiveDetails
-	}
-	return live, details
-}
-
-func (c *Checker) ReadyState() (bool, interface{}) {
-	ready := true
-	details := make(map[string]interface{})
-
-	for name, checkable := range c.checkables {
-		if !checkable.CheckHealth().Ready {
-			ready = false
-		}
-
-		details[name] = checkable.CheckHealth().ReadyDetails
-	}
-	return ready, details
-}
-
 func (c *Checker) RunChecks() map[string]health.State {
 	results := make(map[string]health.State)
 	for name, checkable := range c.checkables {

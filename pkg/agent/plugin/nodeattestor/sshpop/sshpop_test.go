@@ -3,17 +3,20 @@ package sshpop
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
+)
+
+var (
+	streamBuilder = nodeattestortest.ServerStream(sshpop.PluginName)
 )
 
 func TestSSHPoP(t *testing.T) {
@@ -23,23 +26,12 @@ func TestSSHPoP(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p         nodeattestorv0.NodeAttestorClient
+	na        nodeattestor.NodeAttestor
 	sshclient *sshpop.Client
 	sshserver *sshpop.Server
 }
 
 func (s *Suite) SetupTest() {
-	s.p = s.newPlugin()
-	s.configure()
-}
-
-func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(s.T(), BuiltIn(), v0)
-	return v0.NodeAttestorPluginClient
-}
-
-func (s *Suite) configure() {
 	require := s.Require()
 
 	certificatePath := fixture.Join("nodeattestor", "sshpop", "agent_ssh_key-cert.pub")
@@ -50,112 +42,57 @@ func (s *Suite) configure() {
 		host_key_path = %q
 		host_cert_path = %q`, privateKeyPath, certificatePath)
 
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: clientConfig,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	require.NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
+	s.na = s.loadPlugin(plugintest.Configure(clientConfig))
 
-	sshclient, err := sshpop.NewClient("example.org", clientConfig)
+	sshclient, err := sshpop.NewClient(clientConfig)
 	require.NoError(err)
 	s.sshclient = sshclient
 
-	certAuthority, err := ioutil.ReadFile(certAuthoritiesPath)
+	certAuthority, err := os.ReadFile(certAuthoritiesPath)
 	require.NoError(err)
 	sshserver, err := sshpop.NewServer("example.org", fmt.Sprintf(`cert_authorities = [%q]`, certAuthority))
 	require.NoError(err)
 	s.sshserver = sshserver
 }
 
+func (s *Suite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {
+	na := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), na, options...)
+	return na
+}
+
 func (s *Suite) TestFetchAttestationDataSuccess() {
 	require := s.Require()
 
-	client := s.sshclient.NewHandshake()
 	server := s.sshserver.NewHandshake()
 
-	stream, done := s.fetchAttestationData()
-	defer done()
-
-	attesetationData, err := client.AttestationData()
-	require.NoError(err)
-
-	// first response has the spiffeid and attestation data
-	resp, err := stream.Recv()
-	require.NoError(err)
-	require.NotNil(resp)
-	require.Equal("sshpop", resp.AttestationData.Type)
-	require.JSONEq(string(attesetationData), string(resp.AttestationData.Data))
-	require.Nil(resp.Response)
-
-	// send a challenge
-	err = server.VerifyAttestationData(resp.AttestationData.Data)
-	require.NoError(err)
-	challenge, err := server.IssueChallenge()
-	require.NoError(err)
-	err = stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
-		Challenge: challenge,
-	})
-	require.NoError(err)
-
-	// recv the response
-	resp, err = stream.Recv()
-	require.NoError(err)
-	require.Nil(resp.AttestationData)
-	require.NotEmpty(resp.Response)
-
-	// verify signature
-	err = server.VerifyChallengeResponse(resp.Response)
+	err := s.na.Attest(context.Background(),
+		streamBuilder.Handle(func(payloadOrChallengeResponse []byte) (challenge []byte, err error) {
+			// send challenge
+			if err := server.VerifyAttestationData(payloadOrChallengeResponse); err != nil {
+				return nil, err
+			}
+			return server.IssueChallenge()
+		}).Handle(func(payloadOrChallengeResponse []byte) (challenge []byte, err error) {
+			// verify signature
+			if err := server.VerifyChallengeResponse(payloadOrChallengeResponse); err != nil {
+				return nil, err
+			}
+			return nil, nil
+		}).Build())
 	require.NoError(err)
 }
 
 func (s *Suite) TestFetchAttestationDataFailure() {
-	require := s.Require()
-
-	challengeFails := func(challenge []byte, expected string) {
-		stream, done := s.fetchAttestationData()
-		defer done()
-
-		resp, err := stream.Recv()
-		require.NoError(err)
-		require.NotNil(resp)
-
-		require.NoError(stream.Send(&nodeattestorv0.FetchAttestationDataRequest{
-			Challenge: challenge,
-		}))
-
-		resp, err = stream.Recv()
-		s.RequireErrorContains(err, expected)
-		require.Nil(resp)
-	}
-
 	// not configured
-	stream, err := s.newPlugin().FetchAttestationData(context.Background())
-	require.NoError(err)
-	defer func() { s.NoError(stream.CloseSend()) }()
-	resp, err := stream.Recv()
-	s.RequireGRPCStatus(err, codes.Unknown, "sshpop: not configured")
-	require.Nil(resp)
+	err := s.loadPlugin().Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(sshpop): not configured")
 
 	// malformed challenge
-	challengeFails(nil, "sshpop: failed to unmarshal challenge request")
+	err = s.na.Attest(context.Background(), streamBuilder.IgnoreThenChallenge([]byte("malformed")).Build())
+	s.RequireGRPCStatusContains(err, codes.Internal, "nodeattestor(sshpop): failed to unmarshal challenge request")
 
 	// empty challenge
-	challengeFails([]byte("{}"), "sshpop: failed to combine nonces")
-}
-
-func (s *Suite) TestGetPluginInfo() {
-	require := s.Require()
-
-	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	require.NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *Suite) fetchAttestationData() (nodeattestorv0.NodeAttestor_FetchAttestationDataClient, func()) {
-	stream, err := s.p.FetchAttestationData(context.Background())
-	s.Require().NoError(err)
-	return stream, func() {
-		s.Require().NoError(stream.CloseSend())
-	}
+	err = s.na.Attest(context.Background(), streamBuilder.IgnoreThenChallenge([]byte("{}")).Build())
+	s.RequireGRPCStatusContains(err, codes.Internal, "nodeattestor(sshpop): failed to combine nonces")
 }

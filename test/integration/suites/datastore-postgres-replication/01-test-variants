@@ -4,7 +4,7 @@ wait-container-ready() {
     service=$1
 
     # Wait up to two minutes for postgres to be available. It should come up
-    # pretty quick on developer machines but Travis is slow.
+    # pretty quick on developer machines but CI/CD is slow.
     local max_checks=40
     local check_interval=3
     local ready=

@@ -72,6 +72,7 @@ The following environment variables are available to the teardown script:
 ## Test Suites
 
 * [Admin Endpoints](suites/admin-endpoints/README.md)
+* [Upstream Authority cert-manager](suites/upstream-authority-cert-manager/README.md)
 * [Datastore (MySQL)](suites/datastore-mysql/README.md)
 * [Datastore (Postgres)](suites/datastore-postgres/README.md)
 * [Debug Endpoints](suites/debug-endpoints/README.md)

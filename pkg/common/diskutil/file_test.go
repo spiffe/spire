@@ -1,7 +1,6 @@
 package diskutil
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,7 +44,7 @@ func TestAtomicWriteFile(t *testing.T) {
 			require.NoError(t, err)
 			require.EqualValues(t, tt.mode, info.Mode())
 
-			content, err := ioutil.ReadFile(file)
+			content, err := os.ReadFile(file)
 			require.NoError(t, err)
 			require.Equal(t, tt.data, content)
 

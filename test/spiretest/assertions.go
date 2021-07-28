@@ -52,18 +52,26 @@ func AssertGRPCStatus(tb testing.TB, err error, code codes.Code, message string)
 	return true
 }
 
-func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) {
+func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...interface{}) {
 	tb.Helper()
-	if !AssertGRPCStatusContains(tb, err, code, contains) {
+	if !AssertGRPCStatusContains(tb, err, code, contains, msgAndArgs...) {
 		tb.FailNow()
 	}
 }
 
-func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string) bool {
+func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
+
+	if code == codes.OK {
+		if contains != "" {
+			return assert.Fail(tb, "cannot assert that an OK status has message %q", contains)
+		}
+		return AssertGRPCStatus(tb, err, code, "")
+	}
+
 	st := status.Convert(err)
 	if code != st.Code() || !strings.Contains(st.Message(), contains) {
-		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q with message containing %q", st.Code(), st.Message(), code, contains))
+		return assert.Fail(tb, fmt.Sprintf("Status code=%q msg=%q does not match code=%q with message containing %q", st.Code(), st.Message(), code, contains), msgAndArgs...)
 	}
 	return true
 }
@@ -136,4 +144,19 @@ func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs
 func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	return assert.Empty(tb, cmp.Diff(expected, actual, protocmp.Transform()), msgAndArgs...)
+}
+
+func RequireErrorPrefix(tb testing.TB, err error, prefix string) {
+	tb.Helper()
+	if !AssertErrorPrefix(tb, err, prefix) {
+		tb.FailNow()
+	}
+}
+
+func AssertErrorPrefix(tb testing.TB, err error, prefix string) bool {
+	tb.Helper()
+	if err == nil || !strings.HasPrefix(err.Error(), prefix) {
+		return assert.Fail(tb, fmt.Sprintf("error %v does not have prefix %q", err, prefix))
+	}
+	return true
 }

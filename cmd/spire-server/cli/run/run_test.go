@@ -3,13 +3,14 @@ package run
 import (
 	"bytes"
 	"crypto/x509/pkix"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -39,11 +40,20 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Address, "0.0.0.0")
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
-	assert.Equal(t, len(c.Server.Federation.FederatesWith), 2)
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain1.test"].BundleEndpoint.Address, "1.2.3.4")
-	assert.True(t, c.Server.Federation.FederatesWith["domain1.test"].BundleEndpoint.UseWebPKI)
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].BundleEndpoint.Address, "5.6.7.8")
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].BundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
+	assert.Equal(t, 4, len(c.Server.Federation.FederatesWith))
+	assert.Equal(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.Address, "1.2.3.4")
+	assert.True(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.UseWebPKI)
+	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.Address, "5.6.7.8")
+	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
+	assert.Equal(t, c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL, "https://9.10.11.12:8443")
+	trustDomainConfig, err := parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain3.test"])
+	assert.NoError(t, err)
+	assert.Equal(t, trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile).EndpointSPIFFEID, spiffeid.RequireFromString("spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"))
+	assert.Equal(t, c.Server.Federation.FederatesWith["domain4.test"].BundleEndpointURL, "https://13.14.15.16:8444")
+	trustDomainConfig, err = parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain4.test"])
+	assert.NoError(t, err)
+	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
+	assert.True(t, ok)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -498,6 +508,14 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Server.TrustDomain)
 			},
 		},
+		{
+			msg: "auditlog_enabled should be configurable by file",
+			fileInput: func(c *Config) {
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -680,12 +698,12 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "bundle federates with section is parsed and configured correctly",
+			msg: "bundle federates with section is parsed and configured correctly (deprecated config)",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
 					FederatesWith: map[string]federatesWithConfig{
 						"domain1.test": {
-							BundleEndpoint: federatesWithBundleEndpointConfig{
+							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
 								Address:   "192.168.1.1",
 								Port:      1337,
 								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
@@ -693,7 +711,7 @@ func TestNewServerConfig(t *testing.T) {
 							},
 						},
 						"domain2.test": {
-							BundleEndpoint: federatesWithBundleEndpointConfig{
+							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
 								Address:   "192.168.1.1",
 								Port:      1337,
 								UseWebPKI: true,
@@ -705,25 +723,53 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
 					spiffeid.RequireTrustDomainFromString("domain1.test"): {
-						EndpointAddress:  "192.168.1.1:1337",
-						EndpointSpiffeID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
-						UseWebPKI:        false,
+						DeprecatedConfig: true,
+						EndpointURL:      "https://192.168.1.1:1337",
+						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
+							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
+						},
 					},
 					spiffeid.RequireTrustDomainFromString("domain2.test"): {
-						EndpointAddress: "192.168.1.1:1337",
-						UseWebPKI:       true,
+						DeprecatedConfig: true,
+						EndpointURL:      "https://192.168.1.1:1337",
+						EndpointProfile:  bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
 			},
 		},
 		{
-			msg:         "bundle federates with section uses Web PKI and SpiffeID",
+			msg: "bundle federates with section is parsed and configured correctly",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": httpsSPIFFEConfigTest(t),
+						"domain2.test": webPKIConfigTest(t),
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
+					spiffeid.RequireTrustDomainFromString("domain1.test"): {
+						EndpointURL: "https://192.168.1.1:1337",
+						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
+							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
+						},
+					},
+					spiffeid.RequireTrustDomainFromString("domain2.test"): {
+						EndpointURL:     "https://192.168.1.1:1337",
+						EndpointProfile: bundleClient.HTTPSWebProfile{},
+					},
+				}, c.Federation.FederatesWith)
+			},
+		},
+		{
+			msg:         "bundle federates with section uses Web PKI and SPIFFE ID (deprecated config)",
 			expectError: true,
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
 					FederatesWith: map[string]federatesWithConfig{
 						"domain1.test": {
-							BundleEndpoint: federatesWithBundleEndpointConfig{
+							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
 								Address:   "192.168.1.1",
 								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
 								Port:      1337,
@@ -754,6 +800,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "ca_key_type and jwt_key_type are set as default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
 		{
@@ -812,7 +867,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.RSA2048, c.JWTKeyType)
 			},
 		},
@@ -822,7 +877,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "rsa-4096"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.RSA4096, c.JWTKeyType)
 			},
 		},
@@ -832,7 +887,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p256"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.ECP256, c.JWTKeyType)
 			},
 		},
@@ -842,7 +897,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.JWTKeyType = "ec-p384"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, keymanager.KeyTypeUnset, c.CAKeyType)
+				require.Equal(t, keymanager.ECP256, c.CAKeyType)
 				require.Equal(t, keymanager.ECP384, c.JWTKeyType)
 			},
 		},
@@ -985,7 +1040,7 @@ func TestNewServerConfig(t *testing.T) {
 			logOptions: func(t *testing.T) []log.Option {
 				return []log.Option{
 					func(logger *log.Logger) error {
-						logger.SetOutput(ioutil.Discard)
+						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
 							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
@@ -1022,6 +1077,20 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "auditlog_enabled is enabled",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+			},
+		},
+		{
+			msg: "auditlog_enabled is disabled",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
 			},
 		},
 	}
@@ -1133,7 +1202,20 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "federation.bundle_endpoint.acme.email must be configured",
 		},
 		{
-			name: "if FederatesWith is used, federation.bundle_endpoint.address must be configured",
+			name: "federation.bundle_endpoint.address must be configured if the deprecated federates_with is configured",
+			applyConf: func(c *Config) {
+				federatesWith := make(map[string]federatesWithConfig)
+				federatesWith["domain.test"] = federatesWithConfig{
+					DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{},
+				}
+				c.Server.Federation = &federationConfig{
+					FederatesWith: federatesWith,
+				}
+			},
+			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint.address must be configured",
+		},
+		{
+			name: "bundle_endpoint_url must be configured if federates_with is configured",
 			applyConf: func(c *Config) {
 				federatesWith := make(map[string]federatesWithConfig)
 				federatesWith["domain.test"] = federatesWithConfig{}
@@ -1141,7 +1223,20 @@ func TestValidateConfig(t *testing.T) {
 					FederatesWith: federatesWith,
 				}
 			},
-			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint.address must be configured",
+			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint_url must be configured",
+		},
+		{
+			name: "bundle_endpoint_url must use the HTTPS protocol",
+			applyConf: func(c *Config) {
+				federatesWith := make(map[string]federatesWithConfig)
+				federatesWith["domain.test"] = federatesWithConfig{
+					BundleEndpointURL: "http://example.org/test",
+				}
+				c.Server.Federation = &federationConfig{
+					FederatesWith: federatesWith,
+				}
+			},
+			expectedErr: `federation.federates_with["domain.test"].bundle_endpoint_url must use the HTTPS protocol; URL found: "http://example.org/test"`,
 		},
 	}
 
@@ -1257,23 +1352,23 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 				},
 			},
 		},
-		{
-			msg:      "in nested federates_with block",
-			confFile: "server_bad_nested_federates_with_block.conf",
-			expectedLogEntries: []logEntry{
-				{
-					section: `federates_with "test1"`,
-					keys:    "unknown_option1,unknown_option2",
-				},
-				{
-					section: `federates_with "test2"`,
-					keys:    "unknown_option1,unknown_option2",
-				},
-			},
-		},
-		// TODO: Re-enable unused key detection for telemetry. See
+		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
+		// {
+		//	msg:      "in nested federates_with block",
+		//	confFile: "server_bad_nested_federates_with_block.conf",
+		//	expectedLogEntries: []logEntry{
+		//		{
+		//			section: `federates_with "test1"`,
+		//			keys:    "unknown_option1,unknown_option2",
+		//		},
+		//		{
+		//			section: `federates_with "test2"`,
+		//			keys:    "unknown_option1,unknown_option2",
+		//		},
+		//	},
+		// },
 		// {
 		//	msg:            "in telemetry block",
 		//	confFile: "/server_and_agent_bad_telemetry_block.conf",
@@ -1388,7 +1483,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 // TestLogOptions verifies the log options given to newAgentConfig are applied, and are overridden
 // by values from the config file
 func TestLogOptions(t *testing.T) {
-	fd, err := ioutil.TempFile("", "test")
+	fd, err := os.CreateTemp("", "test")
 	require.NoError(t, err)
 	require.NoError(t, fd.Close())
 	defer os.Remove(fd.Name())
@@ -1588,4 +1683,24 @@ func TestExpandEnv(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, testCase.expectedValue, c.Server.TrustDomain)
 	}
+}
+
+func httpsSPIFFEConfigTest(t *testing.T) federatesWithConfig {
+	configString := `bundle_endpoint_url = "https://192.168.1.1:1337"
+	bundle_endpoint_profile "https_spiffe" {
+		endpoint_spiffe_id = "spiffe://domain1.test/bundle/endpoint"
+	}`
+	httpsSPIFFEConfig := new(federatesWithConfig)
+	require.NoError(t, hcl.Decode(httpsSPIFFEConfig, configString))
+
+	return *httpsSPIFFEConfig
+}
+
+func webPKIConfigTest(t *testing.T) federatesWithConfig {
+	configString := `bundle_endpoint_url = "https://192.168.1.1:1337"
+		bundle_endpoint_profile "https_web" {}`
+	webPKIConfig := new(federatesWithConfig)
+	require.NoError(t, hcl.Decode(webPKIConfig, configString))
+
+	return *webPKIConfig
 }

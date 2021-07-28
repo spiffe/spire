@@ -4,19 +4,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
+)
+
+var (
+	streamBuilder = nodeattestortest.ServerStream(pluginName)
 )
 
 func TestMSIAttestorPlugin(t *testing.T) {
@@ -25,8 +27,6 @@ func TestMSIAttestorPlugin(t *testing.T) {
 
 type MSIAttestorSuite struct {
 	spiretest.Suite
-
-	attestor nodeattestorv0.NodeAttestorPluginClient
 
 	expectedResource string
 	token            string
@@ -37,81 +37,49 @@ func (s *MSIAttestorSuite) SetupTest() {
 	s.expectedResource = azure.DefaultMSIResourceID
 	s.token = ""
 	s.tokenErr = nil
-
-	s.newAttestor()
-
-	_, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-	})
-	s.Require().NoError(err)
 }
 
-func (s *MSIAttestorSuite) TestFetchAttestationDataNotConfigured() {
-	s.newAttestor()
-	s.requireFetchError("azure-msi: not configured")
+func (s *MSIAttestorSuite) TestAidAttestationNotConfigured() {
+	attestor := s.loadAttestor()
+
+	err := attestor.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(azure_msi): not configured")
 }
 
-func (s *MSIAttestorSuite) TestFetchAttestationDataFailedToObtainToken() {
+func (s *MSIAttestorSuite) TestAidAttestationFailedToObtainToken() {
 	s.tokenErr = errors.New("FAILED")
-	s.requireFetchError("azure-msi: unable to fetch token: FAILED")
+
+	attestor := s.loadAttestor(plugintest.Configure(""))
+	err := attestor.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatus(err, codes.Internal, "nodeattestor(azure_msi): unable to fetch token: FAILED")
 }
 
-func (s *MSIAttestorSuite) TestFetchAttestationDataSuccess() {
+func (s *MSIAttestorSuite) TestAidAttestationSuccess() {
 	s.token = s.makeAccessToken("PRINCIPALID", "TENANTID")
 
-	stream, err := s.attestor.FetchAttestationData(context.Background())
+	expectPayload := []byte(fmt.Sprintf(`{"token":%q}`, s.token))
+
+	attestor := s.loadAttestor(plugintest.Configure(""))
+	err := attestor.Attest(context.Background(), streamBuilder.ExpectAndBuild(expectPayload))
 	s.Require().NoError(err)
-	s.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-
-	// assert attestation data
-	s.Require().NotNil(resp.AttestationData)
-	s.Require().Equal("azure_msi", resp.AttestationData.Type)
-	s.Require().JSONEq(fmt.Sprintf(`{"token": %q}`, s.token), string(resp.AttestationData.Data))
-
-	// node attestor should return EOF now
-	_, err = stream.Recv()
-	s.Require().Equal(io.EOF, err)
 }
 
 func (s *MSIAttestorSuite) TestConfigure() {
 	// malformed configuration
-	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: "blah",
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
-	})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "azure-msi: unable to decode configuration")
-	s.Require().Nil(resp)
-
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireGRPCStatusContains(err, codes.Unknown, "azure-msi: global configuration is required")
-	s.Require().Nil(resp)
-
-	// missing trust domain
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireGRPCStatus(err, codes.Unknown, "azure-msi: global configuration missing trust domain")
-	s.Require().Nil(resp)
+	var err error
+	s.loadAttestor(plugintest.CaptureConfigureError(&err), plugintest.Configure("blah"))
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
 	// success
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
+	s.loadAttestor(plugintest.CaptureConfigureError(&err), plugintest.Configure(""))
 	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
+
+	// success with resource_id
+	s.loadAttestor(plugintest.CaptureConfigureError(&err), plugintest.Configure(`resource_id = "foo"`))
+	s.Require().NoError(err)
 }
 
-func (s *MSIAttestorSuite) TestGetPluginInfo() {
-	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *MSIAttestorSuite) newAttestor() {
+func (s *MSIAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattestor.NodeAttestor {
 	p := New()
 	p.hooks.fetchMSIToken = func(ctx context.Context, httpClient azure.HTTPClient, resource string) (string, error) {
 		if httpClient != http.DefaultClient {
@@ -124,19 +92,9 @@ func (s *MSIAttestorSuite) newAttestor() {
 		return s.token, s.tokenErr
 	}
 
-	attestor := new(nodeattestor.V0)
-	plugintest.Load(s.T(), builtin(p), attestor)
-	s.attestor = attestor.NodeAttestorPluginClient
-}
-
-func (s *MSIAttestorSuite) requireFetchError(contains string) {
-	stream, err := s.attestor.FetchAttestationData(context.Background())
-	s.Require().NoError(err)
-	s.Require().NotNil(stream)
-
-	resp, err := stream.Recv()
-	s.RequireErrorContains(err, contains)
-	s.Require().Nil(resp)
+	attestor := new(nodeattestor.V1)
+	plugintest.Load(s.T(), builtin(p), attestor, options...)
+	return attestor
 }
 
 func (s *MSIAttestorSuite) makeAccessToken(principalID, tenantID string) string {

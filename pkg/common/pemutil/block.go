@@ -5,7 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 var (
@@ -35,7 +35,7 @@ func loadBlock(path string, expectedTypes ...string) (*Block, error) {
 }
 
 func loadBlocks(path string, expectedCount int, expectedTypes ...string) (blocks []Block, err error) {
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 			block.Object, err = x509.ParsePKIXPublicKey(pemBlock.Bytes)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse %q PEM block %d: %v", pemBlock.Type, blockno, err)
+			return nil, fmt.Errorf("unable to parse %q PEM block %d: %w", pemBlock.Type, blockno, err)
 		}
 
 		blocks = append(blocks, block)

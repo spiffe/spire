@@ -3,7 +3,6 @@ package pemutil
 import (
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -243,7 +242,7 @@ func (s *Suite) TestLoadCertificateRequest() {
 }
 
 func (s *Suite) readFile(path string) []byte {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	s.Require().NoError(err)
 	return data
 }
@@ -252,14 +251,14 @@ func (s *Suite) TestEncodeCertificates() {
 	// success with one certificate
 	cert, err := LoadCertificates("testdata/cert.pem")
 	s.Require().NoError(err)
-	expCertPem, err := ioutil.ReadFile("testdata/cert.pem")
+	expCertPem, err := os.ReadFile("testdata/cert.pem")
 	s.Require().NoError(err)
 	s.Require().Equal(expCertPem, EncodeCertificates(cert))
 
 	// success with multiple certificates
 	cert, err = LoadCertificates("testdata/certs.pem")
 	s.Require().NoError(err)
-	expCertPem, err = ioutil.ReadFile("testdata/certs.pem")
+	expCertPem, err = os.ReadFile("testdata/certs.pem")
 	s.Require().NoError(err)
 	s.Require().Equal(expCertPem, EncodeCertificates(cert))
 }
@@ -268,13 +267,13 @@ func (s *Suite) TestEncodeCertificate() {
 	// success with one certificate
 	cert, err := LoadCertificate("testdata/cert.pem")
 	s.Require().NoError(err)
-	expCertPem, err := ioutil.ReadFile("testdata/cert.pem")
+	expCertPem, err := os.ReadFile("testdata/cert.pem")
 	s.Require().NoError(err)
 	s.Require().Equal(expCertPem, EncodeCertificate(cert))
 }
 
 func (s *Suite) TestSaveCertificate() {
-	dir, err := ioutil.TempDir("", "pemutil-test")
+	dir, err := os.MkdirTemp("", "pemutil-test")
 	s.Require().NoError(err)
 	defer os.Remove(dir)
 
@@ -284,13 +283,13 @@ func (s *Suite) TestSaveCertificate() {
 	err = SaveCertificate(certPath, cert, 0600)
 	s.Require().NoError(err)
 
-	fileContent, err := ioutil.ReadFile(certPath)
+	fileContent, err := os.ReadFile(certPath)
 	s.Require().NoError(err)
 	s.Require().Equal(EncodeCertificate(cert), fileContent)
 }
 
 func (s *Suite) TestSaveCertificates() {
-	dir, err := ioutil.TempDir("", "pemutil-test")
+	dir, err := os.MkdirTemp("", "pemutil-test")
 	s.Require().NoError(err)
 	defer os.Remove(dir)
 
@@ -300,7 +299,7 @@ func (s *Suite) TestSaveCertificates() {
 	err = SaveCertificates(certsPath, certs, 0600)
 	s.Require().NoError(err)
 
-	fileContent, err := ioutil.ReadFile(certsPath)
+	fileContent, err := os.ReadFile(certsPath)
 	s.Require().NoError(err)
 	s.Require().Equal(EncodeCertificates(certs), fileContent)
 }
@@ -341,14 +340,14 @@ func (s *Suite) TestLoadPublicKey() {
 
 func (s *Suite) TestParsePublicKey() {
 	// fails if not a public key
-	keyBytes, err := ioutil.ReadFile("testdata/rsa-key.pem")
+	keyBytes, err := os.ReadFile("testdata/rsa-key.pem")
 	s.Require().NoError(err)
 	key, err := ParsePublicKey(keyBytes)
 	s.Require().EqualError(err, `expected block type "PUBLIC KEY"; got "RSA PRIVATE KEY"`)
 	s.Require().Nil(key)
 
 	// success with public key
-	keyBytes, err = ioutil.ReadFile("testdata/public-rsa-key.pem")
+	keyBytes, err = os.ReadFile("testdata/public-rsa-key.pem")
 	s.Require().NoError(err)
 	key, err = ParsePublicKey(keyBytes)
 	s.Require().NoError(err)
@@ -371,7 +370,7 @@ func (s *Suite) TestEncodePKCS8PrivateKey() {
 	s.Require().NoError(err)
 	s.Require().NotNil(keyPKCS8)
 
-	expKeyPKCS8, err := ioutil.ReadFile("testdata/rsa-key-pkcs8.pem")
+	expKeyPKCS8, err := os.ReadFile("testdata/rsa-key-pkcs8.pem")
 	s.Require().NoError(err)
 	s.Require().Equal(expKeyPKCS8, keyPKCS8)
 }

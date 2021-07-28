@@ -34,7 +34,8 @@ const (
 )
 
 var (
-	jwtKey = &common.PublicKey{Kid: "KEYID", PkixBytes: []byte("PKIXDATA"), NotAfter: 12345}
+	jwtKeyPKIX, _ = x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
+	jwtKey        = &common.PublicKey{Kid: "KEYID", PkixBytes: jwtKeyPKIX, NotAfter: 12345}
 )
 
 func TestV0MintX509CA(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 func ParseAndValidateCSR(csrDER []byte, validationMode idutil.ValidationMode) (csr *x509.CertificateRequest, err error) {
 	csr, err = x509.ParseCertificateRequest(csrDER)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse CSR: %v", err)
+		return nil, fmt.Errorf("unable to parse CSR: %w", err)
 	}
 
 	if err := ValidateCSR(csr, validationMode); err != nil {
@@ -23,16 +23,12 @@ func ParseAndValidateCSR(csrDER []byte, validationMode idutil.ValidationMode) (c
 
 func ValidateCSR(csr *x509.CertificateRequest, validationMode idutil.ValidationMode) error {
 	if err := csr.CheckSignature(); err != nil {
-		return fmt.Errorf("CSR signature check failed: %v", err)
+		return fmt.Errorf("CSR signature check failed: %w", err)
 	}
 
 	if len(csr.URIs) != 1 {
 		return errors.New("CSR must have exactly one URI SAN")
 	}
 
-	if err := idutil.ValidateSpiffeIDURL(csr.URIs[0], validationMode); err != nil {
-		return err
-	}
-
-	return nil
+	return idutil.ValidateSpiffeIDURL(csr.URIs[0], validationMode)
 }

@@ -44,6 +44,8 @@ type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
 	AllowUnauthenticatedVerifiers bool
+	AllowedForeignJWTClaims       map[string]struct{}
+	TrustDomain                   spiffeid.TrustDomain
 }
 
 type Handler struct {
@@ -65,47 +67,55 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
 
+	if req.SpiffeId != "" {
+		if _, err := spiffeid.FromString(req.SpiffeId); err != nil {
+			log.WithField(telemetry.SPIFFEID, req.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+	}
+
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
 		return nil, err
 	}
 
-	var spiffeIDs []string
-	identities := h.c.Manager.MatchingIdentities(selectors)
-	if len(identities) == 0 {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return nil, status.Error(codes.PermissionDenied, "no identity issued")
-	}
+	var spiffeIDs []spiffeid.ID
 
 	log = log.WithField(telemetry.Registered, true)
 
+	identities := h.c.Manager.MatchingIdentities(selectors)
 	for _, identity := range identities {
 		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
 			continue
 		}
-		spiffeIDs = append(spiffeIDs, identity.Entry.SpiffeId)
-	}
 
-	resp = new(workload.JWTSVIDResponse)
-	for _, spiffeID := range spiffeIDs {
-		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID)
-
-		var svid *client.JWTSVID
-
-		id, err := spiffeid.FromString(spiffeID)
+		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
 		if err != nil {
-			log.WithError(err).Errorf("Invalid requested SPIFFE ID: %s", spiffeID)
+			log.WithField(telemetry.SPIFFEID, identity.Entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 		}
 
+		spiffeIDs = append(spiffeIDs, spiffeID)
+	}
+
+	if len(spiffeIDs) == 0 {
+		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
+	}
+
+	resp = new(workload.JWTSVIDResponse)
+	for _, id := range spiffeIDs {
+		loopLog := log.WithField(telemetry.SPIFFEID, id.String())
+
+		var svid *client.JWTSVID
 		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
 		if err != nil {
-			log.WithError(err).Error("Could not fetch JWT-SVID")
+			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
 		}
 		resp.Svids = append(resp.Svids, &workload.JWTSVID{
-			SpiffeId: spiffeID,
+			SpiffeId: id.String(),
 			Svid:     svid.Token,
 		})
 
@@ -170,6 +180,19 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 	log.WithField(telemetry.SPIFFEID, spiffeID).Debug("Successfully validated JWT")
+
+	id, err := spiffeid.FromString(spiffeID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unexpected SPIFFE ID: %v", err)
+	}
+
+	if !id.MemberOf(h.c.TrustDomain) {
+		for claim := range claims {
+			if !isClaimAllowed(claim, h.c.AllowedForeignJWTClaims) {
+				delete(claims, claim)
+			}
+		}
+	}
 
 	s, err := structFromValues(claims)
 	if err != nil {
@@ -337,7 +360,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 		keyData, err := x509.MarshalPKCS8PrivateKey(identity.PrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("marshal key for %v: %v", id, err)
+			return nil, fmt.Errorf("marshal key for %v: %w", id, err)
 		}
 
 		svid := &workload.X509SVID{
@@ -442,4 +465,14 @@ func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
 	}
 
 	return s, nil
+}
+
+func isClaimAllowed(claim string, allowedClaims map[string]struct{}) bool {
+	switch claim {
+	case "sub", "exp", "aud":
+		return true
+	default:
+		_, ok := allowedClaims[claim]
+		return ok
+	}
 }

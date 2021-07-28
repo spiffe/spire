@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -9,7 +10,6 @@ import (
 	"fmt"
 	"net"
 	"path"
-	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -24,6 +24,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -34,6 +35,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,6 +50,8 @@ var (
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 	agentID     = trustDomain.NewID("agent")
 	joinTokenID = trustDomain.NewID("spire/agent/join_token/abcd")
+
+	serverKey = testkey.MustEC256()
 )
 
 var (
@@ -57,12 +61,13 @@ var (
 
 func TestInitializationFailure(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
+	ca, caKey := createCA(t, clk)
+	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, caKey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -81,12 +86,13 @@ func TestInitializationFailure(t *testing.T) {
 
 func TestStoreBundleOnStartup(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
+	ca, caKey := createCA(t, clk)
+	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, caKey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -127,12 +133,13 @@ func TestStoreBundleOnStartup(t *testing.T) {
 
 func TestStoreSVIDOnStartup(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
+	ca, caKey := createCA(t, clk)
+	baseSVID, baseSVIDKey := createSVID(t, km, clk, ca, caKey, agentID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		SVID:            baseSVID,
@@ -147,7 +154,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	}
 
 	_, err := ReadSVID(c.SVIDCachePath)
-	if err != ErrNotCached {
+	if !errors.Is(err, ErrNotCached) {
 		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
 	}
 
@@ -169,49 +176,13 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	}
 }
 
-func TestStoreKeyOnStartup(t *testing.T) {
-	dir := spiretest.TempDir(t)
-
-	clk := clock.NewMock(t)
-	ca, cakey := createCA(t, clk)
-	baseSVID, baseSVIDKey := createSVID(t, clk, ca, cakey, agentID, 1*time.Hour)
-
-	km := fakeagentkeymanager.New(t, dir)
-
-	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(km)
-
-	c := &Config{
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Clk:             clk,
-		Catalog:         cat,
-	}
-
-	_, err := km.GetKey(context.Background())
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "keymanager(disk): private key not found")
-
-	m := newManager(c)
-	require.Error(t, m.Initialize(context.Background()))
-
-	key, err := km.GetKey(context.Background())
-	require.NoError(t, err)
-
-	if !reflect.DeepEqual(key, baseSVIDKey) {
-		t.Fatal("stored key is different than provided")
-	}
-}
-
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
@@ -223,8 +194,9 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	})
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		ServerAddr:      api.addr,
@@ -295,11 +267,13 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 func TestSVIDRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 
 	baseTTL := 3
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
@@ -314,7 +288,7 @@ func TestSVIDRotation(t *testing.T) {
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, baseTTLSeconds)
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		Catalog:          cat,
@@ -403,10 +377,12 @@ func TestSVIDRotation(t *testing.T) {
 
 func TestSynchronization(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	ttl := 3
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
@@ -419,7 +395,7 @@ func TestSynchronization(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		ServerAddr:       api.addr,
@@ -540,9 +516,11 @@ func TestSynchronization(t *testing.T) {
 
 func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(h *mockAPI, count int32, _ *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			switch count {
 			case 1:
@@ -569,7 +547,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		ServerAddr:      api.addr,
@@ -610,9 +588,11 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			switch count {
 			case 1:
@@ -639,7 +619,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		ServerAddr:      api.addr,
@@ -679,9 +659,11 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
@@ -697,7 +679,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	c := &Config{
 		ServerAddr:       api.addr,
@@ -735,16 +717,18 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 func TestSurvivesCARotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
 	ttl := 3
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
 		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
 			ca, key := createCA(h.t, h.clk)
-			h.cakey = key
+			h.caKey = key
 			h.bundle.AppendRootCA(ca)
 
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
@@ -757,7 +741,7 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	ttlSeconds := time.Duration(ttl) * time.Second
 	syncInterval := ttlSeconds / 2
@@ -797,11 +781,13 @@ func TestSurvivesCARotation(t *testing.T) {
 
 func TestFetchJWTSVID(t *testing.T) {
 	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
 
 	fetchResp := &svidv1.NewJWTSVIDResponse{}
 
 	clk := clock.NewMock(t)
 	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
 		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
@@ -816,7 +802,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	})
 
 	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
+	cat.SetKeyManager(km)
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 
@@ -983,6 +969,7 @@ func compareRegistrationEntries(t *testing.T, expected, actual []*common.Registr
 }
 
 type mockAPIConfig struct {
+	km                      keymanager.KeyManager
 	getAuthorizedEntries    func(api *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error)
 	batchNewX509SVIDEntries func(api *mockAPI, count int32) []*common.RegistrationEntry
 	newJWTSVID              func(api *mockAPI, req *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error)
@@ -998,10 +985,9 @@ type mockAPI struct {
 	addr string
 
 	bundle *bundleutil.Bundle
-	cakey  *ecdsa.PrivateKey
+	caKey  *ecdsa.PrivateKey
 
-	svid    []*x509.Certificate
-	svidKey *ecdsa.PrivateKey
+	svid []*x509.Certificate
 
 	// Counts the number of requests received from clients
 	getAuthorizedEntriesCount int32
@@ -1016,17 +1002,17 @@ type mockAPI struct {
 }
 
 func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
-	ca, cakey := createCA(t, config.clk)
+	ca, caKey := createCA(t, config.clk)
 
 	h := &mockAPI{
 		t:      t,
 		c:      config,
 		bundle: bundleutil.BundleFromRootCA(trustDomain, ca),
-		cakey:  cakey,
+		caKey:  caKey,
 		clk:    config.clk,
 	}
 	serverID := idutil.ServerID(trustDomain)
-	h.svid, h.svidKey = h.newSVID(serverID, 1*time.Hour)
+	h.svid = createSVIDWithKey(t, config.clk, ca, caKey, serverID, time.Hour, serverKey)
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: h.getGRPCServerConfig,
@@ -1047,7 +1033,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	go func() {
 		errCh <- server.Serve(listener)
 		if err != nil {
-			panic(fmt.Errorf("error starting mock server: %v", err))
+			panic(fmt.Errorf("error starting mock server: %w", err))
 		}
 	}()
 
@@ -1132,12 +1118,12 @@ func (h *mockAPI) ca() *x509.Certificate {
 	return rootCAs[len(rootCAs)-1]
 }
 
-func (h *mockAPI) newSVID(spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
-	return createSVID(h.t, h.clk, h.ca(), h.cakey, spiffeID, ttl)
+func (h *mockAPI) newSVID(spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
+	return createSVID(h.t, h.c.km, h.clk, h.ca(), h.caKey, spiffeID, ttl)
 }
 
 func (h *mockAPI) newSVIDFromCSR(spiffeID spiffeid.ID, csr []byte) []*x509.Certificate {
-	return createSVIDFromCSR(h.t, h.clk, h.ca(), h.cakey, spiffeID, csr, h.c.svidTTL)
+	return createSVIDFromCSR(h.t, h.clk, h.ca(), h.caKey, spiffeID, csr, h.c.svidTTL)
 }
 
 func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -1148,7 +1134,7 @@ func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, 
 	certChain = append(certChain, h.ca().Raw)
 	certs := []tls.Certificate{{
 		Certificate: certChain,
-		PrivateKey:  h.svidKey,
+		PrivateKey:  serverKey,
 	}}
 
 	roots := x509.NewCertPool()
@@ -1191,29 +1177,34 @@ func createCA(t *testing.T, clk clock.Clock) (*x509.Certificate, *ecdsa.PrivateK
 		t.Fatalf("cannot create ca template: %v", err)
 	}
 
-	ca, cakey, err := util.SelfSign(tmpl)
+	ca, caKey, err := util.SelfSign(tmpl)
 	if err != nil {
 		t.Fatalf("cannot self sign ca template: %v", err)
 	}
-	return ca, cakey
+	return ca, caKey
 }
 
-func createSVID(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, *ecdsa.PrivateKey) {
+func createSVID(t *testing.T, km keymanager.KeyManager, clk clock.Clock, ca *x509.Certificate, caKey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
+	svidKey, err := keymanager.ForSVID(km).GenerateKey(context.Background(), nil)
+	require.NoError(t, err)
+
+	return createSVIDWithKey(t, clk, ca, caKey, spiffeID, ttl, svidKey), svidKey
+}
+
+func createSVIDWithKey(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKey *ecdsa.PrivateKey, spiffeID spiffeid.ID, ttl time.Duration, svidKey crypto.Signer) []*x509.Certificate {
 	tmpl, err := util.NewSVIDTemplate(clk, spiffeID.String())
-	if err != nil {
-		t.Fatalf("cannot create svid template for %s: %v", spiffeID, err)
-	}
+	require.NoError(t, err)
 
 	tmpl.NotAfter = tmpl.NotBefore.Add(ttl)
+	tmpl.PublicKey = svidKey.Public()
 
-	svid, svidkey, err := util.Sign(tmpl, ca, cakey)
-	if err != nil {
-		t.Fatalf("cannot sign svid template for %s: %v", spiffeID, err)
-	}
-	return []*x509.Certificate{svid}, svidkey
+	svid, _, err := util.Sign(tmpl, ca, caKey)
+	require.NoError(t, err)
+
+	return []*x509.Certificate{svid}
 }
 
-func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cakey *ecdsa.PrivateKey, spiffeID spiffeid.ID, csr []byte, ttl int) []*x509.Certificate {
+func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKey *ecdsa.PrivateKey, spiffeID spiffeid.ID, csr []byte, ttl int) []*x509.Certificate {
 	req, err := x509.ParseCertificateRequest(csr)
 	require.NoError(t, err)
 
@@ -1222,7 +1213,7 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, cake
 	tmpl.PublicKey = req.PublicKey
 	tmpl.NotAfter = tmpl.NotBefore.Add(time.Duration(ttl) * time.Second)
 
-	svid, _, err := util.Sign(tmpl, ca, cakey)
+	svid, _, err := util.Sign(tmpl, ca, caKey)
 	require.NoError(t, err)
 
 	return []*x509.Certificate{svid}

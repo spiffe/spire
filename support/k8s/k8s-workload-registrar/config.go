@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -106,7 +106,7 @@ func (c *CommonMode) Close() error {
 }
 
 func LoadMode(path string) (Mode, error) {
-	hclBytes, err := ioutil.ReadFile(path)
+	hclBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errs.New("unable to load configuration: %v", err)
 	}

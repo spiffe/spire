@@ -11,19 +11,19 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/server/nodeattestor/v0"
 	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -76,7 +76,7 @@ type AttestorSuite struct {
 	barKey     *ecdsa.PrivateKey
 	barSigner  jose.Signer
 	bazSigner  jose.Signer
-	attestor   nodeattestorv0.NodeAttestorClient
+	attestor   nodeattestor.NodeAttestor
 	mockCtrl   *gomock.Controller
 	mockClient *k8s_apiserver_mock.MockClient
 }
@@ -127,62 +127,40 @@ func (s *AttestorSuite) SetupSuite() {
 
 func (s *AttestorSuite) SetupTest() {
 	s.mockCtrl = gomock.NewController(s.T())
-	s.attestor = s.configureAttestor()
+	s.attestor = s.loadPlugin()
 }
 
-func (s *AttestorSuite) TeardownTest() {
+func (s *AttestorSuite) TearDownTest() {
 	s.mockCtrl.Finish()
 }
 
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
-	resp, err := s.doAttestOnAttestor(s.newAttestor(), &nodeattestorv0.AttestRequest{})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: not configured")
-	s.Require().Nil(resp)
+	attestor := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), attestor)
+	s.attestor = attestor
+	s.requireAttestError([]byte("{"), codes.FailedPrecondition, "nodeattestor(k8s_psat): not configured")
 }
 
-func (s *AttestorSuite) TestAttestFailsWithNoAttestationData() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{},
-		"k8s-psat: missing attestation data")
+func (s *AttestorSuite) TestAttestFailsWithMalformedPayload() {
+	s.requireAttestError([]byte("{"), codes.InvalidArgument, "nodeattestor(k8s_psat): failed to unmarshal data payload")
 }
 
-func (s *AttestorSuite) TestAttestFailsWithWrongAttestationDataType() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "blah",
-		},
-	}, `k8s-psat: unexpected attestation data type "blah"`)
+func (s *AttestorSuite) TestAttestFailsWithNoClusterInPayload() {
+	s.requireAttestError(makePayload("", "TOKEN"),
+		codes.InvalidArgument,
+		"nodeattestor(k8s_psat): missing cluster in attestation data")
 }
 
-func (s *AttestorSuite) TestAttestFailsWithNoAttestationDataPayload() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "k8s_psat",
-		},
-	}, "k8s-psat: missing attestation data payload")
-}
-
-func (s *AttestorSuite) TestAttestFailsWithMalformedAttestationDataPayload() {
-	s.requireAttestError(&nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "k8s_psat",
-			Data: []byte("{"),
-		},
-	}, "k8s-psat: failed to unmarshal data payload")
-}
-
-func (s *AttestorSuite) TestAttestFailsWithNoCluster() {
-	s.requireAttestError(makeAttestRequest("", "TOKEN"),
-		"k8s-psat: missing cluster in attestation data")
-}
-
-func (s *AttestorSuite) TestAttestFailsWithNoToken() {
-	s.requireAttestError(makeAttestRequest("FOO", ""),
-		"k8s-psat: missing token in attestation data")
+func (s *AttestorSuite) TestAttestFailsWithNoTokenInPayload() {
+	s.requireAttestError(makePayload("FOO", ""),
+		codes.InvalidArgument,
+		"nodeattestor(k8s_psat): missing token in attestation data")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfClusterNotConfigured() {
-	s.requireAttestError(makeAttestRequest("CLUSTER", "blah"),
-		`k8s-psat: not configured for cluster "CLUSTER"`)
+	s.requireAttestError(makePayload("CLUSTER", "blah"),
+		codes.InvalidArgument,
+		`nodeattestor(k8s_psat): not configured for cluster "CLUSTER"`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
@@ -194,7 +172,9 @@ func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(nil, errors.New("an error"))
-	s.requireAttestError(makeAttestRequest("FOO", token), "unable to validate token with TokenReview API")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): unable to validate token with TokenReview API")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
@@ -206,7 +186,9 @@ func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, false), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "token not authenticated")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.PermissionDenied,
+		"nodeattestor(k8s_psat): token not authenticated")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
@@ -217,7 +199,9 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to parse username from token review status")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
@@ -228,7 +212,9 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to parse username from token review status")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): fail to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
@@ -239,7 +225,9 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod name from token review status")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): fail to get pod name from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
@@ -250,7 +238,9 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod UID from token review status")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): fail to get pod UID from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowed() {
@@ -262,7 +252,9 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowed() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), `"NS1:SERVICEACCOUNTNAME" is not an allowed service account`)
+	s.requireAttestError(makePayload("FOO", token),
+		codes.PermissionDenied,
+		`nodeattestor(k8s_psat): "NS1:SERVICEACCOUNTNAME" is not an allowed service account`)
 }
 
 func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
@@ -275,7 +267,9 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
 	token := s.signToken(s.fooSigner, tokenData)
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(nil, errors.New("an error"))
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get pod from k8s API server")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): fail to get pod from k8s API server")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
@@ -289,7 +283,9 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME", "172.16.0.1"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME").Return(nil, errors.New("an error"))
-	s.requireAttestError(makeAttestRequest("FOO", token), "fail to get node from k8s API server")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"nodeattestor(k8s_psat): fail to get node from k8s API server")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
@@ -303,7 +299,9 @@ func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
 	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
 	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME", "172.16.0.1"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME").Return(createNode(""), nil)
-	s.requireAttestError(makeAttestRequest("FOO", token), "node UID is empty")
+	s.requireAttestError(makePayload("FOO", token),
+		codes.Internal,
+		"node UID is empty")
 }
 
 func (s *AttestorSuite) TestAttestSuccess() {
@@ -319,11 +317,10 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME-1").Return(createPod("NODENAME-1", "172.16.10.1"), nil)
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME-1").Return(createNode("NODEUID-1"), nil)
 
-	resp, err := s.doAttest(makeAttestRequest("FOO", token))
+	result, err := s.attestor.Attest(context.Background(), makePayload("FOO", token), expectNoChallenge)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
-	s.Require().Nil(resp.Challenge)
+	s.Require().NotNil(result)
+	s.Require().Equal(result.AgentID, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
 	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:FOO"},
 		{Type: "k8s_psat", Value: "agent_ns:NS1"},
@@ -335,7 +332,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-1"},
 		{Type: "k8s_psat", Value: "agent_node_label:NODELABEL-B:B"},
 		{Type: "k8s_psat", Value: "agent_pod_label:PODLABEL-A:A"},
-	}, resp.Selectors)
+	}, result.Selectors)
 
 	// Success with BAR signed token
 	tokenData = &TokenData{
@@ -350,11 +347,10 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	s.mockClient.EXPECT().GetNode(notNil, "NODENAME-2").Return(createNode("NODEUID-2"), nil)
 
 	// Success with BAR signed token
-	resp, err = s.doAttest(makeAttestRequest("BAR", token))
+	result, err = s.attestor.Attest(context.Background(), makePayload("BAR", token), expectNoChallenge)
 	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Equal(resp.AgentId, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
-	s.Require().Nil(resp.Challenge)
+	s.Require().NotNil(result)
+	s.Require().Equal(result.AgentID, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
 	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:BAR"},
 		{Type: "k8s_psat", Value: "agent_ns:NS2"},
@@ -364,53 +360,41 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		{Type: "k8s_psat", Value: "agent_node_ip:172.16.10.2"},
 		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-2"},
 		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-2"},
-	}, resp.Selectors)
+	}, result.Selectors)
 }
 
 func (s *AttestorSuite) TestConfigure() {
-	// malformed configuration
-	resp, err := s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: "blah",
-	})
-	s.RequireErrorContains(err, "k8s-psat: unable to decode configuration")
-	s.Require().Nil(resp)
+	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+		var err error
+		plugintest.Load(s.T(), BuiltIn(), nil,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.CoreConfig(coreConfig),
+			plugintest.Configure(config),
+		)
+		return err
+	}
 
-	// missing global configuration
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: global configuration is required")
-	s.Require().Nil(resp)
+	coreConfig := catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}
+
+	// malformed configuration
+	err := doConfig(coreConfig, "blah")
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
 	// missing trust domain
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: global configuration missing trust domain")
-	s.Require().Nil(resp)
+	err = doConfig(catalog.CoreConfig{}, "")
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "core configuration missing trust domain")
 
 	// missing clusters
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: ``,
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, "k8s-psat: configuration must have at least one cluster")
-	s.Require().Nil(resp)
+	err = doConfig(coreConfig, "")
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration must have at least one cluster")
 
 	// cluster missing service account allow list
-	resp, err = s.attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `clusters = {
+	err = doConfig(coreConfig, `clusters = {
 			"FOO" = {}
-		}`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.RequireGRPCStatus(err, codes.Unknown, `k8s-psat: cluster "FOO" configuration must have at least one service account allowed`)
-	s.Require().Nil(resp)
-
-	// success with two CERT based key files
-	s.configureAttestor()
-}
-
-func (s *AttestorSuite) TestGetPluginInfo() {
-	resp, err := s.attestor.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
+		}`)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, `cluster "FOO" configuration must have at least one service account allowed`)
 }
 
 func (s *AttestorSuite) signToken(signer jose.Signer, tokenData *TokenData) string {
@@ -443,17 +427,10 @@ func (s *AttestorSuite) signToken(signer jose.Signer, tokenData *TokenData) stri
 	return token
 }
 
-func (s *AttestorSuite) newAttestor() nodeattestorv0.NodeAttestorClient {
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(s.T(), BuiltIn(), v0)
-	return v0.NodeAttestorClient
-}
-
-func (s *AttestorSuite) configureAttestor() nodeattestorv0.NodeAttestorClient {
+func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	attestor := New()
-
-	resp, err := attestor.Configure(context.Background(), &plugin.ConfigureRequest{
-		Configuration: `
+	v1 := new(nodeattestor.V1)
+	plugintest.Load(s.T(), builtin(attestor), v1, plugintest.Configure(`
 		clusters = {
 			"FOO" = {
 				service_account_allow_list = ["NS1:SA1"]
@@ -467,51 +444,15 @@ func (s *AttestorSuite) configureAttestor() nodeattestorv0.NodeAttestorClient {
 				audience = ["AUDIENCE"]
 			}
 		}
-		`,
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{TrustDomain: "example.org"},
-	})
-	s.Require().NoError(err)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
+	`), plugintest.CoreConfig(catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}))
 
+	// TODO: provide this client in a cleaner way
 	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
 	attestor.config.clusters["FOO"].client = s.mockClient
 	attestor.config.clusters["BAR"].client = s.mockClient
-
-	v0 := new(nodeattestor.V0)
-	plugintest.Load(s.T(), builtin(attestor), v0)
-	return v0.NodeAttestorClient
-}
-
-func (s *AttestorSuite) doAttest(req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
-	return s.doAttestOnAttestor(s.attestor, req)
-}
-
-func (s *AttestorSuite) doAttestOnAttestor(attestor nodeattestorv0.NodeAttestorClient, req *nodeattestorv0.AttestRequest) (*nodeattestorv0.AttestResponse, error) {
-	stream, err := attestor.Attest(context.Background())
-	s.Require().NoError(err)
-
-	err = stream.Send(req)
-	s.Require().NoError(err)
-
-	err = stream.CloseSend()
-	s.Require().NoError(err)
-
-	return stream.Recv()
-}
-
-func (s *AttestorSuite) requireAttestError(req *nodeattestorv0.AttestRequest, contains string) {
-	resp, err := s.doAttest(req)
-	s.RequireErrorContains(err, contains)
-	s.Require().Nil(resp)
-}
-
-func makeAttestRequest(cluster, token string) *nodeattestorv0.AttestRequest {
-	return &nodeattestorv0.AttestRequest{
-		AttestationData: &common.AttestationData{
-			Type: "k8s_psat",
-			Data: []byte(fmt.Sprintf(`{"cluster": %q, "token": %q}`, cluster, token)),
-		},
-	}
+	return v1
 }
 
 func (s *AttestorSuite) fooCertPath() string {
@@ -520,6 +461,16 @@ func (s *AttestorSuite) fooCertPath() string {
 
 func (s *AttestorSuite) barCertPath() string {
 	return filepath.Join(s.dir, "bar.pem")
+}
+
+func (s *AttestorSuite) requireAttestError(payload []byte, expectCode codes.Code, expectMsg string) {
+	result, err := s.attestor.Attest(context.Background(), payload, expectNoChallenge)
+	s.RequireGRPCStatusContains(err, expectCode, expectMsg)
+	s.Require().Nil(result)
+}
+
+func makePayload(cluster, token string) []byte {
+	return []byte(fmt.Sprintf(`{"cluster": %q, "token": %q}`, cluster, token))
 }
 
 func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) error {
@@ -534,10 +485,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600); err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
 }
 
 func createTokenStatus(tokenData *TokenData, authenticated bool) *authv1.TokenReviewStatus {
@@ -580,4 +528,8 @@ func createNode(nodeUID string) *v1.Node {
 			},
 		},
 	}
+}
+
+func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+	return nil, errors.New("challenge is not expected")
 }

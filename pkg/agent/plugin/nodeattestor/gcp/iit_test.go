@@ -2,23 +2,30 @@ package gcp
 
 import (
 	"context"
-	"errors"
+	"crypto"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
-	"github.com/spiffe/spire/proto/spire/common/plugin"
-	nodeattestorv0 "github.com/spiffe/spire/proto/spire/plugin/agent/nodeattestor/v0"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const testServiceAccount = "test-service-account"
+
+var (
+	streamBuilder = nodeattestortest.ServerStream(gcp.PluginName)
+)
 
 func TestIITAttestorPlugin(t *testing.T) {
 	spiretest.Run(t, new(Suite))
@@ -27,13 +34,13 @@ func TestIITAttestorPlugin(t *testing.T) {
 type Suite struct {
 	spiretest.Suite
 
-	p      nodeattestorv0.NodeAttestorClient
+	na     nodeattestor.NodeAttestor
 	server *httptest.Server
 	status int
 	body   string
 }
 
-func (s *Suite) SetupTest() {
+func (s *Suite) SetupSuite() {
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Metadata-Flavor") != "Google" {
 			http.Error(w, "unexpected flavor", http.StatusInternalServerError)
@@ -54,156 +61,64 @@ func (s *Suite) SetupTest() {
 		w.WriteHeader(s.status)
 		_, _ = w.Write([]byte(s.body))
 	}))
-
-	s.p = s.newPlugin()
-	s.configure()
 }
 
-func (s *Suite) TearDownTest() {
+func (s *Suite) SetupTest() {
+	s.status = http.StatusOK
+	s.body = ""
+	s.na = s.loadPlugin(plugintest.Configuref(`
+		service_account = "%s"
+		identity_token_host = "%s"
+`, testServiceAccount, s.server.Listener.Addr().String()))
+}
+
+func (s *Suite) TearDownSuite() {
 	s.server.Close()
 }
 
 func (s *Suite) TestErrorWhenNotConfigured() {
-	p := s.newPlugin()
-	stream, err := p.FetchAttestationData(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-	resp, err := stream.Recv()
-	s.requireErrorContains(err, "gcp-iit: not configured")
-	s.Require().Nil(resp)
+	na := s.loadPlugin()
+	err := na.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
 }
 
 func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.body = ""
-	_, err := s.fetchAttestationData()
-	s.requireErrorContains(err, "gcp-iit: unable to retrieve valid identity token: unexpected status code: 502")
+
+	err := s.na.Attest(context.Background(), streamBuilder.Build())
+	s.RequireGRPCStatusContains(err, codes.Internal, "nodeattestor(gcp_iit): unable to retrieve valid identity token: unexpected status code: 502")
 }
 
 func (s *Suite) TestSuccessfulIdentityTokenProcessing() {
 	require := s.Require()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"google": gcp.Google{
+	claims := gcp.IdentityToken{
+		Google: gcp.Google{
 			ComputeEngine: gcp.ComputeEngine{
 				ProjectID:  "project-123",
 				InstanceID: "instance-123",
 			},
 		},
-	})
-	s.body = s.signToken(token)
-	resp, err := s.fetchAttestationData()
+	}
+	s.body = signToken(s.T(), testkey.NewRSA2048(s.T()), "kid", claims)
+
+	err := s.na.Attest(context.Background(), streamBuilder.ExpectAndBuild([]byte(s.body)))
 	require.NoError(err)
-	require.NotNil(resp)
-	require.Equal(gcp.PluginName, resp.AttestationData.Type)
-	require.Equal(s.body, string(resp.AttestationData.Data))
-}
-
-func (s *Suite) TestFailToSendOnStream() {
-	require := s.Require()
-
-	p := New()
-	_, err := p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-		Configuration: fmt.Sprintf(`
-service_account = "%s"
-identity_token_host = "%s"
-`, testServiceAccount, s.server.Listener.Addr().String()),
-	})
-	require.NoError(err)
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"google": gcp.Google{
-			ComputeEngine: gcp.ComputeEngine{
-				ProjectID:  "project-123",
-				InstanceID: "instance-123",
-			},
-		},
-	})
-	s.body = s.signToken(token)
-	err = p.FetchAttestationData(&failSendStream{})
-	require.EqualError(err, "failed to send to stream")
 }
 
 func (s *Suite) TestConfigure() {
 	require := s.Require()
 
 	// malformed
-	resp, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig:  &plugin.ConfigureRequest_GlobalConfig{},
-		Configuration: `trust_domain`,
-	})
+	var err error
+	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure("malformed"))
 	require.Error(err)
-	require.Nil(resp)
-
-	// global configuration not provided
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{})
-	s.requireErrorContains(err, "gcp-iit: global configuration is required")
-	require.Nil(resp)
-
-	// missing trust domain
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{}})
-	s.requireErrorContains(err, "gcp-iit: trust_domain is required")
-	require.Nil(resp)
-
-	// success
-	resp, err = s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-	})
-	require.NoError(err)
-	require.NotNil(resp)
-	s.RequireProtoEqual(resp, &plugin.ConfigureResponse{})
 }
 
-func (s *Suite) TestGetPluginInfo() {
-	require := s.Require()
-	resp, err := s.p.GetPluginInfo(context.Background(), &plugin.GetPluginInfoRequest{})
-	require.NoError(err)
-	require.NotNil(resp)
-	s.RequireProtoEqual(resp, &plugin.GetPluginInfoResponse{})
-}
-
-func (s *Suite) newPlugin() nodeattestorv0.NodeAttestorClient {
-	attestor := new(nodeattestor.V0)
-	plugintest.Load(s.T(), BuiltIn(), attestor)
-	return attestor.NodeAttestorPluginClient
-}
-
-func (s *Suite) configure() {
-	_, err := s.p.Configure(context.Background(), &plugin.ConfigureRequest{
-		GlobalConfig: &plugin.ConfigureRequest_GlobalConfig{
-			TrustDomain: "example.org",
-		},
-		Configuration: fmt.Sprintf(`
-service_account = "%s"
-identity_token_host = "%s"
-`, testServiceAccount, s.server.Listener.Addr().String()),
-	})
-	s.Require().NoError(err)
-	s.status = http.StatusOK
-}
-
-func (s *Suite) fetchAttestationData() (*nodeattestorv0.FetchAttestationDataResponse, error) {
-	stream, err := s.p.FetchAttestationData(context.Background())
-	s.NoError(err)
-	s.NoError(stream.CloseSend())
-	return stream.Recv()
-}
-
-func (s *Suite) signToken(token *jwt.Token) string {
-	tokenString, err := token.SignedString([]byte("secret"))
-	s.NoError(err)
-	return tokenString
-}
-
-func (s *Suite) requireErrorContains(err error, substring string) {
-	s.Require().Error(err)
-	s.Require().Contains(err.Error(), substring)
+func (s *Suite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {
+	attestor := new(nodeattestor.V1)
+	plugintest.Load(s.T(), BuiltIn(), attestor, options...)
+	return attestor
 }
 
 func TestRetrieveIdentity(t *testing.T) {
@@ -251,10 +166,17 @@ func TestRetrieveIdentity(t *testing.T) {
 	}
 }
 
-type failSendStream struct {
-	nodeattestorv0.NodeAttestor_FetchAttestationDataServer
-}
+func signToken(t *testing.T, key crypto.Signer, kid string, claims interface{}) string {
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key: &jose.JSONWebKey{
+			Key:   cryptosigner.Opaque(key),
+			KeyID: kid,
+		},
+	}, nil)
+	require.NoError(t, err)
 
-func (s *failSendStream) Send(*nodeattestorv0.FetchAttestationDataResponse) error {
-	return errors.New("failed to send to stream")
+	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	require.NoError(t, err)
+	return token
 }

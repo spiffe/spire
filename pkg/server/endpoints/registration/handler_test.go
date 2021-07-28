@@ -19,7 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -1511,12 +1511,7 @@ func (s *HandlerSuite) createRegistrationEntry(entry *common.RegistrationEntry) 
 }
 
 func (s *HandlerSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
-	_, err := s.ds.SetNodeSelectors(context.Background(), &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  spiffeID,
-			Selectors: selectors,
-		},
-	})
+	err := s.ds.SetNodeSelectors(context.Background(), spiffeID, selectors)
 	s.Require().NoError(err)
 }
 

@@ -22,7 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -75,6 +75,7 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return &agentv1.CountAgentsResponse{Count: count}, nil
 }
@@ -91,8 +92,15 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 	// Parse proto filter into datastore request
 	if req.Filter != nil {
 		filter := req.Filter
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromFilterRequest(filter))
+
+		var byBanned *bool
+		if filter.ByBanned != nil {
+			byBanned = &filter.ByBanned.Value
+		}
+
 		listReq.ByAttestationType = filter.ByAttestationType
-		listReq.ByBanned = filter.ByBanned
+		listReq.ByBanned = byBanned
 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
@@ -136,6 +144,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 		applyMask(a, req.OutputMask)
 		resp.Agents = append(resp.Agents, a)
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return resp, nil
 }
@@ -148,6 +157,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
@@ -169,6 +179,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 		return nil, api.MakeErr(log, codes.Internal, "failed to convert attested node to agent", err)
 	}
 
+	rpccontext.AuditRPC(ctx)
 	applyMask(agent, req.OutputMask)
 	return agent, nil
 }
@@ -181,6 +192,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: id.String()})
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
@@ -188,6 +200,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent deleted")
+		rpccontext.AuditRPC(ctx)
 		return &emptypb.Empty{}, nil
 	case codes.NotFound:
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
@@ -204,6 +217,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: id.String()})
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
@@ -219,6 +233,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*
 	switch status.Code(err) {
 	case codes.OK:
 		log.Info("Agent banned")
+		rpccontext.AuditRPC(ctx)
 		return &emptypb.Empty{}, nil
 	case codes.NotFound:
 		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
@@ -246,6 +261,9 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	if err := validateAttestAgentParams(params); err != nil {
 		return api.MakeErr(log, codes.InvalidArgument, "malformed param", err)
 	}
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.NodeAttestorType: params.Data.Type,
+	})
 
 	log = log.WithField(telemetry.NodeAttestorType, params.Data.Type)
 
@@ -265,6 +283,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 
 	agentID := attestResult.AgentID
 	log = log.WithField(telemetry.AgentID, agentID)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: attestResult.AgentID})
 
 	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
 		return api.MakeErr(log, codes.Internal, "agent ID is malformed", err)
@@ -297,12 +316,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
-	_, err = s.ds.SetNodeSelectors(ctx, &datastore.SetNodeSelectorsRequest{
-		Selectors: &datastore.NodeSelectors{
-			SpiffeId:  agentID,
-			Selectors: append(attestResult.Selectors, resolvedSelectors...),
-		},
-	})
+	err = s.ds.SetNodeSelectors(ctx, agentID, append(attestResult.Selectors, resolvedSelectors...))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -340,6 +354,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	if err := stream.Send(response); err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to send response over stream", err)
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return nil
 }
@@ -347,6 +362,9 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 // RenewAgent renews the SVID of the agent with the given SpiffeID.
 func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest) (*agentv1.RenewAgentResponse, error) {
 	log := rpccontext.Logger(ctx)
+	if req.Params != nil && len(req.Params.Csr) > 0 {
+		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.Csr: api.HashByte(req.Params.Csr)})
+	}
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to renew agent rate limiting", err)
@@ -357,7 +375,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
-	log.Debug("Renewing agent SVID")
+	log.Info("Renewing agent SVID")
 
 	if req.Params == nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "params cannot be nil", nil)
@@ -383,6 +401,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	if err := s.updateAttestedNode(ctx, update, mask, log); err != nil {
 		return nil, err
 	}
+	rpccontext.AuditRPC(ctx)
 
 	// Send response with new X509 SVID
 	return &agentv1.RenewAgentResponse{
@@ -397,6 +416,15 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 // CreateJoinToken returns a new JoinToken for an agent.
 func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	log := rpccontext.Logger(ctx)
+	parseRequest := func() logrus.Fields {
+		fields := logrus.Fields{}
+
+		if req.Ttl > 0 {
+			fields[telemetry.TTL] = req.Ttl
+		}
+		return fields
+	}
+	rpccontext.AddRPCAuditFields(ctx, parseRequest())
 
 	if req.Ttl < 1 {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "ttl is required, you must provide one", nil)
@@ -410,6 +438,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 		}
+		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
 		if err := idutil.CheckIDProtoNormalization(req.AgentId); err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "agent ID is malformed", err)
 		}
@@ -441,6 +470,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 			return nil, api.MakeErr(log, codes.Internal, "failed to create join token registration entry", err)
 		}
 	}
+	rpccontext.AuditRPC(ctx)
 
 	return &types.JoinToken{Value: req.Token, ExpiresAt: expiry.Unix()}, nil
 }
@@ -492,14 +522,12 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 }
 
 func (s *Service) getSelectorsFromAgentID(ctx context.Context, agentID string) ([]*types.Selector, error) {
-	resp, err := s.ds.GetNodeSelectors(ctx, &datastore.GetNodeSelectorsRequest{
-		SpiffeId: agentID,
-	})
+	selectors, err := s.ds.GetNodeSelectors(ctx, agentID, datastore.RequireCurrent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get node selectors: %v", err)
+		return nil, fmt.Errorf("failed to get node selectors: %w", err)
 	}
 
-	return api.NodeSelectorsToProto(resp.Selectors)
+	return api.ProtoFromSelectors(selectors), nil
 }
 
 func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattestor.AttestResult, error) {
@@ -625,4 +653,23 @@ func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certifica
 			},
 		},
 	}
+}
+
+func fieldsFromFilterRequest(filter *agentv1.ListAgentsRequest_Filter) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if filter.ByAttestationType != "" {
+		fields[telemetry.NodeAttestorType] = filter.ByAttestationType
+	}
+
+	if filter.ByBanned != nil {
+		fields[telemetry.ByBanned] = filter.ByBanned.Value
+	}
+
+	if filter.BySelectorMatch != nil {
+		fields[telemetry.BySelectorMatch] = filter.BySelectorMatch.Match.String()
+		fields[telemetry.BySelectors] = api.SelectorFieldFromProto(filter.BySelectorMatch.Selectors)
+	}
+
+	return fields
 }

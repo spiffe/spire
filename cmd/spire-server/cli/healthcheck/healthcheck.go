@@ -42,10 +42,7 @@ func (c *healthCheckCommand) Run(ctx context.Context, env *common_cli.Env, clien
 	if err := c.run(ctx, env, client); err != nil {
 		return fmt.Errorf("server is unhealthy: %w", err)
 	}
-	if err := env.Println("Server is healthy."); err != nil {
-		return err
-	}
-	return nil
+	return env.Println("Server is healthy.")
 }
 
 func (c *healthCheckCommand) run(ctx context.Context, env *common_cli.Env, client util.ServerClient) error {

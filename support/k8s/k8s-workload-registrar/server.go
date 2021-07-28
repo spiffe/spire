@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -94,7 +94,7 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func loadCA(path string) (*x509.CertPool, error) {
-	pemBytes, err := ioutil.ReadFile(path)
+	pemBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, errs.New("unable to read cacert file: %v", err)
 	}

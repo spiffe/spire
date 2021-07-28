@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -69,6 +68,7 @@ type agentConfig struct {
 	TrustBundleURL                string    `hcl:"trust_bundle_url"`
 	TrustDomain                   string    `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
+	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -208,7 +208,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	}
 
 	// Return a friendly error if the file is missing
-	byteData, err := ioutil.ReadFile(path)
+	byteData, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
@@ -220,7 +220,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		return nil, fmt.Errorf(msg, absPath)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to read configuration at %q: %v", path, err)
+		return nil, fmt.Errorf("unable to read configuration at %q: %w", path, err)
 	}
 	data := string(byteData)
 
@@ -230,7 +230,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	}
 
 	if err := hcl.Decode(&c, data); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration at %q: %v", path, err)
+		return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 	}
 
 	return c, nil
@@ -293,7 +293,7 @@ func downloadTrustBundle(trustBundleURL string) ([]*x509.Certificate, error) {
 	/* #nosec G107 */
 	resp, err := http.Get(trustBundleURL)
 	if err != nil {
-		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %v", trustBundleURL, err)
+		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
 	}
 
 	defer resp.Body.Close()
@@ -301,9 +301,9 @@ func downloadTrustBundle(trustBundleURL string) ([]*x509.Certificate, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("error downloading trust bundle: %s", resp.Status)
 	}
-	pemBytes, err := ioutil.ReadAll(resp.Body)
+	pemBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %v", trustBundleURL, err)
+		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %w", trustBundleURL, err)
 	}
 
 	bundle, err := pemutil.ParseCertificates(pemBytes)
@@ -329,7 +329,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 	case c.Agent.TrustBundlePath != "":
 		bundle, err := parseTrustBundle(c.Agent.TrustBundlePath)
 		if err != nil {
-			return fmt.Errorf("could not parse trust bundle: %v", err)
+			return fmt.Errorf("could not parse trust bundle: %w", err)
 		}
 		ac.TrustBundle = bundle
 	}
@@ -348,7 +348,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		var err error
 		ac.SyncInterval, err = time.ParseDuration(c.Agent.Experimental.SyncInterval)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse synchronization interval: %v", err)
+			return nil, fmt.Errorf("could not parse synchronization interval: %w", err)
 		}
 	}
 
@@ -362,7 +362,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("could not start logger: %s", err)
+		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	ac.Log = logger
 
@@ -380,11 +380,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if c.Agent.AdminSocketPath != "" {
 		socketPathAbs, err := filepath.Abs(c.Agent.SocketPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for socket_path: %v", err)
+			return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
 		}
 		adminSocketPathAbs, err := filepath.Abs(c.Agent.AdminSocketPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %v", err)
+			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
 		}
 
 		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
@@ -410,6 +410,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.ProfilingPort = c.Agent.ProfilingPort
 	ac.ProfilingFreq = c.Agent.ProfilingFreq
 	ac.ProfilingNames = c.Agent.ProfilingNames
+
+	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
 	ac.PluginConfigs = *c.Plugins
 	ac.Telemetry = c.Telemetry
@@ -459,7 +461,7 @@ func validateConfig(c *Config) error {
 	if c.Agent.TrustBundleURL != "" {
 		u, err := url.Parse(c.Agent.TrustBundleURL)
 		if err != nil {
-			return fmt.Errorf("unable to parse trust bundle URL: %v", err)
+			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
 		}
 		if u.Scheme != "https" {
 			return errors.New("trust bundle URL must start with https://")
