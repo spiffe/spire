@@ -31,7 +31,7 @@ SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNC
 - Once ready to get started, see the [Quickstart Guides](https://spiffe.io/spire/try/) for Kubernetes, Linux, and MacOS.
 - There are several examples demonstrating SPIRE usage in the [spire-examples](https://github.com/spiffe/spire-examples) and [spire-tutorials](https://github.com/spiffe/spire-tutorials) repositories.
 - Check [ADOPTERS.md](./ADOPTERS.md) for a list of production SPIRE adopters, a view of the ecosystem, and use cases.
-- See the [SPIRE Roadmap](https://github.com/spiffe/spire/wiki/Roadmap) for a list of planned features and enhancements.
+- See the [SPIRE Roadmap](/Roadmap.md) for a list of planned features and enhancements.
 - [Join](https://slack.spiffe.io/) the SPIFFE community on Slack. If you have any questions about how SPIRE works, or how to get it up and running, the best places to ask questions are the [SPIFFE Slack channels](https://spiffe.slack.com).
 - Download the free book about SPIFFE and SPIRE, "[Solving the Bottom Turtle](https://spiffe.io/book/)."
 
