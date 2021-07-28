@@ -35,15 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	PodNameIDLabel           string = "pod_name"
-	PodUIDLabel              string = "pod_uid"
-	NamespaceIDLabel         string = "namespace"
-	PodServiceAccountIDLabel string = "service_account"
-	PodHostnameLabel         string = "hostname"
-	PodNodeNameLabel         string = "node_name"
-)
-
 // PodReconcilerConfig holds the config passed in when creating the reconciler
 type PodReconcilerConfig struct {
 	Client                client.Client
@@ -60,14 +51,23 @@ type PodReconcilerConfig struct {
 	Context               map[string]string
 }
 
+const (
+	PodNameIDLabel           string = "Name"
+	PodUIDLabel              string = "UID"
+	NamespaceIDLabel         string = "Namespace"
+	PodServiceAccountIDLabel string = "ServiceAccount"
+	PodHostnameLabel         string = "Hostname"
+	PodNodeNameLabel         string = "NodeName"
+)
+
 // PodInfo is created for every processed Pod and it holds pod specific information
 type PodInfo struct {
-	PodServiceAccountIDLabel string
-	NamespaceIDLabel         string
-	PodNameIDLabel           string
-	PodUIDLabel              types.UID
-	PodHostnameLabel         string
-	PodNodeNameLabel         string
+	ServiceAccount string
+	Namespace      string
+	Name           string
+	UID            types.UID
+	Hostname       string
+	NodeName       string
 }
 
 // IdentityMaps is used for forming the text from the templates
@@ -140,7 +140,6 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 	if spiffeIDURI == "" {
 		return ctrl.Result{}, nil
 	}
-
 	federationDomains := federation.GetFederationDomains(pod)
 
 	// Set up new SPIFFE ID
@@ -225,7 +224,7 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation, so identity_template must be set
-	// as it is enforced in config_crd 
+	// as it is enforced in config_crd
 	if r.c.IdentityTemplate == "" {
 		// this is just a sanity check
 		return "", nil
@@ -259,12 +258,12 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
 
 	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
 	podInfo := PodInfo{
-		PodServiceAccountIDLabel: pod.Spec.ServiceAccountName,
-		NamespaceIDLabel:         pod.Namespace,
-		PodNameIDLabel:           pod.Name,
-		PodUIDLabel:              pod.UID,
-		PodHostnameLabel:         pod.Spec.Hostname,
-		PodNodeNameLabel:         pod.Spec.NodeName,
+		ServiceAccount: pod.Spec.ServiceAccountName,
+		Namespace:      pod.Namespace,
+		Name:           pod.Name,
+		UID:            pod.UID,
+		Hostname:       pod.Spec.Hostname,
+		NodeName:       pod.Spec.NodeName,
 	}
 
 	templateMaps := IdentityMaps{

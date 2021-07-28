@@ -176,21 +176,21 @@ Pods that don't contain the pod annotation are ignored.
 
 ### Identity Template Based Workload Registration
 
-Identity template based workload registration provides a way for customizing the format of the SVID. The format of the identity is cluster scoped. The template can reference arbitrary values provided in `context` map of strings, and the following Pod specific arguments:
+Identity template based workload registration provides a way for customizing the format of the SVID. The format of the identity is cluster scoped. The template can reference arbitrary values provided in `context` map of strings, and the following Pod specific, self-explanatory arguments:
 
-* Pod.pod_name
-* Pod.pod_uid
-* Pod.namespace
-* Pod.service_account
-* Pod.hostname
-* Pod.node_name
+* Pod.Name
+* Pod.UID
+* Pod.Namespace
+* Pod.ServiceAccount
+* Pod.Hostname
+* Pod.NodeName
 
 For example if the registrar was configured with the following:
 ```
-identity_template = "region/{{.Context.region}}/cluster/{{.Context.cluster_name}}/sa/{{.Pod.service_account}}/pod_name/{{.Pod.pod_name}}"
+identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.pod_name}}"
 context {
-  region = "US-NORTH"
-  cluster_name = "MYCLUSTER"
+  Region = "US-NORTH"
+  ClusterName = "MYCLUSTER"
 }
 ```
 and the _example-workload_ pod was deployed in _production_ namespace and _myserviceacct_ service account, the following registration entry would be created:

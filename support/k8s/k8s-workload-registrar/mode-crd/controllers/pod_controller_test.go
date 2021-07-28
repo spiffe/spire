@@ -34,6 +34,9 @@ const (
 	PodName           string = "test-pod"
 	PodNamespace      string = "default"
 	PodServiceAccount string = "serviceAccount"
+	DefaultTemplate   string = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
+	SimpleTemplate    string = "TEMPLATE"
+	IdentityLabel     string = "IDENTITYTEMPLATE"
 )
 
 func TestPodController(t *testing.T) {
@@ -157,75 +160,107 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		err                   string
 		spiffeIDCount         int
 	}{
-
+		// this section is testing error conditions:
 		{
-			// Default format, template provided, pod not labeled
-			identityTemplate:      "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			identityTemplateLabel: "IDENTITYLABEL",
-			labelValue:            "false",
-			spiffeIDCount:         0,
-		},
-		{
-			// Default format, template provided, pod labeled
-			identityTemplate:      "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			identityTemplateLabel: "IDENTITYLABEL",
-			labelValue:            "true",
-			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
-			spiffeIDCount:         1,
-		},
-		{
-			// Default format, template provided, no identity label
-			identityTemplate:      "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			identityTemplateLabel: "",
-			labelValue:            "false",
-			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
-			spiffeIDCount:         1,
-		},
-		{
-			// Default format, template provided, no identity label
-			identityTemplate:      "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			identityTemplateLabel: "",
-			labelValue:            "true",
-			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
-			spiffeIDCount:         1,
-		},
-		{
-			// Test provided identity template corresponding to a default format:
-			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
-			expectedSVID:     "ns/" + PodNamespace + "/sa/" + PodServiceAccount,
-			spiffeIDCount:    1,
-		},
-		{
-			// Test provided identity template (namespace, sa, pod_name):
-			identityTemplate: "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}/podName/{{.Pod.pod_name}}",
-			expectedSVID:     "ns/" + PodNamespace + "/sa/" + PodServiceAccount + "/podName/" + PodName,
-			spiffeIDCount:    1,
-		},
-		{
-			// Test provided identity template with an additional identity context:
-			context: map[string]string{
-				"region":       "EU-DE",
-				"cluster_name": "MYCLUSTER",
-			},
-			identityTemplate: "region/{{.Context.region}}/cluster/{{.Context.cluster_name}}/podName/{{.Pod.pod_name}}",
-			expectedSVID:     "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
-			spiffeIDCount:    1,
-		},
-		{
-			// Test identity template with other Pod arguments:
-			identityTemplate: fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameIDLabel, NamespaceIDLabel, PodServiceAccountIDLabel, PodHostnameLabel, PodNodeNameLabel),
-			expectedSVID:     PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
-			spiffeIDCount:    1,
-		},
-		{
-			// Test invalid identity template format:
+			// invalid template format:
 			identityTemplate: "invalid/",
 			err:              "invalid SVID, ends with /",
 		},
 		{
-			// Test identity template with a missing context value:
-			identityTemplate: "region/{{.Context.region}}",
+			// missing Context map:
+			identityTemplate: "region/{{.Context.Region}}",
 			err:              "template references a value not included in context map",
+		},
+		{
+			// invalid Context reference:
+			context: map[string]string{
+				"Region":      "EU-DE",
+				"ClusterName": "MYCLUSTER",
+			},
+			identityTemplate: "error/{{.Context.XXXX}}",
+			err:              "template references a value not included in context map",
+		},
+		{
+			// invalid Pod reference:
+			identityTemplate: "region/{{.Pod.XXXX}}",
+			err:              "can't evaluate field XXXX ",
+		},
+
+		// this section is testing the identity_template_label:
+		{
+			// label requested, pod not labeled
+			identityTemplate:      SimpleTemplate,
+			identityTemplateLabel: IdentityLabel,
+			spiffeIDCount:         0,
+		},
+		{
+			// label requested, pod labeled 'false'
+			identityTemplate:      SimpleTemplate,
+			identityTemplateLabel: IdentityLabel,
+			labelValue:            "false",
+			spiffeIDCount:         0,
+		},
+		{
+			// label not set
+			identityTemplate: DefaultTemplate,
+			expectedSVID:     fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:    1,
+		},
+		{
+			// label empty
+			identityTemplate:      DefaultTemplate,
+			identityTemplateLabel: "",
+			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:         1,
+		}, 
+		{
+			// label requested, pod labeled
+			identityTemplate:      DefaultTemplate,
+			identityTemplateLabel: IdentityLabel,
+			labelValue:            "true",
+			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:         1,
+		},
+		{
+			// label empty, pod labeled false
+			identityTemplate:      DefaultTemplate,
+			identityTemplateLabel: "",
+			labelValue:            "false",
+			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:         1,
+		},
+
+		// this section is testing identity template formatting:
+		{
+			identityTemplate: DefaultTemplate,
+			expectedSVID:     fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:    1,
+		},
+		{
+			identityTemplate: "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}",
+			expectedSVID:     "ns/" + PodNamespace + "/sa/" + PodServiceAccount,
+			spiffeIDCount:    1,
+		},
+		{
+			identityTemplate: DefaultTemplate + "/podName/{{.Pod.Name}}",
+			expectedSVID:     "ns/" + PodNamespace + "/sa/" + PodServiceAccount + "/podName/" + PodName,
+			spiffeIDCount:    1,
+		},
+		{
+			// testing Context:
+			context: map[string]string{
+				"Region":      "EU-DE",
+				"ClusterName": "MYCLUSTER",
+			},
+			identityTemplate: "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/podName/{{.Pod.Name}}",
+			expectedSVID:     "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
+			spiffeIDCount:    1,
+		},
+		{
+			// testing various Pod elements:
+			identityTemplate: fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameIDLabel, NamespaceIDLabel, PodServiceAccountIDLabel, PodHostnameLabel, PodNodeNameLabel),
+			expectedSVID:     PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
+			spiffeIDCount:    1,
 		},
 	}
 
@@ -268,8 +303,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			},
 		}
 		_, err = p.Reconcile(req)
-		if err != nil {
-			s.Require().Error(err)
+		if err != nil && test.err != "" {
 			s.Require().Contains(err.Error(), test.err)
 			err = s.k8sClient.Delete(s.ctx, &pod)
 			s.Require().NoError(err)
@@ -278,7 +312,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		s.Require().NoError(err)
 
 		_, err = s.r.Reconcile(req)
-		if err != nil {
+		if err != nil && test.err != "" {
 			s.Require().Error(err)
 			s.Require().Contains(err.Error(), test.err)
 			err = s.k8sClient.Delete(s.ctx, &pod)
@@ -303,7 +337,6 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			s.Require().NoError(err)
 			continue
 		}
-
 		// Verify the SVID matches what we expect
 		expectedSpiffeID := makeID(s.trustDomain, "%s", test.expectedSVID)
 		actualSpiffeID := spiffeIDList.Items[0].Spec.SpiffeId
