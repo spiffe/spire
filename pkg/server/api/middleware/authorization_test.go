@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 func TestWithAuthorizationPreprocess(t *testing.T) {
@@ -129,6 +130,25 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:          "authorize fails",
+			fullMethod:    fakeFullMethod,
+			authorizerErr: status.Error(codes.Unauthenticated, "oh no!"),
+			peer:          mtlsPeer,
+			expectCode:    codes.Unauthenticated,
+			expectMsg:     "oh no!",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to authenticate caller",
+					Data: logrus.Fields{
+						telemetry.CallerAddr: "2.2.2.2:2",
+						telemetry.CallerID:   "spiffe://example.org/workload",
+						logrus.ErrorKey:      "rpc error: code = Unauthenticated desc = oh no!",
+					},
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -136,6 +156,10 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				// Assert the context is set and has the caller information.
 				require.NotNil(t, ctx, "authorizer was not called")
 				assert.Equal(t, rpccontext.CallerAddr(ctx), tt.peer.Addr)
+
+				if tt.authorizerErr != nil {
+					return nil, tt.authorizerErr
+				}
 
 				// Logging here allows us to assert that the right fields were
 				// added to the logger.

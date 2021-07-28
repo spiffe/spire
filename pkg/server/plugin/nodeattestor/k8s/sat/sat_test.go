@@ -23,6 +23,7 @@ import (
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
@@ -77,6 +78,7 @@ type AttestorSuite struct {
 	bazSigner  jose.Signer
 	attestor   nodeattestor.NodeAttestor
 	agentStore *fakeagentstore.AgentStore
+	now        time.Time
 	mockCtrl   *gomock.Controller
 	mockClient *k8s_apiserver_mock.MockClient
 }
@@ -118,6 +120,7 @@ func (s *AttestorSuite) SetupTest() {
 	s.mockCtrl = gomock.NewController(s.T())
 	s.agentStore = fakeagentstore.New()
 	s.attestor = s.loadPlugin()
+	s.now = time.Now()
 }
 
 func (s *AttestorSuite) TearDownTest() {
@@ -196,10 +199,26 @@ func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 		"unable to validate token with TokenReview API")
 }
 
-func (s *AttestorSuite) TestAttestFailsWithInvalidIssuer() {
-	token, err := jwt.Signed(s.fooSigner).CompactSerialize()
+func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
+	claims := sat_common.SATClaims{}
+	claims.Namespace = "ns1"
+	claims.K8s.Namespace = "ns2"
+
+	builder := jwt.Signed(s.fooSigner)
+	builder = builder.Claims(claims)
+	token, err := builder.CompactSerialize()
 	s.Require().NoError(err)
-	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "invalid issuer claim")
+	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: namespace found in two claims")
+
+	// Clear the namespace from the SAT space but leave the duplicated service account name
+	claims.K8s.Namespace = ""
+	claims.ServiceAccountName = "sa1"
+	claims.K8s.ServiceAccount.Name = "sa2"
+
+	builder = builder.Claims(claims)
+	token, err = builder.CompactSerialize()
+	s.Require().NoError(err)
+	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: service account name found in two claims")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
@@ -394,18 +413,30 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	)
 }
 
-func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountName string) string {
-	builder := jwt.Signed(signer)
+func (s *AttestorSuite) TestAttestTokenExpiration() {
+	token := s.signTokenWithExpiry(s.fooSigner, "NS1", "SA1")
 
-	// build up standard claims
-	claims := jwt.Claims{
-		Issuer: "kubernetes/serviceaccount",
-	}
-	builder = builder.Claims(claims)
-	builder = builder.Claims(map[string]interface{}{
-		"kubernetes.io/serviceaccount/namespace":            namespace,
-		"kubernetes.io/serviceaccount/service-account.name": serviceAccountName,
-	})
+	// within 5m leeway (token expires at 1m + 5m leeway = 6m)
+	s.adjustTime(4 * time.Minute)
+	result, err := s.attestor.Attest(context.Background(), makePayload("FOO", token), expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+
+	// after 5m leeway
+	s.adjustTime(3 * time.Minute)
+	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "token is expired (exp)")
+}
+
+func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountName string) string {
+	builder := s.createBuilder(signer, namespace, serviceAccountName, jwt.NewNumericDate(time.Time{}))
+
+	token, err := builder.CompactSerialize()
+	s.Require().NoError(err)
+	return token
+}
+
+func (s *AttestorSuite) signTokenWithExpiry(signer jose.Signer, namespace, serviceAccountName string) string {
+	builder := s.createBuilder(signer, namespace, serviceAccountName, jwt.NewNumericDate(s.now.Add(time.Minute)))
 
 	token, err := builder.CompactSerialize()
 	s.Require().NoError(err)
@@ -416,6 +447,9 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	attestor := New()
 	attestor.hooks.newUUID = func() (string, error) {
 		return "UUID", nil
+	}
+	attestor.hooks.now = func() time.Time {
+		return s.now
 	}
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(attestor), v1,
@@ -456,6 +490,21 @@ func (s *AttestorSuite) fooCertPath() string {
 
 func (s *AttestorSuite) barCertPath() string {
 	return filepath.Join(s.dir, "bar.pem")
+}
+
+func (s *AttestorSuite) adjustTime(d time.Duration) {
+	s.now = s.now.Add(d)
+}
+
+func (s *AttestorSuite) createBuilder(signer jose.Signer, namespace, serviceAccountName string, numericDate *jwt.NumericDate) jwt.Builder {
+	claims := sat_common.SATClaims{}
+	claims.Namespace = namespace
+	claims.ServiceAccountName = serviceAccountName
+	claims.Expiry = numericDate
+
+	builder := jwt.Signed(signer)
+	builder = builder.Claims(claims)
+	return builder
 }
 
 func makePayload(cluster, token string) []byte {
