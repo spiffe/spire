@@ -469,7 +469,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			printMaxSVIDTTL(sc.CATTL), printMinCATTL(sc.SVIDTTL),
 		)
 		msgSVIDTTLTooLargeAndCATTLTooSmall := fmt.Sprintf(
-			"The default_svid_ttl is too high and the ca_ttl is too low."+
+			"The default_svid_ttl is too high and the ca_ttl is too low. "+
 				"SVIDs with shorter lifetimes may be issued. "+
 				"Please set the default_svid_ttl to %v or less, and the ca_ttl to %v or more, "+
 				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
@@ -744,12 +744,12 @@ func hasCompatibleTTLs(caTTL, svidTTL time.Duration) bool {
 	return ca.MaxSVIDTTLForCATTL(caTTL) >= svidTTL
 }
 
-// maxSVIDTTL calculates the display string for a sufficiently short SVID TTL
+// printMaxSVIDTTL calculates the display string for a sufficiently short SVID TTL
 func printMaxSVIDTTL(caTTL time.Duration) string {
 	return printDuration(ca.MaxSVIDTTLForCATTL(caTTL))
 }
 
-// minCATTL calculates the display string for a sufficiently large CA TTL
+// printMinCATTL calculates the display string for a sufficiently large CA TTL
 func printMinCATTL(svidTTL time.Duration) string {
 	return printDuration(ca.MinCATTLForSVIDTTL(svidTTL))
 }
