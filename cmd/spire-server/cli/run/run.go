@@ -491,8 +491,46 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CATTL = ttl
 	}
 
-	if !hasExpectedTTLs(sc.CATTL, sc.SVIDTTL) {
-		sc.Log.Warnf("The configured SVID TTL cannot be guaranteed in all cases - SVIDs with shorter TTLs may be issued if the signing key is expiring soon. Set a CA TTL of at least 6x or reduce SVID TTL below 6x to avoid issuing SVIDs with a smaller TTL than specified")
+	// If the configured TTLs can lead to surprises, then do our best to log an
+	// accurate message and guide the user to resolution
+	if !hasCompatibleTTLs(sc.CATTL, sc.SVIDTTL) {
+		msgCATTLTooSmall := fmt.Sprintf(
+			"The default_svid_ttl is too high for the configured ca_ttl value. "+
+				"SVIDs with shorter lifetimes may be issued. "+
+				"Please set the default_svid_ttl to %v or less, or the ca_ttl to %v or more, "+
+				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
+			printMaxSVIDTTL(sc.CATTL), printMinCATTL(sc.SVIDTTL),
+		)
+		msgSVIDTTLTooLargeAndCATTLTooSmall := fmt.Sprintf(
+			"The default_svid_ttl is too high and the ca_ttl is too low. "+
+				"SVIDs with shorter lifetimes may be issued. "+
+				"Please set the default_svid_ttl to %v or less, and the ca_ttl to %v or more, "+
+				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
+			printDuration(ca.MaxSVIDTTL()), printMinCATTL(ca.MaxSVIDTTL()),
+		)
+		msgSVIDTTLTooLarge := fmt.Sprintf(
+			"The default_svid_ttl is too high. "+
+				"SVIDs with shorter lifetimes may be issued. "+
+				"Please set the default_svid_ttl to %v or less "+
+				"to guarantee the full default_svid_ttl lifetime when CA rotations are scheduled.",
+			printMaxSVIDTTL(sc.CATTL),
+		)
+
+		switch {
+		case sc.SVIDTTL < ca.MaxSVIDTTL():
+			// The SVID TTL is smaller than our cap, but the CA TTL
+			// is not large enough to accommodate it
+			sc.Log.Warn(msgCATTLTooSmall)
+		case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()):
+			// The SVID TTL is larger than our cap, it needs to be
+			// decreased no matter what. Additionally, the CA TTL is
+			// too small to accommodate the maximum SVID TTL.
+			sc.Log.Warn(msgSVIDTTLTooLargeAndCATTLTooSmall)
+		default:
+			// The SVID TTL is larger than our cap and needs to be
+			// decreased.
+			sc.Log.Warn(msgSVIDTTLTooLarge)
+		}
 	}
 
 	if c.Server.CAKeyType != "" {
@@ -785,11 +823,13 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:  "0.0.0.0",
-			BindPort:     8081,
-			LogLevel:     defaultLogLevel,
-			LogFormat:    log.DefaultFormat,
-			Experimental: experimentalConfig{},
+			BindAddress:    "0.0.0.0",
+			BindPort:       8081,
+			CATTL:          ca.DefaultCATTL.String(),
+			LogLevel:       defaultLogLevel,
+			LogFormat:      log.DefaultFormat,
+			DefaultSVIDTTL: ca.DefaultX509SVIDTTL.String(),
+			Experimental:   experimentalConfig{},
 		},
 	}
 }
@@ -809,17 +849,32 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	}
 }
 
-// hasExpectedTTLs is a function that checks if ca_ttl is less than default_svid_ttl * 6. SPIRE Server prepares a new CA certificate when 1/2 of the CA lifetime has elapsed in order to give ample time for the new trust bundle to propagate. However, it does not start using it until 5/6th of the CA lifetime. So its normal for an SVID TTL to be capped to 1/6th of the CA TTL. In order to get the expected lifetime on SVID TTLs, the CA TTL should be 6x.
-func hasExpectedTTLs(caTTL, svidTTL time.Duration) bool {
-	if caTTL == 0 {
-		caTTL = ca.DefaultCATTL
-	}
-	if svidTTL == 0 {
-		svidTTL = ca.DefaultX509SVIDTTL
-	}
+// hasCompatibleTTLs checks if we can guarantee the configured SVID TTL given the
+// configurd CA TTL. If we detect that a new SVIDs TTL may be cut short due to
+// a scheduled CA rotation, this function will return false.
+func hasCompatibleTTLs(caTTL, svidTTL time.Duration) bool {
+	return ca.MaxSVIDTTLForCATTL(caTTL) >= svidTTL
+}
 
-	thresh := ca.KeyActivationThreshold(time.Now(), time.Now().Add(caTTL))
-	return caTTL-time.Until(thresh) >= svidTTL
+// printMaxSVIDTTL calculates the display string for a sufficiently short SVID TTL
+func printMaxSVIDTTL(caTTL time.Duration) string {
+	return printDuration(ca.MaxSVIDTTLForCATTL(caTTL))
+}
+
+// printMinCATTL calculates the display string for a sufficiently large CA TTL
+func printMinCATTL(svidTTL time.Duration) string {
+	return printDuration(ca.MinCATTLForSVIDTTL(svidTTL))
+}
+
+func printDuration(d time.Duration) string {
+	s := d.Truncate(time.Second).String()
+	if strings.HasSuffix(s, "m0s") {
+		s = s[:len(s)-2]
+	}
+	if strings.HasSuffix(s, "h0m") {
+		s = s[:len(s)-2]
+	}
+	return s
 }
 
 func isPKIXNameEmpty(name pkix.Name) bool {
