@@ -16,7 +16,6 @@ limitations under the License.
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -52,12 +51,12 @@ type PodReconcilerConfig struct {
 }
 
 const (
-	PodNameIDLabel           string = "Name"
-	PodUIDLabel              string = "UID"
-	NamespaceIDLabel         string = "Namespace"
-	PodServiceAccountIDLabel string = "ServiceAccount"
-	PodHostnameLabel         string = "Hostname"
-	PodNodeNameLabel         string = "NodeName"
+	PodNameLabel           string = "Name"
+	PodUIDLabel            string = "UID"
+	PodNamespaceLabel      string = "Namespace"
+	PodServiceAccountLabel string = "ServiceAccount"
+	PodHostnameLabel       string = "Hostname"
+	PodNodeNameLabel       string = "NodeName"
 )
 
 // PodInfo is created for every processed Pod and it holds pod specific information
@@ -87,7 +86,8 @@ type PodReconciler struct {
 func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 	tmpl, err := template.New("IdentityTemplate").Parse(config.IdentityTemplate)
 	if err != nil {
-		config.Log.WithError(err).Errorf("error parsing the template %q", config.IdentityTemplate)
+		config.Log.WithError(err).WithField("identity_template", config.IdentityTemplate).Error("error parsing identity template")
+		// config.Log.WithError(err).Errorf("error parsing the template %q", config.IdentityTemplate)
 		return &PodReconciler{}, err
 	}
 	return &PodReconciler{
@@ -243,7 +243,7 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 	}
 
 	// create an entry using provided identity template.
-	svid, err := r.getIdentityTemplate(pod)
+	svid, err := r.generateSpiffeIDPath(pod)
 	if err != nil {
 		return "", err
 	}
@@ -254,7 +254,7 @@ func (r *PodReconciler) podParentID(nodeName string) string {
 	return makeID(r.c.TrustDomain, "k8s-workload-registrar/%s/node/%s", r.c.Cluster, nodeName)
 }
 
-func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
+func (r *PodReconciler) generateSpiffeIDPath(pod *corev1.Pod) (string, error) {
 
 	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
 	podInfo := PodInfo{
@@ -270,23 +270,25 @@ func (r *PodReconciler) getIdentityTemplate(pod *corev1.Pod) (string, error) {
 		Context: r.c.Context,
 		Pod:     podInfo,
 	}
-	var svid bytes.Buffer
-	err := r.identityTempl.Execute(&svid, templateMaps)
-	if err != nil {
-		r.c.Log.WithError(err).Errorf("Error executing the template %q with maps: %#v", r.c.IdentityTemplate, templateMaps)
-		return svid.String(), err
+	var spiffeIDPathBuilder strings.Builder
+	if err := r.identityTempl.Execute(&spiffeIDPathBuilder, templateMaps); err != nil {
+		r.c.Log.WithError(err).WithFields(logrus.Fields{
+			"identity_template":      r.c.IdentityTemplate,
+			"identity_template_maps": templateMaps,
+		}).Error("Error executing the identity template")
+		return spiffeIDPathBuilder.String(), err
 	}
 	// detect missing context values
-	if strings.Contains(svid.String(), "<no value>") {
+	if strings.Contains(spiffeIDPathBuilder.String(), "<no value>") {
 		err := errors.New("template references a value not included in context map")
-		r.c.Log.WithError(err).Errorf("SVID: %s", svid.String())
-		return svid.String(), err
+		r.c.Log.WithError(err).Errorf("SVID: %s", spiffeIDPathBuilder.String())
+		return spiffeIDPathBuilder.String(), err
 	}
 	// depending on runtime values, the SVID might end up with trailing '/' that is illegal
-	if strings.HasSuffix(svid.String(), "/") {
+	if strings.HasSuffix(spiffeIDPathBuilder.String(), "/") {
 		err := errors.New("invalid SVID, ends with /")
-		r.c.Log.WithError(err).Errorf("SVID: %s", svid.String())
-		return svid.String(), err
+		r.c.Log.WithError(err).Errorf("SVID: %s", spiffeIDPathBuilder.String())
+		return spiffeIDPathBuilder.String(), err
 	}
-	return svid.String(), nil
+	return spiffeIDPathBuilder.String(), nil
 }

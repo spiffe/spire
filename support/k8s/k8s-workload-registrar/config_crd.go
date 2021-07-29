@@ -70,8 +70,8 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 	}
 
 	// eliminate reference to non-existing context
-	// strip out the blanc space first
-	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ",""), "{{.Context.") {
+	// strip out the blank space first
+	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ", ""), "{{.Context.") {
 		return errs.New("identity_template references non-existing context")
 	}
 
@@ -81,7 +81,7 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		return errs.New("identity_template cannot start with spiffe:// or /")
 	}
 
-	// one, and only one, workload registartion identity format must be selected.
+	// one, and only one, workload registration identity format must be selected.
 	if c.CommonMode.Mode == modeCRD && c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
 		return errs.New("in crd mode, but no workload registration mode set")
 	}

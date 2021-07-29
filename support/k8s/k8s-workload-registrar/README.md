@@ -88,7 +88,7 @@ Pods. There are following workload registration modes:
 | `reconcile` | as specified by pod_label | as specified by pod_annotation | _unavailable_ | service account |
 | `crd`       | as specified by pod_label | as specified by pod_annotation | as specified by identity_template | _unavailable_ |
 
-For `webhook` and `reconcile` modes, if you use [Service Account Based](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based, specify only `pod_label`. If you use Annotation Based, specify only `pod_annotation`.
+If using `webhook` and `reconcile` modes with [Service Account Based SPIFFE IDs](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based SPIFFE IDs, specify only `pod_label`. If you use Annotation Based SPIFFE IDs, specify only `pod_annotation`.
 
 For `crd` mode, you must select only one workload registration mode, either `pod_label`,
 `pod_annotation` or `identity_template`.
@@ -176,7 +176,7 @@ Pods that don't contain the pod annotation are ignored.
 
 ### Identity Template Based Workload Registration
 
-Identity template based workload registration provides a way for customizing the format of the SVID. The format of the identity is cluster scoped. The template can reference arbitrary values provided in `context` map of strings, and the following Pod specific, self-explanatory arguments:
+Identity template based workload registration provides a way to customize the format of SPIFFE IDs. The identity format is scoped to a cluster. The template can reference arbitrary values provided in the `context` map of strings in addition to the following Pod-specific arguments:
 
 * Pod.Name
 * Pod.UID

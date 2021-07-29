@@ -155,7 +155,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		identityTemplateLabel string
 		labelValue            string
 		context               map[string]string
-		expectedSVID          string
+		expectedSpiffeIDPath  string
 		uid                   string
 		err                   string
 		spiffeIDCount         int
@@ -202,23 +202,23 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		},
 		{
 			// label not set
-			identityTemplate: DefaultTemplate,
-			expectedSVID:     fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
-			spiffeIDCount:    1,
+			identityTemplate:     DefaultTemplate,
+			expectedSpiffeIDPath: fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:        1,
 		},
 		{
 			// label empty
 			identityTemplate:      DefaultTemplate,
 			identityTemplateLabel: "",
-			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			expectedSpiffeIDPath:  fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
 			spiffeIDCount:         1,
-		}, 
+		},
 		{
 			// label requested, pod labeled
 			identityTemplate:      DefaultTemplate,
 			identityTemplateLabel: IdentityLabel,
 			labelValue:            "true",
-			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			expectedSpiffeIDPath:  fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
 			spiffeIDCount:         1,
 		},
 		{
@@ -226,25 +226,25 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			identityTemplate:      DefaultTemplate,
 			identityTemplateLabel: "",
 			labelValue:            "false",
-			expectedSVID:          fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			expectedSpiffeIDPath:  fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
 			spiffeIDCount:         1,
 		},
 
 		// this section is testing identity template formatting:
 		{
-			identityTemplate: DefaultTemplate,
-			expectedSVID:     fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
-			spiffeIDCount:    1,
+			identityTemplate:     DefaultTemplate,
+			expectedSpiffeIDPath: fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:        1,
 		},
 		{
-			identityTemplate: "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}",
-			expectedSVID:     "ns/" + PodNamespace + "/sa/" + PodServiceAccount,
-			spiffeIDCount:    1,
+			identityTemplate:     fmt.Sprintf("ns/{{.Pod.%s}}/sa/{{.Pod.%s}}", PodNamespaceLabel, PodServiceAccountLabel),
+			expectedSpiffeIDPath: fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:        1,
 		},
 		{
-			identityTemplate: DefaultTemplate + "/podName/{{.Pod.Name}}",
-			expectedSVID:     "ns/" + PodNamespace + "/sa/" + PodServiceAccount + "/podName/" + PodName,
-			spiffeIDCount:    1,
+			identityTemplate:     DefaultTemplate + "/podName/{{.Pod.Name}}",
+			expectedSpiffeIDPath: fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			spiffeIDCount:        1,
 		},
 		{
 			// testing Context:
@@ -252,15 +252,15 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 				"Region":      "EU-DE",
 				"ClusterName": "MYCLUSTER",
 			},
-			identityTemplate: "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/podName/{{.Pod.Name}}",
-			expectedSVID:     "region/EU-DE/cluster/MYCLUSTER/podName/" + PodName,
-			spiffeIDCount:    1,
+			identityTemplate:     fmt.Sprintf("region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/podName/{{.Pod.%s}}", PodNameLabel),
+			expectedSpiffeIDPath: fmt.Sprintf("region/EU-DE/cluster/MYCLUSTER/podName/%s", PodName),
+			spiffeIDCount:        1,
 		},
 		{
 			// testing various Pod elements:
-			identityTemplate: fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameIDLabel, NamespaceIDLabel, PodServiceAccountIDLabel, PodHostnameLabel, PodNodeNameLabel),
-			expectedSVID:     PodName + "/" + PodNamespace + "/" + PodServiceAccount + "/hostname/test-node",
-			spiffeIDCount:    1,
+			identityTemplate:     fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameLabel, PodNamespaceLabel, PodServiceAccountLabel, PodHostnameLabel, PodNodeNameLabel),
+			expectedSpiffeIDPath: fmt.Sprintf("%s/%s/%s/hostname/test-node", PodName, PodNamespace, PodServiceAccount),
+			spiffeIDCount:        1,
 		},
 	}
 
@@ -304,6 +304,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		}
 		_, err = p.Reconcile(req)
 		if err != nil && test.err != "" {
+			s.Require().Error(err)
 			s.Require().Contains(err.Error(), test.err)
 			err = s.k8sClient.Delete(s.ctx, &pod)
 			s.Require().NoError(err)
@@ -325,7 +326,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			"podUid": string(pod.ObjectMeta.UID),
 		})
 
-		// Verify that exactly 1 SPIFFE ID  resource was created for this pod
+		// Verify that exactly 1 SPIFFE ID resource was created for this pod
 		spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
 		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
 			LabelSelector: labelSelector.AsSelector(),
@@ -338,7 +339,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			continue
 		}
 		// Verify the SVID matches what we expect
-		expectedSpiffeID := makeID(s.trustDomain, "%s", test.expectedSVID)
+		expectedSpiffeID := makeID(s.trustDomain, "%s", test.expectedSpiffeIDPath)
 		actualSpiffeID := spiffeIDList.Items[0].Spec.SpiffeId
 		s.Require().Equal(expectedSpiffeID, actualSpiffeID)
 
