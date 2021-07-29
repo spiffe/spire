@@ -525,7 +525,7 @@ func (s *ManagerSuite) TestActivationThreshholdCap() {
 
 	// Expect the activation threshold to get capped since 1/6 of the lifetime
 	// exceeds the seven day cap.
-	threshold := KeyActivationThreshold(issuedAt, notAfter)
+	threshold := keyActivationThreshold(issuedAt, notAfter)
 	s.Require().Equal(sevenDays, notAfter.Sub(threshold))
 }
 
