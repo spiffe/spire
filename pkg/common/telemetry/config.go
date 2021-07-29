@@ -11,20 +11,17 @@ type MetricsConfig struct {
 	Sinks       []Sink
 }
 
-type MetricsConfigOptions struct {
+type FileConfig struct {
+	Prometheus *PrometheusConfig `hcl:"Prometheus"`
+	DogStatsd  []DogStatsdConfig `hcl:"DogStatsd"`
+	Statsd     []StatsdConfig    `hcl:"Statsd"`
+	M3         []M3Config        `hcl:"M3"`
+	InMem      *InMem            `hcl:"InMem"`
+
 	AllowedPrefixes []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
 	BlockedPrefixes []string `hcl:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
 	AllowedLabels   []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
 	BlockedLabels   []string `hcl:"BlockedLabels"`   // A list of metric labels to block, with '.' as the separator
-}
-
-type FileConfig struct {
-	Options    MetricsConfigOptions `hcl:"Options"`
-	Prometheus *PrometheusConfig    `hcl:"Prometheus"`
-	DogStatsd  []DogStatsdConfig    `hcl:"DogStatsd"`
-	Statsd     []StatsdConfig       `hcl:"Statsd"`
-	M3         []M3Config           `hcl:"M3"`
-	InMem      *InMem               `hcl:"InMem"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
