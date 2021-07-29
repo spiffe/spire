@@ -507,6 +507,14 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Server.TrustDomain)
 			},
 		},
+		{
+			msg: "auditlog_enabled should be configurable by file",
+			fileInput: func(c *Config) {
+			},
+			cliInput: func(c *serverConfig) {},
+			test: func(t *testing.T, c *Config) {
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -1068,6 +1076,20 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "auditlog_enabled is enabled",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+			},
+		},
+		{
+			msg: "auditlog_enabled is disabled",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
 			},
 		},
 	}

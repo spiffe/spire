@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 
+	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -47,6 +48,13 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	if id, ok := rpccontext.CallerID(ctx); ok {
 		fields[telemetry.CallerID] = id.String()
 	}
+	// Add request ID to logger, it simplify debugging when calling batch endpints
+	requestID, err := uuid.NewV4()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create request ID: %v", err)
+	}
+	fields[telemetry.RequestID] = requestID.String()
+
 	if len(fields) > 0 {
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))
 	}
@@ -56,7 +64,13 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		middleware.LogMisconfiguration(ctx, "Authorization misconfigured (method not registered); this is a bug")
 		return nil, status.Errorf(codes.Internal, "authorization misconfigured for %q (method not registered)", methodName)
 	}
-	return authorizer.AuthorizeCaller(ctx)
+
+	authorizedCtx, err := authorizer.AuthorizeCaller(ctx)
+	if err != nil {
+		rpccontext.Logger(ctx).WithError(err).Error("Failed to authenticate caller")
+		return nil, err
+	}
+	return authorizedCtx, nil
 }
 
 func (m *authorizationMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {

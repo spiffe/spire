@@ -145,7 +145,7 @@ func testCommonCheckIDNormalization(assertGood func(string), assertBad func(stri
 	assertBad("spiffe://example.org/workload/",
 		"path cannot have a trailing slash")
 	assertBad("spiffe://eXaMplE.org/workload",
-		"trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+		"trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org//workload",
 		"path cannot contain empty segments")
 	assertBad("spiffe://example.org///workload",
@@ -169,11 +169,11 @@ func testCommonCheckIDNormalization(assertGood func(string), assertBad func(stri
 	assertBad("spiffe://example.org/workload/%E4%B8%96%E7%95%8C",
 		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://世界/workload",
-		"trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+		"trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://example.org/世界",
 		"path characters are limited to letters, numbers, dots, dashes, and underscores")
 	assertBad("spiffe://%E4%B8%96%E7%95%8C/workload",
-		"trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+		"trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 
 	// Now test that the function responds favorably if the checks are
 	// disabled via the flag.
@@ -309,9 +309,9 @@ func TestTrustDomainFromString(t *testing.T) {
 	assertGood("spiffe://example.org/path", "example.org")
 	assertGood("abcdefghijklmnopqrstuvwxyz0123456789.-_", "abcdefghijklmnopqrstuvwxyz0123456789.-_")
 
-	assertBad("eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
-	assertBad("spiffe://eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
-	assertBad("spiffe://eXample.org/path", "trust domain characters are limited to lowercase letters, numbers, dots, and dashes")
+	assertBad("eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
+	assertBad("spiffe://eXample.org", "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
+	assertBad("spiffe://eXample.org/path", "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 
 	SetAllowUnsafeIDs(true)
 	defer SetAllowUnsafeIDs(false)
