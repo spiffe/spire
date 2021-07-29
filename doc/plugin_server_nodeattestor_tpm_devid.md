@@ -40,8 +40,8 @@ A sample configuration:
 ```
 	NodeAttestor "tpm_devid" {
 		plugin_data {
-			devid_bundle_path = "/opt/spire/conf/server/devid-cacert.pem"
-			endorsement_bundle_path = "/opt/spire/conf/server/endorsement-cacert.pem"
+			devid_ca_path = "/opt/spire/conf/server/devid-cacert.pem"
+			endorsement_ca_path = "/opt/spire/conf/server/endorsement-cacert.pem"
 		}
 	}
 ```
