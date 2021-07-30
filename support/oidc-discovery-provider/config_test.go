@@ -12,7 +12,7 @@ import (
 
 var (
 	minimalServerAPIConfig = `
-		domain = "domain.test"
+		domains = ["domain.test"]
 		acme {
 			email = "admin@domain.test"
 			tos_accepted = true
@@ -42,7 +42,7 @@ func TestLoadConfig(t *testing.T) {
 
 	require.Equal(&Config{
 		LogLevel: defaultLogLevel,
-		Domain:   "domain.test",
+		Domains:  []string{"domain.test"},
 		ACME: &ACMEConfig{
 			CacheDir:    defaultCacheDir,
 			Email:       "admin@domain.test",
@@ -78,12 +78,67 @@ func TestParseConfig(t *testing.T) {
 					socket_path = "/other/socket/path"
 				}
 			`,
-			err: "domain must be configured",
+			err: "at least one domain must be configured",
+		},
+		{
+			name: "using deprecated domain configuration",
+			in: `
+				domain = "domain.test"
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				registration_api {
+					socket_path = "/some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
+				ACME: &ACMEConfig{
+					CacheDir:    "./.acme-cache",
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				RegistrationAPI: &RegistrationAPIConfig{
+					SocketPath:   "/some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+			},
+		},
+		{
+			name: "using deprecated domain configuration and new configuration",
+			in: `
+				domain = "domain.test"
+				domains = ["domain.test", "domain2.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				registration_api {
+					socket_path = "/some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domain:   "domain.test",
+				Domains:  []string{"domain.test", "domain2.test"},
+				ACME: &ACMEConfig{
+					CacheDir:    "./.acme-cache",
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				RegistrationAPI: &RegistrationAPIConfig{
+					SocketPath:   "/some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+			},
 		},
 		{
 			name: "no ACME configuration",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				registration_api {
 					socket_path = "/other/socket/path"
 				}
@@ -93,7 +148,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "ACME ToS not accepted",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 				}
@@ -106,7 +161,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "ACME email not configured",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					tos_accepted = true
 				}
@@ -119,7 +174,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "ACME overrides",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					tos_accepted = true
 					cache_dir = ""
@@ -132,7 +187,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:     "",
 					Email:        "admin@domain.test",
@@ -149,7 +204,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "both acme and insecure_addr configured",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				insecure_addr = ":8080"
 				acme {
 					email = "admin@domain.test"
@@ -164,7 +219,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "both acme and socket_listen_path configured",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				listen_socket_path = "test"
 				acme {
 					email = "admin@domain.test"
@@ -179,7 +234,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "both insecure_addr and socket_listen_path configured",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				insecure_addr = ":8080"
 				listen_socket_path = "test"
 				registration_api {
@@ -191,7 +246,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "with insecure addr",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				insecure_addr = ":8080"
 				registration_api {
 					socket_path = "/some/socket/path"
@@ -199,7 +254,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel:     defaultLogLevel,
-				Domain:       "domain.test",
+				Domains:      []string{"domain.test"},
 				InsecureAddr: ":8080",
 				RegistrationAPI: &RegistrationAPIConfig{
 					SocketPath:   "/some/socket/path",
@@ -210,7 +265,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "with listen_socket_path",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				listen_socket_path = "/a/path/here"
 				registration_api {
 					socket_path = "/some/socket/path"
@@ -218,7 +273,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel:         defaultLogLevel,
-				Domain:           "domain.test",
+				Domains:          []string{"domain.test"},
 				ListenSocketPath: "/a/path/here",
 				RegistrationAPI: &RegistrationAPIConfig{
 					SocketPath:   "/some/socket/path",
@@ -229,7 +284,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "no source section configured",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -240,7 +295,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "more than one source section configured",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -256,7 +311,7 @@ func TestParseConfig(t *testing.T) {
 			in:   minimalServerAPIConfig,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:    defaultCacheDir,
 					Email:       "admin@domain.test",
@@ -271,7 +326,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "server API config overrides",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -283,7 +338,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:    defaultCacheDir,
 					Email:       "admin@domain.test",
@@ -299,7 +354,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "server API config missing address",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -312,7 +367,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "server API config invalid address",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -326,7 +381,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "server API config invalid poll interval",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -342,7 +397,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "minimal registration API config",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -353,7 +408,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:    defaultCacheDir,
 					Email:       "admin@domain.test",
@@ -368,7 +423,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "registration API config overrides",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -380,7 +435,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:    defaultCacheDir,
 					Email:       "admin@domain.test",
@@ -396,7 +451,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "registration API config missing socket path",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -409,7 +464,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "registration API config invalid poll interval",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -424,7 +479,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "minimal workload API config",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -436,7 +491,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:    defaultCacheDir,
 					Email:       "admin@domain.test",
@@ -452,7 +507,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "workload API config overrides",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -465,7 +520,7 @@ func TestParseConfig(t *testing.T) {
 			`,
 			out: &Config{
 				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
+				Domains:  []string{"domain.test"},
 				ACME: &ACMEConfig{
 					CacheDir:    defaultCacheDir,
 					Email:       "admin@domain.test",
@@ -482,7 +537,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "workload API config missing socket path",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -496,7 +551,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "registration API config invalid poll interval",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true
@@ -512,7 +567,7 @@ func TestParseConfig(t *testing.T) {
 		{
 			name: "workload API config missing trust domain",
 			in: `
-				domain = "domain.test"
+				domains = ["domain.test"]
 				acme {
 					email = "admin@domain.test"
 					tos_accepted = true

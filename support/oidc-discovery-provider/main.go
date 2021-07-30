@@ -39,13 +39,17 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
+	if config.Domain != "" {
+		log.Warn("`domain` configuration is deprecated, use domains configuration instead.")
+	}
+
 	source, err := newSource(log, config)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
 
-	var handler http.Handler = NewHandler(config.Domain, source, config.AllowInsecureScheme)
+	var handler http.Handler = NewHandler(config.Domains, source, config.AllowInsecureScheme)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)
@@ -119,7 +123,7 @@ func acmeListener(log logrus.FieldLogger, config *Config) net.Listener {
 			DirectoryURL: config.ACME.DirectoryURL,
 		},
 		Email:      config.ACME.Email,
-		HostPolicy: autocert.HostWhitelist(config.Domain),
+		HostPolicy: autocert.HostWhitelist(config.Domains...),
 		Prompt: func(tosURL string) bool {
 			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
 			return config.ACME.ToSAccepted

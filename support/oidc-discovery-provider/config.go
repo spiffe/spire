@@ -25,7 +25,12 @@ type Config struct {
 
 	// Domain is the domain this provider will be hosted under. It is used
 	// when obtaining certs via ACME (unless ListenSocketPath is specified).
-	Domain string
+	// Deprecated
+	Domain string `hcl:"domain"`
+
+	// Domains are the domains this provider will be hosted under. It is used
+	// when obtaining certs via ACME (unless ListenSocketPath is specified).
+	Domains []string `hcl:"domains"`
 
 	// AllowInsecureScheme returns the oidc-discovery-response using URLs served
 	// at HTTP. This option should only be used for testing purposes as it
@@ -150,8 +155,13 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.LogLevel = defaultLogLevel
 	}
 
-	if c.Domain == "" {
-		return nil, errs.New("domain must be configured")
+	if c.Domain == "" && len(c.Domains) == 0 {
+		return nil, errs.New("at least one domain must be configured")
+	}
+
+	if c.Domain != "" {
+		c.Domains = append([]string{c.Domain}, c.Domains...)
+		c.Domains = unique(c.Domains)
 	}
 
 	if c.ACME != nil {
@@ -229,6 +239,20 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	return c, nil
+}
+
+func unique(items []string) []string {
+	keys := make(map[string]bool)
+	list := make([]string, 0)
+
+	for _, s := range items {
+		if _, ok := keys[s]; !ok {
+			keys[s] = true
+			list = append(list, s)
+		}
+	}
+
+	return list
 }
 
 func parsePollInterval(rawPollInterval string) (pollInterval time.Duration, err error) {

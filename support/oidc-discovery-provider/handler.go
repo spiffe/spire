@@ -10,16 +10,16 @@ import (
 )
 
 type Handler struct {
-	domain              string
+	domains             []string
 	source              JWKSSource
 	allowInsecureScheme bool
 
 	http.Handler
 }
 
-func NewHandler(domain string, source JWKSSource, allowInsecureScheme bool) *Handler {
+func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool) *Handler {
 	h := &Handler{
-		domain:              domain,
+		domains:             domains,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
 	}
