@@ -5,31 +5,37 @@ KINDPATH=$(command -v kind || echo)
 
 UNAME=$(uname | awk '{print tolower($0)}')
 
-KINDVERSION=v0.10.0
+KINDVERSION=v0.11.1
 KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
-KUBECTLVERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+KUBECTLVERSION=v1.21.1
 KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
 
-# Ensure kubectl is available
+# Create a temporary path that will be added to the PATH to avoid picking up
+# binaries from the environment that aren't a version match.
 mkdir -p ./bin
-if [ -n "${KUBECTLPATH}" ]; then
+
+download_bin() {
+    local bin_path=$1
+    local bin_url=$2
+    if [ ! -f "${bin_path}" ] ; then
+        log-info "downloading $(basename ${bin_path}) from ${bin_url}..."
+        curl -# -f -Lo "${bin_path}" "${bin_url}"
+        chmod +x "${bin_path}"
+    fi
+}
+
+# Ensure kind exists at the expected version
+if [ -x "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
+    ln -s "${KINDPATH}" ./bin/kind
+else
+    download_bin ./bin/kind "${KINDURL}"
+fi
+
+# Ensure kubectl exists at the expected version
+if [ -x "${KUBECTLPATH}" ] && "${KUBECTLPATH}" version --short --client=true | grep -q "${KUBECTLVERSION}"; then
     ln -s "${KUBECTLPATH}" ./bin/kubectl
 else
-    log-info "downloading kubectl from ${KUBECTLURL}..."
-    curl -# -f -Lo ./bin/kubectl "${KUBECTLURL}"
-    chmod +x ./bin/kubectl
-fi
-
-# Ensure kind is available and at the expected version
-mkdir -p ./bin
-if [ -n "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
-    ln -s "${KINDPATH}" ./bin/kind
-fi
-
-if [ ! -f ./bin/kind ]; then
-    log-info "downloading kind from ${KINDURL}..."
-    curl -# -f -Lo ./bin/kind "${KINDURL}"
-    chmod +x ./bin/kind
+    download_bin ./bin/kubectl "${KUBECTLURL}"
 fi
 
 # We must supply an absolute path to the configuration directory. Replace the
@@ -45,3 +51,6 @@ log-info "loading container images..."
 ./bin/kind load docker-image --name k8stest spire-server-scratch:latest-local
 ./bin/kind load docker-image --name k8stest spire-agent-scratch:latest-local
 ./bin/kind load docker-image --name k8stest k8s-workload-registrar-scratch:latest-local
+
+log-info "setting kubectl cluster context..."
+./bin/kubectl cluster-info --context kind-k8stest
