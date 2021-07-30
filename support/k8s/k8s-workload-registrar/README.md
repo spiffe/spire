@@ -55,8 +55,8 @@ The following configuration directives are specific to `"crd"` mode:
 | `webhook_enabled`          | bool    | optional | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates. Only needed if manually creating entries | `false` |
 | `webhook_cert_dir`         | string  | optional | Directory for certificates when enabling validating webhook. The certificate and key must be named tls.crt and tls.key. | `"/run/spire/serving-certs"` |
 | `webhook_port`             | int     | optional | The port to use for the validating webhook. | `9443` |
-| `identity_template`        | string  | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) |  |
-| `identity_template_label`  | string  | optional | Pod label for selecting pods that get SVID defined by `identity_template` format. If not set, applies to all the pods |  |
+| `identity_template`        | string  | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
+| `identity_template_label`  | string  | optional | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set  |  |
 | `context`                  | map[string]string | optional | The map of key/value pairs of arbitrary string parameters to be used by `identity_template` | |
 
 The following configuration directives are specific to `"reconcile"` mode:
@@ -80,7 +80,7 @@ cluster = "production"
 
 ## Workload Registration
 When running in webhook, reconcile, or crd mode with `pod_controller=true` entries will be automatically created for
-Pods. There are following workload registration modes:
+Pods. The available workload registration modes are:
 
 | Registration Mode | pod_label | pod_annotation | identity_template | Service Account Based |
 | ----------------- | --------- | -------------- | ----------------- | --------------- |
@@ -90,8 +90,11 @@ Pods. There are following workload registration modes:
 
 If using `webhook` and `reconcile` modes with [Service Account Based SPIFFE IDs](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based SPIFFE IDs, specify only `pod_label`. If you use Annotation Based SPIFFE IDs, specify only `pod_annotation`.
 
-For `crd` mode, you must select only one workload registration mode, either `pod_label`,
-`pod_annotation` or `identity_template`.
+For `crd` mode, if neither `pod_label` nor `pod_annotation`
+workload registration mode is selected,
+`identity_template` is used with a default configuration:
+`ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}`
+
 
 It may take several seconds for newly created SVIDs to become available to workloads.
 
@@ -176,8 +179,11 @@ Pods that don't contain the pod annotation are ignored.
 
 ### Identity Template Based Workload Registration
 
-Identity template based workload registration provides a way to customize the format of SPIFFE IDs. The identity format is scoped to a cluster. The template can reference arbitrary values provided in the `context` map of strings in addition to the following Pod-specific arguments:
-
+Identity template based workload registration provides a way to customize the format of SPIFFE IDs. The identity format is scoped to a cluster.
+The template formatter is using Golang
+[text/template](https://pkg.go.dev/text/template) conventions,
+and it can reference arbitrary values provided in the `context` map of strings
+in addition to the following Pod-specific arguments:
 * Pod.Name
 * Pod.UID
 * Pod.Namespace

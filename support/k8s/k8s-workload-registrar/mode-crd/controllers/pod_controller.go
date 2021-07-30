@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"text/template"
 
@@ -87,9 +86,31 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 	tmpl, err := template.New("IdentityTemplate").Parse(config.IdentityTemplate)
 	if err != nil {
 		config.Log.WithError(err).WithField("identity_template", config.IdentityTemplate).Error("error parsing identity template")
-		// config.Log.WithError(err).Errorf("error parsing the template %q", config.IdentityTemplate)
 		return &PodReconciler{}, err
 	}
+	// validate SVID path using provided template and context
+	// TODO this check should be extended by using ValidatePath() once it is available
+	// https://github.com/spiffe/go-spiffe/pull/168/files#diff-563c13fcb715fe84de3f6ed17e3969a4204ed476abe32fab09233d8ed7871a53
+	templateMaps := IdentityMaps{
+		Context: config.Context,
+		Pod: PodInfo{
+			ServiceAccount: "xx",
+			Namespace:      "xx",
+			Name:           "xx",
+			UID:            types.UID("123"),
+			Hostname:       "xx",
+			NodeName:       "xx",
+		},
+	}
+	var spiffeIDPathBuilder strings.Builder
+	if err := tmpl.Execute(&spiffeIDPathBuilder, templateMaps); err != nil {
+		config.Log.WithError(err).WithFields(logrus.Fields{
+			"identity_template": config.IdentityTemplate,
+			"context":           config.Context,
+		}).Error("Error executing the identity template")
+		return &PodReconciler{}, err
+	}
+
 	return &PodReconciler{
 		Client:        config.Client,
 		c:             config,
@@ -255,20 +276,17 @@ func (r *PodReconciler) podParentID(nodeName string) string {
 }
 
 func (r *PodReconciler) generateSpiffeIDPath(pod *corev1.Pod) (string, error) {
-
-	// Create the IdentityMaps struct, with maps, one for Pod and one for Context:
-	podInfo := PodInfo{
-		ServiceAccount: pod.Spec.ServiceAccountName,
-		Namespace:      pod.Namespace,
-		Name:           pod.Name,
-		UID:            pod.UID,
-		Hostname:       pod.Spec.Hostname,
-		NodeName:       pod.Spec.NodeName,
-	}
-
+	// Create the IdentityMaps struct, with Pod and Context map
 	templateMaps := IdentityMaps{
 		Context: r.c.Context,
-		Pod:     podInfo,
+		Pod: PodInfo{
+			ServiceAccount: pod.Spec.ServiceAccountName,
+			Namespace:      pod.Namespace,
+			Name:           pod.Name,
+			UID:            pod.UID,
+			Hostname:       pod.Spec.Hostname,
+			NodeName:       pod.Spec.NodeName,
+		},
 	}
 	var spiffeIDPathBuilder strings.Builder
 	if err := r.identityTempl.Execute(&spiffeIDPathBuilder, templateMaps); err != nil {
@@ -276,18 +294,6 @@ func (r *PodReconciler) generateSpiffeIDPath(pod *corev1.Pod) (string, error) {
 			"identity_template":      r.c.IdentityTemplate,
 			"identity_template_maps": templateMaps,
 		}).Error("Error executing the identity template")
-		return spiffeIDPathBuilder.String(), err
-	}
-	// detect missing context values
-	if strings.Contains(spiffeIDPathBuilder.String(), "<no value>") {
-		err := errors.New("template references a value not included in context map")
-		r.c.Log.WithError(err).Errorf("SVID: %s", spiffeIDPathBuilder.String())
-		return spiffeIDPathBuilder.String(), err
-	}
-	// depending on runtime values, the SVID might end up with trailing '/' that is illegal
-	if strings.HasSuffix(spiffeIDPathBuilder.String(), "/") {
-		err := errors.New("invalid SVID, ends with /")
-		r.c.Log.WithError(err).Errorf("SVID: %s", spiffeIDPathBuilder.String())
 		return spiffeIDPathBuilder.String(), err
 	}
 	return spiffeIDPathBuilder.String(), nil

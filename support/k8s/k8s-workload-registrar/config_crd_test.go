@@ -221,11 +221,6 @@ func TestLoadModeCRD(t *testing.T) {
 			err:  "unable to decode configuration",
 		},
 		{
-			name: "missing required",
-			in:   testMinimalCRDConfig,
-			err:  "in crd mode, but no workload registration mode set",
-		},
-		{
 			name: "identity_template and pod_label",
 			in: testMinimalCRDConfig + `
 				pod_label = "PODLABEL"
@@ -248,31 +243,6 @@ func TestLoadModeCRD(t *testing.T) {
 				}
 			`,
 			err: "workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label",
-		},
-		{
-			name: "orphaned identity_template_label",
-			in: testMinimalCRDConfig + `
-				identity_template_label = "IDENTITYLABEL"
-				context {
-					region = "EU-DE"
-					cluster_name = "MYCLUSTER"
-				}
-			`,
-			err: "identity_template_label defined without identity_template",
-		},
-		{
-			name: "orphaned context",
-			in: `
-				trust_domain = "TRUSTDOMAIN"
-				server_socket_path = "SOCKETPATH"
-				cluster = "CLUSTER"
-				mode = "crd"
-				context {
-					region = "EU-DE"
-					cluster_name = "MYCLUSTER"
-				}
-			`,
-			err: "context defined without identity_template",
 		},
 		{
 			name: "missing context 1",

@@ -20,6 +20,7 @@ const (
 	defaultWebhookCertDir  = "/run/spire/serving-certs"
 	defaultWebhookPort     = 9443
 	namespaceFile          = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	defaultSpiffeIDPath    = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
 )
 
 type CRDMode struct {
@@ -59,14 +60,9 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		return errs.New("workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label")
 	}
 
-	// eliminate orphaned identity_template_label
-	if c.IdentityTemplateLabel != "" && c.IdentityTemplate == "" {
-		return errs.New("identity_template_label defined without identity_template")
-	}
-
-	// eliminate orphaned context
-	if c.Context != nil && c.IdentityTemplate == "" {
-		return errs.New("context defined without identity_template")
+	// if no identity format set, use the default identity template
+	if c.CommonMode.Mode == modeCRD && c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
+		c.IdentityTemplate = defaultSpiffeIDPath
 	}
 
 	// eliminate reference to non-existing context
@@ -79,11 +75,6 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 	if strings.HasPrefix(c.IdentityTemplate, "spiffe://") ||
 		strings.HasPrefix(c.IdentityTemplate, "/") {
 		return errs.New("identity_template cannot start with spiffe:// or /")
-	}
-
-	// one, and only one, workload registration identity format must be selected.
-	if c.CommonMode.Mode == modeCRD && c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
-		return errs.New("in crd mode, but no workload registration mode set")
 	}
 
 	return nil
