@@ -10,7 +10,7 @@ import (
 )
 
 type Handler struct {
-	domains             []string
+	domains             map[string]struct{}
 	source              JWKSSource
 	allowInsecureScheme bool
 
@@ -18,8 +18,14 @@ type Handler struct {
 }
 
 func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool) *Handler {
+	allowedDomains := make(map[string]struct{})
+
+	for _, d := range domains {
+		allowedDomains[d] = struct{}{}
+	}
+
 	h := &Handler{
-		domains:             domains,
+		domains:             allowedDomains,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
 	}
@@ -37,25 +43,28 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	if _, ok := h.domains[r.Host]; !ok {
+		http.Error(w, "domain not allowed", http.StatusNotFound)
+		return
+	}
+
+	urlScheme := "https"
 	if h.allowInsecureScheme {
-		if r.URL.Scheme == "" {
-			if r.TLS == nil {
-				r.URL.Scheme = "http"
-			} else {
-				r.URL.Scheme = "https"
-			}
+		if r.URL.Scheme == "" && r.TLS == nil {
+			urlScheme = "http"
+		} else {
+			urlScheme = r.URL.Scheme
 		}
-	} else {
-		r.URL.Scheme = "https"
 	}
 
 	issuerURL := url.URL{
-		Scheme: r.URL.Scheme,
+		Scheme: urlScheme,
 		Host:   r.Host,
 	}
 
 	jwksURI := url.URL{
-		Scheme: r.URL.Scheme,
+		Scheme: urlScheme,
 		Host:   r.Host,
 		Path:   "/keys",
 	}
