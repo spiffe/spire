@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.1] - 2021-08-02
+
+### Added
+- A new `tpm_devid` NodeAttestor plugin is now available (#2111, #2427)
+- Caller details are now logged for unauthorized Server API calls (#2399)
+- The `aws_iid` NodeAttestor plugin can now be configured to assume an AWS IAM role for requests to AWS (#2387)
+- Added support for running the `k8s_sat` NodeAttestor plugin with Kubernetes v1.21 (#2423)
+- Call counter metrics are now emitted for SPIRE Server rate limiters (#2422)
+- SPIRE Server now logs a message on startup when configured TTL values may result in unexpectedly shorter CA or SVID TTLs (#2284)
+
+### Changed
+- Updated a trust domain validation error message to mention that underscores are valid trust domain characters (#2392)
+
+### Fixed
+- Fixed bugs that broke the ACME bundle endpoint when using the `aws_kms` KeyManager plugin (#2390, #2397)
+- Fixed a bug that resulted in SPIRE Agent sending unnecessary updates over the Workload API (#2305)
+- Fixed a bug in the `k8s_psat` NodeAttestor plugin that prevented it from being configured with kubeconfig files (#2421)
+
 ## [1.0.0] - 2021-07-08
 
 ### Added
