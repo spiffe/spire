@@ -112,7 +112,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"localhost", "domain.test"}, source, false)
+			h := NewHandler([]string{"localhost", "domain.test"}, source, false, true)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -222,7 +222,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"localhost", "domain.test"}, source, true)
+			h := NewHandler([]string{"localhost", "domain.test"}, source, true, true)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -332,7 +332,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"localhost", "domain.test"}, source, false)
+			h := NewHandler([]string{"localhost", "domain.test"}, source, false, true)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -444,7 +444,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"domain.test"}, source, false)
+			h := NewHandler([]string{"domain.test"}, source, false, true)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())

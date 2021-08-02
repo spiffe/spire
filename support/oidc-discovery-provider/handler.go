@@ -13,11 +13,12 @@ type Handler struct {
 	domains             map[string]struct{}
 	source              JWKSSource
 	allowInsecureScheme bool
+	performDomainCheck  bool
 
 	http.Handler
 }
 
-func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool) *Handler {
+func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool, performDomainCheck bool) *Handler {
 	allowedDomains := make(map[string]struct{})
 
 	for _, d := range domains {
@@ -28,6 +29,7 @@ func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool) *
 		domains:             allowedDomains,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
+		performDomainCheck:  performDomainCheck,
 	}
 
 	mux := http.NewServeMux()
@@ -44,9 +46,11 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := h.domains[r.Host]; !ok {
-		http.Error(w, "domain not allowed", http.StatusNotFound)
-		return
+	if h.performDomainCheck {
+		if _, ok := h.domains[r.Host]; !ok {
+			http.Error(w, "domain not allowed", http.StatusNotFound)
+			return
+		}
 	}
 
 	urlScheme := "https"

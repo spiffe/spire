@@ -49,7 +49,7 @@ func run(configPath string) error {
 	}
 	defer source.Close()
 
-	var handler http.Handler = NewHandler(config.Domains, source, config.AllowInsecureScheme)
+	var handler http.Handler = NewHandler(config.Domains, source, config.AllowInsecureScheme, config.Domain == "")
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)
