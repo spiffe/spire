@@ -65,6 +65,8 @@ func run(configPath string) error {
 		}
 		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
 	case config.ListenSocketPath != "":
+		_ = os.Remove(config.ListenSocketPath)
+
 		listener, err = net.Listen("unix", config.ListenSocketPath)
 		if err != nil {
 			return err
@@ -74,6 +76,11 @@ func run(configPath string) error {
 		listener = acmeListener(log, config)
 		log.Info("Serving HTTPS via ACME")
 	}
+
+	defer func() {
+		err := listener.Close()
+		log.Error(err)
+	}()
 
 	return http.Serve(listener, handler)
 }
