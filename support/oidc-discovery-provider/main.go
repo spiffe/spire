@@ -71,6 +71,11 @@ func run(configPath string) error {
 		if err != nil {
 			return err
 		}
+
+		if err := os.Chmod(config.ListenSocketPath, os.ModePerm); err != nil {
+			return err
+		}
+
 		log.WithField("socket", config.ListenSocketPath).Info("Serving HTTP (unix)")
 	default:
 		listener = acmeListener(log, config)
