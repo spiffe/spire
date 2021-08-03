@@ -266,17 +266,6 @@ func TestLoadModeCRD(t *testing.T) {
 			`,
 			err: "identity_template references non-existing context",
 		},
-		{
-			name: "invalid identity_template",
-			in: `
-				trust_domain = "TRUSTDOMAIN"
-				server_socket_path = "SOCKETPATH"
-				cluster = "CLUSTER"
-				mode = "crd"
-				identity_template = "spiffe://TRUSTDOMAIN/region"
-			`,
-			err: "identity_template cannot start with spiffe:// or /",
-		},
 	}
 
 	for _, testCase := range testCases {

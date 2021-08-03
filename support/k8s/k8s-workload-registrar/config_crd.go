@@ -20,7 +20,6 @@ const (
 	defaultWebhookCertDir  = "/run/spire/serving-certs"
 	defaultWebhookPort     = 9443
 	namespaceFile          = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	defaultSpiffeIDPath    = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
 )
 
 type CRDMode struct {
@@ -56,27 +55,19 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		c.WebhookPort = defaultWebhookPort
 	}
 
-	if c.IdentityTemplate != "" && (c.CommonMode.PodAnnotation != "" || c.CommonMode.PodLabel != "") {
+	if c.IdentityTemplate != "" && (c.PodAnnotation != "" || c.PodLabel != "") {
 		return errs.New("workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label")
 	}
 
-	// if no identity format set, use the default identity template
-	if c.CommonMode.Mode == modeCRD && c.IdentityTemplate == "" && c.CommonMode.PodAnnotation == "" && c.CommonMode.PodLabel == "" {
-		c.IdentityTemplate = defaultSpiffeIDPath
+	// If no identity format set, use the default identity template.
+	if c.Mode == modeCRD && c.IdentityTemplate == "" && c.PodAnnotation == "" && c.PodLabel == "" {
+		c.IdentityTemplate = controllers.DefaultSpiffeIDPath
 	}
 
-	// eliminate reference to non-existing context
-	// strip out the blank space first
+	// Eliminate reference to the non-existing context (strip out the blank space first).
 	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ", ""), "{{.Context.") {
 		return errs.New("identity_template references non-existing context")
 	}
-
-	// IdentityTemplate represents the format following the trust domain and as such, it must not begin with spiffe://, // or /
-	if strings.HasPrefix(c.IdentityTemplate, "spiffe://") ||
-		strings.HasPrefix(c.IdentityTemplate, "/") {
-		return errs.New("identity_template cannot start with spiffe:// or /")
-	}
-
 	return nil
 }
 

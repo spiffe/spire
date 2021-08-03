@@ -17,10 +17,12 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"text/template"
 
 	"github.com/sirupsen/logrus"
+	idutil "github.com/spiffe/spire/pkg/common/idutil"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
@@ -56,6 +58,7 @@ const (
 	PodServiceAccountLabel string = "ServiceAccount"
 	PodHostnameLabel       string = "Hostname"
 	PodNodeNameLabel       string = "NodeName"
+	DefaultSpiffeIDPath    string = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
 )
 
 // PodInfo is created for every processed Pod and it holds pod specific information
@@ -83,14 +86,22 @@ type PodReconciler struct {
 
 // NewPodReconciler creates a new PodReconciler object
 func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
+	if config.IdentityTemplate == "" && config.PodAnnotation == "" && config.PodLabel == "" {
+		config.IdentityTemplate = DefaultSpiffeIDPath
+	}
+	if config.IdentityTemplate == "" {
+		return &PodReconciler{
+			Client: config.Client,
+			c:      config,
+		}, nil
+	}
+
 	tmpl, err := template.New("IdentityTemplate").Parse(config.IdentityTemplate)
 	if err != nil {
 		config.Log.WithError(err).WithField("identity_template", config.IdentityTemplate).Error("error parsing identity template")
 		return &PodReconciler{}, err
 	}
-	// validate SVID path using provided template and context
-	// TODO this check should be extended by using ValidatePath() once it is available
-	// https://github.com/spiffe/go-spiffe/pull/168/files#diff-563c13fcb715fe84de3f6ed17e3969a4204ed476abe32fab09233d8ed7871a53
+	// While the Context is persitent and can be tested here, PodInfo is dynamic and changes with each Pod update, so using a dummy entry.
 	templateMaps := IdentityMaps{
 		Context: config.Context,
 		Pod: PodInfo{
@@ -102,12 +113,22 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 			NodeName:       "xx",
 		},
 	}
-	var spiffeIDPathBuilder strings.Builder
-	if err := tmpl.Execute(&spiffeIDPathBuilder, templateMaps); err != nil {
+	var sb strings.Builder
+	if err := tmpl.Execute(&sb, templateMaps); err != nil {
 		config.Log.WithError(err).WithFields(logrus.Fields{
 			"identity_template": config.IdentityTemplate,
 			"context":           config.Context,
 		}).Error("Error executing the identity template")
+		return &PodReconciler{}, err
+	}
+	testSpiffeIDPath := sb.String()
+	testSpiffeID := fmt.Sprintf("spiffe://testdomain/%s", testSpiffeIDPath)
+	if err := idutil.CheckIDStringNormalization(testSpiffeID); err != nil {
+		// The format of the template is incorrect and it is resulting in invalid SPIFFE ID paths.
+		config.Log.WithError(err).WithFields(logrus.Fields{
+			"identity_template": config.IdentityTemplate,
+			"context":           config.Context,
+		}).Error("Error validating the identity template components")
 		return &PodReconciler{}, err
 	}
 
@@ -251,9 +272,9 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 		return "", nil
 	}
 
-	// if identity_template_label is not provided, all pods get the template formatted SVID
+	// If identity_template_label is not provided, all pods get the template formatted SPIFFE ID.
 	if r.c.IdentityTemplateLabel != "" {
-		// if identity_template_label is provided, only pods that have this label=`true` get the template formatted SVID
+		// If identity_template_label is provided, only pods that have this label=`true` get the template formatted SPIFFE ID.
 		if labelValue, ok := pod.Labels[r.c.IdentityTemplateLabel]; ok {
 			if !strings.EqualFold("true", labelValue) {
 				return "", nil
@@ -263,12 +284,12 @@ func (r *PodReconciler) podSpiffeID(pod *corev1.Pod) (string, error) {
 		}
 	}
 
-	// create an entry using provided identity template.
-	svid, err := r.generateSpiffeIDPath(pod)
+	// Create an entry using provided identity template.
+	spiffeIDPath, err := r.generateSpiffeIDPath(pod)
 	if err != nil {
 		return "", err
 	}
-	return makeID(r.c.TrustDomain, svid), nil
+	return makeID(r.c.TrustDomain, spiffeIDPath), nil
 }
 
 func (r *PodReconciler) podParentID(nodeName string) string {

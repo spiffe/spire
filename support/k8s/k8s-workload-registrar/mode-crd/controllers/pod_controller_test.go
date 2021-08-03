@@ -160,61 +160,76 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		err                   string
 		spiffeIDCount         int
 	}{
-		// this section is testing error conditions:
+		// This section is testing various error conditions.
 		{
-			// invalid template format:
-			identityTemplate: "invalid/",
-			err:              "invalid SVID, ends with /",
-		},
-		{
-			// missing Context map:
+			// Missing Context map.
 			identityTemplate: "region/{{.Context.Region}}",
-			err:              "template references a value not included in context map",
+			err:              "path characters are limited to letters, numbers, dots, dashes, and underscores",
 		},
 		{
-			// invalid Context reference:
+			// Invalid Context reference.
 			context: map[string]string{
 				"Region":      "EU-DE",
 				"ClusterName": "MYCLUSTER",
 			},
 			identityTemplate: "error/{{.Context.XXXX}}",
-			err:              "template references a value not included in context map",
+			err:              "path characters are limited to letters, numbers, dots, dashes, and underscores",
 		},
 		{
-			// invalid Pod reference:
+			// Invalid Pod reference.
 			identityTemplate: "region/{{.Pod.XXXX}}",
-			err:              "can't evaluate field XXXX ",
+			err:              "can't evaluate field XXXX",
+		},
+		{
+			// Invalid prefix.
+			identityTemplate: fmt.Sprintf("spiffe://testdomain/%s", DefaultTemplate),
+			err:              "path characters are limited to letters, numbers, dots, dashes, and underscores",
+		},
+		{
+			// Invalid prefix.
+			identityTemplate: fmt.Sprintf("/testdomain/%s", DefaultTemplate),
+			err:              "path cannot contain empty segments",
+		},
+		{
+			// Invalid prefix.
+			identityTemplate: fmt.Sprintf("//%s", DefaultTemplate),
+			err:              "path cannot contain empty segments",
+		},
+		{
+			// Invalid suffix.
+			identityTemplate: fmt.Sprintf("%s/", DefaultTemplate),
+			err:              "path cannot have a trailing slash",
 		},
 
-		// this section is testing the identity_template_label:
+		// This section is testing the identity_template_label.
 		{
-			// label requested, pod not labeled
+			// Label requested, but pod not labeled.
 			identityTemplate:      SimpleTemplate,
 			identityTemplateLabel: IdentityLabel,
 			spiffeIDCount:         0,
 		},
 		{
-			// label requested, pod labeled 'false'
+			// Label requested, but pod labeled 'false'
 			identityTemplate:      SimpleTemplate,
 			identityTemplateLabel: IdentityLabel,
 			labelValue:            "false",
 			spiffeIDCount:         0,
 		},
 		{
-			// label not set
+			// Label not set.
 			identityTemplate:     DefaultTemplate,
 			expectedSpiffeIDPath: fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
 			spiffeIDCount:        1,
 		},
 		{
-			// label empty
+			// Label empty.
 			identityTemplate:      DefaultTemplate,
 			identityTemplateLabel: "",
 			expectedSpiffeIDPath:  fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
 			spiffeIDCount:         1,
 		},
 		{
-			// label requested, pod labeled
+			// Label requested and pod labeled.
 			identityTemplate:      DefaultTemplate,
 			identityTemplateLabel: IdentityLabel,
 			labelValue:            "true",
@@ -222,7 +237,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			spiffeIDCount:         1,
 		},
 		{
-			// label empty, pod labeled false
+			// Label empty and pod labeled with `false`.
 			identityTemplate:      DefaultTemplate,
 			identityTemplateLabel: "",
 			labelValue:            "false",
@@ -230,7 +245,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			spiffeIDCount:         1,
 		},
 
-		// this section is testing identity template formatting:
+		// This section is testing identity template formatting.
 		{
 			identityTemplate:     DefaultTemplate,
 			expectedSpiffeIDPath: fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
@@ -247,7 +262,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			spiffeIDCount:        1,
 		},
 		{
-			// testing Context:
+			// Testing Context usage.
 			context: map[string]string{
 				"Region":      "EU-DE",
 				"ClusterName": "MYCLUSTER",
@@ -257,7 +272,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			spiffeIDCount:        1,
 		},
 		{
-			// testing various Pod elements:
+			// Testing various Pod elements.
 			identityTemplate:     fmt.Sprintf("{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}/{{.Pod.%s}}", PodNameLabel, PodNamespaceLabel, PodServiceAccountLabel, PodHostnameLabel, PodNodeNameLabel),
 			expectedSpiffeIDPath: fmt.Sprintf("%s/%s/%s/hostname/test-node", PodName, PodNamespace, PodServiceAccount),
 			spiffeIDCount:        1,
@@ -276,6 +291,11 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			Context:               test.context,
 			IdentityTemplateLabel: test.identityTemplateLabel,
 		})
+		if err != nil && test.err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), test.err)
+			continue
+		}
 		s.Require().NoError(err)
 
 		pod := corev1.Pod{
