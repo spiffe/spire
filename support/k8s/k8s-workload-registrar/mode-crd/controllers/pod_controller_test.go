@@ -291,7 +291,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			Context:               test.context,
 			IdentityTemplateLabel: test.identityTemplateLabel,
 		})
-		if err != nil && test.err != "" {
+		if test.err != "" {
 			s.Require().Error(err)
 			s.Require().Contains(err.Error(), test.err)
 			continue
@@ -323,30 +323,16 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			},
 		}
 		_, err = p.Reconcile(req)
-		if err != nil && test.err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), test.err)
-			err = s.k8sClient.Delete(s.ctx, &pod)
-			s.Require().NoError(err)
-			continue
-		}
 		s.Require().NoError(err)
 
 		_, err = s.r.Reconcile(req)
-		if err != nil && test.err != "" {
-			s.Require().Error(err)
-			s.Require().Contains(err.Error(), test.err)
-			err = s.k8sClient.Delete(s.ctx, &pod)
-			s.Require().NoError(err)
-			continue
-		}
 		s.Require().NoError(err)
 
 		labelSelector := labels.Set(map[string]string{
 			"podUid": string(pod.ObjectMeta.UID),
 		})
 
-		// Verify that exactly 1 SPIFFE ID resource was created for this pod
+		// Verify that exactly 1 SPIFFE ID resource was created for this pod.
 		spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
 		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
 			LabelSelector: labelSelector.AsSelector(),
@@ -358,12 +344,12 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			s.Require().NoError(err)
 			continue
 		}
-		// Verify the SVID matches what we expect
+		// Verify the SVID matches what we expect.
 		expectedSpiffeID := makeID(s.trustDomain, "%s", test.expectedSpiffeIDPath)
 		actualSpiffeID := spiffeIDList.Items[0].Spec.SpiffeId
 		s.Require().Equal(expectedSpiffeID, actualSpiffeID)
 
-		// Delete Pod
+		// Delete Pod.
 		err = s.k8sClient.Delete(s.ctx, &pod)
 		s.Require().NoError(err)
 		s.reconcile(p)
