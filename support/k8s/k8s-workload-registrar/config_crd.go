@@ -60,7 +60,7 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 	}
 
 	// If no identity format set, use the default identity template.
-	if c.Mode == modeCRD && c.IdentityTemplate == "" && c.PodAnnotation == "" && c.PodLabel == "" {
+	if c.IdentityTemplate == "" && c.PodAnnotation == "" && c.PodLabel == "" {
 		c.IdentityTemplate = controllers.DefaultSpiffeIDPath
 	}
 
