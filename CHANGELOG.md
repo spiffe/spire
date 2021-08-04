@@ -5,7 +5,7 @@
 ### Added
 - LDevID-based TPM attestation can now be performed via a new `tpm_devid` NodeAttestor plugin (#2111, #2427)
 - Caller details are now logged for unauthorized Server API calls (#2399)
-- The `aws_iid` NodeAttestor plugin can now be configured to assume an AWS IAM role for requests to AWS (#2387)
+- The `aws_iid` NodeAttestor plugin now supports attesting nodes across multiple AWS accounts via AWS IAM role assumption (#2387)
 - Added support for running the `k8s_sat` NodeAttestor plugin with Kubernetes v1.21 (#2423)
 - Call counter metrics are now emitted for SPIRE Server rate limiters (#2422)
 - SPIRE Server now logs a message on startup when configured TTL values may result in SVIDs with a shorter lifetime than expected (#2284)
