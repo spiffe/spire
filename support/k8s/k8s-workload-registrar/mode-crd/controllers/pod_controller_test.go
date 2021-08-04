@@ -164,7 +164,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		{
 			// Missing Context map.
 			identityTemplate: "region/{{.Context.Region}}",
-			err:              "path characters are limited to letters, numbers, dots, dashes, and underscores",
+			err:              "validating identity template",
 		},
 		{
 			// Invalid Context reference.
@@ -173,32 +173,32 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 				"ClusterName": "MYCLUSTER",
 			},
 			identityTemplate: "error/{{.Context.XXXX}}",
-			err:              "path characters are limited to letters, numbers, dots, dashes, and underscores",
+			err:              "validating identity template",
 		},
 		{
 			// Invalid Pod reference.
 			identityTemplate: "region/{{.Pod.XXXX}}",
-			err:              "can't evaluate field XXXX",
+			err:              "executing identity template",
 		},
 		{
 			// Invalid prefix.
 			identityTemplate: fmt.Sprintf("spiffe://testdomain/%s", DefaultTemplate),
-			err:              "path characters are limited to letters, numbers, dots, dashes, and underscores",
+			err:              "validating identity template",
 		},
 		{
 			// Invalid prefix.
 			identityTemplate: fmt.Sprintf("/testdomain/%s", DefaultTemplate),
-			err:              "path cannot contain empty segments",
+			err:              "validating identity template",
 		},
 		{
 			// Invalid prefix.
 			identityTemplate: fmt.Sprintf("//%s", DefaultTemplate),
-			err:              "path cannot contain empty segments",
+			err:              "validating identity template",
 		},
 		{
 			// Invalid suffix.
 			identityTemplate: fmt.Sprintf("%s/", DefaultTemplate),
-			err:              "path cannot have a trailing slash",
+			err:              "validating identity template: path cannot have a trailing slash",
 		},
 
 		// This section is testing the identity_template_label.

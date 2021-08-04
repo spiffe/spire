@@ -99,7 +99,7 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 	tmpl, err := template.New("IdentityTemplate").Parse(config.IdentityTemplate)
 	if err != nil {
 		config.Log.WithError(err).WithField("identity_template", config.IdentityTemplate).Error("error parsing identity template")
-		return &PodReconciler{}, err
+		return &PodReconciler{}, fmt.Errorf("parsing identity template: %w", err)
 	}
 	// While the Context is persitent and can be tested here, PodInfo is dynamic and changes with each Pod update, so using a dummy entry.
 	templateMaps := IdentityMaps{
@@ -119,7 +119,7 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 			"identity_template": config.IdentityTemplate,
 			"context":           config.Context,
 		}).Error("Error executing the identity template")
-		return &PodReconciler{}, err
+		return &PodReconciler{}, fmt.Errorf("executing identity template: %w", err)
 	}
 	testSpiffeIDPath := sb.String()
 	testSpiffeID := fmt.Sprintf("spiffe://testdomain/%s", testSpiffeIDPath)
@@ -129,7 +129,7 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 			"identity_template": config.IdentityTemplate,
 			"context":           config.Context,
 		}).Error("Error validating the identity template components")
-		return &PodReconciler{}, err
+		return &PodReconciler{}, fmt.Errorf("validating identity template: %w", err)
 	}
 
 	return &PodReconciler{

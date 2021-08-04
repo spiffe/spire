@@ -59,11 +59,6 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		return errs.New("workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label")
 	}
 
-	// If no identity format set, use the default identity template.
-	if c.IdentityTemplate == "" && c.PodAnnotation == "" && c.PodLabel == "" {
-		c.IdentityTemplate = controllers.DefaultSpiffeIDPath
-	}
-
 	// Eliminate reference to the non-existing context (strip out the blank space first).
 	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ", ""), "{{.Context.") {
 		return errs.New("identity_template references non-existing context")
