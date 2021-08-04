@@ -31,7 +31,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -113,6 +112,7 @@ type IIDAttestorConfig struct {
 	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors"`
 	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate               string   `hcl:"agent_path_template"`
+	AssumeRole                      string   `hcl:"assume_role"`
 	pathTemplate                    *template.Template
 	trustDomain                     string
 	awsCaCertPublicKey              *rsa.PublicKey
@@ -156,7 +156,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
-	awsClient, err := p.clients.getClient(attestationData.Region)
+	awsClient, err := p.clients.getClient(attestationData.Region, attestationData.AccountID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get client: %v", err)
 	}
@@ -274,11 +274,6 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	p.clients.configure(config.SessionConfig)
 
 	return &configv1.ConfigureResponse{}, nil
-}
-
-// GetPluginInfo returns the version and related metadata of the installed plugin.
-func (*IIDAttestorPlugin) GetPluginInfo(context.Context, *spi.GetPluginInfoRequest) (*spi.GetPluginInfoResponse, error) {
-	return &spi.GetPluginInfoResponse{}, nil
 }
 
 // SetLogger sets this plugin's logger
