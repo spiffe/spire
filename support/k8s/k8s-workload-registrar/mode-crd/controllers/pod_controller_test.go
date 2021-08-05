@@ -31,12 +31,12 @@ import (
 )
 
 const (
-	PodName           string = "test-pod"
-	PodNamespace      string = "default"
-	PodServiceAccount string = "serviceAccount"
-	DefaultTemplate   string = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
-	SimpleTemplate    string = "TEMPLATE"
-	IdentityLabel     string = "IDENTITYTEMPLATE"
+	PodName           = "test-pod"
+	PodNamespace      = "default"
+	PodServiceAccount = "serviceAccount"
+	DefaultTemplate   = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
+	SimpleTemplate    = "TEMPLATE"
+	IdentityLabel     = "IDENTITYTEMPLATE"
 )
 
 func TestPodController(t *testing.T) {

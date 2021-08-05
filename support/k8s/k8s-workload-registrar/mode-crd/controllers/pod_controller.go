@@ -52,13 +52,13 @@ type PodReconcilerConfig struct {
 }
 
 const (
-	PodNameLabel           string = "Name"
-	PodUIDLabel            string = "UID"
-	PodNamespaceLabel      string = "Namespace"
-	PodServiceAccountLabel string = "ServiceAccount"
-	PodHostnameLabel       string = "Hostname"
-	PodNodeNameLabel       string = "NodeName"
-	DefaultSpiffeIDPath    string = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
+	PodNameLabel           = "Name"
+	PodUIDLabel            = "UID"
+	PodNamespaceLabel      = "Namespace"
+	PodServiceAccountLabel = "ServiceAccount"
+	PodHostnameLabel       = "Hostname"
+	PodNodeNameLabel       = "NodeName"
+	DefaultSpiffeIDPath    = "ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}"
 )
 
 // PodInfo is created for every processed Pod and it holds pod specific information
