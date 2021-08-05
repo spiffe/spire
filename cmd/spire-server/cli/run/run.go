@@ -64,7 +64,7 @@ type Config struct {
 }
 
 type serverConfig struct {
-	AuditLogEnabled bool               `hcl:"auditlog_enabled"`
+	AuditLogEnabled bool               `hcl:"audit_log_enabled"`
 	BindAddress     string             `hcl:"bind_address"`
 	BindPort        int                `hcl:"bind_port"`
 	CAKeyType       string             `hcl:"ca_key_type"`

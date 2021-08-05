@@ -510,7 +510,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "auditlog_enabled should be configurable by file",
+			msg: "audit_log_enabled should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.AuditLogEnabled = true
 			},
@@ -1083,7 +1083,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "auditlog_enabled is enabled",
+			msg: "audit_log_enabled is enabled",
 			input: func(c *Config) {
 				c.Server.AuditLogEnabled = true
 			},
@@ -1092,7 +1092,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "auditlog_enabled is disabled",
+			msg: "audit_log_enabled is disabled",
 			input: func(c *Config) {
 				c.Server.AuditLogEnabled = false
 			},
