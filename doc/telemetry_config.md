@@ -15,13 +15,17 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ### Telemetry configuration syntax
 
-| Configuration          | Type          | Description  | Default |
-| ----------------       | ------------- | ------------ | ------- |
-| `InMem`                | `InMem`       | In-memory configuration            | running |
-| `Prometheus`           | `Prometheus`  | Prometheus configuration           | |
-| `DogStatsd`            | `[]DogStatsd` | List of DogStatsd configurations   | |
-| `Statsd`               | `[]Statsd`    | List of Statsd configurations      | |
-| `M3`                   | `[]M3`        | List of M3 configurations          | |
+| Configuration          | Type                     | Description                        | Default |
+| ----------------       | ------------------------ | ---------------------------------- | ------- |
+| `InMem`                | `InMem`                  | In-memory configuration            | running |
+| `Prometheus`           | `Prometheus`             | Prometheus configuration           | |
+| `DogStatsd`            | `[]DogStatsd`            | List of DogStatsd configurations   | |
+| `Statsd`               | `[]Statsd`               | List of Statsd configurations      | |
+| `M3`                   | `[]M3`                   | List of M3 configurations          | |
+| `AllowedPrefixes`      | `[]string`               | A list of metric prefixes to allow, with '.' as the separator| |
+| `BlockedPrefixes`      | `[]string`               | A list of metric prefixes to block, with '.' as the separator| |
+| `AllowedLabels`        | `[]string`               | A list of metric labels to allow, with '.' as the separator  | |
+| `BlockedLabels`        | `[]string`               | A list of metric labels to block, with '.' as the separator  | |
 
 #### `Prometheus`
 
@@ -75,6 +79,11 @@ telemetry {
         InMem {
             enabled = false
         }
+
+        AllowedLabels = []
+        BlockedLabels = []
+        AllowedPrefixes = []
+        BlockedPrefixes = []
 }
 ```
 
