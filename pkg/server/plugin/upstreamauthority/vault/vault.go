@@ -113,7 +113,6 @@ type Plugin struct {
 	authMethod AuthMethod
 	cc         *ClientConfig
 	vc         *Client
-	reuseToken bool
 
 	hooks struct {
 		lookupEnv func(string) (string, bool)
@@ -168,15 +167,21 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
 
-	// reuseToken=false means that the token cannot be renewed and may expire,
-	// authenticates to the Vault at each signing request.
-	if p.vc == nil || !p.reuseToken {
-		vc, reusable, err := p.cc.NewAuthenticatedClient(p.authMethod)
+	renewCh := make(chan struct{})
+	if p.vc == nil {
+		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 		}
 		p.vc = vc
-		p.reuseToken = reusable
+
+		// if renewCh has been closed, the token can not be renewed and may expire,
+		// it needs to re-authenticates to the Vault.
+		go func() {
+			<-renewCh
+			p.logger.Debug("Going to re-authenticate to the Vault at the next signing request time")
+			p.vc = nil
+		}()
 	}
 
 	var ttl string

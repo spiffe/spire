@@ -348,7 +348,7 @@ token_auth {
     "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
     "expire_time": "2020-12-18T05:03:08.5694729Z",
     "explicit_max_ttl": 0,
-    "id": "test--token",
+    "id": "test-token",
     "issue_time": "2020-11-16T05:03:08.5694807Z",
     "meta": {
       "role_name": "test"
@@ -360,7 +360,7 @@ token_auth {
       "default"
     ],
     "renewable": true,
-    "ttl": 2763477,
+    "ttl": 3600,
     "type": "service"
   },
   "warnings": null
