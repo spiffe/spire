@@ -54,12 +54,8 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	urlScheme := "https"
-	if h.allowInsecureScheme {
-		if r.URL.Scheme == "" && r.TLS == nil {
-			urlScheme = "http"
-		} else {
-			urlScheme = r.URL.Scheme
-		}
+	if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
+		urlScheme = "http"
 	}
 
 	issuerURL := url.URL{
