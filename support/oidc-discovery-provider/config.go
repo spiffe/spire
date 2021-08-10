@@ -33,12 +33,12 @@ type Config struct {
 	// are rejected.
 	Domains []string `hcl:"domains"`
 
-	// AllowInsecureScheme returns the oidc-discovery-response using URLs served
-	// at HTTP. This option should only be used for testing purposes as it
-	// exposes you to some security threats. In general you will only use this
-	// option allong with the InsecureAddr or ListenSocketPath on a local
-	// development environment.
+	// AllowInsecureScheme, if true, causes HTTP URLs to be rendered in the
+	// returned discovery document. This option should only be used for testing purposes as HTTP does
+	// not provide the security guarantees necessary for conveying trusted public key material. In general this
+	// option is only appropriate for a local development environment.
 	// Do NOT use this in online or production environments.
+	// This option only takes effect when used alongside the InsecureAddr or ListenSocketPath option.
 	AllowInsecureScheme bool `hcl:"allow_insecure_scheme"`
 
 	// InsecureAddr is the insecure HTTP address. When set, the server does not
