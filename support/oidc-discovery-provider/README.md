@@ -49,7 +49,7 @@ The configuration file is **required** by the provider. It contains
 
 [2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document. The `registration_api` section is deprecated; the `server_api` section should be used in its place.
 
-[3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_scheme` or `listen_socket_path`.
+[3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### ACME Section
 
