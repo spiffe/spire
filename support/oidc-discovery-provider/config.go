@@ -162,7 +162,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	if c.Domain != "" {
 		c.Domains = append([]string{c.Domain}, c.Domains...)
-		c.Domains = unique(c.Domains)
+		c.Domains = dedupeList(c.Domains)
 	}
 
 	if c.ACME != nil {
@@ -242,9 +242,9 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	return c, nil
 }
 
-func unique(items []string) []string {
+func dedupeList(items []string) []string {
 	keys := make(map[string]bool)
-	list := make([]string, 0)
+	var list []string
 
 	for _, s := range items {
 		if _, ok := keys[s]; !ok {
