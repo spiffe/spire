@@ -34,7 +34,7 @@ The configuration file is **required** by the provider. It contains
 | ----------------------  | --------| -------------- | -------------------------------------------------------- | -------- |
 | `acme`                  | section | required[1]    | Provides the ACME configuration.                         |          |
 | `domain`                | string  | required       | The domain the provider is being served from.            |          |
-| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             | `":80"`  |
+| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             |          |
 | `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.        | `false`  |
 | `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.        |          |
 | `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
