@@ -40,7 +40,7 @@ func run(configPath string) error {
 	defer log.Close()
 
 	if config.Domain != "" {
-		log.Warn("`domain` configuration is deprecated, use domains configuration instead.")
+		log.Warn("The `domain` configurable is deprecated and will be removed in a future release; use `domains` instead.")
 	}
 
 	source, err := newSource(log, config)

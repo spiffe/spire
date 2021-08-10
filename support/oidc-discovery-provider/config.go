@@ -25,11 +25,12 @@ type Config struct {
 
 	// Domain is the domain this provider will be hosted under. It is used
 	// when obtaining certs via ACME (unless ListenSocketPath is specified).
-	// Deprecated
+	// Deprecated. Domains should be used instead.
 	Domain string `hcl:"domain"`
 
-	// Domains are the domains this provider will be hosted under. It is used
-	// when obtaining certs via ACME (unless ListenSocketPath is specified).
+	// Domains are the domains this provider will be hosted under. Incoming requests
+	// that are not received on (or proxied through) one of the domains specified by this list
+	// are rejected.
 	Domains []string `hcl:"domains"`
 
 	// AllowInsecureScheme returns the oidc-discovery-response using URLs served
