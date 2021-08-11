@@ -213,7 +213,7 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 }
 
 // handleRenewToken handles renewing the vault token.
-// if the token non-renewable or renew failed, renewCh will be closed.
+// if the token is non-renewable or renew failed, renewCh will be closed.
 func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, logger hclog.Logger) error {
 	if sec == nil || sec.Auth == nil {
 		return status.Error(codes.InvalidArgument, "secret is nil")
