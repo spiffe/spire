@@ -167,20 +167,22 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
 
+	vc := p.getVaultClient()
+
 	renewCh := make(chan struct{})
-	if p.vc == nil {
+	if vc == nil {
 		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 		}
-		p.vc = vc
+		p.setVaultClient(vc)
 
 		// if renewCh has been closed, the token can not be renewed and may expire,
 		// it needs to re-authenticates to the Vault.
 		go func() {
 			<-renewCh
 			p.logger.Debug("Going to re-authenticate to the Vault at the next signing request time")
-			p.vc = nil
+			p.unsetVaultClient()
 		}()
 	}
 
@@ -296,6 +298,24 @@ func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func (p *Plugin) getVaultClient() *Client {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+	return p.vc
+}
+
+func (p *Plugin) setVaultClient(vc *Client) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.vc = vc
+}
+
+func (p *Plugin) unsetVaultClient() {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.vc = nil
 }
 
 func parseAuthMethod(config *Configuration) (AuthMethod, error) {
