@@ -374,7 +374,7 @@ func TestStreamSecrets(t *testing.T) {
 				},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  `unable to use "SPIFFE validator" on envoy below 1.17`,
+			expectMsg:  `unable to use "SPIFFE validator" on Envoy below 1.17`,
 		},
 		{
 			name: "Default All bundles: SPIFFE",
@@ -708,7 +708,7 @@ func TestFetchSecrets(t *testing.T) {
 				},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  `unable to use "SPIFFE validator" on envoy below 1.17`,
+			expectMsg:  `unable to use "SPIFFE validator" on Envoy below 1.17`,
 		},
 		{
 			name: "Default all bundles: SPIFFE",

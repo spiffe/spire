@@ -71,7 +71,7 @@ Only one of these three options may be set at a time.
 | -------------------------- | --------------------------------------------------------------------------------------- | -------------------- |
 | `default_svid_name`        | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS       | default              |
 | `default_bundle_name`      | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS | ROOTCA               |
-| `default_all_bundle_sname` | The Validation Context resource name to use when fetching X.509 bundle together with federated bundles with Envoy SDS | ALL               |
+| `default_all_bundles_name` | The Validation Context resource name to use when fetching X.509 bundle together with federated bundles with Envoy SDS | ALL               |
 
 
 ## Plugin configuration
@@ -274,7 +274,7 @@ resource name (e.g. `spiffe://example.org`). Alternatively, if the default name 
 `auth.CertificateValidationContext` containing the trusted CA certificates for the agent's trust domain is fetched.
 The default name is configurable (see `default_bundle_name` under [SDS Configuration](#sds-configuration)).
 
-Another option is to request for `ALL` that creates a [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto) that contains TrustDomain together with all Federated Bundles. This feature is supported from Envoy v1.18.0.
+Another option is to request for `ALL` that creates a [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto) that contains TrustDomain together with all Federated Bundles. This feature is supported starting with Envoy v1.18.0.
 The default name is configurable (see `default_all_bundles_name` under [SDS Configuration](#sds-configuration)
 
 ## OpenShift Support
