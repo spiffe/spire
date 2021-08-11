@@ -1,49 +1,24 @@
 #!/bin/bash
 
-KUBECTLPATH=$(command -v kubectl || echo)
-KINDPATH=$(command -v kind || echo)
-
-UNAME=$(uname | awk '{print tolower($0)}')
-
-KINDVERSION=v0.11.1
-KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
-KUBECTLVERSION=v1.21.1
-KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
-
 # Create a temporary path that will be added to the PATH to avoid picking up
 # binaries from the environment that aren't a version match.
 mkdir -p ./bin
 
-download_bin() {
-    local bin_path=$1
-    local bin_url=$2
-    if [ ! -f "${bin_path}" ] ; then
-        log-info "downloading $(basename ${bin_path}) from ${bin_url}..."
-        curl -# -f -Lo "${bin_path}" "${bin_url}"
-        chmod +x "${bin_path}"
-    fi
-}
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
 
-# Ensure kind exists at the expected version
-if [ -x "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
-    ln -s "${KINDPATH}" ./bin/kind
-else
-    download_bin ./bin/kind "${KINDURL}"
-fi
+# Download kind at the expected version at the given path.
+download-kind "${KIND_PATH}"
 
-# Ensure kubectl exists at the expected version
-if [ -x "${KUBECTLPATH}" ] && "${KUBECTLPATH}" version --short --client=true | grep -q "${KUBECTLVERSION}"; then
-    ln -s "${KUBECTLPATH}" ./bin/kubectl
-else
-    download_bin ./bin/kubectl "${KUBECTLURL}"
-fi
+# Download kubectl at the expected version.
+download-kubectl "${KUBECTL_PATH}"
 
+# Start the kind cluster.
+start-kind-cluster "${KIND_PATH}" cert-manager-test ./conf/kind-config.yaml
 
-log-info "starting cluster..."
-./bin/kind create cluster --name cert-manager-test --config conf/kind-config.yaml || fail-now "unable to create cluster"
+# Load the given images in the cluster.
+container_images=("spire-server:latest-local")
+load-images "${KIND_PATH}" cert-manager-test "${container_images[@]}"
 
-log-info "loading container images..."
-./bin/kind load docker-image --name cert-manager-test spire-server:latest-local
-
-log-info "setting kubectl cluster context..."
-./bin/kubectl cluster-info --context kind-cert-manager-test
+# Set the kubectl context.
+set-kubectl-context "${KUBECTL_PATH}" kind-cert-manager-test
