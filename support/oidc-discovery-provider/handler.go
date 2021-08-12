@@ -5,23 +5,35 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+
+	"github.com/gorilla/handlers"
 )
 
 type Handler struct {
-	domain string
-	source JWKSSource
+	domains             map[string]struct{}
+	source              JWKSSource
+	allowInsecureScheme bool
+	performDomainCheck  bool
 
 	http.Handler
 }
 
-func NewHandler(domain string, source JWKSSource) *Handler {
+func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool, performDomainCheck bool) *Handler {
+	allowedDomains := make(map[string]struct{})
+
+	for _, d := range domains {
+		allowedDomains[d] = struct{}{}
+	}
+
 	h := &Handler{
-		domain: domain,
-		source: source,
+		domains:             allowedDomains,
+		source:              source,
+		allowInsecureScheme: allowInsecureScheme,
+		performDomainCheck:  performDomainCheck,
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/.well-known/openid-configuration", http.HandlerFunc(h.serveWellKnown))
+	mux.Handle("/.well-known/openid-configuration", handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
 	mux.Handle("/keys", http.HandlerFunc(h.serveKeys))
 
 	h.Handler = mux
@@ -34,14 +46,26 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.performDomainCheck {
+		if _, ok := h.domains[r.Host]; !ok {
+			http.Error(w, "domain not allowed", http.StatusNotFound)
+			return
+		}
+	}
+
+	urlScheme := "https"
+	if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
+		urlScheme = "http"
+	}
+
 	issuerURL := url.URL{
-		Scheme: "https",
-		Host:   h.domain,
+		Scheme: urlScheme,
+		Host:   r.Host,
 	}
 
 	jwksURI := url.URL{
-		Scheme: "https",
-		Host:   h.domain,
+		Scheme: urlScheme,
+		Host:   r.Host,
 		Path:   "/keys",
 	}
 
