@@ -14,14 +14,14 @@ func DomainAllowlist(domains ...string) (DomainPolicy, error) {
 	for _, domain := range domains {
 		domain, err := idna.Lookup.ToASCII(domain)
 		if err != nil {
-			return nil, fmt.Errorf("domain %q is not a valid domain name: %v", domain, err)
+			return nil, fmt.Errorf("domain %q is not a valid domain name: %w", domain, err)
 		}
 		allowlist[domain] = struct{}{}
 	}
 	return func(domain string) error {
 		domain, err := idna.Lookup.ToASCII(domain)
 		if err != nil {
-			return fmt.Errorf("domain %q is not a valid domain name: %v", domain, err)
+			return fmt.Errorf("domain %q is not a valid domain name: %w", domain, err)
 		}
 		if _, allowed := allowlist[domain]; !allowed {
 			return fmt.Errorf("domain %q is not allowed", domain)

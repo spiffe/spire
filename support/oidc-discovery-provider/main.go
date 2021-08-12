@@ -51,7 +51,7 @@ func run(configPath string) error {
 	}
 	if config.Domain == "" {
 		log.Warn("The domain configurable is deprecated and will be removed in a future release; use domains instead.")
-		// Maintain backwards compatability and allow requests over all domains
+		// Maintain backwards compatibility and allow requests over all domains
 		// if configured with the deprecated `domain` configurable.
 		domainPolicy = AllowAnyDomain()
 	}
