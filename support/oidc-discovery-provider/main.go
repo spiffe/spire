@@ -39,13 +39,17 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
+	if config.Domain != "" {
+		log.Warn("The `domain` configurable is deprecated and will be removed in a future release; use `domains` instead.")
+	}
+
 	source, err := newSource(log, config)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
 
-	var handler http.Handler = NewHandler(config.Domain, source)
+	var handler http.Handler = NewHandler(config.Domains, source, config.AllowInsecureScheme, config.Domain == "")
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)
@@ -61,15 +65,27 @@ func run(configPath string) error {
 		}
 		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
 	case config.ListenSocketPath != "":
+		_ = os.Remove(config.ListenSocketPath)
+
 		listener, err = net.Listen("unix", config.ListenSocketPath)
 		if err != nil {
 			return err
 		}
+
+		if err := os.Chmod(config.ListenSocketPath, os.ModePerm); err != nil {
+			return err
+		}
+
 		log.WithField("socket", config.ListenSocketPath).Info("Serving HTTP (unix)")
 	default:
 		listener = acmeListener(log, config)
 		log.Info("Serving HTTPS via ACME")
 	}
+
+	defer func() {
+		err := listener.Close()
+		log.Error(err)
+	}()
 
 	return http.Serve(listener, handler)
 }
@@ -119,10 +135,10 @@ func acmeListener(log logrus.FieldLogger, config *Config) net.Listener {
 			DirectoryURL: config.ACME.DirectoryURL,
 		},
 		Email:      config.ACME.Email,
-		HostPolicy: autocert.HostWhitelist(config.Domain),
+		HostPolicy: autocert.HostWhitelist(config.Domains...),
 		Prompt: func(tosURL string) bool {
 			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
-			return true
+			return config.ACME.ToSAccepted
 		},
 	}
 	return m.Listener()
