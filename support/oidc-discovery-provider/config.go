@@ -162,8 +162,8 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	if c.Domain != "" {
 		c.Domains = append([]string{c.Domain}, c.Domains...)
-		c.Domains = dedupeList(c.Domains)
 	}
+	c.Domains = dedupeList(c.Domains)
 
 	if c.ACME != nil {
 		c.ACME.CacheDir = defaultCacheDir
