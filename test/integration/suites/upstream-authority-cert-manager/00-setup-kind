@@ -1,39 +1,24 @@
 #!/bin/bash
 
-KUBECTLPATH=$(command -v kubectl || echo)
-KINDPATH=$(command -v kind || echo)
-
-UNAME=$(uname | awk '{print tolower($0)}')
-
-KINDVERSION=v0.10.0
-KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
-KUBECTLVERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
-
-# Ensure kubectl is available
+# Create a temporary path that will be added to the PATH to avoid picking up
+# binaries from the environment that aren't a version match.
 mkdir -p ./bin
-if [ -n "${KUBECTLPATH}" ]; then
-    ln -s "${KUBECTLPATH}" ./bin/kubectl
-else
-    log-info "downloading kubectl from ${KUBECTLURL}..."
-    curl -# -f -Lo ./bin/kubectl "${KUBECTLURL}"
-    chmod +x ./bin/kubectl
-fi
 
-# Ensure kind is available and at the expected version
-mkdir -p ./bin
-if [ -n "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
-    ln -s "${KINDPATH}" ./bin/kind
-fi
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
 
-if [ ! -f ./bin/kind ]; then
-    log-info "downloading kind from ${KINDURL}..."
-    curl -# -f -Lo ./bin/kind "${KINDURL}"
-    chmod +x ./bin/kind
-fi
+# Download kind at the expected version at the given path.
+download-kind "${KIND_PATH}"
 
-log-info "starting cluster..."
-./bin/kind create cluster --name cert-manager-test || fail-now "unable to create cluster"
+# Download kubectl at the expected version.
+download-kubectl "${KUBECTL_PATH}"
 
-log-info "loading container images..."
-./bin/kind load docker-image --name cert-manager-test spire-server:latest-local
+# Start the kind cluster.
+start-kind-cluster "${KIND_PATH}" cert-manager-test ./conf/kind-config.yaml
+
+# Load the given images in the cluster.
+container_images=("spire-server:latest-local")
+load-images "${KIND_PATH}" cert-manager-test "${container_images[@]}"
+
+# Set the kubectl context.
+set-kubectl-context "${KUBECTL_PATH}" kind-cert-manager-test

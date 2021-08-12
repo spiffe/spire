@@ -41,11 +41,13 @@ const (
 	pruneInterval   = 6 * time.Hour
 	safetyThreshold = 24 * time.Hour
 
-	thirtyDays              = 30 * 24 * time.Hour
-	preparationThresholdCap = thirtyDays
+	thirtyDays                  = 30 * 24 * time.Hour
+	preparationThresholdCap     = thirtyDays
+	preparationThresholdDivisor = 2
 
-	sevenDays              = 7 * 24 * time.Hour
-	activationThresholdCap = sevenDays
+	sevenDays                  = 7 * 24 * time.Hour
+	activationThresholdCap     = sevenDays
+	activationThresholdDivisor = 6
 
 	publishJWKTimeout = 5 * time.Second
 )
@@ -914,7 +916,7 @@ func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(KeyActivationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
+	return s.x509CA != nil && now.After(keyActivationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
 type jwtKeySlot struct {
@@ -946,7 +948,7 @@ func (s *jwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *jwtKeySlot) ShouldActivateNext(now time.Time) bool {
-	return s.jwtKey == nil || now.After(KeyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+	return s.jwtKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
 }
 
 func otherSlotID(id string) string {
@@ -1022,18 +1024,45 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 	}, nil
 }
 
+// MaxSVIDTTL returns the maximum SVID lifetime that can be guaranteed to not
+// be cut artificially short by a scheduled rotation.
+func MaxSVIDTTL() time.Duration {
+	return activationThresholdCap
+}
+
+// MaxSVIDTTLForCATTL returns the maximum SVID TTL that can be guaranteed given
+// a specific CA TTL. In other words, given a CA TTL, what is the largest SVID
+// TTL that is guaranteed to not be cut artificially short by a scheduled
+// rotation?
+func MaxSVIDTTLForCATTL(caTTL time.Duration) time.Duration {
+	maxTTL := caTTL / activationThresholdDivisor
+	if maxTTL > activationThresholdCap {
+		maxTTL = activationThresholdCap
+	}
+
+	return maxTTL
+}
+
+// MinCATTLForSVIDTTL returns the minimum CA TTL necessary to guarantee an SVID
+// TTL of the provided value. In other words, given an SVID TTL, what is the
+// minimum CA TTL that will guarantee that the SVIDs lifetime won't be cut
+// artificially short by a scheduled rotation?
+func MinCATTLForSVIDTTL(svidTTL time.Duration) time.Duration {
+	return svidTTL * activationThresholdDivisor
+}
+
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	threshold := lifetime / 2
+	threshold := lifetime / preparationThresholdDivisor
 	if threshold > preparationThresholdCap {
 		threshold = preparationThresholdCap
 	}
 	return notAfter.Add(-threshold)
 }
 
-func KeyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
+func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	threshold := lifetime / 6
+	threshold := lifetime / activationThresholdDivisor
 	if threshold > activationThresholdCap {
 		threshold = activationThresholdCap
 	}

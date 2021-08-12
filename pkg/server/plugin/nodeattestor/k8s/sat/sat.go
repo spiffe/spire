@@ -8,9 +8,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gofrs/uuid"
 	hclog "github.com/hashicorp/go-hclog"
@@ -28,6 +30,10 @@ import (
 
 const (
 	pluginName = "k8s_sat"
+
+	// If there are clock differences between the agent and server then token
+	// validation may fail unless we give a little leeway.
+	tokenLeeway = time.Minute * 5
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -90,6 +96,7 @@ type AttestorPlugin struct {
 
 	hooks struct {
 		newUUID func() (string, error)
+		now     func() time.Time
 	}
 }
 
@@ -102,6 +109,7 @@ func New() *AttestorPlugin {
 		}
 		return u.String(), nil
 	}
+	p.hooks.now = time.Now
 	return p
 }
 
@@ -187,24 +195,22 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 		if err != nil {
 			return err
 		}
+		if !claims.Expiry.Time().IsZero() {
+			// This is an indication that this may be a projected service account token
+			p.log.Warn("The service account token has an expiration time, which is an indication that may be a projected service account token. If your cluster supports Service Account Token Volume Projection you should instead consider using the `k8s_psat` attestor. Please look at https://github.com/spiffe/spire/blob/main/doc/plugin_server_nodeattestor_k8s_sat.md#security-considerations for details about security considerations when using the `k8s_sat` attestor.")
 
-		// TODO: service account tokens don't currently expire.... when they do, validate the time (with leeway)
-		if err := claims.Validate(jwt.Expected{
-			Issuer: "kubernetes/serviceaccount",
-		}); err != nil {
-			return status.Errorf(codes.InvalidArgument, "unable to validate token claims: %v", err)
+			// Validate the time with leeway
+			if err := claims.ValidateWithLeeway(jwt.Expected{
+				Time: p.hooks.now(),
+			}, tokenLeeway); err != nil {
+				return status.Errorf(codes.InvalidArgument, "unable to validate token claims: %v", err)
+			}
 		}
 
-		if claims.Namespace == "" {
-			return status.Error(codes.InvalidArgument, "token missing namespace claim")
+		namespace, serviceAccountName, err = p.getNamesFromClaims(claims)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "error parsing token claims: %v", err)
 		}
-
-		if claims.ServiceAccountName == "" {
-			return status.Error(codes.InvalidArgument, "token missing service account name claim")
-		}
-
-		namespace = claims.Namespace
-		serviceAccountName = claims.ServiceAccountName
 	}
 
 	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
@@ -224,6 +230,36 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 			},
 		},
 	})
+}
+
+// getNamesFromClaims parses claims from a k8s.SATClaims struct
+// to extract the namespace and service account name
+func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace string, serviceAccountName string, err error) {
+	if claims.Namespace == "" {
+		if claims.K8s.Namespace == "" {
+			return "", "", errors.New("token missing namespace claim")
+		}
+		namespace = claims.K8s.Namespace
+	} else {
+		if claims.K8s.Namespace != "" {
+			return "", "", errors.New("malformed token: namespace found in two claims")
+		}
+		namespace = claims.Namespace
+	}
+
+	if claims.ServiceAccountName == "" {
+		if claims.K8s.ServiceAccount.Name == "" {
+			return "", "", errors.New("token missing service account name claim")
+		}
+		serviceAccountName = claims.K8s.ServiceAccount.Name
+	} else {
+		if claims.K8s.ServiceAccount.Name != "" {
+			return "", "", errors.New("malformed token: service account name found in two claims")
+		}
+		serviceAccountName = claims.ServiceAccountName
+	}
+
+	return namespace, serviceAccountName, nil
 }
 
 func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {

@@ -82,3 +82,71 @@ check-synced-entry() {
 
   fail-now "timed out waiting for agent to sync down entry"
 }
+
+download-bin() {
+    local bin_path=$1
+    local bin_url=$2
+    if [ ! -f "${bin_path}" ] ; then
+        log-info "downloading $(basename ${bin_path}) from ${bin_url}..."
+        curl -# -f -Lo "${bin_path}" "${bin_url}"
+        chmod +x "${bin_path}"
+    fi
+}
+
+download-kind() {
+    KINDVERSION=v0.11.1
+    KINDPATH=$(command -v kind || echo)
+    UNAME=$(uname | awk '{print tolower($0)}')
+    KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
+
+    local kind_path=$1
+    # Ensure kind exists at the expected version
+    if [ -x "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
+        ln -s "${KINDPATH}" "${kind_path}"
+    else
+        download-bin "${kind_path}" "${KINDURL}"
+    fi
+}
+
+download-kubectl() {
+    KUBECTLVERSION=v1.21.1
+    KUBECTLPATH=$(command -v kubectl || echo)
+    UNAME=$(uname | awk '{print tolower($0)}')
+    KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
+
+    local kubectl_path=$1
+    # Ensure kubectl exists at the expected version
+    if [ -x "${KUBECTLPATH}" ] && "${KUBECTLPATH}" version --short --client=true | grep -q "${KUBECTLVERSION}"; then
+        ln -s "${KUBECTLPATH}" "${kubectl_path}"
+    else
+        download-bin "${kubectl_path}" "${KUBECTLURL}"
+    fi
+}
+
+start-kind-cluster() {
+    local kind_path=$1
+    local kind_name=$2
+    local kind_config_path=$3
+
+    log-info "starting cluster..."
+    "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" || fail-now "unable to create cluster"
+}
+
+load-images() {
+    local kind_path=$1; shift
+    local kind_name=$1; shift
+    local container_images=("$@")
+
+    log-info "loading container images..."
+    for image in "${container_images[@]}"; do
+        "${kind_path}" load docker-image --name "${kind_name}" "${image}"
+    done
+}
+
+set-kubectl-context() {
+    local kubectl_path=$1
+    local context=$2
+
+    log-info "setting kubectl cluster context..."
+    "${kubectl_path}" cluster-info --context "${context}"
+}
