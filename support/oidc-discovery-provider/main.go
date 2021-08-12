@@ -39,17 +39,24 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
-	if config.Domain != "" {
-		log.Warn("The `domain` configurable is deprecated and will be removed in a future release; use `domains` instead.")
-	}
-
 	source, err := newSource(log, config)
 	if err != nil {
 		return err
 	}
 	defer source.Close()
 
-	var handler http.Handler = NewHandler(config.Domains, source, config.AllowInsecureScheme, config.Domain == "")
+	domainPolicy, err := DomainAllowlist(config.Domains...)
+	if err != nil {
+		return err
+	}
+	if config.Domain == "" {
+		log.Warn("The domain configurable is deprecated and will be removed in a future release; use domains instead.")
+		// Maintain backwards compatability and allow requests over all domains
+		// if configured with the deprecated `domain` configurable.
+		domainPolicy = AllowAnyDomain()
+	}
+
+	var handler http.Handler = NewHandler(domainPolicy, source, config.AllowInsecureScheme)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

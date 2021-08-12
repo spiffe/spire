@@ -112,7 +112,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"localhost", "domain.test"}, source, false, true)
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -222,7 +222,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"localhost", "domain.test"}, source, true, true)
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -234,13 +234,14 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 
 func TestHandlerHTTP(t *testing.T) {
 	testCases := []struct {
-		name    string
-		method  string
-		path    string
-		jwks    *jose.JSONWebKeySet
-		modTime time.Time
-		code    int
-		body    string
+		name         string
+		overrideHost string
+		method       string
+		path         string
+		jwks         *jose.JSONWebKeySet
+		modTime      time.Time
+		code         int
+		body         string
 	}{
 		{
 			name:   "GET well-known",
@@ -248,8 +249,8 @@ func TestHandlerHTTP(t *testing.T) {
 			path:   "/.well-known/openid-configuration",
 			code:   http.StatusOK,
 			body: `{
-  "issuer": "https://localhost",
-  "jwks_uri": "https://localhost/keys",
+  "issuer": "https://domain.test",
+  "jwks_uri": "https://domain.test/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
     "id_token"
@@ -263,11 +264,41 @@ func TestHandlerHTTP(t *testing.T) {
 }`,
 		},
 		{
+			name:         "GET well-known via non-default port",
+			overrideHost: "domain.test:8080",
+			method:       "GET",
+			path:         "/.well-known/openid-configuration",
+			code:         http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test:8080",
+  "jwks_uri": "https://domain.test:8080/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+
+		{
 			name:   "PUT well-known",
 			method: "PUT",
 			path:   "/.well-known/openid-configuration",
 			code:   http.StatusMethodNotAllowed,
 			body:   "method not allowed\n",
+		},
+		{
+			name:         "disallowed domain",
+			method:       "GET",
+			overrideHost: "bad.domain.test",
+			path:         "/.well-known/openid-configuration",
+			code:         http.StatusBadRequest,
+			body:         "domain \"bad.domain.test\" is not allowed\n",
 		},
 		{
 			name:   "GET keys with no key set",
@@ -328,11 +359,16 @@ func TestHandlerHTTP(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime)
 
-			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
+			host := "domain.test"
+			if testCase.overrideHost != "" {
+				host = testCase.overrideHost
+			}
+
+			r, err := http.NewRequest(testCase.method, "http://"+host+testCase.path, nil)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"localhost", "domain.test"}, source, false, true)
+			h := NewHandler(domainAllowlist(t, "domain.test"), source, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -444,7 +480,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler([]string{"domain.test"}, source, false, true)
+			h := NewHandler(domainAllowlist(t, "domain.test"), source, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -478,4 +514,10 @@ func (s *FakeKeySetSource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) 
 
 func (s *FakeKeySetSource) Close() error {
 	return nil
+}
+
+func domainAllowlist(t *testing.T, domains ...string) DomainPolicy {
+	policy, err := DomainAllowlist(domains...)
+	require.NoError(t, err)
+	return policy
 }
