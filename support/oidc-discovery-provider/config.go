@@ -159,9 +159,12 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.Domain == "" && len(c.Domains) == 0 {
 		return nil, errs.New("at least one domain must be configured")
 	}
+	if len(c.Domains) > 0 && c.Domain != "" {
+		return nil, errs.New("use `domains` configurable only, `domain` configurable is deprecated")
+	}
 
 	if c.Domain != "" {
-		c.Domains = append([]string{c.Domain}, c.Domains...)
+		c.Domains = []string{c.Domain}
 	}
 	c.Domains = dedupeList(c.Domains)
 

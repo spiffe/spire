@@ -120,20 +120,7 @@ func TestParseConfig(t *testing.T) {
 					socket_path = "/some/socket/path"
 				}
 			`,
-			out: &Config{
-				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
-				Domains:  []string{"domain.test", "domain2.test"},
-				ACME: &ACMEConfig{
-					CacheDir:    "./.acme-cache",
-					Email:       "admin@domain.test",
-					ToSAccepted: true,
-				},
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:   "/some/socket/path",
-					PollInterval: defaultPollInterval,
-				},
-			},
+			err: "use `domains` configurable only, `domain` configurable is deprecated",
 		},
 		{
 			name: "no ACME configuration",
