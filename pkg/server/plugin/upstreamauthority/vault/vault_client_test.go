@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
@@ -439,6 +440,40 @@ func TestNewAuthenticatedClientK8sAuthInvalidPath(t *testing.T) {
 	renewCh := make(chan struct{})
 	_, err = cc.NewAuthenticatedClient(K8S, renewCh)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to read k8s service account token:")
+}
+
+func TestRenewTokenFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponseShortTTL)
+	fakeVaultServer.LookupSelfResponseCode = 200
+	fakeVaultServer.RenewResponse = []byte("fake renew error")
+	fakeVaultServer.RenewResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0
+	cp := &ClientParams{
+		MaxRetries: &retry,
+		VaultAddr:  fmt.Sprintf("https://%v/", addr),
+		CACertPath: testRootCert,
+		Token:      "test-token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(TOKEN, renewCh)
+	require.NoError(t, err)
+
+	select {
+	case <-renewCh:
+	case <-time.After(1 * time.Second):
+		t.Error("renewChan did not close in the expected time")
+	}
 }
 
 func TestConfigureTLSWithCertAuth(t *testing.T) {
