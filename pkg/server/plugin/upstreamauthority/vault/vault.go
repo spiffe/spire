@@ -167,25 +167,6 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
 
-	vc := p.getVaultClient()
-
-	renewCh := make(chan struct{})
-	if vc == nil {
-		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
-		}
-		p.setVaultClient(vc)
-
-		// if renewCh has been closed, the token can not be renewed and may expire,
-		// it needs to re-authenticates to the Vault.
-		go func() {
-			<-renewCh
-			p.logger.Debug("Going to re-authenticate to the Vault at the next signing request time")
-			p.unsetVaultClient()
-		}()
-	}
-
 	var ttl string
 	if req.PreferredTtl == 0 {
 		ttl = ""
@@ -196,6 +177,28 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to parse CSR data: %v", err)
+	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	renewCh := make(chan struct{})
+	if p.vc == nil {
+		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
+		}
+		p.vc = vc
+
+		// if renewCh has been closed, the token can not be renewed and may expire,
+		// it needs to re-authenticates to the Vault.
+		go func() {
+			<-renewCh
+			p.mtx.Lock()
+			defer p.mtx.Unlock()
+			p.vc = nil
+			p.logger.Debug("Going to re-authenticate to the Vault at the next signing request time")
+		}()
 	}
 
 	signResp, err := p.vc.SignIntermediate(ttl, csr)
@@ -298,24 +301,6 @@ func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func (p *Plugin) getVaultClient() *Client {
-	p.mtx.RLock()
-	defer p.mtx.RUnlock()
-	return p.vc
-}
-
-func (p *Plugin) setVaultClient(vc *Client) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	p.vc = vc
-}
-
-func (p *Plugin) unsetVaultClient() {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	p.vc = nil
 }
 
 func parseAuthMethod(config *Configuration) (AuthMethod, error) {
