@@ -191,7 +191,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		p.vc = vc
 
 		// if renewCh has been closed, the token can not be renewed and may expire,
-		// it needs to re-authenticates to the Vault.
+		// it needs to re-authenticate to the Vault.
 		go func() {
 			<-renewCh
 			p.mtx.Lock()
