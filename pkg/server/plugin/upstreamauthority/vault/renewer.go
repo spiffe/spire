@@ -7,36 +7,44 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	defaultRenewBehavior = vapi.RenewBehaviorIgnoreErrors
+)
+
 type Renew struct {
-	Logger  hclog.Logger
-	renewer *vapi.Renewer
+	logger  hclog.Logger
+	watcher *vapi.LifetimeWatcher
 }
 
 func NewRenew(client *vapi.Client, secret *vapi.Secret, logger hclog.Logger) (*Renew, error) {
-	renewer, err := client.NewRenewer(&vapi.RenewerInput{
-		Secret: secret,
+	watcher, err := client.NewLifetimeWatcher(&vapi.LifetimeWatcherInput{
+		Secret:        secret,
+		RenewBehavior: defaultRenewBehavior,
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to initialize Renewer: %v", err)
 	}
 	return &Renew{
-		Logger:  logger,
-		renewer: renewer,
+		logger:  logger,
+		watcher: watcher,
 	}, nil
 }
 
 func (r *Renew) Run() {
-	go r.renewer.Renew()
-	defer r.renewer.Stop()
+	go r.watcher.Start()
+	defer r.watcher.Stop()
 
 	for {
 		select {
-		case err := <-r.renewer.DoneCh():
+		case err := <-r.watcher.DoneCh():
 			if err != nil {
-				r.Logger.Warn("Failed to renew auth token", "err", err.Error())
+				r.logger.Error("Failed to renew auth token", "err", err)
+				return
 			}
-		case renewal := <-r.renewer.RenewCh():
-			r.Logger.Debug("Successfully renew auth token", "request_id", renewal.Secret.RequestID)
+			r.logger.Error("Failed to renew auth token. Retries may have exceeded the lease time threshold")
+			return
+		case renewal := <-r.watcher.RenewCh():
+			r.logger.Debug("Successfully renew auth token", "request_id", renewal.Secret.RequestID, "lease_duration", renewal.Secret.Auth.LeaseDuration)
 		}
 	}
 }
