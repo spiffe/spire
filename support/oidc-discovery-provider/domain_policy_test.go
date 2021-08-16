@@ -30,6 +30,17 @@ func TestDomainAllowlist(t *testing.T) {
 		assert.NoError(t, policy("ascii.test"))
 		assert.EqualError(t, policy("bad.test"), `domain "bad.test" is not allowed`)
 	})
+
+	t.Run("invalid domain in config", func(t *testing.T) {
+		_, err := DomainAllowlist("invalid/domain.test")
+		assert.EqualError(t, err, `domain "invalid/domain.test" is not a valid domain name: idna: disallowed rune U+002F`)
+	})
+
+	t.Run("invalid domain on lookup", func(t *testing.T) {
+		policy, err := DomainAllowlist()
+		require.NoError(t, err)
+		assert.EqualError(t, policy("invalid/domain.test"), `domain "invalid/domain.test" is not a valid domain name: idna: disallowed rune U+002F`)
+	})
 }
 
 func TestAllowAnyDomain(t *testing.T) {
@@ -37,4 +48,5 @@ func TestAllowAnyDomain(t *testing.T) {
 	assert.NoError(t, policy("foo"))
 	assert.NoError(t, policy("bar"))
 	assert.NoError(t, policy("baz"))
+	assert.EqualError(t, policy("invalid/domain.test"), `domain "invalid/domain.test" is not a valid domain name: idna: disallowed rune U+002F`)
 }

@@ -26,7 +26,7 @@ type Config struct {
 	// Domain is the domain this provider will be hosted under. It is used
 	// when obtaining certs via ACME (unless ListenSocketPath is specified).
 	// Deprecated. Domains should be used instead.
-	// TODO: remove in 1.2.0
+	// DEPRECATED: remove in 1.2.0
 	Domain string `hcl:"domain"`
 
 	// Domains are the domains this provider will be hosted under. Incoming requests

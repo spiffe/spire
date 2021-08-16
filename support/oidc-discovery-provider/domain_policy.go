@@ -12,18 +12,18 @@ type DomainPolicy = func(domain string) error
 func DomainAllowlist(domains ...string) (DomainPolicy, error) {
 	allowlist := make(map[string]struct{}, len(domains))
 	for _, domain := range domains {
-		domain, err := idna.Lookup.ToASCII(domain)
+		domainKey, err := toDomainKey(domain)
 		if err != nil {
-			return nil, fmt.Errorf("domain %q is not a valid domain name: %w", domain, err)
+			return nil, err
 		}
-		allowlist[domain] = struct{}{}
+		allowlist[domainKey] = struct{}{}
 	}
 	return func(domain string) error {
-		domain, err := idna.Lookup.ToASCII(domain)
+		domainKey, err := toDomainKey(domain)
 		if err != nil {
-			return fmt.Errorf("domain %q is not a valid domain name: %w", domain, err)
+			return err
 		}
-		if _, allowed := allowlist[domain]; !allowed {
+		if _, allowed := allowlist[domainKey]; !allowed {
 			return fmt.Errorf("domain %q is not allowed", domain)
 		}
 		return nil
@@ -33,6 +33,15 @@ func DomainAllowlist(domains ...string) (DomainPolicy, error) {
 // AllowAnyDomain returns a policy that allows any domain
 func AllowAnyDomain() DomainPolicy {
 	return func(domain string) error {
-		return nil
+		_, err := toDomainKey(domain)
+		return err
 	}
+}
+
+func toDomainKey(domain string) (string, error) {
+	domainKey, err := idna.Lookup.ToASCII(domain)
+	if err != nil {
+		return "", fmt.Errorf("domain %q is not a valid domain name: %w", domain, err)
+	}
+	return domainKey, nil
 }

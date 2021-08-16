@@ -264,6 +264,27 @@ func TestHandlerHTTP(t *testing.T) {
 }`,
 		},
 		{
+			name:         "GET well-known with punycode",
+			overrideHost: "xn--n38h.test",
+			method:       "GET",
+			path:         "/.well-known/openid-configuration",
+			code:         http.StatusOK,
+			body: `{
+  "issuer": "https://xn--n38h.test",
+  "jwks_uri": "https://xn--n38h.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
 			name:         "GET well-known via non-default port",
 			overrideHost: "domain.test:8080",
 			method:       "GET",
@@ -368,7 +389,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test"), source, false)
+			h := NewHandler(domainAllowlist(t, "domain.test", "😬.test"), source, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
