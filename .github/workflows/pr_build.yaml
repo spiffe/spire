@@ -1,6 +1,9 @@
 name: PR Build
 on:
-  pull_request: {}
+  pull_request:
+    paths-ignore:
+      - 'doc/**'
+      - '*.md'
   workflow_dispatch: {}
 env:
   GO_VERSION: 1.16.5
