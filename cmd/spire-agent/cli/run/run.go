@@ -404,7 +404,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
 	ac.DefaultAllBundlesName = c.Agent.SDS.DefaultAllBundlesName
 	if ac.DefaultAllBundlesName == ac.DefaultBundleName {
-		logger.Warn(`"default_bundle_name" and "default_all_bundles_name" has the same value, "default_bundle_name" will be used. In future versions this misconfiguration will cause agent to not start.`)
+		logger.Warn(`The "default_bundle_name" and "default_all_bundles_name" configurables have the same value. "default_all_bundles_name" will be ignored. Please configure distinct values or use the defaults. This will be a configuration error in a future release.`)
 	}
 
 	err = setupTrustBundle(ac, c)

@@ -261,9 +261,6 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 
 	// TODO: verify the type url
 	if upd.Bundle != nil {
-		// Create validation context.
-		// - RootCA validator for v1.17 and below
-		// - SPIFFE validator from v1.18
 		switch {
 		case returnAllEntries || names[upd.Bundle.TrustDomainID()]:
 			validationContext, err := builder.buildOne(upd.Bundle.TrustDomainID(), upd.Bundle.TrustDomainID())
@@ -348,7 +345,7 @@ type rootCABuilder struct {
 
 func newRootCABuilder(bundle *bundleutil.Bundle, federatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle) validationContextBuilder {
 	bundles := make(map[string]*bundleutil.Bundle, len(federatedBundles)+1)
-	// Add td bundle if provided
+	// Only include tdBundle if it is not nil, which shouldn't ever be the case. This is purely defensive.
 	if bundle != nil {
 		bundles[bundle.TrustDomainID()] = bundle
 	}
@@ -393,7 +390,7 @@ type spiffeBuilder struct {
 func newSpiffeBuilder(tdBundle *bundleutil.Bundle, federatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle) (validationContextBuilder, error) {
 	bundles := make(map[spiffeid.TrustDomain]*bundleutil.Bundle, len(federatedBundles)+1)
 
-	// Add td bundle if provided
+	// Only include tdBundle if it is not nil, which shouldn't ever be the case. This is purely defensive.
 	if tdBundle != nil {
 		td, err := spiffeid.TrustDomainFromString(tdBundle.TrustDomainID())
 		if err != nil {
@@ -419,7 +416,7 @@ func (b *spiffeBuilder) buildOne(resourceName, trustDomainID string) (*any.Any, 
 	}
 	bundle, ok := b.bundles[td]
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "no bundle found for trust domain: %q", trustDomainID)
+		return nil, status.Errorf(codes.NotFound, "no bundle found for trust domain: %q", trustDomainID)
 	}
 
 	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
@@ -497,7 +494,7 @@ func (b *spiffeBuilder) buildAll(resourceName string) (*any.Any, error) {
 func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 	if buildVersion := req.Node.GetUserAgentBuildVersion(); buildVersion != nil {
 		version := buildVersion.Version
-		return version.MajorNumber >= 1 && version.MinorNumber > 17
+		return (version.MajorNumber == 1 && version.MinorNumber > 17) || version.MajorNumber > 1
 	}
 	return false
 }
