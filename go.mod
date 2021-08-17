@@ -25,7 +25,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/docker/docker v1.4.2-0.20200319182547-c7ad2b866182
-	github.com/envoyproxy/go-control-plane v0.9.9-0.20201210154907-fd9021fe5dad
+	github.com/envoyproxy/go-control-plane v0.9.9-0.20210521033809-0cbd29f7d4f8
 	github.com/felixge/httpsnoop v1.0.2 // indirect
 	github.com/go-logr/logr v0.1.0
 	github.com/go-ole/go-ole v1.2.4 // indirect

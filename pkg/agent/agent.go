@@ -217,6 +217,7 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 		Metrics:                       metrics,
 		DefaultSVIDName:               a.c.DefaultSVIDName,
 		DefaultBundleName:             a.c.DefaultBundleName,
+		DefaultAllBundlesName:         a.c.DefaultAllBundlesName,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		TrustDomain:                   a.c.TrustDomain,
