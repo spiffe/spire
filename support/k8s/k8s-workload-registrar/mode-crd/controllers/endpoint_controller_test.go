@@ -45,7 +45,7 @@ func (s *EndpointControllerTestSuite) SetupSuite() {
 // TestAddDNSName deploys and endpoint and checks if the SPIFFE ID is updated
 // with the correct DNS name
 func (s *EndpointControllerTestSuite) TestAddDNSName() {
-	p := NewPodReconciler(PodReconcilerConfig{
+	p, err := NewPodReconciler(PodReconcilerConfig{
 		Client:      s.k8sClient,
 		Cluster:     s.cluster,
 		Ctx:         s.ctx,
@@ -54,6 +54,7 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 		Scheme:      s.scheme,
 		TrustDomain: s.trustDomain,
 	})
+	s.Require().NoError(err)
 
 	e := NewEndpointReconciler(EndpointReconcilerConfig{
 		Client: s.k8sClient,
@@ -75,7 +76,7 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 			NodeName: "test-node",
 		},
 	}
-	err := s.k8sClient.Create(s.ctx, &pod)
+	err = s.k8sClient.Create(s.ctx, &pod)
 	s.Require().NoError(err)
 
 	_, err = p.Reconcile(ctrl.Request{
