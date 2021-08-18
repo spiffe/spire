@@ -7,11 +7,11 @@ Exercises [Envoy](https://www.envoyproxy.io/)
 compatability within SPIRE by wiring up two workloads that achieve connectivity
 using Envoy backed with identities and trust information retrieved from the
 SPIRE agent SDS implementation. Using [SPIFFE Validator](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto)
-for certificates handshake
+for certificates handshake.
 
-A customer container image is used that runs both Envoy and the SPIRE agent. Socat containers are used as the workload.
+A customer container image is used that runs both Envoy and the SPIRE Agent. Socat containers are used as the workload.
 
-The test ensures both TLS and mTLS connectivity between the workload that are federated and with another workload that is not.
+The test ensures both TLS and mTLS connectivity between the workload. This is exercised with a federated workload and also with a not federated workload.
 
                                                                                                                                 
                            upstream-spire-server                             downtream-federated-spire-server
