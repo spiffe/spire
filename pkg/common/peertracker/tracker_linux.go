@@ -112,8 +112,8 @@ func (l *linuxWatcher) IsAlive() error {
 	var buf [8196]byte
 	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
-		msg := fmt.Sprintf("caller exit suspected due to failed readdirent: err=%w", err)
-		l.log.Debug(msg)
+		msg := "caller exit suspected due to failed readdirent"
+		l.log.WithError(err).Debug(msg)
 		return errors.New(msg)
 	}
 	if n < 0 {
@@ -132,8 +132,8 @@ func (l *linuxWatcher) IsAlive() error {
 	// TODO: Evaluate the use of `starttime` as the primary exit detection mechanism.
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
-		msg := fmt.Sprintf("caller exit suspected due to failure to get starttime: %w", err)
-		l.log.Debug(msg)
+		msg := "caller exit suspected due to failure to get starttime"
+		l.log.WithError(err).Debug(msg)
 		return errors.New(msg)
 	}
 	if currentStarttime != l.starttime {
@@ -148,8 +148,8 @@ func (l *linuxWatcher) IsAlive() error {
 	// the original caller by comparing it to the received CallerInfo.
 	var stat syscall.Stat_t
 	if err := syscall.Stat(l.procPath, &stat); err != nil {
-		msg := fmt.Sprintf("caller exit suspected due to failed proc stat: %w", err)
-		l.log.Debug(msg)
+		msg := "caller exit suspected due to failed proc stat"
+		l.log.WithError(err).Debug(msg)
 		return errors.New(msg)
 	}
 	if stat.Uid != l.uid {
