@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"testing"
 
-	// "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
@@ -141,8 +141,23 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	switch runtime.GOOS {
 	case "darwin":
 		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit detected via kevent notification")
+		p.Require().Len(p.logHook.Entries, 2)
+		firstEntry := p.logHook.Entries[0]
+		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
+		p.Require().Equal(ErrorNoLongerWatched.Error(), firstEntry.Message)
+		secondEntry := p.logHook.Entries[1]
+		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
+		p.Require().Equal("caller exit detected via kevent notification", secondEntry.Message)
 	case "linux":
 		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
+		p.Require().Len(p.logHook.Entries, 2)
+		firstEntry := p.logHook.Entries[0]
+		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
+		p.Require().Equal(ErrorNoLongerWatched.Error(), firstEntry.Message)
+		secondEntry := p.logHook.Entries[1]
+		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
+		p.Require().Equal("caller exit suspected due to failed readdirent", secondEntry.Message)
+		p.Require().Equal("no such file or directory", secondEntry.Data["err"])
 	default:
 		p.FailNow("missing case for OS specific failure")
 	}
