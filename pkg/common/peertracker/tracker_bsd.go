@@ -37,15 +37,13 @@ func newTracker(log logrus.FieldLogger) (*bsdTracker, error) {
 		return nil, err
 	}
 
-	log = log.WithField(telemetry.Type, _bsdType)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	tracker := &bsdTracker{
 		closer:      cancel,
 		ctx:         ctx,
 		kqfd:        kqfd,
 		watchedPIDs: make(map[int]chan struct{}),
-		log:         log,
+		log:         log.WithField(telemetry.Type, _bsdType),
 	}
 
 	go tracker.receiveKevents(kqfd)

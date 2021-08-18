@@ -11,6 +11,11 @@ import (
 	"syscall"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+)
+
+const (
+	_linuxType = "linux"
 )
 
 type linuxTracker struct {
@@ -19,12 +24,12 @@ type linuxTracker struct {
 
 func newTracker(log logrus.FieldLogger) (linuxTracker, error) {
 	return linuxTracker{
-		log: log,
+		log: log.WithField(telemetry.Type, _linuxType),
 	}, nil
 }
 
-func (linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {
-	return newLinuxWatcher(info)
+func (l *linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {
+	return newLinuxWatcher(info, l.log)
 }
 
 func (linuxTracker) Close() {
@@ -38,9 +43,10 @@ type linuxWatcher struct {
 	procfd    int
 	starttime string
 	uid       uint32
+	log       logrus.FieldLogger
 }
 
-func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
+func newLinuxWatcher(info CallerInfo, log logrus.FieldLogger) (*linuxWatcher, error) {
 	// If PID == 0, something is wrong...
 	if info.PID == 0 {
 		return nil, errors.New("could not resolve caller information")
@@ -60,6 +66,14 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 		return nil, err
 	}
 
+	log := log.WithFields(logrus.Fields{
+		telemetry.CallerGID: info.GID,
+		telemetry.PID:       info.PID,
+		telemetry.Path:      procPath,
+		telemetry.CallerUID: info.UID,
+		telemetry.StartTime, starttime,
+	})
+
 	return &linuxWatcher{
 		gid:       info.GID,
 		pid:       info.PID,
@@ -67,6 +81,7 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 		procfd:    procfd,
 		starttime: starttime,
 		uid:       info.UID,
+		log:       log,
 	}, nil
 }
 
@@ -87,6 +102,7 @@ func (l *linuxWatcher) IsAlive() error {
 	defer l.mtx.Unlock()
 
 	if l.procfd < 0 {
+		l.log.Debug(_noLongerWatchedMsg)
 		return errors.New(_noLongerWatchedMsg)
 	}
 
@@ -96,10 +112,14 @@ func (l *linuxWatcher) IsAlive() error {
 	var buf [8196]byte
 	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
-		return fmt.Errorf("caller exit suspected due to failed readdirent: err=%w", err)
+		msg := fmt.Sprintf("caller exit suspected due to failed readdirent: err=%w", err)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 	if n < 0 {
-		return fmt.Errorf("caller exit suspected due to failed readdirent: n=%d", n)
+		msg := fmt.Sprintf("caller exit suspected due to failed readdirent: n=%d", n)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 
 	// A successful fd read should indicate that the original process is still alive, however
@@ -112,10 +132,14 @@ func (l *linuxWatcher) IsAlive() error {
 	// TODO: Evaluate the use of `starttime` as the primary exit detection mechanism.
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
-		return fmt.Errorf("caller exit suspected due to failure to get starttime: %w", err)
+		msg := fmt.Sprintf("caller exit suspected due to failure to get starttime: %w", err)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 	if currentStarttime != l.starttime {
-		return errors.New("new process detected: starttime mismatch")
+		msg := fmt.Sprintf("new process detected: process starttime %v does not match original caller %v", currentStarttime, l.starttime)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 
 	// Finally, read the UID and GID off the proc directory to determine the owner. If
@@ -124,13 +148,19 @@ func (l *linuxWatcher) IsAlive() error {
 	// the original caller by comparing it to the received CallerInfo.
 	var stat syscall.Stat_t
 	if err := syscall.Stat(l.procPath, &stat); err != nil {
-		return fmt.Errorf("caller exit suspected due to failed proc stat: %w", err)
+		msg := fmt.Sprintf("caller exit suspected due to failed proc stat: %w", err)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 	if stat.Uid != l.uid {
-		return fmt.Errorf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
+		msg := fmt.Sprintf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 	if stat.Gid != l.gid {
-		return fmt.Errorf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
+		msg := fmt.Sprintf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
+		l.log.Debug(msg)
+		return errors.New(msg)
 	}
 
 	return nil

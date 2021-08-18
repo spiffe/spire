@@ -376,6 +376,9 @@ const (
 	// SPIFFEID tags a SPIFFE ID
 	SPIFFEID = "spiffe_id"
 
+	// StartTime tags some start/entry timestamp.
+	StartTime = "start_time"
+
 	// Status tags status of call (OK, or some error), or status of some process
 	Status = "status"
 
