@@ -157,7 +157,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 		secondEntry := p.logHook.Entries[1]
 		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
 		p.Require().Equal("caller exit suspected due to failed readdirent", secondEntry.Message)
-		p.Require().Equal("no such file or directory", secondEntry.Data["err"])
+		p.Require().Equal("no such file or directory", secondEntry.Data["error"])
 	default:
 		p.FailNow("missing case for OS specific failure")
 	}
