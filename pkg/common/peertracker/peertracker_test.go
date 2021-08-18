@@ -136,7 +136,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	case "darwin":
 		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit detected via kevent notification")
 	case "linux":
-		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent: err=no such file or directory")
+		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
 	default:
 		p.FailNow("missing case for OS specific failure")
 	}
