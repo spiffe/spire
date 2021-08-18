@@ -161,7 +161,7 @@ func (f fakeEntryServer) ListEntries(ctx context.Context, req *entryv1.ListEntri
 	if f.err != nil {
 		return nil, f.err
 	}
-	spiretest.RequireProtoEqual(f.t, f.expListEntriesReq, req)
+	spiretest.AssertProtoEqual(f.t, f.expListEntriesReq, req)
 	return f.listEntriesResp, nil
 }
 
@@ -169,7 +169,7 @@ func (f fakeEntryServer) GetEntry(ctx context.Context, req *entryv1.GetEntryRequ
 	if f.err != nil {
 		return nil, f.err
 	}
-	spiretest.RequireProtoEqual(f.t, f.expGetEntryReq, req)
+	spiretest.AssertProtoEqual(f.t, f.expGetEntryReq, req)
 	return f.getEntryResp, nil
 }
 
@@ -177,7 +177,7 @@ func (f fakeEntryServer) BatchDeleteEntry(ctx context.Context, req *entryv1.Batc
 	if f.err != nil {
 		return nil, f.err
 	}
-	spiretest.RequireProtoEqual(f.t, f.expBatchDeleteEntryReq, req)
+	spiretest.AssertProtoEqual(f.t, f.expBatchDeleteEntryReq, req)
 	return f.batchDeleteEntryResp, nil
 }
 
@@ -185,7 +185,7 @@ func (f fakeEntryServer) BatchCreateEntry(ctx context.Context, req *entryv1.Batc
 	if f.err != nil {
 		return nil, f.err
 	}
-	spiretest.RequireProtoEqual(f.t, f.expBatchCreateEntryReq, req)
+	spiretest.AssertProtoEqual(f.t, f.expBatchCreateEntryReq, req)
 	return f.batchCreateEntryResp, nil
 }
 
@@ -193,7 +193,7 @@ func (f fakeEntryServer) BatchUpdateEntry(ctx context.Context, req *entryv1.Batc
 	if f.err != nil {
 		return nil, f.err
 	}
-	spiretest.RequireProtoEqual(f.t, f.expBatchUpdateEntryReq, req)
+	spiretest.AssertProtoEqual(f.t, f.expBatchUpdateEntryReq, req)
 	return f.batchUpdateEntryResp, nil
 }
 
