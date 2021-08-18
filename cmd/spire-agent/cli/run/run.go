@@ -37,10 +37,11 @@ const (
 	defaultConfigPath = "conf/agent/agent.conf"
 
 	// TODO: Make my defaults sane
-	defaultDataDir           = "."
-	defaultLogLevel          = "INFO"
-	defaultDefaultSVIDName   = "default"
-	defaultDefaultBundleName = "ROOTCA"
+	defaultDataDir               = "."
+	defaultLogLevel              = "INFO"
+	defaultDefaultSVIDName       = "default"
+	defaultDefaultBundleName     = "ROOTCA"
+	defaultDefaultAllBundlesName = "ALL"
 )
 
 // Config contains all available configurables, arranged by section
@@ -84,8 +85,9 @@ type agentConfig struct {
 }
 
 type sdsConfig struct {
-	DefaultSVIDName   string `hcl:"default_svid_name"`
-	DefaultBundleName string `hcl:"default_bundle_name"`
+	DefaultSVIDName       string `hcl:"default_svid_name"`
+	DefaultBundleName     string `hcl:"default_bundle_name"`
+	DefaultAllBundlesName string `hcl:"default_all_bundles_name"`
 }
 
 type experimentalConfig struct {
@@ -400,6 +402,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
+	ac.DefaultAllBundlesName = c.Agent.SDS.DefaultAllBundlesName
+	if ac.DefaultAllBundlesName == ac.DefaultBundleName {
+		logger.Warn(`The "default_bundle_name" and "default_all_bundles_name" configurables have the same value. "default_all_bundles_name" will be ignored. Please configure distinct values or use the defaults. This will be a configuration error in a future release.`)
+	}
 
 	err = setupTrustBundle(ac, c)
 	if err != nil {
@@ -539,8 +545,9 @@ func defaultConfig() *Config {
 			LogFormat:  log.DefaultFormat,
 			SocketPath: common.DefaultSocketPath,
 			SDS: sdsConfig{
-				DefaultBundleName: defaultDefaultBundleName,
-				DefaultSVIDName:   defaultDefaultSVIDName,
+				DefaultBundleName:     defaultDefaultBundleName,
+				DefaultSVIDName:       defaultDefaultSVIDName,
+				DefaultAllBundlesName: defaultDefaultAllBundlesName,
 			},
 		},
 	}

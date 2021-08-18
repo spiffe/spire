@@ -348,7 +348,7 @@ token_auth {
     "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
     "expire_time": "2020-12-18T05:03:08.5694729Z",
     "explicit_max_ttl": 0,
-    "id": "test--token",
+    "id": "test-token",
     "issue_time": "2020-11-16T05:03:08.5694807Z",
     "meta": {
       "role_name": "test"
@@ -360,7 +360,38 @@ token_auth {
       "default"
     ],
     "renewable": true,
-    "ttl": 2763477,
+    "ttl": 3600,
+    "type": "service"
+  },
+  "warnings": null
+}`
+
+	testLookupSelfResponseShortTTL = `{
+  "request_id": "8dc10d02-797d-1c23-f9f3-c7f07be89150",
+  "lease_id": "",
+  "lease_duration": 0,
+  "renewable": false,
+  "data": {
+    "accessor": "sB3mNrjoIr2JscfNsAUM1k0A",
+    "creation_time": 1605502988,
+    "creation_ttl": 2764800,
+    "display_name": "approle",
+    "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
+    "expire_time": "2020-12-18T05:03:08.5694729Z",
+    "explicit_max_ttl": 0,
+    "id": "test-token",
+    "issue_time": "2020-11-16T05:03:08.5694807Z",
+    "meta": {
+      "role_name": "test"
+    },
+    "num_uses": 0,
+    "orphan": true,
+    "path": "auth/approle/login",
+    "policies": [
+      "default"
+    ],
+    "renewable": true,
+    "ttl": 1,
     "type": "service"
   },
   "warnings": null

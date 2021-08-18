@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
@@ -71,13 +72,13 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		response  []byte
-		reusable  bool
+		renew     bool
 		namespace string
 	}{
 		{
 			name:     "Cert Authentication success / Token is renewable",
 			response: []byte(testCertAuthResponse),
-			reusable: true,
+			renew:    true,
 		},
 		{
 			name:     "Cert Authentication success / Token is not renewable",
@@ -86,7 +87,7 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 		{
 			name:      "Cert Authentication success / Token is renewable / Namespace is given",
 			response:  []byte(testCertAuthResponse),
-			reusable:  true,
+			renew:     true,
 			namespace: "test-ns",
 		},
 	} {
@@ -110,9 +111,16 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 			cc, err := NewClientConfig(cp, hclog.Default())
 			require.NoError(t, err)
 
-			client, reusable, err := cc.NewAuthenticatedClient(CERT)
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 			require.NoError(t, err)
-			require.Equal(t, tt.reusable, reusable)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -129,7 +137,7 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 		name            string
 		token           string
 		response        []byte
-		reusable        bool
+		renew           bool
 		namespace       string
 		expectCode      codes.Code
 		expectMsgPrefix string
@@ -138,13 +146,13 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 			name:     "Token Authentication success / Token never expire",
 			token:    "test-token",
 			response: []byte(testLookupSelfResponseNeverExpire),
-			reusable: true,
+			renew:    true,
 		},
 		{
 			name:     "Token Authentication success / Token is renewable",
 			token:    "test-token",
 			response: []byte(testLookupSelfResponse),
-			reusable: true,
+			renew:    true,
 		},
 		{
 			name:     "Token Authentication success / Token is not renewable",
@@ -155,14 +163,14 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 			name:      "Token Authentication success / Token is renewable / Namespace is given",
 			token:     "test-token",
 			response:  []byte(testCertAuthResponse),
-			reusable:  true,
+			renew:     true,
 			namespace: "test-ns",
 		},
 		{
 			name:            "Token Authentication error / Token is empty",
 			token:           "",
 			response:        []byte(testCertAuthResponse),
-			reusable:        true,
+			renew:           true,
 			namespace:       "test-ns",
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "token is empty",
@@ -187,14 +195,22 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 			cc, err := NewClientConfig(cp, hclog.Default())
 			require.NoError(t, err)
 
-			client, reusable, err := cc.NewAuthenticatedClient(TOKEN)
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(TOKEN, renewCh)
 			if tt.expectMsgPrefix != "" {
 				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
 				return
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, tt.reusable, reusable)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
+
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
 				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
@@ -209,13 +225,13 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		response  []byte
-		reusable  bool
+		renew     bool
 		namespace string
 	}{
 		{
 			name:     "AppRole Authentication success / Token is renewable",
 			response: []byte(testAppRoleAuthResponse),
-			reusable: true,
+			renew:    true,
 		},
 		{
 			name:     "AppRole Authentication success / Token is not renewable",
@@ -224,7 +240,7 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 		{
 			name:      "AppRole Authentication success / Token is renewable / Namespace is given",
 			response:  []byte(testAppRoleAuthResponse),
-			reusable:  true,
+			renew:     true,
 			namespace: "test-ns",
 		},
 	} {
@@ -248,9 +264,16 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 			cc, err := NewClientConfig(cp, hclog.Default())
 			require.NoError(t, err)
 
-			client, reusable, err := cc.NewAuthenticatedClient(APPROLE)
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(APPROLE, renewCh)
 			require.NoError(t, err)
-			require.Equal(t, tt.reusable, reusable)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -266,13 +289,13 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		response  []byte
-		reusable  bool
+		renew     bool
 		namespace string
 	}{
 		{
 			name:     "K8s Authentication success / Token is renewable",
 			response: []byte(testK8sAuthResponse),
-			reusable: true,
+			renew:    true,
 		},
 		{
 			name:     "K8s Authentication success / Token is not renewable",
@@ -281,7 +304,7 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 		{
 			name:      "K8s Authentication success / Token is renewable / Namespace is given",
 			response:  []byte(testK8sAuthResponse),
-			reusable:  true,
+			renew:     true,
 			namespace: "test-ns",
 		},
 	} {
@@ -305,9 +328,16 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 			cc, err := NewClientConfig(cp, hclog.Default())
 			require.NoError(t, err)
 
-			client, reusable, err := cc.NewAuthenticatedClient(K8S)
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(K8S, renewCh)
 			require.NoError(t, err)
-			require.Equal(t, tt.reusable, reusable)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -339,7 +369,8 @@ func TestNewAuthenticatedClientCertAuthFailed(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	_, _, err = cc.NewAuthenticatedClient(CERT)
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(CERT, renewCh)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/cert/login: Error making API request.")
 }
 
@@ -364,7 +395,8 @@ func TestNewAuthenticatedClientAppRoleAuthFailed(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	_, _, err = cc.NewAuthenticatedClient(APPROLE)
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(APPROLE, renewCh)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/approle/login: Error making API request.")
 }
 
@@ -389,7 +421,8 @@ func TestNewAuthenticatedClientK8sAuthFailed(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	_, _, err = cc.NewAuthenticatedClient(K8S)
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(K8S, renewCh)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/kubernetes/login: Error making API request.")
 }
 
@@ -404,8 +437,43 @@ func TestNewAuthenticatedClientK8sAuthInvalidPath(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	_, _, err = cc.NewAuthenticatedClient(K8S)
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(K8S, renewCh)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to read k8s service account token:")
+}
+
+func TestRenewTokenFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponseShortTTL)
+	fakeVaultServer.LookupSelfResponseCode = 200
+	fakeVaultServer.RenewResponse = []byte("fake renew error")
+	fakeVaultServer.RenewResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0
+	cp := &ClientParams{
+		MaxRetries: &retry,
+		VaultAddr:  fmt.Sprintf("https://%v/", addr),
+		CACertPath: testRootCert,
+		Token:      "test-token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(TOKEN, renewCh)
+	require.NoError(t, err)
+
+	select {
+	case <-renewCh:
+	case <-time.After(1 * time.Second):
+		t.Error("renewChan did not close in the expected time")
+	}
 }
 
 func TestConfigureTLSWithCertAuth(t *testing.T) {
@@ -560,7 +628,8 @@ func TestSignIntermediate(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	client, _, err := cc.NewAuthenticatedClient(CERT)
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
 	testTTL := "0"
@@ -599,7 +668,8 @@ func TestSignIntermediateErrorFromEndpoint(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	client, _, err := cc.NewAuthenticatedClient(CERT)
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
 	testTTL := "0"

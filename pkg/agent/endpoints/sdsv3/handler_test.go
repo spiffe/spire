@@ -13,6 +13,7 @@ import (
 	tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	envoy_type_v3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -22,15 +23,30 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
 	tdBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("domain.test"), &x509.Certificate{
 		Raw: []byte("BUNDLE"),
+	})
+	tdCustomValidationConfig, _ = anypb.New(&tls_v3.SPIFFECertValidatorConfig{
+		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
+			{
+				Name: "domain.test",
+				TrustBundle: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
+				},
+			},
+		},
 	})
 	tdValidationContext = &tls_v3.Secret{
 		Name: "spiffe://domain.test",
@@ -40,6 +56,17 @@ var (
 					Specifier: &core_v3.DataSource_InlineBytes{
 						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
 					},
+				},
+			},
+		},
+	}
+	tdValidationContextSpiffeValidator = &tls_v3.Secret{
+		Name: "spiffe://domain.test",
+		Type: &tls_v3.Secret_ValidationContext{
+			ValidationContext: &tls_v3.CertificateValidationContext{
+				CustomValidatorConfig: &core_v3.TypedExtensionConfig{
+					Name:        "envoy.tls.cert_validator.spiffe",
+					TypedConfig: tdCustomValidationConfig,
 				},
 			},
 		},
@@ -57,9 +84,32 @@ var (
 			},
 		},
 	}
+	tdValidationContext2SpiffeValidator = &tls_v3.Secret{
+		Name: "ROOTCA",
+		Type: &tls_v3.Secret_ValidationContext{
+			ValidationContext: &tls_v3.CertificateValidationContext{
+				CustomValidatorConfig: &core_v3.TypedExtensionConfig{
+					Name:        "envoy.tls.cert_validator.spiffe",
+					TypedConfig: tdCustomValidationConfig,
+				},
+			},
+		},
+	}
 
 	fedBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("otherdomain.test"), &x509.Certificate{
 		Raw: []byte("FEDBUNDLE"),
+	})
+	fedCustomValidationConfig, _ = anypb.New(&tls_v3.SPIFFECertValidatorConfig{
+		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
+			{
+				Name: "otherdomain.test",
+				TrustBundle: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nRkVEQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
+				},
+			},
+		},
 	})
 	fedValidationContext = &tls_v3.Secret{
 		Name: "spiffe://otherdomain.test",
@@ -73,7 +123,49 @@ var (
 			},
 		},
 	}
+	fedValidationContextSpiffeValidator = &tls_v3.Secret{
+		Name: "spiffe://otherdomain.test",
+		Type: &tls_v3.Secret_ValidationContext{
+			ValidationContext: &tls_v3.CertificateValidationContext{
+				CustomValidatorConfig: &core_v3.TypedExtensionConfig{
+					Name:        "envoy.tls.cert_validator.spiffe",
+					TypedConfig: fedCustomValidationConfig,
+				},
+			},
+		},
+	}
 
+	allBundlesCustomValidationConfig, _ = anypb.New(&tls_v3.SPIFFECertValidatorConfig{
+		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
+			{
+				Name: "domain.test",
+				TrustBundle: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
+				},
+			},
+			{
+				Name: "otherdomain.test",
+				TrustBundle: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nRkVEQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
+				},
+			},
+		},
+	})
+	allBundlesValidationContext = &tls_v3.Secret{
+		Name: "ALL",
+		Type: &tls_v3.Secret_ValidationContext{
+			ValidationContext: &tls_v3.CertificateValidationContext{
+				CustomValidatorConfig: &core_v3.TypedExtensionConfig{
+					Name:        "envoy.tls.cert_validator.spiffe",
+					TypedConfig: allBundlesCustomValidationConfig,
+				},
+			},
+		},
+	}
 	workloadKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgN2PdPEglb3JjF1Fg
 cqyEiRJHqtqzSUBnIeWCixn4hH2hRANCAARW+TsDRr0b0wJqg2kY5JvjX7UfAV3m
@@ -139,39 +231,566 @@ MC2hK9d8Z5ENZc9lFW48vObdcHcHdHvAaA8z2GM02pDkTt5pgUvRHlsf
 	}
 
 	workloadSelectors = cache.Selectors{{Type: "TYPE", Value: "VALUE"}}
+
+	userAgentVersionTypeV17 = &core_v3.Node_UserAgentBuildVersion{
+		UserAgentBuildVersion: &core_v3.BuildVersion{
+			Version: &envoy_type_v3.SemanticVersion{
+				MajorNumber: 1,
+				MinorNumber: 17,
+			},
+		},
+	}
+
+	userAgentVersionTypeV18 = &core_v3.Node_UserAgentBuildVersion{
+		UserAgentBuildVersion: &core_v3.BuildVersion{
+			Version: &envoy_type_v3.SemanticVersion{
+				MajorNumber: 1,
+				MinorNumber: 18,
+			},
+		},
+	}
 )
 
-func TestHandler(t *testing.T) {
-	spiretest.Run(t, new(HandlerSuite))
+func TestStreamSecrets(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		req           *discovery_v3.DiscoveryRequest
+		expectSecrets []*tls_v3.Secret
+		expectCode    codes.Code
+		expectMsg     string
+	}{
+		{
+			name: "All Secrets: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{
+				tdValidationContext,
+				fedValidationContext,
+				workloadTLSCertificate1,
+			},
+		},
+		{
+			name: "All Secrets: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{
+				tdValidationContextSpiffeValidator,
+				fedValidationContextSpiffeValidator,
+				workloadTLSCertificate1,
+			},
+		},
+		{
+			name: "TrustDomain bundle: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "TrustDomain bundle: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Default TrustDomain bundle: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ROOTCA"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext2},
+		},
+		{
+			name: "Default TrustDomain bundle: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ROOTCA"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext2SpiffeValidator},
+		},
+		{
+			name: "Federated TrustDomain bundle: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://otherdomain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{fedValidationContext},
+		},
+		{
+			name: "Federated TrustDomain bundle: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://otherdomain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{fedValidationContextSpiffeValidator},
+		},
+		{
+			name: "TLS certificates only: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test/workload"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate1},
+		},
+		{
+			name: "TLS certificates only: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test/workload"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate1},
+		},
+		{
+			name: "Default All bundles: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ALL"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectCode: codes.Internal,
+			expectMsg:  `unable to use "SPIFFE validator" on Envoy below 1.17`,
+		},
+		{
+			name: "Default All bundles: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ALL"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{allBundlesValidationContext},
+		},
+		{
+			name: "Default TLS certificate",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"default"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate3},
+		},
+		{
+			name: "Unknown resource",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test/WHATEVER"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unable to retrieve all requested identities, missing map[spiffe://domain.test/WHATEVER:true]",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t)
+			defer test.cleanup()
+
+			stream, err := test.handler.StreamSecrets(context.Background())
+			require.NoError(t, err)
+			defer func() {
+				require.NoError(t, stream.CloseSend())
+			}()
+
+			test.sendAndWait(stream, tt.req)
+
+			resp, err := stream.Recv()
+			spiretest.AssertGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+			if tt.expectCode != codes.OK {
+				require.Nil(t, resp)
+				return
+			}
+
+			requireSecrets(t, resp, tt.expectSecrets...)
+		})
+	}
 }
 
-type HandlerSuite struct {
-	spiretest.Suite
-	manager  *FakeManager
-	server   *grpc.Server
-	handler  secret_v3.SecretDiscoveryServiceClient
-	received chan struct{}
+func TestStreamSecretsStreaming(t *testing.T) {
+	test := setupTest(t)
+	defer test.server.Stop()
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.VersionInfo)
+	require.NotEmpty(t, resp.Nonce)
+	requireSecrets(t, resp, workloadTLSCertificate1)
+
+	test.setWorkloadUpdate(workloadCert2)
+
+	resp, err = stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate2)
 }
 
-func (s *HandlerSuite) SetupTest() {
-	s.manager = NewFakeManager(s.T())
-	handler := New(Config{
-		Attestor:          FakeAttestor(workloadSelectors),
-		Manager:           s.manager,
-		DefaultSVIDName:   "default",
-		DefaultBundleName: "ROOTCA",
+func TestStreamSecretsApplicationDoesNotSpin(t *testing.T) {
+	test := setupTest(t)
+	defer test.server.Stop()
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	// Subscribe to some updates
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
 	})
 
-	s.received = make(chan struct{})
-	handler.hooks.received = s.received
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate1)
+
+	// Reject the update
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResponseNonce: resp.Nonce,
+		VersionInfo:   "OHNO",
+		ErrorDetail:   &status.Status{Message: "OHNO!"},
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+
+	test.setWorkloadUpdate(workloadCert2)
+
+	resp, err = stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate2)
+}
+
+func TestStreamSecretsRequestReceivedBeforeWorkloadUpdate(t *testing.T) {
+	test := setupTest(t)
+	defer test.server.Stop()
+
+	test.setWorkloadUpdate(nil)
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+
+	test.setWorkloadUpdate(workloadCert2)
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate2)
+}
+
+func TestStreamSecretsSubChanged(t *testing.T) {
+	test := setupTest(t)
+	defer test.server.Stop()
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate1)
+
+	// Ack the response
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResponseNonce: resp.Nonce,
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+		VersionInfo:   resp.VersionInfo,
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+	})
+
+	// Send another request for different resources.
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResponseNonce: resp.Nonce,
+		VersionInfo:   resp.VersionInfo,
+		ResourceNames: []string{"spiffe://domain.test"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+
+	resp, err = stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, tdValidationContext)
+}
+
+func TestStreamSecretsBadNonce(t *testing.T) {
+	test := setupTest(t)
+	defer test.server.Stop()
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	// The first request should be good
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate1)
+
+	// Now update the workload SVID
+	test.setWorkloadUpdate(workloadCert2)
+
+	// The third request should be ignored because the nonce isn't set to
+	// the value returned in the response.
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResponseNonce: "FOO",
+		VersionInfo:   resp.VersionInfo,
+		ResourceNames: []string{"spiffe://domain.test"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+
+	// The fourth request should be good since the nonce matches that sent with
+	// the last response.
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResponseNonce: resp.Nonce,
+		VersionInfo:   resp.VersionInfo,
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+	resp, err = stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate2)
+}
+
+func TestFetchSecrets(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		req           *discovery_v3.DiscoveryRequest
+		expectSecrets []*tls_v3.Secret
+		expectCode    codes.Code
+		expectMsg     string
+	}{
+		{
+			name: "Fetch all secrets: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				TypeUrl: "TYPEURL",
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{
+				tdValidationContext,
+				fedValidationContext,
+				workloadTLSCertificate1,
+			},
+		},
+		{
+			name: "Fetch all secrets: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				TypeUrl: "TYPEURL",
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{
+				tdValidationContextSpiffeValidator,
+				fedValidationContextSpiffeValidator,
+				workloadTLSCertificate1,
+			},
+		},
+		{
+			name: "TrustDomain bundle: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "TrustDomain bundle: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Federated bundle: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://otherdomain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{fedValidationContext},
+		},
+		{
+			name: "Federated bundle: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://otherdomain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{fedValidationContextSpiffeValidator},
+		},
+		{
+			name: "Default All bundles: RootCA",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ALL"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectCode: codes.Internal,
+			expectMsg:  `unable to use "SPIFFE validator" on Envoy below 1.17`,
+		},
+		{
+			name: "Default all bundles: SPIFFE",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ALL"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{allBundlesValidationContext},
+		},
+		{
+			name: "TLS Certificate",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test/workload"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate1},
+		},
+		{
+			name: "Non-existent resource",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test/other"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV17,
+				},
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `unable to retrieve all requested identities, missing map[spiffe://domain.test/other:true]`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t)
+			defer test.server.Stop()
+
+			resp, err := test.handler.FetchSecrets(context.Background(), tt.req)
+
+			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+			if tt.expectCode != codes.OK {
+				require.Nil(t, resp)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Empty(t, resp.VersionInfo)
+			require.Empty(t, resp.Nonce)
+			require.Equal(t, tt.req.TypeUrl, resp.TypeUrl)
+			requireSecrets(t, resp, tt.expectSecrets...)
+		})
+	}
+}
+
+func DeltaSecretsTest(t *testing.T) {
+	test := setupTest(t)
+	defer test.cleanup()
+
+	resp, err := test.handler.DeltaSecrets(context.Background())
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "Method is not implemented")
+	require.Nil(t, resp)
+}
+
+func setupTest(t *testing.T) *handlerTest {
+	manager := NewFakeManager(t)
+	handler := New(Config{
+		Attestor:              FakeAttestor(workloadSelectors),
+		Manager:               manager,
+		DefaultSVIDName:       "default",
+		DefaultBundleName:     "ROOTCA",
+		DefaultAllBundlesName: "ALL",
+	})
+
+	received := make(chan struct{})
+	handler.hooks.received = received
 
 	listener, err := net.Listen("tcp", "localhost:0")
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
-	s.Require().NoError(err)
-	s.handler = secret_v3.NewSecretDiscoveryServiceClient(conn)
-
+	require.NoError(t, err)
 	log, _ := test.NewNullLogger()
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.WithLogger(log))
 	server := grpc.NewServer(grpc.Creds(FakeCreds{}),
@@ -180,312 +799,34 @@ func (s *HandlerSuite) SetupTest() {
 	)
 	secret_v3.RegisterSecretDiscoveryServiceServer(server, handler)
 	go func() { _ = server.Serve(listener) }()
-	s.server = server
 
-	s.setWorkloadUpdate(workloadCert1)
+	test := &handlerTest{
+		t:        t,
+		manager:  manager,
+		server:   server,
+		handler:  secret_v3.NewSecretDiscoveryServiceClient(conn),
+		received: received,
+	}
+
+	test.setWorkloadUpdate(workloadCert1)
+
+	return test
 }
 
-func (s *HandlerSuite) TearDownTest() {
-	s.server.Stop()
+type handlerTest struct {
+	t *testing.T
+
+	manager  *FakeManager
+	server   *grpc.Server
+	handler  secret_v3.SecretDiscoveryServiceClient
+	received chan struct{}
 }
 
-func (s *HandlerSuite) TestStreamSecretsStreamAllSecrets() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{})
-
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, tdValidationContext, fedValidationContext, workloadTLSCertificate1)
+func (h *handlerTest) cleanup() {
+	h.server.Stop()
 }
 
-func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, tdValidationContext)
-}
-
-func (s *HandlerSuite) TestStreamSecretsStreamDefaultTrustDomainBundleOnly() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"ROOTCA"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, tdValidationContext2)
-}
-
-func (s *HandlerSuite) TestStreamSecretsStreamFederatedTrustDomainBundleOnly() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://otherdomain.test"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, fedValidationContext)
-}
-
-func (s *HandlerSuite) TestStreamSecretsStreamTLSCertificateOnly() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate1)
-}
-
-func (s *HandlerSuite) TestStreamSecretsStreamDefaultTLSCertificateOnly() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"default"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate3)
-}
-
-func (s *HandlerSuite) TestStreamSecretsUnknownResource() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/WHATEVER"},
-	})
-	_, err = stream.Recv()
-	s.Require().Error(err)
-}
-
-func (s *HandlerSuite) TestStreamSecretsStreaming() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.Require().NotEmpty(resp.VersionInfo)
-	s.Require().NotEmpty(resp.Nonce)
-	s.requireSecrets(resp, workloadTLSCertificate1)
-
-	s.setWorkloadUpdate(workloadCert2)
-
-	resp, err = stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate2)
-}
-
-func (s *HandlerSuite) TestStreamSecretsApplicationDoesNotSpin() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	// Subscribe to some updates
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate1)
-
-	// Reject the update
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResponseNonce: resp.Nonce,
-		VersionInfo:   "OHNO",
-		ErrorDetail:   &status.Status{Message: "OHNO!"},
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-
-	s.setWorkloadUpdate(workloadCert2)
-
-	resp, err = stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate2)
-}
-
-func (s *HandlerSuite) TestStreamSecretsRequestReceivedBeforeWorkloadUpdate() {
-	s.setWorkloadUpdate(nil)
-
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-
-	s.setWorkloadUpdate(workloadCert2)
-
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate2)
-}
-
-func (s *HandlerSuite) TestStreamSecretsSubChanged() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate1)
-
-	// Ack the response
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResponseNonce: resp.Nonce,
-		VersionInfo:   resp.VersionInfo,
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-
-	// Send another request for different resources.
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResponseNonce: resp.Nonce,
-		VersionInfo:   resp.VersionInfo,
-		ResourceNames: []string{"spiffe://domain.test"},
-	})
-
-	resp, err = stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, tdValidationContext)
-}
-
-func (s *HandlerSuite) TestStreamSecretsBadNonce() {
-	stream, err := s.handler.StreamSecrets(context.Background())
-	s.Require().NoError(err)
-	defer func() {
-		s.Require().NoError(stream.CloseSend())
-	}()
-
-	// The first request should be good
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-	resp, err := stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate1)
-
-	// Now update the workload SVID
-	s.setWorkloadUpdate(workloadCert2)
-
-	// The third request should be ignored because the nonce isn't set to
-	// the value returned in the response.
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResponseNonce: "FOO",
-		VersionInfo:   resp.VersionInfo,
-		ResourceNames: []string{"spiffe://domain.test"},
-	})
-
-	// The fourth request should be good since the nonce matches that sent with
-	// the last response.
-	s.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
-		ResponseNonce: resp.Nonce,
-		VersionInfo:   resp.VersionInfo,
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-	resp, err = stream.Recv()
-	s.Require().NoError(err)
-	s.requireSecrets(resp, workloadTLSCertificate2)
-}
-
-func (s *HandlerSuite) TestFetchSecrets() {
-	// Fetch all secrets
-	resp, err := s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{TypeUrl: "TYPEURL"})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Empty(resp.VersionInfo)
-	s.Require().Empty(resp.Nonce)
-	s.Require().Equal("TYPEURL", resp.TypeUrl)
-	s.requireSecrets(resp, tdValidationContext, fedValidationContext, workloadTLSCertificate1)
-
-	// Fetch trust domain validation context only
-	resp, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test"},
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Empty(resp.VersionInfo)
-	s.Require().Empty(resp.Nonce)
-	s.requireSecrets(resp, tdValidationContext)
-
-	// Fetch federated validation context only
-	resp, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://otherdomain.test"},
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Empty(resp.VersionInfo)
-	s.Require().Empty(resp.Nonce)
-	s.requireSecrets(resp, fedValidationContext)
-
-	// Fetch tls certificate only
-	resp, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/workload"},
-	})
-	s.Require().NoError(err)
-	s.Require().NotNil(resp)
-	s.Require().Empty(resp.VersionInfo)
-	s.Require().Empty(resp.Nonce)
-	s.requireSecrets(resp, workloadTLSCertificate1)
-
-	// Fetch non-existent resource
-	_, err = s.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{
-		ResourceNames: []string{"spiffe://domain.test/other"},
-	})
-	s.Require().Error(err)
-}
-
-func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
+func (h *handlerTest) setWorkloadUpdate(workloadCert *x509.Certificate) {
 	var workloadUpdate *cache.WorkloadUpdate
 	if workloadCert != nil {
 		workloadUpdate = &cache.WorkloadUpdate{
@@ -504,29 +845,18 @@ func (s *HandlerSuite) setWorkloadUpdate(workloadCert *x509.Certificate) {
 			},
 		}
 	}
-	s.manager.SetWorkloadUpdate(workloadUpdate)
+	h.manager.SetWorkloadUpdate(workloadUpdate)
 }
 
-func (s *HandlerSuite) sendAndWait(stream secret_v3.SecretDiscoveryService_StreamSecretsClient, req *discovery_v3.DiscoveryRequest) {
-	s.Require().NoError(stream.Send(req))
+func (h *handlerTest) sendAndWait(stream secret_v3.SecretDiscoveryService_StreamSecretsClient, req *discovery_v3.DiscoveryRequest) {
+	require.NoError(h.t, stream.Send(req))
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
 	select {
-	case <-s.received:
+	case <-h.received:
 	case <-timer.C:
-		s.Fail("timed out waiting for request to be received")
+		assert.Fail(h.t, "timed out waiting for request to be received")
 	}
-}
-
-func (s *HandlerSuite) requireSecrets(resp *discovery_v3.DiscoveryResponse, expectedSecrets ...*tls_v3.Secret) {
-	var actualSecrets []*tls_v3.Secret
-	for _, resource := range resp.Resources {
-		secret := new(tls_v3.Secret)
-		s.Require().NoError(resource.UnmarshalTo(secret)) //nolint: scopelint // pointer to resource isn't held
-		actualSecrets = append(actualSecrets, secret)
-	}
-
-	s.RequireProtoListEqual(expectedSecrets, actualSecrets)
 }
 
 type FakeAttestor []*common.Selector
@@ -644,3 +974,14 @@ func (w FakeWatcher) Close() {}
 func (w FakeWatcher) IsAlive() error { return nil }
 
 func (w FakeWatcher) PID() int32 { return 123 }
+
+func requireSecrets(t *testing.T, resp *discovery_v3.DiscoveryResponse, expectedSecrets ...*tls_v3.Secret) {
+	var actualSecrets []*tls_v3.Secret
+	for _, resource := range resp.Resources {
+		secret := new(tls_v3.Secret)
+		require.NoError(t, resource.UnmarshalTo(secret)) //nolint: scopelint // pointer to resource isn't held
+		actualSecrets = append(actualSecrets, secret)
+	}
+
+	spiretest.RequireProtoListEqual(t, expectedSecrets, actualSecrets)
+}
