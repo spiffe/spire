@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/hcl"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -23,13 +24,16 @@ const (
 
 type CRDMode struct {
 	CommonMode
-	AddSvcDNSName   bool   `hcl:"add_svc_dns_name"`
-	LeaderElection  bool   `hcl:"leader_election"`
-	MetricsBindAddr string `hcl:"metrics_bind_addr"`
-	PodController   bool   `hcl:"pod_controller"`
-	WebhookEnabled  bool   `hcl:"webhook_enabled"`
-	WebhookCertDir  string `hcl:"webhook_cert_dir"`
-	WebhookPort     int    `hcl:"webhook_port"`
+	AddSvcDNSName         bool              `hcl:"add_svc_dns_name"`
+	LeaderElection        bool              `hcl:"leader_election"`
+	MetricsBindAddr       string            `hcl:"metrics_bind_addr"`
+	PodController         bool              `hcl:"pod_controller"`
+	WebhookEnabled        bool              `hcl:"webhook_enabled"`
+	WebhookCertDir        string            `hcl:"webhook_cert_dir"`
+	WebhookPort           int               `hcl:"webhook_port"`
+	IdentityTemplate      string            `hcl:"identity_template"`
+	IdentityTemplateLabel string            `hcl:"identity_template_label"`
+	Context               map[string]string `hcl:"context"`
 }
 
 func (c *CRDMode) ParseConfig(hclConfig string) error {
@@ -51,6 +55,14 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		c.WebhookPort = defaultWebhookPort
 	}
 
+	if c.IdentityTemplate != "" && (c.PodAnnotation != "" || c.PodLabel != "") {
+		return errs.New("workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label")
+	}
+
+	// Eliminate reference to the non-existing context (strip out the blank space first).
+	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ", ""), "{{.Context.") {
+		return errs.New("identity_template references non-existing context")
+	}
 	return nil
 }
 
@@ -116,17 +128,24 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = controllers.NewPodReconciler(controllers.PodReconcilerConfig{
-			Client:             mgr.GetClient(),
-			Cluster:            c.Cluster,
-			Ctx:                ctx,
-			DisabledNamespaces: c.DisabledNamespaces,
-			Log:                log,
-			PodLabel:           c.PodLabel,
-			PodAnnotation:      c.PodAnnotation,
-			Scheme:             mgr.GetScheme(),
-			TrustDomain:        c.TrustDomain,
-		}).SetupWithManager(mgr)
+		p, err := controllers.NewPodReconciler(controllers.PodReconcilerConfig{
+			Client:                mgr.GetClient(),
+			Cluster:               c.Cluster,
+			Ctx:                   ctx,
+			DisabledNamespaces:    c.DisabledNamespaces,
+			Log:                   log,
+			PodLabel:              c.PodLabel,
+			PodAnnotation:         c.PodAnnotation,
+			Scheme:                mgr.GetScheme(),
+			TrustDomain:           c.TrustDomain,
+			IdentityTemplate:      c.IdentityTemplate,
+			Context:               c.Context,
+			IdentityTemplateLabel: c.IdentityTemplateLabel,
+		})
+		if err != nil {
+			return err
+		}
+		err = p.SetupWithManager(mgr)
 		if err != nil {
 			return err
 		}
