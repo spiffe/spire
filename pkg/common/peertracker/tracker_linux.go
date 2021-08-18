@@ -102,8 +102,8 @@ func (l *linuxWatcher) IsAlive() error {
 	defer l.mtx.Unlock()
 
 	if l.procfd < 0 {
-		l.log.Debug(_noLongerWatchedMsg)
-		return errors.New(_noLongerWatchedMsg)
+		l.log.Debug(ErrorNoLongerWatched.Error())
+		return ErrNoLongerWatched
 	}
 
 	// First we will check if we can read from the original directory handle.
