@@ -111,7 +111,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// Should return an error once we're no longer tracking
 	peer.disconnect()
 	conn.Close()
-	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
+	p.EqualError(conn.Info.Watcher.IsAlive(), _noLongerWatchedMsg)
 
 	// Start a forking child and allow it to exit while the grandchild holds the socket
 	peer.connectFromForkingChild(p.unixAddr, p.childPath, doneCh)
@@ -154,7 +154,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// the tracker has been closed
 	p.ul.Close()
 	p.ul = nil
-	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
+	p.EqualError(conn.Info.Watcher.IsAlive(), _noLongerWatchedMsg)
 }
 
 type fakeUDSPeer struct {

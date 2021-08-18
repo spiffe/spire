@@ -11,6 +11,11 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+)
+
+const (
+	_bsdType = "bsd"
 )
 
 var (
@@ -31,6 +36,8 @@ func newTracker(log logrus.FieldLogger) (*bsdTracker, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log = log.WithField(telemetry.Type, _bsdType)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	tracker := &bsdTracker{
@@ -82,8 +89,9 @@ func (b *bsdTracker) NewWatcher(info CallerInfo) (Watcher, error) {
 		done = make(chan struct{})
 		b.watchedPIDs[pid] = done
 	}
+	log := b.log.WithField(telemetry.PID, pid)
 
-	return newBSDWatcher(info, done), nil
+	return newBSDWatcher(info, done, log), nil
 }
 
 func (b *bsdTracker) addKeventForWatcher(pid int) error {
@@ -156,12 +164,14 @@ type bsdWatcher struct {
 	done   <-chan struct{}
 	mtx    sync.Mutex
 	pid    int32
+	log    logrus.FieldLogger
 }
 
-func newBSDWatcher(info CallerInfo, done <-chan struct{}) *bsdWatcher {
+func newBSDWatcher(info CallerInfo, done <-chan struct{}, log logrus.FieldLogger) *bsdWatcher {
 	return &bsdWatcher{
 		done: done,
 		pid:  info.PID,
+		log:  log,
 	}
 }
 
@@ -181,7 +191,8 @@ func (b *bsdWatcher) IsAlive() error {
 	b.mtx.Lock()
 	if b.closed {
 		b.mtx.Unlock()
-		return errors.New("caller is no longer being watched")
+		b.log.Debug(_noLongerWatchedMsg)
+		return errors.New(_noLongerWatchedMsg)
 	}
 	b.mtx.Unlock()
 
@@ -199,7 +210,9 @@ func (b *bsdWatcher) IsAlive() error {
 
 	select {
 	case <-b.done:
-		return errors.New("caller exit detected via kevent notification")
+		msg := "caller exit detected via kevent notification"
+		b.log.Debug(msg)
+		return errors.New(msg)
 	default:
 		return nil
 	}

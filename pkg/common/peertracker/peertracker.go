@@ -21,6 +21,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	_noLongerWatchedMsg = "caller is no longer being watched"
+)
+
 type PeerTracker interface {
 	Close()
 	NewWatcher(CallerInfo) (Watcher, error)

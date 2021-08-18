@@ -87,7 +87,7 @@ func (l *linuxWatcher) IsAlive() error {
 	defer l.mtx.Unlock()
 
 	if l.procfd < 0 {
-		return errors.New("caller is no longer being watched")
+		return errors.New(_noLongerWatchedMsg)
 	}
 
 	// First we will check if we can read from the original directory handle.
