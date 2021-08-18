@@ -189,8 +189,8 @@ func (b *bsdWatcher) IsAlive() error {
 	b.mtx.Lock()
 	if b.closed {
 		b.mtx.Unlock()
-		b.log.Warn(ErrorNoLongerWatched.Error())
-		return ErrorNoLongerWatched
+		b.log.Warn(ErrNoLongerWatched.Error())
+		return ErrNoLongerWatched
 	}
 	b.mtx.Unlock()
 
