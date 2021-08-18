@@ -1,32 +1,32 @@
 # Audit log
 
-The SPIRE Server can be configured to emit audit logs using [audit_log_enabled](spire_server.md#server-configuration-file) that are sent into the same file as regular logs.
+SPIRE Server can be configured to emit audit logs through the [audit_log_enabled](spire_server.md#server-configuration-file) configuration. Audit logs are sent to the same output as regular logs.
 
 ## Fields
 
-Each entry contains fields related with provided `request` to each endpoint, but additionally contains `audit log` specific fields that provides aditional information
+Each entry contains fields related with the provided `request` to each endpoint. It also contains `audit log` specific fields that provide additional information.
 
 | Key | Description | Values |
 | --- | ----------- | ------ |
-| type  | constant that is used to identify that current entry is an audit log | audit |
-| request_id | uuid that identifies current call, it is useful for `Batch` endpoints that can emit multiple audit logs, one per each operation that is done. | |
-| status | Describe if call was successfull or not | [error, success] | 
-| status_code | in case of error contains `gRPC` status code  | |
-| status_message | in case of error contains error returned to caller | |
+| type  | Constant value that is used to identify that the current entry is an audit log. | audit |
+| request_id | A uuid that identifies the current call. It is useful for batch operations that can emit multiple audit logs, one per each operation that is done. | |
+| status | Indicates if the call was successful or not. | [error, success] | 
+| status_code | In case of an error, contains the gRPC status code. | |
+| status_message | In case of an error, contains the error returned to the caller. | |
 
-Aditionally provides fields to to identify `caller`
+The following fields are provided to identify the caller.
 
-UDS:
-> **_NOTE:_**  In order to enable audit logs in K8S for UDS calls `hostPID: true` is required on SPIRE Server node.
+Endpoints listening on UDS:
+> **_NOTE:_**  In order to enable audit log in Kubernetes for calls done on UDS endpoints, `hostPID: true` is required in the SPIRE Server node.
 
-| Key | Description                |
-| ----------- | ------------------ |
-| caller_uid  | caller user ID     |
-| caller_gid  | caller group ID    |
-| caller_path | caller binary path |
+| Key | Description                      |
+| ----------- | ------------------------ |
+| caller_uid  | Caller user ID.          |
+| caller_gid  | Caller group ID.         |
+| caller_path | Caller binary file path. |
 
-TLS:
-| Key | Description                                            | 
-| --- | ------------------------------------------------------ | 
-| caller_addr | caller IP address                              |
-| caller_id   | SPIFFE ID from certificate presented by caller |
+Endpoints listening on TLS ports:
+| Key | Description                                                                     | 
+| --- | ------------------------------------------------------------------------------- | 
+| caller_addr | Caller IP address.                                                      |
+| caller_id   | SPIFFE ID extracted from the X.509 certificate presented by the caller. |
