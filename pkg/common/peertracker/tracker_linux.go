@@ -22,8 +22,8 @@ type linuxTracker struct {
 	log logrus.FieldLogger
 }
 
-func newTracker(log logrus.FieldLogger) (linuxTracker, error) {
-	return linuxTracker{
+func newTracker(log logrus.FieldLogger) (*linuxTracker, error) {
+	return &linuxTracker{
 		log: log.WithField(telemetry.Type, _linuxType),
 	}, nil
 }
@@ -32,7 +32,7 @@ func (l *linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {
 	return newLinuxWatcher(info, l.log)
 }
 
-func (linuxTracker) Close() {
+func (*linuxTracker) Close() {
 }
 
 type linuxWatcher struct {
