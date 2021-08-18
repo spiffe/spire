@@ -9,12 +9,18 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/sirupsen/logrus"
 )
 
-type linuxTracker struct{}
+type linuxTracker struct {
+	log logrus.FieldLogger
+}
 
-func newTracker() (linuxTracker, error) {
-	return linuxTracker{}, nil
+func newTracker(log logrus.FieldLogger) (linuxTracker, error) {
+	return linuxTracker{
+		log: log,
+	}, nil
 }
 
 func (linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {

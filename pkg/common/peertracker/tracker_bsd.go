@@ -9,6 +9,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -21,9 +23,10 @@ type bsdTracker struct {
 	kqfd        int
 	mtx         sync.Mutex
 	watchedPIDs map[int]chan struct{}
+	log         logrus.FieldLogger
 }
 
-func newTracker() (*bsdTracker, error) {
+func newTracker(log logrus.FieldLogger) (*bsdTracker, error) {
 	kqfd, err := syscall.Kqueue()
 	if err != nil {
 		return nil, err
@@ -35,6 +38,7 @@ func newTracker() (*bsdTracker, error) {
 		ctx:         ctx,
 		kqfd:        kqfd,
 		watchedPIDs: make(map[int]chan struct{}),
+		log:         log,
 	}
 
 	go tracker.receiveKevents(kqfd)
