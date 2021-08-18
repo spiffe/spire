@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 
+	// "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
@@ -25,6 +27,7 @@ type PeerTrackerTestSuite struct {
 	childPath string
 	ul        *Listener
 	unixAddr  *net.UnixAddr
+	logHook   *logtest.Hook
 }
 
 func (p *PeerTrackerTestSuite) SetupTest() {
@@ -42,7 +45,10 @@ func (p *PeerTrackerTestSuite) SetupTest() {
 		Name: path.Join(tempDir, "test.sock"),
 	}
 
-	p.ul, err = (&ListenerFactory{}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
+	log, hook := logtest.NewNullLogger()
+	p.logHook = hook
+
+	p.ul, err = (&ListenerFactory{Log: log}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
 	p.NoError(err)
 }
 
