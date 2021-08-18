@@ -1,0 +1,67 @@
+version: '3'
+services:
+  upstream-spire-server:
+    image: spire-server:latest-local
+    hostname: upstream-spire-sever
+    volumes:
+      - ./conf/upstream/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  downstream-federated-spire-server:
+    image: spire-server:latest-local
+    hostname: downstream-federated-spire-server
+    volumes:
+      - ./conf/downstream-federated/server:/opt/spire/conf/server
+    command: ["config", "/opt/spire/conf/server/server.conf"]
+  upstream-proxy:
+    image: envoy-agent-mashup
+    hostname: upstream-proxy
+    depends_on: ["upstream-spire-server", "upstream-socat"]
+    volumes:
+      - ./conf/upstream/agent:/opt/spire/conf/agent
+      - ./conf/upstream/envoy:/opt/envoy/conf
+  downstream-proxy:
+    image: envoy-agent-mashup
+    hostname: downstream-proxy
+    depends_on: ["upstream-spire-server", "upstream-proxy"]
+    volumes:
+      - ./conf/downstream/agent:/opt/spire/conf/agent
+      - ./conf/downstream/envoy:/opt/envoy/conf
+  downstream-federated-proxy:
+    image: envoy-agent-mashup
+    hostname: downstream-federated-proxy
+    depends_on: ["downstream-federated-spire-server", "upstream-proxy"]
+    volumes:
+      - ./conf/downstream-federated/agent:/opt/spire/conf/agent
+      - ./conf/downstream-federated/envoy:/opt/envoy/conf
+  upstream-socat:
+    image: alpine/socat:latest
+    hostname: upstream-socat
+    command: ["-d", "-d", "TCP-LISTEN:8000,fork", "OPEN:\"/tmp/howdy\",creat,append"]
+  downstream-socat-mtls:
+    image: alpine/socat:latest
+    hostname: downstream-socat-mtls
+    restart: on-failure
+    depends_on: ["downstream-proxy"]
+    tty: true
+    command: ["-d", "-d", "TCP-LISTEN:8001,fork", "TCP:downstream-proxy:8001"]
+  downstream-socat-tls:
+    image: alpine/socat:latest
+    hostname: downstream-socat-tls
+    restart: on-failure
+    depends_on: ["downstream-proxy"]
+    tty: true
+    command: ["-d", "-d", "TCP-LISTEN:8002,fork", "TCP:downstream-proxy:8002"]
+  downstream-federated-socat-mtls:
+    image: alpine/socat:latest
+    hostname: downstream-federated-socat-mtls
+    restart: on-failure
+    depends_on: ["downstream-federated-proxy"]
+    tty: true
+    command: ["-d", "-d", "TCP-LISTEN:8001,fork", "TCP:downstream-federated-proxy:8001"]
+  downstream-federated-socat-tls:
+    image: alpine/socat:latest
+    hostname: downstream-federated-socat-tls
+    restart: on-failure
+    depends_on: ["downstream-federated-proxy"]
+    tty: true
+    command: ["-d", "-d", "TCP-LISTEN:8002,fork", "TCP:downstream-federated-proxy:8002"]
