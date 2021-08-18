@@ -189,7 +189,7 @@ func (b *bsdWatcher) IsAlive() error {
 	b.mtx.Lock()
 	if b.closed {
 		b.mtx.Unlock()
-		b.log.Debug(ErrorNoLongerWatched.Error())
+		b.log.Warn(ErrorNoLongerWatched.Error())
 		return ErrorNoLongerWatched
 	}
 	b.mtx.Unlock()
@@ -209,7 +209,7 @@ func (b *bsdWatcher) IsAlive() error {
 	select {
 	case <-b.done:
 		msg := "caller exit detected via kevent notification"
-		b.log.Debug(msg)
+		b.log.Warn(msg)
 		return errors.New(msg)
 	default:
 		return nil

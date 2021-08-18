@@ -102,7 +102,7 @@ func (l *linuxWatcher) IsAlive() error {
 	defer l.mtx.Unlock()
 
 	if l.procfd < 0 {
-		l.log.Debug(ErrorNoLongerWatched.Error())
+		l.log.Warn(ErrorNoLongerWatched.Error())
 		return ErrNoLongerWatched
 	}
 
@@ -113,12 +113,12 @@ func (l *linuxWatcher) IsAlive() error {
 	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
 		msg := "caller exit suspected due to failed readdirent"
-		l.log.WithError(err).Debug(msg)
+		l.log.WithError(err).Warn(msg)
 		return errors.New(msg)
 	}
 	if n < 0 {
 		msg := fmt.Sprintf("caller exit suspected due to failed readdirent: n=%d", n)
-		l.log.Debug(msg)
+		l.log.Warn(msg)
 		return errors.New(msg)
 	}
 
@@ -133,12 +133,12 @@ func (l *linuxWatcher) IsAlive() error {
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
 		msg := "caller exit suspected due to failure to get starttime"
-		l.log.WithError(err).Debug(msg)
+		l.log.WithError(err).Warn(msg)
 		return errors.New(msg)
 	}
 	if currentStarttime != l.starttime {
 		msg := fmt.Sprintf("new process detected: process starttime %v does not match original caller %v", currentStarttime, l.starttime)
-		l.log.Debug(msg)
+		l.log.Warn(msg)
 		return errors.New(msg)
 	}
 
@@ -149,17 +149,17 @@ func (l *linuxWatcher) IsAlive() error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(l.procPath, &stat); err != nil {
 		msg := "caller exit suspected due to failed proc stat"
-		l.log.WithError(err).Debug(msg)
+		l.log.WithError(err).Warn(msg)
 		return errors.New(msg)
 	}
 	if stat.Uid != l.uid {
 		msg := fmt.Sprintf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
-		l.log.Debug(msg)
+		l.log.Warn(msg)
 		return errors.New(msg)
 	}
 	if stat.Gid != l.gid {
 		msg := fmt.Sprintf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
-		l.log.Debug(msg)
+		l.log.Warn(msg)
 		return errors.New(msg)
 	}
 
