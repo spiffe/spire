@@ -4,7 +4,7 @@ SPIRE Server can be configured to emit audit logs through the [audit_log_enabled
 
 ## Fields
 
-Each entry contains fields related with the provided `request` to each endpoint. It also contains `audit log` specific fields that provide additional information.
+Each entry contains fields related with the provided request to each endpoint. It also contains audit log specific fields that provide additional information.
 
 | Key | Description | Values |
 | --- | ----------- | ------ |
@@ -16,7 +16,7 @@ Each entry contains fields related with the provided `request` to each endpoint.
 
 The following fields are provided to identify the caller.
 
-Endpoints listening on UDS:
+### Endpoints listening on UDS
 > **_NOTE:_**  In order to enable audit log in Kubernetes for calls done on UDS endpoints, `hostPID: true` is required in the SPIRE Server node.
 
 | Key | Description                      |
@@ -25,7 +25,7 @@ Endpoints listening on UDS:
 | caller_gid  | Caller group ID.         |
 | caller_path | Caller binary file path. |
 
-Endpoints listening on TLS ports:
+### Endpoints listening on TLS ports
 | Key | Description                                                                     | 
 | --- | ------------------------------------------------------------------------------- | 
 | caller_addr | Caller IP address.                                                      |
