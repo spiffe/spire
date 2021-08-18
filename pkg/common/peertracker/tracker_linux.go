@@ -66,12 +66,12 @@ func newLinuxWatcher(info CallerInfo, log logrus.FieldLogger) (*linuxWatcher, er
 		return nil, err
 	}
 
-	log := log.WithFields(logrus.Fields{
+	log = log.WithFields(logrus.Fields{
 		telemetry.CallerGID: info.GID,
 		telemetry.PID:       info.PID,
 		telemetry.Path:      procPath,
 		telemetry.CallerUID: info.UID,
-		telemetry.StartTime, starttime,
+		telemetry.StartTime: starttime,
 	})
 
 	return &linuxWatcher{
