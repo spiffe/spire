@@ -1,4 +1,5 @@
 # SPIRE Server Configuration Reference
+## This is a test
 
 This document is a configuration reference for SPIRE Server. It includes information about plugin types, built-in plugins, the server configuration file, plugin configuration, and command line options for `spire-server` commands.
 
