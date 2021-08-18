@@ -178,11 +178,7 @@ func (e *SVID) dumpSVID(svid *spiretypes.X509SVID, key crypto.Signer) error {
 
 	// Write key to disk
 	keyFileName := path.Join(e.c.WebhookCertDir, keyFileName)
-	if err := os.WriteFile(keyFileName, keyPEM.Bytes(), keyFileMode); err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(keyFileName, keyPEM.Bytes(), keyFileMode)
 }
 
 func certHalfLife(cert *x509.Certificate) time.Time {

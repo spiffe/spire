@@ -91,14 +91,10 @@ data:
         plugin_data {
           clusters = {
             "demo-cluster" = {
-              service_account_whitelist = ["spire:spire-agent"]
+              service_account_allow_list = ["spire:spire-agent"]
             }
           }
         }
-      }
-
-      NodeResolver "noop" {
-        plugin_data {}
       }
 
       KeyManager "disk" {
@@ -158,7 +154,7 @@ data:
     log_level = "debug"
     trust_domain = "example.org"
     agent_socket_path = "/run/spire/sockets/agent.sock"
-    server_socket_path = "/tmp/spire-registration.sock"
+    server_socket_path = "/tmp/spire-server/private/api.sock"
     cluster = "demo-cluster"
     pod_controller = true
     add_svc_dns_names = true
@@ -213,7 +209,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:0.12.2
+          image: gcr.io/spiffe-io/spire-server:1.0.1
           args:
             - -config
             - /run/spire/config/server.conf
