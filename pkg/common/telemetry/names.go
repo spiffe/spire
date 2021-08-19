@@ -314,6 +314,10 @@ const (
 	// Reason is the reason for something
 	Reason = "reason"
 
+	// Received tags a received value, as opposed to the one that is expected. Message should clarify
+	// what kind of value was received, and a different field should show the expected value.
+	Received = "received"
+
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
 

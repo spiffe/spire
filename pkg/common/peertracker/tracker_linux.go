@@ -116,9 +116,8 @@ func (l *linuxWatcher) IsAlive() error {
 		return errors.New("caller exit suspected due to failed readdirent")
 	}
 	if n < 0 {
-		msg := fmt.Sprintf("caller exit suspected due to failed readdirent: n=%d", n)
-		l.log.Warn(msg)
-		return errors.New(msg)
+		l.log.WithField(telemetry.StatusCode, n).Warn("Caller exit suspected due to failed readdirent")
+		return fmt.Errorf("caller exit suspected due to failed readdirent: n=%d", n)
 	}
 
 	// A successful fd read should indicate that the original process is still alive, however
@@ -131,14 +130,15 @@ func (l *linuxWatcher) IsAlive() error {
 	// TODO: Evaluate the use of `starttime` as the primary exit detection mechanism.
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
-		msg := "caller exit suspected due to failure to get starttime"
-		l.log.WithError(err).Warn(msg)
-		return errors.New(msg)
+		l.log.WithError(err).Warn("Caller exit suspected due to failure to get starttime")
+		return errors.New("caller exit suspected due to failure to get starttime")
 	}
 	if currentStarttime != l.starttime {
-		msg := fmt.Sprintf("new process detected: process starttime %v does not match original caller %v", currentStarttime, l.starttime)
-		l.log.Warn(msg)
-		return errors.New(msg)
+		l.log.WithFields(logrus.Fields{
+			telemetry.Expected + telemetry.StartTime: l.starttime,
+			telemetry.Received + telemetry.StartTime: currentStarttime,
+		}).Warn("New process detected: process starttime does not match original caller")
+		return fmt.Errorf("new process detected: process starttime %v does not match original caller %v", currentStarttime, l.starttime)
 	}
 
 	// Finally, read the UID and GID off the proc directory to determine the owner. If
@@ -151,14 +151,18 @@ func (l *linuxWatcher) IsAlive() error {
 		return errors.New("caller exit suspected due to failed proc stat")
 	}
 	if stat.Uid != l.uid {
-		msg := fmt.Sprintf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
-		l.log.Warn(msg)
-		return errors.New(msg)
+		l.log.WithFields(logrus.Fields{
+			telemetry.Expected + telemetry.UID: l.uid,
+			telemetry.Received + telemetry.UID: stat.Uid,
+		}).Warn("New process detected: process uid does not match original caller")
+		return fmt.Errorf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
 	}
 	if stat.Gid != l.gid {
-		msg := fmt.Sprintf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
-		l.log.Warn(msg)
-		return errors.New(msg)
+		l.log.WithFields(logrus.Fields{
+			telemetry.Expected + telemetry.GID: l.gid,
+			telemetry.Received + telemetry.GID: stat.Gid,
+		}).Warn("New process detected: process gid does not match original caller")
+		return fmt.Errorf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
 	}
 
 	return nil
