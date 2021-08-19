@@ -131,7 +131,7 @@ func (l *linuxWatcher) IsAlive() error {
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
 		l.log.WithError(err).Warn("Caller exit suspected due to failure to get starttime")
-		return errors.New("caller exit suspected due to failure to get starttime")
+		return fmt.Errorf("caller exit suspected due to failure to get starttime: %w", err)
 	}
 	if currentStarttime != l.starttime {
 		l.log.WithFields(logrus.Fields{
