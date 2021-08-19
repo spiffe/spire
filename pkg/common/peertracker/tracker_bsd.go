@@ -189,8 +189,8 @@ func (b *bsdWatcher) IsAlive() error {
 	b.mtx.Lock()
 	if b.closed {
 		b.mtx.Unlock()
-		b.log.Warn(ErrNoLongerWatched.Error())
-		return ErrNoLongerWatched
+		b.log.Warn("Caller is no longer being watched")
+		return errors.New("caller is no longer being watched")
 	}
 	b.mtx.Unlock()
 

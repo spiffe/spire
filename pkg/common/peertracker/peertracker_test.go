@@ -117,7 +117,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// Should return an error once we're no longer tracking
 	peer.disconnect()
 	conn.Close()
-	p.EqualError(conn.Info.Watcher.IsAlive(), ErrNoLongerWatched.Error())
+	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 
 	// Start a forking child and allow it to exit while the grandchild holds the socket
 	peer.connectFromForkingChild(p.unixAddr, p.childPath, doneCh)
@@ -144,7 +144,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 		p.Require().Len(p.logHook.Entries, 2)
 		firstEntry := p.logHook.Entries[0]
 		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
-		p.Require().Equal(ErrNoLongerWatched.Error(), firstEntry.Message)
+		p.Require().Equal("Caller is no longer being watched", firstEntry.Message)
 		secondEntry := p.logHook.Entries[1]
 		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
 		p.Require().Equal("Caller exit detected via kevent notification", secondEntry.Message)
@@ -153,7 +153,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 		p.Require().Len(p.logHook.Entries, 2)
 		firstEntry := p.logHook.Entries[0]
 		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
-		p.Require().Equal(ErrNoLongerWatched.Error(), firstEntry.Message)
+		p.Require().Equal("Caller is no longer being watched", firstEntry.Message)
 		secondEntry := p.logHook.Entries[1]
 		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
 		p.Require().Equal("Caller exit suspected due to failed readdirent", secondEntry.Message)
@@ -175,7 +175,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	// the tracker has been closed
 	p.ul.Close()
 	p.ul = nil
-	p.EqualError(conn.Info.Watcher.IsAlive(), ErrNoLongerWatched.Error())
+	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 }
 
 type fakeUDSPeer struct {
