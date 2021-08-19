@@ -147,7 +147,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 		p.Require().Equal(ErrNoLongerWatched.Error(), firstEntry.Message)
 		secondEntry := p.logHook.Entries[1]
 		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
-		p.Require().Equal("caller exit detected via kevent notification", secondEntry.Message)
+		p.Require().Equal("Caller exit detected via kevent notification", secondEntry.Message)
 	case "linux":
 		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
 		p.Require().Len(p.logHook.Entries, 2)
@@ -156,7 +156,7 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 		p.Require().Equal(ErrNoLongerWatched.Error(), firstEntry.Message)
 		secondEntry := p.logHook.Entries[1]
 		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
-		p.Require().Equal("caller exit suspected due to failed readdirent", secondEntry.Message)
+		p.Require().Equal("Caller exit suspected due to failed readdirent", secondEntry.Message)
 		p.Require().Equal(syscall.ENOENT, secondEntry.Data["error"])
 	default:
 		p.FailNow("missing case for OS specific failure")

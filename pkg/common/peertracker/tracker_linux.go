@@ -112,9 +112,8 @@ func (l *linuxWatcher) IsAlive() error {
 	var buf [8196]byte
 	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
-		msg := "caller exit suspected due to failed readdirent"
-		l.log.WithError(err).Warn(msg)
-		return errors.New(msg)
+		l.log.WithError(err).Warn("Caller exit suspected due to failed readdirent")
+		return errors.New("caller exit suspected due to failed readdirent")
 	}
 	if n < 0 {
 		msg := fmt.Sprintf("caller exit suspected due to failed readdirent: n=%d", n)
@@ -148,9 +147,8 @@ func (l *linuxWatcher) IsAlive() error {
 	// the original caller by comparing it to the received CallerInfo.
 	var stat syscall.Stat_t
 	if err := syscall.Stat(l.procPath, &stat); err != nil {
-		msg := "caller exit suspected due to failed proc stat"
-		l.log.WithError(err).Warn(msg)
-		return errors.New(msg)
+		l.log.WithError(err).Warn("Caller exit suspected due to failed proc stat")
+		return errors.New("caller exit suspected due to failed proc stat")
 	}
 	if stat.Uid != l.uid {
 		msg := fmt.Sprintf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)

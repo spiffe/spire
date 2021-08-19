@@ -208,9 +208,8 @@ func (b *bsdWatcher) IsAlive() error {
 
 	select {
 	case <-b.done:
-		msg := "caller exit detected via kevent notification"
-		b.log.Warn(msg)
-		return errors.New(msg)
+		b.log.Warn("Caller exit detected via kevent notification")
+		return errors.New("caller exit detected via kevent notification")
 	default:
 		return nil
 	}
