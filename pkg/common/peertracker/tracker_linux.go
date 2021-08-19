@@ -135,7 +135,7 @@ func (l *linuxWatcher) IsAlive() error {
 	}
 	if currentStarttime != l.starttime {
 		l.log.WithFields(logrus.Fields{
-			telemetry.ExpectStartTime: l.starttime,
+			telemetry.ExpectStartTime:   l.starttime,
 			telemetry.ReceivedStartTime: currentStarttime,
 		}).Warn("New process detected: process starttime does not match original caller")
 		return fmt.Errorf("new process detected: process starttime %v does not match original caller %v", currentStarttime, l.starttime)
@@ -152,14 +152,14 @@ func (l *linuxWatcher) IsAlive() error {
 	}
 	if stat.Uid != l.uid {
 		l.log.WithFields(logrus.Fields{
-			telemetry.ExpectUID: l.uid,
+			telemetry.ExpectUID:   l.uid,
 			telemetry.ReceivedUID: stat.Uid,
 		}).Warn("New process detected: process uid does not match original caller")
 		return fmt.Errorf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
 	}
 	if stat.Gid != l.gid {
 		l.log.WithFields(logrus.Fields{
-			telemetry.ExpectGID: l.gid,
+			telemetry.ExpectGID:   l.gid,
 			telemetry.ReceivedGID: stat.Gid,
 		}).Warn("New process detected: process gid does not match original caller")
 		return fmt.Errorf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
