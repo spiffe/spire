@@ -389,7 +389,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test", "😬.test"), source, false)
+			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())

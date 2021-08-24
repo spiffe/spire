@@ -9,17 +9,14 @@ import (
 
 func TestDomainAllowlist(t *testing.T) {
 	t.Run("unicode", func(t *testing.T) {
-		policy, err := DomainAllowlist("😬.test")
-		require.NoError(t, err)
-		assert.NoError(t, policy("😬.test"))
-		assert.NoError(t, policy("xn--n38h.test"))
-		assert.EqualError(t, policy("bad.test"), `domain "bad.test" is not allowed`)
+		_, err := DomainAllowlist("😬.test")
+		assert.EqualError(t, err, `domain "😬.test" must already be punycode encoded`)
 	})
 
 	t.Run("punycode", func(t *testing.T) {
 		policy, err := DomainAllowlist("xn--n38h.test")
 		require.NoError(t, err)
-		assert.NoError(t, policy("😬.test"))
+		assert.EqualError(t, policy("😬.test"), `domain "😬.test" must already be punycode encoded`)
 		assert.NoError(t, policy("xn--n38h.test"))
 		assert.EqualError(t, policy("bad.test"), `domain "bad.test" is not allowed`)
 	})

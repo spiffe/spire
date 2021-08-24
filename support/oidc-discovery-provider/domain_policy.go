@@ -39,9 +39,12 @@ func AllowAnyDomain() DomainPolicy {
 }
 
 func toDomainKey(domain string) (string, error) {
-	domainKey, err := idna.Lookup.ToASCII(domain)
+	punycode, err := idna.Lookup.ToASCII(domain)
 	if err != nil {
 		return "", fmt.Errorf("domain %q is not a valid domain name: %w", domain, err)
 	}
-	return domainKey, nil
+	if punycode != domain {
+		return "", fmt.Errorf("domain %q must already be punycode encoded", domain)
+	}
+	return domain, nil
 }
