@@ -213,6 +213,15 @@ const (
 	// what kind of value was expected, and a different field should show the received value
 	Expect = "expect"
 
+	// ExpectGID is like Expect, specific to gid.
+	ExpectGID = "expect_gid"
+
+	// ExpectStartTime is like Expect, specific to a start time.
+	ExpectStartTime = "expect_start_time"
+
+	// ExpectUID is like Expect, specific to uid.
+	ExpectUID = "expect_uid"
+
 	// Expiration tags an expiration time for some entity
 	Expiration = "expiration"
 
@@ -314,6 +323,19 @@ const (
 	// Reason is the reason for something
 	Reason = "reason"
 
+	// Received tags a received value, as opposed to the one that is expected. Message should clarify
+	// what kind of value was received, and a different field should show the expected value.
+	Received = "received"
+
+	// ReceivedGID is like Received, specific to gid.
+	ReceivedGID = "received_gid"
+
+	// ReceivedStartTime is like Received, specific to a start time.
+	ReceivedStartTime = "received_start_time"
+
+	// ReceivedUID is like Received, specific to uid.
+	ReceivedUID = "received_uid"
+
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
 
@@ -375,6 +397,9 @@ const (
 
 	// SPIFFEID tags a SPIFFE ID
 	SPIFFEID = "spiffe_id"
+
+	// StartTime tags some start/entry timestamp.
+	StartTime = "start_time"
 
 	// Status tags status of call (OK, or some error), or status of some process
 	Status = "status"
