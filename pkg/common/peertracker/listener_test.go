@@ -23,7 +23,7 @@ func (failingMockTracker) NewWatcher(CallerInfo) (Watcher, error) {
 	return nil, errMockWatcherFailed
 }
 
-func newFailingMockTracker() (PeerTracker, error) {
+func newFailingMockTracker(_ logrus.FieldLogger) (PeerTracker, error) {
 	return failingMockTracker{}, nil
 }
 

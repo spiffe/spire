@@ -6,6 +6,10 @@
 
 package peertracker
 
-func newTracker() (PeerTracker, error) {
+import (
+	"github.com/sirupsen/logrus"
+)
+
+func newTracker(log logrus.FieldLogger) (PeerTracker, error) {
 	return nil, ErrUnsupportedPlatform
 }
