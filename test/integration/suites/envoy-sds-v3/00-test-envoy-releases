@@ -1,24 +1,5 @@
 #!/bin/bash
 
-build-mashup-image() {
-    ENVOY_VERSION=$1
-    ENVOY_IMAGE_TAG="${ENVOY_VERSION}-latest"
-
-    cat > Dockerfile <<EOF
-FROM spire-agent:latest-local as spire-agent
-
-FROM envoyproxy/envoy-alpine:${ENVOY_IMAGE_TAG} AS envoy-agent-mashup
-COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
-RUN apk --no-cache add dumb-init
-RUN apk --no-cache add supervisor
-COPY conf/supervisord.conf /etc/
-ENTRYPOINT ["/usr/bin/dumb-init", "supervisord", "--nodaemon", "--configuration", "/etc/supervisord.conf"]
-CMD []
-EOF
-
-    docker build --target envoy-agent-mashup -t envoy-agent-mashup .
-}
-
 setup-tests() {
     # Bring up the server
     docker-up spire-server
@@ -102,44 +83,7 @@ MAX_ENVOY_RELEASES_TO_TEST=5
 # API.
 EARLIEST_ENVOY_RELEASE_TO_TEST=v1.13
 
-# Get the version list by downloading the JSON release listing, grabbing all of
-# the tag names, cutting out the quoted version, and sorting by reverse version
-# order. jq would make this much nicer, but we don't want to rely on it being
-# in the environment or downloading it just for this use case. Also, "sort -V"
-# is a thing, but unfortunately isn't available everyhere.
-#
-# The rest of the command strips off the point release to produce a sorted,
-# unique list of minor versions. We take the most recent MAX_ENVOY_RELEASES_TO_TEST
-# number of versions to test.
-ALL_ENVOY_RELEASES="$(curl -Ls https://api.github.com/repos/envoyproxy/envoy/releases?per_page=100 \
-    | grep tag_name \
-    | cut -d\" -f4-4 \
-    | cut -d. -f-2 \
-    | sort -u -t. -k 1,1nr -k 2,2nr \
-    | head -n"${MAX_ENVOY_RELEASES_TO_TEST}"
-    )"
-
-# Now scan the releases and ensure the ones we test are available on Docker
-# Hub.  Normally they should all be available, but there has been latency from
-# the Envoy team publishing the docker image, so this prevents us from trying
-# to test an unpublished release image. This loop also stops if we try and test
-# earlier than v1.13, which is the first release to adopt the v3 API (v2 is
-# deprecated).
-for release in ${ALL_ENVOY_RELEASES}; do
-    if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy-alpine/tags/${release}-latest" > /dev/null 2>/dev/null; then
-        continue
-    fi
-
-    ENVOY_RELEASES_TO_TEST+=( "${release}" )
-
-    if [ "${release}" = "${EARLIEST_ENVOY_RELEASE_TO_TEST}" ]; then
-        break
-    fi
-done
-
-if [ "${#ENVOY_RELEASES_TO_TEST[@]}" -eq 0 ]; then
-    fail-now "Could not identify an appropriate Envoy image to test against"
-fi
+envoy-releases
 
 log-info "Releases to test: ${ENVOY_RELEASES_TO_TEST[@]}"
 
