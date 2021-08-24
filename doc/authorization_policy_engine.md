@@ -1,5 +1,10 @@
 # Authorization policy engine
 
+**Warning**: Use of custom authorization policies is experiemental and can
+result in security degredation if not configured correctly. Please refer to 
+[this section](#extending-the-policy) for more details on extending the default
+policy.
+
 The authorization decisions in SPIRE are determined by a policy engine which
 bases its decision on a rego policy and databindings with Open Policy Agent
 (OPA). 
@@ -8,10 +13,12 @@ This is a sample configuration of the policy.
 
 ```
 server {
-    auth_opa_policy_engine {
-        local {
-            rego_path = "./conf/server/policy.rego"
-            policy_data_path = "./conf/server/policy_data.json"
+    experimental {
+        auth_opa_policy_engine {
+            local {
+                rego_path = "./conf/server/policy.rego"
+                policy_data_path = "./conf/server/policy_data.json"
+            }
         }
     }
 }

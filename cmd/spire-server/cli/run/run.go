@@ -84,9 +84,8 @@ type serverConfig struct {
 	SocketPath      string             `hcl:"socket_path"`
 	TrustDomain     string             `hcl:"trust_domain"`
 
-	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	ConfigPath          string
-	ExpandEnv           bool
+	ConfigPath string
+	ExpandEnv  bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -107,6 +106,8 @@ type experimentalConfig struct {
 	CacheReloadInterval string `hcl:"cache_reload_interval"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
+
+	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 }
 
 type caSubjectConfig struct {
@@ -591,7 +592,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CacheReloadInterval = interval
 	}
 
-	sc.AuthOpaPolicyEngineConfig = c.Server.AuthOpaPolicyEngine
+	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
 
 	return sc, nil
 }

@@ -69,7 +69,6 @@ This may be useful for templating configuration files, for example across differ
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
 | `socket_path`               | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
-| `auth_opa_policy_engine`    | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions | default SPIRE authorization policy                             |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -80,13 +79,14 @@ This may be useful for templating configuration files, for example across differ
 | experimental                | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s |
+| `auth_opa_policy_engine`    | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions | default SPIRE authorization policy                             |
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `attestation`               | Whether or not to rate limit node attestation. If true, node attestation is rate limited to one attempt per second per IP address. | true |
 | `signing`                   | Whether or not to rate limit JWT and X509 signing. If true, JWT and X509 signing are rate limited to 500 requests per second per IP address (separately). | true |
 
-| auth_opa_policy_engine          | Description                    | Default        |
+| auth_opa_policy_engine      | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `local`                     | Local OPA configuration for authorization policy. |      |
 
