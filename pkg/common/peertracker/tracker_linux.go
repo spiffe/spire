@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	_linuxType = "linux"
+	linuxType = "linux"
 )
 
 type linuxTracker struct {
@@ -24,7 +24,7 @@ type linuxTracker struct {
 
 func newTracker(log logrus.FieldLogger) (*linuxTracker, error) {
 	return &linuxTracker{
-		log: log.WithField(telemetry.Type, _linuxType),
+		log: log.WithField(telemetry.Type, linuxType),
 	}, nil
 }
 
