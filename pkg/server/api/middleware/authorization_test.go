@@ -113,7 +113,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				"allow": false,
 			}),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "allow_if_local local caller test",
@@ -132,7 +132,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				"allow_if_local": true,
 			}),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "allow_if_admin admin caller test",
@@ -151,7 +151,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				"allow_if_admin": true,
 			}),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "allow_if_downstream downstream caller test",
@@ -170,7 +170,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 				"allow_if_downstream": true,
 			}),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "allow_if_agent agent caller test",
@@ -191,7 +191,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			}),
 			agentAuthorizer: noAgentAuthorizer,
 			expectCode:      codes.PermissionDenied,
-			expectMsg:       fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:       fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "check passing of caller id positive test",
@@ -206,7 +206,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			peer:       mtlsPeer,
 			rego:       condCheckRego("input.caller == \"abc\""),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:            "check passing of full method positive test",
@@ -222,7 +222,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			peer:       mtlsPeer,
 			rego:       condCheckRego("input.full_method == \"notmethod\""),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "check passing of request positive test",
@@ -244,7 +244,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			},
 			rego:       condCheckRego("input.req.foo == \"bar\""),
 			expectCode: codes.PermissionDenied,
-			expectMsg:  fmt.Sprintf("Authorization denied for method %s", fakeFullMethod),
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
 			name:       "no peer",
