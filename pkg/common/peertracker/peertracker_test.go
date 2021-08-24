@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 )
@@ -25,6 +27,7 @@ type PeerTrackerTestSuite struct {
 	childPath string
 	ul        *Listener
 	unixAddr  *net.UnixAddr
+	logHook   *logtest.Hook
 }
 
 func (p *PeerTrackerTestSuite) SetupTest() {
@@ -42,7 +45,10 @@ func (p *PeerTrackerTestSuite) SetupTest() {
 		Name: path.Join(tempDir, "test.sock"),
 	}
 
-	p.ul, err = (&ListenerFactory{}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
+	log, hook := logtest.NewNullLogger()
+	p.logHook = hook
+
+	p.ul, err = (&ListenerFactory{Log: log}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
 	p.NoError(err)
 }
 
@@ -135,8 +141,23 @@ func (p *PeerTrackerTestSuite) TestExitDetection() {
 	switch runtime.GOOS {
 	case "darwin":
 		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit detected via kevent notification")
+		p.Require().Len(p.logHook.Entries, 2)
+		firstEntry := p.logHook.Entries[0]
+		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
+		p.Require().Equal("Caller is no longer being watched", firstEntry.Message)
+		secondEntry := p.logHook.Entries[1]
+		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
+		p.Require().Equal("Caller exit detected via kevent notification", secondEntry.Message)
 	case "linux":
-		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent: err=no such file or directory")
+		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
+		p.Require().Len(p.logHook.Entries, 2)
+		firstEntry := p.logHook.Entries[0]
+		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
+		p.Require().Equal("Caller is no longer being watched", firstEntry.Message)
+		secondEntry := p.logHook.Entries[1]
+		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
+		p.Require().Equal("Caller exit suspected due to failed readdirent", secondEntry.Message)
+		p.Require().Equal(syscall.ENOENT, secondEntry.Data["error"])
 	default:
 		p.FailNow("missing case for OS specific failure")
 	}

@@ -9,19 +9,30 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+
+	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
-type linuxTracker struct{}
+const (
+	linuxType = "linux"
+)
 
-func newTracker() (linuxTracker, error) {
-	return linuxTracker{}, nil
+type linuxTracker struct {
+	log logrus.FieldLogger
 }
 
-func (linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {
-	return newLinuxWatcher(info)
+func newTracker(log logrus.FieldLogger) (*linuxTracker, error) {
+	return &linuxTracker{
+		log: log.WithField(telemetry.Type, linuxType),
+	}, nil
 }
 
-func (linuxTracker) Close() {
+func (l *linuxTracker) NewWatcher(info CallerInfo) (Watcher, error) {
+	return newLinuxWatcher(info, l.log)
+}
+
+func (*linuxTracker) Close() {
 }
 
 type linuxWatcher struct {
@@ -32,9 +43,10 @@ type linuxWatcher struct {
 	procfd    int
 	starttime string
 	uid       uint32
+	log       logrus.FieldLogger
 }
 
-func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
+func newLinuxWatcher(info CallerInfo, log logrus.FieldLogger) (*linuxWatcher, error) {
 	// If PID == 0, something is wrong...
 	if info.PID == 0 {
 		return nil, errors.New("could not resolve caller information")
@@ -54,6 +66,14 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 		return nil, err
 	}
 
+	log = log.WithFields(logrus.Fields{
+		telemetry.CallerGID: info.GID,
+		telemetry.PID:       info.PID,
+		telemetry.Path:      procPath,
+		telemetry.CallerUID: info.UID,
+		telemetry.StartTime: starttime,
+	})
+
 	return &linuxWatcher{
 		gid:       info.GID,
 		pid:       info.PID,
@@ -61,6 +81,7 @@ func newLinuxWatcher(info CallerInfo) (*linuxWatcher, error) {
 		procfd:    procfd,
 		starttime: starttime,
 		uid:       info.UID,
+		log:       log,
 	}, nil
 }
 
@@ -81,6 +102,7 @@ func (l *linuxWatcher) IsAlive() error {
 	defer l.mtx.Unlock()
 
 	if l.procfd < 0 {
+		l.log.Warn("Caller is no longer being watched")
 		return errors.New("caller is no longer being watched")
 	}
 
@@ -90,9 +112,11 @@ func (l *linuxWatcher) IsAlive() error {
 	var buf [8196]byte
 	n, err := syscall.ReadDirent(l.procfd, buf[:])
 	if err != nil {
-		return fmt.Errorf("caller exit suspected due to failed readdirent: err=%w", err)
+		l.log.WithError(err).Warn("Caller exit suspected due to failed readdirent")
+		return errors.New("caller exit suspected due to failed readdirent")
 	}
 	if n < 0 {
+		l.log.WithField(telemetry.StatusCode, n).Warn("Caller exit suspected due to failed readdirent")
 		return fmt.Errorf("caller exit suspected due to failed readdirent: n=%d", n)
 	}
 
@@ -106,10 +130,15 @@ func (l *linuxWatcher) IsAlive() error {
 	// TODO: Evaluate the use of `starttime` as the primary exit detection mechanism.
 	currentStarttime, err := getStarttime(l.pid)
 	if err != nil {
+		l.log.WithError(err).Warn("Caller exit suspected due to failure to get starttime")
 		return fmt.Errorf("caller exit suspected due to failure to get starttime: %w", err)
 	}
 	if currentStarttime != l.starttime {
-		return errors.New("new process detected: starttime mismatch")
+		l.log.WithFields(logrus.Fields{
+			telemetry.ExpectStartTime:   l.starttime,
+			telemetry.ReceivedStartTime: currentStarttime,
+		}).Warn("New process detected: process starttime does not match original caller")
+		return fmt.Errorf("new process detected: process starttime %v does not match original caller %v", currentStarttime, l.starttime)
 	}
 
 	// Finally, read the UID and GID off the proc directory to determine the owner. If
@@ -118,12 +147,21 @@ func (l *linuxWatcher) IsAlive() error {
 	// the original caller by comparing it to the received CallerInfo.
 	var stat syscall.Stat_t
 	if err := syscall.Stat(l.procPath, &stat); err != nil {
-		return fmt.Errorf("caller exit suspected due to failed proc stat: %w", err)
+		l.log.WithError(err).Warn("Caller exit suspected due to failed proc stat")
+		return errors.New("caller exit suspected due to failed proc stat")
 	}
 	if stat.Uid != l.uid {
+		l.log.WithFields(logrus.Fields{
+			telemetry.ExpectUID:   l.uid,
+			telemetry.ReceivedUID: stat.Uid,
+		}).Warn("New process detected: process uid does not match original caller")
 		return fmt.Errorf("new process detected: process uid %v does not match original caller %v", stat.Uid, l.uid)
 	}
 	if stat.Gid != l.gid {
+		l.log.WithFields(logrus.Fields{
+			telemetry.ExpectGID:   l.gid,
+			telemetry.ReceivedGID: stat.Gid,
+		}).Warn("New process detected: process gid does not match original caller")
 		return fmt.Errorf("new process detected: process gid %v does not match original caller %v", stat.Gid, l.gid)
 	}
 
