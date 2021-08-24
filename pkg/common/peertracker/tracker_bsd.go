@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	_bsdType = "bsd"
+	bsdType = "bsd"
 )
 
 var (
@@ -43,7 +43,7 @@ func newTracker(log logrus.FieldLogger) (*bsdTracker, error) {
 		ctx:         ctx,
 		kqfd:        kqfd,
 		watchedPIDs: make(map[int]chan struct{}),
-		log:         log.WithField(telemetry.Type, _bsdType),
+		log:         log.WithField(telemetry.Type, bsdType),
 	}
 
 	go tracker.receiveKevents(kqfd)
