@@ -516,6 +516,254 @@ func TestListAgents(t *testing.T) {
 			},
 		},
 		{
+			name: "by selectors - match any",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_ANY,
+						Selectors: []*types.Selector{
+							{Type: "a", Value: "1"},
+							{Type: "b", Value: "2"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node1ID)},
+					{Id: api.ProtoFromID(node2ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_ANY",
+						telemetry.BySelectors:     "a:1,b:2",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match any (no results)",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_ANY,
+						Selectors: []*types.Selector{
+							{Type: "d", Value: "2"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_ANY",
+						telemetry.BySelectors:     "d:2",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match exact",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_EXACT,
+						Selectors: []*types.Selector{
+							{Type: "a", Value: "1"},
+							{Type: "b", Value: "2"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node1ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     "a:1,b:2",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match exact (no results)",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_EXACT,
+						Selectors: []*types.Selector{
+							{Type: "b", Value: "2"},
+							{Type: "c", Value: "3"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_EXACT",
+						telemetry.BySelectors:     "b:2,c:3",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match subset",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_SUBSET,
+						Selectors: []*types.Selector{
+							{Type: "a", Value: "1"},
+							{Type: "c", Value: "3"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node2ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_SUBSET",
+						telemetry.BySelectors:     "a:1,c:3",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match subset (no results)",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_SUBSET,
+						Selectors: []*types.Selector{
+							{Type: "b", Value: "2"},
+							{Type: "c", Value: "3"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_SUBSET",
+						telemetry.BySelectors:     "b:2,c:3",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match superset",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_SUPERSET,
+						Selectors: []*types.Selector{
+							{Type: "a", Value: "1"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node1ID)},
+					{Id: api.ProtoFromID(node2ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_SUPERSET",
+						telemetry.BySelectors:     "a:1",
+					},
+				},
+			},
+		},
+		{
+			name: "by selectors - match superset (no results)",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					BySelectorMatch: &types.SelectorMatch{
+						Match: types.SelectorMatch_MATCH_SUPERSET,
+						Selectors: []*types.Selector{
+							{Type: "b", Value: "2"},
+							{Type: "c", Value: "3"},
+						},
+					},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:          "success",
+						telemetry.Type:            "audit",
+						telemetry.BySelectorMatch: "MATCH_SUPERSET",
+						telemetry.BySelectors:     "b:2,c:3",
+					},
+				},
+			},
+		},
+		{
 			name: "with pagination",
 			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
