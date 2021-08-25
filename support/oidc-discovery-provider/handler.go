@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -10,26 +11,18 @@ import (
 )
 
 type Handler struct {
-	domains             map[string]struct{}
 	source              JWKSSource
+	domainPolicy        DomainPolicy
 	allowInsecureScheme bool
-	performDomainCheck  bool
 
 	http.Handler
 }
 
-func NewHandler(domains []string, source JWKSSource, allowInsecureScheme bool, performDomainCheck bool) *Handler {
-	allowedDomains := make(map[string]struct{})
-
-	for _, d := range domains {
-		allowedDomains[d] = struct{}{}
-	}
-
+func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool) *Handler {
 	h := &Handler{
-		domains:             allowedDomains,
+		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
-		performDomainCheck:  performDomainCheck,
 	}
 
 	mux := http.NewServeMux()
@@ -46,11 +39,9 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.performDomainCheck {
-		if _, ok := h.domains[r.Host]; !ok {
-			http.Error(w, "domain not allowed", http.StatusNotFound)
-			return
-		}
+	if err := h.verifyHost(r.Host); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	urlScheme := "https"
@@ -124,4 +115,16 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	http.ServeContent(w, r, "keys", modTime, bytes.NewReader(jwksBytes))
+}
+
+func (h *Handler) verifyHost(host string) error {
+	// Obtain the domain name from the host value, which comes from the
+	// request, or is pulled from the X-Forwarded-Host header (via the
+	// ProxyHeaders middleware). The value may be in host or host:port form.
+	domain, _, err := net.SplitHostPort(host)
+	if err != nil {
+		// `Host` was not in the host:port form form.
+		domain = host
+	}
+	return h.domainPolicy(domain)
 }
