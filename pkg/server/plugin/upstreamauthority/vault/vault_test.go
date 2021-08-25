@@ -241,7 +241,6 @@ func TestMintX509CA(t *testing.T) {
 		config                  *Configuration
 		ttl                     time.Duration
 		authMethod              AuthMethod
-		reuseToken              bool
 		expectCode              codes.Code
 		expectMsgPrefix         string
 		expectX509CA            []string
@@ -260,7 +259,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              TOKEN,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -285,7 +283,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              TOKEN,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -332,7 +329,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              TOKEN,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -359,7 +355,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              CERT,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -385,7 +380,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              APPROLE,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -411,7 +405,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              K8S,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -510,7 +503,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              TOKEN,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -534,7 +526,6 @@ func TestMintX509CA(t *testing.T) {
 				},
 			},
 			authMethod:              TOKEN,
-			reuseToken:              true,
 			expectX509CA:            []string{"spiffe://intermediate"},
 			expectedX509Authorities: []string{"spiffe://root"},
 			fakeServer: func() *FakeVaultServerConfig {
@@ -701,8 +692,6 @@ func TestMintX509CA(t *testing.T) {
 
 			x509AuthoritiesIDs := certChainURIs(x509Authorities)
 			require.Equal(t, tt.expectedX509Authorities, x509AuthoritiesIDs)
-
-			require.Equal(t, tt.reuseToken, p.reuseToken)
 
 			if p.cc.clientParams.Namespace != "" {
 				headers := p.vc.vaultClient.Headers()

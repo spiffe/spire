@@ -9,4 +9,3 @@ spec:
     namespace: default
     podName: my-test-pod
   spiffeId: spiffe://example.org/test
-
