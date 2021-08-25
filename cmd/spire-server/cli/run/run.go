@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -105,6 +106,8 @@ type experimentalConfig struct {
 	CacheReloadInterval string `hcl:"cache_reload_interval"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
+
+	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 }
 
 type caSubjectConfig struct {
@@ -588,6 +591,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.CacheReloadInterval = interval
 	}
+
+	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
 
 	return sc, nil
 }

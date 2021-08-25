@@ -19,6 +19,7 @@ import (
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -53,6 +54,9 @@ type Config struct {
 
 	// CA Manager
 	Manager *ca.Manager
+
+	// Makes policy decisions
+	AuthPolicyEngine *authpolicy.Engine
 
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
