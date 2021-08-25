@@ -33,9 +33,9 @@ The configuration file is **required** by the provider. It contains
 | Key                     | Type    | Required?      | Description                                              | Default  |
 | ----------------------  | --------| -------------- | -------------------------------------------------------- | -------- |
 | `acme`                  | section | required[1]    | Provides the ACME configuration.                         |          |
-| `domain`                | string  | required       | The domain the provider is being served from.            |          |
-| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             |          |
 | `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.        | `false`  |
+| `domains`               | strings | required       | One or more domains the provider is being served from.   |          |
+| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             |          |
 | `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.        |          |
 | `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
 | `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
@@ -50,6 +50,13 @@ The configuration file is **required** by the provider. It contains
 [2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document. The `registration_api` section is deprecated; the `server_api` section should be used in its place.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
+
+The `domains` configurable contains the list of domains the provider is
+expected to be served from. If a request is received from a domain other than
+one in the list (as determined by the Host or X-Forwarded-Host header), it
+will be rejected. Likewise, when ACME is used, the `domains` list contains the
+allowed domains for which certificates will be obtained. The TLS handshake
+will terminate if another domain is requested.
 
 #### ACME Section
 
@@ -88,7 +95,7 @@ The configuration file is **required** by the provider. It contains
 
 ```
 log_level = "debug"
-domain = "mypublicdomain.test"
+domains = ["mypublicdomain.test"]
 acme {
     cache_dir = "/some/path/on/disk/to/cache/creds"
     tos_accepted = true
@@ -102,7 +109,7 @@ server_api {
 
 ```
 log_level = "debug"
-domain = "mypublicdomain.test"
+domains = ["mypublicdomain.test"]
 acme {
     cache_dir = "/some/path/on/disk/to/cache/creds"
     tos_accepted = true
@@ -122,7 +129,7 @@ Nginx, Apache, or Envoy which supports reverse proxying to a unix socket.
 
 ```
 log_level = "debug"
-domain = "mypublicdomain.test"
+domains = ["mypublicdomain.test"]
 listen_socket_path = "/run/oidc-discovery-provider/server.sock"
 
 workload_api {

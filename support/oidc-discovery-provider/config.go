@@ -26,6 +26,7 @@ type Config struct {
 	// Domain is the domain this provider will be hosted under. It is used
 	// when obtaining certs via ACME (unless ListenSocketPath is specified).
 	// Deprecated. Domains should be used instead.
+	// Deprecated: remove in 1.2.0
 	Domain string `hcl:"domain"`
 
 	// Domains are the domains this provider will be hosted under. Incoming requests
@@ -156,17 +157,16 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.LogLevel = defaultLogLevel
 	}
 
-	if c.Domain == "" && len(c.Domains) == 0 {
+	switch {
+	case c.Domain == "" && len(c.Domains) == 0:
 		return nil, errs.New("at least one domain must be configured")
-	}
-	if len(c.Domains) > 0 && c.Domain != "" {
-		return nil, errs.New("use `domains` configurable only, `domain` configurable is deprecated")
-	}
-
-	if c.Domain != "" {
+	case c.Domain != "" && len(c.Domains) == 0:
 		c.Domains = []string{c.Domain}
+	case c.Domain == "" && len(c.Domains) > 0:
+		c.Domains = dedupeList(c.Domains)
+	case c.Domain != "" && len(c.Domains) > 0:
+		return nil, errs.New("domain is deprecated and will be removed in a future release; please use domains instead")
 	}
-	c.Domains = dedupeList(c.Domains)
 
 	if c.ACME != nil {
 		c.ACME.CacheDir = defaultCacheDir

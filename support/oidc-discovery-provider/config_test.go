@@ -120,7 +120,7 @@ func TestParseConfig(t *testing.T) {
 					socket_path = "/some/socket/path"
 				}
 			`,
-			err: "use `domains` configurable only, `domain` configurable is deprecated",
+			err: "domain is deprecated and will be removed in a future release; please use domains instead",
 		},
 		{
 			name: "no ACME configuration",
