@@ -380,26 +380,6 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	}
 }
 
-func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeID: e.SpiffeId,
-		ByParentID: e.ParentId,
-		BySelectors: &datastore.BySelectors{
-			Match:     datastore.Exact,
-			Selectors: e.Selectors,
-		},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Entries) > 0 {
-		return resp.Entries[0], nil
-	}
-	return nil, nil
-}
-
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 	log = log.WithField(telemetry.RegistrationID, e.Id)
