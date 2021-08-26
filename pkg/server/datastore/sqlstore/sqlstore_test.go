@@ -112,7 +112,9 @@ func (s *PluginSuite) SetupTest() {
 }
 
 func (s *PluginSuite) TearDownTest() {
-	s.ds.closeDB()
+	if s.ds != nil {
+		s.ds.closeDB()
+	}
 }
 
 func (s *PluginSuite) newPlugin() *Plugin {
@@ -1432,8 +1434,8 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
 	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
 	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarAD3 := makeEntry("baz", "bar", "A", "D")
-	bazbarAD3.FederatesWith = []string{"spiffe://federated3.test"}
+	bazbarAE3 := makeEntry("baz", "bar", "A", "E")
+	bazbarAE3.FederatesWith = []string{"spiffe://federated3.test"}
 
 	bazbuzAB12 := makeEntry("baz", "buz", "A", "B")
 	bazbuzAB12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
@@ -1717,7 +1719,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith one match any",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCD12},
@@ -1726,7 +1728,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith many match any",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
@@ -1735,7 +1737,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith one superset",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCD12},
@@ -1744,7 +1746,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith many superset",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
@@ -2176,6 +2178,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	// Needed for the FederatesWith field to work
 	s.createBundle("spiffe://dom1.org")
 	s.createBundle("spiffe://dom2.org")
+
+	var id string
 	for _, testcase := range []struct {
 		name   string
 		mask   *common.RegistrationEntryMask
@@ -2295,8 +2299,11 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	} {
 		tt := testcase
 		s.Run(tt.name, func() {
+			if id != "" {
+				s.deleteRegistrationEntry(id)
+			}
 			registrationEntry := s.createRegistrationEntry(oldEntry)
-			id := registrationEntry.EntryId
+			id = registrationEntry.EntryId
 
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
@@ -3350,6 +3357,11 @@ func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *
 	s.Require().NoError(err)
 	s.Require().NotNil(registrationEntry)
 	return registrationEntry
+}
+
+func (s *PluginSuite) deleteRegistrationEntry(entryID string) {
+	_, err := s.ds.DeleteRegistrationEntry(ctx, entryID)
+	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {

@@ -207,25 +207,14 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
-	existingEntry, err := s.getExistingEntry(ctx, cEntry)
-	if err != nil {
-		return &entryv1.BatchCreateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to list entries", err),
-		}
-	}
-
 	resultStatus := api.OK()
-	regEntry := existingEntry
-
-	if existingEntry == nil {
-		// Create entry
-		regEntry, err = s.ds.CreateRegistrationEntry(ctx, cEntry)
-		if err != nil {
-			return &entryv1.BatchCreateEntryResponse_Result{
-				Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
-			}
+	regEntry, existing, err := s.ds.CreateOrReturnRegistrationEntry(ctx, cEntry)
+	switch {
+	case err != nil:
+		return &entryv1.BatchCreateEntryResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
 		}
-	} else {
+	case existing:
 		resultStatus = api.CreateStatus(codes.AlreadyExists, "similar entry already exists")
 	}
 
