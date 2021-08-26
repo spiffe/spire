@@ -993,8 +993,8 @@ github.com/spf13/viper v1.7.0/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5q
 github.com/spf13/viper v1.7.1/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5qpdg=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.6 h1:3DOMziVxNur7Gq7JkfJg5sLZbbtfkBi13SlDfByV9YI=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.6/go.mod h1:TEfgrEcyFhuSuvqohJt6IxENUNeHfndWCCV1EX7UaVk=
-github.com/spiffe/spire-api-sdk v1.0.2 h1:wzzzv5rosTEFvz/RDEzYrD799W+EYb2WPaLuSVBmlRA=
-github.com/spiffe/spire-api-sdk v1.0.2/go.mod h1:2wSTZ6oEnKqI3uBST05Mmm751+yoHEvgxomYKYOQ6Ko=
+github.com/spiffe/spire-api-sdk v1.0.3-0.20210830151222-70fb6a116a63 h1:nx6upfmw4g3ZKQbSrVm5zyYM9/pm3OmPALU/eCtu3gY=
+github.com/spiffe/spire-api-sdk v1.0.3-0.20210830151222-70fb6a116a63/go.mod h1:2wSTZ6oEnKqI3uBST05Mmm751+yoHEvgxomYKYOQ6Ko=
 github.com/spiffe/spire-plugin-sdk v1.0.2 h1:2cXV/rAFeff96cnZucENd9ctZjXVV2BSzyVOXJiu3zY=
 github.com/spiffe/spire-plugin-sdk v1.0.2/go.mod h1:fzNSP83Z848jZtPQYeZ9qPWZkbSPwmd/JFNux1gxsbM=
 github.com/ssgreg/nlreturn/v2 v2.1.0/go.mod h1:E/iiPB78hV7Szg2YfRgyIrk1AD6JVMTRkkxBiELzh2I=
