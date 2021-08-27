@@ -20,7 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -41,6 +43,14 @@ type kmsClientFake struct {
 	signErr                error
 	listKeysErr            error
 	deleteAliasErr         error
+
+	expectedKeyPolicy *string
+}
+
+type stsClientFake struct {
+	account string
+	arn     string
+	err     string
 }
 
 func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
@@ -54,11 +64,49 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 	}
 }
 
+func newSTSClientFake(t *testing.T) *stsClientFake {
+	return &stsClientFake{}
+}
+
+func (s *stsClientFake) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	if s.err != "" {
+		return nil, errors.New(s.err)
+	}
+
+	return &sts.GetCallerIdentityOutput{
+		Account: &s.account,
+		Arn:     &s.arn,
+	}, nil
+}
+
+func (s *stsClientFake) setGetCallerIdentityErr(err string) {
+	s.err = err
+}
+
+func (s *stsClientFake) setGetCallerIdentityAccount(account string) {
+	s.account = account
+}
+
+func (s *stsClientFake) setGetCallerIdentityArn(arn string) {
+	s.arn = arn
+}
+
+func (k *kmsClientFake) setExpectedKeyPolicy(keyPolicy *string) {
+	k.expectedKeyPolicy = keyPolicy
+}
+
 func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput, opts ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.createKeyErr != nil {
 		return nil, k.createKeyErr
+	}
+
+	switch k.expectedKeyPolicy {
+	case nil:
+		require.Nil(k.t, input.Policy)
+	default:
+		require.Equal(k.t, *k.expectedKeyPolicy, *input.Policy)
 	}
 
 	var privateKey crypto.Signer
