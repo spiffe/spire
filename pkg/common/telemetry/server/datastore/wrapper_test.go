@@ -68,6 +68,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateRegistrationEntry",
 		},
 		{
+			key:        "datastore.registration_entry.create",
+			methodName: "CreateOrReturnRegistrationEntry",
+		},
+		{
 			key:        "datastore.node.delete",
 			methodName: "DeleteAttestedNode",
 		},
@@ -261,6 +265,10 @@ func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) 
 
 func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, error) {
 	return &common.RegistrationEntry{}, ds.err
+}
+
+func (ds *fakeDataStore) CreateOrReturnRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
+	return &common.RegistrationEntry{}, true, ds.err
 }
 
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {

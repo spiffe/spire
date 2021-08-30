@@ -207,25 +207,14 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
-	existingEntry, err := s.getExistingEntry(ctx, cEntry)
-	if err != nil {
-		return &entryv1.BatchCreateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to list entries", err),
-		}
-	}
-
 	resultStatus := api.OK()
-	regEntry := existingEntry
-
-	if existingEntry == nil {
-		// Create entry
-		regEntry, err = s.ds.CreateRegistrationEntry(ctx, cEntry)
-		if err != nil {
-			return &entryv1.BatchCreateEntryResponse_Result{
-				Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
-			}
+	regEntry, existing, err := s.ds.CreateOrReturnRegistrationEntry(ctx, cEntry)
+	switch {
+	case err != nil:
+		return &entryv1.BatchCreateEntryResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
 		}
-	} else {
+	case existing:
 		resultStatus = api.CreateStatus(codes.AlreadyExists, "similar entry already exists")
 	}
 
@@ -389,26 +378,6 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if !mask.RevisionNumber {
 		e.RevisionNumber = 0
 	}
-}
-
-func (s *Service) getExistingEntry(ctx context.Context, e *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		BySpiffeID: e.SpiffeId,
-		ByParentID: e.ParentId,
-		BySelectors: &datastore.BySelectors{
-			Match:     datastore.Exact,
-			Selectors: e.Selectors,
-		},
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Entries) > 0 {
-		return resp.Entries[0], nil
-	}
-	return nil, nil
 }
 
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {

@@ -781,9 +781,6 @@ func TestAppendBundle(t *testing.T) {
 }
 
 func TestBatchDeleteFederatedBundle(t *testing.T) {
-	test := setupServiceTest(t)
-	defer test.Cleanup()
-
 	td1 := spiffeid.RequireTrustDomainFromString("td1.org")
 	td2 := spiffeid.RequireTrustDomainFromString("td2.org")
 	td3 := spiffeid.RequireTrustDomainFromString("td3.org")
@@ -1108,7 +1105,8 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test.logHook.Reset()
+			test := setupServiceTest(t)
+			defer test.Cleanup()
 
 			// Create all test bundles
 			for _, td := range dsBundles {

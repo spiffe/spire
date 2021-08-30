@@ -1497,6 +1497,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		reqEntries    []*types.Entry
 
 		// fake ds configurations
+		noCustomCreate  bool
 		dsError         error
 		dsResults       map[string]*common.RegistrationEntry
 		expectDsEntries map[string]*common.RegistrationEntry
@@ -1820,6 +1821,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 				},
 			},
+			noCustomCreate: true,
 		},
 		{
 			name: "invalid entry",
@@ -1971,7 +1973,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			defaultEntryID := createTestEntries(t, ds, defaultEntry)[defaultEntry.SpiffeId].EntryId
 
 			// Setup fake
-			ds.customCreate = true
+			ds.customCreate = !tt.noCustomCreate
 			ds.t = t
 			ds.expectEntries = tt.expectDsEntries
 			ds.results = tt.dsResults
@@ -3612,31 +3614,31 @@ func newFakeDS(t *testing.T) *fakeDS {
 	}
 }
 
-func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+func (f *fakeDS) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	if !f.customCreate {
-		return f.DataStore.CreateRegistrationEntry(ctx, entry)
+		return f.DataStore.CreateOrReturnRegistrationEntry(ctx, entry)
 	}
 
 	if f.err != nil {
-		return nil, f.err
+		return nil, false, f.err
 	}
 	entryID := entry.EntryId
 
 	expect, ok := f.expectEntries[entryID]
-	assert.True(f.t, ok, "no expect entry found")
+	assert.True(f.t, ok, "no expect entry found for entry %q", entryID)
 
 	// Validate we get expected entry
 	spiretest.AssertProtoEqual(f.t, expect, entry)
 
 	// Return expect when no custom result configured
 	if len(f.results) == 0 {
-		return expect, nil
+		return expect, false, nil
 	}
 
 	res, ok := f.results[entryID]
 	assert.True(f.t, ok, "no result found")
 
-	return res, nil
+	return res, false, nil
 }
 
 type entryFetcher struct {

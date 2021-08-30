@@ -297,18 +297,40 @@ func (ds *Plugin) ListNodeSelectors(ctx context.Context,
 // CreateRegistrationEntry stores the given registration entry
 func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, err error) {
+	out, _, err := ds.createOrReturnRegistrationEntry(ctx, entry)
+	return out, err
+}
+
+// CreateOrReturnRegistrationEntry stores the given registration entry. If an
+// entry already exists with the same (parentID, spiffeID, selector) tuple,
+// that entry is returned instead.
+func (ds *Plugin) CreateOrReturnRegistrationEntry(ctx context.Context,
+	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
+	return ds.createOrReturnRegistrationEntry(ctx, entry)
+}
+
+func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
+	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
 	if err = validateRegistrationEntry(entry); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
+		if err != nil {
+			return err
+		}
+		if registrationEntry != nil {
+			existing = true
+			return nil
+		}
 		registrationEntry, err = createRegistrationEntry(tx, entry)
 		return err
 	}); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return registrationEntry, nil
+	return registrationEntry, existing, nil
 }
 
 // FetchRegistrationEntry fetches an existing registration by entry ID
@@ -1996,7 +2018,7 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
 	for {
-		resp, err := listRegistrationEntriesOnce(ctx, db, req)
+		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, req)
 		if err != nil {
 			return nil, err
 		}
@@ -2057,8 +2079,12 @@ func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors [
 	return filtered
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, db.supportsCTE, req)
+type queryContext interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+}
+
+func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	query, args, err := buildListRegistrationEntriesQuery(databaseType, supportsCTE, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -3404,4 +3430,23 @@ func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
 	}
 	dbTime := time.Unix(unixTime, 0)
 	return &dbTime
+}
+
+func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	resp, err := listRegistrationEntriesOnce(ctx, tx.CommonDB().(queryContext), db.databaseType, db.supportsCTE, &datastore.ListRegistrationEntriesRequest{
+		BySpiffeID: entry.SpiffeId,
+		ByParentID: entry.ParentId,
+		BySelectors: &datastore.BySelectors{
+			Match:     datastore.Exact,
+			Selectors: entry.Selectors,
+		},
+	})
+	switch {
+	case err != nil:
+		return nil, err
+	case len(resp.Entries) > 0:
+		return resp.Entries[0], nil
+	default:
+		return nil, nil
+	}
 }
