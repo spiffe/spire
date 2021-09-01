@@ -4,7 +4,7 @@
 
 ### Added
 - Experimental support for custom authorization policies based on Open Policy Agent (OPA) (#2416)
-- SPIRE Server can now be configured to emit audit logs (#2297, #, #2391, #2394, #2396, #2442, #2458)
+- SPIRE Server can now be configured to emit audit logs (#2297, #2391, #2394, #2396, #2442, #2458)
 - SDS v3 API in agent now supports the SPIFFE Certificate Validator (#2435, #2460)
 - Enhancements in the SPIRE OIDC Discovery Provider (#2404, #2453)
 - Metrics configuration options to filter out metrics and labels (#2400)
