@@ -33,8 +33,6 @@ func TestCreateHelp(t *testing.T) {
     	If set, this entry will be applied to matching nodes rather than workloads
   -parentID string
     	The SPIFFE ID of this record's parent
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
   -socketPath string
