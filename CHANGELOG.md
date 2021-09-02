@@ -5,8 +5,9 @@
 ### Added
 - Experimental support for custom authorization policies based on Open Policy Agent (OPA) (#2416)
 - SPIRE Server can now be configured to emit audit logs (#2297, #2391, #2394, #2396, #2442, #2458)
-- SDS v3 API in agent now supports the SPIFFE Certificate Validator (#2435, #2460)
-- Enhancements in the SPIRE OIDC Discovery Provider (#2404, #2453)
+- Envoy SDS v3 API in agent now supports the SPIFFE Certificate Validator for federated SPIFFE authentication (#2435, #2460)
+- SPIRE OIDC Discovery Provider now intelligently handles host headers (#2404, #2453)
+- SPIRE OIDC Discovery Provider can now serve over HTTP using the `allow_insecure_scheme` setting (#2404)
 - Metrics configuration options to filter out metrics and labels (#2400)
 - The `k8s-workload-registrar` now supports identity template based workload registration (#2417)
 - Enhancements in filtering support in server APIs (#2467, #2463, #2464, #2468)
@@ -18,6 +19,9 @@
 
 ### Fixed
 - Fixed a nil pointer dereference when the deprecated `allow_unsafe_ids` setting was configured (#2477)
+
+### Deprecated
+- The SPIRE OIDC Discovery Provider `domain` configurable has been deprecated in favor of `domains` (#2404)
 
 ## [1.0.1] - 2021-08-05
 
