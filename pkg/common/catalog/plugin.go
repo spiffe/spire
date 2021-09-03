@@ -2,12 +2,12 @@ package catalog
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"sort"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
 )
@@ -35,7 +35,7 @@ type pluginImpl struct {
 	grpcServiceNames []string
 }
 
-func newPlugin(ctx context.Context, conn grpc.ClientConnInterface, info PluginInfo, log logrus.FieldLogger, closers closerGroup, hostServices []HostServiceServer) (*pluginImpl, error) {
+func newPlugin(ctx context.Context, conn grpc.ClientConnInterface, info PluginInfo, log logrus.FieldLogger, closers closerGroup, hostServices []pluginsdk.ServiceServer) (*pluginImpl, error) {
 	grpcServiceNames, err := initPlugin(ctx, conn, hostServices)
 	if err != nil {
 		return nil, err
@@ -52,26 +52,16 @@ func newPlugin(ctx context.Context, conn grpc.ClientConnInterface, info PluginIn
 
 // Bind implements the Plugin interface method of the same name.
 func (p *pluginImpl) Bind(facades ...Facade) (Configurer, error) {
-	if p.isLegacy() {
-		return nil, errors.New("cannot bind to a legacy plugin")
-	}
-
 	grpcServiceNames := grpcServiceNameSet(p.grpcServiceNames)
 
-	var impl interface{}
 	for _, facade := range facades {
 		if _, ok := grpcServiceNames[facade.GRPCServiceName()]; !ok {
 			return nil, fmt.Errorf("plugin does not support facade service %q", facade.GRPCServiceName())
 		}
-		if facadeImpl := p.initFacade(facade); impl == nil {
-			// Grab the first impl.
-			// TODO: This will not be necessary when all built-ins transition
-			// to the v1 interfaces.
-			impl = facadeImpl
-		}
+		p.initFacade(facade)
 	}
 
-	configurer, err := p.makeConfigurer(impl, grpcServiceNames)
+	configurer, err := p.makeConfigurer(grpcServiceNames)
 	if err != nil {
 		return nil, err
 	}
@@ -79,10 +69,6 @@ func (p *pluginImpl) Bind(facades ...Facade) (Configurer, error) {
 		configurer = configurerUnsupported{}
 	}
 	return configurer, nil
-}
-
-func (p *pluginImpl) isLegacy() bool {
-	return len(p.grpcServiceNames) == 0
 }
 
 func (p *pluginImpl) bindFacade(repo bindable, facade Facade) interface{} {
@@ -100,22 +86,12 @@ func (p *pluginImpl) initFacade(facade Facade) interface{} {
 func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bindableServiceRepo) (Configurer, error) {
 	grpcServiceNames := grpcServiceNameSet(p.grpcServiceNames)
 
-	var impl interface{}
-	if p.isLegacy() {
-		if legacyVersion, ok := pluginRepo.LegacyVersion(); ok {
-			p.log.Warn("Legacy plugins are deprecated and will be unsupported in a future release. Please migrate the plugin to use the Plugin SDK.")
-			impl = p.bindFacade(pluginRepo, legacyVersion.New())
-		} else {
-			return nil, fmt.Errorf("no legacy version available for plugin type %q", p.info.Type())
-		}
-	} else {
-		impl = p.bindRepo(pluginRepo, grpcServiceNames)
-		for _, serviceRepo := range serviceRepos {
-			p.bindRepo(serviceRepo, grpcServiceNames)
-		}
+	impl := p.bindRepo(pluginRepo, grpcServiceNames)
+	for _, serviceRepo := range serviceRepos {
+		p.bindRepo(serviceRepo, grpcServiceNames)
 	}
 
-	configurer, err := p.makeConfigurer(impl, grpcServiceNames)
+	configurer, err := p.makeConfigurer(grpcServiceNames)
 	if err != nil {
 		return nil, err
 	}
@@ -132,23 +108,14 @@ func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bin
 	return configurer, nil
 }
 
-func (p *pluginImpl) makeConfigurer(impl interface{}, grpcServiceNames map[string]struct{}) (Configurer, error) {
+func (p *pluginImpl) makeConfigurer(grpcServiceNames map[string]struct{}) (Configurer, error) {
 	repo := new(configurerRepo)
 	bindable, err := makeBindableServiceRepo(repo)
 	if err != nil {
 		return nil, err
 	}
 	p.bindRepo(bindable, grpcServiceNames)
-	if repo.configurer != nil {
-		return repo.configurer, nil
-	}
-	if client, ok := impl.(legacyConfigureClient); ok {
-		// TODO: this hack should nominally only happen for legacy plugins only
-		// but we're in an awkward transition stage where built-ins are
-		// "non-legacy" but implementing the v0 interfaces.
-		return configurerLegacy{client: client}, nil
-	}
-	return nil, nil
+	return repo.configurer, nil
 }
 
 func (p *pluginImpl) bindRepo(repo bindableServiceRepo, grpcServiceNames map[string]struct{}) interface{} {

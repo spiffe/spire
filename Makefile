@@ -150,7 +150,6 @@ api-protos := \
 	proto/spire/api/registration/registration.proto \
 
 plugin-protos := \
-	proto/private/test/legacyplugin/someplugin.proto \
 	proto/spire/common/plugin/plugin.proto \
 	proto/spire/plugin/agent/keymanager/v0/keymanager.proto \
 	proto/spire/plugin/agent/nodeattestor/v0/nodeattestor.proto \
