@@ -507,8 +507,7 @@ const (
 	// Endpoints functionality related to agent/server endpoints
 	Endpoints = "endpoints"
 
-	// Entry tag for some stored entry; should be used with other tags such as RegistrationAPI
-	// to add clarity
+	// Entry tag for some stored entry
 	Entry = "entry"
 
 	// Event tag some event that has occurred, for a notifier, watcher, listener, etc.
@@ -708,10 +707,6 @@ const (
 
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
-
-	// RegistrationAPI functionality related to the registration api; should be used
-	// with other tags to add clarity
-	RegistrationAPI = "registration_api"
 
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity

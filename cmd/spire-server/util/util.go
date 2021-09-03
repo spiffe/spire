@@ -11,7 +11,6 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -19,14 +18,6 @@ import (
 const (
 	DefaultSocketPath = "/tmp/spire-server/private/api.sock"
 )
-
-func NewRegistrationClient(socketPath string) (registration.RegistrationClient, error) {
-	conn, err := Dial(socketPath)
-	if err != nil {
-		return nil, err
-	}
-	return registration.NewRegistrationClient(conn), err
-}
 
 func Dial(socketPath string) (*grpc.ClientConn, error) {
 	if socketPath == "" {

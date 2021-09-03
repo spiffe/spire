@@ -46,23 +46,6 @@ The following metrics are emitted:
 | Call Counter | `entry`, `cache`, `reload` | | The Server is reloading its in-memory entry cache from the datastore.
 | Counter | `manager`, `jwt_key`, `activate` | | The CA manager has successfully activated a JWT Key.
 | Gauge | `manager`, `x509_ca`, `rotate`, `ttl` | `trust_domain_id` | The CA manager is rotating the X.509 CA with a given TTL for a specific Trust Domain.
-| Call Counter | `registration_api`, `authorize_call` | `method` | The Registration API is authorizing a call for a given method.
-| Call Counter | `registration_api`, `bundle`, `fetch` | | The Registration API is fetching a bundle.
-| Call Counter | `registration_api`, `entry`, `create` | | The Registration API is creating an entry.
-| Call Counter | `registration_api`, `entry`, `create_if_not_exists` | | The Registration API is creating an entry if it doesn't already exist.
-| Call Counter | `registration_api`, `entry`, `delete` | | The Registration API is deleting an entry.
-| Call Counter | `registration_api`, `entry`, `fetch` | | The Registration API is fetching an entry.
-| Call Counter | `registration_api`, `entry`, `list` | | The Registration API is listing entries.
-| Call Counter | `registration_api`, `entry`, `update` | | The Registration API is updating an entry.
-| Counter | `registration_api`, `entry`, `updated` | | The Registration API has successfully updated an entry.
-| Call Counter | `registration_api`, `federated_bundle`, `create` | | The Registration API is creating a federated bundle.
-| Call Counter | `registration_api`, `federated_bundle`, `delete` | | The Registration API is deleting a federated bundle.
-| Call Counter | `registration_api`, `federated_bundle`, `fetch` | | The Registration API is fetching a federated bundle.
-| Call Counter | `registration_api`, `federated_bundle`, `list` | | The Registration API is listing federated bundles.
-| Call Counter | `registration_api`, `federated_bundle`, `update` | | The Registration API is updating a federated bundle.
-| Call Counter | `registration_api`, `join_token`, `create` | | The Registration API is creating a join token.
-| Call Counter | `registration_api`, `jwt_svid`, `mint` | | The Registration API is minting a JWT SVID.
-| Call Counter | `registration_api`, `x509_svid`, `mint` | | The Registration API is minting an X.509 SVID.
 | Call Counter | `registration_entry`, `manager`, `prune` | | The Registration manager is pruning entries.
 | Counter | `server_ca`, `sign`, `jwt_svid` | | The CA has successfully signed a JWT SVID.
 | Counter | `server_ca`, `sign`, `x509_ca_svid` | | The CA has successfully signed an X.509 CA SVID.

@@ -74,7 +74,7 @@ func TestParseConfig(t *testing.T) {
 					email = "admin@domain.test"
 					tos_accepted = true
 				}
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -88,8 +88,8 @@ func TestParseConfig(t *testing.T) {
 					email = "admin@domain.test"
 					tos_accepted = true
 				}
-				registration_api {
-					socket_path = "/some/socket/path"
+				server_api {
+					address = "unix:///some/socket/path"
 				}
 			`,
 			out: &Config{
@@ -101,8 +101,8 @@ func TestParseConfig(t *testing.T) {
 					Email:       "admin@domain.test",
 					ToSAccepted: true,
 				},
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:   "/some/socket/path",
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
 				},
 			},
@@ -116,7 +116,7 @@ func TestParseConfig(t *testing.T) {
 					email = "admin@domain.test"
 					tos_accepted = true
 				}
-				registration_api {
+				server_api {
 					socket_path = "/some/socket/path"
 				}
 			`,
@@ -126,7 +126,7 @@ func TestParseConfig(t *testing.T) {
 			name: "no ACME configuration",
 			in: `
 				domains = ["domain.test"]
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -139,7 +139,7 @@ func TestParseConfig(t *testing.T) {
 				acme {
 					email = "admin@domain.test"
 				}
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -152,7 +152,7 @@ func TestParseConfig(t *testing.T) {
 				acme {
 					tos_accepted = true
 				}
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -168,8 +168,8 @@ func TestParseConfig(t *testing.T) {
 					directory_url = "https://directory.test"
 					email = "admin@domain.test"
 				}
-				registration_api {
-					socket_path = "/some/socket/path"
+				server_api {
+					address = "unix:///some/socket/path"
 				}
 			`,
 			out: &Config{
@@ -182,8 +182,8 @@ func TestParseConfig(t *testing.T) {
 					RawCacheDir:  stringPtr(""),
 					ToSAccepted:  true,
 				},
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:   "/some/socket/path",
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
 				},
 			},
@@ -197,7 +197,7 @@ func TestParseConfig(t *testing.T) {
 					email = "admin@domain.test"
 					tos_accepted = true
 				}
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -212,7 +212,7 @@ func TestParseConfig(t *testing.T) {
 					email = "admin@domain.test"
 					tos_accepted = true
 				}
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -224,7 +224,7 @@ func TestParseConfig(t *testing.T) {
 				domains = ["domain.test"]
 				insecure_addr = ":8080"
 				listen_socket_path = "test"
-				registration_api {
+				server_api {
 					socket_path = "/other/socket/path"
 				}
 			`,
@@ -235,16 +235,16 @@ func TestParseConfig(t *testing.T) {
 			in: `
 				domains = ["domain.test"]
 				insecure_addr = ":8080"
-				registration_api {
-					socket_path = "/some/socket/path"
+				server_api {
+					address = "unix:///some/socket/path"
 				}
 			`,
 			out: &Config{
 				LogLevel:     defaultLogLevel,
 				Domains:      []string{"domain.test"},
 				InsecureAddr: ":8080",
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:   "/some/socket/path",
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
 				},
 			},
@@ -254,16 +254,16 @@ func TestParseConfig(t *testing.T) {
 			in: `
 				domains = ["domain.test"]
 				listen_socket_path = "/a/path/here"
-				registration_api {
-					socket_path = "/some/socket/path"
+				server_api {
+					address = "unix:///some/socket/path"
 				}
 			`,
 			out: &Config{
 				LogLevel:         defaultLogLevel,
 				Domains:          []string{"domain.test"},
 				ListenSocketPath: "/a/path/here",
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:   "/some/socket/path",
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
 				},
 			},
@@ -290,7 +290,7 @@ func TestParseConfig(t *testing.T) {
 				server_api { address = "unix:///some/socket/path" }
 				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
 			`,
-			err: "the server_api, workload_api, and deprecated registration_api sections are mutually exclusive",
+			err: "the server_api and workload_api sections are mutually exclusive",
 		},
 
 		{
@@ -379,89 +379,6 @@ func TestParseConfig(t *testing.T) {
 				}
 			`,
 			err: "invalid poll_interval in the server_api configuration section: time: invalid duration \"huh\"",
-		},
-
-		{
-			name: "minimal registration API config",
-			in: `
-				domains = ["domain.test"]
-				acme {
-					email = "admin@domain.test"
-					tos_accepted = true
-				}
-				registration_api {
-					socket_path = "/some/socket/path"
-				}
-			`,
-			out: &Config{
-				LogLevel: defaultLogLevel,
-				Domains:  []string{"domain.test"},
-				ACME: &ACMEConfig{
-					CacheDir:    defaultCacheDir,
-					Email:       "admin@domain.test",
-					ToSAccepted: true,
-				},
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:   "/some/socket/path",
-					PollInterval: defaultPollInterval,
-				},
-			},
-		},
-		{
-			name: "registration API config overrides",
-			in: `
-				domains = ["domain.test"]
-				acme {
-					email = "admin@domain.test"
-					tos_accepted = true
-				}
-				registration_api {
-					socket_path = "/other/socket/path"
-					poll_interval = "1h"
-				}
-			`,
-			out: &Config{
-				LogLevel: defaultLogLevel,
-				Domains:  []string{"domain.test"},
-				ACME: &ACMEConfig{
-					CacheDir:    defaultCacheDir,
-					Email:       "admin@domain.test",
-					ToSAccepted: true,
-				},
-				RegistrationAPI: &RegistrationAPIConfig{
-					SocketPath:      "/other/socket/path",
-					PollInterval:    time.Hour,
-					RawPollInterval: "1h",
-				},
-			},
-		},
-		{
-			name: "registration API config missing socket path",
-			in: `
-				domains = ["domain.test"]
-				acme {
-					email = "admin@domain.test"
-					tos_accepted = true
-				}
-				registration_api {
-				}
-			`,
-			err: "socket_path must be configured in the registration_api configuration section",
-		},
-		{
-			name: "registration API config invalid poll interval",
-			in: `
-				domains = ["domain.test"]
-				acme {
-					email = "admin@domain.test"
-					tos_accepted = true
-				}
-				registration_api {
-					socket_path = "/some/socket/path"
-					poll_interval = "huh"
-				}
-			`,
-			err: "invalid poll_interval in the registration_api configuration section: time: invalid duration \"huh\"",
 		},
 		{
 			name: "minimal workload API config",
