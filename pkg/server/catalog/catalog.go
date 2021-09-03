@@ -101,12 +101,6 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		return nil, err
 	}
 
-	if noopConfig, ok := config.PluginConfig[nodeResolverType]["noop"]; ok && noopConfig.PluginCmd == "" {
-		// TODO: remove in 1.1.0
-		delete(config.PluginConfig[nodeResolverType], "noop")
-		config.Log.Warn(`The "noop" NodeResolver is not required, is deprecated, and will be removed from a future release`)
-	}
-
 	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
