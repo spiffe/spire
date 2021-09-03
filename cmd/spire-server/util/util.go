@@ -129,7 +129,7 @@ func AdaptCommand(env *common_cli.Env, cmd Command) *Adapter {
 
 	f := flag.NewFlagSet(cmd.Name(), flag.ContinueOnError)
 	f.SetOutput(env.Stderr)
-	f.StringVar(&a.socketPath, "socketPath", DefaultSocketPath, `Path to the SPIRE Server API socket (default "`+DefaultSocketPath+`")`)
+	f.StringVar(&a.socketPath, "socketPath", DefaultSocketPath, "Path to the SPIRE Server API socket")
 	a.cmd.AppendFlags(f)
 	a.flags = f
 
