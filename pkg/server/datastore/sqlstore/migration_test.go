@@ -692,30 +692,6 @@ func TestIsCompatibleCodeVersion(t *testing.T) {
 			dbCodeVersion:    semver.Version{Major: (codeVersion.Major + 1), Minor: codeVersion.Minor},
 			expectCompatible: false,
 		},
-		{
-			desc:             "forwards compatible to 1.0 from 0.12",
-			thisCodeVersion:  semver.Version{Major: 0, Minor: 12},
-			dbCodeVersion:    semver.Version{Major: 1, Minor: 0},
-			expectCompatible: true,
-		},
-		{
-			desc:             "backwards compatible to 0.12 from 1.0",
-			thisCodeVersion:  semver.Version{Major: 1, Minor: 0},
-			dbCodeVersion:    semver.Version{Major: 0, Minor: 12},
-			expectCompatible: true,
-		},
-		{
-			desc:             "not forwards compatible to 1.1 from 0.12",
-			thisCodeVersion:  semver.Version{Major: 0, Minor: 12},
-			dbCodeVersion:    semver.Version{Major: 1, Minor: 1},
-			expectCompatible: false,
-		},
-		{
-			desc:             "not backwards compatible to 0.12 from 1.1",
-			thisCodeVersion:  semver.Version{Major: 1, Minor: 1},
-			dbCodeVersion:    semver.Version{Major: 0, Minor: 12},
-			expectCompatible: false,
-		},
 	}
 
 	for _, tt := range tests {
