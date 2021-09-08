@@ -434,6 +434,40 @@ func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err er
 	})
 }
 
+// CreateFederationRelationship creates a new federation relationship. If the bundle endpoint
+// profile is 'https_spiffe' and the given federation relationship contains a bundle, the current
+// stored bundle is overridden.
+// If no bundle is provided and there is not a previusly stored bundle in the datastore, the
+// federation relationship is not created.
+func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (newFr *datastore.FederationRelationship, err error) {
+	if fr == nil {
+		return nil, status.Error(codes.InvalidArgument, "federation relationship is nil")
+	}
+
+	if fr.TrustDomain.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if fr.BundleEndpointURL == nil {
+		return nil, status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
+	}
+
+	switch fr.BundleEndpointProfile {
+	case datastore.BundleEndpointWeb:
+	case datastore.BundleEndpointSPIFFE:
+		if fr.EndpointSPIFFEID.IsZero() {
+			return nil, status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
+		}
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
+	}
+
+	return fr, ds.withWriteTx(ctx, func(tx *gorm.DB) error {
+		newFr, err = createFederationRelationship(tx, fr)
+		return err
+	})
+}
+
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
 func (ds *Plugin) Configure(hclConfiguration string) error {
 	config := &configuration{}
@@ -3194,6 +3228,41 @@ func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
 	}
 
 	return nil
+}
+
+func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	model := FederatedTrustDomain{
+		TrustDomain:           fr.TrustDomain.String(),
+		BundleEndpointURL:     fr.BundleEndpointURL.String(),
+		BundleEndpointProfile: string(fr.BundleEndpointProfile),
+	}
+
+	if fr.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		model.EndpointSPIFFEID = fr.EndpointSPIFFEID.String()
+		if fr.Bundle != nil {
+			// overwrite current bundle
+			_, err := setBundle(tx, fr.Bundle)
+			if err != nil {
+				return nil, fmt.Errorf("unable to set bundle: %w", err)
+			}
+		} else {
+			// check if a previous bundle exists
+			bundle, err := fetchBundle(tx, fr.TrustDomain.IDString())
+			if err != nil {
+				return nil, fmt.Errorf("unable to check if bundle exist: %w", err)
+			}
+			if bundle == nil {
+				return nil, fmt.Errorf("no bundle exists for trustdomain: %q", fr.TrustDomain)
+			}
+			fr.Bundle = bundle
+		}
+	}
+
+	if err := tx.Create(&model).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return fr, nil
 }
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also

@@ -49,4 +49,10 @@ func StartUpdateRegistrationCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntry, telemetry.Update)
 }
 
+// StartCreateFederationRelationshipCall return metric
+// for server's datastore, on creating a registration.
+func StartCreateFederationRelationshipCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.Create)
+}
+
 // End Call Counters
