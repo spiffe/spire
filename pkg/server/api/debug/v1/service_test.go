@@ -349,7 +349,7 @@ func TestGetInfo(t *testing.T) {
 				},
 			},
 			code:  codes.Internal,
-			err:   "failed to parse bundle: asn1: structure error: tags don't match",
+			err:   "failed to parse bundle: x509: malformed certificate",
 			state: x509SVIDState,
 		},
 		{

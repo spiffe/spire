@@ -209,7 +209,7 @@ func TestMintX509CA(t *testing.T) {
 				X509Authorities: [][]byte{[]byte("malformed")},
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse X509 authorities: asn1: structure error:",
+			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse X509 authorities: x509: malformed certificate",
 		},
 		{
 			name: "downstream returns malformed CA chain",
@@ -220,7 +220,7 @@ func TestMintX509CA(t *testing.T) {
 				CaCertChain: [][]byte{[]byte("malformed")},
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse CA cert chain: asn1: structure error",
+			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse CA cert chain: x509: malformed certificate",
 		},
 	}
 

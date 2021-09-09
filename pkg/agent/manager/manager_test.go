@@ -668,9 +668,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
 		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
-			ca, _ := createCA(h.t, h.clk)
-			h.bundle.AppendRootCA(ca)
-
+			h.rotateCA()
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
 		},
 		svidTTL: 200,
@@ -727,10 +725,7 @@ func TestSurvivesCARotation(t *testing.T) {
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
 		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
-			ca, key := createCA(h.t, h.clk)
-			h.caKey = key
-			h.bundle.AppendRootCA(ca)
-
+			h.rotateCA()
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
 		},
 		clk: clk,
@@ -985,6 +980,7 @@ type mockAPI struct {
 	addr string
 
 	bundle *bundleutil.Bundle
+	ca     *x509.Certificate
 	caKey  *ecdsa.PrivateKey
 
 	svid []*x509.Certificate
@@ -1002,17 +998,17 @@ type mockAPI struct {
 }
 
 func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
-	ca, caKey := createCA(t, config.clk)
-
 	h := &mockAPI{
 		t:      t,
 		c:      config,
-		bundle: bundleutil.BundleFromRootCA(trustDomain, ca),
-		caKey:  caKey,
+		bundle: bundleutil.New(trustDomain),
 		clk:    config.clk,
 	}
+
+	h.rotateCA()
+
 	serverID := idutil.ServerID(trustDomain)
-	h.svid = createSVIDWithKey(t, config.clk, ca, caKey, serverID, time.Hour, serverKey)
+	h.svid = createSVIDWithKey(t, config.clk, h.ca, h.caKey, serverID, time.Hour, serverKey)
 
 	tlsConfig := &tls.Config{
 		GetConfigForClient: h.getGRPCServerConfig,
@@ -1108,22 +1104,24 @@ func (h *mockAPI) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFeder
 	return &types.Bundle{
 		TrustDomain: req.TrustDomain,
 		X509Authorities: []*types.X509Certificate{
-			{Asn1: h.ca().Raw},
+			{Asn1: h.ca.Raw},
 		},
 	}, nil
 }
 
-func (h *mockAPI) ca() *x509.Certificate {
-	rootCAs := h.bundle.RootCAs()
-	return rootCAs[len(rootCAs)-1]
+func (h *mockAPI) rotateCA() {
+	ca, caKey := createCA(h.t, h.clk)
+	h.ca = ca
+	h.caKey = caKey
+	h.bundle.AppendRootCA(ca)
 }
 
 func (h *mockAPI) newSVID(spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
-	return createSVID(h.t, h.c.km, h.clk, h.ca(), h.caKey, spiffeID, ttl)
+	return createSVID(h.t, h.c.km, h.clk, h.ca, h.caKey, spiffeID, ttl)
 }
 
 func (h *mockAPI) newSVIDFromCSR(spiffeID spiffeid.ID, csr []byte) []*x509.Certificate {
-	return createSVIDFromCSR(h.t, h.clk, h.ca(), h.caKey, spiffeID, csr, h.c.svidTTL)
+	return createSVIDFromCSR(h.t, h.clk, h.ca, h.caKey, spiffeID, csr, h.c.svidTTL)
 }
 
 func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -1131,14 +1129,14 @@ func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, 
 	for _, c := range h.svid {
 		certChain = append(certChain, c.Raw)
 	}
-	certChain = append(certChain, h.ca().Raw)
+	certChain = append(certChain, h.ca.Raw)
 	certs := []tls.Certificate{{
 		Certificate: certChain,
 		PrivateKey:  serverKey,
 	}}
 
 	roots := x509.NewCertPool()
-	roots.AddCert(h.ca())
+	roots.AddCert(h.ca)
 
 	return &tls.Config{
 		ClientAuth:   tls.VerifyClientCertIfGiven,

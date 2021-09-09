@@ -157,10 +157,6 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, fmt.Errorf("load bundle: %w", err)
 	}
 
-	if bundle == nil {
-		return nil, errors.New("load bundle: no bundle available")
-	}
-
 	if len(bundle) < 1 {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
