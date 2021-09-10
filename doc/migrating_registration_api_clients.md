@@ -1,8 +1,8 @@
 # Migrating Registration API Clients
 
-The `registration` API has been deprecated and will be removed from a future
-release. The new API surface is a superset of the previous functionality and
-provides consistent semantics, batch, and paging support.
+The `registration` API has been deprecated and removed. The new API surface is
+a superset of the previous functionality and provides consistent semantics,
+batch, and paging support.
 
 This document outlines the replacement RPCs when migrating clients away from
 the old registration API.

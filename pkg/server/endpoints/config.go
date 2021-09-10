@@ -25,7 +25,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"golang.org/x/net/context"
 )
@@ -73,20 +72,6 @@ type Config struct {
 	CacheReloadInterval time.Duration
 
 	AuditLogEnabled bool
-}
-
-func (c *Config) makeOldAPIServers() OldAPIServers {
-	registrationHandler := &registration.Handler{
-		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
-		Metrics:     c.Metrics,
-		Catalog:     c.Catalog,
-		TrustDomain: c.TrustDomain,
-		ServerCA:    c.ServerCA,
-	}
-
-	return OldAPIServers{
-		RegistrationServer: registrationHandler,
-	}
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() Server {

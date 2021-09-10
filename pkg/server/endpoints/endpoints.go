@@ -36,7 +36,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
 
 const (
@@ -60,8 +59,6 @@ type Server interface {
 }
 
 type Endpoints struct {
-	OldAPIServers
-
 	TCPAddr                      *net.TCPAddr
 	UDSAddr                      *net.UnixAddr
 	SVIDObserver                 svid.Observer
@@ -75,10 +72,6 @@ type Endpoints struct {
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
-}
-
-type OldAPIServers struct {
-	RegistrationServer registration_pb.RegistrationServer
 }
 
 type APIServers struct {
@@ -110,8 +103,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, errors.New("policy engine not provided for new endpoint")
 	}
 
-	oldAPIServers := c.makeOldAPIServers()
-
 	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 		defer call.Done(&err)
@@ -128,7 +119,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	}
 
 	return &Endpoints{
-		OldAPIServers:                oldAPIServers,
 		TCPAddr:                      c.TCPAddr,
 		UDSAddr:                      c.UDSAddr,
 		SVIDObserver:                 c.SVIDObserver,
@@ -155,10 +145,6 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
 	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
-
-	// Old APIs
-	registration_pb.RegisterRegistrationServer(tcpServer, e.OldAPIServers.RegistrationServer)
-	registration_pb.RegisterRegistrationServer(udsServer, e.OldAPIServers.RegistrationServer)
 
 	// New APIs
 	agentv1.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
@@ -363,9 +349,5 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	oldUnary, oldStream := wrapWithDeprecationLogging(log, auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall)
-
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled))
-
-	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled))
 }
