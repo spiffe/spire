@@ -19,6 +19,7 @@ import (
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire/pkg/server/api/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
@@ -145,6 +146,10 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			EntryFetcher: entryFetcher,
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
+		}),
+		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
+			TrustDomain: c.TrustDomain,
+			DataStore:   ds,
 		}),
 	}
 }

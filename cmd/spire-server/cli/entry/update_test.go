@@ -33,14 +33,14 @@ func TestUpdateHelp(t *testing.T) {
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -parentID string
     	The SPIFFE ID of this record's parent
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID that this record represents
+  -storeSVID
+    	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
     	The lifetime, in seconds, for SVIDs issued based on this registration entry
 `, test.stderr.String())
@@ -68,6 +68,20 @@ func TestUpdate(t *testing.T) {
 		Downstream:    true,
 	}
 
+	entryStoreSvid := &types.Entry{
+		Id:       "entry-id",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+		Selectors: []*types.Selector{
+			{Type: "type", Value: "key1:value"},
+			{Type: "type", Value: "key2:value"},
+		},
+		Ttl:           60,
+		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
+		ExpiresAt:     1552410266,
+		DnsNames:      []string{"unu1000", "ung1000"},
+		StoreSvid:     true,
+	}
 	fakeRespOKFromCmd := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
@@ -97,6 +111,18 @@ func TestUpdate(t *testing.T) {
 		Ttl:       200,
 	}
 
+	entry4 := &types.Entry{
+		Id:       "entry-id-3",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Storesvid"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+		Selectors: []*types.Selector{
+			{Type: "type", Value: "key1:value"},
+			{Type: "type", Value: "key2:value"},
+		},
+		StoreSvid: true,
+		Ttl:       200,
+	}
+
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
@@ -105,6 +131,10 @@ func TestUpdate(t *testing.T) {
 			},
 			{
 				Entry:  entry3,
+				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+			},
+			{
+				Entry:  entry4,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 			},
 		},
@@ -229,12 +259,58 @@ Admin            : true
 `, time.Unix(1552410266, 0).UTC()),
 		},
 		{
+			name: "Update succeeds using command line arguments Store Svid",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "type:key1:value",
+				"-selector", "type:key2:value",
+				"-ttl", "60",
+				"-federatesWith", "spiffe://domainA.test",
+				"-federatesWith", "spiffe://domainB.test",
+				"-entryExpiry", "1552410266",
+				"-dns", "unu1000",
+				"-dns", "ung1000",
+				"-storeSVID",
+			},
+			expReq: &entryv1.BatchUpdateEntryRequest{
+				Entries: []*types.Entry{entryStoreSvid},
+			},
+			fakeResp: &entryv1.BatchUpdateEntryResponse{
+				Results: []*entryv1.BatchUpdateEntryResponse_Result{
+					{
+						Entry: entryStoreSvid,
+						Status: &types.Status{
+							Code:    int32(codes.OK),
+							Message: "OK",
+						},
+					},
+				},
+			},
+			expOut: fmt.Sprintf(`Entry ID         : entry-id
+SPIFFE ID        : spiffe://example.org/workload
+Parent ID        : spiffe://example.org/parent
+Revision         : 0
+TTL              : 60
+Expiration time  : %s
+Selector         : type:key1:value
+Selector         : type:key2:value
+FederatesWith    : spiffe://domaina.test
+FederatesWith    : spiffe://domainb.test
+DNS name         : unu1000
+DNS name         : ung1000
+StoreSvid        : true
+
+`, time.Unix(1552410266, 0).UTC()),
+		},
+		{
 			name: "Update succeeds using data file",
 			args: []string{
 				"-data", "../../../../test/fixture/registration/good-for-update.json",
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{
-				Entries: []*types.Entry{entry2, entry3},
+				Entries: []*types.Entry{entry2, entry3, entry4},
 			},
 			fakeResp: fakeRespOKFromFile,
 			expOut: `Entry ID         : entry-id-1
@@ -251,6 +327,15 @@ Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
 Revision         : 0
 TTL              : 200
 Selector         : unix:uid:1111
+
+Entry ID         : entry-id-3
+SPIFFE ID        : spiffe://example.org/Storesvid
+Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision         : 0
+TTL              : 200
+Selector         : type:key1:value
+Selector         : type:key2:value
+StoreSvid        : true
 
 `,
 		},

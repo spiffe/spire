@@ -443,6 +443,9 @@ const (
 	// with other tags to add clarity
 	Updated = "updated"
 
+	// StoreSvid tags if entry is storable
+	StoreSvid = "store_svid"
+
 	// Version tags a version
 	Version = "version"
 

@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"sync"
@@ -142,6 +143,7 @@ func (s *ManagerSuite) TestSelfSigning() {
 		s.Equal(x509CA.Certificate.Subject, x509CA.Certificate.Issuer)
 	}
 	s.Empty(x509CA.UpstreamChain)
+	s.Require().Equal(1, x509CA.Certificate.SerialNumber.Cmp(big.NewInt(0)))
 }
 
 func (s *ManagerSuite) TestUpstreamSigned() {
