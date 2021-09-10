@@ -14,8 +14,6 @@ func TestCountHelp(t *testing.T) {
 	test.client.Help()
 
 	require.Equal(t, `Usage of entry count:
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())

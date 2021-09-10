@@ -147,7 +147,6 @@ protos := \
 	proto/spire/common/common.proto \
 
 api-protos := \
-	proto/spire/api/registration/registration.proto \
 
 plugin-protos := \
 	proto/private/test/legacyplugin/someplugin.proto \

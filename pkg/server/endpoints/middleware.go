@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"crypto/x509"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -19,7 +18,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -173,26 +171,4 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/grpc.health.v1.Health/Check":                                  noLimit,
 		"/grpc.health.v1.Health/Watch":                                  noLimit,
 	}
-}
-
-func unaryInterceptorMux(oldInterceptor, newInterceptor grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-		if !isOldAPI(info.FullMethod) {
-			return newInterceptor(ctx, req, info, handler)
-		}
-		return oldInterceptor(ctx, req, info, handler)
-	}
-}
-
-func streamInterceptorMux(oldInterceptor, newInterceptor grpc.StreamServerInterceptor) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if !isOldAPI(info.FullMethod) {
-			return newInterceptor(srv, ss, info, handler)
-		}
-		return oldInterceptor(srv, ss, info, handler)
-	}
-}
-
-func isOldAPI(fullMethod string) bool {
-	return strings.HasPrefix(fullMethod, "/spire.api.registration.")
 }

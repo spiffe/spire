@@ -151,21 +151,6 @@ func getDBCodeVersion(migration Migration) (dbCodeVersion semver.Version, err er
 }
 
 func isCompatibleCodeVersion(thisCodeVersion, dbCodeVersion semver.Version) bool {
-	// Apply a targeted exception in which 0.12.x is compatible with 1.0.x
-	// as 0.12 is the last pre-1.0 release.
-	//
-	// TODO: Remove in 1.1.0
-	if thisCodeVersion.Major == 0 && thisCodeVersion.Minor == 12 {
-		if dbCodeVersion.Major == 1 && dbCodeVersion.Minor == 0 {
-			return true
-		}
-	}
-	if thisCodeVersion.Major == 1 && thisCodeVersion.Minor == 0 {
-		if dbCodeVersion.Major == 0 && dbCodeVersion.Minor == 12 {
-			return true
-		}
-	}
-
 	// If major version is the same and minor version is +/- 1, versions are
 	// compatible
 	if dbCodeVersion.Major != thisCodeVersion.Major || (math.Abs(float64(int64(dbCodeVersion.Minor)-int64(thisCodeVersion.Minor))) > 1) {

@@ -11,5 +11,6 @@ The server uses the token to generate a SPIFFE ID with the form:
 spiffe://<trust domain>/spire/agent/join_token/<token>
 ```
 
-This plugin has no configuration options. Tokens may be generated through the CLI utility
-(`spire-server token generate`) or through the registration API.
+This plugin has no configuration options. Tokens may be generated through the
+CLI utility (`spire-server token generate`) or through the CreateJoinToken RPC
+of the SPIRE Server [Agent API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/agent/v1/agent.proto).
