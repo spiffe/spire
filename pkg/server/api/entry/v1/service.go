@@ -378,6 +378,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if !mask.RevisionNumber {
 		e.RevisionNumber = 0
 	}
+
+	if !mask.StoreSvid {
+		e.StoreSvid = false
+	}
 }
 
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {
@@ -391,9 +395,9 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
-	var dsEntry *common.RegistrationEntry
+	var mask *common.RegistrationEntryMask
 	if inputMask != nil {
-		mask := &common.RegistrationEntryMask{
+		mask = &common.RegistrationEntryMask{
 			SpiffeId:      inputMask.SpiffeId,
 			ParentId:      inputMask.ParentId,
 			Ttl:           inputMask.Ttl,
@@ -403,12 +407,10 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 			EntryExpiry:   inputMask.ExpiresAt,
 			DnsNames:      inputMask.DnsNames,
 			Selectors:     inputMask.Selectors,
+			StoreSvid:     inputMask.StoreSvid,
 		}
-		dsEntry, err = s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
-	} else {
-		dsEntry, err = s.ds.UpdateRegistrationEntry(ctx, convEntry, nil)
 	}
-
+	dsEntry, err := s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to update entry", err),
@@ -491,6 +493,10 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 
 	if inputMask == nil || inputMask.RevisionNumber {
 		fields[telemetry.RevisionNumber] = proto.RevisionNumber
+	}
+
+	if inputMask == nil || inputMask.StoreSvid {
+		fields[telemetry.StoreSvid] = proto.StoreSvid
 	}
 
 	return fields

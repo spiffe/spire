@@ -55,7 +55,7 @@ require (
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.6
-	github.com/spiffe/spire-api-sdk v1.0.2
+	github.com/spiffe/spire-api-sdk v1.0.3-0.20210830151222-70fb6a116a63
 	github.com/spiffe/spire-plugin-sdk v1.0.2
 	github.com/stretchr/testify v1.7.0
 	github.com/uber-go/tally v3.3.12+incompatible

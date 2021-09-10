@@ -39,6 +39,8 @@ func TestCreateHelp(t *testing.T) {
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string
     	The SPIFFE ID that this record represents
+  -storeSVID
+    	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
     	The lifetime, in seconds, for SVIDs issued based on this registration entry
 `, test.stderr.String())
@@ -67,6 +69,7 @@ func TestCreate(t *testing.T) {
 					ExpiresAt:     1552410266,
 					DnsNames:      []string{"unu1000", "ung1000"},
 					Downstream:    true,
+					StoreSvid:     true,
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -98,6 +101,23 @@ func TestCreate(t *testing.T) {
 					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
 					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
 					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1111"}},
+					Ttl:       200,
+				},
+				Status: &types.Status{
+					Code:    int32(codes.OK),
+					Message: "OK",
+				},
+			},
+			{
+				Entry: &types.Entry{
+					Id:       "entry-id-3",
+					SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
+					ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "key1:value"},
+						{Type: "type", Value: "key2:value"},
+					},
+					StoreSvid: true,
 					Ttl:       200,
 				},
 				Status: &types.Status{
@@ -202,6 +222,7 @@ func TestCreate(t *testing.T) {
 				"-dns", "unu1000",
 				"-dns", "ung1000",
 				"-downstream",
+				"-storeSVID",
 			},
 			expReq: &entryv1.BatchCreateEntryRequest{
 				Entries: []*types.Entry{
@@ -218,6 +239,7 @@ func TestCreate(t *testing.T) {
 						ExpiresAt:     1552410266,
 						DnsNames:      []string{"unu1000", "ung1000"},
 						Downstream:    true,
+						StoreSvid:     true,
 					},
 				},
 			},
@@ -236,6 +258,7 @@ FederatesWith    : spiffe://domainb.test
 DNS name         : unu1000
 DNS name         : ung1000
 Admin            : true
+StoreSvid        : true
 
 `, time.Unix(1552410266, 0).UTC()),
 		},
@@ -259,6 +282,16 @@ Admin            : true
 						Selectors: []*types.Selector{{Type: "unix", Value: "uid:1111"}},
 						Ttl:       200,
 					},
+					{
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+						Selectors: []*types.Selector{
+							{Type: "type", Value: "key1:value"},
+							{Type: "type", Value: "key2:value"},
+						},
+						Ttl:       200,
+						StoreSvid: true,
+					},
 				},
 			},
 			fakeResp: fakeRespOKFromFile,
@@ -276,6 +309,15 @@ Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
 Revision         : 0
 TTL              : 200
 Selector         : unix:uid:1111
+
+Entry ID         : entry-id-3
+SPIFFE ID        : spiffe://example.org/storesvid
+Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision         : 0
+TTL              : 200
+Selector         : type:key1:value
+Selector         : type:key2:value
+StoreSvid        : true
 
 `,
 		},
