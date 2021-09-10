@@ -26,6 +26,7 @@ import (
 	debugv1_pb "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -81,12 +82,13 @@ type OldAPIServers struct {
 }
 
 type APIServers struct {
-	AgentServer  agentv1.AgentServer
-	BundleServer bundlev1.BundleServer
-	DebugServer  debugv1_pb.DebugServer
-	EntryServer  entryv1.EntryServer
-	HealthServer grpc_health_v1.HealthServer
-	SVIDServer   svidv1.SVIDServer
+	AgentServer       agentv1.AgentServer
+	BundleServer      bundlev1.BundleServer
+	DebugServer       debugv1_pb.DebugServer
+	EntryServer       entryv1.EntryServer
+	HealthServer      grpc_health_v1.HealthServer
+	SVIDServer        svidv1.SVIDServer
+	TrustDomainServer trustdomainv1.TrustDomainServer
 }
 
 // RateLimitConfig holds rate limiting configurations.
@@ -167,6 +169,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	entryv1.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
 	svidv1.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
 	svidv1.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
+	trustdomainv1.RegisterTrustDomainServer(tcpServer, e.APIServers.TrustDomainServer)
+	trustdomainv1.RegisterTrustDomainServer(udsServer, e.APIServers.TrustDomainServer)
 
 	// Register Health and Debug only on UDS server
 	grpc_health_v1.RegisterHealthServer(udsServer, e.APIServers.HealthServer)
