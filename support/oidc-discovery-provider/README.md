@@ -81,13 +81,6 @@ will terminate if another domain is requested.
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 | `trust_domain`     | string   | required  | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. | |
 
-#### Registration API Section (Deprecated)
-
-| Key                | Type     | Required? | Description                              | Default |
-| ------------------ | -------- | --------- | ----------------------------------------- | ------- |
-| `socket_path`      | string   | required  | Path on disk to the Registration API Unix Domain socket. | |
-| `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
-
 ### Examples
 
 #### Server API

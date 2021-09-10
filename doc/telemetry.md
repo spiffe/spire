@@ -8,7 +8,7 @@ The following metrics are emitted:
 
 | Type | Keys | Labels | Description |
 | ---  | --- | --- | --- |
-| Call Counter | `rpc`, `<service>`, `<method>` | | Call counters over the SPIRE Server RPCs (other than the deprecated Node and Registration APIs)
+| Call Counter | `rpc`, `<service>`, `<method>` | | Call counters over the SPIRE Server RPCs
 | Call Counter | `ca`, `manager`, `bundle`, `prune` | | The CA manager is pruning a bundle.
 | Counter | `ca`, `manager`, `bundle`, `pruned` | | The CA manager has successfully pruned a bundle.
 | Call Counter | `ca`, `manager`, `jwt_key`, `prepare` | | The CA manager is preparing a JWT Key.

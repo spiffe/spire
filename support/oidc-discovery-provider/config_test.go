@@ -453,7 +453,7 @@ func TestParseConfig(t *testing.T) {
 			err: "socket_path must be configured in the workload_api configuration section",
 		},
 		{
-			name: "registration API config invalid poll interval",
+			name: "workload API config invalid poll interval",
 			in: `
 				domains = ["domain.test"]
 				acme {
