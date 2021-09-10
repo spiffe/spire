@@ -116,9 +116,8 @@ type Adapter struct {
 	env *common_cli.Env
 	cmd Command
 
-	flags               *flag.FlagSet
-	registrationUDSPath string
-	socketPath          string
+	flags      *flag.FlagSet
+	socketPath string
 }
 
 // AdaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
@@ -130,12 +129,7 @@ func AdaptCommand(env *common_cli.Env, cmd Command) *Adapter {
 
 	f := flag.NewFlagSet(cmd.Name(), flag.ContinueOnError)
 	f.SetOutput(env.Stderr)
-	f.StringVar(&a.registrationUDSPath, "registrationUDSPath", "", "Path to the SPIRE Server API socket (deprecated; use -socketPath)")
-	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
-	// default flag value on socketPath like it was previously, since we'll no
-	// longer need to detect an unset flag from the default for deprecation
-	// logging/error handling purposes.
-	f.StringVar(&a.socketPath, "socketPath", "", `Path to the SPIRE Server API socket (default "`+DefaultSocketPath+`")`)
+	f.StringVar(&a.socketPath, "socketPath", DefaultSocketPath, "Path to the SPIRE Server API socket")
 	a.cmd.AppendFlags(f)
 	a.flags = f
 
@@ -149,21 +143,7 @@ func (a *Adapter) Run(args []string) int {
 		return 1
 	}
 
-	var socketPath string
-	switch {
-	case a.socketPath == "" && a.registrationUDSPath == "":
-		socketPath = DefaultSocketPath
-	case a.socketPath != "" && a.registrationUDSPath == "":
-		socketPath = a.socketPath
-	case a.socketPath == "" && a.registrationUDSPath != "":
-		fmt.Fprintln(a.env.Stderr, "warning: -registrationUDSPath is deprecated; use -socketPath")
-		socketPath = a.registrationUDSPath
-	case a.socketPath != "" && a.registrationUDSPath != "":
-		fmt.Fprintln(a.env.Stderr, "The -socketPath and deprecated -registrationUDSPath flags are mutually exclusive")
-		return 1
-	}
-
-	client, err := NewServerClient(socketPath)
+	client, err := NewServerClient(a.socketPath)
 	if err != nil {
 		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
 		return 1

@@ -33,8 +33,6 @@ func TestUpdateHelp(t *testing.T) {
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -parentID string
     	The SPIFFE ID of this record's parent
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
   -socketPath string

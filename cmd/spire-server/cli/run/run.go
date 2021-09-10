@@ -93,9 +93,6 @@ type serverConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 
-	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
-	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
-
 	// TODO: Remove for 1.1.0
 	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
@@ -310,12 +307,7 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.DeprecatedRegistrationUDSPath, "registrationUDSPath", "", "Path to bind the SPIRE Server API socket to (deprecated; use -socketPath)")
-	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
-	// default flag value on socketPath like it was previously, since we'll no
-	// longer need to detect an unset flag from the default for deprecation
-	// logging/error handling purposes.
-	flags.StringVar(&c.SocketPath, "socketPath", "", `Path to bind the SPIRE Server API socket to (default "`+defaultSocketPath+`")`)
+	flags.StringVar(&c.SocketPath, "socketPath", defaultSocketPath, "Path to bind the SPIRE Server API socket to")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -383,19 +375,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		Port: c.Server.BindPort,
 	}
 
-	var socketPath string
-	switch {
-	case c.Server.SocketPath != "":
-		socketPath = c.Server.SocketPath
-	case c.Server.DeprecatedRegistrationUDSPath != "":
-		logger.Warn("The registration_uds_path configurable is deprecated; use socket_path instead.")
-		socketPath = c.Server.DeprecatedRegistrationUDSPath
-	default:
-		socketPath = defaultSocketPath
-	}
-
 	sc.BindUDSAddress = &net.UnixAddr{
-		Name: socketPath,
+		Name: c.Server.SocketPath,
 		Net:  "unix",
 	}
 
@@ -676,10 +657,6 @@ func validateConfig(c *Config) error {
 
 	if c.Server.BindAddress == "" || c.Server.BindPort == 0 {
 		return errors.New("bind_address and bind_port must be configured")
-	}
-
-	if c.Server.SocketPath != "" && c.Server.DeprecatedRegistrationUDSPath != "" {
-		return errors.New("socket_path and the deprecated registration_uds_path are mutually exclusive")
 	}
 
 	if c.Server.TrustDomain == "" {
