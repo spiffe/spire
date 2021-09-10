@@ -66,7 +66,7 @@ type ObjectReconciler interface {
 // This implements the polling solution documented here: https://docs.google.com/document/d/19BDGrCRh9rjj09to1D2hlDJZXRuwOlY4hL5c4n7_bVc
 // By using name+namespace as a key we are able to maintain a 1:1 mapping from k8s resources to SPIRE registration entries.
 // The base reconciler implements the common functionality required to maintain that mapping, including a watcher on the
-// given resource, and a watcher which receives notifications from polling the registration api.
+// given resource, and a watcher which receives notifications from polling the SPIRE Entry API.
 type BaseReconciler struct {
 	client.Client
 	ObjectReconciler

@@ -46,8 +46,6 @@ func (s *HealthCheckSuite) TestSynopsis() {
 func (s *HealthCheckSuite) TestHelp() {
 	s.Equal("flag: help requested", s.cmd.Help())
 	s.Equal(`Usage of healthcheck:
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -shallow
     	Perform a less stringent health check
   -socketPath string
@@ -63,8 +61,6 @@ func (s *HealthCheckSuite) TestBadFlags() {
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Equal(`flag provided but not defined: -badflag
 Usage of healthcheck:
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -shallow
     	Perform a less stringent health check
   -socketPath string
