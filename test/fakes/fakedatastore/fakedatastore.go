@@ -197,6 +197,13 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.R
 	return s.ds.CreateRegistrationEntry(ctx, entry)
 }
 
+func (s *DataStore) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, false, err
+	}
+	return s.ds.CreateOrReturnRegistrationEntry(ctx, entry)
+}
+
 func (s *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err

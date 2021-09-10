@@ -3,25 +3,30 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/url"
+
+	"github.com/gorilla/handlers"
 )
 
 type Handler struct {
-	domain string
-	source JWKSSource
+	source              JWKSSource
+	domainPolicy        DomainPolicy
+	allowInsecureScheme bool
 
 	http.Handler
 }
 
-func NewHandler(domain string, source JWKSSource) *Handler {
+func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool) *Handler {
 	h := &Handler{
-		domain: domain,
-		source: source,
+		domainPolicy:        domainPolicy,
+		source:              source,
+		allowInsecureScheme: allowInsecureScheme,
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/.well-known/openid-configuration", http.HandlerFunc(h.serveWellKnown))
+	mux.Handle("/.well-known/openid-configuration", handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
 	mux.Handle("/keys", http.HandlerFunc(h.serveKeys))
 
 	h.Handler = mux
@@ -34,14 +39,24 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.verifyHost(r.Host); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	urlScheme := "https"
+	if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
+		urlScheme = "http"
+	}
+
 	issuerURL := url.URL{
-		Scheme: "https",
-		Host:   h.domain,
+		Scheme: urlScheme,
+		Host:   r.Host,
 	}
 
 	jwksURI := url.URL{
-		Scheme: "https",
-		Host:   h.domain,
+		Scheme: urlScheme,
+		Host:   r.Host,
 		Path:   "/keys",
 	}
 
@@ -100,4 +115,16 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	http.ServeContent(w, r, "keys", modTime, bytes.NewReader(jwksBytes))
+}
+
+func (h *Handler) verifyHost(host string) error {
+	// Obtain the domain name from the host value, which comes from the
+	// request, or is pulled from the X-Forwarded-Host header (via the
+	// ProxyHeaders middleware). The value may be in host or host:port form.
+	domain, _, err := net.SplitHostPort(host)
+	if err != nil {
+		// `Host` was not in the host:port form form.
+		domain = host
+	}
+	return h.domainPolicy(domain)
 }

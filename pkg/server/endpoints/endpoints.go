@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
@@ -25,15 +26,16 @@ import (
 	debugv1_pb "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	registration_pb "github.com/spiffe/spire/proto/spire/api/registration"
 )
 
 const (
@@ -57,8 +59,6 @@ type Server interface {
 }
 
 type Endpoints struct {
-	OldAPIServers
-
 	TCPAddr                      *net.TCPAddr
 	UDSAddr                      *net.UnixAddr
 	SVIDObserver                 svid.Observer
@@ -71,19 +71,17 @@ type Endpoints struct {
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	AuditLogEnabled              bool
-}
-
-type OldAPIServers struct {
-	RegistrationServer registration_pb.RegistrationServer
+	AuthPolicyEngine             *authpolicy.Engine
 }
 
 type APIServers struct {
-	AgentServer  agentv1.AgentServer
-	BundleServer bundlev1.BundleServer
-	DebugServer  debugv1_pb.DebugServer
-	EntryServer  entryv1.EntryServer
-	HealthServer grpc_health_v1.HealthServer
-	SVIDServer   svidv1.SVIDServer
+	AgentServer       agentv1.AgentServer
+	BundleServer      bundlev1.BundleServer
+	DebugServer       debugv1_pb.DebugServer
+	EntryServer       entryv1.EntryServer
+	HealthServer      grpc_health_v1.HealthServer
+	SVIDServer        svidv1.SVIDServer
+	TrustDomainServer trustdomainv1.TrustDomainServer
 }
 
 // RateLimitConfig holds rate limiting configurations.
@@ -97,11 +95,13 @@ type RateLimitConfig struct {
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
-	if err := os.MkdirAll(c.UDSAddr.String(), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(c.UDSAddr.String()), 0750); err != nil {
 		return nil, fmt.Errorf("unable to create socket directory: %w", err)
 	}
 
-	oldAPIServers := c.makeOldAPIServers()
+	if c.AuthPolicyEngine == nil {
+		return nil, errors.New("policy engine not provided for new endpoint")
+	}
 
 	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
@@ -119,7 +119,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	}
 
 	return &Endpoints{
-		OldAPIServers:                oldAPIServers,
 		TCPAddr:                      c.TCPAddr,
 		UDSAddr:                      c.UDSAddr,
 		SVIDObserver:                 c.SVIDObserver,
@@ -132,6 +131,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
+		AuthPolicyEngine:             c.AuthPolicyEngine,
 	}, nil
 }
 
@@ -141,15 +141,10 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 // server is returned.
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.Log.Debug("Initializing API endpoints")
-
 	unaryInterceptor, streamInterceptor := e.makeInterceptors()
 
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
 	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
-
-	// Old APIs
-	registration_pb.RegisterRegistrationServer(tcpServer, e.OldAPIServers.RegistrationServer)
-	registration_pb.RegisterRegistrationServer(udsServer, e.OldAPIServers.RegistrationServer)
 
 	// New APIs
 	agentv1.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
@@ -160,6 +155,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	entryv1.RegisterEntryServer(udsServer, e.APIServers.EntryServer)
 	svidv1.RegisterSVIDServer(tcpServer, e.APIServers.SVIDServer)
 	svidv1.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
+	trustdomainv1.RegisterTrustDomainServer(tcpServer, e.APIServers.TrustDomainServer)
+	trustdomainv1.RegisterTrustDomainServer(udsServer, e.APIServers.TrustDomainServer)
 
 	// Register Health and Debug only on UDS server
 	grpc_health_v1.RegisterHealthServer(udsServer, e.APIServers.HealthServer)
@@ -352,9 +349,5 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	oldUnary, oldStream := wrapWithDeprecationLogging(log, auth.UnaryAuthorizeCall, auth.StreamAuthorizeCall)
-
-	newUnary, newStream := middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuditLogEnabled))
-
-	return unaryInterceptorMux(oldUnary, newUnary), streamInterceptorMux(oldStream, newStream)
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled))
 }

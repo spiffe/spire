@@ -20,13 +20,12 @@ import (
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -42,7 +41,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -76,6 +74,9 @@ func TestNew(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
+	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
 	serverCA := fakeserverca.New(t, testTD, nil)
 	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
@@ -90,25 +91,25 @@ func TestNew(t *testing.T) {
 	})
 
 	endpoints, err := New(ctx, Config{
-		TCPAddr:        tcpAddr,
-		UDSAddr:        udsAddr,
-		SVIDObserver:   svidObserver,
-		TrustDomain:    testTD,
-		Catalog:        cat,
-		ServerCA:       serverCA,
-		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
-		Manager:        manager,
-		Log:            log,
-		Metrics:        metrics,
-		RateLimit:      rateLimit,
-		Clock:          clk,
+		TCPAddr:          tcpAddr,
+		UDSAddr:          udsAddr,
+		SVIDObserver:     svidObserver,
+		TrustDomain:      testTD,
+		Catalog:          cat,
+		ServerCA:         serverCA,
+		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
+		Manager:          manager,
+		Log:              log,
+		Metrics:          metrics,
+		RateLimit:        rateLimit,
+		Clock:            clk,
+		AuthPolicyEngine: pe,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
 	assert.Equal(t, udsAddr, endpoints.UDSAddr)
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
-	assert.NotNil(t, endpoints.OldAPIServers.RegistrationServer)
 	assert.NotNil(t, endpoints.APIServers.AgentServer)
 	assert.NotNil(t, endpoints.APIServers.BundleServer)
 	assert.NotNil(t, endpoints.APIServers.DebugServer)
@@ -138,6 +139,9 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
+	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
 	serverCA := fakeserverca.New(t, testTD, nil)
 	healthChecker := fakehealthchecker.New()
 	manager := ca.NewManager(ca.ManagerConfig{
@@ -152,18 +156,19 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	})
 
 	endpoints, err := New(ctx, Config{
-		TCPAddr:        tcpAddr,
-		UDSAddr:        udsAddr,
-		SVIDObserver:   svidObserver,
-		TrustDomain:    testTD,
-		Catalog:        cat,
-		ServerCA:       serverCA,
-		BundleEndpoint: bundle.EndpointConfig{Address: tcpAddr},
-		Manager:        manager,
-		Log:            log,
-		Metrics:        metrics,
-		RateLimit:      rateLimit,
-		Clock:          clk,
+		TCPAddr:          tcpAddr,
+		UDSAddr:          udsAddr,
+		SVIDObserver:     svidObserver,
+		TrustDomain:      testTD,
+		Catalog:          cat,
+		ServerCA:         serverCA,
+		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
+		Manager:          manager,
+		Log:              log,
+		Metrics:          metrics,
+		RateLimit:        rateLimit,
+		Clock:            clk,
+		AuthPolicyEngine: pe,
 	})
 
 	assert.Error(t, err)
@@ -171,6 +176,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 }
 
 func TestListenAndServe(t *testing.T) {
+	ctx := context.Background()
 	ca := testca.New(t, testTD)
 	serverSVID := ca.CreateX509SVID(serverID)
 	agentSVID := ca.CreateX509SVID(agentID)
@@ -188,7 +194,6 @@ func TestListenAndServe(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
 
-	registrationServer := newRegistrationServer()
 	bundleEndpointServer := newBundleEndpointServer()
 	clk := clock.NewMock(t)
 
@@ -199,15 +204,15 @@ func TestListenAndServe(t *testing.T) {
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
+	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
 	endpoints := Endpoints{
 		TCPAddr:      listener.Addr().(*net.TCPAddr),
 		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
 		SVIDObserver: newSVIDObserver(serverSVID),
 		TrustDomain:  testTD,
 		DataStore:    ds,
-		OldAPIServers: OldAPIServers{
-			RegistrationServer: registrationServer,
-		},
 		APIServers: APIServers{
 			AgentServer:  &agentv1.UnimplementedAgentServer{},
 			BundleServer: &bundlev1.UnimplementedBundleServer{},
@@ -221,6 +226,7 @@ func TestListenAndServe(t *testing.T) {
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		AuthPolicyEngine:             pe,
 	}
 
 	// Prime the datastore with the:
@@ -279,9 +285,6 @@ func TestListenAndServe(t *testing.T) {
 		}
 	})
 
-	t.Run("Registration", func(t *testing.T) {
-		testRegistrationAPI(ctx, t, registrationServer, udsConn, noauthConn, agentConn)
-	})
 	t.Run("Agent", func(t *testing.T) {
 		testAgentAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
@@ -344,37 +347,6 @@ func prepareDataStore(t *testing.T, ds datastore.DataStore, ca *testca.CA, agent
 		Downstream: true,
 	})
 	require.NoError(t, err)
-}
-
-func testRegistrationAPI(ctx context.Context, t *testing.T, s *registrationServer, udsConn, noauthConn, agentConn *grpc.ClientConn) {
-	call := func(t *testing.T, conn *grpc.ClientConn) *peer.Peer {
-		peer := doCall(t, s.callTracker, func() error {
-			client := registration.NewRegistrationClient(conn)
-			_, err := client.GetNodeSelectors(ctx, &registration.GetNodeSelectorsRequest{})
-			return err
-		})
-		require.NotNil(t, peer, "missing peer")
-		return peer
-	}
-
-	t.Run("UDS", func(t *testing.T) {
-		peer := call(t, udsConn)
-		require.Equal(t, auth.UntrackedUDSAuthInfo{}, peer.AuthInfo)
-	})
-	t.Run("TLS", func(t *testing.T) {
-		peer := call(t, noauthConn)
-		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
-		require.True(t, ok, "peer does not have TLS auth info")
-		require.Empty(t, tlsInfo.State.PeerCertificates)
-		require.Empty(t, tlsInfo.State.VerifiedChains)
-	})
-	t.Run("mTLS", func(t *testing.T) {
-		peer := call(t, agentConn)
-		tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
-		require.True(t, ok, "peer does not have TLS auth info")
-		require.NotEmpty(t, tlsInfo.State.PeerCertificates)
-		require.NotEmpty(t, tlsInfo.State.VerifiedChains)
-	})
 }
 
 func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
@@ -775,61 +747,6 @@ func callRPC(ctx context.Context, t *testing.T, mv reflect.Value) []reflect.Valu
 	}
 
 	return out
-}
-
-type registrationServer struct {
-	registration.UnimplementedRegistrationServer
-	*callTracker
-}
-
-func newRegistrationServer() *registrationServer {
-	return &registrationServer{
-		callTracker: &callTracker{},
-	}
-}
-
-func doCall(t *testing.T, tracker *callTracker, fn func() error) *peer.Peer {
-	tracker.Reset()
-	err := fn()
-	require.Equal(t, codes.Unimplemented, status.Code(err))
-	peers := tracker.Peers()
-	switch len(peers) {
-	case 0:
-		return nil
-	case 1:
-		return peers[0]
-	default:
-		require.FailNow(t, "expected zero or one peer", "peers=%d", len(peers))
-		return nil // unreachable
-	}
-}
-
-type callTracker struct {
-	mtx   sync.Mutex
-	peers []*peer.Peer
-}
-
-func (t *callTracker) AuthorizeCall(ctx context.Context, fullMethod string) (context.Context, error) {
-	t.mtx.Lock()
-	defer t.mtx.Unlock()
-	peer, ok := peer.FromContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.Internal, "no peer on context")
-	}
-	t.peers = append(t.peers, peer)
-	return ctx, nil
-}
-
-func (t *callTracker) Peers() []*peer.Peer {
-	t.mtx.Lock()
-	defer t.mtx.Unlock()
-	return t.peers
-}
-
-func (t *callTracker) Reset() {
-	t.mtx.Lock()
-	defer t.mtx.Unlock()
-	t.peers = nil
 }
 
 type bundleEndpointServer struct {

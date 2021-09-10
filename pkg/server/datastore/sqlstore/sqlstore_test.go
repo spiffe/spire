@@ -112,7 +112,9 @@ func (s *PluginSuite) SetupTest() {
 }
 
 func (s *PluginSuite) TearDownTest() {
-	s.ds.closeDB()
+	if s.ds != nil {
+		s.ds.closeDB()
+	}
 }
 
 func (s *PluginSuite) newPlugin() *Plugin {
@@ -1293,27 +1295,51 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
-	entry := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
+	for _, tt := range []struct {
+		name  string
+		entry *common.RegistrationEntry
+	}{
+		{
+			name: "entry with dns",
+			entry: &common.RegistrationEntry{
+				Selectors: []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+					{Type: "Type2", Value: "Value2"},
+					{Type: "Type3", Value: "Value3"},
+				},
+				SpiffeId: "SpiffeId",
+				ParentId: "ParentId",
+				Ttl:      1,
+				DnsNames: []string{
+					"abcd.efg",
+					"somehost",
+				},
+			},
 		},
-		SpiffeId: "SpiffeId",
-		ParentId: "ParentId",
-		Ttl:      1,
-		DnsNames: []string{
-			"abcd.efg",
-			"somehost",
+		{
+			name: "entry with store svid",
+			entry: &common.RegistrationEntry{
+				Selectors: []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+				},
+				SpiffeId:  "SpiffeId",
+				ParentId:  "ParentId",
+				Ttl:       1,
+				StoreSvid: true,
+			},
 		},
+	} {
+		tt := tt
+		s.T().Run(tt.name, func(t *testing.T) {
+			createdEntry, err := s.ds.CreateRegistrationEntry(ctx, tt.entry)
+			s.Require().NoError(err)
+			s.Require().NotNil(createdEntry)
+
+			fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
+			s.Require().NoError(err)
+			s.RequireProtoEqual(createdEntry, fetchRegistrationEntry)
+		})
 	}
-
-	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
-	s.Require().NoError(err)
-
-	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
-	s.Require().NoError(err)
-	s.RequireProtoEqual(createdRegistrationEntry, fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
@@ -1432,8 +1458,8 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
 	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
 	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarAD3 := makeEntry("baz", "bar", "A", "D")
-	bazbarAD3.FederatesWith = []string{"spiffe://federated3.test"}
+	bazbarAE3 := makeEntry("baz", "bar", "A", "E")
+	bazbarAE3.FederatesWith = []string{"spiffe://federated3.test"}
 
 	bazbuzAB12 := makeEntry("baz", "buz", "A", "B")
 	bazbuzAB12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
@@ -1717,7 +1743,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith one match any",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCD12},
@@ -1726,7 +1752,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith many match any",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.MatchAny, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12},
@@ -1735,7 +1761,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith one superset",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAB1, bazbarAD12, bazbarCD12},
@@ -1744,7 +1770,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		},
 		{
 			test:                  "by parentID and federatesWith many superset",
-			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAD3},
+			entries:               []*common.RegistrationEntry{foobarAB1, foobarAD12, foobarCB2, foobarCD12, zizzazX, bazbarAB1, bazbarAD12, bazbarCB2, bazbarCD12, bazbarAE3},
 			byParentID:            makeID("baz"),
 			byFederatesWith:       byFederatesWith(datastore.Superset, "spiffe://federated1.test", "spiffe://federated2.test"),
 			expectEntriesOut:      []*common.RegistrationEntry{bazbarAD12, bazbarCD12},
@@ -2122,6 +2148,10 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 
 	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().NoError(err)
+	// Verify output has expected values
+	s.Require().Equal(int32(2), entry.Ttl)
+	s.Require().True(entry.Admin)
+	s.Require().True(entry.Downstream)
 
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
@@ -2131,6 +2161,41 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.EntryId = "badid"
 	_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+}
+
+func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type1", Value: "Value2"},
+			{Type: "Type1", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	})
+
+	entry.StoreSvid = true
+
+	updateRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().NoError(err)
+	s.Require().NotNil(updateRegistrationEntry)
+	// Verify output has expected values
+	s.Require().True(entry.StoreSvid)
+
+	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	s.Require().NoError(err)
+	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
+
+	// Update with invalid selectors
+	entry.Selectors = []*common.Selector{
+		{Type: "Type1", Value: "Value1"},
+		{Type: "Type1", Value: "Value2"},
+		{Type: "Type2", Value: "Value3"},
+	}
+	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -2150,6 +2215,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		EntryExpiry:   1000,
 		DnsNames:      []string{"dns1"},
 		Downstream:    false,
+		StoreSvid:     false,
 	}
 	newEntry := &common.RegistrationEntry{
 		ParentId:      "spiffe://example.org/oldParentId",
@@ -2161,6 +2227,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		EntryExpiry:   1000,
 		DnsNames:      []string{"dns2"},
 		Downstream:    false,
+		StoreSvid:     false,
 	}
 	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
@@ -2176,6 +2243,8 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	// Needed for the FederatesWith field to work
 	s.createBundle("spiffe://dom1.org")
 	s.createBundle("spiffe://dom2.org")
+
+	var id string
 	for _, testcase := range []struct {
 		name   string
 		mask   *common.RegistrationEntryMask
@@ -2260,6 +2329,28 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Admin: false},
 			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
 			result: func(e *common.RegistrationEntry) {}},
+
+		// STORESVID FIELD -- This field isn't validated so we just check with good data
+		{name: "Update StoreSvid, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{StoreSvid: true},
+			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
+			result: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid }},
+		{name: "Update StoreSvid, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Admin: false},
+			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
+			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update StoreSvid, Invalid selectors, Mask True",
+			mask: &common.RegistrationEntryMask{StoreSvid: true, Selectors: true},
+			update: func(e *common.RegistrationEntry) {
+				e.StoreSvid = newEntry.StoreSvid
+				e.Selectors = []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+					{Type: "Type2", Value: "Value2"},
+				}
+			},
+			err: sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
+		},
+
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
 		{name: "Update EntryExpiry, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{EntryExpiry: true},
@@ -2295,8 +2386,11 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	} {
 		tt := testcase
 		s.Run(tt.name, func() {
+			if id != "" {
+				s.deleteRegistrationEntry(id)
+			}
 			registrationEntry := s.createRegistrationEntry(oldEntry)
-			id := registrationEntry.EntryId
+			id = registrationEntry.EntryId
 
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
@@ -3350,6 +3444,11 @@ func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *
 	s.Require().NoError(err)
 	s.Require().NotNil(registrationEntry)
 	return registrationEntry
+}
+
+func (s *PluginSuite) deleteRegistrationEntry(entryID string) {
+	_, err := s.ds.DeleteRegistrationEntry(ctx, entryID)
+	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {

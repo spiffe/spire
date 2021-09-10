@@ -24,9 +24,23 @@ type Config struct {
 	LogRequests bool `hcl:"log_requests"`
 
 	// Domain is the domain this provider will be hosted under. It is used
-	// as the domain when building the JWKS URI. It is also used when obtaining
-	// obtaining certs via ACME (unless InsecureAddr is specified).
-	Domain string
+	// when obtaining certs via ACME (unless ListenSocketPath is specified).
+	// Deprecated. Domains should be used instead.
+	// Deprecated: remove in 1.2.0
+	Domain string `hcl:"domain"`
+
+	// Domains are the domains this provider will be hosted under. Incoming requests
+	// that are not received on (or proxied through) one of the domains specified by this list
+	// are rejected.
+	Domains []string `hcl:"domains"`
+
+	// AllowInsecureScheme, if true, causes HTTP URLs to be rendered in the
+	// returned discovery document. This option should only be used for testing purposes as HTTP does
+	// not provide the security guarantees necessary for conveying trusted public key material. In general this
+	// option is only appropriate for a local development environment.
+	// Do NOT use this in online or production environments.
+	// This option only takes effect when used alongside the InsecureAddr or ListenSocketPath option.
+	AllowInsecureScheme bool `hcl:"allow_insecure_scheme"`
 
 	// InsecureAddr is the insecure HTTP address. When set, the server does not
 	// perform ACME to obtain certificates and serves HTTP instead of HTTPS.
@@ -41,11 +55,6 @@ type Config struct {
 	// ACME is the ACME configuration. It is required unless InsecureAddr or
 	// ListenSocketPath is set.
 	ACME *ACMEConfig `hcl:"acme"`
-
-	// RegistrationAPI is the (deprecated) configuration for using the
-	// SPIRE Registration API as the source for the public keys. Only one
-	// source can be configured.
-	RegistrationAPI *RegistrationAPIConfig `hcl:"registration_api"`
 
 	// ServerAPI is the configuration for using the SPIRE Server API as the
 	// source for the public keys. Only one source can be configured.
@@ -77,20 +86,6 @@ type ACMEConfig struct {
 	RawCacheDir *string `hcl:"cache_dir"`
 }
 
-type RegistrationAPIConfig struct {
-	// SocketPath is the path to the Registration API Unix Domain socket.
-	SocketPath string `hcl:"socket_path"`
-
-	// PollInterval controls how frequently the service polls the Registration
-	// API for the bundle containing the JWT public keys. This value is calculated
-	// by LoadConfig()/ParseConfig() from RawPollInterval.
-	PollInterval time.Duration `hcl:"-"`
-
-	// RawPollInterval holds the string version of the PollInterval. Consumers
-	// should use PollInterval instead.
-	RawPollInterval string `hcl:"poll_interval"`
-}
-
 type ServerAPIConfig struct {
 	// Address is the target address of the SPIRE Server API as defined in
 	// https://github.com/grpc/grpc/blob/master/doc/naming.md. Only the unix
@@ -115,7 +110,7 @@ type WorkloadAPIConfig struct {
 	// Workload API response.
 	TrustDomain string `hcl:"trust_domain"`
 
-	// PollInterval controls how frequently the service polls the Registration
+	// PollInterval controls how frequently the service polls the Workload
 	// API for the bundle containing the JWT public keys. This value is calculated
 	// by LoadConfig()/ParseConfig() from RawPollInterval.
 	PollInterval time.Duration `hcl:"-"`
@@ -143,8 +138,15 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.LogLevel = defaultLogLevel
 	}
 
-	if c.Domain == "" {
-		return nil, errs.New("domain must be configured")
+	switch {
+	case c.Domain == "" && len(c.Domains) == 0:
+		return nil, errs.New("at least one domain must be configured")
+	case c.Domain != "" && len(c.Domains) == 0:
+		c.Domains = []string{c.Domain}
+	case c.Domain == "" && len(c.Domains) > 0:
+		c.Domains = dedupeList(c.Domains)
+	case c.Domain != "" && len(c.Domains) > 0:
+		return nil, errs.New("domain is deprecated and will be removed in a future release; please use domains instead")
 	}
 
 	if c.ACME != nil {
@@ -173,17 +175,6 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	var methodCount int
-
-	if c.RegistrationAPI != nil {
-		if c.RegistrationAPI.SocketPath == "" {
-			return nil, errs.New("socket_path must be configured in the registration_api configuration section")
-		}
-		c.RegistrationAPI.PollInterval, err = parsePollInterval(c.RegistrationAPI.RawPollInterval)
-		if err != nil {
-			return nil, errs.New("invalid poll_interval in the registration_api configuration section: %v", err)
-		}
-		methodCount++
-	}
 
 	if c.ServerAPI != nil {
 		if c.ServerAPI.Address == "" {
@@ -218,10 +209,24 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		return nil, errs.New("either the server_api or workload_api section must be configured")
 	case 1:
 	default:
-		return nil, errs.New("the server_api, workload_api, and deprecated registration_api sections are mutually exclusive")
+		return nil, errs.New("the server_api and workload_api sections are mutually exclusive")
 	}
 
 	return c, nil
+}
+
+func dedupeList(items []string) []string {
+	keys := make(map[string]bool)
+	var list []string
+
+	for _, s := range items {
+		if _, ok := keys[s]; !ok {
+			keys[s] = true
+			list = append(list, s)
+		}
+	}
+
+	return list
 }
 
 func parsePollInterval(rawPollInterval string) (pollInterval time.Duration, err error) {

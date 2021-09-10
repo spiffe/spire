@@ -113,7 +113,6 @@ type Plugin struct {
 	authMethod AuthMethod
 	cc         *ClientConfig
 	vc         *Client
-	reuseToken bool
 
 	hooks struct {
 		lookupEnv func(string) (string, bool)
@@ -168,17 +167,6 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
 
-	// reuseToken=false means that the token cannot be renewed and may expire,
-	// authenticates to the Vault at each signing request.
-	if p.vc == nil || !p.reuseToken {
-		vc, reusable, err := p.cc.NewAuthenticatedClient(p.authMethod)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
-		}
-		p.vc = vc
-		p.reuseToken = reusable
-	}
-
 	var ttl string
 	if req.PreferredTtl == 0 {
 		ttl = ""
@@ -189,6 +177,28 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to parse CSR data: %v", err)
+	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	renewCh := make(chan struct{})
+	if p.vc == nil {
+		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
+		}
+		p.vc = vc
+
+		// if renewCh has been closed, the token can not be renewed and may expire,
+		// it needs to re-authenticate to the Vault.
+		go func() {
+			<-renewCh
+			p.mtx.Lock()
+			defer p.mtx.Unlock()
+			p.vc = nil
+			p.logger.Debug("Going to re-authenticate to the Vault at the next signing request time")
+		}()
 	}
 
 	signResp, err := p.vc.SignIntermediate(ttl, csr)

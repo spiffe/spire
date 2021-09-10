@@ -11,7 +11,7 @@ var _ net.Listener = &Listener{}
 
 type ListenerFactory struct {
 	Log             logrus.FieldLogger
-	NewTracker      func() (PeerTracker, error)
+	NewTracker      func(log logrus.FieldLogger) (PeerTracker, error)
 	NewUnixListener func(network string, laddr *net.UnixAddr) (*net.UnixListener, error)
 }
 
@@ -46,7 +46,7 @@ func (lf *ListenerFactory) listenUnix(network string, laddr *net.UnixAddr) (*Lis
 		return nil, err
 	}
 
-	tracker, err := lf.NewTracker()
+	tracker, err := lf.NewTracker(lf.Log)
 	if err != nil {
 		l.Close()
 		return nil, err

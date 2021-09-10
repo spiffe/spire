@@ -19,11 +19,12 @@ import (
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire/pkg/server/api/trustdomain/v1"
+	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"github.com/spiffe/spire/pkg/server/endpoints/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"golang.org/x/net/context"
 )
@@ -54,6 +55,9 @@ type Config struct {
 	// CA Manager
 	Manager *ca.Manager
 
+	// Makes policy decisions
+	AuthPolicyEngine *authpolicy.Engine
+
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 
@@ -68,20 +72,6 @@ type Config struct {
 	CacheReloadInterval time.Duration
 
 	AuditLogEnabled bool
-}
-
-func (c *Config) makeOldAPIServers() OldAPIServers {
-	registrationHandler := &registration.Handler{
-		Log:         c.Log.WithField(telemetry.SubsystemName, telemetry.RegistrationAPI),
-		Metrics:     c.Metrics,
-		Catalog:     c.Catalog,
-		TrustDomain: c.TrustDomain,
-		ServerCA:    c.ServerCA,
-	}
-
-	return OldAPIServers{
-		RegistrationServer: registrationHandler,
-	}
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() Server {
@@ -156,6 +146,10 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			EntryFetcher: entryFetcher,
 			ServerCA:     c.ServerCA,
 			DataStore:    ds,
+		}),
+		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
+			TrustDomain: c.TrustDomain,
+			DataStore:   ds,
 		}),
 	}
 }

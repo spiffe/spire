@@ -237,6 +237,26 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "default_all_bundles_name should default value of ALL",
+			fileInput: func(c *Config) {},
+			cliInput:  func(ac *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "ALL", c.Agent.SDS.DefaultAllBundlesName)
+			},
+		},
+		{
+			msg: "default_all_bundles_name should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.SDS = sdsConfig{
+					DefaultAllBundlesName: "foo",
+				}
+			},
+			cliInput: func(ac *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.SDS.DefaultAllBundlesName)
+			},
+		},
+		{
 			msg: "insecure_bootstrap should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.InsecureBootstrap = true

@@ -30,22 +30,32 @@ The provider has the following command line flags:
 The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                  | Type    | Required?   | Description                                              | Default  |
-| -------------------- | --------| ----------- | -------------------------------------------------------- | -------- |
-| `acme`               | section | required[1] | Provides the ACME configuration.                         |          |
-| `domain`             | string  | required    | The domain the provider is being served from.            |          |
-| `listen_socket_path` | string  | required[1] | Path on disk to listen with a Unix Domain Socket.        |          |
-| `log_format`         | string  | optional    | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
-| `log_level`          | string  | required    | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
-| `log_path`           | string  | optional    | Path on disk to write the log.                           |          |
-| `log_requests`       | bool    | optional    | If true, all HTTP requests are logged at the debug level | false    |
-| `registration_api`   | section | required[2] | (Deprecated) Provides Registration API details.          |          |
-| `server_api`         | section | required[2] | Provides SPIRE Server API details.                       |          |
-| `workload_api`       | section | required[2] | Provides Workload API details.                           |          |
+| Key                     | Type    | Required?      | Description                                              | Default  |
+| ----------------------  | --------| -------------- | -------------------------------------------------------- | -------- |
+| `acme`                  | section | required[1]    | Provides the ACME configuration.                         |          |
+| `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.        | `false`  |
+| `domains`               | strings | required       | One or more domains the provider is being served from.   |          |
+| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             |          |
+| `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.        |          |
+| `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
+| `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
+| `log_path`              | string  | optional       | Path on disk to write the log.                           |          |
+| `log_requests`          | bool    | optional       | If true, all HTTP requests are logged at the debug level | false    |
+| `server_api`            | section | required[2]    | Provides SPIRE Server API details.                       |          |
+| `workload_api`          | section | required[2]    | Provides Workload API details.                           |          |
 
 [1]: One of `acme` or `listen_socket_path` must be defined.
 
-[2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document. The `registration_api` section is deprecated; the `server_api` section should be used in its place.
+[2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
+
+[3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
+
+The `domains` configurable contains the list of domains the provider is
+expected to be served from. If a request is received from a domain other than
+one in the list (as determined by the Host or X-Forwarded-Host header), it
+will be rejected. Likewise, when ACME is used, the `domains` list contains the
+allowed domains for which certificates will be obtained. The TLS handshake
+will terminate if another domain is requested.
 
 #### ACME Section
 
@@ -71,20 +81,13 @@ The configuration file is **required** by the provider. It contains
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 | `trust_domain`     | string   | required  | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. | |
 
-#### Registration API Section (Deprecated)
-
-| Key                | Type     | Required? | Description                              | Default |
-| ------------------ | -------- | --------- | ----------------------------------------- | ------- |
-| `socket_path`      | string   | required  | Path on disk to the Registration API Unix Domain socket. | |
-| `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
-
 ### Examples
 
 #### Server API
 
 ```
 log_level = "debug"
-domain = "mypublicdomain.test"
+domains = ["mypublicdomain.test"]
 acme {
     cache_dir = "/some/path/on/disk/to/cache/creds"
     tos_accepted = true
@@ -98,7 +101,7 @@ server_api {
 
 ```
 log_level = "debug"
-domain = "mypublicdomain.test"
+domains = ["mypublicdomain.test"]
 acme {
     cache_dir = "/some/path/on/disk/to/cache/creds"
     tos_accepted = true
@@ -118,7 +121,7 @@ Nginx, Apache, or Envoy which supports reverse proxying to a unix socket.
 
 ```
 log_level = "debug"
-domain = "mypublicdomain.test"
+domains = ["mypublicdomain.test"]
 listen_socket_path = "/run/oidc-discovery-provider/server.sock"
 
 workload_api {

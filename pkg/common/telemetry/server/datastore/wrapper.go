@@ -51,6 +51,12 @@ func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, entry *comm
 	return w.ds.CreateRegistrationEntry(ctx, entry)
 }
 
+func (w metricsWrapper) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (_ *common.RegistrationEntry, _ bool, err error) {
+	callCounter := StartCreateRegistrationCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.CreateOrReturnRegistrationEntry(ctx, entry)
+}
+
 func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)

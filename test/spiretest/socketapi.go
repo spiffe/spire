@@ -8,25 +8,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	"github.com/spiffe/spire/proto/spire/api/registration"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
-
-func StartRegistrationAPIOnTempSocket(t *testing.T, server registration.RegistrationServer) string {
-	dir := TempDir(t)
-	socketPath := filepath.Join(dir, "registration.sock")
-
-	StartRegistrationAPIOnSocket(t, socketPath, server)
-
-	return socketPath
-}
-
-func StartRegistrationAPIOnSocket(t *testing.T, socketPath string, server registration.RegistrationServer) {
-	StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
-		registration.RegisterRegistrationServer(s, server)
-	})
-}
 
 func StartWorkloadAPIOnTempSocket(t *testing.T, server workload.SpiffeWorkloadAPIServer) string {
 	dir := TempDir(t)
