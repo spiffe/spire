@@ -3,13 +3,25 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	admv1 "k8s.io/api/admission/v1"
 	admv1beta1 "k8s.io/api/admission/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/klog/v2"
+)
+
+var (
+	runtimeScheme = runtime.NewScheme()
+	codecs        = serializer.NewCodecFactory(runtimeScheme)
+	deserializer  = codecs.UniversalDeserializer()
 )
 
 type AdmissionController interface {
-	ReviewAdmission(context.Context, *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error)
+	ReviewAdmission(context.Context, admv1.AdmissionReview) (*admv1.AdmissionResponse, error)
 }
 
 type WebhookHandler struct {
@@ -17,8 +29,75 @@ type WebhookHandler struct {
 }
 
 func NewWebhookHandler(controller AdmissionController) *WebhookHandler {
+	_ = admv1.AddToScheme(runtimeScheme)
 	return &WebhookHandler{
 		controller: controller,
+	}
+}
+
+// admitv1beta1Func handles a v1beta1 admission
+type admitv1beta1Func func(context.Context, admv1beta1.AdmissionReview) (*admv1beta1.AdmissionResponse, error)
+
+// admitv1beta1Func handles a v1 admission
+type admitv1Func func(context.Context, admv1.AdmissionReview) (*admv1.AdmissionResponse, error)
+
+// admitHandler is a handler, for both validators and mutators, that supports multiple admission review versions
+type admitHandler struct {
+	v1beta1 admitv1beta1Func
+	v1      admitv1Func
+}
+
+func newDelegateToV1AdmitHandler(f admitv1Func) admitHandler {
+	return admitHandler{
+		v1beta1: delegateV1beta1AdmitToV1(f),
+		v1:      f,
+	}
+}
+
+func delegateV1beta1AdmitToV1(f admitv1Func) admitv1beta1Func {
+	return func(context context.Context, review admv1beta1.AdmissionReview) (*admv1beta1.AdmissionResponse, error) {
+		in := admv1.AdmissionReview{Request: convertAdmissionRequestToV1(review.Request)}
+		out, err := f(context, in)
+		if err != nil {
+			return nil, err
+		}
+		return convertAdmissionResponseToV1beta1(out), nil
+	}
+}
+
+func convertAdmissionRequestToV1(r *admv1beta1.AdmissionRequest) *admv1.AdmissionRequest {
+	return &admv1.AdmissionRequest{
+		Kind:               r.Kind,
+		Namespace:          r.Namespace,
+		Name:               r.Name,
+		Object:             r.Object,
+		Resource:           r.Resource,
+		Operation:          admv1.Operation(r.Operation),
+		UID:                r.UID,
+		DryRun:             r.DryRun,
+		OldObject:          r.OldObject,
+		Options:            r.Options,
+		RequestKind:        r.RequestKind,
+		RequestResource:    r.RequestResource,
+		RequestSubResource: r.RequestSubResource,
+		SubResource:        r.SubResource,
+		UserInfo:           r.UserInfo,
+	}
+}
+
+func convertAdmissionResponseToV1beta1(r *admv1.AdmissionResponse) *admv1beta1.AdmissionResponse {
+	var pt *admv1beta1.PatchType
+	if r.PatchType != nil {
+		t := admv1beta1.PatchType(*r.PatchType)
+		pt = &t
+	}
+	return &admv1beta1.AdmissionResponse{
+		UID:              r.UID,
+		Allowed:          r.Allowed,
+		AuditAnnotations: r.AuditAnnotations,
+		Patch:            r.Patch,
+		PatchType:        pt,
+		Result:           r.Result,
 	}
 }
 
@@ -38,25 +117,76 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var in admv1beta1.AdmissionReview
-	if err := json.NewDecoder(req.Body).Decode(&in); err != nil {
-		http.Error(w, "Malformed JSON body", http.StatusBadRequest)
-		return
+	var body []byte
+	if data, err := ioutil.ReadAll(req.Body); err == nil {
+		body = data
 	}
 
-	if in.Request == nil {
-		http.Error(w, "AdmissionReview is missing request", http.StatusBadRequest)
-		return
-	}
-
-	out, err := h.controller.ReviewAdmission(req.Context(), in.Request)
+	obj, gvk, err := deserializer.Decode(body, nil, nil)
 	if err != nil {
-		http.Error(w, "Request could not be processed", http.StatusInternalServerError)
+		msg := fmt.Sprintf("Malformed JSON body: %v", err)
+		klog.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
+	admit := newDelegateToV1AdmitHandler(h.controller.ReviewAdmission)
+	ctx := context.TODO()
+
+	var responseObj runtime.Object
+	switch *gvk {
+	case admv1beta1.SchemeGroupVersion.WithKind("AdmissionReview"):
+		requestedAdmissionReview, ok := obj.(*admv1beta1.AdmissionReview)
+		if !ok {
+			klog.Errorf("Expected v1beta1.AdmissionReview but got: %T", obj)
+			return
+		}
+		responseAdmissionReview := &admv1beta1.AdmissionReview{}
+		responseAdmissionReview.SetGroupVersionKind(*gvk)
+		resp, err := admit.v1beta1(ctx, *requestedAdmissionReview)
+		if err != nil {
+			msg := fmt.Sprintf("internal error occurred: %v", err)
+			klog.Error(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		responseAdmissionReview.Response = resp
+		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
+		responseObj = responseAdmissionReview
+	case admv1.SchemeGroupVersion.WithKind("AdmissionReview"):
+		requestedAdmissionReview, ok := obj.(*admv1.AdmissionReview)
+		if !ok {
+			klog.Errorf("Expected v1.AdmissionReview but got: %T", obj)
+			return
+		}
+		responseAdmissionReview := &admv1.AdmissionReview{}
+		responseAdmissionReview.SetGroupVersionKind(*gvk)
+		resp, err := admit.v1(ctx, *requestedAdmissionReview)
+		if err != nil {
+			msg := fmt.Sprintf("internal error occurred: %v", err)
+			klog.Error(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		responseAdmissionReview.Response = resp
+		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
+		responseObj = responseAdmissionReview
+	default:
+		msg := fmt.Sprintf("Unsupported group version kind: %v", gvk)
+		klog.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+
+	klog.V(2).Info(fmt.Sprintf("sending response: %v", responseObj))
+	respBytes, err := json.Marshal(responseObj)
+	if err != nil {
+		klog.Error(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(admv1beta1.AdmissionReview{
-		Response: out,
-	})
+	if _, err := w.Write(respBytes); err != nil {
+		klog.Error(err)
+	}
 }
