@@ -40,10 +40,9 @@ import (
 const (
 	commandName = "run"
 
-	defaultConfigPath         = "conf/server/server.conf"
-	defaultSocketPath         = "/tmp/spire-server/private/api.sock"
-	defaultLogLevel           = "INFO"
-	defaultBundleEndpointPort = 443
+	defaultConfigPath = "conf/server/server.conf"
+	defaultSocketPath = "/tmp/spire-server/private/api.sock"
+	defaultLogLevel   = "INFO"
 )
 
 var (
@@ -136,20 +135,9 @@ type bundleEndpointACMEConfig struct {
 }
 
 type federatesWithConfig struct {
-	// TODO: Remove support for deprecated bundle_endpoint config in 1.1.0
-	DeprecatedBundleEndpoint *deprecatedFederatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
-
 	BundleEndpointURL     string   `hcl:"bundle_endpoint_url"`
 	BundleEndpointProfile ast.Node `hcl:"bundle_endpoint_profile"`
 	UnusedKeys            []string `hcl:",unusedKeys"`
-}
-
-type deprecatedFederatesWithBundleEndpointConfig struct {
-	Address    string   `hcl:"address"`
-	Port       int      `hcl:"port"`
-	SpiffeID   string   `hcl:"spiffe_id"`
-	UseWebPKI  bool     `hcl:"use_web_pki"`
-	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type bundleEndpointProfileConfig struct {
@@ -430,19 +418,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 			var trustDomainConfig *bundleClient.TrustDomainConfig
 			switch {
-			case config.DeprecatedBundleEndpoint != nil && config.BundleEndpointProfile != nil:
-				return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: either the deprecated `bundle_endpoint` configuration section or the `bundle_endpoint_url` setting can be used, but not both", trustDomain)
-			case config.DeprecatedBundleEndpoint != nil:
-				sc.Log.Warn("The `bundle_endpoint` configurable inside `federates_with` is deprecated and will be removed in a future release. Please use `bundle_endpoint_url` and `bundle_endpoint_profile` to configure the federation with %q instead.", trustDomain)
-				trustDomainConfig, err = parseDeprecatedBundleEndpoint(config.DeprecatedBundleEndpoint)
-				if err != nil {
-					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
-				}
-				if httpsSPIFFE, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
-					if httpsSPIFFE.EndpointSPIFFEID.IsZero() {
-						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release in the https_spiffe profile.", trustDomain)
-					}
-				}
 			case config.BundleEndpointProfile != nil:
 				trustDomainConfig, err = parseBundleEndpointProfile(config)
 				if err != nil {
@@ -619,37 +594,6 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 	}, nil
 }
 
-func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpointConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
-	port := defaultBundleEndpointPort
-	if config.Port != 0 {
-		port = config.Port
-	}
-	if config.UseWebPKI && config.SpiffeID != "" {
-		return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
-	}
-
-	var endpointProfile bundleClient.EndpointProfileInfo
-	if config.UseWebPKI {
-		endpointProfile = bundleClient.HTTPSWebProfile{}
-	} else {
-		var spiffeID spiffeid.ID
-		if config.SpiffeID != "" {
-			spiffeID, err = spiffeid.FromString(config.SpiffeID)
-			if err != nil {
-				return nil, fmt.Errorf("could not parse endpoint SPIFFE ID %q: %w", config.SpiffeID, err)
-			}
-		}
-
-		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
-	}
-
-	return &bundleClient.TrustDomainConfig{
-		DeprecatedConfig: true,
-		EndpointURL:      fmt.Sprintf("https://%s:%d", config.Address, port),
-		EndpointProfile:  endpointProfile,
-	}, nil
-}
-
 func validateConfig(c *Config) error {
 	if c.Server == nil {
 		return errors.New("server section must be configured")
@@ -687,10 +631,6 @@ func validateConfig(c *Config) error {
 
 		for td, tdConfig := range c.Server.Federation.FederatesWith {
 			switch {
-			case tdConfig.DeprecatedBundleEndpoint != nil:
-				if tdConfig.DeprecatedBundleEndpoint.Address == "" {
-					return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
-				}
 			case tdConfig.BundleEndpointURL == "":
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must be configured", td)
 			case !strings.HasPrefix(strings.ToLower(tdConfig.BundleEndpointURL), "https://"):
