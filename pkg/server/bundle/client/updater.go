@@ -84,19 +84,12 @@ func (u *bundleUpdater) TrustDomainConfig() TrustDomainConfig {
 
 func (u *bundleUpdater) newClient(ctx context.Context) (Client, error) {
 	config := ClientConfig{
-		TrustDomain:      u.c.TrustDomain,
-		EndpointURL:      u.c.EndpointURL,
-		DeprecatedConfig: u.c.DeprecatedConfig,
+		TrustDomain: u.c.TrustDomain,
+		EndpointURL: u.c.EndpointURL,
 	}
 
 	if spiffeAuth, ok := u.c.EndpointProfile.(HTTPSSPIFFEProfile); ok {
 		trustDomain := spiffeAuth.EndpointSPIFFEID.TrustDomain()
-
-		// This is to preserve behavioral compatibility when using
-		// the deprecated config and will be removed in 1.1.0.
-		if u.c.DeprecatedConfig && trustDomain.IsZero() {
-			trustDomain = u.c.TrustDomain
-		}
 		localEndpointBundle, err := fetchBundleIfExists(ctx, u.c.DataStore, trustDomain)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch local copy of bundle for %q: %w", trustDomain, err)

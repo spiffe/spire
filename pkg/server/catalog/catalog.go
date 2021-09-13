@@ -29,7 +29,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 )
 
 const (
@@ -60,7 +59,6 @@ type Config struct {
 	Metrics          telemetry.Metrics
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
-	MetricsService   metricsv0.MetricsServiceServer
 	HealthChecker    health.Checker
 }
 
