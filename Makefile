@@ -155,9 +155,7 @@ plugin-protos := \
 	proto/spire/plugin/agent/svidstore/v1/svidstore.proto \
 	proto/spire/plugin/server/keymanager/v0/keymanager.proto \
 	proto/spire/plugin/server/nodeattestor/v0/nodeattestor.proto \
-	proto/spire/plugin/server/noderesolver/v0/noderesolver.proto \
 	proto/spire/plugin/server/notifier/v0/notifier.proto \
-	proto/spire/plugin/server/upstreamauthority/v0/upstreamauthority.proto \
 
 service-protos := \
 

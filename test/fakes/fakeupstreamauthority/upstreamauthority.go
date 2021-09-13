@@ -12,10 +12,12 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -31,12 +33,12 @@ type Config struct {
 	TrustDomain                 spiffeid.TrustDomain
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
-	MutateMintX509CAResponse    func(*upstreamauthorityv0.MintX509CAResponse)
-	MutatePublishJWTKeyResponse func(*upstreamauthorityv0.PublishJWTKeyResponse)
+	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
+	MutatePublishJWTKeyResponse func(*upstreamauthorityv1.PublishJWTKeyResponse)
 }
 
 type UpstreamAuthority struct {
-	upstreamauthorityv0.UnimplementedUpstreamAuthorityServer
+	upstreamauthorityv1.UnimplementedUpstreamAuthorityServer
 
 	t      *testing.T
 	config Config
@@ -67,7 +69,7 @@ func New(t *testing.T, config Config) *UpstreamAuthority {
 	return ua
 }
 
-func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthorityv0.MintX509CARequest, stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer) error {
+func (ua *UpstreamAuthority) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	streamCh := ua.newMintX509CAStream()
 	defer ua.removeMintX509CAStream(streamCh)
 
@@ -78,9 +80,9 @@ func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthorityv0.MintX509CAR
 		return err
 	}
 
-	if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv0.MintX509CAResponse{
-		X509CaChain:       certsDER(x509CAChain),
-		UpstreamX509Roots: certsDER(ua.X509Roots()),
+	if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509certificate.RequireToPluginProtos(x509CAChain),
+		UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 	}); err != nil {
 		return err
 	}
@@ -90,8 +92,8 @@ func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthorityv0.MintX509CAR
 		case <-ctx.Done():
 			return nil
 		case <-streamCh:
-			if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv0.MintX509CAResponse{
-				UpstreamX509Roots: certsDER(ua.X509Roots()),
+			if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv1.MintX509CAResponse{
+				UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 			}); err != nil {
 				return err
 			}
@@ -99,7 +101,7 @@ func (ua *UpstreamAuthority) MintX509CA(request *upstreamauthorityv0.MintX509CAR
 	}
 }
 
-func (ua *UpstreamAuthority) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKeyRequest, stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer) error {
+func (ua *UpstreamAuthority) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKeyRequest, stream upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	if ua.config.DisallowPublishJWTKey {
 		return status.Error(codes.Unimplemented, "disallowed")
 	}
@@ -109,15 +111,15 @@ func (ua *UpstreamAuthority) PublishJWTKey(req *upstreamauthorityv0.PublishJWTKe
 
 	ctx := stream.Context()
 
-	ua.AppendJWTKey(req.JwtKey)
+	ua.AppendJWTKey(jwtkey.RequireToCommonFromPluginProto(req.JwtKey))
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-streamCh:
-			if err := ua.sendPublishJWTKeyStream(stream, &upstreamauthorityv0.PublishJWTKeyResponse{
-				UpstreamJwtKeys: ua.JWTKeys(),
+			if err := ua.sendPublishJWTKeyStream(stream, &upstreamauthorityv1.PublishJWTKeyResponse{
+				UpstreamJwtKeys: jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
 			}); err != nil {
 				return err
 			}
@@ -231,7 +233,7 @@ func (ua *UpstreamAuthority) mintX509CA(ctx context.Context, csr []byte, preferr
 	return x509CAChain, nil
 }
 
-func (ua *UpstreamAuthority) sendMintX509CAResponse(stream upstreamauthorityv0.UpstreamAuthority_MintX509CAServer, resp *upstreamauthorityv0.MintX509CAResponse) error {
+func (ua *UpstreamAuthority) sendMintX509CAResponse(stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer, resp *upstreamauthorityv1.MintX509CAResponse) error {
 	if ua.config.MutateMintX509CAResponse != nil {
 		ua.config.MutateMintX509CAResponse(resp)
 	}
@@ -252,7 +254,7 @@ func (ua *UpstreamAuthority) removePublishJWTKeyStream(streamCh chan struct{}) {
 	ua.streamsMtx.Unlock()
 }
 
-func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv0.UpstreamAuthority_PublishJWTKeyServer, resp *upstreamauthorityv0.PublishJWTKeyResponse) error {
+func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer, resp *upstreamauthorityv1.PublishJWTKeyResponse) error {
 	if ua.config.MutatePublishJWTKeyResponse != nil {
 		ua.config.MutatePublishJWTKeyResponse(resp)
 	}
@@ -297,12 +299,4 @@ func createCertificate(t *testing.T, template, parent *x509.Certificate, pub cry
 	cert, err := x509.ParseCertificate(certDER)
 	require.NoError(t, err, "unable to parse certificate")
 	return cert
-}
-
-func certsDER(certs []*x509.Certificate) [][]byte {
-	var out [][]byte
-	for _, cert := range certs {
-		out = append(out, cert.Raw)
-	}
-	return out
 }
