@@ -40,10 +40,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
 	assert.Equal(t, 4, len(c.Server.Federation.FederatesWith))
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.Address, "1.2.3.4")
-	assert.True(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.UseWebPKI)
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.Address, "5.6.7.8")
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
 	assert.Equal(t, c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL, "https://9.10.11.12:8443")
 	trustDomainConfig, err := parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain3.test"])
 	assert.NoError(t, err)
@@ -638,46 +634,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "bundle federates with section is parsed and configured correctly (deprecated config)",
-			input: func(c *Config) {
-				c.Server.Federation = &federationConfig{
-					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								Port:      1337,
-								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
-								UseWebPKI: false,
-							},
-						},
-						"domain2.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								Port:      1337,
-								UseWebPKI: true,
-							},
-						},
-					},
-				}
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
-					spiffeid.RequireTrustDomainFromString("domain1.test"): {
-						DeprecatedConfig: true,
-						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
-							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
-						},
-					},
-					spiffeid.RequireTrustDomainFromString("domain2.test"): {
-						DeprecatedConfig: true,
-						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile:  bundleClient.HTTPSWebProfile{},
-					},
-				}, c.Federation.FederatesWith)
-			},
-		},
-		{
 			msg: "bundle federates with section is parsed and configured correctly",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -700,27 +656,6 @@ func TestNewServerConfig(t *testing.T) {
 						EndpointProfile: bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
-			},
-		},
-		{
-			msg:         "bundle federates with section uses Web PKI and SPIFFE ID (deprecated config)",
-			expectError: true,
-			input: func(c *Config) {
-				c.Server.Federation = &federationConfig{
-					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
-								Port:      1337,
-								UseWebPKI: true,
-							},
-						},
-					},
-				}
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c)
 			},
 		},
 		{
@@ -1136,19 +1071,6 @@ func TestValidateConfig(t *testing.T) {
 				}
 			},
 			expectedErr: "federation.bundle_endpoint.acme.email must be configured",
-		},
-		{
-			name: "federation.bundle_endpoint.address must be configured if the deprecated federates_with is configured",
-			applyConf: func(c *Config) {
-				federatesWith := make(map[string]federatesWithConfig)
-				federatesWith["domain.test"] = federatesWithConfig{
-					DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{},
-				}
-				c.Server.Federation = &federationConfig{
-					FederatesWith: federatesWith,
-				}
-			},
-			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint.address must be configured",
 		},
 		{
 			name: "bundle_endpoint_url must be configured if federates_with is configured",
