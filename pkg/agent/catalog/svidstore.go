@@ -23,10 +23,6 @@ func (repo *svidStoreRepository) Versions() []catalog.Version {
 	}
 }
 
-func (repo *svidStoreRepository) LegacyVersion() (catalog.Version, bool) {
-	return nil, false
-}
-
 func (repo *svidStoreRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{}
 }
