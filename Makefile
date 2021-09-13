@@ -158,7 +158,6 @@ plugin-protos := \
 	proto/spire/plugin/server/nodeattestor/v0/nodeattestor.proto \
 	proto/spire/plugin/server/noderesolver/v0/noderesolver.proto \
 	proto/spire/plugin/server/notifier/v0/notifier.proto \
-	proto/spire/plugin/server/upstreamauthority/v0/upstreamauthority.proto \
 
 service-protos := \
 	proto/spire/hostservice/common/metrics/v0/metrics.proto \
