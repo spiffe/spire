@@ -20,20 +20,20 @@ import (
 var (
 	ctx = context.Background()
 
-	selectors1 = []*common.Selector{{Type: "foo", Value: "bar"}}
-	selectors2 = []*common.Selector{{Type: "bat", Value: "baz"}}
+	selectors1 = []*common.Selector{{Type: "fake1", Value: "bar"}}
+	selectors2 = []*common.Selector{{Type: "fake2", Value: "baz"}}
 
-	attestor1Pids = map[int32][]*common.Selector{
+	attestor1Pids = map[int32][]string{
 		1: nil,
-		2: selectors1,
+		2: []string{"bar"},
 		// 3: attestor1 cannot attest process 3
-		4: selectors1,
+		4: []string{"bar"},
 	}
-	attestor2Pids = map[int32][]*common.Selector{
+	attestor2Pids = map[int32][]string{
 		1: nil,
 		2: nil,
-		3: selectors2,
-		4: selectors2,
+		3: []string{"baz"},
+		4: []string{"baz"},
 	}
 )
 
