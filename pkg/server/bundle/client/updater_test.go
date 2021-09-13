@@ -96,7 +96,7 @@ func TestBundleUpdater(t *testing.T) {
 						EndpointSPIFFEID: trustDomain.ID(),
 					},
 				},
-				newClient: func(client ClientConfig) (Client, error) {
+				newClientHook: func(client ClientConfig) (Client, error) {
 					return testCase.client, nil
 				},
 			})

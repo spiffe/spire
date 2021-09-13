@@ -13,18 +13,25 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
-	"gotest.tools/assert"
 )
 
-func TestManager(t *testing.T) {
+func TestManagerPeriodicBundleRefresh(t *testing.T) {
 	// create a pair of bundles with distinct refresh hints so we can assert
 	// that the manager selected the correct refresh hint.
 	localBundle := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "local"))
 	localBundle.SetRefreshHint(time.Hour)
 	endpointBundle := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "endpoint"))
 	endpointBundle.SetRefreshHint(time.Hour * 2)
+
+	source := TrustDomainConfigMap{
+		trustDomain: TrustDomainConfig{
+			EndpointURL:     "https://example.org/bundle",
+			EndpointProfile: HTTPSWebProfile{},
+		},
+	}
 
 	testCases := []struct {
 		name           string
@@ -52,50 +59,169 @@ func TestManager(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			clock := clock.NewMock(t)
+			test := newManagerTest(t, source,
+				func(spiffeid.TrustDomain) *bundleutil.Bundle {
+					return testCase.localBundle
+				},
+				func(spiffeid.TrustDomain) *bundleutil.Bundle {
+					return testCase.endpointBundle
+				},
+			)
 
-			updater := newFakeBundleUpdater(testCase.localBundle, testCase.endpointBundle)
+			// Wait for the config to be refreshed
+			test.WaitForConfigRefresh()
 
-			done := startManager(t, clock, updater)
-			defer done()
+			// wait for the initial bundle refresh
+			test.WaitForBundleRefresh(testCase.nextRefresh)
+			require.Equal(t, 1, test.UpdateCount(trustDomain))
 
-			// wait for the initial refresh
-			waitForRefresh(t, clock, testCase.nextRefresh)
-			require.Equal(t, 1, updater.UpdateCount())
-
-			// advance time and make sure another refresh happens
-			clock.Add(testCase.nextRefresh + time.Millisecond)
-			waitForRefresh(t, clock, testCase.nextRefresh)
-			require.Equal(t, 2, updater.UpdateCount())
+			// advance time and make sure another bundle refresh happens
+			test.AdvanceTime(testCase.nextRefresh + time.Millisecond)
+			test.WaitForBundleRefresh(testCase.nextRefresh)
+			require.Equal(t, 2, test.UpdateCount(trustDomain))
 		})
 	}
 }
 
-func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func() {
-	log, _ := test.NewNullLogger()
-	ds := fakedatastore.New(t)
+func TestManagerOnDemandBundleRefresh(t *testing.T) {
+	trustDomainConfigs := make(TrustDomainConfigMap)
 
-	trustDomainConfig := TrustDomainConfig{
-		EndpointURL: "ENDPOINT_URL",
+	test := newManagerTest(t, trustDomainConfigs, nil, nil)
+
+	// Wait for the config to be refreshed
+	test.WaitForConfigRefresh()
+
+	// Assert the trust domain is not known to the manager
+	has, err := test.RefreshBundleFor(trustDomain)
+	assert.False(t, has, "manager should not know about the trust domain")
+	assert.NoError(t, err)
+	assert.Equal(t, -1, test.UpdateCount(trustDomain))
+
+	// Now, add the trust domain configuration to the source and assert
+	// that refreshing the bundle reloads configs from the source.
+	trustDomainConfigs[trustDomain] = TrustDomainConfig{
+		EndpointURL:     "https://some-domain.test/bundle",
+		EndpointProfile: HTTPSWebProfile{},
+	}
+
+	has, err = test.RefreshBundleFor(trustDomain)
+	assert.True(t, has, "manager should know about the trust domain")
+	assert.EqualError(t, err, "OHNO")
+	assert.Equal(t, 1, test.UpdateCount(trustDomain))
+}
+
+func TestManagerConfigRefresh(t *testing.T) {
+	td1 := spiffeid.RequireTrustDomainFromString("domain1.test")
+	td2 := spiffeid.RequireTrustDomainFromString("domain2.test")
+	td3 := spiffeid.RequireTrustDomainFromString("domain3.test")
+
+	configWebA := TrustDomainConfig{
+		EndpointURL:     "https://some-domain.test/webA",
+		EndpointProfile: HTTPSWebProfile{},
+	}
+	configWebB := TrustDomainConfig{
+		EndpointURL:     "https://some-domain.test/webB",
+		EndpointProfile: HTTPSWebProfile{},
+	}
+	configSPIFFEA := TrustDomainConfig{
+		EndpointURL: "https://some-domain.test/spiffeA",
 		EndpointProfile: HTTPSSPIFFEProfile{
-			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://ENDPOINT_SPIFFEID"),
+			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://some-domain.test/spiffeA"),
+		},
+	}
+	configSPIFFEB := TrustDomainConfig{
+		EndpointURL: "https://some-domain.test/spiffeB",
+		EndpointProfile: HTTPSSPIFFEProfile{
+			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://some-domain.test/spiffeB"),
 		},
 	}
 
-	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
-	manager := NewManager(ManagerConfig{
-		Log:       log,
-		Metrics:   telemetry.Blackhole{},
-		DataStore: ds,
-		Clock:     clock,
-		TrustDomains: map[spiffeid.TrustDomain]TrustDomainConfig{
-			trustDomain: trustDomainConfig,
-		},
-		newBundleUpdater: func(config BundleUpdaterConfig) BundleUpdater {
-			assert.Equal(t, trustDomainConfig, config.TrustDomainConfig)
-			assert.Equal(t, trustDomain, config.TrustDomain)
-			return updater
-		},
+	trustDomainConfigs := make(TrustDomainConfigMap)
+	trustDomainConfigs[td1] = configSPIFFEA
+	trustDomainConfigs[td2] = configWebA
+
+	test := newManagerTest(t, trustDomainConfigs, nil, nil)
+
+	// Wait until the config is refreshed and a bundle refresh happens
+	test.WaitForConfigRefresh()
+	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td1
+	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td2
+
+	// Assert that we have configuration for td1 and td2, but not td3 and that
+	// update attempts were made on td1 and td2, but that td3 is unknown to
+	// the manager.
+	require.Equal(t, map[spiffeid.TrustDomain]TrustDomainConfig{
+		td1: configSPIFFEA,
+		td2: configWebA,
+	}, test.GetTrustDomainConfigs())
+	assert.Equal(t, 1, test.UpdateCount(td1))
+	assert.Equal(t, 1, test.UpdateCount(td2))
+	assert.Equal(t, -1, test.UpdateCount(td3))
+
+	// Now adjust the configuration to drop td1, change td2, and introduce td3.
+	// Both td2 and td3 should have an extra update count. td1 update count will
+	// remain the same.
+	delete(trustDomainConfigs, td1)
+	trustDomainConfigs[td2] = configSPIFFEB
+	trustDomainConfigs[td3] = configWebB
+
+	// Wait until the config is refreshed and a bundle refresh happens
+	test.AdvanceTime(bundleutil.MinimumRefreshHint + time.Millisecond)
+	test.WaitForConfigRefresh()
+	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td2
+	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td3
+
+	require.Equal(t, map[spiffeid.TrustDomain]TrustDomainConfig{
+		td1: configSPIFFEA,
+		td2: configSPIFFEB,
+		td3: configWebB,
+	}, test.GetTrustDomainConfigs())
+	assert.Equal(t, 1, test.UpdateCount(td1))
+	assert.Equal(t, 2, test.UpdateCount(td2))
+	assert.Equal(t, 1, test.UpdateCount(td3))
+}
+
+type managerTest struct {
+	t                 *testing.T
+	clock             *clock.Mock
+	localBundles      func(spiffeid.TrustDomain) *bundleutil.Bundle
+	endpointBundles   func(spiffeid.TrustDomain) *bundleutil.Bundle
+	bundleUpdatersMtx sync.Mutex
+	bundleUpdaters    map[spiffeid.TrustDomain]*fakeBundleUpdater
+	configRefreshedCh chan time.Duration
+	bundleRefreshedCh chan time.Duration
+	manager           *Manager
+}
+
+func newManagerTest(t *testing.T, source TrustDomainConfigSource, localBundles, endpointBundles func(spiffeid.TrustDomain) *bundleutil.Bundle) *managerTest {
+	log, _ := test.NewNullLogger()
+
+	if localBundles == nil {
+		localBundles = func(spiffeid.TrustDomain) *bundleutil.Bundle { return nil }
+	}
+	if endpointBundles == nil {
+		endpointBundles = func(spiffeid.TrustDomain) *bundleutil.Bundle { return nil }
+	}
+
+	test := &managerTest{
+		t:                 t,
+		clock:             clock.NewMock(t),
+		localBundles:      localBundles,
+		endpointBundles:   endpointBundles,
+		bundleUpdaters:    make(map[spiffeid.TrustDomain]*fakeBundleUpdater),
+		configRefreshedCh: make(chan time.Duration),
+		bundleRefreshedCh: make(chan time.Duration),
+	}
+
+	test.manager = NewManager(ManagerConfig{
+		Log:               log,
+		Metrics:           telemetry.Blackhole{},
+		DataStore:         fakedatastore.New(t),
+		Clock:             test.clock,
+		Source:            source,
+		newBundleUpdater:  test.newBundleUpdater,
+		configRefreshedCh: test.configRefreshedCh,
+		bundleRefreshedCh: test.bundleRefreshedCh,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,10 +232,10 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 				errCh <- errs.New("%+v", r)
 			}
 		}()
-		errCh <- manager.Run(ctx)
+		errCh <- test.manager.Run(ctx)
 	}()
 
-	return func() {
+	t.Cleanup(func() {
 		cancel()
 		select {
 		case err := <-errCh:
@@ -117,50 +243,122 @@ func startManager(t *testing.T, clock clock.Clock, updater BundleUpdater) func()
 		case <-time.After(time.Minute):
 			require.Fail(t, "timed out waiting for run to complete")
 		}
+	})
+
+	return test
+}
+
+func (test *managerTest) AdvanceTime(dt time.Duration) {
+	test.clock.Add(dt)
+}
+
+func (test *managerTest) UpdateCount(td spiffeid.TrustDomain) int {
+	bundleUpdater, ok := test.bundleUpdaterFor(td)
+	if !ok {
+		return -1
+	}
+	return bundleUpdater.UpdateCount()
+}
+
+func (test *managerTest) GetTrustDomainConfigs() map[spiffeid.TrustDomain]TrustDomainConfig {
+	test.bundleUpdatersMtx.Lock()
+	defer test.bundleUpdatersMtx.Unlock()
+
+	configs := make(map[spiffeid.TrustDomain]TrustDomainConfig)
+	for td, bundleUpdater := range test.bundleUpdaters {
+		configs[td] = bundleUpdater.GetTrustDomainConfig()
+	}
+	return configs
+}
+
+func (test *managerTest) WaitForConfigRefresh() {
+	select {
+	case d := <-test.configRefreshedCh:
+		require.Equal(test.t, configRefreshInterval, d, "next config refresh not at the expected interval")
+	case <-time.After(time.Second * 10):
+		require.Fail(test.t, "timed out waiting for config refresh")
 	}
 }
 
-func waitForRefresh(t *testing.T, clock *clock.Mock, expectedDuration time.Duration) {
+func (test *managerTest) WaitForBundleRefresh(expectNextRefresh time.Duration) {
 	select {
-	case d := <-clock.TimerCh():
-		require.Equal(t, expectedDuration, d)
+	case d := <-test.bundleRefreshedCh:
+		require.Equal(test.t, expectNextRefresh, d, "next bundle refresh not at the expected interval")
 	case <-time.After(time.Second * 10):
-		require.Fail(t, "timed out waiting for timer creation")
+		require.Fail(test.t, "timed out waiting for bundle refresh")
 	}
+}
+
+func (test *managerTest) RefreshBundleFor(td spiffeid.TrustDomain) (bool, error) {
+	return test.manager.RefreshBundleFor(context.Background(), td)
+}
+
+func (test *managerTest) newBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
+	bundleUpdater := newFakeBundleUpdater(config)
+	bundleUpdater.SetBundles(
+		test.localBundles(config.TrustDomain),
+		test.endpointBundles(config.TrustDomain),
+	)
+
+	test.bundleUpdatersMtx.Lock()
+	defer test.bundleUpdatersMtx.Unlock()
+	test.bundleUpdaters[config.TrustDomain] = bundleUpdater
+	return bundleUpdater
+}
+
+func (test *managerTest) bundleUpdaterFor(td spiffeid.TrustDomain) (*fakeBundleUpdater, bool) {
+	test.bundleUpdatersMtx.Lock()
+	defer test.bundleUpdatersMtx.Unlock()
+	updater, ok := test.bundleUpdaters[td]
+	return updater, ok
 }
 
 type fakeBundleUpdater struct {
+	mtx            sync.Mutex
 	localBundle    *bundleutil.Bundle
 	endpointBundle *bundleutil.Bundle
-
-	mu          sync.Mutex
-	updateCount int
+	updateCount    int
+	config         BundleUpdaterConfig
 }
 
-func newFakeBundleUpdater(localBundle, endpointBundle *bundleutil.Bundle) *fakeBundleUpdater {
+func newFakeBundleUpdater(config BundleUpdaterConfig) *fakeBundleUpdater {
 	return &fakeBundleUpdater{
-		localBundle:    localBundle,
-		endpointBundle: endpointBundle,
+		config: config,
 	}
 }
 
+func (u *fakeBundleUpdater) SetBundles(localBundle, endpointBundle *bundleutil.Bundle) {
+	u.mtx.Lock()
+	defer u.mtx.Unlock()
+	u.localBundle = localBundle
+	u.endpointBundle = endpointBundle
+}
+
 func (u *fakeBundleUpdater) UpdateCount() int {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+	u.mtx.Lock()
+	defer u.mtx.Unlock()
 	return u.updateCount
 }
 
 func (u *fakeBundleUpdater) UpdateBundle(context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+	u.mtx.Lock()
+	defer u.mtx.Unlock()
 	u.updateCount++
-	return u.localBundle, u.endpointBundle, errors.New("UNUSED")
+	return u.localBundle, u.endpointBundle, errors.New("OHNO")
 }
 
-func (u *fakeBundleUpdater) TrustDomainConfig() TrustDomainConfig {
-	return TrustDomainConfig{
-		EndpointProfile: HTTPSSPIFFEProfile{
-			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://td.test/test"),
-		},
+func (u *fakeBundleUpdater) GetTrustDomainConfig() TrustDomainConfig {
+	u.mtx.Lock()
+	defer u.mtx.Unlock()
+	return u.config.TrustDomainConfig
+}
+
+func (u *fakeBundleUpdater) SetTrustDomainConfig(trustDomainConfig TrustDomainConfig) bool {
+	u.mtx.Lock()
+	defer u.mtx.Unlock()
+	if u.config.TrustDomainConfig != trustDomainConfig {
+		u.config.TrustDomainConfig = trustDomainConfig
+		return true
 	}
+	return false
 }
