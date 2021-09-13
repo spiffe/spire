@@ -30,10 +30,6 @@ func (repo *upstreamAuthorityRepository) Versions() []catalog.Version {
 	}
 }
 
-func (repo *upstreamAuthorityRepository) LegacyVersion() (catalog.Version, bool) {
-	return upstreamAuthorityV0{}, true
-}
-
 func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		awssecret.BuiltIn(),
@@ -50,8 +46,3 @@ type upstreamAuthorityV1 struct{}
 
 func (upstreamAuthorityV1) New() catalog.Facade { return new(upstreamauthority.V1) }
 func (upstreamAuthorityV1) Deprecated() bool    { return false }
-
-type upstreamAuthorityV0 struct{}
-
-func (upstreamAuthorityV0) New() catalog.Facade { return new(upstreamauthority.V0) }
-func (upstreamAuthorityV0) Deprecated() bool    { return true }
