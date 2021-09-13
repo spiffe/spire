@@ -13,7 +13,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -82,53 +81,8 @@ func (s *IdentityProvider) getDeps() (*Deps, error) {
 	return s.deps, nil
 }
 
-func (s *IdentityProvider) V0() identityproviderv0.IdentityProviderServer {
-	return &identityProviderV0{s: s}
-}
-
 func (s *IdentityProvider) V1() identityproviderv1.IdentityProviderServer {
 	return &identityProviderV1{s: s}
-}
-
-type identityProviderV0 struct {
-	identityproviderv0.UnsafeIdentityProviderServer
-
-	s *IdentityProvider
-}
-
-func (v0 *identityProviderV0) FetchX509Identity(ctx context.Context, req *identityproviderv0.FetchX509IdentityRequest) (*identityproviderv0.FetchX509IdentityResponse, error) {
-	deps, err := v0.s.getDeps()
-	if err != nil {
-		return nil, err
-	}
-
-	bundle, err := deps.DataStore.FetchBundle(ctx, v0.s.config.TrustDomain.IDString())
-	if err != nil {
-		return nil, err
-	}
-
-	x509Identity, err := deps.X509IdentityFetcher.FetchX509Identity(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	certChain := make([][]byte, 0, len(x509Identity.CertChain))
-	for _, cert := range x509Identity.CertChain {
-		certChain = append(certChain, cert.Raw)
-	}
-
-	privateKey, err := x509.MarshalPKCS8PrivateKey(x509Identity.PrivateKey)
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-
-	return &identityproviderv0.FetchX509IdentityResponse{
-		Identity: &identityproviderv0.X509Identity{
-			CertChain:  certChain,
-			PrivateKey: privateKey,
-		},
-		Bundle: bundle,
-	}, nil
 }
 
 type identityProviderV1 struct {
