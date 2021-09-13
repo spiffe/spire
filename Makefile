@@ -152,7 +152,6 @@ plugin-protos := \
 	proto/spire/common/plugin/plugin.proto \
 	proto/spire/plugin/agent/keymanager/v0/keymanager.proto \
 	proto/spire/plugin/agent/svidstore/v1/svidstore.proto \
-	proto/spire/plugin/server/notifier/v0/notifier.proto \
 
 service-protos := \
 
