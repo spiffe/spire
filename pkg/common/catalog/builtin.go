@@ -43,12 +43,6 @@ func LoadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ *pluginImpl, err error) {
 	builtinServer := newBuiltInServer()
 
-	// TODO: this won't be necessary once legacy plugins are no longer supported
-	hostServices := make([]HostServiceServer, 0, len(config.HostServices))
-	for _, hostService := range config.HostServices {
-		hostServices = append(hostServices, HostServiceServer{ServiceServer: hostService})
-	}
-
 	logger := log.NewHCLogAdapter(
 		config.Log,
 		builtIn.Name,
@@ -57,7 +51,7 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	dialer := &builtinDialer{
 		pluginName:   builtIn.Name,
 		log:          config.Log,
-		hostServices: hostServices,
+		hostServices: config.HostServices,
 	}
 
 	var closers closerGroup
@@ -83,7 +77,7 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 		typ:  builtIn.Plugin.Type(),
 	}
 
-	return newPlugin(ctx, builtinConn, info, config.Log, closers, hostServices)
+	return newPlugin(ctx, builtinConn, info, config.Log, closers, config.HostServices)
 }
 
 func newBuiltInServer() *grpc.Server {
@@ -96,7 +90,7 @@ func newBuiltInServer() *grpc.Server {
 type builtinDialer struct {
 	pluginName   string
 	log          logrus.FieldLogger
-	hostServices []HostServiceServer
+	hostServices []pluginsdk.ServiceServer
 	conn         *pipeConn
 }
 

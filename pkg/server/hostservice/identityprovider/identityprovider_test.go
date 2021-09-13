@@ -10,7 +10,6 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/common"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -35,13 +34,6 @@ func TestFetchX509IdentityFailsIfDepsUnset(t *testing.T) {
 		TrustDomain: td,
 	})
 
-	t.Run("v0", func(t *testing.T) {
-		resp, err := hs.V0().FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
-		st := status.Convert(err)
-		assert.Equal(t, "IdentityProvider host service has not been initialized", st.Message())
-		assert.Equal(t, codes.FailedPrecondition, st.Code())
-		assert.Nil(t, resp)
-	})
 	t.Run("v1", func(t *testing.T) {
 		resp, err := hs.V1().FetchX509Identity(context.Background(), &identityproviderv1.FetchX509IdentityRequest{})
 		st := status.Convert(err)
@@ -86,16 +78,6 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 		}),
 	})
 	require.NoError(t, err)
-
-	t.Run("v0", func(t *testing.T) {
-		resp, err := hs.V0().FetchX509Identity(context.Background(), &identityproviderv0.FetchX509IdentityRequest{})
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.NotNil(t, resp.Identity)
-		require.Equal(t, [][]byte{{1}, {2}}, resp.Identity.CertChain)
-		require.Equal(t, privateKeyBytes, resp.Identity.PrivateKey)
-		spiretest.RequireProtoEqual(t, bundleV0, resp.Bundle)
-	})
 
 	t.Run("v1", func(t *testing.T) {
 		resp, err := hs.V1().FetchX509Identity(context.Background(), &identityproviderv1.FetchX509IdentityRequest{})

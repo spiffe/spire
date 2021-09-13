@@ -4,16 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sort"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	spi "github.com/spiffe/spire/proto/spire/common/plugin"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // Catalog is a set of plugin and service repositories.
@@ -33,12 +29,6 @@ type PluginRepo interface {
 	// The Load funcion will ensure that these constraints are satisfied before
 	// returning successfully.
 	Constraints() Constraints
-
-	// LegacyVersion is called when the catalog detects a legacy plugin to
-	// obtain the legacy plugin version. If no legacy version exists for this
-	// plugin, this function returns false, which causes the Load() function to
-	// fail.
-	LegacyVersion() (Version, bool)
 
 	// BuiltIns provides the list of built ins that are available for the
 	// given plugin repository.
@@ -103,16 +93,6 @@ type PluginInfo interface {
 	Type() string
 }
 
-type HostServiceServer struct {
-	// ServiceServer is the service server for the host service.
-	ServiceServer pluginsdk.ServiceServer
-
-	// LegacyType is the legacy type for the host service used to initialize
-	// legacy plugins. This is optional for new host services that did not
-	// existing before the plugin SDK was introduced.
-	LegacyType string
-}
-
 type Config struct {
 	// Log is the logger. It is used for general purpose logging and also
 	// provided to the plugins.
@@ -123,7 +103,7 @@ type Config struct {
 
 	// HostServices are the servers for host services provided by SPIRE to
 	// plugins.
-	HostServices []HostServiceServer
+	HostServices []pluginsdk.ServiceServer
 
 	// CoreConfig is the core configuration provided to each plugin.
 	CoreConfig CoreConfig
@@ -228,7 +208,7 @@ func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.Fie
 	})
 }
 
-func loadPlugin(ctx context.Context, builtIns []BuiltIn, pluginConfig PluginConfig, pluginLog logrus.FieldLogger, hostServices []HostServiceServer) (*pluginImpl, error) {
+func loadPlugin(ctx context.Context, builtIns []BuiltIn, pluginConfig PluginConfig, pluginLog logrus.FieldLogger, hostServices []pluginsdk.ServiceServer) (*pluginImpl, error) {
 	if pluginConfig.IsExternal() {
 		return loadExternal(ctx, externalConfig{
 			Name:         pluginConfig.Name,
@@ -241,47 +221,23 @@ func loadPlugin(ctx context.Context, builtIns []BuiltIn, pluginConfig PluginConf
 		})
 	}
 
-	// Extract out the host service servers to supply to the built-in. The
-	// legacy type is not needed for built-ins since they cannot be legacy
-	// plugins.
-	// TODO: no need to do this once legacy plugins are no longer supported
-	hostServiceServers := make([]pluginsdk.ServiceServer, 0, len(hostServices))
-	for _, hostService := range hostServices {
-		hostServiceServers = append(hostServiceServers, hostService.ServiceServer)
-	}
 	for _, builtIn := range builtIns {
 		if pluginConfig.Name == builtIn.Name {
 			return loadBuiltIn(ctx, builtIn, BuiltInConfig{
 				Log:          pluginLog,
-				HostServices: hostServiceServers,
+				HostServices: hostServices,
 			})
 		}
 	}
 	return nil, fmt.Errorf("no built-in plugin %q for type %q", pluginConfig.Name, pluginConfig.Type)
 }
 
-func initPlugin(ctx context.Context, conn grpc.ClientConnInterface, hostServices []HostServiceServer) ([]string, error) {
-	grpcServiceNames, err := private.Init(ctx, conn, hostServiceGRPCServiceNames(hostServices))
-	switch status.Code(err) {
-	case codes.OK:
-		return grpcServiceNames, nil
-	case codes.Unimplemented:
-		return nil, initLegacyPlugin(ctx, conn, legacyHostServiceTypes(hostServices))
-	default:
-		return nil, err
+func initPlugin(ctx context.Context, conn grpc.ClientConnInterface, hostServices []pluginsdk.ServiceServer) ([]string, error) {
+	var hostServiceGRPCServiceNames []string
+	for _, hostService := range hostServices {
+		hostServiceGRPCServiceNames = append(hostServiceGRPCServiceNames, hostService.GRPCServiceName())
 	}
-}
-
-func initLegacyPlugin(ctx context.Context, conn grpc.ClientConnInterface, hostServiceTypes []string) error {
-	// This is a legacy plugin. Initialize with the old interface but don't
-	// bother trying to obtain service names since no services were defined
-	// during the lifetime of the legacy plugin system.
-	var legacyClient spi.PluginInitPluginClient
-	legacyClient.InitClient(conn)
-	_, err := legacyClient.Init(ctx, &spi.InitRequest{
-		HostServices: hostServiceTypes,
-	})
-	return err
+	return private.Init(ctx, conn, hostServiceGRPCServiceNames)
 }
 
 type pluginInfo struct {
@@ -295,23 +251,4 @@ func (info pluginInfo) Name() string {
 
 func (info pluginInfo) Type() string {
 	return info.typ
-}
-
-func legacyHostServiceTypes(servers []HostServiceServer) []string {
-	var out []string
-	for _, server := range servers {
-		if server.LegacyType != "" {
-			out = append(out, server.LegacyType)
-		}
-	}
-	return out
-}
-
-func hostServiceGRPCServiceNames(servers []HostServiceServer) []string {
-	var grpcServiceNames []string
-	for _, server := range servers {
-		grpcServiceNames = append(grpcServiceNames, server.ServiceServer.GRPCServiceName())
-	}
-	sort.Strings(grpcServiceNames)
-	return grpcServiceNames
 }
