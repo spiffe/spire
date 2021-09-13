@@ -30,6 +30,16 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
+const (
+	csr          = "CSR"
+	preferredTTL = time.Minute
+)
+
+var (
+	jwtKeyPKIX, _ = x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
+	jwtKey        = &common.PublicKey{Kid: "KEYID", PkixBytes: jwtKeyPKIX, NotAfter: 12345}
+)
+
 func TestV1MintX509CA(t *testing.T) {
 	upstreamCA := testca.New(t, spiffeid.RequireTrustDomainFromString("example.org"))
 	x509CA := upstreamCA.ChildCA()
