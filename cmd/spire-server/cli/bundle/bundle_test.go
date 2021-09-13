@@ -23,8 +23,6 @@ func TestShowHelp(t *testing.T) {
 	require.Equal(t, `Usage of bundle show:
   -format string
     	The format to show the bundle. Either "pem" or "spiffe". (default "pem")
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
@@ -100,8 +98,6 @@ func TestSetHelp(t *testing.T) {
     	SPIFFE ID of the trust domain
   -path string
     	Path to the bundle data
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
@@ -387,8 +383,6 @@ func TestCountHelp(t *testing.T) {
 	test.client.Help()
 
 	require.Equal(t, `Usage of bundle count:
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
@@ -483,8 +477,6 @@ func TestListHelp(t *testing.T) {
     	The format to list federated bundles. Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
@@ -604,8 +596,6 @@ func TestDeleteHelp(t *testing.T) {
     	SPIFFE ID of the trust domain
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())
