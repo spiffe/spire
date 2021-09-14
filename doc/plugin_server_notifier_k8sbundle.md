@@ -16,6 +16,7 @@ The plugin accepts the following configuration options:
 | kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. | |
 | api_service_label     | If set, rotate the CA Bundle in API services with this label set to `true`. | |
 | webhook_label         | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`. | |
+| clusters              | A list of cluster configurations. If set it can be used to configure multiple. Each cluster allows the same values as the root configuration. | |
 
 ## Configuring Kubernetes
 
@@ -131,6 +132,52 @@ server to
         plugin_data {
             webhook_label    = "spiffe.io/webhook"
             api_service_label = "spiffe.io/api_service"
+        }
+    }
+```
+
+### Multipe clusters
+
+
+```
+    Notifier "k8sbundle" {
+        plugin_data {
+          namespace = "infra"
+          config_map = "agents"
+          config_map_key = "bootstrap.crt"
+          kube_config_file_path = "/path/to/cluster1-kubeconfig"
+
+          clusters  = [
+            {
+                namespace = "infra"
+                config_map = "agents"
+                config_map_key = "bootstrap.crt"
+                kube_config_file_path = "/path/to/clustrer2-kubeconfig"
+            }            
+          ]
+        }
+    }
+```
+
+or 
+
+```
+    Notifier "k8sbundle" {
+        plugin_data {
+          clusters  = [
+            {
+                namespace = "infra"
+                config_map = "agents"
+                config_map_key = "bootstrap.crt"
+                kube_config_file_path = "/path/to/cluster1-kubeconfig"
+            }
+            {
+                namespace = "infra"
+                config_map = "agents"
+                config_map_key = "bootstrap.crt"
+                kube_config_file_path = "/path/to/clustrer2-kubeconfig"
+            }                  
+          ]
         }
     }
 ```

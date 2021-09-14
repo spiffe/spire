@@ -12,8 +12,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/hashicorp/hcl"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -48,6 +50,8 @@ var (
 		TrustDomainId: "spiffe://example.org",
 		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
 	}
+
+	coreConfig = &configv1.CoreConfiguration{TrustDomain: "test.example.org"}
 )
 
 const (
@@ -57,7 +61,7 @@ const (
 )
 
 func TestNotifyFailsIfNotConfigured(t *testing.T) {
-	test := setupTest()
+	test := setupTest(t)
 	notifier := new(notifier.V1)
 	plugintest.Load(t, BuiltIn(), notifier,
 		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
@@ -68,7 +72,7 @@ func TestNotifyFailsIfNotConfigured(t *testing.T) {
 }
 
 func TestNotifyAndAdviseFailsIfNotConfigured(t *testing.T) {
-	test := setupTest()
+	test := setupTest(t)
 	notifier := new(notifier.V1)
 	plugintest.Load(t, BuiltIn(), notifier,
 		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
@@ -79,25 +83,20 @@ func TestNotifyAndAdviseFailsIfNotConfigured(t *testing.T) {
 }
 
 func TestBundleLoadedWhenCannotCreateClient(t *testing.T) {
-	test := setupTest()
-	test.kubeClient = nil
-	notifier := test.loadPlugin(t, "")
-
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube client: kube client not configured")
+	test := setupTest(t, withKubeClientError())
+	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube clients: kube client not configured")
 }
 
 func TestBundleLoadedConfigMapGetFailure(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
+	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: unable to get list: not found")
 }
 
 func TestBundleLoadedConfigMapPatchFailure(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -108,13 +107,12 @@ func TestBundleLoadedConfigMapPatchFailure(t *testing.T) {
 	test.kubeClient.setPatchErr(errors.New("some error"))
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: spire/spire-bundle: some error")
 }
 
 func TestBundleLoadedConfigMapUpdateConflict(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
 	test.kubeClient.setConfigMap(newConfigMap())
 	test.kubeClient.setPatchErr(&k8serrors.StatusError{
@@ -129,7 +127,7 @@ func TestBundleLoadedConfigMapUpdateConflict(t *testing.T) {
 	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle2)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	// make sure the config map contains the second bundle data
@@ -140,13 +138,12 @@ func TestBundleLoadedConfigMapUpdateConflict(t *testing.T) {
 }
 
 func TestBundleLoadedWithDefaultConfiguration(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
 	test.kubeClient.setConfigMap(newConfigMap())
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -162,14 +159,19 @@ func TestBundleLoadedWithDefaultConfiguration(t *testing.T) {
 }
 
 func TestBundleLoadedWithConfigurationOverrides(t *testing.T) {
-	test := setupTest()
-	test.expectConfigPath = "/some/file/path"
-	notifier := test.loadPlugin(t, `
+	config := `
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
-kube_config_file_path = "/some/file/path"
-`)
+clusters  = [
+	{
+		namespace = "NAMESPACE2"
+		config_map = "CONFIGMAP2"
+		config_map_key = "CONFIGMAPKEY2"
+	}
+]
+`
+	test := setupTest(t, withPlainConfig(config))
 
 	test.kubeClient.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -178,9 +180,17 @@ kube_config_file_path = "/some/file/path"
 			ResourceVersion: "2",
 		},
 	})
+	test.kubeClient.setConfigMap(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "NAMESPACE2",
+			Name:            "CONFIGMAP2",
+			ResourceVersion: "22",
+		},
+	})
+	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
+	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -193,28 +203,34 @@ kube_config_file_path = "/some/file/path"
 			"CONFIGMAPKEY": testBundleData,
 		},
 	}, test.kubeClient.getConfigMap("NAMESPACE", "CONFIGMAP"))
+
+	require.Equal(t, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "NAMESPACE2",
+			Name:            "CONFIGMAP2",
+			ResourceVersion: "23",
+		},
+		Data: map[string]string{
+			"CONFIGMAPKEY": testBundleData,
+		},
+	}, test.kubeClient.getConfigMap("NAMESPACE2", "CONFIGMAP2"))
 }
 
 func TestBundleUpdatedWhenCannotCreateClient(t *testing.T) {
-	test := setupTest()
-	test.kubeClient = nil
-	notifier := test.loadPlugin(t, "")
-
-	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube client: kube client not configured")
+	test := setupTest(t, withKubeClientError())
+	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube clients: kube client not configured")
 }
 
 func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: unable to get list: not found")
 }
 
 func TestBundleUpdatedConfigMapPatchFailure(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -225,13 +241,12 @@ func TestBundleUpdatedConfigMapPatchFailure(t *testing.T) {
 	test.kubeClient.setPatchErr(errors.New("some error"))
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): unable to update: spire/spire-bundle: some error")
 }
 
 func TestBundleUpdatedConfigMapUpdateConflict(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
 	test.kubeClient.setConfigMap(newConfigMap())
 	test.kubeClient.setPatchErr(&k8serrors.StatusError{
@@ -246,7 +261,7 @@ func TestBundleUpdatedConfigMapUpdateConflict(t *testing.T) {
 	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle2)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	// make sure the config map contains the second bundle data
@@ -257,13 +272,12 @@ func TestBundleUpdatedConfigMapUpdateConflict(t *testing.T) {
 }
 
 func TestBundleUpdatedWithDefaultConfiguration(t *testing.T) {
-	test := setupTest()
-	notifier := test.loadPlugin(t, "")
+	test := setupTest(t)
 
 	test.kubeClient.setConfigMap(newConfigMap())
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -279,14 +293,20 @@ func TestBundleUpdatedWithDefaultConfiguration(t *testing.T) {
 }
 
 func TestBundleUpdatedWithConfigurationOverrides(t *testing.T) {
-	test := setupTest()
-	test.expectConfigPath = "/some/file/path"
-	notifier := test.loadPlugin(t, `
+	plainConfig := `
 namespace = "NAMESPACE"
 config_map = "CONFIGMAP"
 config_map_key = "CONFIGMAPKEY"
 kube_config_file_path = "/some/file/path"
-`)
+clusters  = [
+	{
+		namespace = "NAMESPACE2"
+		config_map = "CONFIGMAP2"
+		config_map_key = "CONFIGMAPKEY2"
+	}
+]
+`
+	test := setupTest(t, withPlainConfig(plainConfig))
 
 	test.kubeClient.setConfigMap(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -295,9 +315,17 @@ kube_config_file_path = "/some/file/path"
 			ResourceVersion: "2",
 		},
 	})
+	test.kubeClient.setConfigMap(&corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "NAMESPACE2",
+			Name:            "CONFIGMAP2",
+			ResourceVersion: "22",
+		},
+	})
+	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle)
 
-	err := notifier.NotifyBundleUpdated(context.Background(), commonBundle)
+	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
@@ -310,23 +338,28 @@ kube_config_file_path = "/some/file/path"
 			"CONFIGMAPKEY": testBundleData,
 		},
 	}, test.kubeClient.getConfigMap("NAMESPACE", "CONFIGMAP"))
+
+	require.Equal(t, &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "NAMESPACE2",
+			Name:            "CONFIGMAP2",
+			ResourceVersion: "23",
+		},
+		Data: map[string]string{
+			"CONFIGMAPKEY": testBundleData,
+		},
+	}, test.kubeClient.getConfigMap("NAMESPACE2", "CONFIGMAP2"))
 }
 
 func TestConfigureWithMalformedConfiguration(t *testing.T) {
-	test := setupTest()
-	doConfig := func(t *testing.T, configuration string) error {
-		var err error
-		notifier := new(notifier.V1)
-		plugintest.Load(t, BuiltIn(), notifier,
-			plugintest.CaptureConfigureError(&err),
-			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(test.identityProvider)),
-			plugintest.Configure(configuration),
-		)
+	configuration := "blah"
+	test := setupTest(t, withNoConfigure())
 
-		return err
-	}
+	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
+		HclConfiguration:  configuration,
+		CoreConfiguration: coreConfig,
+	})
 
-	err := doConfig(t, "blah")
 	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
 }
 
@@ -334,23 +367,160 @@ func TestBundleFailsToLoadIfHostServicesUnavailabler(t *testing.T) {
 	var err error
 	plugintest.Load(t, BuiltIn(), nil,
 		plugintest.CaptureLoadError(&err))
-	spiretest.AssertGRPCStatusContains(t, err, codes.FailedPrecondition, "IdentityProvider host service is required")
+	spiretest.RequireGRPCStatusContains(t, err, codes.FailedPrecondition, "IdentityProvider host service is required")
+}
+
+func TestConfigure(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		configuration  string
+		expectedConfig *pluginConfig
+	}{
+		{
+			name: "empty configuration",
+			expectedConfig: &pluginConfig{
+				cluster: cluster{
+					Namespace:    "spire",
+					ConfigMap:    "spire-bundle",
+					ConfigMapKey: "bundle.crt",
+				},
+			},
+		},
+		{
+			name: "full configuration",
+			configuration: `
+			namespace = "root"
+			config_map = "root_config_map"
+			config_map_key = "root.pem"
+			kube_config_file_path = "/some/file/path"
+			webhook_label = "root_webhook_label"
+			api_service_label = "root_api_label"
+			clusters  = [
+			{
+				namespace = "cluster1"
+				config_map = "cluster1_config_map"
+				config_map_key = "cluster1.pem"
+				kube_config_file_path = "/cluster1/file/path"
+				webhook_label = "cluster1_webhook_label"
+				api_service_label = "cluster1_api_label"
+			},
+			{
+				namespace = "cluster2"
+				config_map = "cluster2_config_map"
+				config_map_key = "cluster2.pem"
+				kube_config_file_path = "/cluster2/file/path"
+				webhook_label = "cluster2_webhook_label"
+				api_service_label = "cluster2_api_label"
+			},
+			]
+			`,
+			expectedConfig: &pluginConfig{
+				cluster: cluster{
+					Namespace:          "root",
+					ConfigMap:          "root_config_map",
+					ConfigMapKey:       "root.pem",
+					KubeConfigFilePath: "/some/file/path",
+					WebhookLabel:       "root_webhook_label",
+					APIServiceLabel:    "root_api_label",
+				},
+				Clusters: []cluster{
+					{
+						Namespace:          "cluster1",
+						ConfigMap:          "cluster1_config_map",
+						ConfigMapKey:       "cluster1.pem",
+						KubeConfigFilePath: "/cluster1/file/path",
+						WebhookLabel:       "cluster1_webhook_label",
+						APIServiceLabel:    "cluster1_api_label",
+					},
+					{
+						Namespace:          "cluster2",
+						ConfigMap:          "cluster2_config_map",
+						ConfigMapKey:       "cluster2.pem",
+						KubeConfigFilePath: "/cluster2/file/path",
+						WebhookLabel:       "cluster2_webhook_label",
+						APIServiceLabel:    "cluster2_api_label",
+					},
+				},
+			},
+		},
+		{
+			name: "root only with partial configuration",
+			configuration: `			
+			kube_config_file_path = "/some/file/path"			
+			api_service_label = "root_api_label"			
+			`,
+			expectedConfig: &pluginConfig{
+				cluster: cluster{
+					Namespace:          "spire",
+					ConfigMap:          "spire-bundle",
+					ConfigMapKey:       "bundle.crt",
+					KubeConfigFilePath: "/some/file/path",
+					APIServiceLabel:    "root_api_label",
+				},
+			},
+		},
+		{
+			name: "clusters only with partial configuration",
+			configuration: `
+			clusters  = [
+			{															
+			},
+			{
+				namespace = "cluster2"
+				config_map = "cluster2_config_map"				
+				kube_config_file_path = "/cluster2/file/path"				
+			},
+			]
+			`,
+			expectedConfig: &pluginConfig{
+				Clusters: []cluster{
+					{
+						Namespace:    "spire",
+						ConfigMap:    "spire-bundle",
+						ConfigMapKey: "bundle.crt",
+					},
+					{
+						Namespace:          "cluster2",
+						ConfigMap:          "cluster2_config_map",
+						ConfigMapKey:       "bundle.crt",
+						KubeConfigFilePath: "/cluster2/file/path",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t, withNoConfigure())
+			_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
+				HclConfiguration:  tt.configuration,
+				CoreConfiguration: coreConfig,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedConfig, test.rawPlugin.config)
+		})
+	}
 }
 
 type fakeKubeClient struct {
-	mu         sync.RWMutex
-	configMaps map[string]*corev1.ConfigMap
-	patchErr   error
+	mu           sync.RWMutex
+	configMaps   map[string]*corev1.ConfigMap
+	patchErr     error
+	namespace    string
+	configMapKey string
 }
 
-func newFakeKubeClient(configMaps ...*corev1.ConfigMap) *fakeKubeClient {
-	c := &fakeKubeClient{
-		configMaps: make(map[string]*corev1.ConfigMap),
+func newFakeKubeClient(config *pluginConfig, configMaps ...*corev1.ConfigMap) *fakeKubeClient {
+	fake := &fakeKubeClient{
+		configMaps:   make(map[string]*corev1.ConfigMap),
+		namespace:    config.Namespace,
+		configMapKey: config.ConfigMapKey,
 	}
 	for _, configMap := range configMaps {
-		c.setConfigMap(configMap)
+		fake.setConfigMap(configMap)
 	}
-	return c
+	return fake
 }
 
 func (c *fakeKubeClient) Get(ctx context.Context, namespace, configMap string) (runtime.Object, error) {
@@ -360,7 +530,7 @@ func (c *fakeKubeClient) Get(ctx context.Context, namespace, configMap string) (
 	}
 	return entry, nil
 }
-func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+func (c *fakeKubeClient) GetList(ctx context.Context) (runtime.Object, error) {
 	list := c.getConfigMapList()
 	if list.Items == nil {
 		return nil, errors.New("not found")
@@ -368,7 +538,7 @@ func (c *fakeKubeClient) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c *fakeKubeClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "wrong type, expecting config map")
@@ -378,7 +548,7 @@ func (c *fakeKubeClient) CreatePatch(ctx context.Context, config *pluginConfig, 
 			ResourceVersion: configMap.ResourceVersion,
 		},
 		Data: map[string]string{
-			config.ConfigMapKey: bundleData(resp.Bundle),
+			c.configMapKey: bundleData(resp.Bundle),
 		},
 	}, nil
 }
@@ -417,7 +587,7 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 	return nil
 }
 
-func (c *fakeKubeClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+func (c *fakeKubeClient) Watch(ctx context.Context) (watch.Interface, error) {
 	return nil, nil
 }
 
@@ -465,33 +635,104 @@ func newConfigMap() *corev1.ConfigMap {
 
 type test struct {
 	identityProvider *fakeidentityprovider.IdentityProvider
+	rawPlugin        *Plugin
+	notifier         *notifier.V1
+	clients          []kubeClient
 	kubeClient       *fakeKubeClient
-	expectConfigPath string
+	webhookClient    *fakeWebhook
+	apiServiceClient *fakeAPIService
 }
 
-func setupTest() *test {
-	return &test{
-		identityProvider: fakeidentityprovider.New(),
-		kubeClient:       newFakeKubeClient(),
-		expectConfigPath: "",
+type testOptions struct {
+	plainConfig     string
+	kubeClientError bool
+	doConfigure     bool
+}
+
+type testOption func(*testOptions)
+
+func withPlainConfig(plainConfig string) testOption {
+	return func(args *testOptions) {
+		args.plainConfig = plainConfig
 	}
 }
 
-func (s *test) loadPlugin(t *testing.T, configuration string) *notifier.V1 {
-	notifier := new(notifier.V1)
-	raw := New()
-	plugintest.Load(t, builtIn(raw), notifier,
-		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(s.identityProvider)),
-		plugintest.Configure(configuration),
-	)
+func withKubeClientError() testOption {
+	return func(args *testOptions) {
+		args.kubeClientError = true
+	}
+}
 
-	raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
-		require.Equal(t, s.expectConfigPath, c.KubeConfigFilePath)
-		if s.kubeClient == nil {
+func withNoConfigure() testOption {
+	return func(args *testOptions) {
+		args.doConfigure = false
+	}
+}
+
+func setupTest(t *testing.T, options ...testOption) *test {
+	args := &testOptions{
+		doConfigure: true,
+		plainConfig: fmt.Sprintf(`
+		namespace = "%s"
+		config_map = "%s"
+		config_map_key = "%s"
+		`, defaultNamespace, defaultConfigMap, defaultConfigMapKey),
+	}
+
+	for _, opt := range options {
+		opt(args)
+	}
+
+	config := new(pluginConfig)
+	err := hcl.Decode(&config, args.plainConfig)
+	require.Nil(t, err)
+
+	raw := New()
+	notifier := new(notifier.V1)
+	identityProvider := fakeidentityprovider.New()
+
+	test := &test{
+		identityProvider: identityProvider,
+		rawPlugin:        raw,
+		notifier:         notifier,
+	}
+
+	test.kubeClient = newFakeKubeClient(config)
+	raw.hooks.newKubeClients = func(c *pluginConfig) ([]kubeClient, error) {
+		if args.kubeClientError {
 			return nil, errors.New("kube client not configured")
 		}
-		return []kubeClient{s.kubeClient}, nil
+
+		test.clients = append([]kubeClient{}, test.kubeClient)
+
+		if c.WebhookLabel != "" {
+			test.webhookClient = newFakeWebhook(c)
+			test.clients = append(test.clients, test.webhookClient)
+		}
+		if c.APIServiceLabel != "" {
+			test.apiServiceClient = newFakeAPIService(c)
+			test.clients = append(test.clients, test.apiServiceClient)
+		}
+
+		return test.clients, nil
 	}
 
-	return notifier
+	if args.doConfigure {
+		plugintest.Load(
+			t,
+			builtIn(raw),
+			notifier,
+			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
+			plugintest.Configure(args.plainConfig),
+		)
+	} else {
+		plugintest.Load(
+			t,
+			builtIn(raw),
+			notifier,
+			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
+		)
+	}
+
+	return test
 }

@@ -52,13 +52,18 @@ func builtIn(p *Plugin) catalog.BuiltIn {
 	)
 }
 
-type pluginConfig struct {
+type cluster struct {
 	Namespace          string `hcl:"namespace"`
 	ConfigMap          string `hcl:"config_map"`
 	ConfigMapKey       string `hcl:"config_map_key"`
 	WebhookLabel       string `hcl:"webhook_label"`
 	APIServiceLabel    string `hcl:"api_service_label"`
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
+}
+
+type pluginConfig struct {
+	cluster  `hcl:",squash"` // for hcl v2 it should be `hcl:",remain"`
+	Clusters []cluster       `hcl:"clusters"`
 }
 
 type Plugin struct {
@@ -72,13 +77,13 @@ type Plugin struct {
 	cancelWatcher    func()
 
 	hooks struct {
-		newKubeClient func(c *pluginConfig) ([]kubeClient, error)
+		newKubeClients func(c *pluginConfig) ([]kubeClient, error)
 	}
 }
 
 func New() *Plugin {
 	p := &Plugin{}
-	p.hooks.newKubeClient = newKubeClient
+	p.hooks.newKubeClients = newKubeClients
 	return p
 }
 
@@ -129,14 +134,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if config.Namespace == "" {
-		config.Namespace = defaultNamespace
+	// root set with at least one value or the whole configuration is empty
+	if hasRootCluster(&config.cluster) || !hasRootCluster(&config.cluster) && !hasMultipleClusters(config.Clusters) {
+		setDefaultValues(&config.cluster)
 	}
-	if config.ConfigMap == "" {
-		config.ConfigMap = defaultConfigMap
-	}
-	if config.ConfigMapKey == "" {
-		config.ConfigMapKey = defaultConfigMapKey
+	for i := range config.Clusters {
+		setDefaultValues(&config.Clusters[i])
 	}
 
 	if err = p.setConfig(config); err != nil {
@@ -197,14 +200,14 @@ func (p *Plugin) setConfig(config *pluginConfig) error {
 // If an error is an encountered updating the bundle for an object, we record the
 // error and continue on to the next object
 func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error) {
-	clients, err := p.hooks.newKubeClient(c)
+	clients, err := p.hooks.newKubeClients(c)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create kube client: %v", err)
+		return status.Errorf(codes.Internal, "failed to create kube clients: %v", err)
 	}
 
 	var updateErrs string
 	for _, client := range clients {
-		list, err := client.GetList(ctx, c)
+		list, err := client.GetList(ctx)
 		if err != nil {
 			updateErrs += fmt.Sprintf("unable to get list: %v, ", err)
 			continue
@@ -220,7 +223,7 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 				updateErrs += fmt.Sprintf("unable to extract metadata for item: %v, ", err)
 				continue
 			}
-			err = p.updateBundle(ctx, c, client, itemMeta.GetNamespace(), itemMeta.GetName())
+			err = p.updateBundle(ctx, client, itemMeta.GetNamespace(), itemMeta.GetName())
 			if err != nil && status.Code(err) != codes.AlreadyExists {
 				updateErrs += fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err)
 			}
@@ -234,7 +237,7 @@ func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error)
 }
 
 // updateBundle does the ready-modify-write semantics for Kubernetes, retrying on conflict
-func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeClient, namespace, name string) (err error) {
+func (p *Plugin) updateBundle(ctx context.Context, client kubeClient, namespace, name string) (err error) {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Get the object so we can use the version to resolve conflicts racing
 		// on updates from other servers.
@@ -254,7 +257,7 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 
 		// Build patch with the new bundle data. The resource version MUST be set
 		// to support conflict resolution.
-		patch, err := client.CreatePatch(ctx, c, obj, resp)
+		patch, err := client.CreatePatch(ctx, obj, resp)
 		if err != nil {
 			return err
 		}
@@ -268,7 +271,29 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 	})
 }
 
-func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
+func newKubeClients(c *pluginConfig) ([]kubeClient, error) {
+	clients := []kubeClient{}
+
+	if hasRootCluster(&c.cluster) {
+		clusterClients, err := newClientsForCluster(c.cluster)
+		if err != nil {
+			return nil, err
+		}
+		clients = append(clients, clusterClients...)
+	}
+
+	for _, cluster := range c.Clusters {
+		clusterClients, err := newClientsForCluster(cluster)
+		if err != nil {
+			return nil, err
+		}
+		clients = append(clients, clusterClients...)
+	}
+
+	return clients, nil
+}
+
+func newClientsForCluster(c cluster) ([]kubeClient, error) {
 	clientset, err := newKubeClientset(c.KubeConfigFilePath)
 	if err != nil {
 		return nil, err
@@ -278,16 +303,30 @@ func newKubeClient(c *pluginConfig) ([]kubeClient, error) {
 		return nil, err
 	}
 
-	clients := []kubeClient{configMapClient{Clientset: clientset}}
+	clients := []kubeClient{configMapClient{
+		Clientset:    clientset,
+		namespace:    c.Namespace,
+		configMap:    c.ConfigMap,
+		configMapKey: c.ConfigMapKey,
+	}}
 	if c.WebhookLabel != "" {
 		clients = append(clients,
-			mutatingWebhookClient{Clientset: clientset},
-			validatingWebhookClient{Clientset: clientset},
+			mutatingWebhookClient{
+				Clientset:    clientset,
+				webhookLabel: c.WebhookLabel,
+			},
+			validatingWebhookClient{
+				Clientset:    clientset,
+				webhookLabel: c.WebhookLabel,
+			},
 		)
 	}
 	if c.APIServiceLabel != "" {
 		clients = append(clients,
-			apiServiceClient{Clientset: aggregatorClientset},
+			apiServiceClient{
+				Clientset:       aggregatorClientset,
+				apiServiceLabel: c.APIServiceLabel,
+			},
 		)
 	}
 
@@ -330,23 +369,26 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 // kubeClient encapsulates the Kubenetes API for config maps, validating webhooks, and mutating webhooks
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
-	GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error)
-	CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error)
+	GetList(ctx context.Context) (runtime.Object, error)
+	CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
-	Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error)
+	Watch(ctx context.Context) (watch.Interface, error)
 }
 
 // configMapClient encapsulates the Kubenetes API for updating the CA Bundle in a config map
 type configMapClient struct {
 	*kubernetes.Clientset
+	namespace    string
+	configMap    string
+	configMapKey string
 }
 
 func (c configMapClient) Get(ctx context.Context, namespace, configMap string) (runtime.Object, error) {
 	return c.CoreV1().ConfigMaps(namespace).Get(ctx, configMap, metav1.GetOptions{})
 }
 
-func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
-	obj, err := c.Get(ctx, config.Namespace, config.ConfigMap)
+func (c configMapClient) GetList(ctx context.Context) (runtime.Object, error) {
+	obj, err := c.Get(ctx, c.namespace, c.configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +398,7 @@ func (c configMapClient) GetList(ctx context.Context, config *pluginConfig) (run
 	}, nil
 }
 
-func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c configMapClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ConfigMap")
@@ -366,7 +408,7 @@ func (c configMapClient) CreatePatch(ctx context.Context, config *pluginConfig, 
 			ResourceVersion: configMap.ResourceVersion,
 		},
 		Data: map[string]string{
-			config.ConfigMapKey: bundleData(resp.Bundle),
+			c.configMapKey: bundleData(resp.Bundle),
 		},
 	}, nil
 }
@@ -376,26 +418,27 @@ func (c configMapClient) Patch(ctx context.Context, namespace, name string, patc
 	return err
 }
 
-func (c configMapClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+func (c configMapClient) Watch(ctx context.Context) (watch.Interface, error) {
 	return nil, nil
 }
 
 // apiServiceClient encapsulates the Kubenetes API for updating the CA Bundle in an API Service
 type apiServiceClient struct {
 	*aggregator.Clientset
+	apiServiceLabel string
 }
 
 func (c apiServiceClient) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
 	return c.ApiregistrationV1().APIServices().Get(ctx, name, metav1.GetOptions{})
 }
 
-func (c apiServiceClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+func (c apiServiceClient) GetList(ctx context.Context) (runtime.Object, error) {
 	return c.ApiregistrationV1().APIServices().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.APIServiceLabel),
+		LabelSelector: fmt.Sprintf("%s=true", c.apiServiceLabel),
 	})
 }
 
-func (c apiServiceClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c apiServiceClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	apiService, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting APIService")
@@ -425,28 +468,29 @@ func (c apiServiceClient) Patch(ctx context.Context, namespace, name string, pat
 	return err
 }
 
-func (c apiServiceClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+func (c apiServiceClient) Watch(ctx context.Context) (watch.Interface, error) {
 	return c.ApiregistrationV1().APIServices().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.APIServiceLabel),
+		LabelSelector: fmt.Sprintf("%s=true", c.apiServiceLabel),
 	})
 }
 
 // mutatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a mutating webhook
 type mutatingWebhookClient struct {
 	*kubernetes.Clientset
+	webhookLabel string
 }
 
 func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebhook string) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, mutatingWebhook, metav1.GetOptions{})
 }
 
-func (c mutatingWebhookClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+func (c mutatingWebhookClient) GetList(ctx context.Context) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
+		LabelSelector: fmt.Sprintf("%s=true", c.webhookLabel),
 	})
 }
 
-func (c mutatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c mutatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting MutatingWebhookConfiguration")
@@ -487,28 +531,29 @@ func (c mutatingWebhookClient) Patch(ctx context.Context, namespace, name string
 	return err
 }
 
-func (c mutatingWebhookClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+func (c mutatingWebhookClient) Watch(ctx context.Context) (watch.Interface, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
+		LabelSelector: fmt.Sprintf("%s=true", c.webhookLabel),
 	})
 }
 
 // validatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a validating webhook
 type validatingWebhookClient struct {
 	*kubernetes.Clientset
+	webhookLabel string
 }
 
 func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingWebhook string) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, validatingWebhook, metav1.GetOptions{})
 }
 
-func (c validatingWebhookClient) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+func (c validatingWebhookClient) GetList(ctx context.Context) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
+		LabelSelector: fmt.Sprintf("%s=true", c.webhookLabel),
 	})
 }
 
-func (c validatingWebhookClient) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c validatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ValidatingWebhookConfiguration")
@@ -549,9 +594,9 @@ func (c validatingWebhookClient) Patch(ctx context.Context, namespace, name stri
 	return err
 }
 
-func (c validatingWebhookClient) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+func (c validatingWebhookClient) Watch(ctx context.Context) (watch.Interface, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", config.WebhookLabel),
+		LabelSelector: fmt.Sprintf("%s=true", c.webhookLabel),
 	})
 }
 
@@ -573,4 +618,29 @@ func namespacedName(itemMeta metav1.Object) string {
 		return fmt.Sprintf("%s/%s", itemMeta.GetNamespace(), itemMeta.GetName())
 	}
 	return itemMeta.GetName()
+}
+
+func setDefaultValues(c *cluster) {
+	if c.Namespace == "" {
+		c.Namespace = defaultNamespace
+	}
+	if c.ConfigMap == "" {
+		c.ConfigMap = defaultConfigMap
+	}
+	if c.ConfigMapKey == "" {
+		c.ConfigMapKey = defaultConfigMapKey
+	}
+}
+
+func hasRootCluster(config *cluster) bool {
+	return config.Namespace != "" ||
+		config.ConfigMap != "" ||
+		config.ConfigMapKey != "" ||
+		config.KubeConfigFilePath != "" ||
+		config.WebhookLabel != "" ||
+		config.APIServiceLabel != ""
+}
+
+func hasMultipleClusters(clusters []cluster) bool {
+	return len(clusters) > 0
 }
