@@ -3254,7 +3254,7 @@ func (s *PluginSuite) TestCreateFederationRelationship() {
 		},
 		{
 			name:   "creating a new SPIFFE federation relationship without initial bundle fails nicely",
-			expErr: "rpc error: code = Unknown desc = no bundle exists for trustdomain: \"no-initial-bundle.org\"",
+			expErr: "rpc error: code = Unknown desc = no bundle exists for trust domain: \"no-initial-bundle.org\"",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
 				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
@@ -3281,7 +3281,7 @@ func (s *PluginSuite) TestCreateFederationRelationship() {
 				return
 			}
 			s.Require().Nil(err)
-			// TODO: assert entry was created when FetchFederationRelationship is implemented
+			// TODO: when FetchFederationRelationship is implemented, assert if entry was created
 
 			switch fr.BundleEndpointProfile {
 			case datastore.BundleEndpointWeb:
@@ -3291,7 +3291,7 @@ func (s *PluginSuite) TestCreateFederationRelationship() {
 				s.Require().NoError(err)
 				s.RequireProtoEqual(bundle, fr.Bundle)
 			default:
-				s.Require().FailNow("unexpected bundle endpoint profile type")
+				s.Require().FailNowf("unexpected bundle endpoint profile type: %q", string(fr.BundleEndpointProfile))
 			}
 		})
 	}

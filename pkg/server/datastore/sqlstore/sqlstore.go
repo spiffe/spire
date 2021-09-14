@@ -3249,10 +3249,10 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 			// check if a previous bundle exists
 			bundle, err := fetchBundle(tx, fr.TrustDomain.IDString())
 			if err != nil {
-				return nil, fmt.Errorf("unable to check if bundle exist: %w", err)
+				return nil, fmt.Errorf("unable to fetch bundle: %w", err)
 			}
 			if bundle == nil {
-				return nil, fmt.Errorf("no bundle exists for trustdomain: %q", fr.TrustDomain)
+				return nil, fmt.Errorf("no bundle exists for trust domain: %q", fr.TrustDomain)
 			}
 			fr.Bundle = bundle
 		}
