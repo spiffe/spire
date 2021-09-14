@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/zeebo/errs"
 )
 
@@ -36,11 +35,6 @@ type ClientConfig struct { //nolint: golint // name stutter is intentional
 	// using SPIFFE authentication. If unset, it is assumed that the endpoint
 	// is authenticated via Web PKI.
 	SPIFFEAuth *SPIFFEAuthConfig
-
-	// DeprecatedConfig indicates that the configuration comes from a deprecated
-	// configuration.
-	// TODO: Remove support for this deprecated config in 1.1.0.
-	DeprecatedConfig bool
 }
 
 // Client is used to fetch a bundle and metadata from a bundle endpoint
@@ -58,13 +52,7 @@ func NewClient(config ClientConfig) (Client, error) {
 	if config.SPIFFEAuth != nil {
 		endpointID := config.SPIFFEAuth.EndpointSpiffeID
 		if endpointID.IsZero() {
-			if config.DeprecatedConfig {
-				// This is to preserve behavioral compatibility when using
-				// the deprecated config and will be removed in 1.1.0.
-				endpointID = idutil.ServerID(config.TrustDomain)
-			} else {
-				return nil, fmt.Errorf("no SPIFFE ID specified for federation with %q", config.TrustDomain.String())
-			}
+			return nil, fmt.Errorf("no SPIFFE ID specified for federation with %q", config.TrustDomain.String())
 		}
 
 		bundle := x509bundle.FromX509Authorities(endpointID.TrustDomain(), config.SPIFFEAuth.RootCAs)
