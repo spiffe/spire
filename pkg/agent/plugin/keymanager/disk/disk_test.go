@@ -19,7 +19,7 @@ import (
 
 func TestKeyManagerContract(t *testing.T) {
 	keymanagertest.Test(t, keymanagertest.Config{
-		Create: func(t *testing.T) keymanager.MultiKeyManager {
+		Create: func(t *testing.T) keymanager.KeyManager {
 			dir := spiretest.TempDir(t)
 			km, err := loadPlugin(t, "directory = %q", dir)
 			require.NoError(t, err)
@@ -100,16 +100,14 @@ func TestDeprecatedKeyFileIsRemovedOnConfigure(t *testing.T) {
 	require.True(t, errors.Is(err, os.ErrNotExist), "file has not been removed: %v", err)
 }
 
-func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.MultiKeyManager, error) {
+func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
 	km := new(keymanager.V1)
 	var configErr error
 	plugintest.Load(t, disk.BuiltIn(), km,
 		plugintest.Configuref(configFmt, configArgs...),
 		plugintest.CaptureConfigureError(&configErr),
 	)
-	multi, ok := km.Multi()
-	require.True(t, ok)
-	return multi, configErr
+	return km, configErr
 }
 
 func mkdir(t *testing.T, dir string) {

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
@@ -432,6 +434,57 @@ func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err er
 		err = pruneJoinTokens(tx, expiry)
 		return err
 	})
+}
+
+// CreateFederationRelationship creates a new federation relationship. If the bundle endpoint
+// profile is 'https_spiffe' and the given federation relationship contains a bundle, the current
+// stored bundle is overridden.
+// If no bundle is provided and there is not a previusly stored bundle in the datastore, the
+// federation relationship is not created.
+func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (newFr *datastore.FederationRelationship, err error) {
+	if fr == nil {
+		return nil, status.Error(codes.InvalidArgument, "federation relationship is nil")
+	}
+
+	if fr.TrustDomain.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if fr.BundleEndpointURL == nil {
+		return nil, status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
+	}
+
+	switch fr.BundleEndpointProfile {
+	case datastore.BundleEndpointWeb:
+	case datastore.BundleEndpointSPIFFE:
+		if fr.EndpointSPIFFEID.IsZero() {
+			return nil, status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
+		}
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
+	}
+
+	return fr, ds.withWriteTx(ctx, func(tx *gorm.DB) error {
+		newFr, err = createFederationRelationship(tx, fr)
+		return err
+	})
+}
+
+// FetchFederationRelationship fetches the federation relationship that matches
+// the given trust domain. If the federation relationship is not found, nil is returned.
+func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
+	if trustDomain.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		fr, err = fetchFederationRelationship(tx, trustDomain)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return fr, nil
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
@@ -3194,6 +3247,83 @@ func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
 	}
 
 	return nil
+}
+
+func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	model := FederatedTrustDomain{
+		TrustDomain:           fr.TrustDomain.String(),
+		BundleEndpointURL:     fr.BundleEndpointURL.String(),
+		BundleEndpointProfile: string(fr.BundleEndpointProfile),
+	}
+
+	if fr.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		model.EndpointSPIFFEID = fr.EndpointSPIFFEID.String()
+		if fr.Bundle != nil {
+			// overwrite current bundle
+			_, err := setBundle(tx, fr.Bundle)
+			if err != nil {
+				return nil, fmt.Errorf("unable to set bundle: %w", err)
+			}
+		} else {
+			// check if a previous bundle exists
+			bundle, err := fetchBundle(tx, fr.TrustDomain.IDString())
+			if err != nil {
+				return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+			}
+			if bundle == nil {
+				return nil, fmt.Errorf("no bundle exists for trust domain: %q", fr.TrustDomain)
+			}
+			fr.Bundle = bundle
+		}
+	}
+
+	if err := tx.Create(&model).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return fr, nil
+}
+
+func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+	var model FederatedTrustDomain
+	err := tx.Find(&model, "trust_domain = ?", trustDomain.String()).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, nil
+	case err != nil:
+		return nil, sqlError.Wrap(err)
+	}
+
+	bundleEndpointURL, err := url.Parse(model.BundleEndpointURL)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse URL: %w", err)
+	}
+
+	fr := &datastore.FederationRelationship{
+		TrustDomain:           trustDomain,
+		BundleEndpointURL:     bundleEndpointURL,
+		BundleEndpointProfile: datastore.BundleEndpointType(model.BundleEndpointProfile),
+	}
+
+	switch fr.BundleEndpointProfile {
+	case datastore.BundleEndpointWeb:
+	case datastore.BundleEndpointSPIFFE:
+		endpointSPIFFEID, err := spiffeid.FromString(model.EndpointSPIFFEID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse bundle endpoint SPIFFE ID: %w", err)
+		}
+		fr.EndpointSPIFFEID = endpointSPIFFEID
+
+		bundle, err := fetchBundle(tx, trustDomain.IDString())
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+		}
+		fr.Bundle = bundle
+	default:
+		return nil, fmt.Errorf("unknown bundle endpoint profile type: %q", model.BundleEndpointProfile)
+	}
+
+	return fr, nil
 }
 
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also

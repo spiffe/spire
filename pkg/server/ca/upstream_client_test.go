@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/spire/common"
-	upstreamauthorityv0 "github.com/spiffe/spire/proto/spire/plugin/server/upstreamauthority/v0"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -46,34 +47,34 @@ func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
-		mutate func(*upstreamauthorityv0.MintX509CAResponse)
+		mutate func(*upstreamauthorityv1.MintX509CAResponse)
 		err    string
 	}{
 		{
 			name: "missing X.509 CA chain",
-			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
+			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
 				resp.X509CaChain = nil
 			},
 			err: "plugin response missing X.509 CA chain",
 		},
 		{
 			name: "malformed X.509 CA chain",
-			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
-				resp.X509CaChain = [][]byte{{0x00}}
+			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
+				resp.X509CaChain = []*plugintypes.X509Certificate{{Asn1: []byte{0x00}}}
 			},
 			err: "plugin response has malformed X.509 CA chain:",
 		},
 		{
 			name: "missing X.509 roots",
-			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
+			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
 				resp.UpstreamX509Roots = nil
 			},
 			err: "plugin response missing upstream X.509 roots",
 		},
 		{
 			name: "malformed X.509 roots",
-			mutate: func(resp *upstreamauthorityv0.MintX509CAResponse) {
-				resp.UpstreamX509Roots = [][]byte{{0x00}}
+			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
+				resp.UpstreamX509Roots = []*plugintypes.X509Certificate{{Asn1: []byte{0x00}}}
 			},
 			err: "plugin response has malformed upstream X.509 roots:",
 		},
@@ -95,16 +96,6 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain: trustDomain,
 	})
-
-	makePublicKey := func(t *testing.T, kid string) *common.PublicKey {
-		key := testkey.NewEC256(t)
-		pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
-		require.NoError(t, err)
-		return &common.PublicKey{
-			Kid:       kid,
-			PkixBytes: pkixBytes,
-		}
-	}
 
 	key1 := makePublicKey(t, "KEY1")
 	key2 := makePublicKey(t, "KEY2")
@@ -128,7 +119,7 @@ func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
 		DisallowPublishJWTKey: true,
 	})
 
-	jwtKeys, err := client.PublishJWTKey(context.Background(), &common.PublicKey{Kid: "KEY"})
+	jwtKeys, err := client.PublishJWTKey(context.Background(), makePublicKey(t, "KEY"))
 	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(fake): disallowed")
 	require.Nil(t, jwtKeys)
 }
@@ -223,5 +214,15 @@ func (u *fakeBundleUpdater) WaitForError(t *testing.T) (msg string, err error) {
 		return "", nil // unreachable
 	case e := <-u.errorCh:
 		return e.msg, e.err
+	}
+}
+
+func makePublicKey(t *testing.T, kid string) *common.PublicKey {
+	key := testkey.NewEC256(t)
+	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+	return &common.PublicKey{
+		Kid:       kid,
+		PkixBytes: pkixBytes,
 	}
 }
