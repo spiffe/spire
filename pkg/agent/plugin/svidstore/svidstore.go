@@ -13,7 +13,7 @@ import (
 type SVIDStore interface {
 	catalog.PluginInfo
 
-	DeleteX509SVID(ctx context.Context, secretsData []string) error
+	DeleteX509SVID(ctx context.Context, metadata []string) error
 	PutX509SVID(context.Context, *X509SVID) error
 }
 
