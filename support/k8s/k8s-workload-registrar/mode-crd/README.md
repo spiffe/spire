@@ -146,7 +146,7 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 
 ### Auto-generate SPIFFE IDs
 
-To test auto-generation of SPIFFE IDs add the following label to a Pod Spec and the apply it. The format for the auto-generated SPIFFE ID in this example is `ns/<namespace>/pod/<pod-name>`.
+To test auto-generation of SPIFFE IDs add the following label to a Pod Spec and then apply it. The format for the auto-generated SPIFFE ID in this example is `ns/<namespace>/pod/<pod-name>`.
 
    ```
    spiffe.io/spiffe-id: true
