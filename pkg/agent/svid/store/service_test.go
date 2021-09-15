@@ -192,7 +192,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "Secret deleted successfully",
+					Message: "SVID deleted successfully",
 					Data: logrus.Fields{
 						telemetry.RevisionNumber: "1",
 						telemetry.Entry:          "foh",
@@ -256,7 +256,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "Secret deleted successfully",
+					Message: "SVID deleted successfully",
 					Data: logrus.Fields{
 						telemetry.RevisionNumber: "2",
 						telemetry.Entry:          "foh",

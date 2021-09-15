@@ -24,7 +24,7 @@ const (
 )
 
 type Cache interface {
-	// ReadyToStore list of store cache records that are ready to be stored on specific SVID Store
+	// ReadyToStore is a list of store cache records that are ready to be stored on specific SVID Store
 	ReadyToStore() []*storecache.Record
 	// HandledRecord sets a revision to record on cache
 	HandledRecord(entry *common.RegistrationEntry, revision int64)
@@ -42,7 +42,7 @@ type Config struct {
 type SVIDStoreService struct {
 	clk clock.Clock
 	log logrus.FieldLogger
-	// trustDomain is the agents trust domain
+	// trustDomain is the trust domain of the agent
 	trustDomain spiffeid.TrustDomain
 	// cache is the store cache
 	cache Cache
@@ -51,7 +51,7 @@ type SVIDStoreService struct {
 	metrics    telemetry.Metrics
 
 	hooks struct {
-		// test hook used to verify a cycle finished
+		// test hook used to verify if a cycle finished
 		storeFinished chan struct{}
 	}
 }
@@ -100,13 +100,13 @@ func (s *SVIDStoreService) Run(ctx context.Context) error {
 	}
 }
 
-// deleteSVID deletes a secret using SVIDStore plugin, it gets plugin name from entry selectors
+// deleteSVID deletes a stored SVID that uses the SVIDStore plugin. It gets the plugin name from entry selectors
 func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry) bool {
 	log = log.WithField(telemetry.Entry, entry.EntryId)
 
 	storeName, err := getStoreName(entry.Selectors)
 	if err != nil {
-		log.WithError(err).Error("selector contains invalid store name")
+		log.WithError(err).Error("Invalid store name in selector")
 		return false
 	}
 
@@ -122,15 +122,15 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 		secretData = append(secretData, selector.Value)
 	}
 	if err := svidStore.DeleteX509SVID(ctx, secretData); err != nil {
-		log.WithError(err).Error("failed to delete secret")
+		log.WithError(err).Error("Failed to delete SVID")
 		return false
 	}
 
-	log.Debug("Secret deleted successfully")
+	log.Debug("SVID deleted successfully")
 	return true
 }
 
-// storeSVID creates or update a secret using SVIDStore plugin, it gets plugin name from entry selectors
+// storeSVID creates or updates a secret using SVIDStore plugin, it gets plugin name from entry selectors
 func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger, record *storecache.Record) {
 	if record.Svid == nil {
 		// Svid is not yet provided.
@@ -140,7 +140,7 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 
 	storeName, err := getStoreName(record.Entry.Selectors)
 	if err != nil {
-		log.WithError(err).Error("selector contains invalid store name")
+		log.WithError(err).Error("Invalid store name in selector")
 		return
 	}
 
@@ -153,12 +153,12 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 
 	req, err := s.requestFromRecord(record)
 	if err != nil {
-		log.WithError(err).Error("failed to parse record")
+		log.WithError(err).Error("Failed to parse record")
 		return
 	}
 
 	if err := svidStore.PutX509SVID(ctx, req); err != nil {
-		log.WithError(err).Error("failed to Put X509-SVID")
+		log.WithError(err).Error("Failed to put X509-SVID")
 		return
 	}
 
@@ -201,7 +201,7 @@ func (s *SVIDStoreService) processRecords(ctx context.Context) {
 	}
 }
 
-// parseUpdate parses an SVID Update into a *svidstore.PutX509SVIDRequest request
+// requestFromRecord parses a cache record to a *svidstore.X509SVID
 func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidstore.X509SVID, error) {
 	rootCA, ok := record.Bundles[s.trustDomain]
 	if !ok {
@@ -216,7 +216,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 			continue
 		}
 
-		// Prevent adding Trust Domain bundle a federated bundle
+		// Do not add the agent's trust domain to the federated bundles
 		if td == s.trustDomain {
 			continue
 		}
@@ -253,7 +253,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 	}, nil
 }
 
-// getStoreName gets SVIDStore plugin name from entry selectors, it will fails in case an entry
+// getStoreName gets SVIDStore plugin name from entry selectors, it fails in case an entry
 // contains selectors with different types
 func getStoreName(selectors []*common.Selector) (string, error) {
 	if len(selectors) == 0 {

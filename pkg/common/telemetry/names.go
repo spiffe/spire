@@ -106,7 +106,7 @@ const (
 	// (agent or server)
 	StorePrivateKey = "store_private_key"
 
-	// StoreSVIDUpdates related to storing a SVID updates
+	// StoreSVIDUpdates related to storing SVID updates in SVIDStore plugins
 	StoreSVIDUpdates = "store_svid_updates"
 
 	// Sync functionality for syncing (such as CA manager updates). Should
@@ -585,7 +585,7 @@ const (
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
 
-	// SVIDStore tags an SVID store plugin/type (eg. gcp, aws...)
+	// SVIDStore tags an SVID store plugin/type (eg. aws_secretsmanager)
 	SVIDStore = "svid_store"
 
 	// RegistrationManager functionality related to a registration manager

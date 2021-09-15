@@ -56,7 +56,7 @@ type Cache struct {
 
 	mtx sync.RWMutex
 
-	// bundles hold the latests bundles
+	// bundles holds the latests bundles
 	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
 	// records holds all the latests SVIDs with its entries
 	records map[string]*cachedRecord
@@ -74,8 +74,8 @@ func New(config *Config) *Cache {
 	}
 }
 
-// UpdateEntries using `UpdateEntries` updates and validates latestes entries,
-// revision record's revision number is incremented on each record baed on:
+// UpdateEntries using `UpdateEntries` updates and validates latests entries,
+// record's revision number is incremented on each record baed on:
 // - Knowledge or when the SVID for that entry changes
 // - Knowledge when the bundle changes
 // - Knowledge when a federated bundle related to an storable entry changes
@@ -186,7 +186,7 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 	}
 }
 
-// UpdateSVIDs update cache with latests SVID
+// UpdateSVIDs updates cache with latests SVIDs
 func (c *Cache) UpdateSVIDs(update *cache.UpdateSVIDs) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -248,7 +248,7 @@ func (c *Cache) GetStaleEntries() []*cache.StaleEntry {
 	return staleEntries
 }
 
-// ReadyToStore provides all records that are in state to be stored
+// ReadyToStore returns all records that are ready to be stored
 func (c *Cache) ReadyToStore() []*Record {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -266,7 +266,7 @@ func (c *Cache) ReadyToStore() []*Record {
 	return records
 }
 
-// HandledRecord updates handled revision, and set latests processed entry
+// HandledRecord updates handled revision, and sets the latests processed entry
 func (c *Cache) HandledRecord(handledEntry *common.RegistrationEntry, revision int64) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -276,7 +276,8 @@ func (c *Cache) HandledRecord(handledEntry *common.RegistrationEntry, revision i
 	}
 }
 
-// Only for testing purposes
+// Records returns all the records in the cache.
+// This function exists only to facilitate testing.
 func (c *Cache) Records() []*Record {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -350,7 +351,7 @@ func isBundleRemoved(federatesWith []string, bundleRemoved map[spiffeid.TrustDom
 	return false
 }
 
-// recordFromCache parses cache record into exportable Record
+// recordFromCache parses cache record into storable Record
 func recordFromCache(r *cachedRecord, bundles map[spiffeid.TrustDomain]*bundleutil.Bundle) *Record {
 	var expiresAt time.Time
 	if r.svid != nil {
