@@ -3,6 +3,7 @@ package x509certificate
 import (
 	"crypto/x509"
 
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -48,6 +49,14 @@ func ToCommonProtos(x509Certificates []*x509.Certificate) ([]*common.Certificate
 		pbs = append(pbs, pb)
 	}
 	return pbs, nil
+}
+
+func ToCommonFromPluginProtos(pbs []*plugintypes.X509Certificate) ([]*common.Certificate, error) {
+	certs, err := FromPluginProtos(pbs)
+	if err != nil {
+		return nil, err
+	}
+	return ToCommonProtos(certs)
 }
 
 func RawFromCommonProto(pb *common.Certificate) ([]byte, error) {

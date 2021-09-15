@@ -9,6 +9,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/coretypes/bundle"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
@@ -72,8 +73,14 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 	pluginJWTAuthoritiesGood = []*plugintypes.JWTKey{
 		{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
 	}
+	pluginJWTAuthoritiesBad = []*plugintypes.JWTKey{
+		{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
+	}
 	pluginX509AuthoritiesGood = []*plugintypes.X509Certificate{
 		{Asn1: root.Raw},
+	}
+	pluginX509AuthoritiesBad = []*plugintypes.X509Certificate{
+		{Asn1: []byte("malformed")},
 	}
 	pluginGood = &plugintypes.Bundle{
 		TrustDomain:     "example.org",
@@ -81,6 +88,33 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		JwtAuthorities:  pluginJWTAuthoritiesGood,
 		RefreshHint:     1,
 		SequenceNumber:  2,
+	}
+	pluginInvalidTD = &plugintypes.Bundle{
+		TrustDomain:     "no a trustdomain",
+		X509Authorities: pluginX509AuthoritiesGood,
+		JwtAuthorities:  pluginJWTAuthoritiesGood,
+		RefreshHint:     1,
+		SequenceNumber:  2,
+	}
+	pluginInvalidX509Authorities = &plugintypes.Bundle{
+		TrustDomain:     "example.org",
+		X509Authorities: pluginX509AuthoritiesBad,
+		JwtAuthorities:  pluginJWTAuthoritiesGood,
+		RefreshHint:     1,
+		SequenceNumber:  2,
+	}
+	pluginInvalidJWTAutorities = &plugintypes.Bundle{
+		TrustDomain:     "example.org",
+		X509Authorities: pluginX509AuthoritiesGood,
+		JwtAuthorities:  pluginJWTAuthoritiesBad,
+		RefreshHint:     1,
+		SequenceNumber:  2,
+	}
+	commonGood = &common.Bundle{
+		TrustDomainId:  "spiffe://example.org",
+		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
+		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		RefreshHint:    1,
 	}
 )
 
@@ -101,5 +135,27 @@ func TestToPluginFromAPIProto(t *testing.T) {
 	assertFail(t, apiInvalidTD, "malformed trust domain:")
 	assertFail(t, apiInvalidX509Authorities, "invalid X.509 authority: failed to parse X.509 certificate data: ")
 	assertFail(t, apiInvalidJWTAutorities, "invalid JWT authority: missing key ID for JWT key")
+	assertOK(t, nil, nil)
+}
+
+func TestToCommonFromPluginProto(t *testing.T) {
+	assertOK := func(t *testing.T, in *plugintypes.Bundle, expectOut *common.Bundle) {
+		actualOut, err := bundle.ToCommonFromPluginProto(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoEqual(t, expectOut, actualOut)
+		assert.NotPanics(t, func() { spiretest.AssertProtoEqual(t, expectOut, bundle.RequireToCommonFromPluginProto(in)) })
+	}
+
+	assertFail := func(t *testing.T, in *plugintypes.Bundle, expectErr string) {
+		actualOut, err := bundle.ToCommonFromPluginProto(in)
+		spiretest.RequireErrorContains(t, err, expectErr)
+		assert.Empty(t, actualOut)
+		assert.Panics(t, func() { bundle.RequireToCommonFromPluginProto(in) })
+	}
+
+	assertOK(t, pluginGood, commonGood)
+	assertFail(t, pluginInvalidTD, "malformed trust domain:")
+	assertFail(t, pluginInvalidX509Authorities, "invalid X.509 authority: failed to parse X.509 certificate data: ")
+	assertFail(t, pluginInvalidJWTAutorities, "invalid JWT authority: missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
