@@ -45,10 +45,9 @@ type SVIDStoreService struct {
 	// trustDomain is the trust domain of the agent
 	trustDomain spiffeid.TrustDomain
 	// cache is the store cache
-	cache Cache
-	// svidStores is the allowed list of SVID Stores configured on agent
-	svidStores map[string]svidstore.SVIDStore
-	metrics    telemetry.Metrics
+	cache   Cache
+	cat     catalog.Catalog
+	metrics telemetry.Metrics
 
 	hooks struct {
 		// test hook used to verify if a cycle finished
@@ -62,18 +61,13 @@ func New(c *Config) *SVIDStoreService {
 		clk = clock.New()
 	}
 
-	svidStores := make(map[string]svidstore.SVIDStore)
-	for _, store := range c.Catalog.GetSVIDStores() {
-		svidStores[store.Name()] = store
-	}
-
 	return &SVIDStoreService{
 		cache:       c.Cache,
 		clk:         clk,
 		log:         c.Log,
 		metrics:     c.Metrics,
 		trustDomain: c.TrustDomain,
-		svidStores:  svidStores,
+		cat:         c.Catalog,
 	}
 }
 
@@ -100,7 +94,10 @@ func (s *SVIDStoreService) Run(ctx context.Context) error {
 
 // deleteSVID deletes a stored SVID that uses the SVIDStore plugin. It gets the plugin name from entry selectors
 func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry) bool {
-	log = log.WithField(telemetry.Entry, entry.EntryId)
+	log = log.WithFields(logrus.Fields{
+		telemetry.Entry:    entry.EntryId,
+		telemetry.SPIFFEID: entry.SpiffeId,
+	})
 
 	storeName, metadata, err := getStoreNameWithMetadata(entry.Selectors)
 	if err != nil {
@@ -109,7 +106,7 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 	}
 
 	log = log.WithField(telemetry.SVIDStore, storeName)
-	svidStore, ok := s.svidStores[storeName]
+	svidStore, ok := s.cat.GetSVIDStoreNamed(storeName)
 	if !ok {
 		log.Error("Error deleting SVID: SVIDStore not found")
 		return false
@@ -130,7 +127,10 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 		// Svid is not yet provided.
 		return
 	}
-	log = log.WithField(telemetry.Entry, record.Entry.EntryId)
+	log = log.WithFields(logrus.Fields{
+		telemetry.Entry:    record.Entry.EntryId,
+		telemetry.SPIFFEID: record.Entry.SpiffeId,
+	})
 
 	storeName, metadata, err := getStoreNameWithMetadata(record.Entry.Selectors)
 	if err != nil {
@@ -139,7 +139,7 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 	}
 
 	log = log.WithField(telemetry.SVIDStore, storeName)
-	svidStore, ok := s.svidStores[storeName]
+	svidStore, ok := s.cat.GetSVIDStoreNamed(storeName)
 	if !ok {
 		log.Error("Error storing SVID: SVIDStore not found")
 		return

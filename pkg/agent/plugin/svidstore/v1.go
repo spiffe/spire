@@ -18,7 +18,7 @@ type V1 struct {
 
 func (v1 *V1) DeleteX509SVID(ctx context.Context, secretData []string) error {
 	_, err := v1.SVIDStorePluginClient.DeleteX509SVID(ctx, &svidstorev1.DeleteX509SVIDRequest{
-		SecretData: secretData,
+		Metadata: secretData,
 	})
 
 	if err != nil {
@@ -55,7 +55,7 @@ func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 
 	req := &svidstorev1.PutX509SVIDRequest{
 		Svid:             svid,
-		SecretData:       x509SVID.Metadata,
+		Metadata:         x509SVID.Metadata,
 		FederatedBundles: federatedBundles,
 	}
 

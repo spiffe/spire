@@ -1,19 +1,19 @@
 package svidstore
 
 type Repository struct {
-	SVIDStores []SVIDStore
+	SVIDStores map[string]SVIDStore
 }
 
-func (repo *Repository) GetSVIDStores() []SVIDStore {
-	return repo.SVIDStores
+func (repo *Repository) GetSVIDStoreNamed(name string) (SVIDStore, bool) {
+	svidStore, ok := repo.SVIDStores[name]
+	return svidStore, ok
 }
 
-func (repo *Repository) AddSVIDStore(svidStore SVIDStore) {
-	repo.SVIDStores = append(repo.SVIDStores, svidStore)
-}
-
-func (repo *Repository) SetSVIDStores(svidStores ...SVIDStore) {
-	repo.SVIDStores = svidStores
+func (repo *Repository) SetSVIDStore(svidStore SVIDStore) {
+	if repo.SVIDStores == nil {
+		repo.SVIDStores = make(map[string]SVIDStore)
+	}
+	repo.SVIDStores[svidStore.Name()] = svidStore
 }
 
 func (repo *Repository) Clear() {

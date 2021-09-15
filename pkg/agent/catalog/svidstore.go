@@ -10,7 +10,7 @@ type svidStoreRepository struct {
 }
 
 func (repo *svidStoreRepository) Binder() interface{} {
-	return repo.AddSVIDStore
+	return repo.SetSVIDStore
 }
 
 func (repo *svidStoreRepository) Constraints() catalog.Constraints {
@@ -18,9 +18,7 @@ func (repo *svidStoreRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *svidStoreRepository) Versions() []catalog.Version {
-	return []catalog.Version{
-		svidStoreV1{},
-	}
+	return []catalog.Version{svidStoreV1{}}
 }
 
 func (repo *svidStoreRepository) BuiltIns() []catalog.BuiltIn {

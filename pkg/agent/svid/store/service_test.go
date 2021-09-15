@@ -46,14 +46,14 @@ func TestRun(t *testing.T) {
 		records []*storecache.Record
 		// stores is the list of configured SVIDStores,
 		// it contains the list of expected records to be stored
-		stores []*fakeSVIDStore
+		stores map[string]*fakeSVIDStore
 		// logs is the list of expected logs
 		logs []spiretest.LogEntry
 	}{
 		{
 			name: "success",
-			stores: []*fakeSVIDStore{
-				{
+			stores: map[string]*fakeSVIDStore{
+				"store1": {
 					name:   "store1",
 					putReq: make(map[spiffeid.ID]*svidstore.X509SVID),
 					expectedPutReq: map[spiffeid.ID]*svidstore.X509SVID{
@@ -101,6 +101,7 @@ func TestRun(t *testing.T) {
 						telemetry.RevisionNumber: "1",
 						telemetry.Entry:          "foh",
 						telemetry.SVIDStore:      "store1",
+						telemetry.SPIFFEID:       "spiffe://example.org/foh",
 					},
 				},
 			},
@@ -159,14 +160,14 @@ func TestRunDeleteSecrets(t *testing.T) {
 		readyRecords []*storecache.Record
 		// stores is a list of configured SVIDStores,
 		// it contains the list of expecerd configurations to be send
-		stores []*fakeSVIDStore
+		stores map[string]*fakeSVIDStore
 		// logs is the list of expected logs
 		logs []spiretest.LogEntry
 	}{
 		{
 			name: "secret without entry",
-			stores: []*fakeSVIDStore{
-				{
+			stores: map[string]*fakeSVIDStore{
+				"store1": {
 					name:              "store1",
 					expectedDeleteReq: [][]string{{"a:1", "b:2"}},
 				},
@@ -196,6 +197,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.RevisionNumber: "1",
 						telemetry.Entry:          "foh",
+						telemetry.SPIFFEID:       "spiffe://example.org/foh",
 						telemetry.SVIDStore:      "store1",
 					},
 				},
@@ -203,8 +205,8 @@ func TestRunDeleteSecrets(t *testing.T) {
 		},
 		{
 			name: "selectors has changes",
-			stores: []*fakeSVIDStore{
-				{
+			stores: map[string]*fakeSVIDStore{
+				"store1": {
 					name:              "store1",
 					putReq:            make(map[spiffeid.ID]*svidstore.X509SVID),
 					expectedDeleteReq: [][]string{{"a:1", "b:2"}},
@@ -261,6 +263,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 						telemetry.RevisionNumber: "2",
 						telemetry.Entry:          "foh",
 						telemetry.SVIDStore:      "store1",
+						telemetry.SPIFFEID:       "spiffe://example.org/foh",
 					},
 				},
 				{
@@ -270,6 +273,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 						telemetry.RevisionNumber: "2",
 						telemetry.Entry:          "foh",
 						telemetry.SVIDStore:      "store1",
+						telemetry.SPIFFEID:       "spiffe://example.org/foh",
 					},
 				},
 			},
@@ -323,7 +327,7 @@ type serviceTest struct {
 	storeFinishedHook chan struct{}
 }
 
-func setupTest(t *testing.T, stores []*fakeSVIDStore) *serviceTest {
+func setupTest(t *testing.T, stores map[string]*fakeSVIDStore) *serviceTest {
 	cat := &fakeCatalog{stores: stores}
 	clk := clock.NewMock()
 	cache := &fakeCache{revisions: make(map[string]int64)}
@@ -356,16 +360,12 @@ func setupTest(t *testing.T, stores []*fakeSVIDStore) *serviceTest {
 type fakeCatalog struct {
 	catalog.Catalog
 
-	stores []*fakeSVIDStore
+	stores map[string]*fakeSVIDStore
 }
 
-func (c *fakeCatalog) GetSVIDStores() []svidstore.SVIDStore {
-	var catalogStores []svidstore.SVIDStore
-	for _, store := range c.stores {
-		catalogStores = append(catalogStores, store)
-	}
-
-	return catalogStores
+func (c *fakeCatalog) GetSVIDStoreNamed(name string) (svidstore.SVIDStore, bool) {
+	svidStore, ok := c.stores[name]
+	return svidStore, ok
 }
 
 type fakeCache struct {

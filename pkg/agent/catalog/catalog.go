@@ -28,7 +28,7 @@ const (
 type Catalog interface {
 	GetKeyManager() keymanager.KeyManager
 	GetNodeAttestor() nodeattestor.NodeAttestor
-	GetSVIDStores() []svidstore.SVIDStore
+	GetSVIDStoreNamed(name string) (svidstore.SVIDStore, bool)
 	GetWorkloadAttestors() []workloadattestor.WorkloadAttestor
 }
 

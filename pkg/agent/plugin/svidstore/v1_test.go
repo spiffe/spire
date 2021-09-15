@@ -23,7 +23,7 @@ func TestDeleteX509SVID(t *testing.T) {
 	svidValues := []string{"a:1", "b:2"}
 
 	expectRequest := &svidstorev1.DeleteX509SVIDRequest{
-		SecretData: []string{"a:1", "b:2"},
+		Metadata: []string{"a:1", "b:2"},
 	}
 
 	t.Run("delete fails", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestPutX509SVID(t *testing.T) {
 					Bundle:     [][]byte{{4}},
 					ExpiresAt:  expiresAt.Unix(),
 				},
-				SecretData: []string{"a:1", "b:2"},
+				Metadata: []string{"a:1", "b:2"},
 				FederatedBundles: map[string][]byte{
 					"td1": {1},
 					"td2": {2},
@@ -108,7 +108,7 @@ func TestPutX509SVID(t *testing.T) {
 					Bundle:     [][]byte{{4}},
 					ExpiresAt:  expiresAt.Unix(),
 				},
-				SecretData: []string{"a:1", "b:2"},
+				Metadata: []string{"a:1", "b:2"},
 			},
 			x509SVID: &svidstore.X509SVID{
 				SVID:     svid,
@@ -197,7 +197,7 @@ type fakePluginV1 struct {
 
 // Deletes a secrets from a secrets store
 func (p *fakePluginV1) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
-	if len(req.SecretData) == 0 {
+	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")
 	}
 	spiretest.AssertProtoEqual(p.t, p.expectDeleteRequest, req)
@@ -206,7 +206,7 @@ func (p *fakePluginV1) DeleteX509SVID(ctx context.Context, req *svidstorev1.Dele
 }
 
 func (p *fakePluginV1) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
-	if len(req.SecretData) == 0 {
+	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")
 	}
 	spiretest.AssertProtoEqual(p.t, p.expectPutRequest, req)

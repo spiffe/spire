@@ -15,7 +15,7 @@ message PutX509SVIDRequest {
     X509SVID svid = 1;
 
     // Relevant information to store on specific platform
-    repeated string secret_data= 2;
+    repeated string metadata = 2;
 
     // Federated bundles to store
     map<string, bytes> federated_bundles = 3;
@@ -26,7 +26,7 @@ message PutX509SVIDResponse {
 
 message DeleteX509SVIDRequest {
     // Relevant information to delete on specific platform
-    repeated string secret_data = 1;
+    repeated string metadata = 1;
 }
 
 message DeleteX509SVIDResponse {
