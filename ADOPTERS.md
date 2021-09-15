@@ -39,7 +39,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * [Athenz](https://github.com/yahoo/athenz)
 * [Dapr](https://github.com/dapr)
 * [App Mesh Controller](https://github.com/aws/aws-app-mesh-controller-for-k8s)
-
+* [Tornjak](https://github.com/spiffe/tornjak)
 
 
 ## Case Studies/User Stories
