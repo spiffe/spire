@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
@@ -277,6 +278,13 @@ func (s *DataStore) CreateFederationRelationship(c context.Context, fr *datastor
 		return nil, err
 	}
 	return s.ds.CreateFederationRelationship(c, fr)
+}
+
+func (s *DataStore) FetchFederationRelationship(c context.Context, trustdomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchFederationRelationship(c, trustdomain)
 }
 
 func (s *DataStore) SetNextError(err error) {

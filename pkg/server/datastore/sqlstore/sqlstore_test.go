@@ -3182,6 +3182,109 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Nil(resp)
 }
 
+func (s *PluginSuite) TestFetchFederationRelationship() {
+	testCases := []struct {
+		name        string
+		trustdomain spiffeid.TrustDomain
+		expErr      string
+		expFR       *datastore.FederationRelationship
+	}{
+		{
+			name:        "fetching an existent federation relationship succeeds for web profile",
+			trustdomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+			expFR: func() *datastore.FederationRelationship {
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				})
+				s.Require().NoError(err)
+				return fr
+			}(),
+		},
+		{
+			name:        "fetching an existent federation relationship succeeds for spiffe profile",
+			trustdomain: spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+			expFR: func() *datastore.FederationRelationship {
+				s.createBundle("spiffe://federated-td-spiffe.org")
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
+				})
+				s.Require().NoError(err)
+				return fr
+			}(),
+		},
+		{
+			name:        "fetching an unexistent federation relationship returns nil",
+			trustdomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
+		},
+		{
+			name:   "fetching en empty trust domain fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
+		},
+		{
+			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
+			trustdomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
+			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-bundle-endpoint-url.org",
+					BundleEndpointURL:     "not-valid-endpoint-url%",
+					BundleEndpointProfile: string(datastore.BundleEndpointWeb),
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+		{
+			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: spiffeid: invalid scheme",
+			trustdomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
+			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-bundle-endpoint-id.org",
+					BundleEndpointURL:     "corrupted-bundle-endpoint-id.org/bundleendpoint",
+					BundleEndpointProfile: string(datastore.BundleEndpointSPIFFE),
+					EndpointSPIFFEID:      "invalid-id",
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+		{
+			name:        "fetching a federation relationship with corrupted type fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
+			trustdomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
+			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-endpoint-profile.org",
+					BundleEndpointURL:     "corrupted-endpoint-profile.org/bundleendpoint",
+					BundleEndpointProfile: "other",
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustdomain)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
+				s.Require().Nil(fr)
+				return
+			}
+
+			s.Require().Nil(err)
+			s.Require().Equal(tt.expFR, fr)
+		})
+	}
+}
+
 func (s *PluginSuite) TestCreateFederationRelationship() {
 	s.createBundle("spiffe://federated-td-spiffe.org")
 	s.createBundle("spiffe://federated-td-spiffe-with-bundle.org")
