@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -106,6 +107,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.registration_entry.fetch",
 			methodName: "FetchRegistrationEntry",
+		},
+		{
+			key:        "datastore.federation_relationship.fetch",
+			methodName: "FetchFederationRelationship",
 		},
 		{
 			key:        "datastore.node.selectors.fetch",
@@ -301,6 +306,10 @@ func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.Att
 
 func (ds *fakeDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
 	return &common.Bundle{}, ds.err
+}
+
+func (ds *fakeDataStore) FetchFederationRelationship(context.Context, spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+	return &datastore.FederationRelationship{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {
