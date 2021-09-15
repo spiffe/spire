@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 func TestClientStart(t *testing.T) {
@@ -64,7 +66,9 @@ func TestClientUpdate(t *testing.T) {
 		w.WaitForUpdates(1)
 		assert.Len(t, w.Errors, 1)
 		assert.Error(t, w.Errors[0])
-		assert.Contains(t, w.Errors[0].Error(), "transport is closing")
+		e, ok := status.FromError(w.Errors[0])
+		require.True(t, ok)
+		assert.Equal(t, codes.Unavailable, e.Code())
 		assert.Len(t, w.X509SVIDs, 0)
 		w.Errors = nil
 

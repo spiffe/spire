@@ -247,6 +247,9 @@ const (
 	// FederatesWithMatch tags a federates with match filter
 	FederatesWithMatch = "federates_with_match"
 
+	// FederationRelationship tags a federation relatioship
+	FederationRelationship = "federation_relationship"
+
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
 

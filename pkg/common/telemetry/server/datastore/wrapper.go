@@ -57,6 +57,12 @@ func (w metricsWrapper) CreateOrReturnRegistrationEntry(ctx context.Context, ent
 	return w.ds.CreateOrReturnRegistrationEntry(ctx, entry)
 }
 
+func (w metricsWrapper) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (_ *datastore.FederationRelationship, err error) {
+	callCounter := StartCreateFederationRelationshipCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.CreateFederationRelationship(ctx, fr)
+}
+
 func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)

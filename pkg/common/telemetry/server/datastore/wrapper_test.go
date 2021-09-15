@@ -60,6 +60,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateBundle",
 		},
 		{
+			key:        "datastore.federation_relationship.create",
+			methodName: "CreateFederationRelationship",
+		},
+		{
 			key:        "datastore.join_token.create",
 			methodName: "CreateJoinToken",
 		},
@@ -257,6 +261,10 @@ func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNod
 
 func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
 	return &common.Bundle{}, ds.err
+}
+
+func (ds *fakeDataStore) CreateFederationRelationship(context.Context, *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	return &datastore.FederationRelationship{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
