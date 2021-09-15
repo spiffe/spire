@@ -272,6 +272,13 @@ func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time
 	return s.ds.PruneJoinTokens(ctx, expiresBefore)
 }
 
+func (s *DataStore) CreateFederationRelationship(c context.Context, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.CreateFederationRelationship(c, fr)
+}
+
 func (s *DataStore) SetNextError(err error) {
 	s.errs = []error{err}
 }

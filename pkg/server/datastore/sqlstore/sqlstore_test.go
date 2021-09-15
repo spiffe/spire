@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -3181,6 +3182,127 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Nil(resp)
 }
 
+func (s *PluginSuite) TestCreateFederationRelationship() {
+	s.createBundle("spiffe://federated-td-spiffe.org")
+	s.createBundle("spiffe://federated-td-spiffe-with-bundle.org")
+
+	testCases := []struct {
+		name   string
+		expErr string
+		fr     *datastore.FederationRelationship
+	}{
+		{
+			name: "creating a new federation relationship succeeds for web profile",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointWeb,
+			},
+		},
+		{
+			name: "creating a new federation relationship succeeds for spiffe profile",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
+			},
+		},
+		{
+			name: "creating a new federation relationship succeeds for spiffe profile and new bundle",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe-with-bundle.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe-with-bundle.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe-with-bundle.org/federated-server"),
+				Bundle: func() *common.Bundle {
+					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://federated-td-spiffe-with-bundle.org", s.cert)
+					newBundle.RefreshHint = int64(10) // modify bundle to assert it was updated
+					return newBundle
+				}(),
+			},
+		},
+		{
+			name:   "creating a new nil federation relationship fails nicely ",
+			expErr: "rpc error: code = InvalidArgument desc = federation relationship is nil",
+		},
+		{
+			name:   "creating a new federation relationship without trust domain fails nicely ",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
+			fr: &datastore.FederationRelationship{
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointWeb,
+			},
+		},
+		{
+			name:   "creating a new federation relationship without bundle endpoint URL fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = bundle endpoint URL is required",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
+			},
+		},
+		{
+			name:   "creating a new SPIFFE federation relationship without bundle endpoint SPIFFE ID fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = bundle endpoint SPIFFE ID is required",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+			},
+		},
+		{
+			name:   "creating a new SPIFFE federation relationship without initial bundle fails nicely",
+			expErr: "rpc error: code = Unknown desc = no bundle exists for trust domain: \"no-initial-bundle.org\"",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://no-initial-bundle.org/federated-server"),
+			},
+		},
+		{
+			name:   "creating a new federation relationship of unknown type fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = unknown bundle endpoint profile type: \"wrong-type\"",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
+				BundleEndpointProfile: "wrong-type",
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			fr, err := s.ds.CreateFederationRelationship(ctx, tt.fr)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
+				return
+			}
+			s.Require().Nil(err)
+			// TODO: when FetchFederationRelationship is implemented, assert if entry was created
+
+			switch fr.BundleEndpointProfile {
+			case datastore.BundleEndpointWeb:
+			case datastore.BundleEndpointSPIFFE:
+				// Assert bundle is updated
+				bundle, err := s.ds.FetchBundle(ctx, fr.TrustDomain.IDString())
+				s.Require().NoError(err)
+				s.RequireProtoEqual(bundle, fr.Bundle)
+			default:
+				s.Require().FailNowf("unexpected bundle endpoint profile type: %q", string(fr.BundleEndpointProfile))
+			}
+		})
+	}
+}
+func requireURLFromString(t *testing.T, s string) *url.URL {
+	url, err := url.Parse(s)
+	if err != nil {
+		require.FailNow(t, err.Error())
+	}
+	return url
+}
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 	dbVersion := 8
 

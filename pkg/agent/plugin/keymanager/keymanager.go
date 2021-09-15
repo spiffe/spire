@@ -16,36 +16,6 @@ import (
 type KeyManager interface {
 	catalog.PluginInfo
 
-	// Single returns the single key manager provided by the plugin or false
-	// if not supported. A plugin will support either the single or the multi
-	// key manager.
-	Single() (SingleKeyManager, bool)
-
-	// Multi returns the multi key manager provided by the plugin or false
-	// if not supported. A plugin will support either the single or the multi
-	// key manager.
-	Multi() (MultiKeyManager, bool)
-}
-
-// SingleKeyManager provides a signing key for the agent
-type SingleKeyManager interface {
-	catalog.PluginInfo
-
-	// GenerateKey generates a temporary key. It will not be the key returned
-	// by GetKey until after SetKey has been called.
-	GenerateKey(ctx context.Context) (crypto.Signer, error)
-
-	// GetKey returns a Key previously set with SetKey.
-	GetKey(ctx context.Context) (crypto.Signer, error)
-
-	// SetKey sets the key that is returned by GetKey.
-	SetKey(ctx context.Context, key crypto.Signer) error
-}
-
-// MultiKeyManager manages multiple keys for the agent
-type MultiKeyManager interface {
-	catalog.PluginInfo
-
 	// GenerateKey generates a key with the given ID and key type. If a key
 	// with that ID already exists, it is overwritten.
 	GenerateKey(ctx context.Context, id string, keyType KeyType) (Key, error)
