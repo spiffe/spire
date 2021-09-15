@@ -472,13 +472,13 @@ func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastor
 
 // FetchFederationRelationship fetches the federation relationship that matches
 // the given trust domain. If the federation relationship is not found, nil is returned.
-func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustdomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
-	if trustdomain.IsZero() {
+func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
+	if trustDomain.IsZero() {
 		return nil, status.Errorf(codes.InvalidArgument, "trust domain is required")
 	}
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		fr, err = fetchFederationRelationship(tx, trustdomain)
+		fr, err = fetchFederationRelationship(tx, trustDomain)
 		return err
 	}); err != nil {
 		return nil, err
@@ -3284,9 +3284,9 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 	return fr, nil
 }
 
-func fetchFederationRelationship(tx *gorm.DB, trustdomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
 	var model FederatedTrustDomain
-	err := tx.Find(&model, "trust_domain = ?", trustdomain.String()).Error
+	err := tx.Find(&model, "trust_domain = ?", trustDomain.String()).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
@@ -3300,7 +3300,7 @@ func fetchFederationRelationship(tx *gorm.DB, trustdomain spiffeid.TrustDomain) 
 	}
 
 	fr := &datastore.FederationRelationship{
-		TrustDomain:           trustdomain,
+		TrustDomain:           trustDomain,
 		BundleEndpointURL:     bundleEndpointURL,
 		BundleEndpointProfile: datastore.BundleEndpointType(model.BundleEndpointProfile),
 	}
@@ -3314,7 +3314,7 @@ func fetchFederationRelationship(tx *gorm.DB, trustdomain spiffeid.TrustDomain) 
 		}
 		fr.EndpointSPIFFEID = endpointSPIFFEID
 
-		bundle, err := fetchBundle(tx, trustdomain.IDString())
+		bundle, err := fetchBundle(tx, trustDomain.IDString())
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch bundle: %w", err)
 		}

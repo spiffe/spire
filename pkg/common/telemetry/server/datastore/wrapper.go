@@ -112,10 +112,10 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) FetchFederationRelationship(ctx context.Context, trustdomain spiffeid.TrustDomain) (_ *datastore.FederationRelationship, err error) {
+func (w metricsWrapper) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (_ *datastore.FederationRelationship, err error) {
 	callCounter := StartFetchFederationRelationshipCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchFederationRelationship(ctx, trustdomain)
+	return w.ds.FetchFederationRelationship(ctx, trustDomain)
 }
 
 func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (_ []*common.Selector, err error) {

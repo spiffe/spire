@@ -3185,13 +3185,13 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 func (s *PluginSuite) TestFetchFederationRelationship() {
 	testCases := []struct {
 		name        string
-		trustdomain spiffeid.TrustDomain
+		trustDomain spiffeid.TrustDomain
 		expErr      string
 		expFR       *datastore.FederationRelationship
 	}{
 		{
 			name:        "fetching an existent federation relationship succeeds for web profile",
-			trustdomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
 			expFR: func() *datastore.FederationRelationship {
 				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
@@ -3204,7 +3204,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 		},
 		{
 			name:        "fetching an existent federation relationship succeeds for spiffe profile",
-			trustdomain: spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
 			expFR: func() *datastore.FederationRelationship {
 				s.createBundle("spiffe://federated-td-spiffe.org")
 				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
@@ -3219,7 +3219,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 		},
 		{
 			name:        "fetching an unexistent federation relationship returns nil",
-			trustdomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
+			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
 		},
 		{
 			name:   "fetching en empty trust domain fails nicely",
@@ -3228,7 +3228,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 		{
 			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
-			trustdomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
 			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-bundle-endpoint-url.org",
@@ -3242,7 +3242,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 		{
 			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: spiffeid: invalid scheme",
-			trustdomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
 			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-bundle-endpoint-id.org",
@@ -3257,7 +3257,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 		{
 			name:        "fetching a federation relationship with corrupted type fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
-			trustdomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
 			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-endpoint-profile.org",
@@ -3272,7 +3272,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 
 	for _, tt := range testCases {
 		s.T().Run(tt.name, func(t *testing.T) {
-			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustdomain)
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustDomain)
 			if tt.expErr != "" {
 				s.Require().EqualError(err, tt.expErr)
 				s.Require().Nil(fr)
