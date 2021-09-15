@@ -21,7 +21,6 @@ import (
 	mock_client "github.com/spiffe/spire/test/mock/agent/client"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/suite"
-	tomb "gopkg.in/tomb.v2"
 )
 
 func TestRotator(t *testing.T) {
@@ -107,10 +106,10 @@ func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t := new(tomb.Tomb)
-	t.Go(func() error {
-		return s.r.Run(ctx)
-	})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.r.Run(ctx)
+	}()
 
 	// Wait for the first rotation check to finish
 	select {
@@ -129,7 +128,7 @@ func (s *RotatorTestSuite) TestRunWithGoodExistingSVID() {
 	s.Assert().Equal(key, state.Key)
 
 	cancel()
-	err = t.Wait()
+	err = <-errCh
 	s.Require().True(errors.Is(err, context.Canceled))
 }
 
@@ -164,10 +163,10 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t := new(tomb.Tomb)
-	t.Go(func() error {
-		return s.r.Run(ctx)
-	})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.r.Run(ctx)
+	}()
 
 	s.mockClock.Add(s.r.c.Interval)
 
@@ -188,7 +187,7 @@ func (s *RotatorTestSuite) TestRunWithUpdates() {
 	}
 
 	cancel()
-	err = t.Wait()
+	err = <-errCh
 	s.Require().True(errors.Is(err, context.Canceled))
 }
 
