@@ -207,11 +207,6 @@ func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *bund
 		return nil, nil, err
 	}
 
-	svidKM := keymanager.ForSVID(a.c.Catalog.GetKeyManager())
-	if err := svidKM.SetKey(ctx, key); err != nil {
-		return nil, nil, fmt.Errorf("failed to set agent key: %w", err)
-	}
-
 	newBundle, err := a.getBundle(ctx, conn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get updated bundle: %w", err)
