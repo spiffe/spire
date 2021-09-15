@@ -26,14 +26,13 @@ var (
 
 func TestClient(t *testing.T) {
 	testCases := []struct {
-		name             string
-		expectedID       spiffeid.ID
-		serverID         spiffeid.ID
-		status           int
-		body             string
-		deprecatedConfig bool
-		newClientErr     string
-		fetchBundleErr   string
+		name           string
+		expectedID     spiffeid.ID
+		serverID       spiffeid.ID
+		status         int
+		body           string
+		newClientErr   string
+		fetchBundleErr string
 	}{
 		{
 			name:   "success",
@@ -44,22 +43,6 @@ func TestClient(t *testing.T) {
 			body:       `{"spiffe_refresh_hint": 10}`,
 			serverID:   serverID,
 			expectedID: serverID,
-		},
-		{
-			name:             "success - deprecated config",
-			status:           http.StatusOK,
-			body:             `{"spiffe_refresh_hint": 10}`,
-			serverID:         serverID,
-			expectedID:       serverID,
-			deprecatedConfig: true,
-		},
-		{
-			name:             "wrong default SPIFFE ID - deprecated config",
-			status:           http.StatusOK,
-			body:             `{"spiffe_refresh_hint": 10}`,
-			deprecatedConfig: true,
-			serverID:         serverID,
-			fetchBundleErr:   fmt.Sprintf(`unexpected ID %q`, spiffeid.RequireFromString("spiffe://domain.test/spiffe-bundle-endpoint-server")),
 		},
 		{
 			name:         "no SPIFFE ID",
@@ -120,7 +103,6 @@ func TestClient(t *testing.T) {
 					EndpointSpiffeID: testCase.expectedID,
 					RootCAs:          []*x509.Certificate{serverCert},
 				},
-				DeprecatedConfig: testCase.deprecatedConfig,
 			})
 			if testCase.newClientErr != "" {
 				require.Error(t, err)

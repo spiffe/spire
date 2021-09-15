@@ -56,11 +56,6 @@ type Config struct {
 	// ListenSocketPath is set.
 	ACME *ACMEConfig `hcl:"acme"`
 
-	// RegistrationAPI is the (deprecated) configuration for using the
-	// SPIRE Registration API as the source for the public keys. Only one
-	// source can be configured.
-	RegistrationAPI *RegistrationAPIConfig `hcl:"registration_api"`
-
 	// ServerAPI is the configuration for using the SPIRE Server API as the
 	// source for the public keys. Only one source can be configured.
 	ServerAPI *ServerAPIConfig `hcl:"server_api"`
@@ -91,20 +86,6 @@ type ACMEConfig struct {
 	RawCacheDir *string `hcl:"cache_dir"`
 }
 
-type RegistrationAPIConfig struct {
-	// SocketPath is the path to the Registration API Unix Domain socket.
-	SocketPath string `hcl:"socket_path"`
-
-	// PollInterval controls how frequently the service polls the Registration
-	// API for the bundle containing the JWT public keys. This value is calculated
-	// by LoadConfig()/ParseConfig() from RawPollInterval.
-	PollInterval time.Duration `hcl:"-"`
-
-	// RawPollInterval holds the string version of the PollInterval. Consumers
-	// should use PollInterval instead.
-	RawPollInterval string `hcl:"poll_interval"`
-}
-
 type ServerAPIConfig struct {
 	// Address is the target address of the SPIRE Server API as defined in
 	// https://github.com/grpc/grpc/blob/master/doc/naming.md. Only the unix
@@ -129,7 +110,7 @@ type WorkloadAPIConfig struct {
 	// Workload API response.
 	TrustDomain string `hcl:"trust_domain"`
 
-	// PollInterval controls how frequently the service polls the Registration
+	// PollInterval controls how frequently the service polls the Workload
 	// API for the bundle containing the JWT public keys. This value is calculated
 	// by LoadConfig()/ParseConfig() from RawPollInterval.
 	PollInterval time.Duration `hcl:"-"`
@@ -195,17 +176,6 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	var methodCount int
 
-	if c.RegistrationAPI != nil {
-		if c.RegistrationAPI.SocketPath == "" {
-			return nil, errs.New("socket_path must be configured in the registration_api configuration section")
-		}
-		c.RegistrationAPI.PollInterval, err = parsePollInterval(c.RegistrationAPI.RawPollInterval)
-		if err != nil {
-			return nil, errs.New("invalid poll_interval in the registration_api configuration section: %v", err)
-		}
-		methodCount++
-	}
-
 	if c.ServerAPI != nil {
 		if c.ServerAPI.Address == "" {
 			return nil, errs.New("address must be configured in the server_api configuration section")
@@ -239,7 +209,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		return nil, errs.New("either the server_api or workload_api section must be configured")
 	case 1:
 	default:
-		return nil, errs.New("the server_api, workload_api, and deprecated registration_api sections are mutually exclusive")
+		return nil, errs.New("the server_api and workload_api sections are mutually exclusive")
 	}
 
 	return c, nil

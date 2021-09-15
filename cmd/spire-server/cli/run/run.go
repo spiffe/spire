@@ -40,10 +40,9 @@ import (
 const (
 	commandName = "run"
 
-	defaultConfigPath         = "conf/server/server.conf"
-	defaultSocketPath         = "/tmp/spire-server/private/api.sock"
-	defaultLogLevel           = "INFO"
-	defaultBundleEndpointPort = 443
+	defaultConfigPath = "conf/server/server.conf"
+	defaultSocketPath = "/tmp/spire-server/private/api.sock"
+	defaultLogLevel   = "INFO"
 )
 
 var (
@@ -93,9 +92,6 @@ type serverConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 
-	// TODO: Remove support for deprecated registration_uds_path in 1.1.0
-	DeprecatedRegistrationUDSPath string `hcl:"registration_uds_path"`
-
 	// TODO: Remove for 1.1.0
 	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
@@ -139,20 +135,9 @@ type bundleEndpointACMEConfig struct {
 }
 
 type federatesWithConfig struct {
-	// TODO: Remove support for deprecated bundle_endpoint config in 1.1.0
-	DeprecatedBundleEndpoint *deprecatedFederatesWithBundleEndpointConfig `hcl:"bundle_endpoint"`
-
 	BundleEndpointURL     string   `hcl:"bundle_endpoint_url"`
 	BundleEndpointProfile ast.Node `hcl:"bundle_endpoint_profile"`
 	UnusedKeys            []string `hcl:",unusedKeys"`
-}
-
-type deprecatedFederatesWithBundleEndpointConfig struct {
-	Address    string   `hcl:"address"`
-	Port       int      `hcl:"port"`
-	SpiffeID   string   `hcl:"spiffe_id"`
-	UseWebPKI  bool     `hcl:"use_web_pki"`
-	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 type bundleEndpointProfileConfig struct {
@@ -310,12 +295,7 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.DeprecatedRegistrationUDSPath, "registrationUDSPath", "", "Path to bind the SPIRE Server API socket to (deprecated; use -socketPath)")
-	// TODO: in 1.1.0. After registrationUDSPath is deprecated, we can put back the
-	// default flag value on socketPath like it was previously, since we'll no
-	// longer need to detect an unset flag from the default for deprecation
-	// logging/error handling purposes.
-	flags.StringVar(&c.SocketPath, "socketPath", "", `Path to bind the SPIRE Server API socket to (default "`+defaultSocketPath+`")`)
+	flags.StringVar(&c.SocketPath, "socketPath", defaultSocketPath, "Path to bind the SPIRE Server API socket to")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -383,19 +363,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		Port: c.Server.BindPort,
 	}
 
-	var socketPath string
-	switch {
-	case c.Server.SocketPath != "":
-		socketPath = c.Server.SocketPath
-	case c.Server.DeprecatedRegistrationUDSPath != "":
-		logger.Warn("The registration_uds_path configurable is deprecated; use socket_path instead.")
-		socketPath = c.Server.DeprecatedRegistrationUDSPath
-	default:
-		socketPath = defaultSocketPath
-	}
-
 	sc.BindUDSAddress = &net.UnixAddr{
-		Name: socketPath,
+		Name: c.Server.SocketPath,
 		Net:  "unix",
 	}
 
@@ -449,19 +418,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 			var trustDomainConfig *bundleClient.TrustDomainConfig
 			switch {
-			case config.DeprecatedBundleEndpoint != nil && config.BundleEndpointProfile != nil:
-				return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: either the deprecated `bundle_endpoint` configuration section or the `bundle_endpoint_url` setting can be used, but not both", trustDomain)
-			case config.DeprecatedBundleEndpoint != nil:
-				sc.Log.Warn("The `bundle_endpoint` configurable inside `federates_with` is deprecated and will be removed in a future release. Please use `bundle_endpoint_url` and `bundle_endpoint_profile` to configure the federation with %q instead.", trustDomain)
-				trustDomainConfig, err = parseDeprecatedBundleEndpoint(config.DeprecatedBundleEndpoint)
-				if err != nil {
-					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
-				}
-				if httpsSPIFFE, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile); ok {
-					if httpsSPIFFE.EndpointSPIFFEID.IsZero() {
-						sc.Log.Warnf("federation.federates_with[\"%s\"].bundle_endpoint.spiffe_id is not specified in the SPIFFE Authentication configuration. A specific SPIFFE ID will be required in a future release in the https_spiffe profile.", trustDomain)
-					}
-				}
 			case config.BundleEndpointProfile != nil:
 				trustDomainConfig, err = parseBundleEndpointProfile(config)
 				if err != nil {
@@ -638,37 +594,6 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 	}, nil
 }
 
-func parseDeprecatedBundleEndpoint(config *deprecatedFederatesWithBundleEndpointConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
-	port := defaultBundleEndpointPort
-	if config.Port != 0 {
-		port = config.Port
-	}
-	if config.UseWebPKI && config.SpiffeID != "" {
-		return nil, errors.New("usage of `bundle_endpoint.spiffe_id` is not allowed when authenticating with Web PKI")
-	}
-
-	var endpointProfile bundleClient.EndpointProfileInfo
-	if config.UseWebPKI {
-		endpointProfile = bundleClient.HTTPSWebProfile{}
-	} else {
-		var spiffeID spiffeid.ID
-		if config.SpiffeID != "" {
-			spiffeID, err = spiffeid.FromString(config.SpiffeID)
-			if err != nil {
-				return nil, fmt.Errorf("could not parse endpoint SPIFFE ID %q: %w", config.SpiffeID, err)
-			}
-		}
-
-		endpointProfile = bundleClient.HTTPSSPIFFEProfile{EndpointSPIFFEID: spiffeID}
-	}
-
-	return &bundleClient.TrustDomainConfig{
-		DeprecatedConfig: true,
-		EndpointURL:      fmt.Sprintf("https://%s:%d", config.Address, port),
-		EndpointProfile:  endpointProfile,
-	}, nil
-}
-
 func validateConfig(c *Config) error {
 	if c.Server == nil {
 		return errors.New("server section must be configured")
@@ -676,10 +601,6 @@ func validateConfig(c *Config) error {
 
 	if c.Server.BindAddress == "" || c.Server.BindPort == 0 {
 		return errors.New("bind_address and bind_port must be configured")
-	}
-
-	if c.Server.SocketPath != "" && c.Server.DeprecatedRegistrationUDSPath != "" {
-		return errors.New("socket_path and the deprecated registration_uds_path are mutually exclusive")
 	}
 
 	if c.Server.TrustDomain == "" {
@@ -710,10 +631,6 @@ func validateConfig(c *Config) error {
 
 		for td, tdConfig := range c.Server.Federation.FederatesWith {
 			switch {
-			case tdConfig.DeprecatedBundleEndpoint != nil:
-				if tdConfig.DeprecatedBundleEndpoint.Address == "" {
-					return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint.address must be configured", td)
-				}
 			case tdConfig.BundleEndpointURL == "":
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must be configured", td)
 			case !strings.HasPrefix(strings.ToLower(tdConfig.BundleEndpointURL), "https://"):

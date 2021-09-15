@@ -23,11 +23,6 @@ const (
 )
 
 type TrustDomainConfig struct {
-	// DeprecatedConfig indicates that the configuration comes from a deprecated
-	// configuration.
-	// TODO: Remove support for this deprecated config in 1.1.0.
-	DeprecatedConfig bool
-
 	// EndpointURL is the URL used to fetch the bundle of the federated
 	// trust domain. Is served by a SPIFFE bundle endpoint server.
 	EndpointURL string

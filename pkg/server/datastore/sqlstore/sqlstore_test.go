@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1295,27 +1296,51 @@ func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
-	entry := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
+	for _, tt := range []struct {
+		name  string
+		entry *common.RegistrationEntry
+	}{
+		{
+			name: "entry with dns",
+			entry: &common.RegistrationEntry{
+				Selectors: []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+					{Type: "Type2", Value: "Value2"},
+					{Type: "Type3", Value: "Value3"},
+				},
+				SpiffeId: "SpiffeId",
+				ParentId: "ParentId",
+				Ttl:      1,
+				DnsNames: []string{
+					"abcd.efg",
+					"somehost",
+				},
+			},
 		},
-		SpiffeId: "SpiffeId",
-		ParentId: "ParentId",
-		Ttl:      1,
-		DnsNames: []string{
-			"abcd.efg",
-			"somehost",
+		{
+			name: "entry with store svid",
+			entry: &common.RegistrationEntry{
+				Selectors: []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+				},
+				SpiffeId:  "SpiffeId",
+				ParentId:  "ParentId",
+				Ttl:       1,
+				StoreSvid: true,
+			},
 		},
+	} {
+		tt := tt
+		s.T().Run(tt.name, func(t *testing.T) {
+			createdEntry, err := s.ds.CreateRegistrationEntry(ctx, tt.entry)
+			s.Require().NoError(err)
+			s.Require().NotNil(createdEntry)
+
+			fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
+			s.Require().NoError(err)
+			s.RequireProtoEqual(createdEntry, fetchRegistrationEntry)
+		})
 	}
-
-	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
-	s.Require().NoError(err)
-
-	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
-	s.Require().NoError(err)
-	s.RequireProtoEqual(createdRegistrationEntry, fetchedRegistrationEntry)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntries() {
@@ -2124,6 +2149,10 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 
 	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().NoError(err)
+	// Verify output has expected values
+	s.Require().Equal(int32(2), entry.Ttl)
+	s.Require().True(entry.Admin)
+	s.Require().True(entry.Downstream)
 
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
@@ -2133,6 +2162,41 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.EntryId = "badid"
 	_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+}
+
+func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+			{Type: "Type1", Value: "Value2"},
+			{Type: "Type1", Value: "Value3"},
+		},
+		SpiffeId: "spiffe://example.org/foo",
+		ParentId: "spiffe://example.org/bar",
+		Ttl:      1,
+	})
+
+	entry.StoreSvid = true
+
+	updateRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().NoError(err)
+	s.Require().NotNil(updateRegistrationEntry)
+	// Verify output has expected values
+	s.Require().True(entry.StoreSvid)
+
+	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	s.Require().NoError(err)
+	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
+
+	// Update with invalid selectors
+	entry.Selectors = []*common.Selector{
+		{Type: "Type1", Value: "Value1"},
+		{Type: "Type1", Value: "Value2"},
+		{Type: "Type2", Value: "Value3"},
+	}
+	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -2152,6 +2216,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		EntryExpiry:   1000,
 		DnsNames:      []string{"dns1"},
 		Downstream:    false,
+		StoreSvid:     false,
 	}
 	newEntry := &common.RegistrationEntry{
 		ParentId:      "spiffe://example.org/oldParentId",
@@ -2163,6 +2228,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		EntryExpiry:   1000,
 		DnsNames:      []string{"dns2"},
 		Downstream:    false,
+		StoreSvid:     false,
 	}
 	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
@@ -2264,6 +2330,28 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Admin: false},
 			update: func(e *common.RegistrationEntry) { e.Admin = newEntry.Admin },
 			result: func(e *common.RegistrationEntry) {}},
+
+		// STORESVID FIELD -- This field isn't validated so we just check with good data
+		{name: "Update StoreSvid, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{StoreSvid: true},
+			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
+			result: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid }},
+		{name: "Update StoreSvid, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Admin: false},
+			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
+			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update StoreSvid, Invalid selectors, Mask True",
+			mask: &common.RegistrationEntryMask{StoreSvid: true, Selectors: true},
+			update: func(e *common.RegistrationEntry) {
+				e.StoreSvid = newEntry.StoreSvid
+				e.Selectors = []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+					{Type: "Type2", Value: "Value2"},
+				}
+			},
+			err: sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
+		},
+
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
 		{name: "Update EntryExpiry, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{EntryExpiry: true},
@@ -3094,6 +3182,230 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Nil(resp)
 }
 
+func (s *PluginSuite) TestFetchFederationRelationship() {
+	testCases := []struct {
+		name        string
+		trustDomain spiffeid.TrustDomain
+		expErr      string
+		expFR       *datastore.FederationRelationship
+	}{
+		{
+			name:        "fetching an existent federation relationship succeeds for web profile",
+			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+			expFR: func() *datastore.FederationRelationship {
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				})
+				s.Require().NoError(err)
+				return fr
+			}(),
+		},
+		{
+			name:        "fetching an existent federation relationship succeeds for spiffe profile",
+			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+			expFR: func() *datastore.FederationRelationship {
+				s.createBundle("spiffe://federated-td-spiffe.org")
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
+				})
+				s.Require().NoError(err)
+				return fr
+			}(),
+		},
+		{
+			name:        "fetching an unexistent federation relationship returns nil",
+			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
+		},
+		{
+			name:   "fetching en empty trust domain fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
+		},
+		{
+			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
+			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-bundle-endpoint-url.org",
+					BundleEndpointURL:     "not-valid-endpoint-url%",
+					BundleEndpointProfile: string(datastore.BundleEndpointWeb),
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+		{
+			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: spiffeid: invalid scheme",
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
+			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-bundle-endpoint-id.org",
+					BundleEndpointURL:     "corrupted-bundle-endpoint-id.org/bundleendpoint",
+					BundleEndpointProfile: string(datastore.BundleEndpointSPIFFE),
+					EndpointSPIFFEID:      "invalid-id",
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+		{
+			name:        "fetching a federation relationship with corrupted type fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
+			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-endpoint-profile.org",
+					BundleEndpointURL:     "corrupted-endpoint-profile.org/bundleendpoint",
+					BundleEndpointProfile: "other",
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustDomain)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
+				s.Require().Nil(fr)
+				return
+			}
+
+			s.Require().Nil(err)
+			s.Require().Equal(tt.expFR, fr)
+		})
+	}
+}
+
+func (s *PluginSuite) TestCreateFederationRelationship() {
+	s.createBundle("spiffe://federated-td-spiffe.org")
+	s.createBundle("spiffe://federated-td-spiffe-with-bundle.org")
+
+	testCases := []struct {
+		name   string
+		expErr string
+		fr     *datastore.FederationRelationship
+	}{
+		{
+			name: "creating a new federation relationship succeeds for web profile",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointWeb,
+			},
+		},
+		{
+			name: "creating a new federation relationship succeeds for spiffe profile",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
+			},
+		},
+		{
+			name: "creating a new federation relationship succeeds for spiffe profile and new bundle",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe-with-bundle.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe-with-bundle.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe-with-bundle.org/federated-server"),
+				Bundle: func() *common.Bundle {
+					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://federated-td-spiffe-with-bundle.org", s.cert)
+					newBundle.RefreshHint = int64(10) // modify bundle to assert it was updated
+					return newBundle
+				}(),
+			},
+		},
+		{
+			name:   "creating a new nil federation relationship fails nicely ",
+			expErr: "rpc error: code = InvalidArgument desc = federation relationship is nil",
+		},
+		{
+			name:   "creating a new federation relationship without trust domain fails nicely ",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
+			fr: &datastore.FederationRelationship{
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointWeb,
+			},
+		},
+		{
+			name:   "creating a new federation relationship without bundle endpoint URL fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = bundle endpoint URL is required",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
+			},
+		},
+		{
+			name:   "creating a new SPIFFE federation relationship without bundle endpoint SPIFFE ID fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = bundle endpoint SPIFFE ID is required",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+			},
+		},
+		{
+			name:   "creating a new SPIFFE federation relationship without initial bundle fails nicely",
+			expErr: "rpc error: code = Unknown desc = no bundle exists for trust domain: \"no-initial-bundle.org\"",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
+				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://no-initial-bundle.org/federated-server"),
+			},
+		},
+		{
+			name:   "creating a new federation relationship of unknown type fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = unknown bundle endpoint profile type: \"wrong-type\"",
+			fr: &datastore.FederationRelationship{
+				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
+				BundleEndpointProfile: "wrong-type",
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			fr, err := s.ds.CreateFederationRelationship(ctx, tt.fr)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
+				return
+			}
+			s.Require().Nil(err)
+			// TODO: when FetchFederationRelationship is implemented, assert if entry was created
+
+			switch fr.BundleEndpointProfile {
+			case datastore.BundleEndpointWeb:
+			case datastore.BundleEndpointSPIFFE:
+				// Assert bundle is updated
+				bundle, err := s.ds.FetchBundle(ctx, fr.TrustDomain.IDString())
+				s.Require().NoError(err)
+				s.RequireProtoEqual(bundle, fr.Bundle)
+			default:
+				s.Require().FailNowf("unexpected bundle endpoint profile type: %q", string(fr.BundleEndpointProfile))
+			}
+		})
+	}
+}
+func requireURLFromString(t *testing.T, s string) *url.URL {
+	url, err := url.Parse(s)
+	if err != nil {
+		require.FailNow(t, err.Error())
+	}
+	return url
+}
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 	dbVersion := 8
 

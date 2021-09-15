@@ -247,6 +247,9 @@ const (
 	// FederatesWithMatch tags a federates with match filter
 	FederatesWithMatch = "federates_with_match"
 
+	// FederationRelationship tags a federation relatioship
+	FederationRelationship = "federation_relationship"
+
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
 
@@ -443,6 +446,9 @@ const (
 	// with other tags to add clarity
 	Updated = "updated"
 
+	// StoreSvid tags if entry is storable
+	StoreSvid = "store_svid"
+
 	// Version tags a version
 	Version = "version"
 
@@ -507,8 +513,7 @@ const (
 	// Endpoints functionality related to agent/server endpoints
 	Endpoints = "endpoints"
 
-	// Entry tag for some stored entry; should be used with other tags such as RegistrationAPI
-	// to add clarity
+	// Entry tag for some stored entry
 	Entry = "entry"
 
 	// Event tag some event that has occurred, for a notifier, watcher, listener, etc.
@@ -708,10 +713,6 @@ const (
 
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
-
-	// RegistrationAPI functionality related to the registration api; should be used
-	// with other tags to add clarity
-	RegistrationAPI = "registration_api"
 
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity

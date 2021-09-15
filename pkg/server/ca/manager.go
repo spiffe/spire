@@ -9,7 +9,6 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/url"
 	"path/filepath"
 	"sync"
@@ -24,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -983,7 +983,12 @@ func GenerateServerCACSR(signer crypto.Signer, trustDomain spiffeid.TrustDomain,
 }
 
 func SelfSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain spiffeid.TrustDomain, subject pkix.Name, notBefore, notAfter time.Time) (*X509CA, []*x509.Certificate, error) {
-	template, err := CreateServerCATemplate(trustDomain.ID(), signer.Public(), trustDomain, notBefore, notAfter, big.NewInt(0), subject)
+	serialNumber, err := x509util.NewSerialNumber()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template, err := CreateServerCATemplate(trustDomain.ID(), signer.Public(), trustDomain, notBefore, notAfter, serialNumber, subject)
 	if err != nil {
 		return nil, nil, err
 	}

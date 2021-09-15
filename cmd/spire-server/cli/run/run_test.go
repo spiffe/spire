@@ -33,7 +33,6 @@ func TestParseConfigGood(t *testing.T) {
 	// Check for server configurations
 	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.Server.BindPort, 8081)
-	assert.Empty(t, c.Server.DeprecatedRegistrationUDSPath)
 	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
@@ -41,10 +40,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
 	assert.Equal(t, 4, len(c.Server.Federation.FederatesWith))
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.Address, "1.2.3.4")
-	assert.True(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.UseWebPKI)
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.Address, "5.6.7.8")
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
 	assert.Equal(t, c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL, "https://9.10.11.12:8443")
 	trustDomainConfig, err := parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain3.test"])
 	assert.NoError(t, err)
@@ -419,46 +414,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "deprecated registration_uds_path should default to empty if not set",
-			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Empty(t, c.Server.DeprecatedRegistrationUDSPath)
-			},
-		},
-		{
-			msg: "deprecated registration_uds_path should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Server.DeprecatedRegistrationUDSPath = "foo"
-			},
-			cliInput: func(c *serverConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.DeprecatedRegistrationUDSPath)
-			},
-		},
-		{
-			msg:       "deprecated registration_uds_path should be configuable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.DeprecatedRegistrationUDSPath = "foo"
-			},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.DeprecatedRegistrationUDSPath)
-			},
-		},
-		{
-			msg: "deprecated registration_uds_path specified by CLI flag should take precedence over file",
-			fileInput: func(c *Config) {
-				c.Server.DeprecatedRegistrationUDSPath = "foo"
-			},
-			cliInput: func(c *serverConfig) {
-				c.DeprecatedRegistrationUDSPath = "bar"
-			},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "bar", c.Server.DeprecatedRegistrationUDSPath)
-			},
-		},
-		{
 			msg: "default_svid_ttl should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1h"
@@ -569,16 +524,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "deprecated registration_uds_path should be correctly configured",
-			input: func(c *Config) {
-				c.Server.DeprecatedRegistrationUDSPath = "foo"
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, "foo", c.BindUDSAddress.Name)
-				require.Equal(t, "unix", c.BindUDSAddress.Net)
-			},
-		},
-		{
 			msg: "socket_path should be correctly configured",
 			input: func(c *Config) {
 				c.Server.SocketPath = "foo"
@@ -588,18 +533,6 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, "unix", c.BindUDSAddress.Net)
 			},
 		},
-		{
-			msg: "default socket_path should be used if neither socket_path or the deprecated registration_uds_path is set",
-			input: func(c *Config) {
-				c.Server.DeprecatedRegistrationUDSPath = ""
-				c.Server.SocketPath = ""
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, defaultSocketPath, c.BindUDSAddress.Name)
-				require.Equal(t, "unix", c.BindUDSAddress.Net)
-			},
-		},
-
 		{
 			msg: "data_dir should be correctly configured",
 			input: func(c *Config) {
@@ -701,46 +634,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "bundle federates with section is parsed and configured correctly (deprecated config)",
-			input: func(c *Config) {
-				c.Server.Federation = &federationConfig{
-					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								Port:      1337,
-								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
-								UseWebPKI: false,
-							},
-						},
-						"domain2.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								Port:      1337,
-								UseWebPKI: true,
-							},
-						},
-					},
-				}
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
-					spiffeid.RequireTrustDomainFromString("domain1.test"): {
-						DeprecatedConfig: true,
-						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
-							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
-						},
-					},
-					spiffeid.RequireTrustDomainFromString("domain2.test"): {
-						DeprecatedConfig: true,
-						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile:  bundleClient.HTTPSWebProfile{},
-					},
-				}, c.Federation.FederatesWith)
-			},
-		},
-		{
 			msg: "bundle federates with section is parsed and configured correctly",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -763,27 +656,6 @@ func TestNewServerConfig(t *testing.T) {
 						EndpointProfile: bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
-			},
-		},
-		{
-			msg:         "bundle federates with section uses Web PKI and SPIFFE ID (deprecated config)",
-			expectError: true,
-			input: func(c *Config) {
-				c.Server.Federation = &federationConfig{
-					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
-								Port:      1337,
-								UseWebPKI: true,
-							},
-						},
-					},
-				}
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c)
 			},
 		},
 		{
@@ -1162,14 +1034,6 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "bind_address and bind_port must be configured",
 		},
 		{
-			name: "both socket_path and registration_uds_path cannot be configured",
-			applyConf: func(c *Config) {
-				c.Server.SocketPath = "foo"
-				c.Server.DeprecatedRegistrationUDSPath = "bar"
-			},
-			expectedErr: "socket_path and the deprecated registration_uds_path are mutually exclusive",
-		},
-		{
 			name:        "trust_domain must be configured",
 			applyConf:   func(c *Config) { c.Server.TrustDomain = "" },
 			expectedErr: "trust_domain must be configured",
@@ -1207,19 +1071,6 @@ func TestValidateConfig(t *testing.T) {
 				}
 			},
 			expectedErr: "federation.bundle_endpoint.acme.email must be configured",
-		},
-		{
-			name: "federation.bundle_endpoint.address must be configured if the deprecated federates_with is configured",
-			applyConf: func(c *Config) {
-				federatesWith := make(map[string]federatesWithConfig)
-				federatesWith["domain.test"] = federatesWithConfig{
-					DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{},
-				}
-				c.Server.Federation = &federationConfig{
-					FederatesWith: federatesWith,
-				}
-			},
-			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint.address must be configured",
 		},
 		{
 			name: "bundle_endpoint_url must be configured if federates_with is configured",

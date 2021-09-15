@@ -41,13 +41,12 @@ The configuration file is **required** by the provider. It contains
 | `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
 | `log_path`              | string  | optional       | Path on disk to write the log.                           |          |
 | `log_requests`          | bool    | optional       | If true, all HTTP requests are logged at the debug level | false    |
-| `registration_api`      | section | required[2]    | (Deprecated) Provides Registration API details.          |          |
 | `server_api`            | section | required[2]    | Provides SPIRE Server API details.                       |          |
 | `workload_api`          | section | required[2]    | Provides Workload API details.                           |          |
 
 [1]: One of `acme` or `listen_socket_path` must be defined.
 
-[2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document. The `registration_api` section is deprecated; the `server_api` section should be used in its place.
+[2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
@@ -81,13 +80,6 @@ will terminate if another domain is requested.
 | `socket_path`      | string   | required  | Path on disk to the Workload API Unix Domain socket. | |
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 | `trust_domain`     | string   | required  | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. | |
-
-#### Registration API Section (Deprecated)
-
-| Key                | Type     | Required? | Description                              | Default |
-| ------------------ | -------- | --------- | ----------------------------------------- | ------- |
-| `socket_path`      | string   | required  | Path on disk to the Registration API Unix Domain socket. | |
-| `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 
 ### Examples
 

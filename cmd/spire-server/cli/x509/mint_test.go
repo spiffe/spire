@@ -33,8 +33,6 @@ const (
 	expectedUsage = `Usage of x509 mint:
   -dns value
     	DNS name that will be included in SVID. Can be used more than once.
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -spiffeID string

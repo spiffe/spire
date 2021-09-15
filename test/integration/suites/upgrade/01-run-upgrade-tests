@@ -16,7 +16,6 @@ bootstrap-agent() {
     log-debug "bootstrapping $1 agent..."
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server bundle show \
-        -registrationUDSPath /tmp/spire-registration.sock \
         > conf/agent/bootstrap.crt
 }
 
@@ -29,7 +28,6 @@ create-registration-entry() {
     log-debug "creating registration entry..."
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server entry create \
-        -registrationUDSPath /tmp/spire-registration.sock \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/workload" \
         -selector "unix:uid:${UID}" \
@@ -112,7 +110,6 @@ stop-and-evict-agent() {
     log-info "evicting agent..."
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server agent evict \
-        -registrationUDSPath /tmp/spire-registration.sock \
         -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 
     rm -rf shared/agent-data/*
