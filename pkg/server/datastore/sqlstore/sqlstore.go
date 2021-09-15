@@ -474,7 +474,7 @@ func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastor
 // the given trust domain. If the federation relationship is not found, nil is returned.
 func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
 	if trustDomain.IsZero() {
-		return nil, status.Errorf(codes.InvalidArgument, "trust domain is required")
+		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
 	}
 
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
