@@ -6,7 +6,7 @@ service SVIDStore {
     // Puts an X509-SVID in a configured secrets store
     rpc PutX509SVID(PutX509SVIDRequest) returns (PutX509SVIDResponse);
 
-    // Deletes a secrets from a secrets store
+    // Deletes an SVID from the store
     rpc DeleteX509SVID(DeleteX509SVIDRequest) returns (DeleteX509SVIDResponse);
 }
 

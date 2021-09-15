@@ -121,7 +121,7 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 	return true
 }
 
-// storeSVID creates or updates a secret using SVIDStore plugin, it gets plugin name from entry selectors
+// storeSVID creates or updates an SVID using SVIDStore plugin. It get the plugin name from entry selectors
 func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger, record *storecache.Record) {
 	if record.Svid == nil {
 		// Svid is not yet provided.
@@ -156,7 +156,7 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 		return
 	}
 
-	// Set revision, since secret was updated successfully
+	// Set revision, since SVID was updated successfully
 	s.cache.HandledRecord(record.Entry, record.Revision)
 	log.Debug("SVID stored successfully")
 }
@@ -179,9 +179,9 @@ func (s *SVIDStoreService) processRecords(ctx context.Context) {
 			continue
 		}
 
-		// Entries with changes on selectors must be removed before secret is stored.
+		// Entries with changes on selectors must be removed before SVID is stored.
 		if record.HandledEntry != nil {
-			// Verify if selector change, and if it changes delete secret from store before update
+			// Verify if selector changed. If it changed, delete the SVID from store before updating
 			if !util.EqualsSelectors(record.Entry.Selectors, record.HandledEntry.Selectors) {
 				// TODO: add retry, and maybe fail update until it is deleted?
 				s.deleteSVID(ctx, log, record.HandledEntry)

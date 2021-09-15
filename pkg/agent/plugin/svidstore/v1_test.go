@@ -195,7 +195,7 @@ type fakePluginV1 struct {
 	expectPutRequest    *svidstorev1.PutX509SVIDRequest
 }
 
-// Deletes a secrets from a secrets store
+// Deletes stored SVID
 func (p *fakePluginV1) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
 	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")

@@ -16,9 +16,9 @@ type V1 struct {
 	svidstorev1.SVIDStorePluginClient
 }
 
-func (v1 *V1) DeleteX509SVID(ctx context.Context, secretData []string) error {
+func (v1 *V1) DeleteX509SVID(ctx context.Context, metadata []string) error {
 	_, err := v1.SVIDStorePluginClient.DeleteX509SVID(ctx, &svidstorev1.DeleteX509SVIDRequest{
-		Metadata: secretData,
+		Metadata: metadata,
 	})
 
 	if err != nil {

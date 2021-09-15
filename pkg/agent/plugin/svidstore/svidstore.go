@@ -21,7 +21,7 @@ type X509SVID struct {
 	// X509-SVID to be stored
 	SVID *SVID
 
-	// Metadata relevant for plugin to identify secret
+	// Metadata relevant for plugin to store the SVID
 	Metadata []string
 
 	// Federated bundles to store
