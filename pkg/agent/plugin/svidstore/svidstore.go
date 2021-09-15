@@ -21,15 +21,16 @@ type X509SVID struct {
 	// X509-SVID to be stored
 	SVID *SVID
 
-	// Data relevant for plugin to identify secret
-	SecretsData []string
+	// Metadata relevant for plugin to identify secret
+	Metadata []string
+
 	// Federated bundles to store
 	FederatedBundles map[string][]*x509.Certificate
 }
 
 type SVID struct {
 	// SPIFFE ID of the SVID.
-	SpiffeID spiffeid.ID
+	SPIFFEID spiffeid.ID
 
 	// Certificate and intermediates
 	CertChain []*x509.Certificate

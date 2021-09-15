@@ -57,7 +57,7 @@ func TestPutX509SVID(t *testing.T) {
 	}
 
 	svid := &svidstore.SVID{
-		SpiffeID: spiffeid.RequireFromString("spiffe://example.org/workload"),
+		SPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		CertChain: []*x509.Certificate{
 			{Raw: []byte{1}},
 			{Raw: []byte{3}},
@@ -95,7 +95,7 @@ func TestPutX509SVID(t *testing.T) {
 			x509SVID: &svidstore.X509SVID{
 				FederatedBundles: federatedBundles,
 				SVID:             svid,
-				SecretsData:      []string{"a:1", "b:2"},
+				Metadata:         []string{"a:1", "b:2"},
 			},
 		},
 		{
@@ -111,8 +111,8 @@ func TestPutX509SVID(t *testing.T) {
 				SecretData: []string{"a:1", "b:2"},
 			},
 			x509SVID: &svidstore.X509SVID{
-				SVID:        svid,
-				SecretsData: []string{"a:1", "b:2"},
+				SVID:     svid,
+				Metadata: []string{"a:1", "b:2"},
 			},
 		},
 		{
@@ -120,7 +120,7 @@ func TestPutX509SVID(t *testing.T) {
 			x509SVID: &svidstore.X509SVID{
 				FederatedBundles: federatedBundles,
 				SVID: &svidstore.SVID{
-					SpiffeID: spiffeid.RequireFromString("spiffe://example.org/workload"),
+					SPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 					CertChain: []*x509.Certificate{
 						{Raw: []byte{1}},
 						{Raw: []byte{3}},
@@ -130,7 +130,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 					ExpiresAt: expiresAt,
 				},
-				SecretsData: []string{"a:1", "b:2"},
+				Metadata: []string{"a:1", "b:2"},
 			},
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "svidstore(test): failed to marshal key:",
@@ -161,7 +161,7 @@ func TestPutX509SVID(t *testing.T) {
 			name: "missing svid",
 			x509SVID: &svidstore.X509SVID{
 				FederatedBundles: federatedBundles,
-				SecretsData:      []string{"a:1", "b:2"},
+				Metadata:         []string{"a:1", "b:2"},
 			},
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "svidstore(test): missing SVID",

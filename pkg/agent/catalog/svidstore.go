@@ -14,7 +14,7 @@ func (repo *svidStoreRepository) Binder() interface{} {
 }
 
 func (repo *svidStoreRepository) Constraints() catalog.Constraints {
-	return catalog.MaybeOne()
+	return catalog.ZeroOrMore()
 }
 
 func (repo *svidStoreRepository) Versions() []catalog.Version {

@@ -27,7 +27,7 @@ type Record struct {
 	Revision int64
 	// Bundles holds trust domain bundle together with federated bundle
 	Bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
-	// HandledEntry holds the previns entry revision. It is useful to define
+	// HandledEntry holds the previous entry revision. It is useful to define
 	// what changed between versions.
 	HandledEntry *common.RegistrationEntry
 }
@@ -46,11 +46,8 @@ type cachedRecord struct {
 type Config struct {
 	Log         logrus.FieldLogger
 	TrustDomain spiffeid.TrustDomain
-	// TODO: regular cache does not use configured metric, must we add it for store cache?
-	Metrics telemetry.Metrics
 }
 
-//
 type Cache struct {
 	c *Config
 

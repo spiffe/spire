@@ -84,16 +84,14 @@ func (s *SVIDStoreService) SetStoreFinishedHook(storeFinished chan struct{}) {
 
 // Run starts SVID Store service
 func (s *SVIDStoreService) Run(ctx context.Context) error {
-	// TODO: may we run a StoreSVID when `Run` start?
-	s.processRecords(ctx)
-
-	ticker := s.clk.Ticker(defaultInterval)
-	defer ticker.Stop()
+	timer := s.clk.Timer(defaultInterval)
+	defer timer.Stop()
 
 	for {
+		s.processRecords(ctx)
+		timer.Reset(defaultInterval)
 		select {
-		case <-ticker.C:
-			s.processRecords(ctx)
+		case <-timer.C:
 		case <-ctx.Done():
 			return nil
 		}
@@ -104,9 +102,9 @@ func (s *SVIDStoreService) Run(ctx context.Context) error {
 func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry) bool {
 	log = log.WithField(telemetry.Entry, entry.EntryId)
 
-	storeName, err := getStoreName(entry.Selectors)
+	storeName, metadata, err := getStoreNameWithMetadata(entry.Selectors)
 	if err != nil {
-		log.WithError(err).Error("Invalid store name in selector")
+		log.WithError(err).Error("Invalid store name in selectors")
 		return false
 	}
 
@@ -117,11 +115,7 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 		return false
 	}
 
-	var secretData []string
-	for _, selector := range entry.Selectors {
-		secretData = append(secretData, selector.Value)
-	}
-	if err := svidStore.DeleteX509SVID(ctx, secretData); err != nil {
+	if err := svidStore.DeleteX509SVID(ctx, metadata); err != nil {
 		log.WithError(err).Error("Failed to delete SVID")
 		return false
 	}
@@ -138,9 +132,9 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 	}
 	log = log.WithField(telemetry.Entry, record.Entry.EntryId)
 
-	storeName, err := getStoreName(record.Entry.Selectors)
+	storeName, metadata, err := getStoreNameWithMetadata(record.Entry.Selectors)
 	if err != nil {
-		log.WithError(err).Error("Invalid store name in selector")
+		log.WithError(err).Error("Invalid store name in selectors")
 		return
 	}
 
@@ -151,7 +145,7 @@ func (s *SVIDStoreService) storeSVID(ctx context.Context, log logrus.FieldLogger
 		return
 	}
 
-	req, err := s.requestFromRecord(record)
+	req, err := s.requestFromRecord(record, metadata)
 	if err != nil {
 		log.WithError(err).Error("Failed to parse record")
 		return
@@ -202,7 +196,7 @@ func (s *SVIDStoreService) processRecords(ctx context.Context) {
 }
 
 // requestFromRecord parses a cache record to a *svidstore.X509SVID
-func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidstore.X509SVID, error) {
+func (s *SVIDStoreService) requestFromRecord(record *storecache.Record, metadata []string) (*svidstore.X509SVID, error) {
 	rootCA, ok := record.Bundles[s.trustDomain]
 	if !ok {
 		return nil, errors.New("no rootCA found")
@@ -230,20 +224,15 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 		federatedBundles[federatedID] = bundle.RootCAs()
 	}
 
-	var secretData []string
-	for _, selector := range record.Entry.Selectors {
-		secretData = append(secretData, selector.Value)
-	}
-
 	spiffeID, err := spiffeid.FromString(record.Entry.SpiffeId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse SPIFFE ID: %w", err)
 	}
 
 	return &svidstore.X509SVID{
-		SecretsData: secretData,
+		Metadata: metadata,
 		SVID: &svidstore.SVID{
-			SpiffeID:   spiffeID,
+			SPIFFEID:   spiffeID,
 			Bundle:     rootCA.RootCAs(),
 			CertChain:  record.Svid.Chain,
 			PrivateKey: record.Svid.PrivateKey,
@@ -253,18 +242,19 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record) (*svidst
 	}, nil
 }
 
-// getStoreName gets SVIDStore plugin name from entry selectors, it fails in case an entry
-// contains selectors with different types
-func getStoreName(selectors []*common.Selector) (string, error) {
+// getStoreNameWithMetadata gets SVIDStore plugin name from entry selectors and selectors metadata, it fails in case an entry
+func getStoreNameWithMetadata(selectors []*common.Selector) (string, []string, error) {
 	if len(selectors) == 0 {
-		return "", errors.New("no selectors found")
+		return "", nil, errors.New("no selectors found")
 	}
 
+	var metadata []string
 	name := selectors[0].Type
 	for _, s := range selectors {
 		if name != s.Type {
-			return "", errors.New("selector contains multiple types")
+			return "", nil, errors.New("selector contains multiple types")
 		}
+		metadata = append(metadata, s.Value)
 	}
-	return name, nil
+	return name, metadata, nil
 }

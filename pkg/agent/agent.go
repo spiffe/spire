@@ -81,7 +81,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	svidStoreCache := a.newSVIDStoreCache(metrics)
+	svidStoreCache := a.newSVIDStoreCache()
 
 	manager, err := a.newManager(ctx, cat, metrics, as, svidStoreCache)
 	if err != nil {
@@ -212,11 +212,10 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 	return mgr, nil
 }
 
-func (a *Agent) newSVIDStoreCache(metric telemetry.Metrics) *storecache.Cache {
+func (a *Agent) newSVIDStoreCache() *storecache.Cache {
 	config := &storecache.Config{
 		Log:         a.c.Log.WithField(telemetry.SubsystemName, "svid_store_cache"),
 		TrustDomain: a.c.TrustDomain,
-		Metrics:     metric,
 	}
 
 	return storecache.New(config)

@@ -45,7 +45,7 @@ func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 	var svid *svidstorev1.X509SVID
 	if x509SVID.SVID != nil {
 		svid = &svidstorev1.X509SVID{
-			SpiffeID:   x509SVID.SVID.SpiffeID.String(),
+			SpiffeID:   x509SVID.SVID.SPIFFEID.String(),
 			CertChain:  x509util.RawCertsFromCertificates(x509SVID.SVID.CertChain),
 			PrivateKey: keyData,
 			Bundle:     x509util.RawCertsFromCertificates(x509SVID.SVID.Bundle),
@@ -55,7 +55,7 @@ func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 
 	req := &svidstorev1.PutX509SVIDRequest{
 		Svid:             svid,
-		SecretData:       x509SVID.SecretsData,
+		SecretData:       x509SVID.Metadata,
 		FederatedBundles: federatedBundles,
 	}
 
