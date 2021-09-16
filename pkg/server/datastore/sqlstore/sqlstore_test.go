@@ -3407,17 +3407,19 @@ func (s *PluginSuite) TestListFederationRelationships() {
 	_, err := s.ds.CreateFederationRelationship(ctx, fr1)
 	s.Require().NoError(err)
 
+	s.createBundle("spiffe://example-2.org")
 	fr2 := &datastore.FederationRelationship{
 		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-2.org"),
-		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
-		BundleEndpointProfile: datastore.BundleEndpointWeb,
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-2-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://example-2.org/test"),
 	}
 	_, err = s.ds.CreateFederationRelationship(ctx, fr2)
 	s.Require().NoError(err)
 
 	fr3 := &datastore.FederationRelationship{
 		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-3.org"),
-		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-3-web.org/bundleendpoint"),
 		BundleEndpointProfile: datastore.BundleEndpointWeb,
 	}
 	_, err = s.ds.CreateFederationRelationship(ctx, fr3)
@@ -3425,7 +3427,7 @@ func (s *PluginSuite) TestListFederationRelationships() {
 
 	fr4 := &datastore.FederationRelationship{
 		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-4.org"),
-		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-4-web.org/bundleendpoint"),
 		BundleEndpointProfile: datastore.BundleEndpointWeb,
 	}
 	_, err = s.ds.CreateFederationRelationship(ctx, fr4)
