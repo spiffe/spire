@@ -238,7 +238,7 @@ func (m *Manager) refreshConfigs(ctx context.Context) error {
 		m.log.WithFields(logrus.Fields{
 			telemetry.BundleEndpointURL:     config.EndpointURL,
 			telemetry.BundleEndpointProfile: config.EndpointProfile.Name(),
-			telemetry.TrustDomainName:       td,
+			telemetry.TrustDomain:           td,
 		}).Info("Trust domain is now managed")
 		ctx, cancel := context.WithCancel(ctx)
 		updater := &managedBundleUpdater{

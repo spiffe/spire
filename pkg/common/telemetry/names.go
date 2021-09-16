@@ -442,8 +442,8 @@ const (
 	// Type tags a type
 	Type = "type"
 
-	// TrustDomainName tags the name of some trust domain
-	TrustDomainName = "trust_domain_id"
+	// TrustDomain tags the name of some trust domain
+	TrustDomain = "trust_domain"
 
 	// TrustDomainID tags the ID of some trust domain
 	TrustDomainID = "trust_domain_id"
