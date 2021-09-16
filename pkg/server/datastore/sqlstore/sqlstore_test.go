@@ -353,6 +353,51 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 		expectedErr        string
 	}{
 		{
+			name:         "no pagination",
+			expectedList: []*common.Bundle{bundle1, bundle2, bundle3, bundle4},
+		},
+		{
+			name: "page size bigger than items",
+			pagination: &datastore.Pagination{
+				PageSize: 5,
+			},
+			expectedList: []*common.Bundle{bundle1, bundle2, bundle3, bundle4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 5,
+			},
+		},
+		{
+			name: "pagination page size is zero",
+			pagination: &datastore.Pagination{
+				PageSize: 0,
+			},
+			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
+		},
+		{
+			name: "bundles first page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			expectedList: []*common.Bundle{bundle1, bundle2},
+			expectedPagination: &datastore.Pagination{Token: "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "bundles second page",
+			pagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+			expectedList: []*common.Bundle{bundle3, bundle4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+		{
 			name:         "bundles third page",
 			expectedList: []*common.Bundle{},
 			pagination: &datastore.Pagination{
@@ -361,6 +406,18 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 			},
 			expectedPagination: &datastore.Pagination{
 				Token:    "",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "invalid token",
+			expectedList: []*common.Bundle{},
+			expectedErr:  "rpc error: code = InvalidArgument desc = could not parse token 'invalid token'",
+			pagination: &datastore.Pagination{
+				Token:    "invalid token",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
 				PageSize: 2,
 			},
 		},

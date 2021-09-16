@@ -487,7 +487,7 @@ func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain s
 	return fr, nil
 }
 
-// ListFederationRelationships can be used to fetch all existing federation relationships.
+// ListFederationRelationships can be used to list all existing federation relationships
 func (ds *Plugin) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (resp *datastore.ListFederationRelationshipsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listFederationRelationships(tx, req)
