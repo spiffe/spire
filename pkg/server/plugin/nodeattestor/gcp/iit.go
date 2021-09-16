@@ -77,9 +77,6 @@ type IITAttestorConfig struct {
 	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
 	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
 	ServiceAccountFile   string   `hcl:"service_account_file"`
-
-	// TODO: Remove in 1.1.0
-	ProjectIDAllowListDeprecated []string `hcl:"projectid_whitelist"`
 }
 
 // New creates a new IITAttestorPlugin.
@@ -182,12 +179,6 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 	hclConfig.trustDomain = req.CoreConfiguration.TrustDomain
-
-	// TODO: Remove in 1.1.0
-	if len(hclConfig.ProjectIDAllowListDeprecated) > 0 {
-		p.log.Warn("The `projectid_whitelist` configurable is deprecated and will be removed in a future release. Please use `projectid_allow_list` instead.")
-		hclConfig.ProjectIDAllowList = hclConfig.ProjectIDAllowListDeprecated
-	}
 
 	if len(hclConfig.ProjectIDAllowList) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "projectid_allow_list is required")

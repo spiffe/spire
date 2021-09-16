@@ -29,8 +29,6 @@ func TestShowHelp(t *testing.T) {
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -parentID string
     	The Parent ID of the records to show
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
   -socketPath string

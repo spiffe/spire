@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -14,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
 )
 
 const (
@@ -63,17 +63,6 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		return nil, err
 	}
 
-	// Instantiate and provide host services
-	hostServices := []catalog.HostServiceServer{
-		{
-			ServiceServer: metricsv0.MetricsServiceServiceServer(metricsservice.V0(config.Metrics)),
-			LegacyType:    "MetricsService",
-		},
-		{
-			ServiceServer: metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
-		},
-	}
-
 	// Load the plugins and populate the repository
 	repo := new(Repository)
 	repo.Closer, err = catalog.Load(ctx, catalog.Config{
@@ -82,7 +71,9 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 			TrustDomain: config.TrustDomain,
 		},
 		PluginConfigs: pluginConfigs,
-		HostServices:  hostServices,
+		HostServices: []pluginsdk.ServiceServer{
+			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
+		},
 	}, repo)
 	if err != nil {
 		return nil, err

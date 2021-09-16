@@ -4,7 +4,7 @@ on:
     tags:
       - 'v[0-9].[0-9]+.[0-9]+'
 env:
-  GO_VERSION: 1.16.5
+  GO_VERSION: 1.17.1
 jobs:
   cache-deps:
     runs-on: ubuntu-18.04
@@ -128,18 +128,50 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-tools-
       - name: Build images
-        run: make images scratch-images
+        run: make images
       - name: Export images
-        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > images.tar.gz
+        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
       - name: Archive images
         uses: actions/upload-artifact@v2
         with:
           name: images
           path: images.tar.gz
 
+  scratch-images:
+    runs-on: ubuntu-18.04
+    needs: [cache-deps]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Build scratch images
+        run: make scratch-images
+      - name: Export scratch images
+        run: docker save spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > scratch-images.tar.gz
+      - name: Archive scratch images
+        uses: actions/upload-artifact@v2
+        with:
+          name: scratch-images
+          path: scratch-images.tar.gz
+
   integration:
     runs-on: ubuntu-18.04
-    needs: [cache-deps, images]
+    needs: [cache-deps, images, scratch-images]
     strategy:
       fail-fast: false
       matrix:
@@ -184,8 +216,15 @@ jobs:
         with:
           name: images
           path: .
+      - name: Download archived scratch images
+        uses: actions/download-artifact@v2
+        with:
+          name: scratch-images
+          path: .
       - name: Load archived images
         run: zcat images.tar.gz | docker load
+      - name: Load archived scratch images
+        run: zcat scratch-images.tar.gz | docker load
       - name: Run integration tests
         env:
           NUM_RUNNERS: ${{ matrix.num_runners }}

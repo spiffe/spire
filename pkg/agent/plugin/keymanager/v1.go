@@ -19,14 +19,6 @@ type V1 struct {
 	keymanagerv1.KeyManagerPluginClient
 }
 
-func (v1 *V1) Single() (SingleKeyManager, bool) {
-	return nil, false
-}
-
-func (v1 *V1) Multi() (MultiKeyManager, bool) {
-	return v1, true
-}
-
 func (v1 V1) GenerateKey(ctx context.Context, id string, keyType KeyType) (Key, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()

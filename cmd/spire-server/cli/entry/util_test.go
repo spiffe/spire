@@ -84,10 +84,27 @@ func TestParseEntryJSON(t *testing.T) {
 				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
 				Ttl:      200,
 			}
+			entry3 := &types.Entry{
+				Selectors: []*types.Selector{
+					{
+						Type:  "type",
+						Value: "key1:value",
+					},
+					{
+						Type:  "type",
+						Value: "key2:value",
+					},
+				},
+				SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
+				ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				StoreSvid: true,
+				Ttl:       200,
+			}
 
 			expectedEntries := []*types.Entry{
 				entry1,
 				entry2,
+				entry3,
 			}
 			spiretest.RequireProtoListEqual(t, expectedEntries, entries)
 		})

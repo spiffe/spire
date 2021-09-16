@@ -321,16 +321,11 @@ func TestV1SignData(t *testing.T) {
 	}
 }
 
-func loadV1Plugin(t *testing.T, plugin fakeV1Plugin) keymanager.MultiKeyManager {
+func loadV1Plugin(t *testing.T, plugin fakeV1Plugin) keymanager.KeyManager {
 	server := keymanagerv1.KeyManagerPluginServer(&plugin)
 	km := new(keymanager.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("test", server), km)
-	single, ok := km.Single()
-	assert.False(t, ok)
-	assert.Nil(t, single)
-	multi, ok := km.Multi()
-	require.True(t, ok)
-	return multi
+	return km
 }
 
 type fakeV1Plugin struct {

@@ -17,8 +17,6 @@ func TestDeleteHelp(t *testing.T) {
 	require.Equal(t, `Usage of entry delete:
   -entryID string
     	The Registration Entry ID of the record to delete
-  -registrationUDSPath string
-    	Path to the SPIRE Server API socket (deprecated; use -socketPath)
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `, test.stderr.String())

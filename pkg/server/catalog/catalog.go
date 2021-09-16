@@ -9,6 +9,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -28,9 +29,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
-	metricsv0 "github.com/spiffe/spire/proto/spire/hostservice/common/metrics/v0"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
-	identityproviderv0 "github.com/spiffe/spire/proto/spire/hostservice/server/identityprovider/v0"
 )
 
 const (
@@ -61,7 +59,6 @@ type Config struct {
 	Metrics          telemetry.Metrics
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
-	MetricsService   metricsv0.MetricsServiceServer
 	HealthChecker    health.Checker
 }
 
@@ -101,12 +98,6 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		return nil, err
 	}
 
-	if noopConfig, ok := config.PluginConfig[nodeResolverType]["noop"]; ok && noopConfig.PluginCmd == "" {
-		// TODO: remove in 1.1.0
-		delete(config.PluginConfig[nodeResolverType], "noop")
-		config.Log.Warn(`The "noop" NodeResolver is not required, is deprecated, and will be removed from a future release`)
-	}
-
 	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
@@ -119,28 +110,10 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 			TrustDomain: config.TrustDomain,
 		},
 		PluginConfigs: pluginConfigs,
-		HostServices: []catalog.HostServiceServer{
-			{
-				ServiceServer: identityproviderv0.IdentityProviderServiceServer(config.IdentityProvider.V0()),
-				LegacyType:    "IdentityProvider",
-			},
-			{
-				ServiceServer: agentstorev0.AgentStoreServiceServer(config.AgentStore.V0()),
-				LegacyType:    "AgentStore",
-			},
-			{
-				ServiceServer: metricsv0.MetricsServiceServiceServer(metricsservice.V0(config.Metrics)),
-				LegacyType:    "MetricsService",
-			},
-			{
-				ServiceServer: identityproviderv1.IdentityProviderServiceServer(config.IdentityProvider.V1()),
-			},
-			{
-				ServiceServer: agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
-			},
-			{
-				ServiceServer: metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
-			},
+		HostServices: []pluginsdk.ServiceServer{
+			identityproviderv1.IdentityProviderServiceServer(config.IdentityProvider.V1()),
+			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
+			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
 	}, repo)
 	if err != nil {

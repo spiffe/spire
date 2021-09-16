@@ -157,10 +157,6 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, fmt.Errorf("load bundle: %w", err)
 	}
 
-	if bundle == nil {
-		return nil, errors.New("load bundle: no bundle available")
-	}
-
 	if len(bundle) < 1 {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
@@ -209,11 +205,6 @@ func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *bund
 	newSVID, err := a.getSVID(ctx, conn, csr, attestor)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	svidKM := keymanager.ForSVID(a.c.Catalog.GetKeyManager())
-	if err := svidKM.SetKey(ctx, key); err != nil {
-		return nil, nil, fmt.Errorf("failed to set agent key: %w", err)
 	}
 
 	newBundle, err := a.getBundle(ctx, conn)

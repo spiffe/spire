@@ -40,20 +40,32 @@ func (listCommand) Synopsis() string {
 // Run lists attested agents
 func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	agentClient := serverClient.NewAgentClient()
-	listResponse, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{})
-	if err != nil {
-		return err
+
+	pageToken := ""
+	var agents []*types.Agent
+	for {
+		listResponse, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{
+			PageSize:  1000, // comfortably under the (4 MB/theoretical maximum size of 1 agent in MB)
+			PageToken: pageToken,
+		})
+		if err != nil {
+			return err
+		}
+		agents = append(agents, listResponse.Agents...)
+		if pageToken = listResponse.NextPageToken; pageToken == "" {
+			break
+		}
 	}
 
-	if len(listResponse.Agents) == 0 {
+	if len(agents) == 0 {
 		return env.Printf("No attested agents found\n")
 	}
 
-	msg := fmt.Sprintf("Found %d attested ", len(listResponse.Agents))
-	msg = util.Pluralizer(msg, "agent", "agents", len(listResponse.Agents))
+	msg := fmt.Sprintf("Found %d attested ", len(agents))
+	msg = util.Pluralizer(msg, "agent", "agents", len(agents))
 	env.Printf(msg + ":\n\n")
 
-	return printAgents(env, listResponse.Agents...)
+	return printAgents(env, agents...)
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {

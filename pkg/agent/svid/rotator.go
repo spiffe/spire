@@ -166,10 +166,6 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := svidKM.SetKey(ctx, key); err != nil {
-		return err
-	}
-
 	s := State{
 		SVID: certs,
 		Key:  key,

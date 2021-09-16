@@ -243,9 +243,9 @@ func (p *Plugin) updateBundle(ctx context.Context, c *pluginConfig, client kubeC
 			return status.Errorf(codes.Internal, "unable to get object %s/%s: %v", namespace, name, err)
 		}
 
-		// Load bundle data from the registration api. The bundle has to be
-		// loaded after fetching the object so we can properly detect and
-		// correct a race updating the bundle (i.e.  read-modify-write
+		// Load bundle data from the IdentityProvider host service. The bundle
+		// has to be loaded after fetching the object so we can properly detect
+		// and correct a race updating the bundle (i.e.  read-modify-write
 		// semantics).
 		resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
 		if err != nil {

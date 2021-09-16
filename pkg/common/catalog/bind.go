@@ -33,7 +33,7 @@ func makeBindablePluginRepos(repos map[string]PluginRepo) (map[string]bindablePl
 }
 
 func makeBindablePluginRepo(repo PluginRepo) (bindablePluginRepo, error) {
-	binder, err := makePluginRepoBinder(repo)
+	binder, err := makeServiceRepoBinder(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -70,20 +70,6 @@ func makeBindableServiceRepo(repo ServiceRepo) (bindableServiceRepo, error) {
 		ServiceRepo: repo,
 		bindable:    binder,
 	}, nil
-}
-
-func makePluginRepoBinder(repo PluginRepo) (binder, error) {
-	b, err := makeServiceRepoBinder(repo)
-	if err != nil {
-		return binder{}, err
-	}
-	if legacyVersion, ok := repo.LegacyVersion(); ok {
-		facade := legacyVersion.New()
-		if err := b.canBind(facade); err != nil {
-			return binder{}, fmt.Errorf("%T has an invalid binder: %w", repo, err)
-		}
-	}
-	return b, nil
 }
 
 func makeServiceRepoBinder(repo ServiceRepo) (binder, error) {

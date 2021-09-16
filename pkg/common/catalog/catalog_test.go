@@ -15,11 +15,11 @@ import (
 	"github.com/sirupsen/logrus"
 	log_test "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private/proto/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog/testplugin"
 	"github.com/spiffe/spire/pkg/common/plugin"
-	"github.com/spiffe/spire/proto/private/test/legacyplugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,43 +90,6 @@ This usually means that the plugin is either invalid or simply
 needs to be recompiled to support the latest protocol.`,
 		})
 	})
-
-	t.Run("legacy", func(t *testing.T) {
-		t.Run("success with configure", func(t *testing.T) {
-			testLoad(t, pluginPath, loadTest{
-				pluginMode: "legacy",
-				mutateConfig: func(config *catalog.Config) {
-					config.PluginConfigs[0].Data = `GOOD`
-				},
-				expectPluginClient:  true,
-				expectServiceClient: false, // legacy plugins don't support services
-			})
-		})
-		t.Run("configures even without configuration", func(t *testing.T) {
-			testLoad(t, pluginPath, loadTest{
-				pluginMode: "legacy",
-				expectErr:  `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
-			})
-		})
-		t.Run("failure to configure", func(t *testing.T) {
-			testLoad(t, pluginPath, loadTest{
-				pluginMode: "legacy",
-				mutateConfig: func(config *catalog.Config) {
-					config.PluginConfigs[0].Data = `BAD`
-				},
-				expectErr: `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
-			})
-		})
-		t.Run("no legacy version", func(t *testing.T) {
-			testLoad(t, pluginPath, loadTest{
-				pluginMode: "legacy",
-				mutatePluginRepo: func(pluginRepo *PluginRepo) {
-					pluginRepo.legacyVersion = nil
-				},
-				expectErr: `failed to bind plugin "test": no legacy version available for plugin type "SomePlugin"`,
-			})
-		})
-	})
 }
 
 type loadTest struct {
@@ -179,14 +142,6 @@ func testPlugin(t *testing.T, pluginPath string) {
 			testLoad(t, pluginPath, loadTest{
 				mutatePluginRepo: func(pluginRepo *PluginRepo) {
 					pluginRepo.versions[0] = badVersion{}
-				},
-				expectErr: "*catalog_test.PluginRepo has an invalid binder: facade catalog_test.badFacade is not assignable to argument catalog_test.SomePlugin",
-			})
-		})
-		t.Run("plugin repo legacy version facade is not assignable to binder argument", func(t *testing.T) {
-			testLoad(t, pluginPath, loadTest{
-				mutatePluginRepo: func(pluginRepo *PluginRepo) {
-					pluginRepo.legacyVersion = badVersion{}
 				},
 				expectErr: "*catalog_test.PluginRepo has an invalid binder: facade catalog_test.badFacade is not assignable to argument catalog_test.SomePlugin",
 			})
@@ -346,8 +301,8 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 		PluginConfigs: []catalog.PluginConfig{
 			{Name: "test", Type: "SomePlugin", Path: pluginPath},
 		},
-		HostServices: []catalog.HostServiceServer{
-			{ServiceServer: test.SomeHostServiceServiceServer(testplugin.SomeHostService{}), LegacyType: "SomeHostService"},
+		HostServices: []pluginsdk.ServiceServer{
+			test.SomeHostServiceServiceServer(testplugin.SomeHostService{}),
 		},
 	}
 
@@ -366,12 +321,11 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 
 	var somePlugin SomePlugin
 	pluginRepo := &PluginRepo{
-		binder:        func(f SomePlugin) { somePlugin = f },
-		clear:         func() { somePlugin = nil },
-		versions:      []catalog.Version{SomePluginVersion{}},
-		legacyVersion: LegacyPluginVersion{},
-		constraints:   catalog.Constraints{Min: 1, Max: 1},
-		builtIns:      builtIns,
+		binder:      func(f SomePlugin) { somePlugin = f },
+		clear:       func() { somePlugin = nil },
+		versions:    []catalog.Version{SomePluginVersion{}},
+		constraints: catalog.Constraints{Min: 1, Max: 1},
+		builtIns:    builtIns,
 	}
 
 	var someService SomeService
@@ -488,12 +442,11 @@ func (r *Repo) Services() []catalog.ServiceRepo {
 }
 
 type PluginRepo struct {
-	binder        interface{}
-	versions      []catalog.Version
-	clear         func()
-	constraints   catalog.Constraints
-	builtIns      []catalog.BuiltIn
-	legacyVersion catalog.Version
+	binder      interface{}
+	versions    []catalog.Version
+	clear       func()
+	constraints catalog.Constraints
+	builtIns    []catalog.BuiltIn
 }
 
 func (r *PluginRepo) Binder() interface{} {
@@ -506,10 +459,6 @@ func (r *PluginRepo) Versions() []catalog.Version {
 
 func (r *PluginRepo) Clear() {
 	r.clear()
-}
-
-func (r *PluginRepo) LegacyVersion() (catalog.Version, bool) {
-	return r.legacyVersion, r.legacyVersion != nil
 }
 
 func (r *PluginRepo) Constraints() catalog.Constraints {
@@ -563,27 +512,6 @@ type SomePluginVersion struct {
 func (v SomePluginVersion) New() catalog.Facade { return new(SomePluginFacade) }
 
 func (v SomePluginVersion) Deprecated() bool { return v.deprecated }
-
-type LegacyPluginFacade struct {
-	plugin.Facade
-	legacyplugin.SomePluginPluginClient
-}
-
-func (f *LegacyPluginFacade) PluginEcho(ctx context.Context, in string) (string, error) {
-	resp, err := f.SomePluginPluginClient.PluginEcho(context.Background(), &legacyplugin.EchoRequest{In: in})
-	if err != nil {
-		return "", err
-	}
-	return resp.Out, nil
-}
-
-type LegacyPluginVersion struct {
-	deprecated bool
-}
-
-func (v LegacyPluginVersion) New() catalog.Facade { return new(LegacyPluginFacade) }
-
-func (v LegacyPluginVersion) Deprecated() bool { return v.deprecated }
 
 type SomeService interface {
 	catalog.PluginInfo
