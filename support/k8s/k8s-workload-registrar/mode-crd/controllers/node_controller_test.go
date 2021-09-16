@@ -16,6 +16,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"testing"
 
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -50,10 +51,11 @@ func (s *NodeControllerTestSuite) SetupSuite() {
 // TestAddRemoveNode adds a node and checks if an entry is created on the SPIRE Server.
 // It then removes the node and checks if the entry is delete on the SPIRE Server.
 func (s *NodeControllerTestSuite) TestAddNode() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	n := NewNodeReconciler(NodeReconcilerConfig{
 		Client:      s.k8sClient,
 		Cluster:     s.cluster,
-		Ctx:         s.ctx,
 		Log:         s.log,
 		Namespace:   NodeNamespace,
 		Scheme:      s.scheme,
@@ -67,7 +69,7 @@ func (s *NodeControllerTestSuite) TestAddNode() {
 		},
 		Spec: corev1.NodeSpec{},
 	}
-	err := s.k8sClient.Create(s.ctx, &node)
+	err := s.k8sClient.Create(ctx, &node)
 	s.Require().NoError(err)
 	s.reconcile(n)
 	labelSelector := labels.Set(map[string]string{
@@ -76,7 +78,7 @@ func (s *NodeControllerTestSuite) TestAddNode() {
 
 	// Verify that exactly 1 SPIFFE ID resource was created for this node
 	spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
-	err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+	err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
 		LabelSelector: labelSelector.AsSelector(),
 	})
 	s.Require().NoError(err)
@@ -84,6 +86,8 @@ func (s *NodeControllerTestSuite) TestAddNode() {
 }
 
 func (s *NodeControllerTestSuite) reconcile(n *NodeReconciler) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      NodeName,
@@ -91,9 +95,9 @@ func (s *NodeControllerTestSuite) reconcile(n *NodeReconciler) {
 		},
 	}
 
-	_, err := n.Reconcile(req)
+	_, err := n.Reconcile(ctx, req)
 	s.Require().NoError(err)
 
-	_, err = s.r.Reconcile(req)
+	_, err = s.r.Reconcile(ctx, req)
 	s.Require().NoError(err)
 }

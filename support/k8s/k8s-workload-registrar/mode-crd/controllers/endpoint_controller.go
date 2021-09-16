@@ -32,7 +32,6 @@ import (
 // EndpointReconcilerConfig holds the config passed in when creating the reconciler
 type EndpointReconcilerConfig struct {
 	Client             client.Client
-	Ctx                context.Context
 	DisabledNamespaces []string
 	Log                logrus.FieldLogger
 	PodLabel           string
@@ -62,17 +61,17 @@ func (e *EndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile steps through the endpoints for each service and adds the name of the service as
 // a DNS name to the SPIFFE ID CRD
-func (e *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (e *EndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if containsString(e.c.DisabledNamespaces, req.NamespacedName.Namespace) {
 		return ctrl.Result{}, nil
 	}
 
 	endpoints := corev1.Endpoints{}
 
-	if err := e.Get(e.c.Ctx, req.NamespacedName, &endpoints); err != nil {
+	if err := e.Get(ctx, req.NamespacedName, &endpoints); err != nil {
 		if errors.IsNotFound(err) {
 			// Delete event
-			if err := e.deleteExternalResources(req.NamespacedName); err != nil {
+			if err := e.deleteExternalResources(ctx, req.NamespacedName); err != nil {
 				return ctrl.Result{}, err
 			}
 
@@ -95,7 +94,7 @@ func (e *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			labelSelector := labels.Set(map[string]string{
 				"podUid": string(address.TargetRef.UID),
 			})
-			err := e.List(e.c.Ctx, &spiffeIDList, &client.ListOptions{
+			err := e.List(ctx, &spiffeIDList, &client.ListOptions{
 				LabelSelector: labelSelector.AsSelector(),
 			})
 			if err != nil {
@@ -107,7 +106,7 @@ func (e *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			// Its possible this reconcile loop ran before the SPIFFE ID resource was generated
 			if len(spiffeIDList.Items) == 0 {
 				return ctrl.Result{
-					Requeue: e.requeue(address.TargetRef.Name, address.TargetRef.Namespace),
+					Requeue: e.requeue(ctx, address.TargetRef.Name, address.TargetRef.Namespace),
 				}, nil
 			}
 
@@ -116,7 +115,7 @@ func (e *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				if !containsString(spiffeID.Spec.DnsNames, svcName) {
 					spiffeID := spiffeID
 					spiffeID.Spec.DnsNames = append(spiffeID.Spec.DnsNames, svcName)
-					err := e.Update(e.c.Ctx, &spiffeID)
+					err := e.Update(ctx, &spiffeID)
 					if err != nil {
 						return ctrl.Result{}, err
 					}
@@ -134,11 +133,11 @@ func (e *EndpointReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // deleteExternalResources removes the service name from the list of DNS Names when the service is removed
-func (e *EndpointReconciler) deleteExternalResources(namespacedName types.NamespacedName) error {
+func (e *EndpointReconciler) deleteExternalResources(ctx context.Context, namespacedName types.NamespacedName) error {
 	svcName := getServiceDNSName(namespacedName)
 	spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
 
-	err := e.List(e.c.Ctx, &spiffeIDList, &client.ListOptions{
+	err := e.List(ctx, &spiffeIDList, &client.ListOptions{
 		Namespace: namespacedName.Namespace,
 	})
 	if err != nil {
@@ -160,7 +159,7 @@ func (e *EndpointReconciler) deleteExternalResources(namespacedName types.Namesp
 		spiffeID := spiffeID
 		spiffeID.Spec.DnsNames = removeStringIf(spiffeID.Spec.DnsNames, svcName)
 
-		if err := e.Update(e.c.Ctx, &spiffeID); err != nil {
+		if err := e.Update(ctx, &spiffeID); err != nil {
 			e.c.Log.WithFields(logrus.Fields{
 				"spiffeID": spiffeID.ObjectMeta.Name,
 			}).WithError(err).Error("Unable to delete DNS names in SpiffeID CRD")
@@ -174,13 +173,13 @@ func (e *EndpointReconciler) deleteExternalResources(namespacedName types.Namesp
 // requeue determines if the reconcile needs to be requeued. If the controller has been configured with a
 // pod label/annotation and the pod has the label/annotation then yes. If the controller has not been
 // configured with a pod label/annotation then yes. Otherwise no.
-func (e *EndpointReconciler) requeue(name, namespace string) bool {
+func (e *EndpointReconciler) requeue(ctx context.Context, name, namespace string) bool {
 	pod := corev1.Pod{}
 	podNamespacedName := types.NamespacedName{
 		Name:      name,
 		Namespace: namespace,
 	}
-	if err := e.Get(e.c.Ctx, podNamespacedName, &pod); err != nil {
+	if err := e.Get(ctx, podNamespacedName, &pod); err != nil {
 		// Requeue if we are not able to get the pod object
 		return true
 	}
