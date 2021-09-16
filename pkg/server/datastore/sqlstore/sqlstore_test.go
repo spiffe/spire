@@ -3182,6 +3182,56 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Nil(resp)
 }
 
+func (s *PluginSuite) TestDeleteFederationRelationship() {
+	testCases := []struct {
+		name        string
+		trustDomain spiffeid.TrustDomain
+		expErr      string
+		setupFn     func()
+	}{
+		{
+			name:        "deleting an existent federation relationship succeeds",
+			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+			setupFn: func() {
+				_, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				})
+				s.Require().NoError(err)
+			},
+		},
+		{
+			name:        "deleting an unexistent federation relationship returns not found",
+			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
+			expErr:      "rpc error: code = NotFound desc = datastore-sql: record not found",
+		},
+		{
+			name:   "deleting a federation relationship using an empty trust domain fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			if tt.setupFn != nil {
+				tt.setupFn()
+			}
+
+			err := s.ds.DeleteFederationRelationship(ctx, tt.trustDomain)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
+				return
+			}
+			s.Require().NoError(err)
+
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustDomain)
+			s.Require().NoError(err)
+			s.Require().Nil(fr)
+		})
+	}
+}
+
 func (s *PluginSuite) TestFetchFederationRelationship() {
 	testCases := []struct {
 		name        string

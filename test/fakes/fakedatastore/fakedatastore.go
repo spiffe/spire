@@ -280,6 +280,13 @@ func (s *DataStore) CreateFederationRelationship(c context.Context, fr *datastor
 	return s.ds.CreateFederationRelationship(c, fr)
 }
 
+func (s *DataStore) DeleteFederationRelationship(c context.Context, trustDomain spiffeid.TrustDomain) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.DeleteFederationRelationship(c, trustDomain)
+}
+
 func (s *DataStore) FetchFederationRelationship(c context.Context, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err

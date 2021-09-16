@@ -54,6 +54,7 @@ type DataStore interface {
 	// Federation Relationships
 	CreateFederationRelationship(context.Context, *FederationRelationship) (*FederationRelationship, error)
 	FetchFederationRelationship(context.Context, spiffeid.TrustDomain) (*FederationRelationship, error)
+	DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
