@@ -82,6 +82,12 @@ func (w metricsWrapper) DeleteBundle(ctx context.Context, trustDomain string, mo
 	return w.ds.DeleteBundle(ctx, trustDomain, mode)
 }
 
+func (w metricsWrapper) DeleteFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (err error) {
+	callCounter := StartDeleteFederationRelationshipCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.DeleteFederationRelationship(ctx, trustDomain)
+}
+
 func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
 	callCounter := StartDeleteJoinTokenCall(w.m)
 	defer callCounter.Done(&err)

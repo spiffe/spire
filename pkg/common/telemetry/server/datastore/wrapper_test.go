@@ -85,6 +85,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "DeleteBundle",
 		},
 		{
+			key:        "datastore.federation_relationship.delete",
+			methodName: "DeleteFederationRelationship",
+		},
+		{
 			key:        "datastore.join_token.delete",
 			methodName: "DeleteJoinToken",
 		},
@@ -297,6 +301,10 @@ func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.At
 }
 
 func (ds *fakeDataStore) DeleteBundle(context.Context, string, datastore.DeleteMode) error {
+	return ds.err
+}
+
+func (ds *fakeDataStore) DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error {
 	return ds.err
 }
 
