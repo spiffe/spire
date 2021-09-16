@@ -199,7 +199,7 @@ func parseToSelectorMatch(match string) (types.SelectorMatch_MatchBehavior, erro
 	case "subset":
 		return types.SelectorMatch_MATCH_SUBSET, nil
 	default:
-		return types.SelectorMatch_MATCH_SUPERSET, errors.New("unsupported match behavior")
+		return types.SelectorMatch_MATCH_SUPERSET, fmt.Errorf("match behavior %q unknown", match)
 	}
 }
 
@@ -214,6 +214,6 @@ func parseToFederatesWithMatch(match string) (types.FederatesWithMatch_MatchBeha
 	case "subset":
 		return types.FederatesWithMatch_MATCH_SUBSET, nil
 	default:
-		return types.FederatesWithMatch_MATCH_SUPERSET, errors.New("unsupported match behavior")
+		return types.FederatesWithMatch_MATCH_SUPERSET, fmt.Errorf("match behavior %q unknown", match)
 	}
 }
