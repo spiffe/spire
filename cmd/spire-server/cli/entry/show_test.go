@@ -243,7 +243,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by selectors: Invalid matcher",
 			args:   []string{"-selector", "foo:bar", "-selector", "bar:baz", "-matchSelectorsOn", "NO-MATCHER"},
-			expErr: "Error: unsupported match behavior\n",
+			expErr: "Error: match behavior \"NO-MATCHER\" unknown\n",
 		},
 		{
 			name:   "List by selector using invalid selector",
@@ -344,7 +344,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by Federates With: Invalid matcher",
 			args:   []string{"-federatesWith", "spiffe://domain.test", "-matchFederatesWithOn", "NO-MATCHER"},
-			expErr: "Error: unsupported match behavior\n",
+			expErr: "Error: match behavior \"NO-MATCHER\" unknown\n",
 		},
 	} {
 		tt := tt
