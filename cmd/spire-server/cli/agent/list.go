@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -57,9 +56,9 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 		selectors := make([]*types.Selector, len(c.selectors))
 		for i, sel := range c.selectors {
-			selector, err := parseSelector(sel)
+			selector, err := util.ParseSelector(sel)
 			if err != nil {
-				return fmt.Errorf("error parsing selectors: %w", err)
+				return fmt.Errorf("error parsing selector %q: %w", sel, err)
 			}
 			selectors[i] = selector
 		}
@@ -136,20 +135,6 @@ func printAgents(env *common_cli.Env, agents ...*types.Agent) error {
 	}
 
 	return nil
-}
-
-func parseSelector(str string) (*types.Selector, error) {
-	parts := strings.SplitAfterN(str, ":", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("selector \"%s\" must be formatted as type:value", str)
-	}
-
-	s := &types.Selector{
-		// Strip the trailing delimiter
-		Type:  strings.TrimSuffix(parts[0], ":"),
-		Value: parts[1],
-	}
-	return s, nil
 }
 
 func parseToSelectorMatch(match string) (types.SelectorMatch_MatchBehavior, error) {

@@ -387,7 +387,7 @@ func TestList(t *testing.T) {
 			name:               "List by selector using invalid selector",
 			args:               []string{"-selector", "invalid-selector"},
 			expectedReturnCode: 1,
-			expectedStderr:     "Error: error parsing selectors: selector \"invalid-selector\" must be formatted as type:value\n",
+			expectedStderr:     "Error: error parsing selector \"invalid-selector\": selector \"invalid-selector\" must be formatted as type:value\n",
 		},
 		{
 			name:               "wrong UDS path",
