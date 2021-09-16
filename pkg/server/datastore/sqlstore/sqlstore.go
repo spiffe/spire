@@ -470,6 +470,19 @@ func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastor
 	})
 }
 
+// DeleteFederationRelationship deletes the federation relationship to the
+// given trust domain. The associated trust bundle is not deleted.
+func (ds *Plugin) DeleteFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) error {
+	if trustDomain.IsZero() {
+		return status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = deleteFederationRelationship(tx, trustDomain)
+		return err
+	})
+}
+
 // FetchFederationRelationship fetches the federation relationship that matches
 // the given trust domain. If the federation relationship is not found, nil is returned.
 func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
@@ -3282,6 +3295,17 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 	}
 
 	return fr, nil
+}
+
+func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) error {
+	model := new(FederatedTrustDomain)
+	if err := tx.Find(model, "trust_domain = ?", trustDomain.String()).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	if err := tx.Delete(model).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
 }
 
 func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
