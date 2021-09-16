@@ -287,6 +287,13 @@ func (s *DataStore) FetchFederationRelationship(c context.Context, trustDomain s
 	return s.ds.FetchFederationRelationship(c, trustDomain)
 }
 
+func (s *DataStore) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListFederationRelationships(ctx, req)
+}
+
 func (s *DataStore) SetNextError(err error) {
 	s.errs = []error{err}
 }

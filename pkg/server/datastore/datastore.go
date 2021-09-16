@@ -54,6 +54,7 @@ type DataStore interface {
 	// Federation Relationships
 	CreateFederationRelationship(context.Context, *FederationRelationship) (*FederationRelationship, error)
 	FetchFederationRelationship(context.Context, spiffeid.TrustDomain) (*FederationRelationship, error)
+	ListFederationRelationships(context.Context, *ListFederationRelationshipsRequest) (*ListFederationRelationshipsResponse, error)
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
@@ -168,6 +169,15 @@ type ListRegistrationEntriesRequest struct {
 type ListRegistrationEntriesResponse struct {
 	Entries    []*common.RegistrationEntry
 	Pagination *Pagination
+}
+
+type ListFederationRelationshipsRequest struct {
+	Pagination *Pagination
+}
+
+type ListFederationRelationshipsResponse struct {
+	FederationRelationships []*FederationRelationship
+	Pagination              *Pagination
 }
 
 type BundleEndpointType string

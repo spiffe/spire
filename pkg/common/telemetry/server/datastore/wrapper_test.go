@@ -133,6 +133,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListRegistrationEntries",
 		},
 		{
+			key:        "datastore.federation_relationship.list",
+			methodName: "ListFederationRelationships",
+		},
+		{
 			key:        "datastore.bundle.prune",
 			methodName: "PruneBundle",
 		},
@@ -270,6 +274,10 @@ func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.
 
 func (ds *fakeDataStore) CreateFederationRelationship(context.Context, *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	return &datastore.FederationRelationship{}, ds.err
+}
+
+func (ds *fakeDataStore) ListFederationRelationships(context.Context, *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	return &datastore.ListFederationRelationshipsResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {

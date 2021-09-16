@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (
@@ -349,56 +348,10 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 	tests := []struct {
 		name               string
 		pagination         *datastore.Pagination
-		byExpiresBefore    *wrapperspb.Int64Value
 		expectedList       []*common.Bundle
 		expectedPagination *datastore.Pagination
 		expectedErr        string
 	}{
-		{
-			name:         "no pagination",
-			expectedList: []*common.Bundle{bundle1, bundle2, bundle3, bundle4},
-		},
-		{
-			name: "page size bigger than items",
-			pagination: &datastore.Pagination{
-				PageSize: 5,
-			},
-			expectedList: []*common.Bundle{bundle1, bundle2, bundle3, bundle4},
-			expectedPagination: &datastore.Pagination{
-				Token:    "4",
-				PageSize: 5,
-			},
-		},
-		{
-			name: "pagination page size is zero",
-			pagination: &datastore.Pagination{
-				PageSize: 0,
-			},
-			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
-		},
-		{
-			name: "bundles first page",
-			pagination: &datastore.Pagination{
-				Token:    "0",
-				PageSize: 2,
-			},
-			expectedList: []*common.Bundle{bundle1, bundle2},
-			expectedPagination: &datastore.Pagination{Token: "2",
-				PageSize: 2,
-			},
-		},
-		{
-			name: "bundles second page",
-			pagination: &datastore.Pagination{
-				Token:    "2",
-				PageSize: 2,
-			},
-			expectedList: []*common.Bundle{bundle3, bundle4},
-			expectedPagination: &datastore.Pagination{
-				Token:    "4",
-				PageSize: 2,
-			},
-		},
 		{
 			name:         "bundles third page",
 			expectedList: []*common.Bundle{},
@@ -408,18 +361,6 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 			},
 			expectedPagination: &datastore.Pagination{
 				Token:    "",
-				PageSize: 2,
-			},
-		},
-		{
-			name:         "invalid token",
-			expectedList: []*common.Bundle{},
-			expectedErr:  "rpc error: code = InvalidArgument desc = could not parse token 'invalid token'",
-			pagination: &datastore.Pagination{
-				Token:    "invalid token",
-				PageSize: 2,
-			},
-			expectedPagination: &datastore.Pagination{
 				PageSize: 2,
 			},
 		},
@@ -3279,7 +3220,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 				return
 			}
 
-			s.Require().Nil(err)
+			s.Require().NoError(err)
 			s.Require().Equal(tt.expFR, fr)
 		})
 	}
@@ -3399,13 +3340,136 @@ func (s *PluginSuite) TestCreateFederationRelationship() {
 		})
 	}
 }
-func requireURLFromString(t *testing.T, s string) *url.URL {
-	url, err := url.Parse(s)
-	if err != nil {
-		require.FailNow(t, err.Error())
+
+func (s *PluginSuite) TestListFederationRelationships() {
+	fr1 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-1.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
 	}
-	return url
+	_, err := s.ds.CreateFederationRelationship(ctx, fr1)
+	s.Require().NoError(err)
+
+	fr2 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-2.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr2)
+	s.Require().NoError(err)
+
+	fr3 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-3.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr3)
+	s.Require().NoError(err)
+
+	fr4 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-4.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr4)
+	s.Require().NoError(err)
+
+	tests := []struct {
+		name               string
+		pagination         *datastore.Pagination
+		expectedList       []*datastore.FederationRelationship
+		expectedPagination *datastore.Pagination
+		expectedErr        string
+	}{
+		{
+			name:         "no pagination",
+			expectedList: []*datastore.FederationRelationship{fr1, fr2, fr3, fr4},
+		},
+		{
+			name: "page size bigger than items",
+			pagination: &datastore.Pagination{
+				PageSize: 5,
+			},
+			expectedList: []*datastore.FederationRelationship{fr1, fr2, fr3, fr4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 5,
+			},
+		},
+		{
+			name: "pagination page size is zero",
+			pagination: &datastore.Pagination{
+				PageSize: 0,
+			},
+			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
+		},
+		{
+			name: "bundles first page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			expectedList: []*datastore.FederationRelationship{fr1, fr2},
+			expectedPagination: &datastore.Pagination{Token: "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "federation relationships second page",
+			pagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+			expectedList: []*datastore.FederationRelationship{fr3, fr4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "federation relationships third page",
+			expectedList: []*datastore.FederationRelationship{},
+			pagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "invalid token",
+			expectedList: []*datastore.FederationRelationship{},
+			expectedErr:  "rpc error: code = InvalidArgument desc = could not parse token 'invalid token'",
+			pagination: &datastore.Pagination{
+				Token:    "invalid token",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{
+				Pagination: test.pagination,
+			})
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			require.Equal(t, test.expectedList, resp.FederationRelationships)
+			require.Equal(t, test.expectedPagination, resp.Pagination)
+		})
+	}
 }
+
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 	dbVersion := 8
 
@@ -3911,4 +3975,12 @@ func createBundles(t *testing.T, ds *Plugin, trustDomains []string) {
 		})
 		require.NoError(t, err)
 	}
+}
+
+func requireURLFromString(t *testing.T, s string) *url.URL {
+	url, err := url.Parse(s)
+	if err != nil {
+		require.FailNow(t, err.Error())
+	}
+	return url
 }
