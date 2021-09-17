@@ -10,6 +10,7 @@ import (
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
@@ -20,12 +21,14 @@ import (
 const (
 	keyManagerType       = "KeyManager"
 	nodeAttestorType     = "NodeAttestor"
+	svidStoreType        = "SVIDStore"
 	workloadattestorType = "WorkloadAttestor"
 )
 
 type Catalog interface {
 	GetKeyManager() keymanager.KeyManager
 	GetNodeAttestor() nodeattestor.NodeAttestor
+	GetSVIDStoreNamed(name string) (svidstore.SVIDStore, bool)
 	GetWorkloadAttestors() []workloadattestor.WorkloadAttestor
 }
 
@@ -41,6 +44,7 @@ type Config struct {
 type Repository struct {
 	keyManagerRepository
 	nodeAttestorRepository
+	svidStoreRepository
 	workloadAttestorRepository
 	io.Closer
 }
@@ -49,6 +53,7 @@ func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
 	return map[string]catalog.PluginRepo{
 		keyManagerType:       &repo.keyManagerRepository,
 		nodeAttestorType:     &repo.nodeAttestorRepository,
+		svidStoreType:        &repo.svidStoreRepository,
 		workloadattestorType: &repo.workloadAttestorRepository,
 	}
 }

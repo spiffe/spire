@@ -10,7 +10,7 @@
                 ],
                 "entry_id": "0001",
                 "spiffe_id": "spiffe://example.org/spire/agent",
-				"revision_number": 1
+                "revision_number": 1
             }
         ]
     },
@@ -25,7 +25,7 @@
                 ],
                 "entry_id": "0002",
                 "spiffe_id": "spiffe://example.org/blog",
-				"revision_number": 1
+                "revision_number": 1
             },
             {
                 "selectors": [
@@ -36,7 +36,7 @@
                 ],
                 "entry_id": "0003",
                 "spiffe_id": "spiffe://example.org/database",
-				"revision_number": 1
+                "revision_number": 1
             }
         ]
     },
@@ -51,7 +51,7 @@
                 ],
                 "entry_id": "0002",
                 "spiffe_id": "spiffe://example.org/blog",
-				"revision_number": 1
+                "revision_number": 1
             },
             {
                 "selectors": [
@@ -63,7 +63,65 @@
                 "entry_id": "0003",
                 "spiffe_id": "spiffe://example.org/database",
                 "federates_with": ["spiffe://otherdomain.test"],
-				"revision_number": 2
+                "revision_number": 2
+            }
+        ]
+    },
+    "resp4" : {
+        "entries": [
+            {
+                "selectors": [
+                    {
+                        "type": "fakestore",
+                        "value": "key:1111"
+                    }
+                ],
+                "entry_id": "0005",
+                "spiffe_id": "spiffe://example.org/blog",
+                "store_svid": true,
+                "revision_number": 1
+            },
+            {
+                "selectors": [
+                    {
+                        "type": "fakestore",
+                        "value": "key:2222"
+                    }
+                ],
+                "entry_id": "0006",
+                "spiffe_id": "spiffe://example.org/database",
+                "federates_with": ["spiffe://otherdomain.test"],
+                "store_svid": true,
+                "revision_number": 2
+            }
+        ]
+    }, 
+    "resp5" : {
+        "entries": [
+            {
+                "selectors": [
+                    {
+                        "type": "fakestore",
+                        "value": "val:1111"
+                    }
+                ],
+                "entry_id": "0005",
+                "spiffe_id": "spiffe://example.org/blog",
+                "store_svid": true,
+                "revision_number": 3
+            },
+            {
+                "selectors": [
+                    {
+                        "type": "fakestore",
+                        "value": "key:5555"
+                    }
+                ],
+                "entry_id": "0006",
+                "spiffe_id": "spiffe://example.org/database",
+                "federates_with": ["spiffe://otherdomain.test"],
+                "store_svid": true,
+                "revision_number": 3
             }
         ]
     }
