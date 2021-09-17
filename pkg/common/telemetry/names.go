@@ -106,6 +106,9 @@ const (
 	// (agent or server)
 	StorePrivateKey = "store_private_key"
 
+	// StoreSVIDUpdates related to storing SVID updates in SVIDStore plugins
+	StoreSVIDUpdates = "store_svid_updates"
+
 	// Sync functionality for syncing (such as CA manager updates). Should
 	// be used with other tags to add clarity
 	Sync = "sync"
@@ -135,6 +138,12 @@ const (
 
 	// Audience tags some audience for a token
 	Audience = "audience"
+
+	// BundleEndpointProfile is the name of the bundle endpoint profile
+	BundleEndpointProfile = "bundle_endpoint_profile"
+
+	// BundleEndpointURL is the URL of the bundle endpoint
+	BundleEndpointURL = "bundle_endpoint_url"
 
 	// ByBanned tags filtering by banned agents
 	ByBanned = "by_banned"
@@ -246,6 +255,9 @@ const (
 
 	// FederatesWithMatch tags a federates with match filter
 	FederatesWithMatch = "federates_with_match"
+
+	// FederationRelationship tags a federation relatioship
+	FederationRelationship = "federation_relationship"
 
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
@@ -433,7 +445,10 @@ const (
 	// Type tags a type
 	Type = "type"
 
-	// TrustDomainID tags some trust domain ID
+	// TrustDomain tags the name of some trust domain
+	TrustDomain = "trust_domain"
+
+	// TrustDomainID tags the ID of some trust domain
 	TrustDomainID = "trust_domain_id"
 
 	// Unknown tags some unknown caller, entity, or status
@@ -442,6 +457,9 @@ const (
 	// Updated tags some entity as updated; should be used
 	// with other tags to add clarity
 	Updated = "updated"
+
+	// StoreSvid tags if entry is storable
+	StoreSvid = "store_svid"
 
 	// Version tags a version
 	Version = "version"
@@ -495,6 +513,9 @@ const (
 	// Cache functionality related to a cache
 	Cache = "cache"
 
+	// Cache type tag
+	CacheType = "cache_type"
+
 	// CacheManager functionality related to a cache manager
 	CacheManager = "cache_manager"
 
@@ -507,8 +528,7 @@ const (
 	// Endpoints functionality related to agent/server endpoints
 	Endpoints = "endpoints"
 
-	// Entry tag for some stored entry; should be used with other tags such as RegistrationAPI
-	// to add clarity
+	// Entry tag for some stored entry
 	Entry = "entry"
 
 	// Event tag some event that has occurred, for a notifier, watcher, listener, etc.
@@ -576,6 +596,9 @@ const (
 
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
+
+	// SVIDStore tags an SVID store plugin/type (eg. aws_secretsmanager)
+	SVIDStore = "svid_store"
 
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
@@ -709,16 +732,15 @@ const (
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
 
-	// RegistrationAPI functionality related to the registration api; should be used
-	// with other tags to add clarity
-	RegistrationAPI = "registration_api"
-
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity
 	SDSAPI = "sds_api"
 
 	// ServerKeyManager attached to all operations related to the server KeyManager interface
 	ServerKeyManager = "server_key_manager"
+
+	// Store functionality related to SVID Store service
+	Store = "store"
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"

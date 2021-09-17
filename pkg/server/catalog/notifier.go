@@ -25,10 +25,6 @@ func (repo *notifierRepository) Versions() []catalog.Version {
 	}
 }
 
-func (repo *notifierRepository) LegacyVersion() (catalog.Version, bool) {
-	return notifierV0{}, true
-}
-
 func (repo *notifierRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		gcsbundle.BuiltIn(),
@@ -40,8 +36,3 @@ type notifierV1 struct{}
 
 func (notifierV1) New() catalog.Facade { return new(notifier.V1) }
 func (notifierV1) Deprecated() bool    { return false }
-
-type notifierV0 struct{}
-
-func (notifierV0) New() catalog.Facade { return new(notifier.V0) }
-func (notifierV0) Deprecated() bool    { return true }

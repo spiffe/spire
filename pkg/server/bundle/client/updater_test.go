@@ -13,12 +13,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBundleUpdater(t *testing.T) {
-	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
-
+func TestBundleUpdaterUpdateBundle(t *testing.T) {
 	bundle1 := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "bundle1"))
 	bundle2 := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "bundle2"))
 	bundle2.SetRefreshHint(time.Minute)
@@ -96,7 +95,7 @@ func TestBundleUpdater(t *testing.T) {
 						EndpointSPIFFEID: trustDomain.ID(),
 					},
 				},
-				newClient: func(client ClientConfig) (Client, error) {
+				newClientHook: func(client ClientConfig) (Client, error) {
 					return testCase.client, nil
 				},
 			})
@@ -130,6 +129,38 @@ func TestBundleUpdater(t *testing.T) {
 				require.Nil(t, bundle)
 			}
 		})
+	}
+}
+
+func TestBundleUpdaterConfiguration(t *testing.T) {
+	configs := []TrustDomainConfig{
+		{
+			EndpointURL:     "https://some-domain.test/webA",
+			EndpointProfile: HTTPSWebProfile{},
+		},
+		{
+			EndpointURL:     "https://some-domain.test/webB",
+			EndpointProfile: HTTPSWebProfile{},
+		},
+		{
+			EndpointURL: "https://some-domain.test/spiffeA",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://some-domain.test/spiffeA"),
+			},
+		},
+		{
+			EndpointURL: "https://some-domain.test/spiffeB",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://some-domain.test/spiffeB"),
+			},
+		},
+	}
+
+	updater := NewBundleUpdater(BundleUpdaterConfig{})
+
+	for _, config := range configs {
+		assert.True(t, updater.SetTrustDomainConfig(config), "config should have changed")
+		assert.False(t, updater.SetTrustDomainConfig(config), "config should not have changed")
 	}
 }
 

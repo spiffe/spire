@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
@@ -297,18 +299,40 @@ func (ds *Plugin) ListNodeSelectors(ctx context.Context,
 // CreateRegistrationEntry stores the given registration entry
 func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, err error) {
+	out, _, err := ds.createOrReturnRegistrationEntry(ctx, entry)
+	return out, err
+}
+
+// CreateOrReturnRegistrationEntry stores the given registration entry. If an
+// entry already exists with the same (parentID, spiffeID, selector) tuple,
+// that entry is returned instead.
+func (ds *Plugin) CreateOrReturnRegistrationEntry(ctx context.Context,
+	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
+	return ds.createOrReturnRegistrationEntry(ctx, entry)
+}
+
+func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
+	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
 	if err = validateRegistrationEntry(entry); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
+		if err != nil {
+			return err
+		}
+		if registrationEntry != nil {
+			existing = true
+			return nil
+		}
 		registrationEntry, err = createRegistrationEntry(tx, entry)
 		return err
 	}); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return registrationEntry, nil
+	return registrationEntry, existing, nil
 }
 
 // FetchRegistrationEntry fetches an existing registration by entry ID
@@ -410,6 +434,81 @@ func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err er
 		err = pruneJoinTokens(tx, expiry)
 		return err
 	})
+}
+
+// CreateFederationRelationship creates a new federation relationship. If the bundle endpoint
+// profile is 'https_spiffe' and the given federation relationship contains a bundle, the current
+// stored bundle is overridden.
+// If no bundle is provided and there is not a previusly stored bundle in the datastore, the
+// federation relationship is not created.
+func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (newFr *datastore.FederationRelationship, err error) {
+	if fr == nil {
+		return nil, status.Error(codes.InvalidArgument, "federation relationship is nil")
+	}
+
+	if fr.TrustDomain.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if fr.BundleEndpointURL == nil {
+		return nil, status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
+	}
+
+	switch fr.BundleEndpointProfile {
+	case datastore.BundleEndpointWeb:
+	case datastore.BundleEndpointSPIFFE:
+		if fr.EndpointSPIFFEID.IsZero() {
+			return nil, status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
+		}
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
+	}
+
+	return fr, ds.withWriteTx(ctx, func(tx *gorm.DB) error {
+		newFr, err = createFederationRelationship(tx, fr)
+		return err
+	})
+}
+
+// DeleteFederationRelationship deletes the federation relationship to the
+// given trust domain. The associated trust bundle is not deleted.
+func (ds *Plugin) DeleteFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) error {
+	if trustDomain.IsZero() {
+		return status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = deleteFederationRelationship(tx, trustDomain)
+		return err
+	})
+}
+
+// FetchFederationRelationship fetches the federation relationship that matches
+// the given trust domain. If the federation relationship is not found, nil is returned.
+func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
+	if trustDomain.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		fr, err = fetchFederationRelationship(tx, trustDomain)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return fr, nil
+}
+
+// ListFederationRelationships can be used to list all existing federation relationships
+func (ds *Plugin) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (resp *datastore.ListFederationRelationshipsResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = listFederationRelationships(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
@@ -1663,6 +1762,7 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		Admin:      entry.Admin,
 		Downstream: entry.Downstream,
 		Expiry:     entry.EntryExpiry,
+		StoreSvid:  entry.StoreSvid,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1776,6 +1876,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -1790,7 +1891,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1803,7 +1904,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1811,7 +1912,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1835,6 +1936,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL ::integer AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -1849,7 +1951,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1862,7 +1964,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1870,7 +1972,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1891,6 +1993,7 @@ SELECT
 	E.admin,
 	E.downstream,
 	E.expiry,
+	E.store_svid,
 	S.id AS selector_id,
 	S.type AS selector_type,
 	S.value AS selector_value,
@@ -1928,6 +2031,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -1942,7 +2046,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1955,7 +2059,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1963,7 +2067,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1996,7 +2100,7 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
 	for {
-		resp, err := listRegistrationEntriesOnce(ctx, db, req)
+		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, req)
 		if err != nil {
 			return nil, err
 		}
@@ -2057,8 +2161,12 @@ func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors [
 	return filtered
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, db *sqlDB, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
-	query, args, err := buildListRegistrationEntriesQuery(db.databaseType, db.supportsCTE, req)
+type queryContext interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+}
+
+func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+	query, args, err := buildListRegistrationEntriesQuery(databaseType, supportsCTE, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -2170,6 +2278,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -2187,7 +2296,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2202,7 +2311,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2213,7 +2322,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2248,6 +2357,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL ::integer AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -2265,7 +2375,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2280,7 +2390,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2291,7 +2401,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2330,6 +2440,7 @@ SELECT
 	E.admin,
 	E.downstream,
 	E.expiry,
+	E.store_svid,
 	S.id AS selector_id,
 	S.type AS selector_type,
 	S.value AS selector_value,
@@ -2384,6 +2495,7 @@ SELECT
 	admin,
 	downstream,
 	expiry,
+	store_svid,
 	NULL AS selector_id,
 	NULL AS selector_type,
 	NULL AS selector_value,
@@ -2401,7 +2513,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2416,7 +2528,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL
 FROM
 	dns_names
 `)
@@ -2427,7 +2539,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2871,6 +2983,7 @@ type entryRow struct {
 	SelectorID     sql.NullInt64
 	SelectorType   sql.NullString
 	SelectorValue  sql.NullString
+	StoreSvid      sql.NullBool
 	TrustDomain    sql.NullString
 	DNSNameID      sql.NullInt64
 	DNSName        sql.NullString
@@ -2887,6 +3000,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.Admin,
 		&r.Downstream,
 		&r.Expiry,
+		&r.StoreSvid,
 		&r.SelectorID,
 		&r.SelectorType,
 		&r.SelectorValue,
@@ -2918,6 +3032,9 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	}
 	if r.Expiry.Valid {
 		entry.EntryExpiry = r.Expiry.Int64
+	}
+	if r.StoreSvid.Valid {
+		entry.StoreSvid = r.StoreSvid.Bool
 	}
 	if r.RevisionNumber.Valid {
 		entry.RevisionNumber = r.RevisionNumber.Int64
@@ -2970,6 +3087,9 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	if err := tx.Find(&entry, "entry_id = ?", e.EntryId).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
+	if mask == nil || mask.StoreSvid {
+		entry.StoreSvid = e.StoreSvid
+	}
 	if mask == nil || mask.Selectors {
 		// Delete existing selectors - we will write new ones
 		if err := tx.Exec("DELETE FROM selectors WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
@@ -2986,6 +3106,11 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 			selectors = append(selectors, selector)
 		}
 		entry.Selectors = selectors
+	}
+
+	// Verify that final selectors contains the same 'type' when entry is used for store SVIDs
+	if entry.StoreSvid && !equalSelectorTypes(entry.Selectors) {
+		return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 	}
 
 	if mask == nil || mask.DnsNames {
@@ -3148,6 +3273,149 @@ func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
 	return nil
 }
 
+func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	model := FederatedTrustDomain{
+		TrustDomain:           fr.TrustDomain.String(),
+		BundleEndpointURL:     fr.BundleEndpointURL.String(),
+		BundleEndpointProfile: string(fr.BundleEndpointProfile),
+	}
+
+	if fr.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		model.EndpointSPIFFEID = fr.EndpointSPIFFEID.String()
+		if fr.Bundle != nil {
+			// overwrite current bundle
+			_, err := setBundle(tx, fr.Bundle)
+			if err != nil {
+				return nil, fmt.Errorf("unable to set bundle: %w", err)
+			}
+		} else {
+			// check if a previous bundle exists
+			bundle, err := fetchBundle(tx, fr.TrustDomain.IDString())
+			if err != nil {
+				return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+			}
+			if bundle == nil {
+				return nil, fmt.Errorf("no bundle exists for trust domain: %q", fr.TrustDomain)
+			}
+			fr.Bundle = bundle
+		}
+	}
+
+	if err := tx.Create(&model).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return fr, nil
+}
+
+func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) error {
+	model := new(FederatedTrustDomain)
+	if err := tx.Find(model, "trust_domain = ?", trustDomain.String()).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	if err := tx.Delete(model).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+	var model FederatedTrustDomain
+	err := tx.Find(&model, "trust_domain = ?", trustDomain.String()).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, nil
+	case err != nil:
+		return nil, sqlError.Wrap(err)
+	}
+
+	return modelToFederationRelationship(tx, &model)
+}
+
+// listFederationRelationships can be used to fetch all existing federation relationshops.
+func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	if req.Pagination != nil && req.Pagination.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	}
+
+	p := req.Pagination
+	var err error
+	if p != nil {
+		tx, err = applyPagination(p, tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var federationRelationships []FederatedTrustDomain
+	if err := tx.Find(&federationRelationships).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	if p != nil {
+		p.Token = ""
+		// Set token only if page size is the same than federationRelationships len
+		if len(federationRelationships) > 0 {
+			lastEntry := federationRelationships[len(federationRelationships)-1]
+			p.Token = fmt.Sprint(lastEntry.ID)
+		}
+	}
+
+	resp := &datastore.ListFederationRelationshipsResponse{
+		Pagination:              p,
+		FederationRelationships: []*datastore.FederationRelationship{},
+	}
+	for _, model := range federationRelationships {
+		model := model // alias the loop variable since we pass it by reference below
+		federationRelationship, err := modelToFederationRelationship(tx, &model)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.FederationRelationships = append(resp.FederationRelationships, federationRelationship)
+	}
+
+	return resp, nil
+}
+
+func modelToFederationRelationship(tx *gorm.DB, model *FederatedTrustDomain) (*datastore.FederationRelationship, error) {
+	bundleEndpointURL, err := url.Parse(model.BundleEndpointURL)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse URL: %w", err)
+	}
+
+	td, err := spiffeid.TrustDomainFromString(model.TrustDomain)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	fr := &datastore.FederationRelationship{
+		TrustDomain:           td,
+		BundleEndpointURL:     bundleEndpointURL,
+		BundleEndpointProfile: datastore.BundleEndpointType(model.BundleEndpointProfile),
+	}
+
+	switch fr.BundleEndpointProfile {
+	case datastore.BundleEndpointWeb:
+	case datastore.BundleEndpointSPIFFE:
+		endpointSPIFFEID, err := spiffeid.FromString(model.EndpointSPIFFEID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse bundle endpoint SPIFFE ID: %w", err)
+		}
+		fr.EndpointSPIFFEID = endpointSPIFFEID
+
+		bundle, err := fetchBundle(tx, td.IDString())
+		if err != nil {
+			return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+		}
+		fr.Bundle = bundle
+	default:
+		return nil, fmt.Errorf("unknown bundle endpoint profile type: %q", model.BundleEndpointProfile)
+	}
+
+	return fr, nil
+}
+
 // modelToBundle converts the given bundle model to a Protobuf bundle message. It will also
 // include any embedded CACert models.
 func modelToBundle(model *Bundle) (*common.Bundle, error) {
@@ -3168,6 +3436,19 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
+	// In case of StoreSvid is set, all entries 'must' be the same type,
+	// it is done to avoid users to mix selectors from different platforms in
+	// entries with storable SVIDs
+	if entry.StoreSvid {
+		// Selectors must never be empty
+		tpe := entry.Selectors[0].Type
+		for _, t := range entry.Selectors {
+			if tpe != t.Type {
+				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+			}
+		}
+	}
+
 	if len(entry.SpiffeId) == 0 {
 		return sqlError.New("invalid registration entry: missing SPIFFE ID")
 	}
@@ -3177,6 +3458,20 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	return nil
+}
+
+// equalSelectorTypes validates that all selectors has the same type,
+func equalSelectorTypes(selectors []Selector) bool {
+	typ := ""
+	for _, t := range selectors {
+		switch {
+		case typ == "":
+			typ = t.Type
+		case typ != t.Type:
+			return false
+		}
+	}
+	return true
 }
 
 func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
@@ -3273,6 +3568,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		EntryExpiry:    model.Expiry,
 		DnsNames:       dnsList,
 		RevisionNumber: model.RevisionNumber,
+		StoreSvid:      model.StoreSvid,
 	}, nil
 }
 
@@ -3404,4 +3700,23 @@ func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
 	}
 	dbTime := time.Unix(unixTime, 0)
 	return &dbTime
+}
+
+func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	resp, err := listRegistrationEntriesOnce(ctx, tx.CommonDB().(queryContext), db.databaseType, db.supportsCTE, &datastore.ListRegistrationEntriesRequest{
+		BySpiffeID: entry.SpiffeId,
+		ByParentID: entry.ParentId,
+		BySelectors: &datastore.BySelectors{
+			Match:     datastore.Exact,
+			Selectors: entry.Selectors,
+		},
+	})
+	switch {
+	case err != nil:
+		return nil, err
+	case len(resp.Entries) > 0:
+		return resp.Entries[0], nil
+	default:
+		return nil, nil
+	}
 }

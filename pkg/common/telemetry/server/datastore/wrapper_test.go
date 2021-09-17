@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -60,6 +61,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateBundle",
 		},
 		{
+			key:        "datastore.federation_relationship.create",
+			methodName: "CreateFederationRelationship",
+		},
+		{
 			key:        "datastore.join_token.create",
 			methodName: "CreateJoinToken",
 		},
@@ -68,12 +73,20 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateRegistrationEntry",
 		},
 		{
+			key:        "datastore.registration_entry.create",
+			methodName: "CreateOrReturnRegistrationEntry",
+		},
+		{
 			key:        "datastore.node.delete",
 			methodName: "DeleteAttestedNode",
 		},
 		{
 			key:        "datastore.bundle.delete",
 			methodName: "DeleteBundle",
+		},
+		{
+			key:        "datastore.federation_relationship.delete",
+			methodName: "DeleteFederationRelationship",
 		},
 		{
 			key:        "datastore.join_token.delete",
@@ -100,6 +113,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "FetchRegistrationEntry",
 		},
 		{
+			key:        "datastore.federation_relationship.fetch",
+			methodName: "FetchFederationRelationship",
+		},
+		{
 			key:        "datastore.node.selectors.fetch",
 			methodName: "GetNodeSelectors",
 		},
@@ -118,6 +135,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.registration_entry.list",
 			methodName: "ListRegistrationEntries",
+		},
+		{
+			key:        "datastore.federation_relationship.list",
+			methodName: "ListFederationRelationships",
 		},
 		{
 			key:        "datastore.bundle.prune",
@@ -255,6 +276,14 @@ func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.
 	return &common.Bundle{}, ds.err
 }
 
+func (ds *fakeDataStore) CreateFederationRelationship(context.Context, *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	return &datastore.FederationRelationship{}, ds.err
+}
+
+func (ds *fakeDataStore) ListFederationRelationships(context.Context, *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	return &datastore.ListFederationRelationshipsResponse{}, ds.err
+}
+
 func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
 	return ds.err
 }
@@ -263,11 +292,19 @@ func (ds *fakeDataStore) CreateRegistrationEntry(context.Context, *common.Regist
 	return &common.RegistrationEntry{}, ds.err
 }
 
+func (ds *fakeDataStore) CreateOrReturnRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
+	return &common.RegistrationEntry{}, true, ds.err
+}
+
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
 }
 
 func (ds *fakeDataStore) DeleteBundle(context.Context, string, datastore.DeleteMode) error {
+	return ds.err
+}
+
+func (ds *fakeDataStore) DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error {
 	return ds.err
 }
 
@@ -285,6 +322,10 @@ func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.Att
 
 func (ds *fakeDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
 	return &common.Bundle{}, ds.err
+}
+
+func (ds *fakeDataStore) FetchFederationRelationship(context.Context, spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+	return &datastore.FederationRelationship{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {

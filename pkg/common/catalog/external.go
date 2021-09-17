@@ -11,6 +11,7 @@ import (
 
 	goplugin "github.com/hashicorp/go-plugin"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/zeebo/errs"
@@ -37,7 +38,7 @@ type externalConfig struct {
 	Log logrus.FieldLogger
 
 	// HostServices are the host service servers provided to the plugin.
-	HostServices []HostServiceServer
+	HostServices []pluginsdk.ServiceServer
 }
 
 func loadExternal(ctx context.Context, config externalConfig) (*pluginImpl, error) {

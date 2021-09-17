@@ -2,8 +2,8 @@ package disk_test
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,18 +11,15 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	keymanagertest "github.com/spiffe/spire/pkg/agent/plugin/keymanager/test"
-	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/spiffe/spire/test/testkey"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 func TestKeyManagerContract(t *testing.T) {
 	keymanagertest.Test(t, keymanagertest.Config{
-		Create: func(t *testing.T) keymanager.MultiKeyManager {
+		Create: func(t *testing.T) keymanager.KeyManager {
 			dir := spiretest.TempDir(t)
 			km, err := loadPlugin(t, "directory = %q", dir)
 			require.NoError(t, err)
@@ -54,7 +51,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 
 	// assert failure to generate key when directory is gone
 	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to write deprecated key")
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to generate key: unable to write entries")
 
 	// create the directory and generate the key
 	mkdir(t, dir)
@@ -74,7 +71,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 	// remove the directory and try to overwrite. original key should remain.
 	rmdir(t, dir)
 	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to write deprecated key")
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to generate key: unable to write entries")
 
 	keyOut, err = km.GetKey(context.Background(), "id")
 	require.NoError(t, err)
@@ -84,7 +81,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 	)
 }
 
-func TestBackwardsCompatWithDeprecatedKeyFile(t *testing.T) {
+func TestDeprecatedKeyFileIsRemovedOnConfigure(t *testing.T) {
 	// This test asserts behavior expected on upgrade and downgrade scenarios
 	// between the old disk plugin that managed a single key and the new one
 	// that conforms to the multi key manager interface. See the comment in
@@ -92,83 +89,25 @@ func TestBackwardsCompatWithDeprecatedKeyFile(t *testing.T) {
 
 	dir := spiretest.TempDir(t)
 
-	assertKeyEqual := func(expected, actual crypto.Signer) {
-		equal, err := cryptoutil.PublicKeyEqual(expected.Public(), actual.Public())
-		require.NoError(t, err)
-		assert.True(t, equal, "keys are not equal")
-	}
-	reloadPlugin := func() keymanager.MultiKeyManager {
-		km, err := loadPlugin(t, "directory = %q", dir)
-		require.NoError(t, err)
-		return km
-	}
-	getPublicKeys := func(km keymanager.MultiKeyManager) map[string]crypto.PublicKey {
-		keys, err := km.GetKeys(context.Background())
-		require.NoError(t, err)
-		publicKeys := make(map[string]crypto.PublicKey)
-		for _, key := range keys {
-			publicKeys[key.ID()] = key.Public()
-		}
-		return publicKeys
-	}
 	deprecatedKeyPath := filepath.Join(dir, "svid.key")
-
-	rotateDeprecatedKey := func() crypto.Signer {
-		key := testkey.NewEC256(t)
-		data, err := x509.MarshalECPrivateKey(key)
-		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(deprecatedKeyPath, data, 0600))
-		return key
-	}
-
-	deprecatedKey := rotateDeprecatedKey()
-
-	// Load the plugin
-	km := reloadPlugin()
-
-	// Fetch the key by the "deprecated" key ID and assert the keys match
-	oldKey, err := km.GetKey(context.Background(), "agent-svid-deprecated")
+	err := os.WriteFile(deprecatedKeyPath, nil, 0600)
 	require.NoError(t, err)
-	assertKeyEqual(deprecatedKey, oldKey)
 
-	// Generate a new key and assert that the deprecated key has been overwritten.
-	// Load the key from the deprecated key path and assert it matches the new
-	newKey, err := km.GenerateKey(context.Background(), "any-other-id", keymanager.ECP256)
+	_, err = loadPlugin(t, "directory = %q", dir)
 	require.NoError(t, err)
-	newDeprecatedKeyData, err := os.ReadFile(deprecatedKeyPath)
-	require.NoError(t, err)
-	newDeprecatedKey, err := x509.ParseECPrivateKey(newDeprecatedKeyData)
-	require.NoError(t, err)
-	assertKeyEqual(newKey, newDeprecatedKey)
 
-	// Reload the plugin and assert that there are no entries for the
-	// new deprecated key since it matches an existing entry.
-	km = reloadPlugin()
-	assert.Equal(t, map[string]crypto.PublicKey{
-		"any-other-id":          newKey.Public(),
-		"agent-svid-deprecated": deprecatedKey.Public(),
-	}, getPublicKeys(km))
-
-	// Now overwrite the deprecated key and then reload (simulating what would
-	// happen in a downgrade followed by an upgrade).
-	downgradedDeprecatedKey := rotateDeprecatedKey()
-	km = reloadPlugin()
-	assert.Equal(t, map[string]crypto.PublicKey{
-		"any-other-id":          newKey.Public(),
-		"agent-svid-deprecated": downgradedDeprecatedKey.Public(),
-	}, getPublicKeys(km))
+	_, err = os.Stat(deprecatedKeyPath)
+	require.True(t, errors.Is(err, os.ErrNotExist), "file has not been removed: %v", err)
 }
 
-func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.MultiKeyManager, error) {
+func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
 	km := new(keymanager.V1)
 	var configErr error
 	plugintest.Load(t, disk.BuiltIn(), km,
 		plugintest.Configuref(configFmt, configArgs...),
 		plugintest.CaptureConfigureError(&configErr),
 	)
-	multi, ok := km.Multi()
-	require.True(t, ok)
-	return multi, configErr
+	return km, configErr
 }
 
 func mkdir(t *testing.T, dir string) {

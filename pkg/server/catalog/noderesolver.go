@@ -22,10 +22,6 @@ func (repo *nodeResolverRepository) Versions() []catalog.Version {
 	return []catalog.Version{nodeResolverV1{}}
 }
 
-func (repo *nodeResolverRepository) LegacyVersion() (catalog.Version, bool) {
-	return nodeResolverV0{}, true
-}
-
 func (repo *nodeResolverRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		azure.BuiltIn(),
@@ -36,8 +32,3 @@ type nodeResolverV1 struct{}
 
 func (nodeResolverV1) New() catalog.Facade { return new(noderesolver.V1) }
 func (nodeResolverV1) Deprecated() bool    { return false }
-
-type nodeResolverV0 struct{}
-
-func (nodeResolverV0) New() catalog.Facade { return new(noderesolver.V0) }
-func (nodeResolverV0) Deprecated() bool    { return true }

@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/require"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
@@ -197,6 +198,13 @@ func (s *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.R
 	return s.ds.CreateRegistrationEntry(ctx, entry)
 }
 
+func (s *DataStore) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, false, err
+	}
+	return s.ds.CreateOrReturnRegistrationEntry(ctx, entry)
+}
+
 func (s *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
@@ -263,6 +271,34 @@ func (s *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time
 		return err
 	}
 	return s.ds.PruneJoinTokens(ctx, expiresBefore)
+}
+
+func (s *DataStore) CreateFederationRelationship(c context.Context, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.CreateFederationRelationship(c, fr)
+}
+
+func (s *DataStore) DeleteFederationRelationship(c context.Context, trustDomain spiffeid.TrustDomain) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.DeleteFederationRelationship(c, trustDomain)
+}
+
+func (s *DataStore) FetchFederationRelationship(c context.Context, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchFederationRelationship(c, trustDomain)
+}
+
+func (s *DataStore) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListFederationRelationships(ctx, req)
 }
 
 func (s *DataStore) SetNextError(err error) {

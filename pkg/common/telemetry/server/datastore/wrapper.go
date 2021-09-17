@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -51,6 +52,24 @@ func (w metricsWrapper) CreateRegistrationEntry(ctx context.Context, entry *comm
 	return w.ds.CreateRegistrationEntry(ctx, entry)
 }
 
+func (w metricsWrapper) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (_ *common.RegistrationEntry, _ bool, err error) {
+	callCounter := StartCreateRegistrationCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.CreateOrReturnRegistrationEntry(ctx, entry)
+}
+
+func (w metricsWrapper) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (_ *datastore.FederationRelationship, err error) {
+	callCounter := StartCreateFederationRelationshipCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.CreateFederationRelationship(ctx, fr)
+}
+
+func (w metricsWrapper) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (_ *datastore.ListFederationRelationshipsResponse, err error) {
+	callCounter := StartListFederationRelationshipsCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.ListFederationRelationships(ctx, req)
+}
+
 func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)
@@ -61,6 +80,12 @@ func (w metricsWrapper) DeleteBundle(ctx context.Context, trustDomain string, mo
 	callCounter := StartDeleteBundleCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.DeleteBundle(ctx, trustDomain, mode)
+}
+
+func (w metricsWrapper) DeleteFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (err error) {
+	callCounter := StartDeleteFederationRelationshipCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.DeleteFederationRelationship(ctx, trustDomain)
 }
 
 func (w metricsWrapper) DeleteJoinToken(ctx context.Context, token string) (err error) {
@@ -97,6 +122,12 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	callCounter := StartFetchRegistrationCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
+}
+
+func (w metricsWrapper) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (_ *datastore.FederationRelationship, err error) {
+	callCounter := StartFetchFederationRelationshipCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.FetchFederationRelationship(ctx, trustDomain)
 }
 
 func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (_ []*common.Selector, err error) {

@@ -57,9 +57,9 @@ This quick start sets up the SPIRE Server, SPIRE Agent, and CRD Kubernetes Workl
 
 1. Deploy SPIRE Server, Kubernetes Workload Registrar, SPIRE Agent, and CRD. SPIRE Server and Kubernetes Workload Registrar will be deployed in the same Pod.
    ```
-   kubectl apply -f config/spiffeid.spiffe.io_spiffeids.yaml \
-                 -f config/spire-server-registrar.yaml \
-                 -f config/spire-agent.yaml
+   kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml \
+                 -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
+                 -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-agent.yaml
    ```
 
 1. Verify the deployment succeeded.
@@ -82,7 +82,7 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 
 1. Create a SpiffeID resource.
    ```
-   kubectl apply -f samples/test_spiffeid.yaml
+   kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
    ```
 
 1. Check that the SpiffeID  resource was created.
@@ -131,14 +131,14 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 
 1. Delete the SpiffeID resource, the corresponding entry on the SPIRE Server will be removed.
    ```
-   kubectl delete -f samples/test_spiffeid.yaml
+   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
    ```
 
 ### Attempt to Deploy an Invalid SpiffeID Resource
 
 1. Apply deploy an invalid SpiffeID.
    ```
-   $ kubectl apply -f test_spiffeid_bad.yaml
+   $ kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid_bad.yaml
    Error from server (spec.Selector.Namespace must match namespace of resource): error when creating "test_spiffeid_bad.yaml": admission webhook "k8s-workload-registrar.nginx-mesh.svc" denied the request: spec.Selector.Namespace must match namespace of resource
    ```
 
@@ -146,10 +146,10 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 
 ### Auto-generate SPIFFE IDs
 
-To test auto-generation of SPIFFE IDs add the following annotation to a Pod Spec and the apply it. A recommended format for the SPIFFE ID is `ns/<namespace>/id/<id>`.
+To test auto-generation of SPIFFE IDs add the following label to a Pod Spec and then apply it. The format for the auto-generated SPIFFE ID in this example is `ns/<namespace>/pod/<pod-name>`.
 
    ```
-   spiffe.io/spiffe-id: <SPIFFE ID>
+   spiffe.io/spiffe-id: true
    ```
 
 We can test this using the NGINX example deployment:
@@ -159,49 +159,86 @@ We can test this using the NGINX example deployment:
    kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
    ```
 
-1. Add the annotation to the Deployment Template. This will reroll the deployment
+1. Add the label to the Deployment Template. This will reroll the deployment
    ```
-   kubectl patch deployment nginx-deployment -p '{"spec":{"template":{"metadata":{"annotations":{"spiffe.io/spiffe-id": "ns/default/id/nginx"}}}}}'
+   kubectl patch deployment nginx-deployment -p '{"spec":{"template":{"metadata":{"labels":{"spiffe.io/spiffe-id": "true"}}}}}'
    ```
 
 1. Verify the SpiffeID resource was created. The name of the SpiffeID resource will be the same as the name of the Pod.
    ```
-   $ kubectl get spiffeids
-   NAME                                AGE
-   nginx-deployment-7ff586d896-kvwzl   4s
-   $ kubectl get spiffeids nginx-deployment-7ff586d896-kvwzl -o yaml
-   apiVersion: spiffeid.spiffe.io/v1beta1
-   kind: SpiffeID
-   metadata:
-     creationTimestamp: "2020-10-26T22:48:55Z"
-     finalizers:
-     - finalizers.spiffeid.spiffe.io
-     generation: 1
-     labels:
-       podUid: e271fbf6-faff-42e3-bd40-3718829cca0a
-     name: nginx-deployment-7ff586d896-kvwzl
-     namespace: default
-     ownerReferences:
-     - apiVersion: v1
-       blockOwnerDeletion: false
-       controller: true
-       kind: Pod
-       name: nginx-deployment-7ff586d896-kvwzl
-       uid: e271fbf6-faff-42e3-bd40-3718829cca0a
-     resourceVersion: "133768304"
-     selfLink: /apis/spiffeid.spiffe.io/v1beta1/namespaces/default/spiffeids/nginx-deployment-7ff586d896-kvwzl
-     uid: 89d51335-aebc-4df0-afd2-cce0d8d7b562
-   spec:
-     dnsNames:
-     - nginx-deployment-7ff586d896-kvwzl
-     parentId: spiffe://example.org/k8s-workload-registrar/demo-cluster/node/gke-fmemon-cluster-default-pool-0729ba70-563y
-     selector:
-       namespace: default
-       nodeName: gke-fmemon-cluster-default-pool-0729ba70-563y
-       podUid: e271fbf6-faff-42e3-bd40-3718829cca0a
-     spiffeId: spiffe://example.org/ns/default/id/nginx
-   status:
-     entryId: e87b1f27-871a-4755-86fd-0debe10362d5
+  $ kubectl get spiffeids
+  NAME                                AGE
+  nginx-deployment-7ffbd8bd54-rcnt8   4s
+  $ kubectl get spiffeids nginx-deployment-7ffbd8bd54-rcnt8 -o yaml
+  apiVersion: v1
+  apiVersion: spiffeid.spiffe.io/v1beta1
+  kind: SpiffeID
+  metadata:
+    creationTimestamp: "2021-09-08T00:25:38Z"
+    finalizers:
+    - finalizers.spiffeid.spiffe.io
+    generation: 1
+    labels:
+      podUid: 2849bd42-ed7c-4652-af0b-382911c11f52
+    managedFields:
+    - apiVersion: spiffeid.spiffe.io/v1beta1
+      fieldsType: FieldsV1
+      fieldsV1:
+        f:metadata:
+          f:finalizers:
+            .: {}
+            v:"finalizers.spiffeid.spiffe.io": {}
+          f:labels:
+            .: {}
+            f:podUid: {}
+          f:ownerReferences:
+            .: {}
+            k:{"uid":"2849bd42-ed7c-4652-af0b-382911c11f52"}:
+              .: {}
+              f:apiVersion: {}
+              f:blockOwnerDeletion: {}
+              f:controller: {}
+              f:kind: {}
+              f:name: {}
+              f:uid: {}
+        f:spec:
+          .: {}
+          f:dnsNames: {}
+          f:parentId: {}
+          f:selector:
+            .: {}
+            f:namespace: {}
+            f:nodeName: {}
+            f:podUid: {}
+          f:spiffeId: {}
+        f:status:
+          .: {}
+          f:entryId: {}
+      manager: k8s-workload-registrar
+      operation: Update
+      time: "2021-09-08T00:25:38Z"
+    name: nginx-deployment-7ffbd8bd54-rcnt8
+    namespace: default
+    ownerReferences:
+    - apiVersion: v1
+      blockOwnerDeletion: false
+      controller: true
+      kind: Pod
+      name: nginx-deployment-7ffbd8bd54-rcnt8
+      uid: 2849bd42-ed7c-4652-af0b-382911c11f52
+    resourceVersion: "1271013"
+    uid: 395a6a0b-21bb-43d4-a3df-28a143785235
+  spec:
+    dnsNames:
+    - nginx-deployment-7ffbd8bd54-rcnt8
+    parentId: spiffe://example.org/k8s-workload-registrar/demo-cluster/node/docker-desktop
+    selector:
+      namespace: default
+      nodeName: docker-desktop
+      podUid: 2849bd42-ed7c-4652-af0b-382911c11f52
+    spiffeId: spiffe://example.org/ns/default/pod/nginx-deployment-7ffbd8bd54-rcnt8
+  status:
+    entryId: 617077a0-4c39-491a-8649-6b2f296a60f7
    ```
 
 1. Delete the NGINX deployment, this will automatically delete the SpiffeID resource
@@ -213,13 +250,13 @@ We can test this using the NGINX example deployment:
 
 1. Delete the CRD. This needs to be done before remove the Kubernetes Workload Registrar to give the finalizers a chance to complete.
    ```
-   kubectl delete -f config/spiffeid.spiffe.io_spiffeids.yaml
+   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml
    ```
 
 1. Delete the remaining previously applied yaml files.
    ```
-   kubectl delete -f config/spire-server-registrar.yaml \
-                  -f config/spire-agent.yaml
+   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
+                  -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-agent.yaml
    ```
 
 ## Workload Registration

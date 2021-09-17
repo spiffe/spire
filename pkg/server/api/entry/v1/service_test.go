@@ -1497,6 +1497,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		reqEntries    []*types.Entry
 
 		// fake ds configurations
+		noCustomCreate  bool
 		dsError         error
 		dsResults       map[string]*common.RegistrationEntry
 		expectDsEntries map[string]*common.RegistrationEntry
@@ -1521,6 +1522,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.TTL:            "60",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 				{
@@ -1546,6 +1548,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value",
 						telemetry.SPIFFEID:       "spiffe://example.org/malformed",
 						telemetry.TTL:            "0",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 				{
@@ -1563,6 +1566,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload2",
 						telemetry.TTL:            "0",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 			},
@@ -1626,6 +1630,74 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
+			name: "Valid Store SVID entry",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:        "entry1",
+						ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+						SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/svidstore"},
+						StoreSvid: true,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/agent",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.RevisionNumber: "0",
+						telemetry.SPIFFEID:       "spiffe://example.org/svidstore",
+						telemetry.TTL:            "0",
+						telemetry.StoreSvid:      "true",
+					},
+				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId:  true,
+				SpiffeId:  true,
+				StoreSvid: true,
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id: "entry1",
+					ParentId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "agent",
+					},
+					SpiffeId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/svidstore",
+					},
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+						{Type: "type", Value: "value2"},
+					},
+					StoreSvid: true,
+				}},
+			expectDsEntries: map[string]*common.RegistrationEntry{
+				"entry1": {
+					EntryId:  "entry1",
+					ParentId: "spiffe://example.org/agent",
+					SpiffeId: "spiffe://example.org/svidstore",
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value1"},
+						{Type: "type", Value: "value2"},
+					},
+					StoreSvid: true,
+				},
+			},
+		},
+		{
 			name: "no output mask",
 			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
@@ -1644,6 +1716,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						ExpiresAt:     expiresAt,
 						FederatesWith: []string{"domain1.org"},
 						Ttl:           60,
+						StoreSvid:     false,
 					},
 				},
 			},
@@ -1667,6 +1740,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.TTL:            "60",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 			},
@@ -1702,6 +1776,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.TTL:            "60",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 			},
@@ -1765,6 +1840,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1",
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
 						telemetry.TTL:            "60",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 			},
@@ -1817,9 +1893,11 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.TTL:            "20",
 						telemetry.StatusCode:     "AlreadyExists",
 						telemetry.StatusMessage:  "similar entry already exists",
+						telemetry.StoreSvid:      "false",
 					},
 				},
 			},
+			noCustomCreate: true,
 		},
 		{
 			name: "invalid entry",
@@ -1850,6 +1928,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.ExpiresAt:      "0",
 						telemetry.RevisionNumber: "0",
 						telemetry.TTL:            "0",
+						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "InvalidArgument",
 						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
 					},
@@ -1889,6 +1968,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.TTL:            "60",
+						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to create entry: creating error",
 					},
@@ -1937,6 +2017,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.TTL:            "60",
+						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
 					},
@@ -1971,7 +2052,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			defaultEntryID := createTestEntries(t, ds, defaultEntry)[defaultEntry.SpiffeId].EntryId
 
 			// Setup fake
-			ds.customCreate = true
+			ds.customCreate = !tt.noCustomCreate
 			ds.t = t
 			ds.expectEntries = tt.expectDsEntries
 			ds.results = tt.dsResults
@@ -2575,6 +2656,20 @@ func TestBatchUpdateEntry(t *testing.T) {
 		DnsNames:   []string{"dns1", "dns2"},
 		Downstream: true,
 	}
+	storeSvidEntry := &types.Entry{
+		ParentId:  parent,
+		SpiffeId:  entry1SpiffeID,
+		Ttl:       60,
+		StoreSvid: true,
+		Selectors: []*types.Selector{
+			{Type: "typ", Value: "key1:value"},
+			{Type: "typ", Value: "key2:value"},
+		},
+		FederatesWith: []string{
+			federatedTd.String(),
+		},
+		ExpiresAt: expiresAt,
+	}
 	updateEverythingEntry := &types.Entry{
 		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
@@ -2781,6 +2876,102 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.Selectors:      "unix:uid:2000,unix:gid:2000",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Update StoreSVID with Selectors",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			outputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					StoreSvid: true,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "key1:value"},
+						{Type: "type", Value: "key2:value"},
+					},
+				},
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						StoreSvid: true,
+						Selectors: []*types.Selector{
+							{Type: "type", Value: "key1:value"},
+							{Type: "type", Value: "key2:value"},
+						},
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Selectors:      "type:key1:value,type:key2:value",
+							telemetry.StoreSvid:      "true",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Update from StoreSVID to normal",
+			initialEntries: []*types.Entry{storeSvidEntry},
+			inputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			outputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					StoreSvid: false,
+					Selectors: []*types.Selector{
+						{Type: "type1", Value: "key1:value"},
+						{Type: "type2", Value: "key2:value"},
+					},
+				},
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						StoreSvid: false,
+						Selectors: []*types.Selector{
+							{Type: "type1", Value: "key1:value"},
+							{Type: "type2", Value: "key2:value"},
+						},
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Selectors:      "type1:key1:value,type2:key2:value",
+							telemetry.StoreSvid:      "false",
 						},
 					},
 				}
@@ -3092,6 +3283,53 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
+			name:           "Fail StoreSvid with invalid Selectors",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				StoreSvid: true,
+				Selectors: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					StoreSvid: true,
+					Selectors: []*types.Selector{
+						{Type: "type1", Value: "key1:value"},
+						{Type: "type2", Value: "key2:value"},
+					},
+				},
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to update entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.StatusCode:     "Internal",
+							telemetry.StatusMessage:  "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Selectors:      "type1:key1:value,type2:key2:value",
+							telemetry.StoreSvid:      "true",
+						},
+					},
+				}
+			},
+		},
+		{
 			name:           "Fail Invalid Spiffe Id",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask: &types.EntryMask{
@@ -3388,6 +3626,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Selectors:      "unix:uid:9999",
 							telemetry.SPIFFEID:       "spiffe://example.org/validUpdated",
 							telemetry.TTL:            "500000",
+							telemetry.StoreSvid:      "false",
 						},
 					},
 				}
@@ -3612,31 +3851,31 @@ func newFakeDS(t *testing.T) *fakeDS {
 	}
 }
 
-func (f *fakeDS) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+func (f *fakeDS) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	if !f.customCreate {
-		return f.DataStore.CreateRegistrationEntry(ctx, entry)
+		return f.DataStore.CreateOrReturnRegistrationEntry(ctx, entry)
 	}
 
 	if f.err != nil {
-		return nil, f.err
+		return nil, false, f.err
 	}
 	entryID := entry.EntryId
 
 	expect, ok := f.expectEntries[entryID]
-	assert.True(f.t, ok, "no expect entry found")
+	assert.True(f.t, ok, "no expect entry found for entry %q", entryID)
 
 	// Validate we get expected entry
 	spiretest.AssertProtoEqual(f.t, expect, entry)
 
 	// Return expect when no custom result configured
 	if len(f.results) == 0 {
-		return expect, nil
+		return expect, false, nil
 	}
 
 	res, ok := f.results[entryID]
 	assert.True(f.t, ok, "no result found")
 
-	return res, nil
+	return res, false, nil
 }
 
 type entryFetcher struct {

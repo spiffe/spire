@@ -3,12 +3,13 @@ package catalog
 import (
 	"context"
 
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func newHostServer(pluginName string, hostServices []HostServiceServer) *grpc.Server {
+func newHostServer(pluginName string, hostServices []pluginsdk.ServiceServer) *grpc.Server {
 	s := grpc.NewServer(
 		grpc.ChainStreamInterceptor(
 			streamPanicInterceptor,
@@ -20,7 +21,7 @@ func newHostServer(pluginName string, hostServices []HostServiceServer) *grpc.Se
 		),
 	)
 	for _, hostService := range hostServices {
-		hostService.ServiceServer.RegisterServer(s)
+		hostService.RegisterServer(s)
 	}
 	return s
 }
