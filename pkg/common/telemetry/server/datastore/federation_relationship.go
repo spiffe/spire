@@ -11,8 +11,20 @@ func StartCreateFederationRelationshipCall(m telemetry.Metrics) *telemetry.CallC
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.Create)
 }
 
+// StartDeleteFederationRelationshipCall return metric
+// for server's datastore, on deleting a federation relationship.
+func StartDeleteFederationRelationshipCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.Delete)
+}
+
 // StartFetchFederationRelationship return metric
 // for server's datastore, on fetching a federation relationship.
 func StartFetchFederationRelationshipCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.Fetch)
+}
+
+// StartListFederationRelationshipsCall return metric
+// for server's datastore, on listing federation relationships.
+func StartListFederationRelationshipsCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.List)
 }

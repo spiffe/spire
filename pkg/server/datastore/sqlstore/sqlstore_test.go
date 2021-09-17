@@ -30,7 +30,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (
@@ -349,7 +348,6 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 	tests := []struct {
 		name               string
 		pagination         *datastore.Pagination
-		byExpiresBefore    *wrapperspb.Int64Value
 		expectedList       []*common.Bundle
 		expectedPagination *datastore.Pagination
 		expectedErr        string
@@ -3182,6 +3180,56 @@ func (s *PluginSuite) TestPruneJoinTokens() {
 	s.Nil(resp)
 }
 
+func (s *PluginSuite) TestDeleteFederationRelationship() {
+	testCases := []struct {
+		name        string
+		trustDomain spiffeid.TrustDomain
+		expErr      string
+		setupFn     func()
+	}{
+		{
+			name:        "deleting an existent federation relationship succeeds",
+			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+			setupFn: func() {
+				_, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				})
+				s.Require().NoError(err)
+			},
+		},
+		{
+			name:        "deleting an unexistent federation relationship returns not found",
+			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
+			expErr:      "rpc error: code = NotFound desc = datastore-sql: record not found",
+		},
+		{
+			name:   "deleting a federation relationship using an empty trust domain fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			if tt.setupFn != nil {
+				tt.setupFn()
+			}
+
+			err := s.ds.DeleteFederationRelationship(ctx, tt.trustDomain)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
+				return
+			}
+			s.Require().NoError(err)
+
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustDomain)
+			s.Require().NoError(err)
+			s.Require().Nil(fr)
+		})
+	}
+}
+
 func (s *PluginSuite) TestFetchFederationRelationship() {
 	testCases := []struct {
 		name        string
@@ -3279,7 +3327,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 				return
 			}
 
-			s.Require().Nil(err)
+			s.Require().NoError(err)
 			s.Require().Equal(tt.expFR, fr)
 		})
 	}
@@ -3399,13 +3447,138 @@ func (s *PluginSuite) TestCreateFederationRelationship() {
 		})
 	}
 }
-func requireURLFromString(t *testing.T, s string) *url.URL {
-	url, err := url.Parse(s)
-	if err != nil {
-		require.FailNow(t, err.Error())
+
+func (s *PluginSuite) TestListFederationRelationships() {
+	fr1 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-1.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
 	}
-	return url
+	_, err := s.ds.CreateFederationRelationship(ctx, fr1)
+	s.Require().NoError(err)
+
+	s.createBundle("spiffe://example-2.org")
+	fr2 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-2.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-2-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://example-2.org/test"),
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr2)
+	s.Require().NoError(err)
+
+	fr3 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-3.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-3-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr3)
+	s.Require().NoError(err)
+
+	fr4 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-4.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-4-web.org/bundleendpoint"),
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr4)
+	s.Require().NoError(err)
+
+	tests := []struct {
+		name               string
+		pagination         *datastore.Pagination
+		expectedList       []*datastore.FederationRelationship
+		expectedPagination *datastore.Pagination
+		expectedErr        string
+	}{
+		{
+			name:         "no pagination",
+			expectedList: []*datastore.FederationRelationship{fr1, fr2, fr3, fr4},
+		},
+		{
+			name: "page size bigger than items",
+			pagination: &datastore.Pagination{
+				PageSize: 5,
+			},
+			expectedList: []*datastore.FederationRelationship{fr1, fr2, fr3, fr4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 5,
+			},
+		},
+		{
+			name: "pagination page size is zero",
+			pagination: &datastore.Pagination{
+				PageSize: 0,
+			},
+			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
+		},
+		{
+			name: "bundles first page",
+			pagination: &datastore.Pagination{
+				Token:    "0",
+				PageSize: 2,
+			},
+			expectedList: []*datastore.FederationRelationship{fr1, fr2},
+			expectedPagination: &datastore.Pagination{Token: "2",
+				PageSize: 2,
+			},
+		},
+		{
+			name: "federation relationships second page",
+			pagination: &datastore.Pagination{
+				Token:    "2",
+				PageSize: 2,
+			},
+			expectedList: []*datastore.FederationRelationship{fr3, fr4},
+			expectedPagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "federation relationships third page",
+			expectedList: []*datastore.FederationRelationship{},
+			pagination: &datastore.Pagination{
+				Token:    "4",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "invalid token",
+			expectedList: []*datastore.FederationRelationship{},
+			expectedErr:  "rpc error: code = InvalidArgument desc = could not parse token 'invalid token'",
+			pagination: &datastore.Pagination{
+				Token:    "invalid token",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{
+				Pagination: test.pagination,
+			})
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			require.Equal(t, test.expectedList, resp.FederationRelationships)
+			require.Equal(t, test.expectedPagination, resp.Pagination)
+		})
+	}
 }
+
 func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 	dbVersion := 8
 
@@ -3911,4 +4084,12 @@ func createBundles(t *testing.T, ds *Plugin, trustDomains []string) {
 		})
 		require.NoError(t, err)
 	}
+}
+
+func requireURLFromString(t *testing.T, s string) *url.URL {
+	url, err := url.Parse(s)
+	if err != nil {
+		require.FailNow(t, err.Error())
+	}
+	return url
 }

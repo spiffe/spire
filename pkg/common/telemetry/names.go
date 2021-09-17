@@ -106,6 +106,9 @@ const (
 	// (agent or server)
 	StorePrivateKey = "store_private_key"
 
+	// StoreSVIDUpdates related to storing SVID updates in SVIDStore plugins
+	StoreSVIDUpdates = "store_svid_updates"
+
 	// Sync functionality for syncing (such as CA manager updates). Should
 	// be used with other tags to add clarity
 	Sync = "sync"
@@ -135,6 +138,12 @@ const (
 
 	// Audience tags some audience for a token
 	Audience = "audience"
+
+	// BundleEndpointProfile is the name of the bundle endpoint profile
+	BundleEndpointProfile = "bundle_endpoint_profile"
+
+	// BundleEndpointURL is the URL of the bundle endpoint
+	BundleEndpointURL = "bundle_endpoint_url"
 
 	// ByBanned tags filtering by banned agents
 	ByBanned = "by_banned"
@@ -436,7 +445,10 @@ const (
 	// Type tags a type
 	Type = "type"
 
-	// TrustDomainID tags some trust domain ID
+	// TrustDomain tags the name of some trust domain
+	TrustDomain = "trust_domain"
+
+	// TrustDomainID tags the ID of some trust domain
 	TrustDomainID = "trust_domain_id"
 
 	// Unknown tags some unknown caller, entity, or status
@@ -500,6 +512,9 @@ const (
 
 	// Cache functionality related to a cache
 	Cache = "cache"
+
+	// Cache type tag
+	CacheType = "cache_type"
 
 	// CacheManager functionality related to a cache manager
 	CacheManager = "cache_manager"
@@ -581,6 +596,9 @@ const (
 
 	// SVIDRotator functionality related to a SVID rotator
 	SVIDRotator = "svid_rotator"
+
+	// SVIDStore tags an SVID store plugin/type (eg. aws_secretsmanager)
+	SVIDStore = "svid_store"
 
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
@@ -720,6 +738,9 @@ const (
 
 	// ServerKeyManager attached to all operations related to the server KeyManager interface
 	ServerKeyManager = "server_key_manager"
+
+	// Store functionality related to SVID Store service
+	Store = "store"
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"

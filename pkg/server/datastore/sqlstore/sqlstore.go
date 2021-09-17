@@ -470,6 +470,19 @@ func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastor
 	})
 }
 
+// DeleteFederationRelationship deletes the federation relationship to the
+// given trust domain. The associated trust bundle is not deleted.
+func (ds *Plugin) DeleteFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) error {
+	if trustDomain.IsZero() {
+		return status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = deleteFederationRelationship(tx, trustDomain)
+		return err
+	})
+}
+
 // FetchFederationRelationship fetches the federation relationship that matches
 // the given trust domain. If the federation relationship is not found, nil is returned.
 func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (fr *datastore.FederationRelationship, err error) {
@@ -485,6 +498,17 @@ func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain s
 	}
 
 	return fr, nil
+}
+
+// ListFederationRelationships can be used to list all existing federation relationships
+func (ds *Plugin) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (resp *datastore.ListFederationRelationshipsResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = listFederationRelationships(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // Configure parses HCL config payload into config struct, and opens new DB based on the result
@@ -3284,6 +3308,17 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 	return fr, nil
 }
 
+func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) error {
+	model := new(FederatedTrustDomain)
+	if err := tx.Find(model, "trust_domain = ?", trustDomain.String()).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	if err := tx.Delete(model).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
 func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
 	var model FederatedTrustDomain
 	err := tx.Find(&model, "trust_domain = ?", trustDomain.String()).Error
@@ -3294,13 +3329,68 @@ func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) 
 		return nil, sqlError.Wrap(err)
 	}
 
+	return modelToFederationRelationship(tx, &model)
+}
+
+// listFederationRelationships can be used to fetch all existing federation relationshops.
+func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	if req.Pagination != nil && req.Pagination.PageSize == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	}
+
+	p := req.Pagination
+	var err error
+	if p != nil {
+		tx, err = applyPagination(p, tx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var federationRelationships []FederatedTrustDomain
+	if err := tx.Find(&federationRelationships).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	if p != nil {
+		p.Token = ""
+		// Set token only if page size is the same than federationRelationships len
+		if len(federationRelationships) > 0 {
+			lastEntry := federationRelationships[len(federationRelationships)-1]
+			p.Token = fmt.Sprint(lastEntry.ID)
+		}
+	}
+
+	resp := &datastore.ListFederationRelationshipsResponse{
+		Pagination:              p,
+		FederationRelationships: []*datastore.FederationRelationship{},
+	}
+	for _, model := range federationRelationships {
+		model := model // alias the loop variable since we pass it by reference below
+		federationRelationship, err := modelToFederationRelationship(tx, &model)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.FederationRelationships = append(resp.FederationRelationships, federationRelationship)
+	}
+
+	return resp, nil
+}
+
+func modelToFederationRelationship(tx *gorm.DB, model *FederatedTrustDomain) (*datastore.FederationRelationship, error) {
 	bundleEndpointURL, err := url.Parse(model.BundleEndpointURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse URL: %w", err)
 	}
 
+	td, err := spiffeid.TrustDomainFromString(model.TrustDomain)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
 	fr := &datastore.FederationRelationship{
-		TrustDomain:           trustDomain,
+		TrustDomain:           td,
 		BundleEndpointURL:     bundleEndpointURL,
 		BundleEndpointProfile: datastore.BundleEndpointType(model.BundleEndpointProfile),
 	}
@@ -3314,7 +3404,7 @@ func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) 
 		}
 		fr.EndpointSPIFFEID = endpointSPIFFEID
 
-		bundle, err := fetchBundle(tx, trustDomain.IDString())
+		bundle, err := fetchBundle(tx, td.IDString())
 		if err != nil {
 			return nil, fmt.Errorf("unable to fetch bundle: %w", err)
 		}

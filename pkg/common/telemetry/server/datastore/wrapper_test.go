@@ -85,6 +85,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "DeleteBundle",
 		},
 		{
+			key:        "datastore.federation_relationship.delete",
+			methodName: "DeleteFederationRelationship",
+		},
+		{
 			key:        "datastore.join_token.delete",
 			methodName: "DeleteJoinToken",
 		},
@@ -131,6 +135,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.registration_entry.list",
 			methodName: "ListRegistrationEntries",
+		},
+		{
+			key:        "datastore.federation_relationship.list",
+			methodName: "ListFederationRelationships",
 		},
 		{
 			key:        "datastore.bundle.prune",
@@ -272,6 +280,10 @@ func (ds *fakeDataStore) CreateFederationRelationship(context.Context, *datastor
 	return &datastore.FederationRelationship{}, ds.err
 }
 
+func (ds *fakeDataStore) ListFederationRelationships(context.Context, *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+	return &datastore.ListFederationRelationshipsResponse{}, ds.err
+}
+
 func (ds *fakeDataStore) CreateJoinToken(context.Context, *datastore.JoinToken) error {
 	return ds.err
 }
@@ -289,6 +301,10 @@ func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.At
 }
 
 func (ds *fakeDataStore) DeleteBundle(context.Context, string, datastore.DeleteMode) error {
+	return ds.err
+}
+
+func (ds *fakeDataStore) DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error {
 	return ds.err
 }
 
