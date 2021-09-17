@@ -7,7 +7,6 @@ import (
 
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	agentstorev0 "github.com/spiffe/spire/proto/spire/hostservice/server/agentstore/v0"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -45,39 +44,8 @@ func (s *AgentStore) getDeps() (*Deps, error) {
 	return s.deps, nil
 }
 
-func (s *AgentStore) V0() agentstorev0.AgentStoreServer {
-	return &agentStoreV0{s: s}
-}
-
 func (s *AgentStore) V1() agentstorev1.AgentStoreServer {
 	return &agentStoreV1{s: s}
-}
-
-type agentStoreV0 struct {
-	agentstorev0.UnsafeAgentStoreServer
-
-	s *AgentStore
-}
-
-func (v0 *agentStoreV0) GetAgentInfo(ctx context.Context, req *agentstorev0.GetAgentInfoRequest) (*agentstorev0.GetAgentInfoResponse, error) {
-	deps, err := v0.s.getDeps()
-	if err != nil {
-		return nil, err
-	}
-
-	attestedNode, err := deps.DataStore.FetchAttestedNode(ctx, req.AgentId)
-	if err != nil {
-		return nil, err
-	}
-	if attestedNode == nil {
-		return nil, status.Error(codes.NotFound, "no such agent")
-	}
-
-	return &agentstorev0.GetAgentInfoResponse{
-		Info: &agentstorev0.AgentInfo{
-			AgentId: req.AgentId,
-		},
-	}, nil
 }
 
 type agentStoreV1 struct {

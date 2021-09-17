@@ -2,8 +2,10 @@ package datastore
 
 import (
 	"context"
+	"net/url"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -48,6 +50,12 @@ type DataStore interface {
 	DeleteJoinToken(ctx context.Context, token string) error
 	FetchJoinToken(ctx context.Context, token string) (*JoinToken, error)
 	PruneJoinTokens(context.Context, time.Time) error
+
+	// Federation Relationships
+	CreateFederationRelationship(context.Context, *FederationRelationship) (*FederationRelationship, error)
+	FetchFederationRelationship(context.Context, spiffeid.TrustDomain) (*FederationRelationship, error)
+	ListFederationRelationships(context.Context, *ListFederationRelationshipsRequest) (*ListFederationRelationshipsResponse, error)
+	DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
@@ -162,4 +170,30 @@ type ListRegistrationEntriesRequest struct {
 type ListRegistrationEntriesResponse struct {
 	Entries    []*common.RegistrationEntry
 	Pagination *Pagination
+}
+
+type ListFederationRelationshipsRequest struct {
+	Pagination *Pagination
+}
+
+type ListFederationRelationshipsResponse struct {
+	FederationRelationships []*FederationRelationship
+	Pagination              *Pagination
+}
+
+type BundleEndpointType string
+
+const (
+	BundleEndpointSPIFFE BundleEndpointType = "https_spiffe"
+	BundleEndpointWeb    BundleEndpointType = "https_web"
+)
+
+type FederationRelationship struct {
+	TrustDomain           spiffeid.TrustDomain
+	BundleEndpointURL     *url.URL
+	BundleEndpointProfile BundleEndpointType
+
+	// Fields only used for 'https_spiffe' bundle endpoint profile
+	EndpointSPIFFEID spiffeid.ID
+	Bundle           *common.Bundle
 }

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -10,7 +11,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
@@ -20,14 +20,14 @@ const (
 	// bundle. It is important to try more than once within a refresh hint
 	// period so we can be resilient to temporary downtime or failures.
 	attemptsPerRefreshHint = 4
+
+	// configRefreshInterval is how often the manager reloads trust domain
+	// configs from the source and reconciles it against the current bundle
+	// updaters.
+	configRefreshInterval = time.Second * 10
 )
 
 type TrustDomainConfig struct {
-	// DeprecatedConfig indicates that the configuration comes from a deprecated
-	// configuration.
-	// TODO: Remove support for this deprecated config in 1.1.0.
-	DeprecatedConfig bool
-
 	// EndpointURL is the URL used to fetch the bundle of the federated
 	// trust domain. Is served by a SPIFFE bundle endpoint server.
 	EndpointURL string
@@ -44,27 +44,81 @@ type EndpointProfileInfo interface {
 
 type HTTPSWebProfile struct{}
 
+func (p HTTPSWebProfile) Name() string {
+	return "https_web"
+}
+
 type HTTPSSPIFFEProfile struct {
 	// EndpointSPIFFEID is the expected SPIFFE ID of the bundle endpoint server.
 	EndpointSPIFFEID spiffeid.ID
 }
 
+func (p HTTPSSPIFFEProfile) Name() string {
+	return "https_spiffe"
+}
+
+type TrustDomainConfigSource interface {
+	GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error)
+}
+
+type TrustDomainConfigSourceFunc func(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error)
+
+func (fn TrustDomainConfigSourceFunc) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
+	return fn(ctx)
+}
+
+type TrustDomainConfigMap map[spiffeid.TrustDomain]TrustDomainConfig
+
+func (m TrustDomainConfigMap) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
+	return m, nil
+}
+
 type ManagerConfig struct {
-	Log          logrus.FieldLogger
-	Metrics      telemetry.Metrics
-	DataStore    datastore.DataStore
-	Clock        clock.Clock
-	TrustDomains map[spiffeid.TrustDomain]TrustDomainConfig
+	Log       logrus.FieldLogger
+	Metrics   telemetry.Metrics
+	DataStore datastore.DataStore
+	Clock     clock.Clock
+	Source    TrustDomainConfigSource
 
 	// newBundleUpdater is a test hook to inject updater behavior
 	newBundleUpdater func(BundleUpdaterConfig) BundleUpdater
+
+	// configRefreshedCh is a test hook to learn when the trust domain config
+	// has been refreshed and be apprised of the next scheduled refresh.
+	configRefreshedCh chan time.Duration
+
+	// bundleRefreshedCh is a test hook to learn when a bundle has been
+	// refreshed and be apprised of the next scheduled refresh.
+	bundleRefreshedCh chan time.Duration
 }
 
 type Manager struct {
-	log      logrus.FieldLogger
-	metrics  telemetry.Metrics
-	clock    clock.Clock
-	updaters map[spiffeid.TrustDomain]BundleUpdater
+	log              logrus.FieldLogger
+	metrics          telemetry.Metrics
+	clock            clock.Clock
+	ds               datastore.DataStore
+	source           TrustDomainConfigSource
+	configRefreshMtx sync.Mutex
+	updatersMtx      sync.RWMutex
+	updaters         map[spiffeid.TrustDomain]*managedBundleUpdater
+
+	// test hooks
+	newBundleUpdater  func(BundleUpdaterConfig) BundleUpdater
+	configRefreshedCh chan time.Duration
+	bundleRefreshedCh chan time.Duration
+}
+
+type managedBundleUpdater struct {
+	BundleUpdater
+
+	wg     sync.WaitGroup
+	cancel context.CancelFunc
+	runCh  chan chan error
+}
+
+func (m *managedBundleUpdater) Stop() {
+	m.cancel()
+	m.wg.Wait()
 }
 
 func NewManager(config ManagerConfig) *Manager {
@@ -75,41 +129,144 @@ func NewManager(config ManagerConfig) *Manager {
 		config.newBundleUpdater = NewBundleUpdater
 	}
 
-	updaters := make(map[spiffeid.TrustDomain]BundleUpdater)
-	for trustDomain, trustDomainConfig := range config.TrustDomains {
-		updaters[trustDomain] = config.newBundleUpdater(BundleUpdaterConfig{
-			TrustDomainConfig: trustDomainConfig,
-			TrustDomain:       trustDomain,
-			DataStore:         config.DataStore,
-		})
-	}
-
 	return &Manager{
-		log:      config.Log,
-		metrics:  config.Metrics,
-		clock:    config.Clock,
-		updaters: updaters,
+		log:               config.Log,
+		metrics:           config.Metrics,
+		clock:             config.Clock,
+		ds:                config.DataStore,
+		source:            config.Source,
+		newBundleUpdater:  config.newBundleUpdater,
+		configRefreshedCh: config.configRefreshedCh,
+		bundleRefreshedCh: config.bundleRefreshedCh,
+		updaters:          make(map[spiffeid.TrustDomain]*managedBundleUpdater),
 	}
 }
 
 func (m *Manager) Run(ctx context.Context) error {
-	var tasks []func(context.Context) error
-	for trustDomain, updater := range m.updaters {
-		// alias the loop variables that are used by the closure
-		trustDomain := trustDomain
-		updater := updater
-		tasks = append(tasks, func(ctx context.Context) error {
-			return m.runUpdater(ctx, trustDomain, updater)
-		})
-	}
+	// Initialize the timer that will reload the configs. The initial duration
+	// isn't very important since we'll reset it after the reload has
+	// completed.
+	timer := m.clock.Timer(configRefreshInterval)
+	defer timer.Stop()
 
-	return util.RunTasks(ctx, tasks...)
+	for {
+		if err := m.refreshConfigs(ctx); err != nil {
+			m.log.WithError(err).Error("Failed to reload configs")
+		}
+		timer.Reset(configRefreshInterval)
+		m.notifyConfigRefreshed(ctx, configRefreshInterval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			m.log.Info("Shutting down")
+			return ctx.Err()
+		}
+	}
 }
 
-func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDomain, updater BundleUpdater) error {
+// RefreshBundleFor refreshes the trust domain bundle for the given trust
+// domain. If the trust domain is not managed by the manager, false is returned.
+func (m *Manager) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+	if err := m.refreshConfigs(ctx); err != nil {
+		m.log.WithError(err).Error("Failed to reload configs")
+	}
+
+	m.updatersMtx.RLock()
+	updater, ok := m.updaters[td]
+	m.updatersMtx.RUnlock()
+
+	if !ok {
+		return false, nil
+	}
+
+	_, _, err := updater.UpdateBundle(ctx)
+	return true, err
+}
+
+func (m *Manager) refreshConfigs(ctx context.Context) error {
+	m.configRefreshMtx.Lock()
+	defer m.configRefreshMtx.Unlock()
+
+	configs, err := m.source.GetTrustDomainConfigs(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Duplicate the configs map since we're going to mutate it while figuring
+	// out what needs to be started/updated/stopped.
+	configs = cloneTrustDomainConfigs(configs)
+
+	var toStop []func()
+	defer func() {
+		if len(toStop) > 0 {
+			m.log.Debug("Stopping stale updaters")
+			for _, stop := range toStop {
+				stop()
+			}
+			m.log.Debug("Done stopping stale updaters")
+		}
+	}()
+
+	m.updatersMtx.Lock()
+	defer m.updatersMtx.Unlock()
+
+	for td, updater := range m.updaters {
+		tdLog := m.log.WithField(telemetry.Entry, td)
+		if config, ok := configs[td]; ok {
+			// Updater still needed. Update the configuration and remove it
+			// from the configs list since so a new updater isn't started for
+			// this trust domain.
+			if updater.SetTrustDomainConfig(config) {
+				tdLog.WithFields(logrus.Fields{
+					telemetry.BundleEndpointURL:     config.EndpointURL,
+					telemetry.BundleEndpointProfile: config.EndpointProfile.Name(),
+				}).Info("Updated configuration for managed trust domain")
+			}
+			delete(configs, td)
+		} else {
+			// Updater no longer needed. Stage it to be stopped and remove it
+			// from the updaters list.
+			tdLog.Info("Trust domain no longer managed")
+			toStop = append(toStop, updater.Stop)
+			delete(m.updaters, td)
+		}
+	}
+
+	// The remaining configs are for newly managed trust domains. Create and
+	// start up an updater for it.
+	for td, config := range configs {
+		m.log.WithFields(logrus.Fields{
+			telemetry.BundleEndpointURL:     config.EndpointURL,
+			telemetry.BundleEndpointProfile: config.EndpointProfile.Name(),
+			telemetry.TrustDomain:           td,
+		}).Info("Trust domain is now managed")
+		ctx, cancel := context.WithCancel(ctx)
+		updater := &managedBundleUpdater{
+			BundleUpdater: m.newBundleUpdater(BundleUpdaterConfig{
+				TrustDomainConfig: config,
+				TrustDomain:       td,
+				DataStore:         m.ds,
+			}),
+			cancel: cancel,
+			runCh:  make(chan chan error),
+		}
+		m.updaters[td] = updater
+		updater.wg.Add(1)
+		go func(td spiffeid.TrustDomain) {
+			defer updater.wg.Done()
+			m.runUpdater(ctx, td, updater)
+		}(td)
+	}
+	return nil
+}
+
+func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDomain, updater BundleUpdater) {
+	// Initialize the timer. The initial duration does not matter since it will
+	// be reset with the actual refresh interval before first use.
+	timer := m.clock.Timer(time.Hour)
+	defer timer.Stop()
+
 	log := m.log.WithField("trust_domain", trustDomain)
-	log = log.WithField("bundle_endpoint_url", updater.TrustDomainConfig().EndpointURL)
-	log = log.WithField("bundle_endpoint_profile", updater.TrustDomainConfig().EndpointProfile.Name())
 	for {
 		var nextRefresh time.Duration
 		log.Debug("Polling for bundle update")
@@ -139,12 +296,34 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 			"at": m.clock.Now().Add(nextRefresh).UTC().Format(time.RFC3339),
 		}).Debug("Scheduling next bundle refresh")
 
-		timer := m.clock.Timer(nextRefresh)
+		// Notify the test hook
+		timer.Reset(nextRefresh)
+
+		m.notifyBundleRefreshed(ctx, nextRefresh)
+
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
+			log.Info("No longer polling for updates")
+			return
+		}
+	}
+}
+
+func (m *Manager) notifyConfigRefreshed(ctx context.Context, nextRefresh time.Duration) {
+	if m.configRefreshedCh != nil {
+		select {
+		case m.configRefreshedCh <- nextRefresh:
+		case <-ctx.Done():
+		}
+	}
+}
+
+func (m *Manager) notifyBundleRefreshed(ctx context.Context, nextRefresh time.Duration) {
+	if m.bundleRefreshedCh != nil {
+		select {
+		case m.bundleRefreshedCh <- nextRefresh:
+		case <-ctx.Done():
 		}
 	}
 }
@@ -153,10 +332,10 @@ func calculateNextUpdate(b *bundleutil.Bundle) time.Duration {
 	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
 }
 
-func (p HTTPSWebProfile) Name() string {
-	return "https_web"
-}
-
-func (p HTTPSSPIFFEProfile) Name() string {
-	return "https_spiffe"
+func cloneTrustDomainConfigs(configs map[spiffeid.TrustDomain]TrustDomainConfig) map[spiffeid.TrustDomain]TrustDomainConfig {
+	clone := make(map[spiffeid.TrustDomain]TrustDomainConfig, len(configs))
+	for k, v := range configs {
+		clone[k] = v
+	}
+	return clone
 }

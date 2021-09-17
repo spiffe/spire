@@ -139,6 +139,12 @@ const (
 	// Audience tags some audience for a token
 	Audience = "audience"
 
+	// BundleEndpointProfile is the name of the bundle endpoint profile
+	BundleEndpointProfile = "bundle_endpoint_profile"
+
+	// BundleEndpointURL is the URL of the bundle endpoint
+	BundleEndpointURL = "bundle_endpoint_url"
+
 	// ByBanned tags filtering by banned agents
 	ByBanned = "by_banned"
 
@@ -249,6 +255,9 @@ const (
 
 	// FederatesWithMatch tags a federates with match filter
 	FederatesWithMatch = "federates_with_match"
+
+	// FederationRelationship tags a federation relatioship
+	FederationRelationship = "federation_relationship"
 
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
@@ -436,7 +445,10 @@ const (
 	// Type tags a type
 	Type = "type"
 
-	// TrustDomainID tags some trust domain ID
+	// TrustDomain tags the name of some trust domain
+	TrustDomain = "trust_domain"
+
+	// TrustDomainID tags the ID of some trust domain
 	TrustDomainID = "trust_domain_id"
 
 	// Unknown tags some unknown caller, entity, or status

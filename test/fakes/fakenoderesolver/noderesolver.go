@@ -4,49 +4,30 @@ import (
 	"context"
 	"testing"
 
+	noderesolverv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/noderesolver/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/proto/spire/common"
-	noderesolverv0 "github.com/spiffe/spire/proto/spire/plugin/server/noderesolver/v0"
 	"github.com/spiffe/spire/test/plugintest"
 )
 
 func New(t *testing.T, name string, selectors map[string][]string) noderesolver.NodeResolver {
-	server := noderesolverv0.NodeResolverPluginServer(&nodeResolver{
-		name:      name,
+	server := noderesolverv1.NodeResolverPluginServer(&nodeResolver{
 		selectors: selectors,
 	})
 
-	v0 := new(noderesolver.V0)
-	plugintest.Load(t, catalog.MakeBuiltIn(name, server), v0)
-	return v0
+	v1 := new(noderesolver.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn(name, server), v1)
+	return v1
 }
 
 type nodeResolver struct {
-	noderesolverv0.UnimplementedNodeResolverServer
+	noderesolverv1.UnimplementedNodeResolverServer
 
-	name      string
 	selectors map[string][]string
 }
 
-func (p *nodeResolver) Resolve(ctx context.Context, req *noderesolverv0.ResolveRequest) (*noderesolverv0.ResolveResponse, error) {
-	resp := &noderesolverv0.ResolveResponse{
-		Map: map[string]*common.Selectors{},
-	}
-
-	for _, spiffeID := range req.BaseSpiffeIdList {
-		var selectors []*common.Selector
-		for _, value := range p.selectors[spiffeID] {
-			selectors = append(selectors, &common.Selector{
-				Type:  p.name,
-				Value: value,
-			})
-		}
-
-		resp.Map[spiffeID] = &common.Selectors{
-			Entries: selectors,
-		}
-	}
-
-	return resp, nil
+func (p *nodeResolver) Resolve(ctx context.Context, req *noderesolverv1.ResolveRequest) (*noderesolverv1.ResolveResponse, error) {
+	return &noderesolverv1.ResolveResponse{
+		SelectorValues: p.selectors[req.AgentId],
+	}, nil
 }
