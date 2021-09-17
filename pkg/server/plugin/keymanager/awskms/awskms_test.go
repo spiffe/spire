@@ -53,7 +53,7 @@ var (
 	"Version": "2012-10-17",
 	"Statement": [
 		{
-			"Sid": "Allow full access to role",
+			"Sid": "Allow full access to the SPIRE Server role",
 			"Effect": "Allow",
 			"Principal": {
 				"AWS": "arn:aws:iam::example-account-id:role/example-assumed-role-name"
@@ -675,7 +675,7 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "It will be mandatory for the SPIRE servers to assume an AWS role when using the default SPIRE key policy. Please assign a role to this SPIRE server instace.",
+					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.",
 				},
 			},
 		},
@@ -690,7 +690,7 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "It will be mandatory for the SPIRE servers to assume an AWS role when using the default SPIRE key policy. Please assign a role to this SPIRE server instace.",
+					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.",
 				},
 			},
 		},

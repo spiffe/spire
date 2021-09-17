@@ -754,7 +754,7 @@ func (p *Plugin) createDefaultPolicy(ctx context.Context) (*string, error) {
 	roleName, err := roleNameFromARN(*result.Arn)
 	if err != nil {
 		// the server has not assumed any role, use default KMS policy and log a warn message
-		p.log.Warn("It will be mandatory for the SPIRE servers to assume an AWS role when using the default SPIRE key policy. Please assign a role to this SPIRE server instace.")
+		p.log.Warn("In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.")
 		return nil, nil
 	}
 
@@ -763,7 +763,7 @@ func (p *Plugin) createDefaultPolicy(ctx context.Context) (*string, error) {
 	"Version": "2012-10-17",
 	"Statement": [
 		{
-			"Sid": "Allow full access to role",
+			"Sid": "Allow full access to the SPIRE Server role",
 			"Effect": "Allow",
 			"Principal": {
 				"AWS": "arn:aws:iam::%s:role/%s"

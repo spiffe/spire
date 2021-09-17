@@ -49,15 +49,15 @@ The IAM role must have an attached policy with the following permissions:
 The plugin can generate keys using a default key policy or it can load and use a user defined policy.
 
 #### Default key policy
-The default policy used by SPIRE depends on whether the SPIRE server has assumed a role or not.
+The default key policy relies on the SPIRE Server's assumed role. Therefore, it is mandatory
+for SPIRE server to assume a role in order to use the default policy.
 
-If SPIRE server has assumed a role (recommended), the keys are created by default with the following policy:
 ```json
 {
 	"Version": "2012-10-17",
 	"Statement": [
 		{
-			"Sid": "Allow full access to role",
+			"Sid": "Allow full access to the SPIRE Server role",
 			"Effect": "Allow",
 			"Principal": {
 				"AWS": "arn:aws:iam::111122223333:role/example-assumed-role-name"
@@ -84,29 +84,6 @@ If SPIRE server has assumed a role (recommended), the keys are created by defaul
 
 - The first statement of the policy gives the current SPIRE server assumed role full access to the CMK.
 - The second statement allows the keys and policy to be displayed in the KMS console.
-
-
-If SPIRE server is not running under any role, the plugin generates the keys by default using the [default KMS key policy](https://docs.aws.amazon.com/kms/latest/developerguide/key-policies.html#key-policy-default):
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "Enable IAM User Permissions",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::111122223333:root"
-            },
-            "Action": "kms:*",
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-- This statement grants the root account user full access to the key and allows it to set IAM policies
-so other principals can manage and use the key.
 
 
 #### Custom key policy
