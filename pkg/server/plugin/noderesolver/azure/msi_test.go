@@ -264,6 +264,11 @@ func (s *MSIResolverSuite) loadPlugin(options ...plugintest.Option) noderesolver
 			},
 		}, nil
 	}
+
+	resolver.hooks.msiAuthorizer = func() (autorest.Authorizer, error) {
+		return autorest.NullAuthorizer{}, nil
+	}
+
 	nr := new(noderesolver.V1)
 	plugintest.Load(s.T(), builtin(resolver), nr, options...)
 	return nr
