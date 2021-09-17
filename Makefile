@@ -516,7 +516,7 @@ $(protoc_gen_go_bin): | go-check
 	@echo "Installing protoc-gen-go $(protoc_gen_go_version)..."
 	$(E)rm -rf $(protoc_gen_go_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_dir)
-	$(E)$(go_path) go build -o $(protoc_gen_go_bin) google.golang.org/protobuf/cmd/protoc-gen-go
+	$(E)GOBIN=$(protoc_gen_go_dir) $(go_path) go install google.golang.org/protobuf/cmd/protoc-gen-go@$(protoc_gen_go_version)
 
 install-protoc-gen-go-grpc: $(protoc_gen_go_grpc_bin)
 
@@ -524,8 +524,7 @@ $(protoc_gen_go_grpc_bin): | go-check
 	@echo "Installing protoc-gen-go-grpc $(protoc_gen_go_grpc_version)..."
 	$(E)rm -rf $(protoc_gen_go_grpc_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_grpc_dir)
-	$(E)echo "module tools" > $(protoc_gen_go_grpc_dir)/go.mod
-	$(E)cd $(protoc_gen_go_grpc_dir) && GOBIN=$(protoc_gen_go_grpc_dir) $(go_path) go get google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
+	$(E)GOBIN=$(protoc_gen_go_grpc_dir) $(go_path) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(protoc_gen_go_grpc_version)
 
 install-protoc-gen-go-spire: $(protoc_gen_go_spire_bin)
 
@@ -533,8 +532,7 @@ $(protoc_gen_go_spire_bin): | go-check
 	@echo "Installing protoc-gen-go-spire $(protoc_gen_go_spire_version)..."
 	$(E)rm -rf $(protoc_gen_go_spire_base_dir)
 	$(E)mkdir -p $(protoc_gen_go_spire_dir)
-	$(E)echo "module tools" > $(protoc_gen_go_spire_dir)/go.mod
-	$(E)cd $(protoc_gen_go_spire_dir) && GOBIN=$(protoc_gen_go_spire_dir) $(go_path) go get github.com/spiffe/spire-plugin-sdk/cmd/protoc-gen-go-spire@$(protoc_gen_go_spire_version)
+	$(E)GOBIN=$(protoc_gen_go_spire_dir) $(go_path) go install github.com/spiffe/spire-plugin-sdk/cmd/protoc-gen-go-spire@$(protoc_gen_go_spire_version)
 
 install-mockgen: $(mockgen_bin)
 
@@ -542,4 +540,4 @@ $(mockgen_bin): | go-check
 	@echo "Installing mockgen $(mockgen_version)..."
 	$(E)rm -rf $(mockgen_base_dir)
 	$(E)mkdir -p $(mockgen_dir)
-	$(E)$(go_path) go build -o $(mockgen_bin) github.com/golang/mock/mockgen
+	$(E)GOBIN=$(mockgen_dir) $(go_path) go install github.com/golang/mock/mockgen@$(mockgen_version)
