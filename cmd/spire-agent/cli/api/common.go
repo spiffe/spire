@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 	"flag"
-	"net"
+	"path/filepath"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	workload_dial "github.com/spiffe/spire/api/workload/dial"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -22,10 +22,11 @@ type workloadClientMaker func(ctx context.Context, socketPath string, timeout ti
 
 // newClients is the default client maker
 func newWorkloadClient(ctx context.Context, socketPath string, timeout time.Duration) (*workloadClient, error) {
-	conn, err := workload_dial.Dial(ctx, &net.UnixAddr{
-		Name: socketPath,
-		Net:  "unix",
-	})
+	socketPath, err := filepath.Abs(socketPath)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := grpc.DialContext(ctx, "unix://"+socketPath, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
