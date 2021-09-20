@@ -214,6 +214,9 @@ const (
 	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
+	// EndpointSpiffeID tags endpoint SPIFFE ID
+	EndpointSpiffeID = "endpoint_spiffe_id"
+
 	// Error tag for some error that occurred. Limited usage, such as logging errors at
 	// non-error level.
 	Error = "error"
