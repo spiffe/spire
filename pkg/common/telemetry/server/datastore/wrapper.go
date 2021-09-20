@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -224,4 +225,10 @@ func (w metricsWrapper) UpdateRegistrationEntry(ctx context.Context, entry *comm
 	callCounter := StartUpdateRegistrationCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.UpdateRegistrationEntry(ctx, entry, mask)
+}
+
+func (w metricsWrapper) UpdateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (_ *datastore.FederationRelationship, err error) {
+	callCounter := StartUpdateFederationRelationshipCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.UpdateFederationRelationship(ctx, fr, mask)
 }

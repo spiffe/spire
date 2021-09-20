@@ -28,3 +28,9 @@ func StartFetchFederationRelationshipCall(m telemetry.Metrics) *telemetry.CallCo
 func StartListFederationRelationshipsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.List)
 }
+
+// StartUpdateFederationRelationshipCall return metric
+// for server's datastore, on updating a federation relationship.
+func StartUpdateFederationRelationshipCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.FederationRelationship, telemetry.Update)
+}
