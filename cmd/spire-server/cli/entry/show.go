@@ -134,7 +134,7 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 
 		selectors := make([]*types.Selector, len(c.selectors))
 		for i, sel := range c.selectors {
-			selector, err := parseSelector(sel)
+			selector, err := util.ParseSelector(sel)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing selectors: %w", err)
 			}

@@ -198,7 +198,7 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 
 	selectors := []*types.Selector{}
 	for _, s := range c.selectors {
-		cs, err := parseSelector(s)
+		cs, err := util.ParseSelector(s)
 		if err != nil {
 			return nil, err
 		}
