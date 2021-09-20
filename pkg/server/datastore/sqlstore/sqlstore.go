@@ -443,26 +443,8 @@ func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err er
 // If no bundle is provided and there is not a previusly stored bundle in the datastore, the
 // federation relationship is not created.
 func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (newFr *datastore.FederationRelationship, err error) {
-	if fr == nil {
-		return nil, status.Error(codes.InvalidArgument, "federation relationship is nil")
-	}
-
-	if fr.TrustDomain.IsZero() {
-		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
-	}
-
-	if fr.BundleEndpointURL == nil {
-		return nil, status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
-	}
-
-	switch fr.BundleEndpointProfile {
-	case datastore.BundleEndpointWeb:
-	case datastore.BundleEndpointSPIFFE:
-		if fr.EndpointSPIFFEID.IsZero() {
-			return nil, status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
-		}
-	default:
-		return nil, status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
+	if err := validateFederationRelationship(fr, protoutil.AllTrueFederationRelationshipMask); err != nil {
+		return nil, err
 	}
 
 	return newFr, ds.withWriteTx(ctx, func(tx *gorm.DB) error {
@@ -515,28 +497,8 @@ func (ds *Plugin) ListFederationRelationships(ctx context.Context, req *datastor
 // UpdateFederationRelationship updates the given federation relationship.
 // Attributes are only updated if the correspondent mask value is set to true.
 func (ds *Plugin) UpdateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (newFr *datastore.FederationRelationship, err error) {
-	if fr == nil {
-		return nil, status.Error(codes.InvalidArgument, "federation relationship is nil")
-	}
-
-	if fr.TrustDomain.IsZero() {
-		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
-	}
-
-	if mask.BundleEndpointUrl && fr.BundleEndpointURL == nil {
-		return nil, status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
-	}
-
-	if mask.BundleEndpointProfile {
-		switch fr.BundleEndpointProfile {
-		case datastore.BundleEndpointWeb:
-		case datastore.BundleEndpointSPIFFE:
-			if fr.EndpointSPIFFEID.IsZero() {
-				return nil, status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
-			}
-		default:
-			return nil, status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
-		}
+	if err := validateFederationRelationship(fr, mask); err != nil {
+		return nil, err
 	}
 
 	return newFr, ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) error {
@@ -3453,6 +3415,34 @@ func updateFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 	}
 
 	return modelToFederationRelationship(tx, &model)
+}
+
+func validateFederationRelationship(fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) error {
+	if fr == nil {
+		return status.Error(codes.InvalidArgument, "federation relationship is nil")
+	}
+
+	if fr.TrustDomain.IsZero() {
+		return status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if mask.BundleEndpointUrl && fr.BundleEndpointURL == nil {
+		return status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
+	}
+
+	if mask.BundleEndpointProfile {
+		switch fr.BundleEndpointProfile {
+		case datastore.BundleEndpointWeb:
+		case datastore.BundleEndpointSPIFFE:
+			if fr.EndpointSPIFFEID.IsZero() {
+				return status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
+			}
+		default:
+			return status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
+		}
+	}
+
+	return nil
 }
 
 func modelToFederationRelationship(tx *gorm.DB, model *FederatedTrustDomain) (*datastore.FederationRelationship, error) {
