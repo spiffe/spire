@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -138,4 +140,51 @@ func HashByte(b []byte) string {
 
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
+}
+
+func FieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) logrus.Fields {
+	fields := logrus.Fields{
+		telemetry.TrustDomainID: proto.TrustDomain,
+	}
+
+	if inputMask == nil || inputMask.RefreshHint {
+		fields[telemetry.RefreshHint] = proto.RefreshHint
+	}
+
+	if inputMask == nil || inputMask.SequenceNumber {
+		fields[telemetry.SequenceNumber] = proto.SequenceNumber
+	}
+
+	if inputMask == nil || inputMask.JwtAuthorities {
+		for k, v := range FieldsFromJwtAuthoritiesProto(proto.JwtAuthorities) {
+			fields[k] = v
+		}
+	}
+
+	if inputMask == nil || inputMask.X509Authorities {
+		for k, v := range FieldsFromX509AuthoritiesProto(proto.X509Authorities) {
+			fields[k] = v
+		}
+	}
+	return fields
+}
+
+func FieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields {
+	fields := make(logrus.Fields, 3*len(jwtAuthorities))
+	for i, jwtAuthority := range jwtAuthorities {
+		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityExpiresAt, i)] = jwtAuthority.ExpiresAt
+		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityKeyID, i)] = jwtAuthority.KeyId
+		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityPublicKeySHA256, i)] = HashByte(jwtAuthority.PublicKey)
+	}
+
+	return fields
+}
+
+func FieldsFromX509AuthoritiesProto(x509Authorities []*types.X509Certificate) logrus.Fields {
+	fields := make(logrus.Fields, len(x509Authorities))
+	for i, x509Authority := range x509Authorities {
+		fields[fmt.Sprintf("%s.%d", telemetry.X509AuthoritiesASN1SHA256, i)] = HashByte(x509Authority.Asn1)
+	}
+
+	return fields
 }
