@@ -43,6 +43,12 @@ type showCommand struct {
 
 	// Whether or not the entry is for a downstream SPIRE server
 	downstream bool
+
+	// Match used when filtering by federates with
+	matchFederatesWithOn string
+
+	// Match used when filtering by selectors
+	matchSelectorsOn string
 }
 
 func (c *showCommand) Name() string {
@@ -60,6 +66,8 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
+	f.StringVar(&c.matchFederatesWithOn, "matchFederatesWithOn", "superset", "The match mode used when filtering by federates with. Options: exact, any, superset and subset")
+	f.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
 }
 
 // Run executes all logic associated with a single invocation of the
@@ -74,9 +82,8 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return err
 	}
 
-	filteredEntries := c.filterByFederatedWith(entries)
-	commonutil.SortTypesEntries(filteredEntries)
-	printEntries(filteredEntries, env)
+	commonutil.SortTypesEntries(entries)
+	printEntries(entries, env)
 	return nil
 }
 
@@ -120,6 +127,11 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 	}
 
 	if len(c.selectors) != 0 {
+		matchSelectorBehavior, err := parseToSelectorMatch(c.matchSelectorsOn)
+		if err != nil {
+			return nil, err
+		}
+
 		selectors := make([]*types.Selector, len(c.selectors))
 		for i, sel := range c.selectors {
 			selector, err := parseSelector(sel)
@@ -130,7 +142,19 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 		}
 		filter.BySelectors = &types.SelectorMatch{
 			Selectors: selectors,
-			Match:     types.SelectorMatch_MATCH_EXACT,
+			Match:     matchSelectorBehavior,
+		}
+	}
+
+	if len(c.federatesWith) > 0 {
+		matchFederatesWithBehavior, err := parseToFederatesWithMatch(c.matchFederatesWithOn)
+		if err != nil {
+			return nil, err
+		}
+
+		filter.ByFederatesWith = &types.FederatesWithMatch{
+			TrustDomains: c.federatesWith,
+			Match:        matchFederatesWithBehavior,
 		}
 	}
 
@@ -154,46 +178,6 @@ func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entr
 	return entry, nil
 }
 
-// filterByFederatedWith evicts any value from the given entries slice that does
-// not contain at least one of the federated trust domains specified in the
-// federatesWith slice.
-func (c *showCommand) filterByFederatedWith(entries []*types.Entry) []*types.Entry {
-	// Build map for quick search
-	var federatedIDs map[string]bool
-	if len(c.federatesWith) > 0 {
-		federatedIDs = make(map[string]bool)
-		for _, federatesWith := range c.federatesWith {
-			federatedIDs[federatesWith] = true
-		}
-	}
-
-	// Filter slice in place
-	idx := 0
-	for _, e := range entries {
-		if keepEntry(e, federatedIDs) {
-			entries[idx] = e
-			idx++
-		}
-	}
-
-	return entries[:idx]
-}
-
-func keepEntry(e *types.Entry, federatedIDs map[string]bool) bool {
-	// If FederatesWith was specified, discard entries that don't match
-	if federatedIDs == nil {
-		return true
-	}
-
-	for _, federatesWith := range e.FederatesWith {
-		if federatedIDs[federatesWith] {
-			return true
-		}
-	}
-
-	return false
-}
-
 func printEntries(entries []*types.Entry, env *common_cli.Env) {
 	msg := fmt.Sprintf("Found %v ", len(entries))
 	msg = util.Pluralizer(msg, "entry", "entries", len(entries))
@@ -201,5 +185,35 @@ func printEntries(entries []*types.Entry, env *common_cli.Env) {
 	env.Println(msg)
 	for _, e := range entries {
 		printEntry(e, env.Printf)
+	}
+}
+
+func parseToSelectorMatch(match string) (types.SelectorMatch_MatchBehavior, error) {
+	switch match {
+	case "exact":
+		return types.SelectorMatch_MATCH_EXACT, nil
+	case "any":
+		return types.SelectorMatch_MATCH_ANY, nil
+	case "superset":
+		return types.SelectorMatch_MATCH_SUPERSET, nil
+	case "subset":
+		return types.SelectorMatch_MATCH_SUBSET, nil
+	default:
+		return types.SelectorMatch_MATCH_SUPERSET, fmt.Errorf("match behavior %q unknown", match)
+	}
+}
+
+func parseToFederatesWithMatch(match string) (types.FederatesWithMatch_MatchBehavior, error) {
+	switch match {
+	case "exact":
+		return types.FederatesWithMatch_MATCH_EXACT, nil
+	case "any":
+		return types.FederatesWithMatch_MATCH_ANY, nil
+	case "superset":
+		return types.FederatesWithMatch_MATCH_SUPERSET, nil
+	case "subset":
+		return types.FederatesWithMatch_MATCH_SUBSET, nil
+	default:
+		return types.FederatesWithMatch_MATCH_SUPERSET, fmt.Errorf("match behavior %q unknown", match)
 	}
 }
