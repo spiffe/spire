@@ -33,6 +33,229 @@ var (
 	federatedTd = spiffeid.RequireTrustDomainFromString("domain1.org")
 )
 
+func TestListFederationRelationships(t *testing.T) {
+	ds := newFakeDS(t)
+	test := setupServiceTest(t, ds)
+	defer test.Cleanup()
+
+	fr1 := &types.FederationRelationship{
+		TrustDomain:       "example-1.org",
+		BundleEndpointUrl: "https://endpoint-server-1/path",
+		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+				EndpointSpiffeId: "spiffe://domain.test/endpoint-server",
+				Bundle: &types.Bundle{
+					TrustDomain: "example-1.org",
+				},
+			},
+		},
+	}
+	dsFR1, err := api.ProtoToFederationRelationship(fr1)
+	require.NoError(t, err)
+	_, err = ds.CreateFederationRelationship(ctx, dsFR1)
+	require.NoError(t, err)
+
+	fr2 := &types.FederationRelationship{
+		TrustDomain:       "example-2.org",
+		BundleEndpointUrl: "https://endpoint-server-2/path",
+		BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{
+			HttpsWeb: &types.HTTPSWebProfile{},
+		},
+	}
+
+	dsFR2, err := api.ProtoToFederationRelationship(fr2)
+	require.NoError(t, err)
+	_, err = ds.CreateFederationRelationship(ctx, dsFR2)
+	require.NoError(t, err)
+
+	fr3 := &types.FederationRelationship{
+		TrustDomain:       "example-3.org",
+		BundleEndpointUrl: "https://endpoint-server-3/path",
+		BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{
+			HttpsWeb: &types.HTTPSWebProfile{},
+		},
+	}
+	dsFR3, err := api.ProtoToFederationRelationship(fr3)
+	require.NoError(t, err)
+	_, err = ds.CreateFederationRelationship(ctx, dsFR3)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name        string
+		code        codes.Code
+		err         string
+		expectDSErr error
+		expectPages [][]*types.FederationRelationship
+		expectLogs  [][]spiretest.LogEntry
+		outputMask  *types.FederationRelationshipMask
+		pageSize    int32
+	}{
+		{
+			name:        "all federation relationships at once with no mask",
+			expectPages: [][]*types.FederationRelationship{{fr1, fr2, fr3}},
+			expectLogs: [][]spiretest.LogEntry{
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status: "success",
+							telemetry.Type:   "audit",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "all federation relationships at once with most permissive mask",
+			expectPages: [][]*types.FederationRelationship{{fr1, fr2, fr3}},
+			outputMask: &types.FederationRelationshipMask{
+				BundleEndpointUrl:     true,
+				BundleEndpointProfile: true,
+			},
+			expectLogs: [][]spiretest.LogEntry{
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status: "success",
+							telemetry.Type:   "audit",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "all federation relationships at once filtered by mask",
+			expectPages: [][]*types.FederationRelationship{{fr1, fr2, fr3}},
+			outputMask: &types.FederationRelationshipMask{
+				BundleEndpointUrl:     false,
+				BundleEndpointProfile: false,
+			},
+			expectLogs: [][]spiretest.LogEntry{
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status: "success",
+							telemetry.Type:   "audit",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "page federation relationships",
+			expectPages: [][]*types.FederationRelationship{
+				{fr1, fr2},
+				{fr3},
+				{},
+			},
+			pageSize: 2,
+			expectLogs: [][]spiretest.LogEntry{
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status: "success",
+							telemetry.Type:   "audit",
+						},
+					},
+				},
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status: "success",
+							telemetry.Type:   "audit",
+						},
+					},
+				},
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status: "success",
+							telemetry.Type:   "audit",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "datastore failure",
+
+			err:         "failed to list federation relationships: oh no",
+			expectDSErr: errors.New("oh no"),
+			code:        codes.Internal,
+			expectLogs: [][]spiretest.LogEntry{
+				{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:        "error",
+							telemetry.Type:          "audit",
+							telemetry.StatusCode:    "Internal",
+							telemetry.StatusMessage: "failed to list federation relationships: oh no",
+						},
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+
+			ds.AppendNextError(tt.expectDSErr)
+
+			page := 0
+			var pageToken string
+			var actualPages [][]*types.FederationRelationship
+			for {
+				resp, err := test.client.ListFederationRelationships(ctx, &trustdomainv1.ListFederationRelationshipsRequest{
+					OutputMask: tt.outputMask,
+					PageSize:   tt.pageSize,
+					PageToken:  pageToken,
+				})
+				spiretest.AssertLastLogs(t, test.logHook.AllEntries(), tt.expectLogs[page])
+				page++
+				if tt.err != "" {
+					spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+					require.Nil(t, resp)
+
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				actualPages = append(actualPages, resp.FederationRelationships)
+				require.LessOrEqual(t, len(actualPages), page, "got more pages than expected")
+				pageToken = resp.NextPageToken
+				if pageToken == "" {
+					break
+				}
+			}
+
+			require.Len(t, actualPages, len(tt.expectPages), "unexpected number of federation relationships pages")
+			for i, actualPage := range actualPages {
+				expectPage := tt.expectPages[i]
+				require.Len(t, actualPage, len(expectPage), "unexpected number of federation relationships in page")
+
+				for j, actualFR := range actualPage {
+					expectFR := expectPage[j]
+					assertFederationRelationshipWithMask(t, expectFR, actualFR, tt.outputMask)
+				}
+			}
+		})
+	}
+}
+
 func TestBatchCreateFederationRelationship(t *testing.T) {
 	ca := testca.New(t, td)
 	caRaw := ca.X509Authorities()[0].Raw
@@ -67,13 +290,13 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
-		name            string
-		expectLogs      []spiretest.LogEntry
-		expectResults   []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result
-		outputMask      *types.FederationRelationshipMask
-		req             []*types.FederationRelationship
-		expectDSErr     error
-		customDSReponse *datastore.FederationRelationship
+		name             string
+		expectLogs       []spiretest.LogEntry
+		expectResults    []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result
+		outputMask       *types.FederationRelationshipMask
+		req              []*types.FederationRelationship
+		expectDSErr      error
+		customDSResponse *datastore.FederationRelationship
 	}{
 		{
 			name: "creating multiple trustdomains",
@@ -339,7 +562,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					},
 				},
 			},
-			customDSReponse: &datastore.FederationRelationship{},
+			customDSResponse: &datastore.FederationRelationship{},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -463,7 +686,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := newFakeDS(t)
-			ds.customDSResponse = tt.customDSReponse
+			ds.customDSResponse = tt.customDSResponse
 
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
@@ -785,6 +1008,27 @@ func createTestRelationships(t *testing.T, ds datastore.DataStore, relationships
 	for _, fr := range relationships {
 		_, err := ds.CreateFederationRelationship(ctx, fr)
 		require.NoError(t, err)
+	}
+}
+
+func assertFederationRelationshipWithMask(t *testing.T, expected, actual *types.FederationRelationship, m *types.FederationRelationshipMask) {
+	if expected == nil {
+		require.Nil(t, actual)
+		return
+	}
+
+	require.Equal(t, expected.TrustDomain, actual.TrustDomain)
+
+	if m == nil || m.BundleEndpointProfile {
+		require.Equal(t, expected.BundleEndpointProfile, actual.BundleEndpointProfile)
+	} else {
+		require.Nil(t, actual.BundleEndpointProfile)
+	}
+
+	if m == nil || m.BundleEndpointUrl {
+		require.Equal(t, expected.BundleEndpointUrl, actual.BundleEndpointUrl)
+	} else {
+		require.Empty(t, actual.BundleEndpointUrl)
 	}
 }
 
