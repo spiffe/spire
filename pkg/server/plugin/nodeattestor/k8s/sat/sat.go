@@ -56,9 +56,6 @@ type ClusterConfig struct {
 	// namespace (for example, "default:blog" or "production:web") to allow for node attestation
 	ServiceAccountAllowList []string `hcl:"service_account_allow_list"`
 
-	// TODO: Remove this in 1.1.0
-	ServiceAccountAllowListDeprecated []string `hcl:"service_account_whitelist"`
-
 	// UseTokenReviewAPI
 	//   If true token review API will be used for token validation
 	//   If false ServiceAccountKeyFile will be used for token validation
@@ -302,12 +299,6 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureR
 			if len(serviceAccountKeys) == 0 {
 				return nil, status.Errorf(codes.InvalidArgument, "cluster %q has no service account keys in %q", name, cluster.ServiceAccountKeyFile)
 			}
-		}
-
-		// TODO: Remove this in 1.1.0
-		if len(cluster.ServiceAccountAllowListDeprecated) > 0 {
-			p.log.Warn("The `service_account_whitelist` configurable is deprecated and will be removed in a future release. Please use `service_account_allow_list` instead.")
-			cluster.ServiceAccountAllowList = cluster.ServiceAccountAllowListDeprecated
 		}
 
 		if len(cluster.ServiceAccountAllowList) == 0 {

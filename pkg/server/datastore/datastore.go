@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -56,6 +57,7 @@ type DataStore interface {
 	FetchFederationRelationship(context.Context, spiffeid.TrustDomain) (*FederationRelationship, error)
 	ListFederationRelationships(context.Context, *ListFederationRelationshipsRequest) (*ListFederationRelationshipsResponse, error)
 	DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error
+	UpdateFederationRelationship(context.Context, *FederationRelationship, *types.FederationRelationshipMask) (*FederationRelationship, error)
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
