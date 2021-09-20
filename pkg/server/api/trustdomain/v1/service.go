@@ -3,7 +3,12 @@ package trustdomain
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/protoutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -50,7 +55,18 @@ func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomai
 }
 
 func (s *Service) BatchCreateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	var results []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result
+	for _, eachRelationship := range req.FederationRelationship {
+		r := s.createFederationRelationship(ctx, eachRelationship, req.OutputMask)
+		results = append(results, r)
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			return fieldsFromRelationshipProto(eachRelationship, nil)
+		})
+	}
+
+	return &trustdomainv1.BatchCreateFederationRelationshipResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) BatchUpdateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchUpdateFederationRelationshipRequest) (*trustdomainv1.BatchUpdateFederationRelationshipResponse, error) {
@@ -58,9 +74,138 @@ func (s *Service) BatchUpdateFederationRelationship(ctx context.Context, req *tr
 }
 
 func (s *Service) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	var results []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result
+	for _, td := range req.TrustDomains {
+		r := s.deleteFederationRelationship(ctx, td)
+		results = append(results, r)
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			return logrus.Fields{telemetry.TrustDomainID: td}
+		})
+	}
+
+	return &trustdomainv1.BatchDeleteFederationRelationshipResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
+func (s *Service) createFederationRelationship(ctx context.Context, f *types.FederationRelationship, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchCreateFederationRelationshipResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	dsFederationRelationship, err := api.ProtoToFederationRelationship(f)
+	if err != nil {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
+		}
+	}
+
+	log = log.WithField(telemetry.TrustDomainID, dsFederationRelationship.TrustDomain.String())
+
+	if s.td.Compare(dsFederationRelationship.TrustDomain) == 0 {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "unable to create federation relationship for server trust domain", nil),
+		}
+	}
+
+	resp, err := s.ds.CreateFederationRelationship(ctx, dsFederationRelationship)
+	if err != nil {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to create federation relationship", err),
+		}
+	}
+
+	tFederationRelationship, err := api.FederationRelationshipToProto(resp, outputMask)
+	if err != nil {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
+		}
+	}
+
+	log.Debug("federation relationship created")
+
+	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+		Status:                 api.OK(),
+		FederationRelationship: tFederationRelationship,
+	}
+}
+
+func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *trustdomainv1.BatchDeleteFederationRelationshipResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	if td == "" {
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: td,
+			Status:      api.MakeStatus(log, codes.InvalidArgument, "missing trust domain", nil),
+		}
+	}
+
+	log = log.WithField(telemetry.TrustDomainID, td)
+
+	trustDomain, err := spiffeid.TrustDomainFromString(td)
+	if err != nil {
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: td,
+			Status:      api.MakeStatus(log, codes.InvalidArgument, "failed to parse trust domain", err),
+		}
+	}
+
+	err = s.ds.DeleteFederationRelationship(ctx, trustDomain)
+	switch status.Code(err) {
+	case codes.OK:
+		log.Debug("federation relationship deleted")
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: trustDomain.String(),
+			Status:      api.OK(),
+		}
+	case codes.NotFound:
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: trustDomain.String(),
+			Status:      api.MakeStatus(log, codes.NotFound, "federation relationship not found", nil),
+		}
+	default:
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: trustDomain.String(),
+			Status:      api.MakeStatus(log, codes.Internal, "failed to delete federation relationship", err),
+		}
+	}
+}
+
+func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *types.FederationRelationshipMask) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if mask == nil {
+		mask = protoutil.AllTrueFederationRelationshipMask
+	}
+
+	if proto == nil {
+		return fields
+	}
+
+	if proto.TrustDomain != "" {
+		fields[telemetry.TrustDomainID] = proto.TrustDomain
+	}
+
+	if mask.BundleEndpointUrl {
+		fields[telemetry.BundleEndpointURL] = proto.BundleEndpointUrl
+	}
+
+	if mask.BundleEndpointProfile {
+		switch profile := proto.BundleEndpointProfile.(type) {
+		case *types.FederationRelationship_HttpsWeb:
+			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointWeb
+		case *types.FederationRelationship_HttpsSpiffe:
+			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointSPIFFE
+			fields[telemetry.EndpointSpiffeID] = profile.HttpsSpiffe.EndpointSpiffeId
+
+			bundleFields := api.FieldsFromBundleProto(proto.GetHttpsSpiffe().Bundle, nil)
+			for key, value := range bundleFields {
+				fields[key] = value
+			}
+		}
+	}
+
+	return fields
 }
