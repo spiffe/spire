@@ -34,7 +34,6 @@ var (
 )
 
 func TestBatchCreateFederationRelationship(t *testing.T) {
-	// testca.New()
 	ca := testca.New(t, td)
 	caRaw := ca.X509Authorities()[0].Raw
 
@@ -492,17 +491,301 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 	}
 }
 
-func createTestRelationships(t *testing.T, ds datastore.DataStore, relationships ...*datastore.FederationRelationship) map[string]*datastore.FederationRelationship {
-	frMap := make(map[string]*datastore.FederationRelationship)
+func TestBatchDeleteFederationRelationship(t *testing.T) {
+	ca := testca.New(t, td)
+	caRaw := ca.X509Authorities()[0].Raw
 
-	for _, fr := range relationships {
-		dRelationship, err := ds.CreateFederationRelationship(ctx, fr)
-		require.NoError(t, err)
-
-		frMap[dRelationship.TrustDomain.String()] = fr
+	fooURL, err := url.Parse("https://foo.test/path")
+	require.NoError(t, err)
+	fooFR := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+		BundleEndpointURL:     fooURL,
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
 	}
 
-	return frMap
+	barURL, err := url.Parse("https://bar.test/path")
+	require.NoError(t, err)
+	barFR := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
+		BundleEndpointURL:     barURL,
+		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/endpoint"),
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://bar.test",
+			RootCas: []*common.Certificate{
+				{
+					DerBytes: caRaw,
+				},
+			},
+			RefreshHint: 60,
+		},
+	}
+
+	bazURL, err := url.Parse("https://baz.test/path")
+	require.NoError(t, err)
+	bazFR := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("baz.test"),
+		BundleEndpointURL:     bazURL,
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+
+	allRelationships := []string{fooFR.TrustDomain.String(), barFR.TrustDomain.String(), bazFR.TrustDomain.String()}
+	for _, tt := range []struct {
+		name            string
+		dsError         error
+		expectDs        []string
+		expectResults   []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result
+		reqTrustDomains []string
+		expectLogs      []spiretest.LogEntry
+	}{
+		{
+			name:            "delete multiple trustdomains",
+			reqTrustDomains: []string{barFR.TrustDomain.String(), "not.found", bazFR.TrustDomain.String()},
+			expectDs:        []string{fooFR.TrustDomain.String()},
+			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+				{
+					Status:      api.OK(),
+					TrustDomain: "bar.test",
+				},
+				{
+					Status: &types.Status{
+						Code:    int32(codes.NotFound),
+						Message: "federation relationship not found",
+					},
+					TrustDomain: "not.found",
+				},
+				{
+					Status:      api.OK(),
+					TrustDomain: "baz.test",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "federation relationship deleted",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "bar.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.TrustDomainID: "bar.test",
+						telemetry.Type:          "audit",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Federation relationship not found",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "not.found",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.TrustDomainID: "not.found",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "federation relationship not found",
+					},
+				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "federation relationship deleted",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "baz.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.TrustDomainID: "baz.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+
+			name:            "empty trust domain",
+			reqTrustDomains: []string{""},
+			expectDs:        allRelationships,
+			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "missing trust domain",
+					},
+					TrustDomain: "",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: missing trust domain",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.TrustDomainID: "",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "missing trust domain",
+					},
+				},
+			},
+		},
+		{
+
+			name:            "malformed trust domain",
+			reqTrustDomains: []string{"https://foot.test"},
+			expectDs:        allRelationships,
+			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to parse trust domain: spiffeid: invalid scheme",
+					},
+					TrustDomain: "https://foot.test",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to parse trust domain",
+					Data: logrus.Fields{
+						logrus.ErrorKey:         "spiffeid: invalid scheme",
+						telemetry.TrustDomainID: "https://foot.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.TrustDomainID: "https://foot.test",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "failed to parse trust domain: spiffeid: invalid scheme",
+					},
+				},
+			},
+		},
+		{
+			name:            "not found",
+			reqTrustDomains: []string{"not.found"},
+			expectDs:        allRelationships,
+			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.NotFound),
+						Message: "federation relationship not found",
+					},
+					TrustDomain: "not.found",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Federation relationship not found",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "not.found",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.TrustDomainID: "not.found",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "federation relationship not found",
+					},
+				},
+			},
+		},
+		{
+			name:            "DS fails",
+			reqTrustDomains: []string{fooFR.TrustDomain.String()},
+			dsError:         errors.New("oh! no"),
+			expectDs:        allRelationships,
+			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to delete federation relationship: oh! no",
+					},
+					TrustDomain: "foo.test",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to delete federation relationship",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+						logrus.ErrorKey:         "oh! no",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.TrustDomainID: "foo.test",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to delete federation relationship: oh! no",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := fakedatastore.New(t)
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+
+			createTestRelationships(t, ds, fooFR, barFR, bazFR)
+			ds.SetNextError(tt.dsError)
+
+			resp, err := test.client.BatchDeleteFederationRelationship(ctx, &trustdomainv1.BatchDeleteFederationRelationshipRequest{
+				TrustDomains: tt.reqTrustDomains,
+			})
+			require.NoError(t, err)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			spiretest.AssertProtoEqual(t, &trustdomainv1.BatchDeleteFederationRelationshipResponse{
+				Results: tt.expectResults,
+			}, resp)
+
+			// Validate DS contains expected federation relationships
+			listResp, err := ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{})
+			require.NoError(t, err)
+
+			var tds []string
+			for _, fr := range listResp.FederationRelationships {
+				tds = append(tds, fr.TrustDomain.String())
+			}
+			require.Equal(t, tt.expectDs, tds)
+		})
+	}
+}
+
+func createTestRelationships(t *testing.T, ds datastore.DataStore, relationships ...*datastore.FederationRelationship) {
+	for _, fr := range relationships {
+		_, err := ds.CreateFederationRelationship(ctx, fr)
+		require.NoError(t, err)
+	}
 }
 
 type serviceTest struct {

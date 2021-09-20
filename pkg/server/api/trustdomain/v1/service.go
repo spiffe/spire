@@ -74,7 +74,18 @@ func (s *Service) BatchUpdateFederationRelationship(ctx context.Context, req *tr
 }
 
 func (s *Service) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	var results []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result
+	for _, td := range req.TrustDomains {
+		r := s.deleteFederationRelationship(ctx, td)
+		results = append(results, r)
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			return logrus.Fields{telemetry.TrustDomainID: td}
+		})
+	}
+
+	return &trustdomainv1.BatchDeleteFederationRelationshipResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
@@ -118,6 +129,47 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 		Status:                 api.OK(),
 		FederationRelationship: tFederationRelationship,
+	}
+}
+
+func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *trustdomainv1.BatchDeleteFederationRelationshipResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	if td == "" {
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: td,
+			Status:      api.MakeStatus(log, codes.InvalidArgument, "missing trust domain", nil),
+		}
+	}
+
+	log = log.WithField(telemetry.TrustDomainID, td)
+
+	trustDomain, err := spiffeid.TrustDomainFromString(td)
+	if err != nil {
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: td,
+			Status:      api.MakeStatus(log, codes.InvalidArgument, "failed to parse trust domain", err),
+		}
+	}
+
+	err = s.ds.DeleteFederationRelationship(ctx, trustDomain)
+	switch status.Code(err) {
+	case codes.OK:
+		log.Debug("federation relationship deleted")
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: trustDomain.String(),
+			Status:      api.OK(),
+		}
+	case codes.NotFound:
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: trustDomain.String(),
+			Status:      api.MakeStatus(log, codes.NotFound, "federation relationship not found", nil),
+		}
+	default:
+		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
+			TrustDomain: trustDomain.String(),
+			Status:      api.MakeStatus(log, codes.Internal, "failed to delete federation relationship", err),
+		}
 	}
 }
 
