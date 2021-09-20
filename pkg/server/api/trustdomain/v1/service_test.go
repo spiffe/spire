@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/spiffe/spire/test/util"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -34,10 +34,11 @@ var (
 )
 
 func TestBatchCreateFederationRelationship(t *testing.T) {
-	ca, _, err := util.LoadCAFixture()
-	require.NoError(t, err)
+	// testca.New()
+	ca := testca.New(t, td)
+	caRaw := ca.X509Authorities()[0].Raw
 
-	bundleEndpointURL, err := url.Parse("some.url/url")
+	bundleEndpointURL, err := url.Parse("https//some.url/url")
 	require.NoError(t, err)
 
 	defaultFederationRelationship := &datastore.FederationRelationship{
@@ -51,7 +52,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 	sb := &common.Bundle{
 		TrustDomainId: "spiffe://domain.test",
 		RefreshHint:   60,
-		RootCas:       []*common.Certificate{{DerBytes: ca.Raw}},
+		RootCas:       []*common.Certificate{{DerBytes: caRaw}},
 		JwtSigningKeys: []*common.PublicKey{
 			{
 				Kid:       "key-id-1",
@@ -61,7 +62,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 		},
 	}
 	pkixHashed := api.HashByte(pkixBytes)
-	x509AuthorityHashed := api.HashByte(ca.Raw)
+	x509AuthorityHashed := api.HashByte(caRaw)
 
 	defaultBundle, err := api.BundleToProto(sb)
 	require.NoError(t, err)
@@ -81,12 +82,12 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					TrustDomain:           "domain.test",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
-					BundleEndpointUrl:     "federated-td-web.org/bundleendpoint",
+					BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint",
 				},
 				{
 					TrustDomain:           "domain2.test",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
-					BundleEndpointUrl:     "federated-td-web.org/bundleendpoint2",
+					BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint2",
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -102,7 +103,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile: "https_web",
-						telemetry.BundleEndpointURL:     "federated-td-web.org/bundleendpoint",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
 						telemetry.Status:                "success",
 						telemetry.TrustDomainID:         "domain.test",
 						telemetry.Type:                  "audit",
@@ -120,7 +121,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile: "https_web",
-						telemetry.BundleEndpointURL:     "federated-td-web.org/bundleendpoint2",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint2",
 						telemetry.Status:                "success",
 						telemetry.TrustDomainID:         "domain2.test",
 						telemetry.Type:                  "audit",
@@ -132,7 +133,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Status: api.OK(),
 					FederationRelationship: &types.FederationRelationship{
 						TrustDomain:           "domain.test",
-						BundleEndpointUrl:     "federated-td-web.org/bundleendpoint",
+						BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint",
 						BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 					},
 				},
@@ -140,18 +141,18 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Status: api.OK(),
 					FederationRelationship: &types.FederationRelationship{
 						TrustDomain:           "domain2.test",
-						BundleEndpointUrl:     "federated-td-web.org/bundleendpoint2",
+						BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint2",
 						BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 					},
 				},
 			},
 		},
 		{
-			name: "create HttpsSpiffe relationshiop",
+			name: "create HttpsSpiffe relationship",
 			req: []*types.FederationRelationship{
 				{
 					TrustDomain:       "domain.test",
-					BundleEndpointUrl: "federated-td-web.org/bundleendpoint",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://domain.test/endpoint",
@@ -173,7 +174,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile:     "https_spiffe",
-						telemetry.BundleEndpointURL:         "federated-td-web.org/bundleendpoint",
+						telemetry.BundleEndpointURL:         "https://federated-td-web.org/bundleendpoint",
 						telemetry.Status:                    "success",
 						telemetry.TrustDomainID:             "domain.test",
 						telemetry.Type:                      "audit",
@@ -192,7 +193,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Status: api.OK(),
 					FederationRelationship: &types.FederationRelationship{
 						TrustDomain:       "domain.test",
-						BundleEndpointUrl: "federated-td-web.org/bundleendpoint",
+						BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
 						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 								EndpointSpiffeId: "spiffe://domain.test/endpoint",
@@ -209,7 +210,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					TrustDomain:           "domain.test",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
-					BundleEndpointUrl:     "federated-td-web.org/bundleendpoint",
+					BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint",
 				},
 			},
 			// Mask with all false
@@ -227,7 +228,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile: "https_web",
-						telemetry.BundleEndpointURL:     "federated-td-web.org/bundleendpoint",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
 						telemetry.Status:                "success",
 						telemetry.TrustDomainID:         "domain.test",
 						telemetry.Type:                  "audit",
@@ -249,7 +250,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					TrustDomain:           "no a td",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
-					BundleEndpointUrl:     "federated-td-web.org/bundleendpoint",
+					BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint",
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -265,7 +266,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile: "https_web",
-						telemetry.BundleEndpointURL:     "federated-td-web.org/bundleendpoint",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
 						telemetry.TrustDomainID:         "no a td",
 						telemetry.Type:                  "audit",
 						telemetry.Status:                "error",
@@ -289,7 +290,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					TrustDomain:           "domain.test",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
-					BundleEndpointUrl:     "federated-td-web.org/bundleendpoint",
+					BundleEndpointUrl:     "https://federated-td-web.org/bundleendpoint",
 				},
 			},
 			expectDSErr: errors.New("oh no"),
@@ -307,7 +308,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile: "https_web",
-						telemetry.BundleEndpointURL:     "federated-td-web.org/bundleendpoint",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
 						telemetry.TrustDomainID:         "domain.test",
 						telemetry.Type:                  "audit",
 						telemetry.Status:                "error",
@@ -330,7 +331,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			req: []*types.FederationRelationship{
 				{
 					TrustDomain:       "domain.test",
-					BundleEndpointUrl: "federated-td-web.org/bundleendpoint",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://domain.test/endpoint",
@@ -354,7 +355,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile:     "https_spiffe",
-						telemetry.BundleEndpointURL:         "federated-td-web.org/bundleendpoint",
+						telemetry.BundleEndpointURL:         "https://federated-td-web.org/bundleendpoint",
 						telemetry.Status:                    "error",
 						telemetry.StatusCode:                "Internal",
 						telemetry.StatusMessage:             "failed to convert datastore response: trust domain is required",
@@ -385,7 +386,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					TrustDomain:           defaultFederationRelationship.TrustDomain.String(),
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
-					BundleEndpointUrl:     "federated-td-web.org/another",
+					BundleEndpointUrl:     "https://federated-td-web.org/another",
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -402,7 +403,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.BundleEndpointProfile: "https_web",
-						telemetry.BundleEndpointURL:     "federated-td-web.org/another",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/another",
 						telemetry.Status:                "error",
 						telemetry.TrustDomainID:         "domain1.org",
 						telemetry.Type:                  "audit",
@@ -416,6 +417,46 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
 						Message: "failed to create federation relationship: datastore-sql: UNIQUE constraint failed: federated_trust_domains.trust_domain",
+					},
+				},
+			},
+		},
+		{
+			name: "using server trust domain",
+			req: []*types.FederationRelationship{
+				{
+					TrustDomain:           td.String(),
+					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+					BundleEndpointUrl:     "https://federated-td-web.org/another",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: unable to create federation relationship for server trust domain",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "example.org",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_web",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/another",
+						telemetry.Status:                "error",
+						telemetry.TrustDomainID:         "example.org",
+						telemetry.Type:                  "audit",
+						telemetry.StatusCode:            "InvalidArgument",
+						telemetry.StatusMessage:         "unable to create federation relationship for server trust domain",
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "unable to create federation relationship for server trust domain",
 					},
 				},
 			},
@@ -528,7 +569,7 @@ func newFakeDS(t *testing.T) *fakeDS {
 	}
 }
 
-// CreateFederationRelationship custom create function to validates custom relationship returned from ds
+// CreateFederationRelationship create custom function to validate custom relationship returned from ds
 func (d *fakeDS) CreateFederationRelationship(c context.Context, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	if d.customDSResponse != nil {
 		return d.customDSResponse, nil

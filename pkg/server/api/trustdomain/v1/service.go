@@ -81,6 +81,46 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
+func (s *Service) createFederationRelationship(ctx context.Context, f *types.FederationRelationship, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchCreateFederationRelationshipResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	dsFederationRelationship, err := api.ProtoToFederationRelationship(f)
+	if err != nil {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
+		}
+	}
+
+	log = log.WithField(telemetry.TrustDomainID, dsFederationRelationship.TrustDomain.String())
+
+	if s.td.Compare(dsFederationRelationship.TrustDomain) == 0 {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "unable to create federation relationship for server trust domain", nil),
+		}
+	}
+
+	resp, err := s.ds.CreateFederationRelationship(ctx, dsFederationRelationship)
+	if err != nil {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to create federation relationship", err),
+		}
+	}
+
+	tFederationRelationship, err := api.FederationRelationshipToProto(resp, outputMask)
+	if err != nil {
+		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
+		}
+	}
+
+	log.Debug("federation relationship created")
+
+	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+		Status:                 api.OK(),
+		FederationRelationship: tFederationRelationship,
+	}
+}
+
 func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *types.FederationRelationshipMask) logrus.Fields {
 	fields := logrus.Fields{}
 
@@ -105,7 +145,6 @@ func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *type
 		case *types.FederationRelationship_HttpsWeb:
 			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointWeb
 		case *types.FederationRelationship_HttpsSpiffe:
-			// TODO: may we set bundle as field? profile.HttpsSpiffe.Bundle
 			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointSPIFFE
 			fields[telemetry.EndpointSpiffeID] = profile.HttpsSpiffe.EndpointSpiffeId
 
@@ -117,38 +156,4 @@ func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *type
 	}
 
 	return fields
-}
-
-func (s *Service) createFederationRelationship(ctx context.Context, f *types.FederationRelationship, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchCreateFederationRelationshipResponse_Result {
-	log := rpccontext.Logger(ctx)
-
-	dsFederationRelationship, err := api.ProtoToFederationRelationship(f)
-	if err != nil {
-		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
-		}
-	}
-
-	log = log.WithField(telemetry.TrustDomainID, dsFederationRelationship.TrustDomain.String())
-
-	resp, err := s.ds.CreateFederationRelationship(ctx, dsFederationRelationship)
-	if err != nil {
-		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to create federation relationship", err),
-		}
-	}
-
-	tFederationRelationship, err := api.FederationRelationshipToProto(resp, outputMask)
-	if err != nil {
-		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
-		}
-	}
-
-	log.Debug("federation relationship created")
-
-	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-		Status:                 api.OK(),
-		FederationRelationship: tFederationRelationship,
-	}
 }

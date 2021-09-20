@@ -34,8 +34,13 @@ func ProtoToFederationRelationshipWithMask(f *types.FederationRelationship, mask
 	var bundleEndpointURL *url.URL
 	if mask.BundleEndpointUrl {
 		bundleEndpointURL, err = url.Parse(f.BundleEndpointUrl)
-		if err != nil {
+		switch {
+		case err != nil:
 			return nil, fmt.Errorf("failed to parse bundle endpoint URL: %w", err)
+		case bundleEndpointURL.Scheme != "https":
+			return nil, errors.New("bundle endpoint URL must start with https")
+		case bundleEndpointURL.User != nil:
+			return nil, errors.New("bundle endpoint URL must not contains user info")
 		}
 	}
 
@@ -67,7 +72,7 @@ func ProtoToFederationRelationshipWithMask(f *types.FederationRelationship, mask
 		case *types.FederationRelationship_HttpsWeb:
 			resp.BundleEndpointProfile = datastore.BundleEndpointWeb
 		default:
-			return nil, fmt.Errorf("unsupported bundle endpoint provide type: %T", f.BundleEndpointProfile)
+			return nil, fmt.Errorf("unsupported bundle endpoint profile type: %T", f.BundleEndpointProfile)
 		}
 	}
 

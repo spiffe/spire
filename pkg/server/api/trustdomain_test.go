@@ -18,11 +18,11 @@ var (
 )
 
 func TestProtoToFederationRelationship(t *testing.T) {
-	expectURL, err := url.Parse("some.url/path")
+	expectURL, err := url.Parse("https://some.url/path")
 	require.NoError(t, err)
 	proto := &types.FederationRelationship{
 		TrustDomain:           "example.org",
-		BundleEndpointUrl:     "some.url/path",
+		BundleEndpointUrl:     "https://some.url/path",
 		BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 	}
 
@@ -39,7 +39,7 @@ func TestProtoToFederationRelationship(t *testing.T) {
 }
 
 func TestProtoToFederationRelationshipWithMask(t *testing.T) {
-	expectURL, err := url.Parse("some.url/path")
+	expectURL, err := url.Parse("https://some.url/path")
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -53,7 +53,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "HttpsWeb: no mask",
 			proto: &types.FederationRelationship{
 				TrustDomain:           "example.org",
-				BundleEndpointUrl:     "some.url/path",
+				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
 			expectResp: &datastore.FederationRelationship{
@@ -66,7 +66,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "HttpsWeb: mask all false",
 			proto: &types.FederationRelationship{
 				TrustDomain:           "example.org",
-				BundleEndpointUrl:     "some.url/path",
+				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
 			expectResp: &datastore.FederationRelationship{
@@ -79,7 +79,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "HttpsSpiffe: no mask",
 			proto: &types.FederationRelationship{
 				TrustDomain:       "example.org",
-				BundleEndpointUrl: "some.url/path",
+				BundleEndpointUrl: "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
@@ -103,7 +103,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "HttpsSpiffe: mask all false",
 			proto: &types.FederationRelationship{
 				TrustDomain:       "example.org",
-				BundleEndpointUrl: "some.url/path",
+				BundleEndpointUrl: "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
@@ -126,7 +126,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "malformed trust domain",
 			proto: &types.FederationRelationship{
 				TrustDomain:           "no a td",
-				BundleEndpointUrl:     "some.url/path",
+				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
 			expectErr: "failed to parse trust domain: spiffeid: unable to parse:",
@@ -144,7 +144,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "malformed EndpointSpiffeId",
 			proto: &types.FederationRelationship{
 				TrustDomain:       "example.org",
-				BundleEndpointUrl: "some.url/path",
+				BundleEndpointUrl: "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "no an ID",
@@ -160,7 +160,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "malformed Bundle",
 			proto: &types.FederationRelationship{
 				TrustDomain:       "example.org",
-				BundleEndpointUrl: "some.url/path",
+				BundleEndpointUrl: "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
@@ -176,18 +176,36 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 			name: "no BundleEndpointProfile provided",
 			proto: &types.FederationRelationship{
 				TrustDomain:       "example.org",
-				BundleEndpointUrl: "some.url/path",
+				BundleEndpointUrl: "https://some.url/path",
 			},
-			expectErr: "unsupported bundle endpoint provide type:",
+			expectErr: "unsupported bundle endpoint profile type:",
 		},
 		{
 			name: "HttpsSpiffe: empty",
 			proto: &types.FederationRelationship{
 				TrustDomain:           "example.org",
-				BundleEndpointUrl:     "some.url/path",
+				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{},
 			},
 			expectErr: "bundle endpoint profile does not contains \"HttpsSpiffe\"",
+		},
+		{
+			name: "BundleEndpointUrl must start with https",
+			proto: &types.FederationRelationship{
+				TrustDomain:           "example.org",
+				BundleEndpointUrl:     "some.url/path",
+				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+			},
+			expectErr: "bundle endpoint URL must start with https",
+		},
+		{
+			name: "BundleEndpointUrl with user info",
+			proto: &types.FederationRelationship{
+				TrustDomain:           "example.org",
+				BundleEndpointUrl:     "https://user:password@some.url/path",
+				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+			},
+			expectErr: "bundle endpoint URL must not contains user info",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -203,7 +221,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 }
 
 func TestFederationRelationshipToProto(t *testing.T) {
-	endpointURL, err := url.Parse("some.url/path")
+	endpointURL, err := url.Parse("https://some.url/path")
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -222,7 +240,7 @@ func TestFederationRelationshipToProto(t *testing.T) {
 			},
 			expectProto: &types.FederationRelationship{
 				TrustDomain:           "example.org",
-				BundleEndpointUrl:     "some.url/path",
+				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
 		},
@@ -251,7 +269,7 @@ func TestFederationRelationshipToProto(t *testing.T) {
 			},
 			expectProto: &types.FederationRelationship{
 				TrustDomain:       "example.org",
-				BundleEndpointUrl: "some.url/path",
+				BundleEndpointUrl: "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
