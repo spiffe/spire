@@ -569,7 +569,6 @@ func newFakeDS(t *testing.T) *fakeDS {
 	}
 }
 
-// CreateFederationRelationship create custom function to validate custom relationship returned from ds
 func (d *fakeDS) CreateFederationRelationship(c context.Context, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	if d.customDSResponse != nil {
 		return d.customDSResponse, nil

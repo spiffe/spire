@@ -38,9 +38,11 @@ func ProtoToFederationRelationshipWithMask(f *types.FederationRelationship, mask
 		case err != nil:
 			return nil, fmt.Errorf("failed to parse bundle endpoint URL: %w", err)
 		case bundleEndpointURL.Scheme != "https":
-			return nil, errors.New("bundle endpoint URL must start with https")
+			return nil, errors.New("bundle endpoint URL must use the https scheme")
+		case bundleEndpointURL.Host == "":
+			return nil, errors.New("bundle endpoint URL must specify the host")
 		case bundleEndpointURL.User != nil:
-			return nil, errors.New("bundle endpoint URL must not contains user info")
+			return nil, errors.New("bundle endpoint URL must not contain user info")
 		}
 	}
 

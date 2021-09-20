@@ -196,7 +196,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointUrl:     "some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
-			expectErr: "bundle endpoint URL must start with https",
+			expectErr: "bundle endpoint URL must use the https scheme",
 		},
 		{
 			name: "BundleEndpointUrl with user info",
@@ -205,7 +205,16 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointUrl:     "https://user:password@some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
-			expectErr: "bundle endpoint URL must not contains user info",
+			expectErr: "bundle endpoint URL must not contain user info",
+		},
+		{
+			name: "BundleEndpointUrl empty host",
+			proto: &types.FederationRelationship{
+				TrustDomain:           "example.org",
+				BundleEndpointUrl:     "https://",
+				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+			},
+			expectErr: "bundle endpoint URL must specify the host",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
