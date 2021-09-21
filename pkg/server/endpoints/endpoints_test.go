@@ -682,7 +682,6 @@ func testSVIDAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentCo
 }
 
 func testTrustDomainAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
-
 	t.Run("UDS", func(t *testing.T) {
 		testAuthorization(ctx, t, trustdomainv1.NewTrustDomainClient(udsConn), map[string]bool{
 			"ListFederationRelationships":       true,
