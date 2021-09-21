@@ -164,7 +164,7 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 		}
 	}
 
-	log.Debug("federation relationship created")
+	log.Debug("Federation relationship created")
 
 	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 		Status:                 api.OK(),
@@ -200,7 +200,7 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
 		}
 	}
-	log.Debug("federation relationship updated")
+	log.Debug("Federation relationship updated")
 
 	return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 		Status:                 api.OK(),
@@ -231,7 +231,7 @@ func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *
 	err = s.ds.DeleteFederationRelationship(ctx, trustDomain)
 	switch status.Code(err) {
 	case codes.OK:
-		log.Debug("federation relationship deleted")
+		log.Debug("Federation relationship deleted")
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 			TrustDomain: trustDomain.String(),
 			Status:      api.OK(),

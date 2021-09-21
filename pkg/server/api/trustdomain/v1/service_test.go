@@ -22,10 +22,10 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"gotest.tools/assert"
 )
 
 var (
@@ -316,7 +316,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain.test",
 					},
@@ -334,7 +334,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				},
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain2.test",
 					},
@@ -387,7 +387,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain.test",
 					},
@@ -441,7 +441,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain.test",
 					},
@@ -786,7 +786,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship deleted",
+					Message: "Federation relationship deleted",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "bar.test",
 					},
@@ -820,7 +820,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 				},
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship deleted",
+					Message: "Federation relationship deleted",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "baz.test",
 					},
@@ -1164,7 +1164,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship updated",
+					Message: "Federation relationship updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "foo.test",
 					},
@@ -1203,7 +1203,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 				},
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship updated",
+					Message: "Federation relationship updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "bar.test",
 					},
@@ -1251,7 +1251,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship updated",
+					Message: "Federation relationship updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "bar.test",
 					},
@@ -1342,7 +1342,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship updated",
+					Message: "Federation relationship updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "bar.test",
 					},
@@ -1396,7 +1396,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship updated",
+					Message: "Federation relationship updated",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "bar.test",
 					},
