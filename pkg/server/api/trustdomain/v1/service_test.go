@@ -700,8 +700,8 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 
 			// Batch create
 			resp, err := test.client.BatchCreateFederationRelationship(ctx, &trustdomainv1.BatchCreateFederationRelationshipRequest{
-				FederationRelationship: tt.req,
-				OutputMask:             tt.outputMask,
+				FederationRelationships: tt.req,
+				OutputMask:              tt.outputMask,
 			})
 
 			require.NoError(t, err)

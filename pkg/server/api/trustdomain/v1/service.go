@@ -85,7 +85,7 @@ func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomai
 
 func (s *Service) BatchCreateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {
 	var results []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result
-	for _, eachRelationship := range req.FederationRelationship {
+	for _, eachRelationship := range req.FederationRelationships {
 		r := s.createFederationRelationship(ctx, eachRelationship, req.OutputMask)
 		results = append(results, r)
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
