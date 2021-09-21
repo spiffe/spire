@@ -99,7 +99,18 @@ func (s *Service) BatchCreateFederationRelationship(ctx context.Context, req *tr
 }
 
 func (s *Service) BatchUpdateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchUpdateFederationRelationshipRequest) (*trustdomainv1.BatchUpdateFederationRelationshipResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	var results []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result
+
+	for _, eachFR := range req.FederationRelationships {
+		fr := s.updateFederationRelationship(ctx, eachFR, req.InputMask, req.OutputMask)
+		results = append(results, fr)
+		rpccontext.AuditRPCWithTypesStatus(ctx, fr.Status, func() logrus.Fields {
+			return fieldsFromRelationshipProto(eachFR, req.InputMask)
+		})
+	}
+	return &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+		Results: results,
+	}, nil
 }
 
 func (s *Service) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
@@ -156,6 +167,42 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 	log.Debug("federation relationship created")
 
 	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+		Status:                 api.OK(),
+		FederationRelationship: tFederationRelationship,
+	}
+}
+
+func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.FederationRelationship, inputMask *types.FederationRelationshipMask, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchUpdateFederationRelationshipResponse_Result {
+	log := rpccontext.Logger(ctx)
+	log = log.WithField(telemetry.TrustDomainID, fr.TrustDomain)
+
+	dFederationRelationship, err := api.ProtoToFederationRelationship(fr)
+	if err != nil {
+		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
+		}
+	}
+
+	if inputMask == nil {
+		inputMask = protoutil.AllTrueFederationRelationshipMask
+	}
+
+	resp, err := s.ds.UpdateFederationRelationship(ctx, dFederationRelationship, inputMask)
+	if err != nil {
+		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to update federation relationship", err),
+		}
+	}
+
+	tFederationRelationship, err := api.FederationRelationshipToProto(resp, outputMask)
+	if err != nil {
+		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
+		}
+	}
+	log.Debug("federation relationship updated")
+
+	return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 		Status:                 api.OK(),
 		FederationRelationship: tFederationRelationship,
 	}
