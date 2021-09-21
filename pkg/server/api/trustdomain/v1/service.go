@@ -80,7 +80,30 @@ func (s *Service) ListFederationRelationships(ctx context.Context, req *trustdom
 }
 
 func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomainv1.GetFederationRelationshipRequest) (*types.FederationRelationship, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	log := rpccontext.Logger(ctx)
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.TrustDomain)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
+	}
+
+	dsResp, err := s.ds.FetchFederationRelationship(ctx, trustDomain)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch federation relationship", err)
+	}
+
+	// if the entry is not found, FetchFederationRelationship returns nil, nil
+	if dsResp == nil {
+		return nil, api.MakeErr(log, codes.NotFound, "federation relationship does not exist", err)
+	}
+
+	tFederationRelationship, err := api.FederationRelationshipToProto(dsResp, req.OutputMask)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to convert datastore response", err)
+	}
+
+	rpccontext.AuditRPC(ctx)
+	return tFederationRelationship, nil
 }
 
 func (s *Service) BatchCreateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {

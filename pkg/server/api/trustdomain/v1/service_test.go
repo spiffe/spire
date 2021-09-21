@@ -34,6 +34,176 @@ var (
 	federatedTd = spiffeid.RequireTrustDomainFromString("domain1.org")
 )
 
+func TestGetFederationRelationship(t *testing.T) {
+	fr1 := &types.FederationRelationship{
+		TrustDomain:       "example-1.org",
+		BundleEndpointUrl: "https://endpoint-server-1/path",
+		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+				EndpointSpiffeId: "spiffe://domain.test/endpoint-server",
+				Bundle: &types.Bundle{
+					TrustDomain: "example-1.org",
+				},
+			},
+		},
+	}
+
+	dsFR1, err := api.ProtoToFederationRelationship(fr1)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name         string
+		trustDomain  string
+		code         codes.Code
+		err          string
+		expectDSErr  error
+		expectResult *types.FederationRelationship
+		expectLogs   []spiretest.LogEntry
+		outputMask   *types.FederationRelationshipMask
+	}{
+		{
+			name:         "successful fetch with no mask",
+			trustDomain:  "example-1.org",
+			expectResult: fr1,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name:         "successful fetch with mask",
+			trustDomain:  "example-1.org",
+			expectResult: fr1,
+			outputMask: &types.FederationRelationshipMask{
+				BundleEndpointUrl:     false,
+				BundleEndpointProfile: false,
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name:         "unsuccessful fetch with no mask",
+			trustDomain:  "badexample-1.org",
+			err:          "federation relationship does not exist",
+			expectResult: fr1,
+			code:         codes.NotFound,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "federation relationship does not exist",
+					},
+				},
+			},
+		},
+		{
+
+			name:        "malformed trust domain",
+			trustDomain: "https://foot.test",
+			err:         "failed to parse trust domain: spiffeid: invalid scheme",
+			code:        codes.InvalidArgument,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to parse trust domain",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "spiffeid: invalid scheme",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "failed to parse trust domain: spiffeid: invalid scheme",
+					},
+				},
+			},
+		},
+		{
+			name:        "DS fails",
+			trustDomain: "example-1.org",
+			expectDSErr: errors.New("datastore error"),
+			err:         "failed to fetch federation relationship: datastore error",
+			code:        codes.Internal,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch federation relationship",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "datastore error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to fetch federation relationship: datastore error",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ds := newFakeDS(t)
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+
+			_, err = ds.CreateFederationRelationship(ctx, dsFR1)
+			require.NoError(t, err)
+
+			ds.AppendNextError(tt.expectDSErr)
+
+			resp, err := test.client.GetFederationRelationship(ctx, &trustdomainv1.GetFederationRelationshipRequest{
+				TrustDomain: tt.trustDomain,
+				OutputMask:  tt.outputMask,
+			})
+			spiretest.AssertLastLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			if tt.expectResult != nil {
+				assertFederationRelationshipWithMask(t, tt.expectResult, resp, tt.outputMask)
+			} else {
+				require.Nil(t, resp)
+			}
+		})
+	}
+
+}
+
 func TestListFederationRelationships(t *testing.T) {
 	ds := newFakeDS(t)
 	test := setupServiceTest(t, ds)
