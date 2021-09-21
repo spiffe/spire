@@ -47,7 +47,36 @@ func RegisterService(s *grpc.Server, service *Service) {
 }
 
 func (s *Service) ListFederationRelationships(ctx context.Context, req *trustdomainv1.ListFederationRelationshipsRequest) (*trustdomainv1.ListFederationRelationshipsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	log := rpccontext.Logger(ctx)
+
+	listReq := &datastore.ListFederationRelationshipsRequest{}
+	if req.PageSize > 0 {
+		listReq.Pagination = &datastore.Pagination{
+			PageSize: req.PageSize,
+			Token:    req.PageToken,
+		}
+	}
+
+	dsResp, err := s.ds.ListFederationRelationships(ctx, listReq)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to list federation relationships", err)
+	}
+
+	resp := &trustdomainv1.ListFederationRelationshipsResponse{}
+	if dsResp.Pagination != nil {
+		resp.NextPageToken = dsResp.Pagination.Token
+	}
+
+	for _, fr := range dsResp.FederationRelationships {
+		tFederationRelationship, err := api.FederationRelationshipToProto(fr, req.OutputMask)
+		if err != nil {
+			return nil, api.MakeErr(log, codes.InvalidArgument, "failed to convert datastore response", err)
+		}
+		resp.FederationRelationships = append(resp.FederationRelationships, tFederationRelationship)
+	}
+
+	rpccontext.AuditRPC(ctx)
+	return resp, nil
 }
 
 func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomainv1.GetFederationRelationshipRequest) (*types.FederationRelationship, error) {
