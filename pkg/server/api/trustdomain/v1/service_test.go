@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -315,7 +316,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain.test",
 					},
@@ -333,7 +334,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				},
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain2.test",
 					},
@@ -386,7 +387,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain.test",
 					},
@@ -440,7 +441,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship created",
+					Message: "Federation relationship created",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "domain.test",
 					},
@@ -699,8 +700,8 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 
 			// Batch create
 			resp, err := test.client.BatchCreateFederationRelationship(ctx, &trustdomainv1.BatchCreateFederationRelationshipRequest{
-				FederationRelationship: tt.req,
-				OutputMask:             tt.outputMask,
+				FederationRelationships: tt.req,
+				OutputMask:              tt.outputMask,
 			})
 
 			require.NoError(t, err)
@@ -785,7 +786,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship deleted",
+					Message: "Federation relationship deleted",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "bar.test",
 					},
@@ -819,7 +820,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 				},
 				{
 					Level:   logrus.DebugLevel,
-					Message: "federation relationship deleted",
+					Message: "Federation relationship deleted",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "baz.test",
 					},
@@ -1004,6 +1005,583 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 	}
 }
 
+func TestBatchUpdateFederationRelationship(t *testing.T) {
+	ca := testca.New(t, td)
+	caRaw := ca.X509Authorities()[0].Raw
+
+	newCA := testca.New(t, td)
+	newCARaw := newCA.X509Authorities()[0].Raw
+
+	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
+	require.NoError(t, err)
+
+	fooURL, err := url.Parse("https://foo.test/path")
+	require.NoError(t, err)
+	fooFR := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+		BundleEndpointURL:     fooURL,
+		BundleEndpointProfile: datastore.BundleEndpointWeb,
+	}
+	newFooURL, err := url.Parse("https://foo.test/newpath")
+	require.NoError(t, err)
+
+	barURL, err := url.Parse("https://bar.test/path")
+	require.NoError(t, err)
+	barFR := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
+		BundleEndpointURL:     barURL,
+		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/endpoint"),
+		Bundle: &common.Bundle{
+			TrustDomainId: "spiffe://bar.test",
+			RootCas: []*common.Certificate{
+				{
+					DerBytes: caRaw,
+				},
+			},
+			RefreshHint: 60,
+		},
+	}
+	newBarURL, err := url.Parse("https://bar.test/newpath")
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name             string
+		dsError          error
+		expectDSFR       []*datastore.FederationRelationship
+		customDSResponse *datastore.FederationRelationship
+		expectLogs       []spiretest.LogEntry
+		expectResults    []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result
+		inputMask        *types.FederationRelationshipMask
+		outputMask       *types.FederationRelationshipMask
+		reqFR            []*types.FederationRelationship
+	}{
+		{
+			name: "multiples federation relationships",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:           "foo.test",
+					BundleEndpointUrl:     "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+				},
+				{
+					TrustDomain:           "not.found",
+					BundleEndpointUrl:     "https://not.found/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+				},
+				{
+					TrustDomain:       "bar.test",
+					BundleEndpointUrl: "https://bar.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://bar.test/updated",
+							Bundle: &types.Bundle{
+								TrustDomain:     "bar.test",
+								X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
+								JwtAuthorities: []*types.JWTKey{
+									{
+										KeyId:     "key-id-1",
+										ExpiresAt: 1590514224,
+										PublicKey: pkixBytes,
+									},
+								},
+								RefreshHint:    30,
+								SequenceNumber: 1,
+							},
+						},
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:           "foo.test",
+						BundleEndpointUrl:     "https://foo.test/newpath",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+					},
+				},
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to update federation relationship: unable to fetch federation relationship: record not found",
+					},
+				},
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:       "bar.test",
+						BundleEndpointUrl: "https://bar.test/newpath",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+								EndpointSpiffeId: "spiffe://bar.test/updated",
+								Bundle: &types.Bundle{
+									TrustDomain: "bar.test",
+									X509Authorities: []*types.X509Certificate{
+										{
+											Asn1: newCARaw,
+										},
+									},
+									JwtAuthorities: []*types.JWTKey{
+										{
+											KeyId:     "key-id-1",
+											ExpiresAt: 1590514224,
+											PublicKey: pkixBytes,
+										},
+									},
+									RefreshHint: 30,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     newFooURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
+					BundleEndpointURL:     newBarURL,
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/updated"),
+					Bundle: &common.Bundle{
+						TrustDomainId: "spiffe://bar.test",
+						RootCas:       []*common.Certificate{{DerBytes: newCARaw}},
+						RefreshHint:   30,
+						JwtSigningKeys: []*common.PublicKey{
+							{
+								PkixBytes: pkixBytes,
+								Kid:       "key-id-1",
+								NotAfter:  1590514224,
+							},
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_web",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "success",
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to update federation relationship",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "not.found",
+						logrus.ErrorKey:         "rpc error: code = NotFound desc = unable to fetch federation relationship: record not found",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_web",
+						telemetry.BundleEndpointURL:     "https://not.found/newpath",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "Internal",
+						telemetry.StatusMessage:         "failed to update federation relationship: unable to fetch federation relationship: record not found",
+						telemetry.TrustDomainID:         "not.found",
+						telemetry.Type:                  "audit",
+					},
+				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "bar.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.BundleEndpointURL:     "https://bar.test/newpath",
+						telemetry.Status:                "success",
+
+						telemetry.EndpointSpiffeID:          "spiffe://bar.test/updated",
+						"jwt_authority_expires_at.0":        "1590514224",
+						"jwt_authority_key_id.0":            "key-id-1",
+						"jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
+						telemetry.RefreshHint:               "30",
+						telemetry.SequenceNumber:            "1",
+						"x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
+						telemetry.TrustDomainID:             "bar.test",
+						telemetry.Type:                      "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "update https_spiffe to https_web",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:           "bar.test",
+					BundleEndpointUrl:     "https://bar.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:           "bar.test",
+						BundleEndpointUrl:     "https://bar.test/newpath",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "bar.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_web",
+						telemetry.BundleEndpointURL:     "https://bar.test/newpath",
+						telemetry.Status:                "success",
+						telemetry.TrustDomainID:         "bar.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
+					BundleEndpointURL:     newBarURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+		{
+			name: "input mask all false",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "bar.test",
+					BundleEndpointUrl: "https://bar.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://bar.test/updated",
+							Bundle: &types.Bundle{
+								TrustDomain:     "bar.test",
+								X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
+								JwtAuthorities: []*types.JWTKey{
+									{
+										KeyId:     "key-id-1",
+										ExpiresAt: 1590514224,
+										PublicKey: pkixBytes,
+									},
+								},
+								RefreshHint:    30,
+								SequenceNumber: 1,
+							},
+						},
+					},
+				},
+			},
+			inputMask: &types.FederationRelationshipMask{},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:       "bar.test",
+						BundleEndpointUrl: "https://bar.test/path",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+								EndpointSpiffeId: "spiffe://bar.test/endpoint",
+								Bundle: &types.Bundle{
+									TrustDomain: "bar.test",
+									X509Authorities: []*types.X509Certificate{
+										{
+											Asn1: caRaw,
+										},
+									},
+									RefreshHint: 60,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
+					BundleEndpointURL:     barURL,
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/endpoint"),
+					Bundle: &common.Bundle{
+						TrustDomainId: "spiffe://bar.test",
+						RootCas:       []*common.Certificate{{DerBytes: caRaw}},
+						RefreshHint:   60,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "bar.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.TrustDomainID: "bar.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "output mask all false",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "bar.test",
+					BundleEndpointUrl: "https://bar.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://bar.test/updated",
+							Bundle: &types.Bundle{
+								TrustDomain:     "bar.test",
+								X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
+								JwtAuthorities: []*types.JWTKey{
+									{
+										KeyId:     "key-id-1",
+										ExpiresAt: 1590514224,
+										PublicKey: pkixBytes,
+									},
+								},
+								RefreshHint:    30,
+								SequenceNumber: 1,
+							},
+						},
+					},
+				},
+			},
+			outputMask: &types.FederationRelationshipMask{},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain: "bar.test",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "bar.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.BundleEndpointURL:     "https://bar.test/newpath",
+						telemetry.Status:                "success",
+
+						telemetry.EndpointSpiffeID:          "spiffe://bar.test/updated",
+						"jwt_authority_expires_at.0":        "1590514224",
+						"jwt_authority_key_id.0":            "key-id-1",
+						"jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
+						telemetry.RefreshHint:               "30",
+						telemetry.SequenceNumber:            "1",
+						"x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
+						telemetry.TrustDomainID:             "bar.test",
+						telemetry.Type:                      "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
+					BundleEndpointURL:     newBarURL,
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/updated"),
+					Bundle: &common.Bundle{
+						TrustDomainId: "spiffe://bar.test",
+						RootCas:       []*common.Certificate{{DerBytes: newCARaw}},
+						RefreshHint:   30,
+						JwtSigningKeys: []*common.PublicKey{
+							{
+								PkixBytes: pkixBytes,
+								Kid:       "key-id-1",
+								NotAfter:  1590514224,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Ds fails",
+			dsError: errors.New("oh! no"),
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:           "foo.test",
+					BundleEndpointUrl:     "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to update federation relationship: oh! no",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to update federation relationship",
+					Data: logrus.Fields{
+						logrus.ErrorKey:         "oh! no",
+						telemetry.TrustDomainID: "foo.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_web",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "Internal",
+						telemetry.StatusMessage:         "failed to update federation relationship: oh! no",
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     fooURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+		{
+			name: "fail to parse DS response",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:           "foo.test",
+					BundleEndpointUrl:     "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+				},
+			},
+			customDSResponse: &datastore.FederationRelationship{},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to convert federation relationship to proto: trust domain is required",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to convert federation relationship to proto",
+					Data: logrus.Fields{
+						logrus.ErrorKey:         "trust domain is required",
+						telemetry.TrustDomainID: "foo.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_web",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "Internal",
+						telemetry.StatusMessage:         "failed to convert federation relationship to proto: trust domain is required",
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     fooURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := newFakeDS(t)
+			test := setupServiceTest(t, ds)
+			defer test.Cleanup()
+
+			// Create initial entries
+			createTestRelationships(t, ds, fooFR, barFR)
+
+			// Setup DS
+			ds.customDSResponse = tt.customDSResponse
+			ds.SetNextError(tt.dsError)
+
+			// Update federation relationships
+			resp, err := test.client.BatchUpdateFederationRelationship(ctx, &trustdomainv1.BatchUpdateFederationRelationshipRequest{
+				FederationRelationships: tt.reqFR,
+				InputMask:               tt.inputMask,
+				OutputMask:              tt.outputMask,
+			})
+			require.NoError(t, err)
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			spiretest.AssertProtoEqual(t, &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+				Results: tt.expectResults,
+			}, resp)
+
+			// Check datastore
+			// Unable to use Equal because it contains PROTO + regular structs
+			for _, eachFR := range tt.expectDSFR {
+				getResp, err := ds.FetchFederationRelationship(ctx, eachFR.TrustDomain)
+				require.NoError(t, err)
+
+				assert.Equal(t, eachFR.BundleEndpointProfile, getResp.BundleEndpointProfile)
+				assert.Equal(t, eachFR.BundleEndpointURL.String(), getResp.BundleEndpointURL.String())
+				assert.Equal(t, eachFR.EndpointSPIFFEID, getResp.EndpointSPIFFEID)
+				assert.Equal(t, eachFR.TrustDomain, getResp.TrustDomain)
+				spiretest.AssertProtoEqual(t, eachFR.Bundle, getResp.Bundle)
+			}
+		})
+	}
+}
+
 func createTestRelationships(t *testing.T, ds datastore.DataStore, relationships ...*datastore.FederationRelationship) {
 	for _, fr := range relationships {
 		_, err := ds.CreateFederationRelationship(ctx, fr)
@@ -1102,4 +1680,12 @@ func (d *fakeDS) CreateFederationRelationship(c context.Context, fr *datastore.F
 	}
 
 	return d.DataStore.CreateFederationRelationship(ctx, fr)
+}
+
+func (d *fakeDS) UpdateFederationRelationship(c context.Context, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
+	if d.customDSResponse != nil {
+		return d.customDSResponse, nil
+	}
+
+	return d.DataStore.UpdateFederationRelationship(ctx, fr, mask)
 }

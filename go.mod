@@ -135,7 +135,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.8
-	github.com/spiffe/spire-api-sdk v1.0.3-0.20210830151222-70fb6a116a63
+	github.com/spiffe/spire-api-sdk v1.0.3-0.20210921173842-bbaf2349ec63
 	github.com/spiffe/spire-plugin-sdk v1.0.2
 	github.com/stretchr/testify v1.7.0
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
