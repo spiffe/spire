@@ -250,7 +250,7 @@ func TestPutX509SVID(t *testing.T) {
 				SecretId: aws.String("secret1"),
 			},
 			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
-				secret := &svidstore.Secret{
+				secret := &svidstore.Data{
 					SpiffeID:    "spiffe://example.org/lambda",
 					X509Svid:    x509CertPem,
 					X509SvidKey: x509KeyPem,
@@ -288,7 +288,7 @@ func TestPutX509SVID(t *testing.T) {
 				},
 			},
 			expectCreateSecretInput: func(t *testing.T) *secretsmanager.CreateSecretInput {
-				expectSecret := &svidstore.Secret{
+				expectSecret := &svidstore.Data{
 					SpiffeID:    "spiffe://example.org/lambda",
 					X509Svid:    x509CertPem,
 					X509SvidKey: x509KeyPem,
@@ -329,7 +329,7 @@ func TestPutX509SVID(t *testing.T) {
 				},
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "secret name or ARN are required",
+			expectMsg:  "either the secret name or ARN is required",
 			smConfig:   &smConfig{},
 		},
 		{
@@ -416,7 +416,7 @@ func TestPutX509SVID(t *testing.T) {
 				SecretId: aws.String("secret1"),
 			},
 			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
-				secret := &svidstore.Secret{
+				secret := &svidstore.Data{
 					SpiffeID:    "spiffe://example.org/lambda",
 					X509Svid:    x509CertPem,
 					X509SvidKey: x509KeyPem,
@@ -449,7 +449,7 @@ func TestPutX509SVID(t *testing.T) {
 				SecretId: aws.String("secret1"),
 			},
 			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
-				secret := &svidstore.Secret{
+				secret := &svidstore.Data{
 					SpiffeID:    "spiffe://example.org/lambda",
 					X509Svid:    x509CertPem,
 					X509SvidKey: x509KeyPem,
@@ -591,7 +591,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			},
 			smConfig:   &smConfig{},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "secret name or ARN are required",
+			expectMsg:  "either the secret name or ARN is required",
 		},
 		{
 			name: "secret already deleted",

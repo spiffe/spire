@@ -53,6 +53,15 @@ type secretOptions struct {
 	kmsKeyID string
 }
 
+// getSecretID gets ARN if it is configured. If not configured, use secret name
+func (o *secretOptions) getSecretID() string {
+	if o.arn != "" {
+		return o.arn
+	}
+
+	return o.name
+}
+
 func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	data := svidstore.ParseMetadata(selectorData)
 
@@ -63,7 +72,7 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	}
 
 	if opt.name == "" && opt.arn == "" {
-		return nil, status.Error(codes.InvalidArgument, "secret name or ARN are required")
+		return nil, status.Error(codes.InvalidArgument, "either the secret name or ARN is required")
 	}
 
 	return opt, nil
@@ -136,11 +145,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 		return nil, err
 	}
 
-	// Use arn if it is configured if not use name
-	secretID := opt.name
-	if opt.arn != "" {
-		secretID = opt.arn
-	}
+	secretID := opt.getSecretID()
 
 	// Encode the secret from a 'workload.X509SVIDResponse'
 	secret, err := svidstore.SecretFromProto(req)
@@ -171,11 +176,11 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 			return &svidstorev1.PutX509SVIDResponse{}, nil
 		}
 
-		// It must not happens.
+		// Purely defensive. This should never happen.
 		return nil, status.Errorf(codes.Internal, "failed to describe secret: %v", err)
 	}
 
-	// Validate if secret is deleted, and restore it
+	// If the secret has been scheduled for deletion, restore it
 	if secretDesc.DeletedDate != nil {
 		resp, err := p.smClient.RestoreSecret(ctx, &secretsmanager.RestoreSecretInput{
 			SecretId: aws.String(secretID),
@@ -183,13 +188,13 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to restore secret %q: %v", secretID, err)
 		}
-		p.log.With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).Debug("Secret restored")
+		p.log.With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).Debug("Secret was scheduled for deletion and has been restored")
 	}
 
 	// Validate that the secret has the 'spire-svid' tag. This tag is used to distinguish the secrets
 	// that have SVID information handled by SPIRE
-	if ok := validateTag(secretDesc.Tags); !ok {
-		return nil, status.Error(codes.InvalidArgument, "secret does not contain the 'spire-svid' tag")
+	if err := validateTag(secretDesc.Tags); err != nil {
+		return nil, err
 	}
 
 	putResp, err := p.smClient.PutSecretValue(ctx, &secretsmanager.PutSecretValueInput{
@@ -210,11 +215,7 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 		return nil, err
 	}
 
-	// Use arn if it is configured if not use name
-	secretID := opt.name
-	if opt.arn != "" {
-		secretID = opt.arn
-	}
+	secretID := opt.getSecretID()
 
 	// Call DescribeSecret to retrieve the details of the secret
 	// and be able to determine if the secret exists
@@ -222,9 +223,9 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 		SecretId: aws.String(secretID),
 	})
 	if err != nil {
-		var resourceNorFoundErr *types.ResourceNotFoundException
-		if errors.As(err, &resourceNorFoundErr) {
-			p.log.With("secret_id", secretID).Debug("Secret already deleted")
+		var resourceNotFoundErr *types.ResourceNotFoundException
+		if errors.As(err, &resourceNotFoundErr) {
+			p.log.With("secret_id", secretID).Warn("Secret not found")
 			return &svidstorev1.DeleteX509SVIDResponse{}, nil
 		}
 		return nil, status.Errorf(codes.Internal, "failed to describe secret: %v", err)
@@ -232,8 +233,8 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 
 	// Validate that the secret has the 'spire-svid' tag. This tag is used to distinguish the secrets
 	// that have SVID information handled by SPIRE
-	if ok := validateTag(secretDesc.Tags); !ok {
-		return nil, status.Error(codes.InvalidArgument, "secret does not contain the 'spire-svid' tag")
+	if err := validateTag(secretDesc.Tags); err != nil {
+		return nil, err
 	}
 
 	resp, err := p.smClient.DeleteSecret(ctx, &secretsmanager.DeleteSecretInput{
@@ -278,12 +279,12 @@ func createSecret(ctx context.Context, sm SecretsManagerClient, secretBinary []b
 }
 
 // validateTag expects that "spire-svid" tag is provided
-func validateTag(tags []types.Tag) bool {
+func validateTag(tags []types.Tag) error {
 	for _, tag := range tags {
 		if aws.StringValue(tag.Key) == "spire-svid" && aws.StringValue(tag.Value) == "true" {
-			return true
+			return nil
 		}
 	}
 
-	return false
+	return status.Error(codes.InvalidArgument, "secret does not contain the 'spire-svid' tag")
 }

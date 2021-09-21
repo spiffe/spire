@@ -114,7 +114,7 @@ func TestSecretFromProto(t *testing.T) {
 		name   string
 		req    *svidstorev1.PutX509SVIDRequest
 		err    string
-		expect *svidstore.Secret
+		expect *svidstore.Data
 	}{
 		{
 			name: "success",
@@ -134,7 +134,7 @@ func TestSecretFromProto(t *testing.T) {
 					"federated2": federatedBundle.Raw,
 				},
 			},
-			expect: &svidstore.Secret{
+			expect: &svidstore.Data{
 				SpiffeID:    "spiffe://example.org/foo",
 				X509Svid:    x509CertPem,
 				X509SvidKey: x509KeyPem,

@@ -10,7 +10,7 @@ import (
 	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 )
 
-type Secret struct {
+type Data struct {
 	// The SPIFFE ID of that identify this SVID
 	SpiffeID string `json:"spiffeId,omitempty"`
 	// PEM encoded certificate chain. MAY invlude intermediates,
@@ -25,7 +25,7 @@ type Secret struct {
 	FederatedBundles map[string]string `json:"federatedBundles,omitempty"`
 }
 
-func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Secret, error) {
+func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 	x509Svid, err := rawCertToPem(req.Svid.CertChain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CertChain: %w", err)
@@ -50,7 +50,7 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Secret, error) {
 		return nil, fmt.Errorf("failed to parse key: %w", err)
 	}
 
-	return &Secret{
+	return &Data{
 		SpiffeID:         req.Svid.SpiffeID,
 		X509Svid:         x509Svid,
 		X509SvidKey:      x509SVIDKey,
