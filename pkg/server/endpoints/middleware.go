@@ -12,7 +12,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/api/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
+	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -54,6 +56,10 @@ func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 
 func UpstreamPublisher(manager *ca.Manager) bundle.UpstreamPublisher {
 	return bundle.UpstreamPublisherFunc(manager.PublishJWTKey)
+}
+
+func BundleRefresher(manager *bundle_client.Manager) trustdomain.BundleRefresher {
+	return trustdomain.BundleRefresherFunc(manager.RefreshBundleFor)
 }
 
 func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {

@@ -2215,3 +2215,26 @@ func (d *fakeDS) UpdateFederationRelationship(c context.Context, fr *datastore.F
 
 	return d.DataStore.UpdateFederationRelationship(ctx, fr, mask)
 }
+
+type fakeBundleRefresher struct {
+	managedTrustDomains []spiffeid.TrustDomain
+}
+
+func (br *fakeBundleRefresher) newFakeBundleRefresher() *fakeBundleRefresher {
+	return &fakeBundleRefresher{
+		managedTrustDomains: []spiffeid.TrustDomain{
+			spiffeid.RequireTrustDomainFromString("example.org"),
+		},
+	}
+}
+
+func (br *fakeBundleRefresher) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+	hasTrustDomain := false
+	for _, managedTrustDomain := range br.managedTrustDomains {
+		if managedTrustDomain.Compare(td) == 0 {
+			hasTrustDomain = true
+			break
+		}
+	}
+	return hasTrustDomain, nil
+}
