@@ -103,7 +103,6 @@ Trust domain              : bar.test
 Bundle endpoint URL       : https://bar.test/endpoint
 Bundle endpoint profile   : https_spiffe
 Endpoint SPIFFE ID        : spiffe://bar.test/id
-Bundle trust domain       : bar.test
 
 Trust domain              : baz.test
 Bundle endpoint URL       : https://baz.test/endpoint

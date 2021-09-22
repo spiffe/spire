@@ -15,9 +15,5 @@ func printFederationRelationship(fr *types.FederationRelationship, printf func(f
 	case *types.FederationRelationship_HttpsSpiffe:
 		_ = printf("Bundle endpoint profile   : %s\n", "https_spiffe")
 		_ = printf("Endpoint SPIFFE ID        : %s\n", profile.HttpsSpiffe.EndpointSpiffeId)
-
-		if profile.HttpsSpiffe.Bundle != nil {
-			_ = printf("Bundle trust domain       : %s\n", profile.HttpsSpiffe.Bundle.TrustDomain)
-		}
 	}
 }
