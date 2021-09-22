@@ -134,6 +134,7 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 
 func (s *Service) createFederationRelationship(ctx context.Context, f *types.FederationRelationship, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchCreateFederationRelationshipResponse_Result {
 	log := rpccontext.Logger(ctx)
+	log = log.WithField(telemetry.TrustDomainID, f.TrustDomain)
 
 	dsFederationRelationship, err := api.ProtoToFederationRelationship(f)
 	if err != nil {
@@ -141,8 +142,6 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
 		}
 	}
-
-	log = log.WithField(telemetry.TrustDomainID, dsFederationRelationship.TrustDomain.String())
 
 	if s.td.Compare(dsFederationRelationship.TrustDomain) == 0 {
 		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
@@ -276,9 +275,11 @@ func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *type
 			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointSPIFFE
 			fields[telemetry.EndpointSpiffeID] = profile.HttpsSpiffe.EndpointSpiffeId
 
-			bundleFields := api.FieldsFromBundleProto(proto.GetHttpsSpiffe().Bundle, nil)
-			for key, value := range bundleFields {
-				fields[key] = value
+			if profile.HttpsSpiffe != nil && profile.HttpsSpiffe.Bundle != nil {
+				bundleFields := api.FieldsFromBundleProto(profile.HttpsSpiffe.Bundle, nil)
+				for key, value := range bundleFields {
+					fields["bundle_"+key] = value
+				}
 			}
 		}
 	}
