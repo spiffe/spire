@@ -11,6 +11,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	api_types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
@@ -43,6 +44,7 @@ type ServerClient interface {
 	NewBundleClient() bundlev1.BundleClient
 	NewEntryClient() entryv1.EntryClient
 	NewSVIDClient() svidv1.SVIDClient
+	NewTrustDomainClient() trustdomainv1.TrustDomainClient
 	NewHealthClient() grpc_health_v1.HealthClient
 }
 
@@ -76,6 +78,10 @@ func (c *serverClient) NewEntryClient() entryv1.EntryClient {
 
 func (c *serverClient) NewSVIDClient() svidv1.SVIDClient {
 	return svidv1.NewSVIDClient(c.conn)
+}
+
+func (c *serverClient) NewTrustDomainClient() trustdomainv1.TrustDomainClient {
+	return trustdomainv1.NewTrustDomainClient(c.conn)
 }
 
 func (c *serverClient) NewHealthClient() grpc_health_v1.HealthClient {
