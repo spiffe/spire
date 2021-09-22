@@ -80,6 +80,8 @@ func (s *Service) ListFederationRelationships(ctx context.Context, req *trustdom
 }
 
 func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomainv1.GetFederationRelationshipRequest) (*types.FederationRelationship, error) {
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: req.TrustDomain})
+
 	log := rpccontext.Logger(ctx)
 
 	trustDomain, err := spiffeid.TrustDomainFromString(req.TrustDomain)

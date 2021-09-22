@@ -70,8 +70,9 @@ func TestGetFederationRelationship(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status: "success",
-						telemetry.Type:   "audit",
+						telemetry.Status:        "success",
+						telemetry.Type:          "audit",
+						telemetry.TrustDomainID: "example-1.org",
 					},
 				},
 			},
@@ -89,8 +90,9 @@ func TestGetFederationRelationship(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status: "success",
-						telemetry.Type:   "audit",
+						telemetry.Status:        "success",
+						telemetry.Type:          "audit",
+						telemetry.TrustDomainID: "example-1.org",
 					},
 				},
 			},
@@ -108,6 +110,7 @@ func TestGetFederationRelationship(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
+						telemetry.TrustDomainID: "badexample-1.org",
 						telemetry.StatusCode:    "NotFound",
 						telemetry.StatusMessage: "federation relationship does not exist",
 					},
@@ -134,6 +137,7 @@ func TestGetFederationRelationship(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
+						telemetry.TrustDomainID: "https://foot.test",
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "failed to parse trust domain: spiffeid: invalid scheme",
 					},
@@ -160,8 +164,32 @@ func TestGetFederationRelationship(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
+						telemetry.TrustDomainID: "example-1.org",
 						telemetry.StatusCode:    "Internal",
 						telemetry.StatusMessage: "failed to fetch federation relationship: datastore error",
+					},
+				},
+			},
+		},
+		{
+			name:        "Entry not found",
+			trustDomain: "notfound.org",
+			err:         "federation relationship does not exist",
+			code:        codes.NotFound,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Federation relationship does not exist",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.TrustDomainID: "notfound.org",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "federation relationship does not exist",
 					},
 				},
 			},
@@ -201,7 +229,6 @@ func TestGetFederationRelationship(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestListFederationRelationships(t *testing.T) {
