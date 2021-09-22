@@ -164,7 +164,7 @@ data:
 
 ---
 
-apiVersion: admissionregistration.k8s.io/v1
+apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: k8s-workload-registrar
@@ -172,7 +172,6 @@ metadata:
     spiffe.io/webhook: "true"
 webhooks:
 - name: k8s-workload-registrar.spire.svc
-  admissionReviewVersions: ["v1", "v1beta1"]
   clientConfig:
     service:
       name: k8s-workload-registrar
@@ -184,7 +183,6 @@ webhooks:
     operations: ["CREATE", "UPDATE", "DELETE"]
     resources: ["spiffeids"]
     scope: Namespaced
-  sideEffects: None
 
 ---
 
