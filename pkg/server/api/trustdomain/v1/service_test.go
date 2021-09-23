@@ -40,7 +40,7 @@ func TestGetFederationRelationship(t *testing.T) {
 		BundleEndpointUrl: "https://endpoint-server-1/path",
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-				EndpointSpiffeId: "spiffe://domain.test/endpoint-server",
+				EndpointSpiffeId: "spiffe://example-1.org/endpoint-server",
 				Bundle: &types.Bundle{
 					TrustDomain: "example-1.org",
 				},
