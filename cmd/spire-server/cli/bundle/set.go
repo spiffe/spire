@@ -7,14 +7,11 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"google.golang.org/grpc/codes"
 )
 
@@ -48,7 +45,7 @@ func (c *setCommand) Synopsis() string {
 func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
-	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", formatPEM, formatSPIFFE))
+	fs.StringVar(&c.format, "format", util.FormatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 }
 
 func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
@@ -66,43 +63,19 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		return err
 	}
 
-	var federatedBundles []*types.Bundle
-
 	bundleBytes, err := loadParamData(env.Stdin, c.path)
 	if err != nil {
 		return fmt.Errorf("unable to load bundle data: %w", err)
 	}
 
-	switch format {
-	case formatPEM:
-		rootCAs, err := pemutil.ParseCertificates(bundleBytes)
-		if err != nil {
-			return fmt.Errorf("unable to parse bundle data: %w", err)
-		}
-
-		federatedBundles = append(federatedBundles, bundleProtoFromX509Authorities(id, rootCAs))
-	default:
-		td, err := spiffeid.TrustDomainFromString(c.id)
-		if err != nil {
-			return err
-		}
-
-		spiffeBundle, err := spiffebundle.Parse(td, bundleBytes)
-		if err != nil {
-			return fmt.Errorf("unable to parse to spiffe bundle: %w", err)
-		}
-
-		typeBundle, err := protoFromSpiffeBundle(spiffeBundle)
-		if err != nil {
-			return fmt.Errorf("unable to parse to type bundle: %w", err)
-		}
-
-		federatedBundles = append(federatedBundles, typeBundle)
+	bundle, err := util.ParseBundle(bundleBytes, format, id)
+	if err != nil {
+		return err
 	}
 
 	bundleClient := serverClient.NewBundleClient()
 	resp, err := bundleClient.BatchSetFederatedBundle(ctx, &bundlev1.BatchSetFederatedBundleRequest{
-		Bundle: federatedBundles,
+		Bundle: []*types.Bundle{bundle},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to set federated bundle: %w", err)

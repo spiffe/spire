@@ -33,7 +33,7 @@ func (c *showCommand) Synopsis() string {
 }
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.format, "format", formatPEM, fmt.Sprintf("The format to show the bundle. Either %q or %q.", formatPEM, formatSPIFFE))
+	fs.StringVar(&c.format, "format", util.FormatPEM, fmt.Sprintf("The format to show the bundle. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 }
 
 func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {

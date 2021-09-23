@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/zeebo/errs"
 )
 
@@ -24,8 +25,6 @@ const (
 * %s
 ****************************************
 `
-	formatPEM    = "pem"
-	formatSPIFFE = "spiffe"
 )
 
 // loadParamData loads the data from a parameter. If the parameter is empty then
@@ -147,72 +146,6 @@ func jwtKeysFromProto(proto []*types.JWTKey) (map[string]crypto.PublicKey, error
 	return keys, nil
 }
 
-func bundleProtoFromX509Authorities(trustDomain string, rootCAs []*x509.Certificate) *types.Bundle {
-	b := &types.Bundle{
-		TrustDomain: trustDomain,
-	}
-	for _, rootCA := range rootCAs {
-		b.X509Authorities = append(b.X509Authorities, &types.X509Certificate{
-			Asn1: rootCA.Raw,
-		})
-	}
-	return b
-}
-
-// protoFromSpiffeBundle converts a bundle from the given *spiffebundle.Bundle to *types.Bundle
-func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*types.Bundle, error) {
-	resp := &types.Bundle{
-		TrustDomain:     bundle.TrustDomain().String(),
-		X509Authorities: protoFromX509Certificates(bundle.X509Authorities()),
-	}
-
-	jwtAuthorities, err := protoFromJWTKeys(bundle.JWTAuthorities())
-	if err != nil {
-		return nil, err
-	}
-	resp.JwtAuthorities = jwtAuthorities
-
-	if r, ok := bundle.RefreshHint(); ok {
-		resp.RefreshHint = int64(r.Seconds())
-	}
-
-	if s, ok := bundle.SequenceNumber(); ok {
-		resp.SequenceNumber = s
-	}
-
-	return resp, nil
-}
-
-// protoFromX509Certificates converts X.509 certificates from the given []*x509.Certificate to []*types.X509Certificate
-func protoFromX509Certificates(certs []*x509.Certificate) []*types.X509Certificate {
-	var resp []*types.X509Certificate
-	for _, cert := range certs {
-		resp = append(resp, &types.X509Certificate{
-			Asn1: cert.Raw,
-		})
-	}
-
-	return resp
-}
-
-// protoFromJWTKeys converts JWT keys from the given map[string]crypto.PublicKey to []*types.JWTKey
-func protoFromJWTKeys(keys map[string]crypto.PublicKey) ([]*types.JWTKey, error) {
-	var resp []*types.JWTKey
-
-	for kid, key := range keys {
-		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
-		if err != nil {
-			return nil, err
-		}
-		resp = append(resp, &types.JWTKey{
-			PublicKey: pkixBytes,
-			KeyId:     kid,
-		})
-	}
-
-	return resp, nil
-}
-
 func printBundleWithFormat(out io.Writer, bundle *types.Bundle, format string, header bool) error {
 	if bundle == nil {
 		return errors.New("no bundle provided")
@@ -229,7 +162,7 @@ func printBundleWithFormat(out io.Writer, bundle *types.Bundle, format string, h
 		}
 	}
 
-	if format == formatPEM {
+	if format == util.FormatPEM {
 		return printX509Authorities(out, bundle.X509Authorities)
 	}
 
@@ -240,14 +173,14 @@ func printBundleWithFormat(out io.Writer, bundle *types.Bundle, format string, h
 // If no format is provided, the default format is returned
 func validateFormat(format string) (string, error) {
 	if format == "" {
-		format = formatPEM
+		format = util.FormatPEM
 	}
 
 	format = strings.ToLower(format)
 
 	switch format {
-	case formatPEM:
-	case formatSPIFFE:
+	case util.FormatPEM:
+	case util.FormatSPIFFE:
 	default:
 		return "", fmt.Errorf("invalid format: %q", format)
 	}
