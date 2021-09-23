@@ -40,7 +40,7 @@ func TestGetFederationRelationship(t *testing.T) {
 		BundleEndpointUrl: "https://endpoint-server-1/path",
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-				EndpointSpiffeId: "spiffe://domain.test/endpoint-server",
+				EndpointSpiffeId: "spiffe://example-1.org/endpoint-server",
 				Bundle: &types.Bundle{
 					TrustDomain: "example-1.org",
 				},
@@ -241,7 +241,7 @@ func TestListFederationRelationships(t *testing.T) {
 		BundleEndpointUrl: "https://endpoint-server-1/path",
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-				EndpointSpiffeId: "spiffe://domain.test/endpoint-server",
+				EndpointSpiffeId: "spiffe://example-1.org/endpoint-server",
 				Bundle: &types.Bundle{
 					TrustDomain: "example-1.org",
 				},
@@ -593,18 +593,19 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile:     "https_spiffe",
-						telemetry.BundleEndpointURL:         "https://federated-td-web.org/bundleendpoint",
-						telemetry.Status:                    "success",
-						telemetry.TrustDomainID:             "domain.test",
-						telemetry.Type:                      "audit",
-						telemetry.EndpointSpiffeID:          "spiffe://domain.test/endpoint",
-						"jwt_authority_expires_at.0":        "1590514224",
-						"jwt_authority_key_id.0":            "key-id-1",
-						"jwt_authority_public_key_sha256.0": pkixHashed,
-						telemetry.RefreshHint:               "60",
-						telemetry.SequenceNumber:            "0",
-						"x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
+						telemetry.BundleEndpointProfile:            "https_spiffe",
+						telemetry.BundleEndpointURL:                "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                           "success",
+						telemetry.TrustDomainID:                    "domain.test",
+						telemetry.Type:                             "audit",
+						telemetry.EndpointSpiffeID:                 "spiffe://domain.test/endpoint",
+						"bundle_jwt_authority_expires_at.0":        "1590514224",
+						"bundle_jwt_authority_key_id.0":            "key-id-1",
+						"bundle_jwt_authority_public_key_sha256.0": pkixHashed,
+						"bundle_refresh_hint":                      "60",
+						"bundle_sequence_number":                   "0",
+						"bundle_x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
+						"bundle_trust_domain_id":                   "domain.test",
 					},
 				},
 			},
@@ -620,6 +621,160 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 								Bundle:           defaultBundle,
 							},
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "non self-serving HttpsSpiffe endpoint SPIFFE ID trust domain mismatch",
+			req: []*types.FederationRelationship{
+				{
+					TrustDomain:       "domain.test",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://domain.test/endpoint",
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert federation relationship",
+					Data: logrus.Fields{
+						telemetry.Error:         `non self-serving bundle endpoint for "domain.test" has a SPIFFE ID from the same trust domain`,
+						telemetry.TrustDomainID: "domain.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "InvalidArgument",
+						telemetry.StatusMessage:         `failed to convert federation relationship: non self-serving bundle endpoint for "domain.test" has a SPIFFE ID from the same trust domain`,
+						telemetry.TrustDomainID:         "domain.test",
+						telemetry.Type:                  "audit",
+						telemetry.EndpointSpiffeID:      "spiffe://domain.test/endpoint",
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `failed to convert federation relationship: non self-serving bundle endpoint for "domain.test" has a SPIFFE ID from the same trust domain`,
+					},
+				},
+			},
+		},
+		{
+			name: "self-serving HttpsSpiffe endpoint SPIFFE ID trust domain mismatch",
+			req: []*types.FederationRelationship{
+				{
+					TrustDomain:       "domain.test",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://other-domain.test/endpoint",
+							Bundle:           defaultBundle,
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert federation relationship",
+					Data: logrus.Fields{
+						telemetry.Error:         `self-serving bundle endpoint for "domain.test" has a SPIFFE ID from another trust domain ("other-domain.test")`,
+						telemetry.TrustDomainID: "domain.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile:            "https_spiffe",
+						telemetry.BundleEndpointURL:                "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                           "error",
+						telemetry.StatusCode:                       "InvalidArgument",
+						telemetry.StatusMessage:                    `failed to convert federation relationship: self-serving bundle endpoint for "domain.test" has a SPIFFE ID from another trust domain ("other-domain.test")`,
+						telemetry.TrustDomainID:                    "domain.test",
+						telemetry.Type:                             "audit",
+						telemetry.EndpointSpiffeID:                 "spiffe://other-domain.test/endpoint",
+						"bundle_jwt_authority_expires_at.0":        "1590514224",
+						"bundle_jwt_authority_key_id.0":            "key-id-1",
+						"bundle_jwt_authority_public_key_sha256.0": pkixHashed,
+						"bundle_refresh_hint":                      "60",
+						"bundle_sequence_number":                   "0",
+						"bundle_x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
+						"bundle_trust_domain_id":                   "domain.test",
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `failed to convert federation relationship: self-serving bundle endpoint for "domain.test" has a SPIFFE ID from another trust domain ("other-domain.test")`,
+					},
+				},
+			},
+		},
+		{
+			name: "self-serving HttpsSpiffe bundle domain mismatch",
+			req: []*types.FederationRelationship{
+				{
+					TrustDomain:       "other-domain.test",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://other-domain.test/endpoint",
+							Bundle:           defaultBundle,
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert federation relationship",
+					Data: logrus.Fields{
+						telemetry.Error:         `self-serving bundle endpoint for "other-domain.test" has a bundle from another trust domain ("domain.test")`,
+						telemetry.TrustDomainID: "other-domain.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile:            "https_spiffe",
+						telemetry.BundleEndpointURL:                "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                           "error",
+						telemetry.StatusCode:                       "InvalidArgument",
+						telemetry.StatusMessage:                    `failed to convert federation relationship: self-serving bundle endpoint for "other-domain.test" has a bundle from another trust domain ("domain.test")`,
+						telemetry.TrustDomainID:                    "other-domain.test",
+						telemetry.Type:                             "audit",
+						telemetry.EndpointSpiffeID:                 "spiffe://other-domain.test/endpoint",
+						"bundle_jwt_authority_expires_at.0":        "1590514224",
+						"bundle_jwt_authority_key_id.0":            "key-id-1",
+						"bundle_jwt_authority_public_key_sha256.0": pkixHashed,
+						"bundle_refresh_hint":                      "60",
+						"bundle_sequence_number":                   "0",
+						"bundle_x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
+						"bundle_trust_domain_id":                   "domain.test",
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `failed to convert federation relationship: self-serving bundle endpoint for "other-domain.test" has a bundle from another trust domain ("domain.test")`,
 					},
 				},
 			},
@@ -678,7 +833,8 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert federation relationship",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "failed to parse trust domain: spiffeid: unable to parse: parse \"spiffe://no a td\": invalid character \" \" in host name",
+						logrus.ErrorKey:         "failed to parse trust domain: spiffeid: unable to parse: parse \"spiffe://no a td\": invalid character \" \" in host name",
+						telemetry.TrustDomainID: "no a td",
 					},
 				},
 				{
@@ -774,20 +930,21 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile:     "https_spiffe",
-						telemetry.BundleEndpointURL:         "https://federated-td-web.org/bundleendpoint",
-						telemetry.Status:                    "error",
-						telemetry.StatusCode:                "Internal",
-						telemetry.StatusMessage:             "failed to convert datastore response: trust domain is required",
-						telemetry.TrustDomainID:             "domain.test",
-						telemetry.Type:                      "audit",
-						telemetry.EndpointSpiffeID:          "spiffe://domain.test/endpoint",
-						"jwt_authority_expires_at.0":        "1590514224",
-						"jwt_authority_key_id.0":            "key-id-1",
-						"jwt_authority_public_key_sha256.0": pkixHashed,
-						telemetry.RefreshHint:               "60",
-						telemetry.SequenceNumber:            "0",
-						"x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
+						telemetry.BundleEndpointProfile:            "https_spiffe",
+						telemetry.BundleEndpointURL:                "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                           "error",
+						telemetry.StatusCode:                       "Internal",
+						telemetry.StatusMessage:                    "failed to convert datastore response: trust domain is required",
+						telemetry.TrustDomainID:                    "domain.test",
+						telemetry.Type:                             "audit",
+						telemetry.EndpointSpiffeID:                 "spiffe://domain.test/endpoint",
+						"bundle_jwt_authority_expires_at.0":        "1590514224",
+						"bundle_jwt_authority_key_id.0":            "key-id-1",
+						"bundle_jwt_authority_public_key_sha256.0": pkixHashed,
+						"bundle_refresh_hint":                      "60",
+						"bundle_sequence_number":                   "0",
+						"bundle_trust_domain_id":                   "domain.test",
+						"bundle_x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
 					},
 				},
 			},
@@ -1254,7 +1411,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 		reqFR            []*types.FederationRelationship
 	}{
 		{
-			name: "multiples federation relationships",
+			name: "multiple federation relationships",
 			reqFR: []*types.FederationRelationship{
 				{
 					TrustDomain:           "foo.test",
@@ -1409,19 +1566,19 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile: "https_spiffe",
-						telemetry.BundleEndpointURL:     "https://bar.test/newpath",
-						telemetry.Status:                "success",
-
-						telemetry.EndpointSpiffeID:          "spiffe://bar.test/updated",
-						"jwt_authority_expires_at.0":        "1590514224",
-						"jwt_authority_key_id.0":            "key-id-1",
-						"jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
-						telemetry.RefreshHint:               "30",
-						telemetry.SequenceNumber:            "1",
-						"x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
-						telemetry.TrustDomainID:             "bar.test",
-						telemetry.Type:                      "audit",
+						telemetry.BundleEndpointProfile:            "https_spiffe",
+						telemetry.BundleEndpointURL:                "https://bar.test/newpath",
+						telemetry.Status:                           "success",
+						telemetry.EndpointSpiffeID:                 "spiffe://bar.test/updated",
+						telemetry.TrustDomainID:                    "bar.test",
+						telemetry.Type:                             "audit",
+						"bundle_jwt_authority_expires_at.0":        "1590514224",
+						"bundle_jwt_authority_key_id.0":            "key-id-1",
+						"bundle_jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
+						"bundle_refresh_hint":                      "30",
+						"bundle_sequence_number":                   "1",
+						"bundle_x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
+						"bundle_trust_domain_id":                   "bar.test",
 					},
 				},
 			},
@@ -1469,6 +1626,177 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 				{
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
 					BundleEndpointURL:     newBarURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+		{
+			name: "update to non self-serving https_spiffe profile with endpoint SPIFFE ID trust domain mismatch",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "foo.test",
+					BundleEndpointUrl: "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://foo.test/endpoint",
+						},
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `failed to convert federation relationship: non self-serving bundle endpoint for "foo.test" has a SPIFFE ID from the same trust domain`,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert federation relationship",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+						telemetry.Error:         `non self-serving bundle endpoint for "foo.test" has a SPIFFE ID from the same trust domain`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.EndpointSpiffeID:      "spiffe://foo.test/endpoint",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "InvalidArgument",
+						telemetry.StatusMessage:         `failed to convert federation relationship: non self-serving bundle endpoint for "foo.test" has a SPIFFE ID from the same trust domain`,
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     fooURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+		{
+			name: "update to self-serving https_spiffe profile with endpoint SPIFFE ID trust domain mismatch",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "foo.test",
+					BundleEndpointUrl: "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://baz.test/endpoint",
+							Bundle: &types.Bundle{
+								TrustDomain: "foo.test",
+							},
+						},
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a SPIFFE ID from another trust domain ("baz.test")`,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert federation relationship",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+						telemetry.Error:         `self-serving bundle endpoint for "foo.test" has a SPIFFE ID from another trust domain ("baz.test")`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.EndpointSpiffeID:      "spiffe://baz.test/endpoint",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "InvalidArgument",
+						telemetry.StatusMessage:         `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a SPIFFE ID from another trust domain ("baz.test")`,
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+						"bundle_refresh_hint":           "0",
+						"bundle_sequence_number":        "0",
+						"bundle_trust_domain_id":        "foo.test",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     fooURL,
+					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+		{
+			name: "update to self-serving https_spiffe profile with bundle trust domain mismatch",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "foo.test",
+					BundleEndpointUrl: "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://foo.test/endpoint",
+							Bundle: &types.Bundle{
+								TrustDomain: "baz.test",
+							},
+						},
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a bundle from another trust domain ("baz.test")`,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert federation relationship",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+						telemetry.Error:         `self-serving bundle endpoint for "foo.test" has a bundle from another trust domain ("baz.test")`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.EndpointSpiffeID:      "spiffe://foo.test/endpoint",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "error",
+						telemetry.StatusCode:            "InvalidArgument",
+						telemetry.StatusMessage:         `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a bundle from another trust domain ("baz.test")`,
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+						"bundle_refresh_hint":           "0",
+						"bundle_sequence_number":        "0",
+						"bundle_trust_domain_id":        "baz.test",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     fooURL,
 					BundleEndpointProfile: datastore.BundleEndpointWeb,
 				},
 			},
@@ -1602,19 +1930,20 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
+						telemetry.TrustDomainID:         "bar.test",
 						telemetry.BundleEndpointProfile: "https_spiffe",
 						telemetry.BundleEndpointURL:     "https://bar.test/newpath",
 						telemetry.Status:                "success",
 
-						telemetry.EndpointSpiffeID:          "spiffe://bar.test/updated",
-						"jwt_authority_expires_at.0":        "1590514224",
-						"jwt_authority_key_id.0":            "key-id-1",
-						"jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
-						telemetry.RefreshHint:               "30",
-						telemetry.SequenceNumber:            "1",
-						"x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
-						telemetry.TrustDomainID:             "bar.test",
-						telemetry.Type:                      "audit",
+						telemetry.EndpointSpiffeID:                 "spiffe://bar.test/updated",
+						"bundle_jwt_authority_expires_at.0":        "1590514224",
+						"bundle_jwt_authority_key_id.0":            "key-id-1",
+						"bundle_jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
+						"bundle_refresh_hint":                      "30",
+						"bundle_sequence_number":                   "1",
+						"bundle_x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
+						"bundle_trust_domain_id":                   "bar.test",
+						telemetry.Type:                             "audit",
 					},
 				},
 			},

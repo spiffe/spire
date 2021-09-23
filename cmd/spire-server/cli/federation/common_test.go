@@ -40,11 +40,22 @@ type fakeServer struct {
 	t   *testing.T
 	err error
 
-	expectListReq *trustdomainv1.ListFederationRelationshipsRequest
-	expectShowReq *trustdomainv1.GetFederationRelationshipRequest
+	expectDeleteReq *trustdomainv1.BatchDeleteFederationRelationshipRequest
+	expectListReq   *trustdomainv1.ListFederationRelationshipsRequest
+	expectShowReq   *trustdomainv1.GetFederationRelationshipRequest
 
-	listResp *trustdomainv1.ListFederationRelationshipsResponse
-	showResp *types.FederationRelationship
+	deleteResp *trustdomainv1.BatchDeleteFederationRelationshipResponse
+	listResp   *trustdomainv1.ListFederationRelationshipsResponse
+	showResp   *types.FederationRelationship
+}
+
+func (f *fakeServer) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	spiretest.AssertProtoEqual(f.t, f.expectDeleteReq, req)
+	return f.deleteResp, nil
 }
 
 func (f *fakeServer) ListFederationRelationships(ctx context.Context, req *trustdomainv1.ListFederationRelationshipsRequest) (*trustdomainv1.ListFederationRelationshipsResponse, error) {
