@@ -77,6 +77,9 @@ func (cc *CLI) Run(args []string) int {
 		"federation list": func() (cli.Command, error) {
 			return federation.NewListCommand(), nil
 		},
+		"federation show": func() (cli.Command, error) {
+			return federation.NewShowCommand(), nil
+		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
 		},

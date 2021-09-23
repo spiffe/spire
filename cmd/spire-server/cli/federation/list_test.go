@@ -20,7 +20,7 @@ func TestListHelp(t *testing.T) {
 `, test.stderr.String())
 }
 
-func TestShowSynopsis(t *testing.T) {
+func TestListSynopsis(t *testing.T) {
 	test := setupTest(t, newListCommand)
 	require.Equal(t, "List federation relationships", test.client.Synopsis())
 }
