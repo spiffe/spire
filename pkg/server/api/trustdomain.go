@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 )
 
 // ProtoToFederationRelationship convert and validate proto to datastore federated relationship
@@ -63,9 +64,27 @@ func ProtoToFederationRelationshipWithMask(f *types.FederationRelationship, mask
 				return nil, fmt.Errorf("failed to parse endpoint SPIFFE ID: %w", err)
 			}
 
-			bundle, err := ProtoToBundle(profile.HttpsSpiffe.Bundle)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse bundle: %w", err)
+			var bundle *common.Bundle
+			if profile.HttpsSpiffe.Bundle != nil {
+				bundle, err = ProtoToBundle(profile.HttpsSpiffe.Bundle)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse bundle: %w", err)
+				}
+				// Having a bundle present means that this is a self-serving
+				// bundle endpoint. We need to ensure that the relationship, and
+				// endpoint SPIFFE ID, and the bundle all have matching trust
+				// domain names.
+				switch {
+				case trustDomain.IDString() != bundle.TrustDomainId:
+					return nil, fmt.Errorf("self-serving bundle endpoint for %q has a bundle from another trust domain (%q)", trustDomain, profile.HttpsSpiffe.Bundle.TrustDomain)
+				case trustDomain != spiffeID.TrustDomain():
+					return nil, fmt.Errorf("self-serving bundle endpoint for %q has a SPIFFE ID from another trust domain (%q)", trustDomain, spiffeID.TrustDomain())
+				}
+			} else if trustDomain == spiffeID.TrustDomain() {
+				// No bundle means that this is a relationship with a non
+				// self-serving endpoint. The endpoint SPIFFE ID should be
+				// from a different trust domain.
+				return nil, fmt.Errorf("non self-serving bundle endpoint for %q has a SPIFFE ID from the same trust domain", trustDomain)
 			}
 
 			resp.BundleEndpointProfile = datastore.BundleEndpointSPIFFE
