@@ -10,6 +10,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type cmdTest struct {
@@ -36,11 +37,13 @@ type fakeServer struct {
 	t   *testing.T
 	err error
 
-	expectDeleteReq *trustdomainv1.BatchDeleteFederationRelationshipRequest
-	expectListReq   *trustdomainv1.ListFederationRelationshipsRequest
+	expectDeleteReq  *trustdomainv1.BatchDeleteFederationRelationshipRequest
+	expectListReq    *trustdomainv1.ListFederationRelationshipsRequest
+	expectRefreshReq *trustdomainv1.RefreshBundleRequest
 
-	deleteResp *trustdomainv1.BatchDeleteFederationRelationshipResponse
-	listResp   *trustdomainv1.ListFederationRelationshipsResponse
+	deleteResp  *trustdomainv1.BatchDeleteFederationRelationshipResponse
+	listResp    *trustdomainv1.ListFederationRelationshipsResponse
+	refreshResp *emptypb.Empty
 }
 
 func (f *fakeServer) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
@@ -59,6 +62,15 @@ func (f *fakeServer) ListFederationRelationships(ctx context.Context, req *trust
 
 	spiretest.AssertProtoEqual(f.t, f.expectListReq, req)
 	return f.listResp, nil
+}
+
+func (f *fakeServer) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	spiretest.AssertProtoEqual(f.t, f.expectRefreshReq, req)
+	return f.refreshResp, nil
 }
 
 func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTest {
