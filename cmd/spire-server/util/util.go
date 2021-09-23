@@ -2,11 +2,15 @@ package util
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"net"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
@@ -14,12 +18,15 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	api_types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 const (
 	DefaultSocketPath = "/tmp/spire-server/private/api.sock"
+	FormatPEM         = "pem"
+	FormatSPIFFE      = "spiffe"
 )
 
 func Dial(socketPath string) (*grpc.ClientConn, error) {
@@ -179,4 +186,101 @@ func ParseSelector(str string) (*api_types.Selector, error) {
 		Value: parts[1],
 	}
 	return s, nil
+}
+
+func ParseBundle(bundleBytes []byte, format, id string) (*api_types.Bundle, error) {
+	var bundle *api_types.Bundle
+	switch format {
+	case FormatPEM:
+		rootCAs, err := pemutil.ParseCertificates(bundleBytes)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse bundle data: %w", err)
+		}
+
+		bundle = bundleProtoFromX509Authorities(id, rootCAs)
+	default:
+		td, err := spiffeid.TrustDomainFromString(id)
+		if err != nil {
+			return nil, err
+		}
+
+		spiffeBundle, err := spiffebundle.Parse(td, bundleBytes)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse to spiffe bundle: %w", err)
+		}
+
+		bundle, err = protoFromSpiffeBundle(spiffeBundle)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse to type bundle: %w", err)
+		}
+	}
+	return bundle, nil
+}
+
+// BundleProtoFromX509Authorities creates a Bundle API type from a trustdomain and
+// a list of root CAs.
+func bundleProtoFromX509Authorities(trustDomain string, rootCAs []*x509.Certificate) *api_types.Bundle {
+	b := &api_types.Bundle{
+		TrustDomain: trustDomain,
+	}
+	for _, rootCA := range rootCAs {
+		b.X509Authorities = append(b.X509Authorities, &api_types.X509Certificate{
+			Asn1: rootCA.Raw,
+		})
+	}
+	return b
+}
+
+// protoFromSpiffeBundle converts a bundle from the given *spiffebundle.Bundle to *api_types.Bundle
+func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*api_types.Bundle, error) {
+	resp := &api_types.Bundle{
+		TrustDomain:     bundle.TrustDomain().String(),
+		X509Authorities: protoFromX509Certificates(bundle.X509Authorities()),
+	}
+
+	jwtAuthorities, err := protoFromJWTKeys(bundle.JWTAuthorities())
+	if err != nil {
+		return nil, err
+	}
+	resp.JwtAuthorities = jwtAuthorities
+
+	if r, ok := bundle.RefreshHint(); ok {
+		resp.RefreshHint = int64(r.Seconds())
+	}
+
+	if s, ok := bundle.SequenceNumber(); ok {
+		resp.SequenceNumber = s
+	}
+
+	return resp, nil
+}
+
+// protoFromX509Certificates converts X.509 certificates from the given []*x509.Certificate to []*types.X509Certificate
+func protoFromX509Certificates(certs []*x509.Certificate) []*api_types.X509Certificate {
+	var resp []*api_types.X509Certificate
+	for _, cert := range certs {
+		resp = append(resp, &api_types.X509Certificate{
+			Asn1: cert.Raw,
+		})
+	}
+
+	return resp
+}
+
+// protoFromJWTKeys converts JWT keys from the given map[string]crypto.PublicKey to []*types.JWTKey
+func protoFromJWTKeys(keys map[string]crypto.PublicKey) ([]*api_types.JWTKey, error) {
+	var resp []*api_types.JWTKey
+
+	for kid, key := range keys {
+		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
+		if err != nil {
+			return nil, err
+		}
+		resp = append(resp, &api_types.JWTKey{
+			PublicKey: pkixBytes,
+			KeyId:     kid,
+		})
+	}
+
+	return resp, nil
 }

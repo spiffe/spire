@@ -74,6 +74,9 @@ func (cc *CLI) Run(args []string) int {
 		"entry show": func() (cli.Command, error) {
 			return entry.NewShowCommand(), nil
 		},
+		"federation create": func() (cli.Command, error) {
+			return federation.NewCreateCommand(), nil
+		},
 		"federation delete": func() (cli.Command, error) {
 			return federation.NewDeleteCommand(), nil
 		},

@@ -9,6 +9,7 @@ import (
 
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -47,12 +48,12 @@ func TestShow(t *testing.T) {
 		},
 		{
 			name:        "pem",
-			args:        []string{"-format", formatPEM},
+			args:        []string{"-format", util.FormatPEM},
 			expectedOut: cert1PEM,
 		},
 		{
 			name:        "spiffe",
-			args:        []string{"-format", formatSPIFFE},
+			args:        []string{"-format", util.FormatSPIFFE},
 			expectedOut: cert1JWKS,
 		},
 		{
@@ -160,7 +161,7 @@ func TestSet(t *testing.T) {
 		{
 			name:           "invalid bundle (spiffe)",
 			stdin:          "invalid bundle",
-			args:           []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
+			args:           []string{"-id", "spiffe://otherdomain.test", "-format", util.FormatSPIFFE},
 			expectedStderr: "Error: unable to parse to spiffe bundle: spiffebundle: unable to parse JWKS: invalid character 'i' looking for beginning of value\n",
 		},
 		{
@@ -217,7 +218,7 @@ func TestSet(t *testing.T) {
 		{
 			name:  "set bundle (pem)",
 			stdin: cert1PEM,
-			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatPEM},
+			args:  []string{"-id", "spiffe://otherdomain.test", "-format", util.FormatPEM},
 			toSet: &types.Bundle{
 				TrustDomain: "spiffe://otherdomain.test",
 				X509Authorities: []*types.X509Certificate{
@@ -240,7 +241,7 @@ func TestSet(t *testing.T) {
 		{
 			name:  "set bundle (jwks)",
 			stdin: otherDomainJWKS,
-			args:  []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
+			args:  []string{"-id", "spiffe://otherdomain.test", "-format", util.FormatSPIFFE},
 			toSet: &types.Bundle{
 				TrustDomain: "otherdomain.test",
 				X509Authorities: []*types.X509Certificate{
@@ -296,7 +297,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:     "set from file (pem)",
-			args:     []string{"-id", "spiffe://otherdomain.test", "-format", formatPEM},
+			args:     []string{"-id", "spiffe://otherdomain.test", "-format", util.FormatPEM},
 			fileData: cert1PEM,
 			toSet: &types.Bundle{
 				TrustDomain: "spiffe://otherdomain.test",
@@ -319,7 +320,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:     "set from file (jwks)",
-			args:     []string{"-id", "spiffe://otherdomain.test", "-format", formatSPIFFE},
+			args:     []string{"-id", "spiffe://otherdomain.test", "-format", util.FormatSPIFFE},
 			fileData: otherDomainJWKS,
 			toSet: &types.Bundle{
 				TrustDomain: "otherdomain.test",
@@ -511,12 +512,12 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:           "all bundles (pem)",
-			args:           []string{"-format", formatPEM},
+			args:           []string{"-format", util.FormatPEM},
 			expectedStdout: allBundlesPEM,
 		},
 		{
 			name:           "all bundles (jwks)",
-			args:           []string{"-format", formatSPIFFE},
+			args:           []string{"-format", util.FormatSPIFFE},
 			expectedStdout: allBundlesJWKS,
 		},
 		{
@@ -542,12 +543,12 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:           "one bundle (pem)",
-			args:           []string{"-id", "spiffe://domain2.test", "-format", formatPEM},
+			args:           []string{"-id", "spiffe://domain2.test", "-format", util.FormatPEM},
 			expectedStdout: cert2PEM,
 		},
 		{
 			name:           "one bundle (jwks)",
-			args:           []string{"-id", "spiffe://domain2.test", "-format", formatSPIFFE},
+			args:           []string{"-id", "spiffe://domain2.test", "-format", util.FormatSPIFFE},
 			expectedStdout: cert2JWKS,
 		},
 	} {
