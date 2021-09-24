@@ -2,6 +2,7 @@ package trustdomain
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -186,7 +187,7 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 		return nil, api.MakeErr(log, codes.Internal, "failed to refresh bundle", err)
 	}
 	if !isManagedByBm {
-		return nil, api.MakeErr(log, codes.NotFound, "not found", err)
+		return nil, api.MakeErr(log, codes.NotFound, fmt.Sprintf("no relationship with trust domain %q", trustDomain), nil)
 	}
 
 	log.Debug("Bundle refreshed")
