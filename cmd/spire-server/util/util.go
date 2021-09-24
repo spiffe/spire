@@ -5,11 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"strings"
 
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
+	api_types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -41,6 +44,7 @@ type ServerClient interface {
 	NewBundleClient() bundlev1.BundleClient
 	NewEntryClient() entryv1.EntryClient
 	NewSVIDClient() svidv1.SVIDClient
+	NewTrustDomainClient() trustdomainv1.TrustDomainClient
 	NewHealthClient() grpc_health_v1.HealthClient
 }
 
@@ -74,6 +78,10 @@ func (c *serverClient) NewEntryClient() entryv1.EntryClient {
 
 func (c *serverClient) NewSVIDClient() svidv1.SVIDClient {
 	return svidv1.NewSVIDClient(c.conn)
+}
+
+func (c *serverClient) NewTrustDomainClient() trustdomainv1.TrustDomainClient {
+	return trustdomainv1.NewTrustDomainClient(c.conn)
 }
 
 func (c *serverClient) NewHealthClient() grpc_health_v1.HealthClient {
@@ -155,4 +163,20 @@ func (a *Adapter) Help() string {
 
 func (a *Adapter) Synopsis() string {
 	return a.cmd.Synopsis()
+}
+
+// parseSelector parses a CLI string from type:value into a selector type.
+// Everything to the right of the first ":" is considered a selector value.
+func ParseSelector(str string) (*api_types.Selector, error) {
+	parts := strings.SplitAfterN(str, ":", 2)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("selector \"%s\" must be formatted as type:value", str)
+	}
+
+	s := &api_types.Selector{
+		// Strip the trailing delimiter
+		Type:  strings.TrimSuffix(parts[0], ":"),
+		Value: parts[1],
+	}
+	return s, nil
 }

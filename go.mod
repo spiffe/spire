@@ -135,7 +135,7 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.8
-	github.com/spiffe/spire-api-sdk v1.0.3-0.20210830151222-70fb6a116a63
+	github.com/spiffe/spire-api-sdk v1.0.3-0.20210921173842-bbaf2349ec63
 	github.com/spiffe/spire-plugin-sdk v1.0.2
 	github.com/stretchr/testify v1.7.0
 	github.com/tklauser/go-sysconf v0.3.4 // indirect
@@ -148,7 +148,7 @@ require (
 	github.com/zeebo/errs v1.2.2
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.9.0
-	go.uber.org/goleak v1.1.11
+	go.uber.org/goleak v1.1.11 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272

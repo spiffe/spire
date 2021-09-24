@@ -8,10 +8,11 @@ import (
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sync"
 
-	api_workload "github.com/spiffe/spire/api/workload"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
@@ -301,25 +302,17 @@ func (a *Agent) CheckHealth() health.State {
 }
 
 func (a *Agent) checkWorkloadAPI() error {
-	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
-		Addr:        a.c.BindAddress,
-		FailOnError: true,
-	})
-	defer client.Stop()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- client.Start()
-	}()
-
-	select {
-	case err := <-errCh:
-		if status.Code(err) == codes.Unavailable {
-			return errors.New("workload api is unavailable")
-		}
-	case <-client.UpdateChan():
+	socketPath, err := filepath.Abs(a.c.BindAddress.String())
+	if err != nil {
+		a.c.Log.WithError(err).Error("Failed to resolve absolute socket path for health check")
+		return err
 	}
-
+	_, err = workloadapi.FetchX509Bundles(context.TODO(),
+		workloadapi.WithAddr("unix://"+socketPath))
+	if status.Code(err) == codes.Unavailable {
+		// Only an unavailable status fails the health check.
+		return errors.New("workload api is unavailable")
+	}
 	return nil
 }
 

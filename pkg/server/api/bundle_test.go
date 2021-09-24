@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
@@ -196,6 +198,78 @@ func TestProtoToBundle(t *testing.T) {
 
 			require.NoError(t, err)
 			spiretest.AssertProtoEqual(t, tt.expectBundle, bundle)
+		})
+	}
+}
+
+func TestHashByte(t *testing.T) {
+	resp := api.HashByte([]byte{1})
+	require.NotEmpty(t, resp)
+
+	resp = api.HashByte([]byte{})
+	require.Equal(t, "", resp)
+}
+
+func TestFieldsFromBundleProto(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
+	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
+	require.NoError(t, err)
+
+	rootCAHashed := api.HashByte(rootCA.Raw)
+	pkixHashed := api.HashByte(pkixBytes)
+
+	bundle := &types.Bundle{
+		TrustDomain: td.String(),
+		RefreshHint: 10,
+		X509Authorities: []*types.X509Certificate{
+			{
+				Asn1: rootCA.Raw,
+			},
+		},
+		JwtAuthorities: []*types.JWTKey{
+			{
+				PublicKey: pkixBytes,
+				KeyId:     "key-id-1",
+				ExpiresAt: 1590514224,
+			},
+		},
+	}
+
+	for _, tt := range []struct {
+		name         string
+		proto        *types.Bundle
+		mask         *types.BundleMask
+		expectFields logrus.Fields
+		expectErr    string
+	}{
+		{
+			name:  "no mask",
+			proto: bundle,
+			expectFields: logrus.Fields{
+				"jwt_authority_expires_at.0":        int64(1590514224),
+				"jwt_authority_key_id.0":            "key-id-1",
+				"jwt_authority_public_key_sha256.0": pkixHashed,
+				telemetry.RefreshHint:               int64(10),
+				telemetry.SequenceNumber:            uint64(0),
+				telemetry.TrustDomainID:             "example.org",
+				"x509_authorities_asn1_sha256.0":    rootCAHashed,
+			},
+		},
+		{
+			name:  "mask all false",
+			proto: bundle,
+			mask:  &types.BundleMask{},
+			expectFields: logrus.Fields{
+				telemetry.TrustDomainID: "example.org",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fields := api.FieldsFromBundleProto(tt.proto, tt.mask)
+
+			require.Equal(t, tt.expectFields, fields)
 		})
 	}
 }
