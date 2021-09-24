@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck // No longer deprecated in newer versions.
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -54,7 +54,7 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 	c := CommonControllerTestSuite{
 		cluster:     Cluster,
 		log:         log,
-		k8sClient:   fake.NewFakeClientWithScheme(scheme.Scheme),
+		k8sClient:   fake.NewClientBuilder().WithScheme(scheme.Scheme).Build(),
 		entryClient: fakeentryclient.New(t, spiffeid.RequireTrustDomainFromString(TrustDomain), nil, nil),
 		scheme:      scheme.Scheme,
 		trustDomain: TrustDomain,
