@@ -3284,16 +3284,6 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 			if err != nil {
 				return nil, fmt.Errorf("unable to set bundle: %w", err)
 			}
-		} else {
-			// check if a previous bundle exists
-			bundle, err := fetchBundle(tx, fr.TrustDomain.IDString())
-			if err != nil {
-				return nil, fmt.Errorf("unable to fetch bundle: %w", err)
-			}
-			if bundle == nil {
-				return nil, fmt.Errorf("no bundle exists for trust domain: %q", fr.TrustDomain)
-			}
-			fr.Bundle = bundle
 		}
 	}
 
@@ -3396,16 +3386,6 @@ func updateFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 				if err != nil {
 					return nil, fmt.Errorf("unable to set bundle: %w", err)
 				}
-			} else {
-				// check if a previous bundle exists
-				bundle, err := fetchBundle(tx, fr.TrustDomain.IDString())
-				if err != nil {
-					return nil, fmt.Errorf("unable to fetch bundle: %w", err)
-				}
-				if bundle == nil {
-					return nil, fmt.Errorf("no bundle exists for trust domain: %q", fr.TrustDomain)
-				}
-				fr.Bundle = bundle
 			}
 		}
 	}
@@ -3471,11 +3451,14 @@ func modelToFederationRelationship(tx *gorm.DB, model *FederatedTrustDomain) (*d
 		}
 		fr.EndpointSPIFFEID = endpointSPIFFEID
 
-		bundle, err := fetchBundle(tx, td.IDString())
-		if err != nil {
-			return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+		// Set bundle only when endpoint is on self-serving
+		if fr.EndpointSPIFFEID.TrustDomain().Compare(fr.TrustDomain) == 0 {
+			bundle, err := fetchBundle(tx, td.IDString())
+			if err != nil {
+				return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+			}
+			fr.Bundle = bundle
 		}
-		fr.Bundle = bundle
 	default:
 		return nil, fmt.Errorf("unknown bundle endpoint profile type: %q", model.BundleEndpointProfile)
 	}
