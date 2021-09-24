@@ -47,37 +47,6 @@ func newPlugin(newClient func(ctx context.Context, secretAccessKey, accessKeyID,
 	return p
 }
 
-type secretOptions struct {
-	name     string
-	arn      string
-	kmsKeyID string
-}
-
-// getSecretID gets ARN if it is configured. If not configured, use secret name
-func (o *secretOptions) getSecretID() string {
-	if o.arn != "" {
-		return o.arn
-	}
-
-	return o.name
-}
-
-func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
-	data := svidstore.ParseMetadata(selectorData)
-
-	opt := &secretOptions{
-		name:     data["secretname"],
-		arn:      data["arn"],
-		kmsKeyID: data["kmskeyid"],
-	}
-
-	if opt.name == "" && opt.arn == "" {
-		return nil, status.Error(codes.InvalidArgument, "either the secret name or ARN is required")
-	}
-
-	return opt, nil
-}
-
 type Configuration struct {
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
@@ -147,7 +116,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 
 	secretID := opt.getSecretID()
 
-	// Encode the secret from a 'workload.X509SVIDResponse'
+	// Encode the secret from PutX509SVIDRequest
 	secret, err := svidstore.SecretFromProto(req)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse request: %v", err)
@@ -249,6 +218,37 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 	p.log.With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).With("deletion_date", aws.TimeValue(resp.DeletionDate)).Debug("Secret deleted")
 
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
+}
+
+type secretOptions struct {
+	name     string
+	arn      string
+	kmsKeyID string
+}
+
+// getSecretID gets ARN if it is configured. If not configured, use secret name
+func (o *secretOptions) getSecretID() string {
+	if o.arn != "" {
+		return o.arn
+	}
+
+	return o.name
+}
+
+func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
+	data := svidstore.ParseMetadata(selectorData)
+
+	opt := &secretOptions{
+		name:     data["secretname"],
+		arn:      data["arn"],
+		kmsKeyID: data["kmskeyid"],
+	}
+
+	if opt.name == "" && opt.arn == "" {
+		return nil, status.Error(codes.InvalidArgument, "either the secret name or ARN is required")
+	}
+
+	return opt, nil
 }
 
 func createSecret(ctx context.Context, sm SecretsManagerClient, secretBinary []byte, opt *secretOptions) (*secretsmanager.CreateSecretOutput, error) {
