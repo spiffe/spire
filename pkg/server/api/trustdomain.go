@@ -123,17 +123,21 @@ func FederationRelationshipToProto(f *datastore.FederationRelationship, mask *ty
 	if mask.BundleEndpointProfile {
 		switch f.BundleEndpointProfile {
 		case datastore.BundleEndpointSPIFFE:
-			bundle, err := BundleToProto(f.Bundle)
-			if err != nil {
-				return nil, err
-			}
-
-			resp.BundleEndpointProfile = &types.FederationRelationship_HttpsSpiffe{
+			profile := &types.FederationRelationship_HttpsSpiffe{
 				HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 					EndpointSpiffeId: f.EndpointSPIFFEID.String(),
-					Bundle:           bundle,
 				},
 			}
+			// Only self-serving endpoints has a bundle
+			if f.EndpointSPIFFEID.TrustDomain().Compare(f.TrustDomain) == 0 {
+				bundle, err := BundleToProto(f.Bundle)
+				if err != nil {
+					return nil, err
+				}
+				profile.HttpsSpiffe.Bundle = bundle
+			}
+
+			resp.BundleEndpointProfile = profile
 		case datastore.BundleEndpointWeb:
 			resp.BundleEndpointProfile = &types.FederationRelationship_HttpsWeb{}
 		default:

@@ -187,6 +187,10 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
 		}
 	}
+	// Warning in case of non self-serving endpoints that does not have a bundle
+	if resp.Bundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		validateEndpointBundle(ctx, s.ds, log, resp.EndpointSPIFFEID.TrustDomain())
+	}
 
 	log.Debug("Federation relationship created")
 
@@ -223,6 +227,9 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
 		}
+	}
+	if resp.Bundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		validateEndpointBundle(ctx, s.ds, log, resp.EndpointSPIFFEID.TrustDomain())
 	}
 	log.Debug("Federation relationship updated")
 
@@ -310,4 +317,15 @@ func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *type
 	}
 
 	return fields
+}
+
+func validateEndpointBundle(ctx context.Context, ds datastore.DataStore, log logrus.FieldLogger, endpointTD spiffeid.TrustDomain) {
+	bundle, err := ds.FetchBundle(ctx, endpointTD.IDString())
+	if err != nil {
+		return
+	}
+	// Bundle is nil when not found
+	if bundle == nil {
+		log.WithField(telemetry.EndpointSpiffeID, endpointTD.String()).Warn("bundle not found for endpoint SPIFFE ID trustdomain")
+	}
 }

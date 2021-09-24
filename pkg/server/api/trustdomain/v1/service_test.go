@@ -780,6 +780,63 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			},
 		},
 		{
+			name: "create non self-serving HttpsSpiffe relationship",
+			req: []*types.FederationRelationship{
+				{
+					TrustDomain:       "domain.test",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://federated-td-web.org/endpoint",
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "bundle not found for endpoint SPIFFE ID trustdomain",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID:    "domain.test",
+						telemetry.EndpointSpiffeID: "federated-td-web.org",
+					},
+				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship created",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "domain.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                "success",
+						telemetry.TrustDomainID:         "domain.test",
+						telemetry.Type:                  "audit",
+						telemetry.EndpointSpiffeID:      "spiffe://federated-td-web.org/endpoint",
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:       "domain.test",
+						BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+								EndpointSpiffeId: "spiffe://federated-td-web.org/endpoint",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "using output mask",
 			req: []*types.FederationRelationship{
 				{
@@ -1798,6 +1855,71 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
 					BundleEndpointURL:     fooURL,
 					BundleEndpointProfile: datastore.BundleEndpointWeb,
+				},
+			},
+		},
+		{
+			name: "update to non self-serving https_spiffe profile bundle not found",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "foo.test",
+					BundleEndpointUrl: "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://not.found/endpoint",
+						},
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:       "foo.test",
+						BundleEndpointUrl: "https://foo.test/newpath",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+								EndpointSpiffeId: "spiffe://not.found/endpoint",
+							},
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "bundle not found for endpoint SPIFFE ID trustdomain",
+					Data: logrus.Fields{
+						telemetry.EndpointSpiffeID: "not.found",
+						telemetry.TrustDomainID:    "foo.test",
+					},
+				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.EndpointSpiffeID:      "spiffe://not.found/endpoint",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "success",
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     newFooURL,
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://not.found/endpoint"),
 				},
 			},
 		},
