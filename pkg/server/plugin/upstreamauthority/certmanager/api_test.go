@@ -9,7 +9,7 @@ import (
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck // this is deprecated; pkg/envtest is preferred for testing
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func Test_cleanupStaleCertificateRequests(t *testing.T) {
@@ -194,7 +194,7 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			client := fakeclient.NewFakeClientWithScheme(scheme, test.existingCRs...)
+			client := fakeclient.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(test.existingCRs...).Build()
 			logOptions := hclog.DefaultOptions
 			logOptions.Level = hclog.Debug
 			p := &Plugin{
