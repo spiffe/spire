@@ -2,6 +2,7 @@ package trustdomain
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -19,10 +20,25 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
+// BundleRefresher defines the bundle refresher interface.
+type BundleRefresher interface {
+	RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error)
+}
+
+// BundleRefresherFunc defines the function.
+type BundleRefresherFunc func(ctx context.Context, td spiffeid.TrustDomain) (bool, error)
+
+// RefreshBundleFor refreshes the trust domain bundle for the given trust
+// domain. If the trust domain is not managed by the manager, false is returned.
+func (fn BundleRefresherFunc) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+	return fn(ctx, td)
+}
+
 // Config is the service configuration.
 type Config struct {
-	DataStore   datastore.DataStore
-	TrustDomain spiffeid.TrustDomain
+	DataStore       datastore.DataStore
+	TrustDomain     spiffeid.TrustDomain
+	BundleRefresher BundleRefresher
 }
 
 // Service implements the v1 trustdomain service.
@@ -31,6 +47,7 @@ type Service struct {
 
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
+	br BundleRefresher
 }
 
 // New creates a new trustdomain service.
@@ -38,6 +55,7 @@ func New(config Config) *Service {
 	return &Service{
 		ds: config.DataStore,
 		td: config.TrustDomain,
+		br: config.BundleRefresher,
 	}
 }
 
@@ -154,7 +172,27 @@ func (s *Service) BatchDeleteFederationRelationship(ctx context.Context, req *tr
 }
 
 func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	log := rpccontext.Logger(ctx)
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GetTrustDomain())
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid trust domain", err)
+	}
+
+	log = log.WithField(telemetry.TrustDomainID, trustDomain.String())
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: req.TrustDomain})
+
+	isManagedByBm, err := s.br.RefreshBundleFor(ctx, trustDomain)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to refresh bundle", err)
+	}
+	if !isManagedByBm {
+		return nil, api.MakeErr(log, codes.NotFound, fmt.Sprintf("no relationship with trust domain %q", trustDomain), nil)
+	}
+
+	log.Debug("Bundle refreshed")
+	rpccontext.AuditRPC(ctx)
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Service) createFederationRelationship(ctx context.Context, f *types.FederationRelationship, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchCreateFederationRelationshipResponse_Result {
