@@ -129,7 +129,7 @@ func FederationRelationshipToProto(f *datastore.FederationRelationship, mask *ty
 				},
 			}
 			// Only self-serving endpoints has a bundle
-			if f.EndpointSPIFFEID.TrustDomain().Compare(f.TrustDomain) == 0 {
+			if f.EndpointSPIFFEID.TrustDomain() == f.TrustDomain {
 				bundle, err := BundleToProto(f.Bundle)
 				if err != nil {
 					return nil, err

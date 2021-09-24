@@ -795,10 +795,10 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "bundle not found for endpoint SPIFFE ID trustdomain",
+					Message: "bundle not found for the endpoint SPIFFE ID trust domain",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID:    "domain.test",
-						telemetry.EndpointSpiffeID: "federated-td-web.org",
+						telemetry.EndpointSpiffeID: "spiffe://federated-td-web.org/endpoint",
 					},
 				},
 				{
@@ -1888,9 +1888,9 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "bundle not found for endpoint SPIFFE ID trustdomain",
+					Message: "bundle not found for the endpoint SPIFFE ID trust domain",
 					Data: logrus.Fields{
-						telemetry.EndpointSpiffeID: "not.found",
+						telemetry.EndpointSpiffeID: "spiffe://not.found/endpoint",
 						telemetry.TrustDomainID:    "foo.test",
 					},
 				},
