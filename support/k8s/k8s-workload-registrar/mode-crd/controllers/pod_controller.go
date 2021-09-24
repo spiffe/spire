@@ -39,7 +39,6 @@ import (
 type PodReconcilerConfig struct {
 	Client                client.Client
 	Cluster               string
-	Ctx                   context.Context
 	DisabledNamespaces    []string
 	Log                   logrus.FieldLogger
 	PodLabel              string
@@ -147,14 +146,12 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Reconcile creates a new SPIFFE ID when pods are created
-func (r *PodReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if containsString(r.c.DisabledNamespaces, req.NamespacedName.Namespace) {
 		return ctrl.Result{}, nil
 	}
 
 	pod := corev1.Pod{}
-	ctx := r.c.Ctx
-
 	if err := r.Get(ctx, req.NamespacedName, &pod); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			r.c.Log.WithError(err).Error("Unable to get Pod")
@@ -233,7 +230,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 	// Check if label or annotation has changed
 	if spiffeID.Spec.SpiffeId != existing.Spec.SpiffeId {
 		existing.Spec.SpiffeId = spiffeID.Spec.SpiffeId
-		err := r.Update(r.c.Ctx, &existing)
+		err := r.Update(ctx, &existing)
 		if err != nil {
 			return ctrl.Result{}, err
 		}

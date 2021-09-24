@@ -780,6 +780,63 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			},
 		},
 		{
+			name: "create non self-serving HttpsSpiffe relationship",
+			req: []*types.FederationRelationship{
+				{
+					TrustDomain:       "domain.test",
+					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://federated-td-web.org/endpoint",
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "bundle not found for the endpoint SPIFFE ID trust domain",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID:    "domain.test",
+						telemetry.EndpointSpiffeID: "spiffe://federated-td-web.org/endpoint",
+					},
+				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship created",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "domain.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
+						telemetry.Status:                "success",
+						telemetry.TrustDomainID:         "domain.test",
+						telemetry.Type:                  "audit",
+						telemetry.EndpointSpiffeID:      "spiffe://federated-td-web.org/endpoint",
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:       "domain.test",
+						BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+								EndpointSpiffeId: "spiffe://federated-td-web.org/endpoint",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "using output mask",
 			req: []*types.FederationRelationship{
 				{
@@ -1802,6 +1859,71 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 			},
 		},
 		{
+			name: "update to non self-serving https_spiffe profile bundle not found",
+			reqFR: []*types.FederationRelationship{
+				{
+					TrustDomain:       "foo.test",
+					BundleEndpointUrl: "https://foo.test/newpath",
+					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+							EndpointSpiffeId: "spiffe://not.found/endpoint",
+						},
+					},
+				},
+			},
+			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
+				{
+					Status: api.OK(),
+					FederationRelationship: &types.FederationRelationship{
+						TrustDomain:       "foo.test",
+						BundleEndpointUrl: "https://foo.test/newpath",
+						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
+							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
+								EndpointSpiffeId: "spiffe://not.found/endpoint",
+							},
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "bundle not found for the endpoint SPIFFE ID trust domain",
+					Data: logrus.Fields{
+						telemetry.EndpointSpiffeID: "spiffe://not.found/endpoint",
+						telemetry.TrustDomainID:    "foo.test",
+					},
+				},
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Federation relationship updated",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "foo.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.BundleEndpointProfile: "https_spiffe",
+						telemetry.EndpointSpiffeID:      "spiffe://not.found/endpoint",
+						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
+						telemetry.Status:                "success",
+						telemetry.TrustDomainID:         "foo.test",
+						telemetry.Type:                  "audit",
+					},
+				},
+			},
+			expectDSFR: []*datastore.FederationRelationship{
+				{
+					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
+					BundleEndpointURL:     newFooURL,
+					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
+					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://not.found/endpoint"),
+				},
+			},
+		},
+		{
 			name: "input mask all false",
 			reqFR: []*types.FederationRelationship{
 				{
@@ -2108,6 +2230,130 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 	}
 }
 
+func TestRefreshBundle(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		td         string
+		expectCode codes.Code
+		expectMsg  string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:       "trust domain not managed",
+			td:         "unknown.test",
+			expectCode: codes.NotFound,
+			expectMsg:  `no relationship with trust domain "unknown.test"`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No relationship with trust domain \"unknown.test\"",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "unknown.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "no relationship with trust domain \"unknown.test\"",
+						telemetry.TrustDomainID: "unknown.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:       "bundle refresher fails",
+			td:         "bad.test",
+			expectCode: codes.Internal,
+			expectMsg:  "failed to refresh bundle: oh no",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to refresh bundle",
+					Data: logrus.Fields{
+						telemetry.Error:         "oh no",
+						telemetry.TrustDomainID: "bad.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to refresh bundle: oh no",
+						telemetry.TrustDomainID: "bad.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:       "trust domain malformed with invalid scheme",
+			td:         "http://malformed.test",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid trust domain: spiffeid: invalid scheme",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid trust domain",
+					Data: logrus.Fields{
+						telemetry.Error: "spiffeid: invalid scheme",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid trust domain: spiffeid: invalid scheme",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:       "success with good trust domain",
+			td:         "good.test",
+			expectCode: codes.OK,
+			expectMsg:  "",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Bundle refreshed",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "good.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.TrustDomainID: "good.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t, fakedatastore.New(t))
+			defer test.Cleanup()
+
+			_, err := test.client.RefreshBundle(ctx, &trustdomainv1.RefreshBundleRequest{
+				TrustDomain: tt.td,
+			})
+			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+		})
+	}
+}
+
 func createTestRelationships(t *testing.T, ds datastore.DataStore, relationships ...*datastore.FederationRelationship) {
 	for _, fr := range relationships {
 		_, err := ds.CreateFederationRelationship(ctx, fr)
@@ -2149,8 +2395,9 @@ func (s *serviceTest) Cleanup() {
 
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 	service := trustdomain.New(trustdomain.Config{
-		DataStore:   ds,
-		TrustDomain: td,
+		DataStore:       ds,
+		TrustDomain:     td,
+		BundleRefresher: fakeBundleRefresher{},
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -2214,4 +2461,17 @@ func (d *fakeDS) UpdateFederationRelationship(c context.Context, fr *datastore.F
 	}
 
 	return d.DataStore.UpdateFederationRelationship(ctx, fr, mask)
+}
+
+type fakeBundleRefresher struct{}
+
+func (fakeBundleRefresher) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+	switch {
+	case td == spiffeid.RequireTrustDomainFromString("good.test"):
+		return true, nil
+	case td == spiffeid.RequireTrustDomainFromString("bad.test"):
+		return false, errors.New("oh no")
+	default:
+		return false, nil
+	}
 }

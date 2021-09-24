@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake" //nolint:staticcheck // this is deprecated; pkg/envtest is preferred for testing
+	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func testingCAPEM(t *testing.T) (*x509.Certificate, []byte) {
@@ -127,7 +127,7 @@ func Test_MintX509CA(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmclient := fakeclient.NewFakeClientWithScheme(scheme)
+			cmclient := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 			crCreated := make(chan struct{}, 1)
 			staleCRsDeleted := make(chan struct{}, 1)
 
@@ -318,7 +318,7 @@ func Test_Configure(t *testing.T) {
 						if test.newClientErr != nil {
 							return nil, test.newClientErr
 						}
-						return fakeclient.NewFakeClientWithScheme(scheme), nil
+						return fakeclient.NewClientBuilder().WithScheme(scheme).Build(), nil
 					},
 				},
 			}
@@ -338,7 +338,7 @@ func Test_Configure(t *testing.T) {
 }
 
 func TestPublishJWTKey(t *testing.T) {
-	cmclient := fakeclient.NewFakeClientWithScheme(scheme)
+	cmclient := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
 
 	p := &Plugin{
 		hooks: hooks{
