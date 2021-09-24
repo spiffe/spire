@@ -22,9 +22,9 @@ func TestCreatetHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of federation create:
   -bundleEndpointProfile string
-    	Endpoint profile type. Eithe "web" or "spiffe" (default "spiffe")
+    	Endpoint profile type (either "https_web" or "https_spiffe") (default "https_spiffe")
   -bundleEndpointURL string
-    	URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with (must use the HTTPS protocol)
+    	URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)
   -bundleFormat string
     	The format of the bundle data (optional). Either "pem" or "spiffe". Only used for 'spiffe' profile. (default "pem")
   -bundlePath string
@@ -36,7 +36,7 @@ func TestCreatetHelp(t *testing.T) {
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -trustDomain string
-    	The trust domain name (e.g., "example.org") to federate with
+    	Name of the trust domain to federate with (e.g., example.org)
 `, test.stderr.String())
 }
 
@@ -57,7 +57,7 @@ func TestCreate(t *testing.T) {
 		BundleEndpointUrl: "https://td-2.org/bundle",
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-				EndpointSpiffeId: "spiffe://td-2.org/bundle",
+				EndpointSpiffeId: "spiffe://other.org/bundle",
 			},
 		},
 	}
@@ -94,6 +94,11 @@ func TestCreate(t *testing.T) {
 			expErr: "Error: trust domain is required\n",
 		},
 		{
+			name:   "Invalid trust domain",
+			args:   []string{"-trustDomain", "invalid trustdomain"},
+			expErr: "Error: cannot parse trust domain: spiffeid: unable to parse: parse \"spiffe://invalid trustdomain\": invalid character \" \" in host name\n",
+		},
+		{
 			name:   "Missing bundle endpoint URL",
 			args:   []string{"-trustDomain", "td.org"},
 			expErr: "Error: bundle endpoint URL is required\n",
@@ -106,7 +111,7 @@ func TestCreate(t *testing.T) {
 		{
 			name:   "Missing endpoint SPIFFE ID",
 			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle"},
-			expErr: "Error: endpoint SPIFFE ID is required if 'spiffe' endpoint profile is set\n",
+			expErr: "Error: endpoint SPIFFE ID is required if 'https_spiffe' endpoint profile is set\n",
 		},
 		{
 			name:   "Invalid bundle endpoint SPIFFE ID",
@@ -125,13 +130,33 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:      "Server error",
-			args:      []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-bundleEndpointProfile", "web"},
+			args:      []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-bundleEndpointProfile", "https_web"},
 			serverErr: errors.New("server error"),
 			expErr:    "Error: request failed: rpc error: code = Unknown desc = server error\n",
 		},
 		{
+			name:   "EndpointSpiffeID is used with https_web profile",
+			args:   []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web", "-endpointSpiffeID", "A"},
+			expErr: "Error: the 'https_web' endpoint profile does not expect an endpoint SPIFFE ID\n",
+		},
+		{
+			name:   "BundlePath is used with https_web profile",
+			args:   []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web", "-bundlePath", "A"},
+			expErr: "Error: the 'https_web' endpoint profile does not expect a bundle\n",
+		},
+		{
+			name:   "Self serving endpoint missing bundle",
+			args:   []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://td-2.org/bundle"},
+			expErr: "Error: bundle is required for self-serving endpoint\n",
+		},
+		{
+			name:   "Non self-serving endpoint includes bundle",
+			args:   []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://other.org/bundle", "-bundlePath", "path"},
+			expErr: "Error: bundle should only be present for a self-serving endpoint\n",
+		},
+		{
 			name: "Succeeds for SPIFFE profile",
-			args: []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://td-2.org/bundle"},
+			args: []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://other.org/bundle"},
 			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frSPIFFE},
 			},
@@ -147,7 +172,7 @@ func TestCreate(t *testing.T) {
 Trust domain              : td-2.org
 Bundle endpoint URL       : https://td-2.org/bundle
 Bundle endpoint profile   : https_spiffe
-Endpoint SPIFFE ID        : spiffe://td-2.org/bundle
+Endpoint SPIFFE ID        : spiffe://other.org/bundle
 `,
 		},
 		{
@@ -173,7 +198,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 		},
 		{
 			name: "Succeeds for web profile",
-			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "web"},
+			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web"},
 			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frWeb},
 			},
@@ -192,50 +217,8 @@ Bundle endpoint profile   : https_web
 `,
 		},
 		{
-			name: "Succeeds for web profile and warns if using ignored -endpointSpiffeID flag",
-			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "web", "-endpointSpiffeID", "A"},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
-				FederationRelationships: []*types.FederationRelationship{frWeb},
-			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-					{
-						Status:                 &types.Status{},
-						FederationRelationship: frWeb,
-					},
-				},
-			},
-			expOut: `Endpoint SPIFFE ID is ignored for 'web' endpoint profile
-
-Trust domain              : td-1.org
-Bundle endpoint URL       : https://td-1.org/bundle
-Bundle endpoint profile   : https_web
-`,
-		},
-		{
-			name: "Succeeds for web profile and warns if using ignored -bundlePath flag",
-			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "web", "-bundlePath", "A"},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
-				FederationRelationships: []*types.FederationRelationship{frWeb},
-			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-					{
-						Status:                 &types.Status{},
-						FederationRelationship: frWeb,
-					},
-				},
-			},
-			expOut: `Bundle path is ignored for 'web' endpoint profile
-
-Trust domain              : td-1.org
-Bundle endpoint URL       : https://td-1.org/bundle
-Bundle endpoint profile   : https_web
-`,
-		},
-		{
 			name: "Federation relationships that failed to be created are printed",
-			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "web"},
+			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web"},
 			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frWeb},
 			},
@@ -282,7 +265,7 @@ Bundle endpoint profile   : https_web
 Trust domain              : td-2.org
 Bundle endpoint URL       : https://td-2.org/bundle
 Bundle endpoint profile   : https_spiffe
-Endpoint SPIFFE ID        : spiffe://td-2.org/bundle
+Endpoint SPIFFE ID        : spiffe://other.org/bundle
 
 Trust domain              : td-3.org
 Bundle endpoint URL       : https://td-3.org/bundle
@@ -339,18 +322,18 @@ func createJSONDataFile(t *testing.T, bundlePath string) string {
 	    {
 		"trust_domain": "td-1.org",
 		"bundle_endpoint_url": "https://td-1.org/bundle",
-		"bundle_endpoint_profile": "web"
+		"bundle_endpoint_profile": "https_web"
 	    },
 	    {
 		"trust_domain": "td-2.org",
 		"bundle_endpoint_url": "https://td-2.org/bundle",
-		"bundle_endpoint_profile": "spiffe",
-		"endpoint_spiffe_id": "spiffe://td-2.org/bundle"
+		"bundle_endpoint_profile": "https_spiffe",
+		"endpoint_spiffe_id": "spiffe://other.org/bundle"
 	    },
 	    {
 		"trust_domain": "td-3.org",
 		"bundle_endpoint_url": "https://td-3.org/bundle",
-		"bundle_endpoint_profile": "spiffe",
+		"bundle_endpoint_profile": "https_spiffe",
 		"endpoint_spiffe_id": "spiffe://td-3.org/bundle",
 		"bundle_path": %q,
 		"bundle_format": "pem"

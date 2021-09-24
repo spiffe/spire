@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	profileWeb    = "web"
-	profileSPIFFE = "spiffe"
+	profileHTTPSWeb    = "https_web"
+	profileHTTPSSPIFFE = "https_spiffe"
 )
 
 // NewCreateCommand creates a new "create" subcommand for "federation" command.
@@ -32,13 +32,8 @@ func newCreateCommand(env *common_cli.Env) cli.Command {
 	return util.AdaptCommand(env, new(createCommand))
 }
 
-type createCommand struct {
-	path string
-	fr   FederationRelationship
-}
-
 // FederationRelationship type is used for parsing federation relationships from file
-type FederationRelationship struct {
+type federationRelationship struct {
 	TrustDomain           string `json:"trust_domain"`
 	BundleEndpointURL     string `json:"bundle_endpoint_url"`
 	BundleEndpointProfile string `json:"bundle_endpoint_profile"`
@@ -48,8 +43,13 @@ type FederationRelationship struct {
 }
 
 // FederationRelationships type is used for parsing federation relationships from file
-type FederationRelationships struct {
-	FederationRelationships []*FederationRelationship `json:"federation_relationships"`
+type federationRelationships struct {
+	FederationRelationships []*federationRelationship `json:"federation_relationships"`
+}
+
+type createCommand struct {
+	path string
+	fr   federationRelationship
 }
 
 func (*createCommand) Name() string {
@@ -62,19 +62,15 @@ func (*createCommand) Synopsis() string {
 
 func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.path, "data", "", "Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.")
-	f.StringVar(&c.fr.TrustDomain, "trustDomain", "", "The trust domain name (e.g., \"example.org\") to federate with")
-	f.StringVar(&c.fr.BundleEndpointURL, "bundleEndpointURL", "", "URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with (must use the HTTPS protocol)")
-	f.StringVar(&c.fr.BundleEndpointProfile, "bundleEndpointProfile", "spiffe", fmt.Sprintf("Endpoint profile type. Eithe %q or %q", profileWeb, profileSPIFFE))
+	f.StringVar(&c.fr.TrustDomain, "trustDomain", "", `Name of the trust domain to federate with (e.g., example.org)`)
+	f.StringVar(&c.fr.BundleEndpointURL, "bundleEndpointURL", "", "URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)")
+	f.StringVar(&c.fr.BundleEndpointProfile, "bundleEndpointProfile", profileHTTPSSPIFFE, fmt.Sprintf("Endpoint profile type (either %q or %q)", profileHTTPSWeb, profileHTTPSSPIFFE))
 	f.StringVar(&c.fr.EndpointSPIFFEID, "endpointSpiffeID", "", "SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.")
 	f.StringVar(&c.fr.BundlePath, "bundlePath", "", "Path to the bundle data (optional). Only used for 'spiffe' profile.")
 	f.StringVar(&c.fr.BundleFormat, "bundleFormat", util.FormatPEM, fmt.Sprintf("The format of the bundle data (optional). Either %q or %q. Only used for 'spiffe' profile.", util.FormatPEM, util.FormatSPIFFE))
 }
 
 func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
-	if err := c.validate(env); err != nil {
-		return err
-	}
-
 	var err error
 	var federationRelationships []*types.FederationRelationship
 	if c.path != "" {
@@ -113,39 +109,6 @@ func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 	return nil
 }
 
-func (c *createCommand) validate(env *common_cli.Env) error {
-	// If a path is set, we have all we need
-	if c.path != "" {
-		return nil
-	}
-
-	if c.fr.TrustDomain == "" {
-		return errors.New("trust domain is required")
-	}
-
-	if c.fr.BundleEndpointURL == "" {
-		return errors.New("bundle endpoint URL is required")
-	}
-
-	switch c.fr.BundleEndpointProfile {
-	case "spiffe":
-		if c.fr.EndpointSPIFFEID == "" {
-			return errors.New("endpoint SPIFFE ID is required if 'spiffe' endpoint profile is set")
-		}
-	case "web":
-		if c.fr.EndpointSPIFFEID != "" {
-			env.Println("Endpoint SPIFFE ID is ignored for 'web' endpoint profile")
-		}
-		if c.fr.BundlePath != "" {
-			env.Println("Bundle path is ignored for 'web' endpoint profile")
-		}
-	default:
-		return fmt.Errorf("unknown bundle endpoint profile type: %q", c.fr.BundleEndpointProfile)
-	}
-
-	return nil
-}
-
 func (c *createCommand) parseConfig() ([]*types.FederationRelationship, error) {
 	fr, err := cliRelationshipToProtoRelationship(&c.fr)
 	if err != nil {
@@ -156,7 +119,7 @@ func (c *createCommand) parseConfig() ([]*types.FederationRelationship, error) {
 }
 
 func parseFile(path string) ([]*types.FederationRelationship, error) {
-	relationships := &FederationRelationships{}
+	relationships := &federationRelationships{}
 
 	r := os.Stdin
 	if path != "-" {
@@ -211,28 +174,56 @@ func createFederationRelationships(ctx context.Context, c trustdomainv1.TrustDom
 	return succeeded, failed, nil
 }
 
-func cliRelationshipToProtoRelationship(cliFR *FederationRelationship) (*types.FederationRelationship, error) {
+func cliRelationshipToProtoRelationship(cliFR *federationRelationship) (*types.FederationRelationship, error) {
+	if cliFR.TrustDomain == "" {
+		return nil, errors.New("trust domain is required")
+	}
+	trustDomain, err := spiffeid.TrustDomainFromString(cliFR.TrustDomain)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse trust domain: %w", err)
+	}
+
+	if cliFR.BundleEndpointURL == "" {
+		return nil, errors.New("bundle endpoint URL is required")
+	}
+
 	fr := &types.FederationRelationship{
-		TrustDomain:       cliFR.TrustDomain,
+		TrustDomain:       trustDomain.String(),
 		BundleEndpointUrl: cliFR.BundleEndpointURL,
 	}
 
 	switch cliFR.BundleEndpointProfile {
-	case profileWeb:
+	case profileHTTPSWeb:
+		if cliFR.EndpointSPIFFEID != "" {
+			return nil, errors.New("the 'https_web' endpoint profile does not expect an endpoint SPIFFE ID")
+		}
+		if cliFR.BundlePath != "" {
+			return nil, errors.New("the 'https_web' endpoint profile does not expect a bundle")
+		}
 		fr.BundleEndpointProfile = &types.FederationRelationship_HttpsWeb{
 			HttpsWeb: &types.HTTPSWebProfile{},
 		}
-	case profileSPIFFE:
+	case profileHTTPSSPIFFE:
+		if cliFR.EndpointSPIFFEID == "" {
+			return nil, errors.New("endpoint SPIFFE ID is required if 'https_spiffe' endpoint profile is set")
+		}
+		endpointSPIFFEID, err := spiffeid.FromString(cliFR.EndpointSPIFFEID)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse bundle endpoint SPIFFE ID: %w", err)
+		}
+
+		switch {
+		case cliFR.BundlePath == "" && endpointSPIFFEID.TrustDomain().Compare(trustDomain) == 0:
+			return nil, errors.New("bundle is required for self-serving endpoint")
+		case cliFR.BundlePath != "" && endpointSPIFFEID.TrustDomain().Compare(trustDomain) != 0:
+			return nil, errors.New("bundle should only be present for a self-serving endpoint")
+		}
+
 		var bundle *types.Bundle
 		if cliFR.BundlePath != "" {
 			bundleBytes, err := os.ReadFile(cliFR.BundlePath)
 			if err != nil {
 				return nil, fmt.Errorf("cannot read bundle file: %w", err)
-			}
-
-			endpointSPIFFEID, err := spiffeid.FromString(cliFR.EndpointSPIFFEID)
-			if err != nil {
-				return nil, fmt.Errorf("cannot parse bundle endpoint SPIFFE ID: %w", err)
 			}
 
 			bundle, err = util.ParseBundle(bundleBytes, cliFR.BundleFormat, endpointSPIFFEID.TrustDomain().String())
@@ -249,7 +240,7 @@ func cliRelationshipToProtoRelationship(cliFR *FederationRelationship) (*types.F
 		}
 
 	default:
-		return nil, fmt.Errorf("unknown bundle endpoint profile: %q, please use 'spiffe' or 'web'", cliFR.BundleEndpointProfile)
+		return nil, fmt.Errorf("unknown bundle endpoint profile type: %q", cliFR.BundleEndpointProfile)
 	}
 
 	return fr, nil
