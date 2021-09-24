@@ -2142,6 +2142,82 @@ func TestRefreshBundle(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "bundle refresher fails",
+			td:         "bad.test",
+			expectCode: codes.Internal,
+			expectMsg:  "failed to refresh bundle: oh no",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to refresh bundle",
+					Data: logrus.Fields{
+						telemetry.Error:         "oh no",
+						telemetry.TrustDomainID: "bad.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to refresh bundle: oh no",
+						telemetry.TrustDomainID: "bad.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:       "trust domain malformed with invalid scheme",
+			td:         "http://malformed.test",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid trust domain: spiffeid: invalid scheme",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid trust domain",
+					Data: logrus.Fields{
+						telemetry.Error: "spiffeid: invalid scheme",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid trust domain: spiffeid: invalid scheme",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:       "success with good trust domain",
+			td:         "good.test",
+			expectCode: codes.OK,
+			expectMsg:  "",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Bundle refreshed",
+					Data: logrus.Fields{
+						telemetry.TrustDomainID: "good.test",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.TrustDomainID: "good.test",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, fakedatastore.New(t))
