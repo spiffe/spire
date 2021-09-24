@@ -55,10 +55,10 @@ func (c *refreshCommand) Run(ctx context.Context, env *common_cli.Env, serverCli
 	})
 	switch status.Code(err) {
 	case codes.OK:
-		env.Println("bundle refreshed")
+		env.Println("Bundle refreshed")
 		return nil
 	case codes.NotFound:
-		return fmt.Errorf("bundle %q not found", id)
+		return fmt.Errorf("there is no federation relationship with trust domain %q", id)
 	default:
 		return fmt.Errorf("failed to refresh bundle: %w", err)
 	}

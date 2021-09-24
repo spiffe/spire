@@ -45,7 +45,7 @@ func TestRefresh(t *testing.T) {
 			expectReq: &trustdomainv1.RefreshBundleRequest{
 				TrustDomain: "spiffe://example.org",
 			},
-			expectOut:   "bundle refreshed\n",
+			expectOut:   "Bundle refreshed\n",
 			refreshResp: &emptypb.Empty{},
 		},
 		{
@@ -69,7 +69,7 @@ func TestRefresh(t *testing.T) {
 			name:      "Bundle not found",
 			args:      []string{"-id", "spiffe://example.org"},
 			serverErr: status.Error(codes.NotFound, "not found"),
-			expectErr: `Error: bundle "spiffe://example.org" not found
+			expectErr: `Error: there is no federation relationship with trust domain "spiffe://example.org"
 `,
 		},
 	} {
