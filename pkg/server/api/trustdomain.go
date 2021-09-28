@@ -64,37 +64,25 @@ func ProtoToFederationRelationshipWithMask(f *types.FederationRelationship, mask
 				return nil, fmt.Errorf("failed to parse endpoint SPIFFE ID: %w", err)
 			}
 
-			var bundle *common.Bundle
-			if profile.HttpsSpiffe.Bundle != nil {
-				bundle, err = ProtoToBundle(profile.HttpsSpiffe.Bundle)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse bundle: %w", err)
-				}
-				// Having a bundle present means that this is a self-serving
-				// bundle endpoint. We need to ensure that the relationship, and
-				// endpoint SPIFFE ID, and the bundle all have matching trust
-				// domain names.
-				switch {
-				case trustDomain.IDString() != bundle.TrustDomainId:
-					return nil, fmt.Errorf("self-serving bundle endpoint for %q has a bundle from another trust domain (%q)", trustDomain, profile.HttpsSpiffe.Bundle.TrustDomain)
-				case trustDomain != spiffeID.TrustDomain():
-					return nil, fmt.Errorf("self-serving bundle endpoint for %q has a SPIFFE ID from another trust domain (%q)", trustDomain, spiffeID.TrustDomain())
-				}
-			} else if trustDomain == spiffeID.TrustDomain() {
-				// No bundle means that this is a relationship with a non
-				// self-serving endpoint. The endpoint SPIFFE ID should be
-				// from a different trust domain.
-				return nil, fmt.Errorf("non self-serving bundle endpoint for %q has a SPIFFE ID from the same trust domain", trustDomain)
-			}
-
 			resp.BundleEndpointProfile = datastore.BundleEndpointSPIFFE
 			resp.EndpointSPIFFEID = spiffeID
-			resp.Bundle = bundle
 		case *types.FederationRelationship_HttpsWeb:
 			resp.BundleEndpointProfile = datastore.BundleEndpointWeb
 		default:
 			return nil, fmt.Errorf("unsupported bundle endpoint profile type: %T", f.BundleEndpointProfile)
 		}
+	}
+
+	var trustDomainBundle *common.Bundle
+	if mask.TrustDomainBundle && f.TrustDomainBundle != nil {
+		trustDomainBundle, err = ProtoToBundle(f.TrustDomainBundle)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse bundle: %w", err)
+		}
+		if trustDomainBundle.TrustDomainId != trustDomain.IDString() {
+			return nil, fmt.Errorf("trust domain bundle (%q) must match the trust domain of the federation relationship (%q)", f.TrustDomainBundle.TrustDomain, trustDomain)
+		}
+		resp.TrustDomainBundle = trustDomainBundle
 	}
 
 	return resp, nil
@@ -128,21 +116,20 @@ func FederationRelationshipToProto(f *datastore.FederationRelationship, mask *ty
 					EndpointSpiffeId: f.EndpointSPIFFEID.String(),
 				},
 			}
-			// Only self-serving endpoints has a bundle
-			if f.EndpointSPIFFEID.TrustDomain() == f.TrustDomain {
-				bundle, err := BundleToProto(f.Bundle)
-				if err != nil {
-					return nil, err
-				}
-				profile.HttpsSpiffe.Bundle = bundle
-			}
-
 			resp.BundleEndpointProfile = profile
 		case datastore.BundleEndpointWeb:
 			resp.BundleEndpointProfile = &types.FederationRelationship_HttpsWeb{}
 		default:
 			return nil, fmt.Errorf("unsupported BundleEndpointProfile: %q", f.BundleEndpointProfile)
 		}
+	}
+
+	if mask.TrustDomainBundle && f.TrustDomainBundle != nil {
+		trustDomainBundle, err := BundleToProto(f.TrustDomainBundle)
+		if err != nil {
+			return nil, err
+		}
+		resp.TrustDomainBundle = trustDomainBundle
 	}
 
 	return resp, nil

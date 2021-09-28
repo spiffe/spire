@@ -83,10 +83,10 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
-						Bundle: &types.Bundle{
-							TrustDomain: td.String(),
-						},
 					},
+				},
+				TrustDomainBundle: &types.Bundle{
+					TrustDomain: td.String(),
 				},
 			},
 			expectResp: &datastore.FederationRelationship{
@@ -94,7 +94,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointURL:     expectURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://example.org/endpoint"),
-				Bundle: &common.Bundle{
+				TrustDomainBundle: &common.Bundle{
 					TrustDomainId: "spiffe://example.org",
 				},
 			},
@@ -107,10 +107,10 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
-						Bundle: &types.Bundle{
-							TrustDomain: td.String(),
-						},
 					},
+				},
+				TrustDomainBundle: &types.Bundle{
+					TrustDomain: td.String(),
 				},
 			},
 			mask: &types.FederationRelationshipMask{},
@@ -148,10 +148,10 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "no an ID",
-						Bundle: &types.Bundle{
-							TrustDomain: td.String(),
-						},
 					},
+				},
+				TrustDomainBundle: &types.Bundle{
+					TrustDomain: td.String(),
 				},
 			},
 			expectErr: "failed to parse endpoint SPIFFE ID:",
@@ -164,10 +164,10 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
-						Bundle: &types.Bundle{
-							TrustDomain: "no a td",
-						},
 					},
+				},
+				TrustDomainBundle: &types.Bundle{
+					TrustDomain: "no a td",
 				},
 			},
 			expectErr: "failed to parse bundle: spiffeid: unable to parse:",
@@ -215,6 +215,18 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
 			expectErr: "bundle endpoint URL must specify the host",
+		},
+		{
+			name: "TrustDomainBundle has mismatched trust domain",
+			proto: &types.FederationRelationship{
+				TrustDomain:           "example.org",
+				BundleEndpointUrl:     "https://example.org/bundle",
+				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+				TrustDomainBundle: &types.Bundle{
+					TrustDomain: "some-other-domain.test",
+				},
+			},
+			expectErr: `trust domain bundle ("some-other-domain.test") must match the trust domain of the federation relationship ("example.org")`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -272,7 +284,7 @@ func TestFederationRelationshipToProto(t *testing.T) {
 				BundleEndpointURL:     endpointURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      td.NewID("endpoint"),
-				Bundle: &common.Bundle{
+				TrustDomainBundle: &common.Bundle{
 					TrustDomainId: "example.org",
 				},
 			},
@@ -282,10 +294,10 @@ func TestFederationRelationshipToProto(t *testing.T) {
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 					HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 						EndpointSpiffeId: "spiffe://example.org/endpoint",
-						Bundle: &types.Bundle{
-							TrustDomain: "example.org",
-						},
 					},
+				},
+				TrustDomainBundle: &types.Bundle{
+					TrustDomain: "example.org",
 				},
 			},
 		},
@@ -296,7 +308,7 @@ func TestFederationRelationshipToProto(t *testing.T) {
 				BundleEndpointURL:     endpointURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      td.NewID("endpoint"),
-				Bundle: &common.Bundle{
+				TrustDomainBundle: &common.Bundle{
 					TrustDomainId: "example.org",
 				},
 			},
@@ -323,17 +335,20 @@ func TestFederationRelationshipToProto(t *testing.T) {
 			expectErr: "bundle endpoint URL is required",
 		},
 		{
-			name: "HttpsSpiffe: invalid bundle",
+			name: "bundle has malformed trust domain",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           td,
 				BundleEndpointURL:     endpointURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      td.NewID("endpoint"),
+				TrustDomainBundle: &common.Bundle{
+					TrustDomainId: "sparfe://example.org",
+				},
 			},
-			expectErr: "no bundle provided",
+			expectErr: "spiffeid: invalid scheme",
 		},
 		{
-			name: "no BundleEnpointProvide provided",
+			name: "no BundleEndpointProvider provided",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:       td,
 				BundleEndpointURL: endpointURL,
