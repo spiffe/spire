@@ -295,7 +295,7 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.SocketPath, "socketPath", defaultSocketPath, "Path to bind the SPIRE Server API socket to")
+	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Server API socket to")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -363,8 +363,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		Port: c.Server.BindPort,
 	}
 
+	socketPath := defaultSocketPath
+	if c.Server.SocketPath != "" {
+		socketPath = c.Server.SocketPath
+	}
 	sc.BindUDSAddress = &net.UnixAddr{
-		Name: c.Server.SocketPath,
+		Name: socketPath,
 		Net:  "unix",
 	}
 
