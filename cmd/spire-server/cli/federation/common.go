@@ -42,7 +42,7 @@ func federationRelationshipsFromFile(path string) ([]*types.FederationRelationsh
 
 	relationships := &federationRelationships{}
 	if err := json.Unmarshal(dat, &relationships); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 
 	protoRelationships := []*types.FederationRelationship{}
@@ -60,10 +60,6 @@ func federationRelationshipsFromFile(path string) ([]*types.FederationRelationsh
 func jsonToProto(fr *federationRelationshipJSON) (*types.FederationRelationship, error) {
 	if fr.TrustDomain == "" {
 		return nil, errors.New("trust domain is required")
-	}
-	trustDomain, err := spiffeid.TrustDomainFromString(fr.TrustDomain)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse trust domain: %w", err)
 	}
 
 	if fr.BundleEndpointURL == "" {
@@ -115,13 +111,6 @@ func jsonToProto(fr *federationRelationshipJSON) (*types.FederationRelationship,
 				EndpointSpiffeId: endpointSPIFFEID.String(),
 				Bundle:           bundle,
 			},
-		}
-
-		switch {
-		case profile.HttpsSpiffe.Bundle == nil && endpointSPIFFEID.TrustDomain().Compare(trustDomain) == 0:
-			return nil, errors.New("bundle is required for self-serving endpoint")
-		case profile.HttpsSpiffe.Bundle != nil && endpointSPIFFEID.TrustDomain().Compare(trustDomain) != 0:
-			return nil, errors.New("bundle should only be present for a self-serving endpoint")
 		}
 		proto.BundleEndpointProfile = profile
 

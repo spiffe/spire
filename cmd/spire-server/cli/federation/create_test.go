@@ -159,6 +159,18 @@ func TestCreate(t *testing.T) {
 
 	jsonDataFilePath := createJSONDataFile(t, testFile)
 
+	jsonDataInvalidRelationship := createJSONDataFile(t, `
+{
+    "federation_relationships": [
+        {
+        	"trust_domain": "",
+        	"bundle_endpoint_url": "https://td-1.org/bundle",
+        	"bundle_endpoint_profile": "https_web"
+        }
+    ]
+}
+`)
+
 	x509Authority, err := pemutil.ParseCertificate([]byte(pemCert))
 	require.NoError(t, err)
 	frPemAuthority := &types.FederationRelationship{
@@ -231,11 +243,6 @@ func TestCreate(t *testing.T) {
 			expErr: "Error: trust domain is required\n",
 		},
 		{
-			name:   "Invalid trust domain",
-			args:   []string{"-trustDomain", "invalid trustdomain"},
-			expErr: "Error: cannot parse trust domain: spiffeid: unable to parse: parse \"spiffe://invalid trustdomain\": invalid character \" \" in host name\n",
-		},
-		{
 			name:   "Missing bundle endpoint URL",
 			args:   []string{"-trustDomain", "td.org"},
 			expErr: "Error: bundle endpoint URL is required\n",
@@ -280,16 +287,6 @@ func TestCreate(t *testing.T) {
 			name:   "BundlePath is used with https_web profile",
 			args:   []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web", "-bundlePath", "A"},
 			expErr: "Error: the 'https_web' endpoint profile does not expect a bundle\n",
-		},
-		{
-			name:   "Self serving endpoint missing bundle",
-			args:   []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://td-2.org/bundle"},
-			expErr: "Error: bundle is required for self-serving endpoint\n",
-		},
-		{
-			name:   "Non self-serving endpoint includes bundle",
-			args:   []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://other.org/bundle", "-bundlePath", bundlePath},
-			expErr: "Error: bundle should only be present for a self-serving endpoint\n",
 		},
 		{
 			name: "Succeeds for SPIFFE profile",
@@ -410,6 +407,21 @@ Bundle endpoint URL       : https://td-3.org/bundle
 Bundle endpoint profile   : https_spiffe
 Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 `,
+		},
+		{
+			name:   "Succeeds loading federation relationships from JSON file: invalid path",
+			args:   []string{"-data", "somePath"},
+			expErr: "Error: open somePath: no such file or directory\n",
+		},
+		{
+			name:   "Succeeds loading federation relationships from JSON file: no a json",
+			args:   []string{"-data", bundlePath},
+			expErr: "Error: failed to parse JSON: invalid character '-' in numeric literal\n",
+		},
+		{
+			name:   "Succeeds loading federation relationships from JSON file: invalid relationship",
+			args:   []string{"-data", jsonDataInvalidRelationship},
+			expErr: "Error: could not parse item 0: trust domain is required\n",
 		},
 	} {
 		tt := tt
