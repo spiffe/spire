@@ -121,7 +121,7 @@ func (c *createCommand) getRelationships() ([]*types.FederationRelationship, err
 		}
 		return relationships, nil
 	}
-	frJson := &federationRelationshipJSON{
+	frJSON := &federationRelationshipJSON{
 		TrustDomain:           c.trustDomain,
 		BundleEndpointURL:     c.bundleEndpointURL,
 		BundleEndpointProfile: c.bundleEndpointProfile,
@@ -130,7 +130,7 @@ func (c *createCommand) getRelationships() ([]*types.FederationRelationship, err
 		BundlePath:            c.bundlePath,
 	}
 
-	proto, err := jsonToProto(frJson)
+	proto, err := jsonToProto(frJSON)
 	if err != nil {
 		return nil, err
 	}

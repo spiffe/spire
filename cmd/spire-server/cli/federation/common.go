@@ -106,13 +106,12 @@ func jsonToProto(fr *federationRelationshipJSON) (*types.FederationRelationship,
 			}
 		}
 
-		profile := &types.FederationRelationship_HttpsSpiffe{
+		proto.BundleEndpointProfile = &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: endpointSPIFFEID.String(),
-				Bundle:           bundle,
 			},
 		}
-		proto.BundleEndpointProfile = profile
+		proto.TrustDomainBundle = bundle
 
 	default:
 		return nil, fmt.Errorf("unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)

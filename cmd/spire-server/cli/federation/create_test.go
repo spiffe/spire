@@ -150,9 +150,9 @@ func TestCreate(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://td-3.org/bundle",
-				Bundle:           bundle,
 			},
 		},
+		TrustDomainBundle: bundle,
 	}
 
 	corruptedBundlePath := createCorruptedBundle(t)
@@ -179,12 +179,12 @@ func TestCreate(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://td-3.org/bundle",
-				Bundle: &types.Bundle{
-					TrustDomain: "td-3.org",
-					X509Authorities: []*types.X509Certificate{
-						{Asn1: x509Authority.Raw},
-					},
-				},
+			},
+		},
+		TrustDomainBundle: &types.Bundle{
+			TrustDomain: "td-3.org",
+			X509Authorities: []*types.X509Certificate{
+				{Asn1: x509Authority.Raw},
 			},
 		},
 	}
@@ -218,12 +218,12 @@ func TestCreate(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://td-4.org/bundle",
-				Bundle: &types.Bundle{
-					TrustDomain:     "td-4.org",
-					X509Authorities: x509Authorities,
-					JwtAuthorities:  jwtAuthorities,
-				},
 			},
+		},
+		TrustDomainBundle: &types.Bundle{
+			TrustDomain:     "td-4.org",
+			X509Authorities: x509Authorities,
+			JwtAuthorities:  jwtAuthorities,
 		},
 	}
 
