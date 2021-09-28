@@ -105,7 +105,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	err = controllers.NewSpiffeIDReconciler(controllers.SpiffeIDReconcilerConfig{
 		Client:      mgr.GetClient(),
 		Cluster:     c.Cluster,
-		Ctx:         ctx,
 		Log:         log,
 		E:           entryClient,
 		TrustDomain: c.TrustDomain,
@@ -162,7 +161,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		err = controllers.NewNodeReconciler(controllers.NodeReconcilerConfig{
 			Client:      mgr.GetClient(),
 			Cluster:     c.Cluster,
-			Ctx:         ctx,
 			Log:         log,
 			Namespace:   myPodNamespace,
 			Scheme:      mgr.GetScheme(),
@@ -174,7 +172,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 		p, err := controllers.NewPodReconciler(controllers.PodReconcilerConfig{
 			Client:                mgr.GetClient(),
 			Cluster:               c.Cluster,
-			Ctx:                   ctx,
 			DisabledNamespaces:    c.DisabledNamespaces,
 			Log:                   log,
 			PodLabel:              c.PodLabel,
@@ -197,7 +194,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	if c.AddSvcDNSName {
 		err = controllers.NewEndpointReconciler(controllers.EndpointReconcilerConfig{
 			Client:             mgr.GetClient(),
-			Ctx:                ctx,
 			DisabledNamespaces: c.DisabledNamespaces,
 			Log:                log,
 			PodLabel:           c.PodLabel,

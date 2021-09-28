@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	AllTrueAgentMask  = MakeAllTrueMask(&types.AgentMask{}).(*types.AgentMask)
-	AllTrueBundleMask = MakeAllTrueMask(&types.BundleMask{}).(*types.BundleMask)
-	AllTrueEntryMask  = MakeAllTrueMask(&types.EntryMask{}).(*types.EntryMask)
+	AllTrueAgentMask                  = MakeAllTrueMask(&types.AgentMask{}).(*types.AgentMask)
+	AllTrueBundleMask                 = MakeAllTrueMask(&types.BundleMask{}).(*types.BundleMask)
+	AllTrueEntryMask                  = MakeAllTrueMask(&types.EntryMask{}).(*types.EntryMask)
+	AllTrueFederationRelationshipMask = MakeAllTrueMask(&types.FederationRelationshipMask{}).(*types.FederationRelationshipMask)
 
 	AllTrueCommonBundleMask = MakeAllTrueMask(&common.BundleMask{}).(*common.BundleMask)
 	AllTrueCommonAgentMask  = MakeAllTrueMask(&common.AttestedNodeMask{}).(*common.AttestedNodeMask)

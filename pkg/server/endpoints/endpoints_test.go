@@ -20,6 +20,7 @@ import (
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
@@ -214,12 +215,13 @@ func TestListenAndServe(t *testing.T) {
 		TrustDomain:  testTD,
 		DataStore:    ds,
 		APIServers: APIServers{
-			AgentServer:  &agentv1.UnimplementedAgentServer{},
-			BundleServer: &bundlev1.UnimplementedBundleServer{},
-			DebugServer:  &debugv1.UnimplementedDebugServer{},
-			EntryServer:  &entryv1.UnimplementedEntryServer{},
-			HealthServer: &grpc_health_v1.UnimplementedHealthServer{},
-			SVIDServer:   &svidv1.UnimplementedSVIDServer{},
+			AgentServer:       &agentv1.UnimplementedAgentServer{},
+			BundleServer:      &bundlev1.UnimplementedBundleServer{},
+			DebugServer:       &debugv1.UnimplementedDebugServer{},
+			EntryServer:       &entryv1.UnimplementedEntryServer{},
+			HealthServer:      &grpc_health_v1.UnimplementedHealthServer{},
+			SVIDServer:        &svidv1.UnimplementedSVIDServer{},
+			TrustDomainServer: &trustdomainv1.UnimplementedTrustDomainServer{},
 		},
 		BundleEndpointServer:         bundleEndpointServer,
 		Log:                          log,
@@ -302,6 +304,9 @@ func TestListenAndServe(t *testing.T) {
 	})
 	t.Run("SVID", func(t *testing.T) {
 		testSVIDAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+	})
+	t.Run("TrustDomain", func(t *testing.T) {
+		testTrustDomainAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 
 	// Assert that the bundle endpoint server was called to listen and serve
@@ -672,6 +677,63 @@ func testSVIDAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentCo
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
 			"NewDownstreamX509CA": true,
+		})
+	})
+}
+
+func testTrustDomainAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentConn, adminConn, downstreamConn *grpc.ClientConn) {
+	t.Run("UDS", func(t *testing.T) {
+		testAuthorization(ctx, t, trustdomainv1.NewTrustDomainClient(udsConn), map[string]bool{
+			"ListFederationRelationships":       true,
+			"GetFederationRelationship":         true,
+			"BatchCreateFederationRelationship": true,
+			"BatchUpdateFederationRelationship": true,
+			"BatchDeleteFederationRelationship": true,
+			"RefreshBundle":                     true,
+		})
+	})
+
+	t.Run("NoAuth", func(t *testing.T) {
+		testAuthorization(ctx, t, trustdomainv1.NewTrustDomainClient(noauthConn), map[string]bool{
+			"ListFederationRelationships":       false,
+			"GetFederationRelationship":         false,
+			"BatchCreateFederationRelationship": false,
+			"BatchUpdateFederationRelationship": false,
+			"BatchDeleteFederationRelationship": false,
+			"RefreshBundle":                     false,
+		})
+	})
+
+	t.Run("Agent", func(t *testing.T) {
+		testAuthorization(ctx, t, trustdomainv1.NewTrustDomainClient(agentConn), map[string]bool{
+			"ListFederationRelationships":       false,
+			"GetFederationRelationship":         false,
+			"BatchCreateFederationRelationship": false,
+			"BatchUpdateFederationRelationship": false,
+			"BatchDeleteFederationRelationship": false,
+			"RefreshBundle":                     false,
+		})
+	})
+
+	t.Run("Admin", func(t *testing.T) {
+		testAuthorization(ctx, t, trustdomainv1.NewTrustDomainClient(adminConn), map[string]bool{
+			"ListFederationRelationships":       true,
+			"GetFederationRelationship":         true,
+			"BatchCreateFederationRelationship": true,
+			"BatchUpdateFederationRelationship": true,
+			"BatchDeleteFederationRelationship": true,
+			"RefreshBundle":                     true,
+		})
+	})
+
+	t.Run("Downstream", func(t *testing.T) {
+		testAuthorization(ctx, t, trustdomainv1.NewTrustDomainClient(downstreamConn), map[string]bool{
+			"ListFederationRelationships":       false,
+			"GetFederationRelationship":         false,
+			"BatchCreateFederationRelationship": false,
+			"BatchUpdateFederationRelationship": false,
+			"BatchDeleteFederationRelationship": false,
+			"RefreshBundle":                     false,
 		})
 	})
 }

@@ -16,6 +16,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -49,13 +50,16 @@ func (s *SpiffeIDControllerTestSuite) SetupSuite() {
 }
 
 func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// First create the test namespace
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: SpiffeIDNamespace,
 		},
 	}
-	err := s.k8sClient.Create(s.ctx, namespace)
+	err := s.k8sClient.Create(ctx, namespace)
 	s.Require().NoError(err)
 
 	// Create the SPIFFE ID
@@ -76,21 +80,21 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 			},
 		},
 	}
-	err = s.k8sClient.Create(s.ctx, spiffeID)
+	err = s.k8sClient.Create(ctx, spiffeID)
 	s.Require().NoError(err)
 	spiffeIDLookupKey := types.NamespacedName{Name: SpiffeIDName, Namespace: SpiffeIDNamespace}
 
-	_, err = s.r.Reconcile(ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	_, err = s.r.Reconcile(ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
 	s.Require().NoError(err)
 
 	// Verify the Entry ID got set
 	createdSpiffeID := &spiffeidv1beta1.SpiffeID{}
-	err = s.k8sClient.Get(s.ctx, spiffeIDLookupKey, createdSpiffeID)
+	err = s.k8sClient.Get(ctx, spiffeIDLookupKey, createdSpiffeID)
 	s.Require().NoError(err)
 	s.Require().NotNil(createdSpiffeID.Status.EntryId)
 
 	// Check that the SPIFFE ID was created on the SPIRE server
-	entry, err := s.entryClient.GetEntry(s.ctx, &entryv1.GetEntryRequest{
+	entry, err := s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
 		Id: *createdSpiffeID.Status.EntryId,
 	})
 	s.Require().NoError(err)
@@ -101,13 +105,13 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	createdSpiffeID.Spec.SpiffeId = makeID(s.trustDomain, "%s/%s", SpiffeIDName, "new")
 	createdSpiffeID.Spec.ParentId = makeID(s.trustDomain, "%s/%s/%s", "spire", "server", "new")
 	createdSpiffeID.Spec.Selector.PodName = "test"
-	err = s.k8sClient.Update(s.ctx, createdSpiffeID)
+	err = s.k8sClient.Update(ctx, createdSpiffeID)
 	s.Require().NoError(err)
-	_, err = s.r.Reconcile(ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	_, err = s.r.Reconcile(ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
 	s.Require().NoError(err)
 
 	// Check SPIRE Server was updated
-	entry, err = s.entryClient.GetEntry(s.ctx, &entryv1.GetEntryRequest{
+	entry, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
 		Id: *createdSpiffeID.Status.EntryId,
 	})
 	s.Require().NoError(err)

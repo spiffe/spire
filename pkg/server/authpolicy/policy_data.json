@@ -154,6 +154,36 @@
 		{
 			"full_method": "/grpc.health.v1.Health/Watch",
 			"allow_local": true
+		},
+		{
+			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/ListFederationRelationships",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/GetFederationRelationship",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/BatchCreateFederationRelationship",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/BatchUpdateFederationRelationship",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/BatchDeleteFederationRelationship",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/RefreshBundle",
+			"allow_local": true,
+			"allow_admin": true
 		}
-    ]
+	]
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/go-logr/logr"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -84,11 +85,10 @@ type ObjectWithMetadata interface {
 	V1Object
 }
 
-func (r *BaseReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *BaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if !r.shouldProcess(req) {
 		return ctrl.Result{}, nil
 	}
-	ctx := context.Background()
 	reqLogger := r.Log.WithValues("request", req.NamespacedName)
 
 	obj := r.getObject()
@@ -371,9 +371,11 @@ func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []eve
 			seen[namespacedName.String()] = true
 			if reconcile {
 				log.V(1).Info("Triggering reconciliation for resource", "name", namespacedName)
-				events = append(events, event.GenericEvent{Meta: &v1.ObjectMeta{
-					Name:      namespacedName.Name,
-					Namespace: namespacedName.Namespace,
+				events = append(events, event.GenericEvent{Object: &corev1.Event{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      namespacedName.Name,
+						Namespace: namespacedName.Namespace,
+					},
 				}})
 			}
 		}
@@ -382,18 +384,17 @@ func (r *BaseReconciler) doPollSpire(ctx context.Context, log logr.Logger) []eve
 	return events
 }
 
-func (r *BaseReconciler) pollSpire(out chan event.GenericEvent, s <-chan struct{}) error {
-	ctx := context.Background()
+func (r *BaseReconciler) pollSpire(ctx context.Context, out chan event.GenericEvent) error {
 	log := r.Log
 	for {
 		select {
-		case <-s:
+		case <-ctx.Done():
 			return nil
 		case <-time.After(10 * time.Second):
 			for _, pollEvent := range r.doPollSpire(ctx, log) {
 				select {
 				case out <- pollEvent:
-				case <-s:
+				case <-ctx.Done():
 					return nil
 				}
 			}
@@ -407,8 +408,8 @@ type SpirePoller struct {
 }
 
 // Start implements Runnable
-func (p *SpirePoller) Start(s <-chan struct{}) error {
-	return p.r.pollSpire(p.out, s)
+func (p *SpirePoller) Start(ctx context.Context) error {
+	return p.r.pollSpire(ctx, p.out)
 }
 
 func (r *BaseReconciler) SetupWithManager(mgr ctrl.Manager) error {

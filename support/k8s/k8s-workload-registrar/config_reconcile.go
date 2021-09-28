@@ -80,10 +80,11 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 	_ = corev1.AddToScheme(scheme)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: c.MetricsAddr,
-		LeaderElection:     c.LeaderElection,
-		LeaderElectionID:   fmt.Sprintf("%s-leader-election", c.ControllerName),
+		Scheme:                     scheme,
+		MetricsBindAddress:         c.MetricsAddr,
+		LeaderElection:             c.LeaderElection,
+		LeaderElectionID:           fmt.Sprintf("%s-leader-election", c.ControllerName),
+		LeaderElectionResourceLock: "configmaps",
 	})
 	if err != nil {
 		setupLog.Error(err, "Unable to start manager")

@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck // No longer deprecated in newer versions.
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/golang/mock/gomock"
@@ -52,7 +52,7 @@ func (s *NodeControllerTestSuite) SetupTest() {
 
 	s.ctrl = mockCtrl
 
-	s.k8sClient = fake.NewFakeClientWithScheme(scheme.Scheme)
+	s.k8sClient = fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 
 	s.log = zap.New()
 }
@@ -98,7 +98,7 @@ func (s *NodeControllerTestSuite) TestAddRemoveNode() {
 	err := s.k8sClient.Create(ctx, &node)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: "",
 			Name:      "foo",
@@ -114,7 +114,7 @@ func (s *NodeControllerTestSuite) TestAddRemoveNode() {
 	err = s.k8sClient.Delete(ctx, &node)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: "",
 			Name:      "foo",
@@ -158,7 +158,7 @@ func (s *NodeControllerTestSuite) TestRequeuesMissingNode() {
 	err := s.k8sClient.Create(ctx, &node)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: "",
 			Name:      "foo",
@@ -181,5 +181,5 @@ func (s *NodeControllerTestSuite) TestRequeuesMissingNode() {
 
 	queue := r.doPollSpire(ctx, s.log)
 	s.Assert().Len(queue, 1)
-	s.Assert().Equal("foo", queue[0].Meta.GetName())
+	s.Assert().Equal("foo", queue[0].Object.GetName())
 }

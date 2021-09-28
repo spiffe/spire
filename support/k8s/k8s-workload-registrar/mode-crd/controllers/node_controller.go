@@ -36,7 +36,6 @@ import (
 type NodeReconcilerConfig struct {
 	Client      client.Client
 	Cluster     string
-	Ctx         context.Context
 	Log         logrus.FieldLogger
 	Namespace   string
 	Scheme      *runtime.Scheme
@@ -66,10 +65,8 @@ func (n *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile creates a SPIFFE ID for each node, used to parent SPIFFE IDs for pods
 // running on that node
-func (n *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (n *NodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	node := corev1.Node{}
-	ctx := n.c.Ctx
-
 	if err := n.Get(ctx, req.NamespacedName, &node); err != nil {
 		if !errors.IsNotFound(err) {
 			n.c.Log.WithError(err).Error("Unable to fetch Node")
@@ -79,7 +76,7 @@ func (n *NodeReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	return n.updateorCreateNodeEntry(n.c.Ctx, &node)
+	return n.updateorCreateNodeEntry(ctx, &node)
 }
 
 // updateorCreateNodeEntry attempts to create a new SpiffeID resource.
