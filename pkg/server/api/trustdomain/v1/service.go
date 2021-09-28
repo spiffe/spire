@@ -225,8 +225,9 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
 		}
 	}
-	// Warning in case of non self-serving endpoints that does not have a bundle
-	if resp.Bundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+
+	// Warning in case of SPIFFE endpoint that does not have a bundle
+	if resp.TrustDomainBundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
 		validateEndpointBundle(ctx, s.ds, log, resp.EndpointSPIFFEID)
 	}
 
@@ -266,7 +267,8 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
 		}
 	}
-	if resp.Bundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+	// Warning in case of SPIFFE endpoint that does not have a bundle
+	if resp.TrustDomainBundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
 		validateEndpointBundle(ctx, s.ds, log, resp.EndpointSPIFFEID)
 	}
 	log.Debug("Federation relationship updated")
@@ -344,12 +346,14 @@ func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *type
 		case *types.FederationRelationship_HttpsSpiffe:
 			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointSPIFFE
 			fields[telemetry.EndpointSpiffeID] = profile.HttpsSpiffe.EndpointSpiffeId
+		}
+	}
 
-			if profile.HttpsSpiffe != nil && profile.HttpsSpiffe.Bundle != nil {
-				bundleFields := api.FieldsFromBundleProto(profile.HttpsSpiffe.Bundle, nil)
-				for key, value := range bundleFields {
-					fields["bundle_"+key] = value
-				}
+	if mask.TrustDomainBundle {
+		if proto.TrustDomainBundle != nil {
+			bundleFields := api.FieldsFromBundleProto(proto.TrustDomainBundle, nil)
+			for key, value := range bundleFields {
+				fields["bundle_"+key] = value
 			}
 		}
 	}

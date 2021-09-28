@@ -56,5 +56,6 @@ func TestAllTrueMasks(t *testing.T) {
 	assert.Equal(t, &types.FederationRelationshipMask{
 		BundleEndpointUrl:     true,
 		BundleEndpointProfile: true,
+		TrustDomainBundle:     true,
 	}, protoutil.AllTrueFederationRelationshipMask)
 }

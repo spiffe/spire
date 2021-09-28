@@ -41,10 +41,10 @@ func TestGetFederationRelationship(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://example-1.org/endpoint-server",
-				Bundle: &types.Bundle{
-					TrustDomain: "example-1.org",
-				},
 			},
+		},
+		TrustDomainBundle: &types.Bundle{
+			TrustDomain: "example-1.org",
 		},
 	}
 
@@ -242,10 +242,10 @@ func TestListFederationRelationships(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://example-1.org/endpoint-server",
-				Bundle: &types.Bundle{
-					TrustDomain: "example-1.org",
-				},
 			},
+		},
+		TrustDomainBundle: &types.Bundle{
+			TrustDomain: "example-1.org",
 		},
 	}
 	dsFR1, err := api.ProtoToFederationRelationship(fr1)
@@ -576,9 +576,9 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://domain.test/endpoint",
-							Bundle:           defaultBundle,
 						},
 					},
+					TrustDomainBundle: defaultBundle,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -618,115 +618,15 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 								EndpointSpiffeId: "spiffe://domain.test/endpoint",
-								Bundle:           defaultBundle,
 							},
 						},
+						TrustDomainBundle: defaultBundle,
 					},
 				},
 			},
 		},
 		{
-			name: "non self-serving HttpsSpiffe endpoint SPIFFE ID trust domain mismatch",
-			req: []*types.FederationRelationship{
-				{
-					TrustDomain:       "domain.test",
-					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
-					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
-						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-							EndpointSpiffeId: "spiffe://domain.test/endpoint",
-						},
-					},
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: failed to convert federation relationship",
-					Data: logrus.Fields{
-						telemetry.Error:         `non self-serving bundle endpoint for "domain.test" has a SPIFFE ID from the same trust domain`,
-						telemetry.TrustDomainID: "domain.test",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile: "https_spiffe",
-						telemetry.BundleEndpointURL:     "https://federated-td-web.org/bundleendpoint",
-						telemetry.Status:                "error",
-						telemetry.StatusCode:            "InvalidArgument",
-						telemetry.StatusMessage:         `failed to convert federation relationship: non self-serving bundle endpoint for "domain.test" has a SPIFFE ID from the same trust domain`,
-						telemetry.TrustDomainID:         "domain.test",
-						telemetry.Type:                  "audit",
-						telemetry.EndpointSpiffeID:      "spiffe://domain.test/endpoint",
-					},
-				},
-			},
-			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-				{
-					Status: &types.Status{
-						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: non self-serving bundle endpoint for "domain.test" has a SPIFFE ID from the same trust domain`,
-					},
-				},
-			},
-		},
-		{
-			name: "self-serving HttpsSpiffe endpoint SPIFFE ID trust domain mismatch",
-			req: []*types.FederationRelationship{
-				{
-					TrustDomain:       "domain.test",
-					BundleEndpointUrl: "https://federated-td-web.org/bundleendpoint",
-					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
-						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-							EndpointSpiffeId: "spiffe://other-domain.test/endpoint",
-							Bundle:           defaultBundle,
-						},
-					},
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: failed to convert federation relationship",
-					Data: logrus.Fields{
-						telemetry.Error:         `self-serving bundle endpoint for "domain.test" has a SPIFFE ID from another trust domain ("other-domain.test")`,
-						telemetry.TrustDomainID: "domain.test",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile:            "https_spiffe",
-						telemetry.BundleEndpointURL:                "https://federated-td-web.org/bundleendpoint",
-						telemetry.Status:                           "error",
-						telemetry.StatusCode:                       "InvalidArgument",
-						telemetry.StatusMessage:                    `failed to convert federation relationship: self-serving bundle endpoint for "domain.test" has a SPIFFE ID from another trust domain ("other-domain.test")`,
-						telemetry.TrustDomainID:                    "domain.test",
-						telemetry.Type:                             "audit",
-						telemetry.EndpointSpiffeID:                 "spiffe://other-domain.test/endpoint",
-						"bundle_jwt_authority_expires_at.0":        "1590514224",
-						"bundle_jwt_authority_key_id.0":            "key-id-1",
-						"bundle_jwt_authority_public_key_sha256.0": pkixHashed,
-						"bundle_refresh_hint":                      "60",
-						"bundle_sequence_number":                   "0",
-						"bundle_x509_authorities_asn1_sha256.0":    x509AuthorityHashed,
-						"bundle_trust_domain_id":                   "domain.test",
-					},
-				},
-			},
-			expectResults: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-				{
-					Status: &types.Status{
-						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: self-serving bundle endpoint for "domain.test" has a SPIFFE ID from another trust domain ("other-domain.test")`,
-					},
-				},
-			},
-		},
-		{
-			name: "self-serving HttpsSpiffe bundle domain mismatch",
+			name: "trust domain bundle trust domain mismatch",
 			req: []*types.FederationRelationship{
 				{
 					TrustDomain:       "other-domain.test",
@@ -734,9 +634,9 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://other-domain.test/endpoint",
-							Bundle:           defaultBundle,
 						},
 					},
+					TrustDomainBundle: defaultBundle,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -744,7 +644,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert federation relationship",
 					Data: logrus.Fields{
-						telemetry.Error:         `self-serving bundle endpoint for "other-domain.test" has a bundle from another trust domain ("domain.test")`,
+						telemetry.Error:         `trust domain bundle ("domain.test") must match the trust domain of the federation relationship ("other-domain.test")`,
 						telemetry.TrustDomainID: "other-domain.test",
 					},
 				},
@@ -756,7 +656,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 						telemetry.BundleEndpointURL:                "https://federated-td-web.org/bundleendpoint",
 						telemetry.Status:                           "error",
 						telemetry.StatusCode:                       "InvalidArgument",
-						telemetry.StatusMessage:                    `failed to convert federation relationship: self-serving bundle endpoint for "other-domain.test" has a bundle from another trust domain ("domain.test")`,
+						telemetry.StatusMessage:                    `failed to convert federation relationship: trust domain bundle ("domain.test") must match the trust domain of the federation relationship ("other-domain.test")`,
 						telemetry.TrustDomainID:                    "other-domain.test",
 						telemetry.Type:                             "audit",
 						telemetry.EndpointSpiffeID:                 "spiffe://other-domain.test/endpoint",
@@ -774,13 +674,13 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: self-serving bundle endpoint for "other-domain.test" has a bundle from another trust domain ("domain.test")`,
+						Message: `failed to convert federation relationship: trust domain bundle ("domain.test") must match the trust domain of the federation relationship ("other-domain.test")`,
 					},
 				},
 			},
 		},
 		{
-			name: "create non self-serving HttpsSpiffe relationship",
+			name: "create HttpsSpiffe relationship without trust domain bundle",
 			req: []*types.FederationRelationship{
 				{
 					TrustDomain:       "domain.test",
@@ -968,9 +868,9 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://domain.test/endpoint",
-							Bundle:           defaultBundle,
 						},
 					},
+					TrustDomainBundle: defaultBundle,
 				},
 			},
 			customDSResponse: &datastore.FederationRelationship{},
@@ -1145,7 +1045,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 		BundleEndpointURL:     barURL,
 		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/endpoint"),
-		Bundle: &common.Bundle{
+		TrustDomainBundle: &common.Bundle{
 			TrustDomainId: "spiffe://bar.test",
 			RootCas: []*common.Certificate{
 				{
@@ -1438,20 +1338,50 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 
 	barURL, err := url.Parse("https://bar.test/path")
 	require.NoError(t, err)
+	barCommonBundle1 := &common.Bundle{
+		TrustDomainId: "spiffe://bar.test",
+		RootCas:       []*common.Certificate{{DerBytes: caRaw}},
+		RefreshHint:   60,
+	}
+
+	barTypesBundle1 := &types.Bundle{
+		TrustDomain:     "bar.test",
+		X509Authorities: []*types.X509Certificate{{Asn1: caRaw}},
+		RefreshHint:     60,
+	}
+
+	barCommonBundle2 := &common.Bundle{
+		TrustDomainId: "spiffe://bar.test",
+		RootCas:       []*common.Certificate{{DerBytes: newCARaw}},
+		RefreshHint:   30,
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				PkixBytes: pkixBytes,
+				Kid:       "key-id-1",
+				NotAfter:  1590514224,
+			},
+		},
+	}
+
+	barTypesBundle2 := &types.Bundle{
+		TrustDomain:     "bar.test",
+		X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
+		JwtAuthorities: []*types.JWTKey{
+			{
+				KeyId:     "key-id-1",
+				ExpiresAt: 1590514224,
+				PublicKey: pkixBytes,
+			},
+		},
+		RefreshHint: 30,
+	}
+
 	barFR := &datastore.FederationRelationship{
 		TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
 		BundleEndpointURL:     barURL,
 		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/endpoint"),
-		Bundle: &common.Bundle{
-			TrustDomainId: "spiffe://bar.test",
-			RootCas: []*common.Certificate{
-				{
-					DerBytes: caRaw,
-				},
-			},
-			RefreshHint: 60,
-		},
+		TrustDomainBundle:     barCommonBundle1,
 	}
 	newBarURL, err := url.Parse("https://bar.test/newpath")
 	require.NoError(t, err)
@@ -1486,21 +1416,9 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://bar.test/updated",
-							Bundle: &types.Bundle{
-								TrustDomain:     "bar.test",
-								X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
-								JwtAuthorities: []*types.JWTKey{
-									{
-										KeyId:     "key-id-1",
-										ExpiresAt: 1590514224,
-										PublicKey: pkixBytes,
-									},
-								},
-								RefreshHint:    30,
-								SequenceNumber: 1,
-							},
 						},
 					},
+					TrustDomainBundle: barTypesBundle2,
 				},
 			},
 			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
@@ -1526,24 +1444,9 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 								EndpointSpiffeId: "spiffe://bar.test/updated",
-								Bundle: &types.Bundle{
-									TrustDomain: "bar.test",
-									X509Authorities: []*types.X509Certificate{
-										{
-											Asn1: newCARaw,
-										},
-									},
-									JwtAuthorities: []*types.JWTKey{
-										{
-											KeyId:     "key-id-1",
-											ExpiresAt: 1590514224,
-											PublicKey: pkixBytes,
-										},
-									},
-									RefreshHint: 30,
-								},
 							},
 						},
+						TrustDomainBundle: barTypesBundle2,
 					},
 				},
 			},
@@ -1558,18 +1461,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					BundleEndpointURL:     newBarURL,
 					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/updated"),
-					Bundle: &common.Bundle{
-						TrustDomainId: "spiffe://bar.test",
-						RootCas:       []*common.Certificate{{DerBytes: newCARaw}},
-						RefreshHint:   30,
-						JwtSigningKeys: []*common.PublicKey{
-							{
-								PkixBytes: pkixBytes,
-								Kid:       "key-id-1",
-								NotAfter:  1590514224,
-							},
-						},
-					},
+					TrustDomainBundle:     barCommonBundle2,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -1633,7 +1525,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 						"bundle_jwt_authority_key_id.0":            "key-id-1",
 						"bundle_jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
 						"bundle_refresh_hint":                      "30",
-						"bundle_sequence_number":                   "1",
+						"bundle_sequence_number":                   "0",
 						"bundle_x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
 						"bundle_trust_domain_id":                   "bar.test",
 					},
@@ -1656,6 +1548,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 						TrustDomain:           "bar.test",
 						BundleEndpointUrl:     "https://bar.test/newpath",
 						BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
+						TrustDomainBundle:     barTypesBundle1,
 					},
 				},
 			},
@@ -1684,11 +1577,12 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("bar.test"),
 					BundleEndpointURL:     newBarURL,
 					BundleEndpointProfile: datastore.BundleEndpointWeb,
+					TrustDomainBundle:     barCommonBundle1,
 				},
 			},
 		},
 		{
-			name: "update to non self-serving https_spiffe profile with endpoint SPIFFE ID trust domain mismatch",
+			name: "update to https_spiffe profile with bundle trust domain mismatch",
 			reqFR: []*types.FederationRelationship{
 				{
 					TrustDomain:       "foo.test",
@@ -1698,13 +1592,16 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 							EndpointSpiffeId: "spiffe://foo.test/endpoint",
 						},
 					},
+					TrustDomainBundle: &types.Bundle{
+						TrustDomain: "baz.test",
+					},
 				},
 			},
 			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: non self-serving bundle endpoint for "foo.test" has a SPIFFE ID from the same trust domain`,
+						Message: `failed to convert federation relationship: trust domain bundle ("baz.test") must match the trust domain of the federation relationship ("foo.test")`,
 					},
 				},
 			},
@@ -1714,7 +1611,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					Message: "Invalid argument: failed to convert federation relationship",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "foo.test",
-						telemetry.Error:         `non self-serving bundle endpoint for "foo.test" has a SPIFFE ID from the same trust domain`,
+						telemetry.Error:         `trust domain bundle ("baz.test") must match the trust domain of the federation relationship ("foo.test")`,
 					},
 				},
 				{
@@ -1726,122 +1623,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
 						telemetry.Status:                "error",
 						telemetry.StatusCode:            "InvalidArgument",
-						telemetry.StatusMessage:         `failed to convert federation relationship: non self-serving bundle endpoint for "foo.test" has a SPIFFE ID from the same trust domain`,
-						telemetry.TrustDomainID:         "foo.test",
-						telemetry.Type:                  "audit",
-					},
-				},
-			},
-			expectDSFR: []*datastore.FederationRelationship{
-				{
-					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
-					BundleEndpointURL:     fooURL,
-					BundleEndpointProfile: datastore.BundleEndpointWeb,
-				},
-			},
-		},
-		{
-			name: "update to self-serving https_spiffe profile with endpoint SPIFFE ID trust domain mismatch",
-			reqFR: []*types.FederationRelationship{
-				{
-					TrustDomain:       "foo.test",
-					BundleEndpointUrl: "https://foo.test/newpath",
-					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
-						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-							EndpointSpiffeId: "spiffe://baz.test/endpoint",
-							Bundle: &types.Bundle{
-								TrustDomain: "foo.test",
-							},
-						},
-					},
-				},
-			},
-			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
-				{
-					Status: &types.Status{
-						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a SPIFFE ID from another trust domain ("baz.test")`,
-					},
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: failed to convert federation relationship",
-					Data: logrus.Fields{
-						telemetry.TrustDomainID: "foo.test",
-						telemetry.Error:         `self-serving bundle endpoint for "foo.test" has a SPIFFE ID from another trust domain ("baz.test")`,
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile: "https_spiffe",
-						telemetry.EndpointSpiffeID:      "spiffe://baz.test/endpoint",
-						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
-						telemetry.Status:                "error",
-						telemetry.StatusCode:            "InvalidArgument",
-						telemetry.StatusMessage:         `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a SPIFFE ID from another trust domain ("baz.test")`,
-						telemetry.TrustDomainID:         "foo.test",
-						telemetry.Type:                  "audit",
-						"bundle_refresh_hint":           "0",
-						"bundle_sequence_number":        "0",
-						"bundle_trust_domain_id":        "foo.test",
-					},
-				},
-			},
-			expectDSFR: []*datastore.FederationRelationship{
-				{
-					TrustDomain:           spiffeid.RequireTrustDomainFromString("foo.test"),
-					BundleEndpointURL:     fooURL,
-					BundleEndpointProfile: datastore.BundleEndpointWeb,
-				},
-			},
-		},
-		{
-			name: "update to self-serving https_spiffe profile with bundle trust domain mismatch",
-			reqFR: []*types.FederationRelationship{
-				{
-					TrustDomain:       "foo.test",
-					BundleEndpointUrl: "https://foo.test/newpath",
-					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
-						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
-							EndpointSpiffeId: "spiffe://foo.test/endpoint",
-							Bundle: &types.Bundle{
-								TrustDomain: "baz.test",
-							},
-						},
-					},
-				},
-			},
-			expectResults: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
-				{
-					Status: &types.Status{
-						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a bundle from another trust domain ("baz.test")`,
-					},
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: failed to convert federation relationship",
-					Data: logrus.Fields{
-						telemetry.TrustDomainID: "foo.test",
-						telemetry.Error:         `self-serving bundle endpoint for "foo.test" has a bundle from another trust domain ("baz.test")`,
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.BundleEndpointProfile: "https_spiffe",
-						telemetry.EndpointSpiffeID:      "spiffe://foo.test/endpoint",
-						telemetry.BundleEndpointURL:     "https://foo.test/newpath",
-						telemetry.Status:                "error",
-						telemetry.StatusCode:            "InvalidArgument",
-						telemetry.StatusMessage:         `failed to convert federation relationship: self-serving bundle endpoint for "foo.test" has a bundle from another trust domain ("baz.test")`,
+						telemetry.StatusMessage:         `failed to convert federation relationship: trust domain bundle ("baz.test") must match the trust domain of the federation relationship ("foo.test")`,
 						telemetry.TrustDomainID:         "foo.test",
 						telemetry.Type:                  "audit",
 						"bundle_refresh_hint":           "0",
@@ -1932,20 +1714,20 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://bar.test/updated",
-							Bundle: &types.Bundle{
-								TrustDomain:     "bar.test",
-								X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
-								JwtAuthorities: []*types.JWTKey{
-									{
-										KeyId:     "key-id-1",
-										ExpiresAt: 1590514224,
-										PublicKey: pkixBytes,
-									},
-								},
-								RefreshHint:    30,
-								SequenceNumber: 1,
+						},
+					},
+					TrustDomainBundle: &types.Bundle{
+						TrustDomain:     "bar.test",
+						X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
+						JwtAuthorities: []*types.JWTKey{
+							{
+								KeyId:     "key-id-1",
+								ExpiresAt: 1590514224,
+								PublicKey: pkixBytes,
 							},
 						},
+						RefreshHint:    30,
+						SequenceNumber: 1,
 					},
 				},
 			},
@@ -1959,16 +1741,16 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 						BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 							HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 								EndpointSpiffeId: "spiffe://bar.test/endpoint",
-								Bundle: &types.Bundle{
-									TrustDomain: "bar.test",
-									X509Authorities: []*types.X509Certificate{
-										{
-											Asn1: caRaw,
-										},
-									},
-									RefreshHint: 60,
+							},
+						},
+						TrustDomainBundle: &types.Bundle{
+							TrustDomain: "bar.test",
+							X509Authorities: []*types.X509Certificate{
+								{
+									Asn1: caRaw,
 								},
 							},
+							RefreshHint: 60,
 						},
 					},
 				},
@@ -1979,7 +1761,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					BundleEndpointURL:     barURL,
 					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/endpoint"),
-					Bundle: &common.Bundle{
+					TrustDomainBundle: &common.Bundle{
 						TrustDomainId: "spiffe://bar.test",
 						RootCas:       []*common.Certificate{{DerBytes: caRaw}},
 						RefreshHint:   60,
@@ -2014,21 +1796,9 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 						HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 							EndpointSpiffeId: "spiffe://bar.test/updated",
-							Bundle: &types.Bundle{
-								TrustDomain:     "bar.test",
-								X509Authorities: []*types.X509Certificate{{Asn1: newCARaw}},
-								JwtAuthorities: []*types.JWTKey{
-									{
-										KeyId:     "key-id-1",
-										ExpiresAt: 1590514224,
-										PublicKey: pkixBytes,
-									},
-								},
-								RefreshHint:    30,
-								SequenceNumber: 1,
-							},
 						},
 					},
+					TrustDomainBundle: barTypesBundle2,
 				},
 			},
 			outputMask: &types.FederationRelationshipMask{},
@@ -2062,7 +1832,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 						"bundle_jwt_authority_key_id.0":            "key-id-1",
 						"bundle_jwt_authority_public_key_sha256.0": api.HashByte(pkixBytes),
 						"bundle_refresh_hint":                      "30",
-						"bundle_sequence_number":                   "1",
+						"bundle_sequence_number":                   "0",
 						"bundle_x509_authorities_asn1_sha256.0":    api.HashByte(newCARaw),
 						"bundle_trust_domain_id":                   "bar.test",
 						telemetry.Type:                             "audit",
@@ -2075,18 +1845,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 					BundleEndpointURL:     newBarURL,
 					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://bar.test/updated"),
-					Bundle: &common.Bundle{
-						TrustDomainId: "spiffe://bar.test",
-						RootCas:       []*common.Certificate{{DerBytes: newCARaw}},
-						RefreshHint:   30,
-						JwtSigningKeys: []*common.PublicKey{
-							{
-								PkixBytes: pkixBytes,
-								Kid:       "key-id-1",
-								NotAfter:  1590514224,
-							},
-						},
-					},
+					TrustDomainBundle:     barCommonBundle2,
 				},
 			},
 		},
@@ -2224,7 +1983,7 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 				assert.Equal(t, eachFR.BundleEndpointURL.String(), getResp.BundleEndpointURL.String())
 				assert.Equal(t, eachFR.EndpointSPIFFEID, getResp.EndpointSPIFFEID)
 				assert.Equal(t, eachFR.TrustDomain, getResp.TrustDomain)
-				spiretest.AssertProtoEqual(t, eachFR.Bundle, getResp.Bundle)
+				spiretest.AssertProtoEqual(t, eachFR.TrustDomainBundle, getResp.TrustDomainBundle)
 			}
 		})
 	}

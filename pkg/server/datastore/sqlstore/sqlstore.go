@@ -3278,12 +3278,13 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 
 	if fr.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
 		model.EndpointSPIFFEID = fr.EndpointSPIFFEID.String()
-		if fr.Bundle != nil {
-			// overwrite current bundle
-			_, err := setBundle(tx, fr.Bundle)
-			if err != nil {
-				return nil, fmt.Errorf("unable to set bundle: %w", err)
-			}
+	}
+
+	if fr.TrustDomainBundle != nil {
+		// overwrite current bundle
+		_, err := setBundle(tx, fr.TrustDomainBundle)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set bundle: %w", err)
 		}
 	}
 
@@ -3380,13 +3381,14 @@ func updateFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 
 		if fr.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
 			model.EndpointSPIFFEID = fr.EndpointSPIFFEID.String()
-			if fr.Bundle != nil {
-				// overwrite current bundle
-				_, err := setBundle(tx, fr.Bundle)
-				if err != nil {
-					return nil, fmt.Errorf("unable to set bundle: %w", err)
-				}
-			}
+		}
+	}
+
+	if mask.TrustDomainBundle && fr.TrustDomainBundle != nil {
+		// overwrite current bundle
+		_, err := setBundle(tx, fr.TrustDomainBundle)
+		if err != nil {
+			return nil, fmt.Errorf("unable to set bundle: %w", err)
 		}
 	}
 
@@ -3450,18 +3452,15 @@ func modelToFederationRelationship(tx *gorm.DB, model *FederatedTrustDomain) (*d
 			return nil, fmt.Errorf("unable to parse bundle endpoint SPIFFE ID: %w", err)
 		}
 		fr.EndpointSPIFFEID = endpointSPIFFEID
-
-		// Set bundle only when endpoint is on self-serving
-		if fr.EndpointSPIFFEID.TrustDomain().Compare(fr.TrustDomain) == 0 {
-			bundle, err := fetchBundle(tx, td.IDString())
-			if err != nil {
-				return nil, fmt.Errorf("unable to fetch bundle: %w", err)
-			}
-			fr.Bundle = bundle
-		}
 	default:
 		return nil, fmt.Errorf("unknown bundle endpoint profile type: %q", model.BundleEndpointProfile)
 	}
+
+	trustDomainBundle, err := fetchBundle(tx, td.IDString())
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch bundle: %w", err)
+	}
+	fr.TrustDomainBundle = trustDomainBundle
 
 	return fr, nil
 }
