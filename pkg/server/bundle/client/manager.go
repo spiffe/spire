@@ -57,22 +57,6 @@ func (p HTTPSSPIFFEProfile) Name() string {
 	return "https_spiffe"
 }
 
-type TrustDomainConfigSource interface {
-	GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error)
-}
-
-type TrustDomainConfigSourceFunc func(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error)
-
-func (fn TrustDomainConfigSourceFunc) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
-	return fn(ctx)
-}
-
-type TrustDomainConfigMap map[spiffeid.TrustDomain]TrustDomainConfig
-
-func (m TrustDomainConfigMap) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
-	return m, nil
-}
-
 type ManagerConfig struct {
 	Log       logrus.FieldLogger
 	Metrics   telemetry.Metrics
