@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
-	pcaapi "cloud.google.com/go/security/privateca/apiv1beta1"
+	pcaapi "cloud.google.com/go/security/privateca/apiv1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
@@ -21,7 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/api/iterator"
-	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
+	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -48,11 +49,16 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type CertificateAuthoritySpec struct {
 	Project    string `hcl:"project_name"`
 	Location   string `hcl:"region_name"`
+	CaPool     string `hcl:"ca_pool"`
 	LabelKey   string `hcl:"label_key"`
 	LabelValue string `hcl:"label_value"`
 }
 
-func (spec *CertificateAuthoritySpec) caParentPath() string {
+func (spec *CertificateAuthoritySpec) caParentPath(caPool string) string {
+	return path.Join(spec.caPoolParentPath(), "caPools", caPool)
+}
+
+func (spec *CertificateAuthoritySpec) caPoolParentPath() string {
 	return path.Join("projects", spec.Project, "locations", spec.Location)
 }
 
@@ -128,7 +134,6 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	p.log.Warn("This plugin relies on GCP Certificate Authority Service which is currently in Beta")
 	// Parse HCL config payload into config struct
 	config := new(Configuration)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
@@ -148,7 +153,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if config.RootSpec.LabelValue == "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.LabelValue property")
 	}
-
+	if config.RootSpec.CaPool == "" {
+		p.log.Warn("The ca_pool value is not configured. Falling back to searching the region for matching CAs. The ca_pool configurable will be required in a future release.")
+	}
 	// Swap out the current configuration with the new configuration
 	p.setConfig(config)
 
@@ -229,12 +236,13 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 		}
 	}
 
+	subject.CommonName = csrParsed.Subject.CommonName
 	extractFirst(csrParsed.Subject.Organization, &subject.Organization)
 	extractFirst(csrParsed.Subject.OrganizationalUnit, &subject.OrganizationalUnit)
 	extractFirst(csrParsed.Subject.Locality, &subject.Locality)
 	extractFirst(csrParsed.Subject.Province, &subject.Province)
 
-	// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#SubjectAltNames
+	// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#SubjectAltNames
 	san := privatecapb.SubjectAltNames{}
 	var uris []string
 	for _, uri := range csrParsed.URIs {
@@ -242,17 +250,30 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	}
 	san.Uris = uris
 
-	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1beta1#CertificateAuthorityClient.CreateCertificate
+	isCa := true
+	// this is 0, golint complains if it's explicitly set to 0 since it's the default value of an int32
+	var maxIssuerPathLength int32
+
+	// privatecapb.CertificateAuthority.Name is the full GCP path but the request below expects only the CA's ID
+	chosenPool, issuingCaID := path.Split(parentPath)
+	// chosenPool will be in the form of projects/PROJECT/locations/LOCATION/caPools/POOL/certificateAuthorities/
+	// after the path.Split call above.  We need to trim off the /certificateAuthorities/ part for the request below
+	chosenPool = strings.TrimSuffix(chosenPool, "/certificateAuthorities/")
+
+	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1#CertificateAuthorityClient.CreateCertificate
 	createRequest := privatecapb.CreateCertificateRequest{
-		Parent: parentPath,
-		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#Certificate
+		Parent:                        chosenPool,
+		IssuingCertificateAuthorityId: issuingCaID,
+		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#Certificate
 		Certificate: &privatecapb.Certificate{
 			Lifetime: durationpb.New(validity),
-			// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#CertificateConfig
+			// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#Certificate_Config
 			CertificateConfig: &privatecapb.Certificate_Config{
+				// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#CertificateConfig
 				Config: &privatecapb.CertificateConfig{
+					// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#PublicKey
 					PublicKey: &privatecapb.PublicKey{
-						Type: privatecapb.PublicKey_PEM_EC_KEY,
+						Format: privatecapb.PublicKey_PEM,
 						Key: pem.EncodeToMemory(
 							&pem.Block{
 								Type:  publicKeyType,
@@ -260,18 +281,26 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 							},
 						),
 					},
+					// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#CertificateConfig_SubjectConfig
 					SubjectConfig: &privatecapb.CertificateConfig_SubjectConfig{
 						Subject:        &subject,
-						CommonName:     csrParsed.Subject.CommonName,
 						SubjectAltName: &san,
 					},
-					// https://cloud.google.com/certificate-authority-service/docs/reusable-configs#mutual_tls_w_path_length_0
-					// https://cloud.google.com/sdk/gcloud/reference/beta/privateca/roots/create
-					// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#ReusableConfigWrapper
-					// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#ReusableConfigWrapper_ReusableConfig
-					ReusableConfig: &privatecapb.ReusableConfigWrapper{
-						ConfigValues: &privatecapb.ReusableConfigWrapper_ReusableConfig{
-							ReusableConfig: fmt.Sprintf("projects/privateca-data/locations/%s/reusableConfigs/subordinate-mtls-pathlen-0", config.RootSpec.Location),
+					// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#X509Parameters
+					X509Config: &privatecapb.X509Parameters{
+						// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#X509Parameters_CaOptions
+						CaOptions: &privatecapb.X509Parameters_CaOptions{
+							IsCa:                &isCa,
+							MaxIssuerPathLength: &maxIssuerPathLength,
+						},
+						// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#KeyUsage
+						KeyUsage: &privatecapb.KeyUsage{
+							// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#KeyUsage_KeyUsageOptions
+							BaseKeyUsage: &privatecapb.KeyUsage_KeyUsageOptions{
+								DigitalSignature: true,
+								CertSign:         true,
+								CrlSign:          true,
+							},
 						},
 					},
 				},
@@ -360,38 +389,87 @@ type gcpCAClient struct {
 func (client *gcpCAClient) CreateCertificate(ctx context.Context, req *privatecapb.CreateCertificateRequest) (*privatecapb.Certificate, error) {
 	return client.pcaClient.CreateCertificate(ctx, req)
 }
+
 func (client *gcpCAClient) LoadCertificateAuthorities(ctx context.Context, spec CertificateAuthoritySpec) ([]*privatecapb.CertificateAuthority, error) {
-	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1beta1#CertificateAuthorityClient.ListCertificateAuthorities
-	var allCerts []*privatecapb.CertificateAuthority
-	certIt := client.pcaClient.ListCertificateAuthorities(ctx, &privatecapb.ListCertificateAuthoritiesRequest{
-		Parent: spec.caParentPath(),
-		Filter: fmt.Sprintf("labels.%s:%s", spec.LabelKey, spec.LabelValue),
-		// There is "OrderBy" option but it seems to work only for the name field
-		// So we will have to sort it by expiry timestamp at our end
-	})
-
-	p := iterator.NewPager(certIt, 20, "")
-	for {
-		var page []*privatecapb.CertificateAuthority
-
-		nextPageToken, err := p.NextPage(&page)
+	var poolsToSearch []string
+	var err error
+	// if the config has a ca pool provided only look for CAs in that pool, otherwise search each pool in the region
+	if spec.CaPool == "" {
+		poolsToSearch, err = client.listCaPools(ctx, spec)
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		poolsToSearch = []string{spec.caParentPath(spec.CaPool)}
+	}
 
-		allCerts = append(allCerts, page...)
-		if nextPageToken == "" {
-			break
+	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1#CertificateAuthorityClient.ListCertificateAuthorities
+	var allCerts []*privatecapb.CertificateAuthority
+	// if there are cas in multiple pools that match our filter we need to throw an error
+	selectedPool := ""
+	for _, pool := range poolsToSearch {
+		certIt := client.pcaClient.ListCertificateAuthorities(ctx, &privatecapb.ListCertificateAuthoritiesRequest{
+			Parent: pool,
+			Filter: fmt.Sprintf("labels.%s:%s", spec.LabelKey, spec.LabelValue),
+			// There is "OrderBy" option but it seems to work only for the name field
+			// So we will have to sort it by expiry timestamp at our end
+		})
+
+		p := iterator.NewPager(certIt, 20, "")
+		for {
+			var page []*privatecapb.CertificateAuthority
+
+			nextPageToken, err := p.NextPage(&page)
+			if err != nil {
+				return nil, err
+			}
+
+			if selectedPool == "" && len(page) > 0 {
+				selectedPool = pool
+			} else if selectedPool != "" && pool != selectedPool && len(page) > 0 {
+				return nil, fmt.Errorf("found authorities with matching labels across multiple pools")
+			}
+
+			allCerts = append(allCerts, page...)
+			if nextPageToken == "" {
+				break
+			}
 		}
 	}
 
 	return allCerts, nil
 }
 
+func (client *gcpCAClient) listCaPools(ctx context.Context, spec CertificateAuthoritySpec) ([]string, error) {
+	var poolsToSearch []string
+	poolIt := client.pcaClient.ListCaPools(ctx, &privatecapb.ListCaPoolsRequest{
+		Parent: spec.caPoolParentPath(),
+	})
+
+	p := iterator.NewPager(poolIt, 20, "")
+	for {
+		var page []*privatecapb.CaPool
+		nextPageToken, err := p.NextPage(&page)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, pool := range page {
+			poolsToSearch = append(poolsToSearch, pool.Name)
+		}
+
+		if nextPageToken == "" {
+			break
+		}
+	}
+
+	return poolsToSearch, nil
+}
+
 func filterOutNonEnabledCAs(cas []*privatecapb.CertificateAuthority) []*privatecapb.CertificateAuthority {
 	var filteredCAs []*privatecapb.CertificateAuthority
 	for _, ca := range cas {
-		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1#CertificateAuthority_State
+		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#CertificateAuthority_State
 		// Only CA in enabled state can issue certificates
 		if ca.State == privatecapb.CertificateAuthority_ENABLED {
 			filteredCAs = append(filteredCAs, ca)
