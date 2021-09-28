@@ -9,14 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	admv1 "k8s.io/api/admission/v1"
 )
 
 func TestHandler(t *testing.T) {
+	log, _ := test.NewNullLogger()
 	controller := newFakeController()
-	handler := NewWebhookHandler(controller)
+	handler := NewWebhookHandler(log, controller)
 
 	testCases := []struct {
 		name       string

@@ -7,11 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/sirupsen/logrus"
 	admv1 "k8s.io/api/admission/v1"
 	admv1beta1 "k8s.io/api/admission/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/klog/v2"
 )
 
 var (
@@ -25,12 +25,14 @@ type AdmissionController interface {
 }
 
 type WebhookHandler struct {
+	log        logrus.FieldLogger
 	controller AdmissionController
 }
 
-func NewWebhookHandler(controller AdmissionController) *WebhookHandler {
+func NewWebhookHandler(log logrus.FieldLogger, controller AdmissionController) *WebhookHandler {
 	_ = admv1.AddToScheme(runtimeScheme)
 	return &WebhookHandler{
+		log:        log,
 		controller: controller,
 	}
 }
@@ -125,20 +127,26 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	obj, gvk, err := deserializer.Decode(body, nil, nil)
 	if err != nil {
 		msg := fmt.Sprintf("Malformed JSON body: %v", err)
-		klog.Error(msg)
+		h.log.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
+	log := h.log.WithFields(logrus.Fields{
+		"version": gvk.Version,
+		"kind":    gvk.Kind,
+	})
 	admit := newDelegateToV1AdmitHandler(h.controller.ReviewAdmission)
-	ctx := context.TODO()
+	ctx := req.Context()
 
 	var responseObj runtime.Object
 	switch *gvk {
 	case admv1beta1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		requestedAdmissionReview, ok := obj.(*admv1beta1.AdmissionReview)
 		if !ok {
-			klog.Errorf("Expected v1beta1.AdmissionReview but got: %T", obj)
+			msg := fmt.Sprintf("Expected v1beta1.AdmissionReview but got: %T", obj)
+			log.Error(msg)
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 		responseAdmissionReview := &admv1beta1.AdmissionReview{}
@@ -146,7 +154,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		resp, err := admit.v1beta1(ctx, *requestedAdmissionReview)
 		if err != nil {
 			msg := fmt.Sprintf("internal error occurred: %v", err)
-			klog.Error(msg)
+			log.Error(msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -156,7 +164,9 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case admv1.SchemeGroupVersion.WithKind("AdmissionReview"):
 		requestedAdmissionReview, ok := obj.(*admv1.AdmissionReview)
 		if !ok {
-			klog.Errorf("Expected v1.AdmissionReview but got: %T", obj)
+			msg := fmt.Sprintf("Expected v1.AdmissionReview but got: %T", obj)
+			log.Error(msg)
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 		responseAdmissionReview := &admv1.AdmissionReview{}
@@ -164,7 +174,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		resp, err := admit.v1(ctx, *requestedAdmissionReview)
 		if err != nil {
 			msg := fmt.Sprintf("internal error occurred: %v", err)
-			klog.Error(msg)
+			log.Error(msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -173,20 +183,21 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		responseObj = responseAdmissionReview
 	default:
 		msg := fmt.Sprintf("Unsupported group version kind: %v", gvk)
-		klog.Error(msg)
+		log.Error(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
-	klog.V(2).Info(fmt.Sprintf("sending response: %v", responseObj))
+	log.Infof("sending response: %v", responseObj)
+
 	respBytes, err := json.Marshal(responseObj)
 	if err != nil {
-		klog.Error(err)
+		log.Error(err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(respBytes); err != nil {
-		klog.Error(err)
+		log.Error(err)
 	}
 }
