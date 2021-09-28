@@ -89,7 +89,7 @@ func TestParseMetadata(t *testing.T) {
 		{
 			name:       "invalid data",
 			secretData: []string{"invalid"},
-			expectErr:  `metadata does not contains ':': "invalid"`,
+			expectErr:  `metadata does not contains contain a colon: "invalid"`,
 		},
 	} {
 		tt := tt

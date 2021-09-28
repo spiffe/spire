@@ -11,16 +11,16 @@ import (
 )
 
 type Data struct {
-	// SPIFFEID The SPIFFE ID of that identify this SVID
+	// SPIFFEID is the SPIFFE ID of the SVID
 	SPIFFEID string `json:"spiffeID,omitempty"`
-	// X509SVID PEM encoded certificate chain. MAY invlude intermediates,
+	// X509SVID is the PEM encoded certificate chain. MAY include intermediates,
 	// the leaf certificate (or SVID itself) MUST come first
 	X509SVID string `json:"x509SVID,omitempty"`
-	// X509SVIDKey PEM encoded PKCS#8 private key.
+	// X509SVIDKey is the PEM encoded PKCS#8 private key.
 	X509SVIDKey string `json:"x509SVIDKey,omitempty"`
-	// Bundle PEM encoded X.509 bundle for the trust domain
+	// Bundle is the PEM encoded X.509 bundle for the trust domain
 	Bundle string `json:"bundle,omitempty"`
-	// FederatedBundles CA certificate bundles belonging to foreign trust domains that the workload should trust,
+	// FederatedBundles is the CA certificate bundles belonging to foreign trust domains that the workload should trust,
 	// keyed by trust domain. Bundles are in encoded in PEM format.
 	FederatedBundles map[string]string `json:"federatedBundles,omitempty"`
 }
@@ -65,7 +65,7 @@ func ParseMetadata(secretData []string) (map[string]string, error) {
 	for _, s := range secretData {
 		value := strings.Split(s, ":")
 		if len(value) < 2 {
-			return nil, fmt.Errorf("metadata does not contains ':': %q", s)
+			return nil, fmt.Errorf("metadata does not contains contain a colon: %q", s)
 		}
 		data[value[0]] = value[1]
 	}
