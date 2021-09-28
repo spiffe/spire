@@ -68,9 +68,6 @@ type SecretsManagerPlugin struct {
 }
 
 func (p *SecretsManagerPlugin) SetLogger(log hclog.Logger) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	p.log = log
 }
 
@@ -149,6 +146,12 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 		return nil, status.Errorf(codes.Internal, "failed to describe secret: %v", err)
 	}
 
+	// Validate that the secret has the 'spire-svid' tag. This tag is used to distinguish the secrets
+	// that have SVID information handled by SPIRE
+	if err := validateTag(secretDesc.Tags); err != nil {
+		return nil, err
+	}
+
 	// If the secret has been scheduled for deletion, restore it
 	if secretDesc.DeletedDate != nil {
 		resp, err := p.smClient.RestoreSecret(ctx, &secretsmanager.RestoreSecretInput{
@@ -158,12 +161,6 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 			return nil, status.Errorf(codes.Internal, "failed to restore secret %q: %v", secretID, err)
 		}
 		p.log.With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).Debug("Secret was scheduled for deletion and has been restored")
-	}
-
-	// Validate that the secret has the 'spire-svid' tag. This tag is used to distinguish the secrets
-	// that have SVID information handled by SPIRE
-	if err := validateTag(secretDesc.Tags); err != nil {
-		return nil, err
 	}
 
 	putResp, err := p.smClient.PutSecretValue(ctx, &secretsmanager.PutSecretValueInput{
@@ -235,8 +232,11 @@ func (o *secretOptions) getSecretID() string {
 	return o.name
 }
 
-func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
-	data := svidstore.ParseMetadata(selectorData)
+func optionsFromSecretData(metadata []string) (*secretOptions, error) {
+	data, err := svidstore.ParseMetadata(metadata)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse Metadata: %v", err)
+	}
 
 	opt := &secretOptions{
 		name:     data["secretname"],

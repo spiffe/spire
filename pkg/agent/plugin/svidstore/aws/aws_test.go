@@ -90,7 +90,7 @@ func TestConfigure(t *testing.T) {
 		customConfig    string
 		expectConfig    *Configuration
 		expectCode      codes.Code
-		expectMsg       string
+		expectMsgPrefix string
 		expectClientErr error
 	}{
 		{
@@ -116,10 +116,10 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name:       "no region provided",
-			envs:       envs,
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "region is required",
+			name:            "no region provided",
+			envs:            envs,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "region is required",
 		},
 		{
 			name:            "new client fails",
@@ -127,15 +127,15 @@ func TestConfigure(t *testing.T) {
 			region:          "r1",
 			expectClientErr: errors.New("oh no"),
 			expectCode:      codes.Internal,
-			expectMsg:       "failed to create secrets manager client: oh no",
+			expectMsgPrefix: "failed to create secrets manager client: oh no",
 		},
 		{
-			name:         "malformed configuration",
-			envs:         envs,
-			region:       "r1",
-			customConfig: "{ no a config }",
-			expectCode:   codes.InvalidArgument,
-			expectMsg:    "unable to decode configuration: 1:4: illegal char",
+			name:            "malformed configuration",
+			envs:            envs,
+			region:          "r1",
+			customConfig:    "{ not a config }",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to decode configuration: ",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -176,7 +176,7 @@ func TestConfigure(t *testing.T) {
 			p.hooks.newClient = newClientFunc
 
 			plugintest.Load(t, builtin(p), nil, options...)
-			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
 			// Expect no client unsuccess calls
 			switch tt.expectCode {
 			case codes.OK:
@@ -251,9 +251,9 @@ func TestPutX509SVID(t *testing.T) {
 			},
 			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
 				secret := &svidstore.Data{
-					SpiffeID:    "spiffe://example.org/lambda",
-					X509Svid:    x509CertPem,
-					X509SvidKey: x509KeyPem,
+					SPIFFEID:    "spiffe://example.org/lambda",
+					X509SVID:    x509CertPem,
+					X509SVIDKey: x509KeyPem,
 					Bundle:      x509BundlePem,
 					FederatedBundles: map[string]string{
 						"federated1": x509FederatedBundlePem,
@@ -289,9 +289,9 @@ func TestPutX509SVID(t *testing.T) {
 			},
 			expectCreateSecretInput: func(t *testing.T) *secretsmanager.CreateSecretInput {
 				expectSecret := &svidstore.Data{
-					SpiffeID:    "spiffe://example.org/lambda",
-					X509Svid:    x509CertPem,
-					X509SvidKey: x509KeyPem,
+					SPIFFEID:    "spiffe://example.org/lambda",
+					X509SVID:    x509CertPem,
+					X509SVIDKey: x509KeyPem,
 					Bundle:      x509BundlePem,
 					FederatedBundles: map[string]string{
 						"federated1": x509FederatedBundlePem,
@@ -417,9 +417,9 @@ func TestPutX509SVID(t *testing.T) {
 			},
 			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
 				secret := &svidstore.Data{
-					SpiffeID:    "spiffe://example.org/lambda",
-					X509Svid:    x509CertPem,
-					X509SvidKey: x509KeyPem,
+					SPIFFEID:    "spiffe://example.org/lambda",
+					X509SVID:    x509CertPem,
+					X509SVIDKey: x509KeyPem,
 					Bundle:      x509BundlePem,
 					FederatedBundles: map[string]string{
 						"federated1": x509FederatedBundlePem,
@@ -450,9 +450,9 @@ func TestPutX509SVID(t *testing.T) {
 			},
 			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
 				secret := &svidstore.Data{
-					SpiffeID:    "spiffe://example.org/lambda",
-					X509Svid:    x509CertPem,
-					X509SvidKey: x509KeyPem,
+					SPIFFEID:    "spiffe://example.org/lambda",
+					X509SVID:    x509CertPem,
+					X509SVIDKey: x509KeyPem,
 					Bundle:      x509BundlePem,
 					FederatedBundles: map[string]string{
 						"federated1": x509FederatedBundlePem,

@@ -66,6 +66,7 @@ func TestParseMetadata(t *testing.T) {
 		name       string
 		expect     map[string]string
 		secretData []string
+		expectErr  string
 	}{
 		{
 			name: "multiples selectors",
@@ -85,11 +86,23 @@ func TestParseMetadata(t *testing.T) {
 			secretData: []string{},
 			expect:     map[string]string{},
 		},
+		{
+			name:       "invalid data",
+			secretData: []string{"invalid"},
+			expectErr:  `metadata does not contains ':': "invalid"`,
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			result := svidstore.ParseMetadata(tt.secretData)
+			result, err := svidstore.ParseMetadata(tt.secretData)
+			if tt.expectErr != "" {
+				require.EqualError(t, err, tt.expectErr)
+				require.Nil(t, result)
+
+				return
+			}
 			require.Equal(t, tt.expect, result)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -135,9 +148,9 @@ func TestSecretFromProto(t *testing.T) {
 				},
 			},
 			expect: &svidstore.Data{
-				SpiffeID:    "spiffe://example.org/foo",
-				X509Svid:    x509CertPem,
-				X509SvidKey: x509KeyPem,
+				SPIFFEID:    "spiffe://example.org/foo",
+				X509SVID:    x509CertPem,
+				X509SVIDKey: x509KeyPem,
 				Bundle:      x509BundlePem,
 				FederatedBundles: map[string]string{
 					"federated1": x509FederatedBundlePem,

@@ -11,22 +11,22 @@ import (
 )
 
 type Data struct {
-	// The SPIFFE ID of that identify this SVID
-	SpiffeID string `json:"spiffeId,omitempty"`
-	// PEM encoded certificate chain. MAY invlude intermediates,
+	// SPIFFEID The SPIFFE ID of that identify this SVID
+	SPIFFEID string `json:"spiffeID,omitempty"`
+	// X509SVID PEM encoded certificate chain. MAY invlude intermediates,
 	// the leaf certificate (or SVID itself) MUST come first
-	X509Svid string `json:"x509Svid,omitempty"`
-	// PEM encoded PKCS#8 private key.
-	X509SvidKey string `json:"x509SvidKey,omitempty"`
-	// PEM encoded X.509 bundle for the trust domain
+	X509SVID string `json:"x509SVID,omitempty"`
+	// X509SVIDKey PEM encoded PKCS#8 private key.
+	X509SVIDKey string `json:"x509SVIDKey,omitempty"`
+	// Bundle PEM encoded X.509 bundle for the trust domain
 	Bundle string `json:"bundle,omitempty"`
-	// CA certificate bundles belonging to foreign trust domains that the workload should trust,
+	// FederatedBundles CA certificate bundles belonging to foreign trust domains that the workload should trust,
 	// keyed by trust domain. Bundles are in encoded in PEM format.
 	FederatedBundles map[string]string `json:"federatedBundles,omitempty"`
 }
 
 func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
-	x509Svid, err := rawCertToPem(req.Svid.CertChain)
+	x509SVID, err := rawCertToPem(req.Svid.CertChain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CertChain: %w", err)
 	}
@@ -51,23 +51,26 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 	}
 
 	return &Data{
-		SpiffeID:         req.Svid.SpiffeID,
-		X509Svid:         x509Svid,
-		X509SvidKey:      x509SVIDKey,
+		SPIFFEID:         req.Svid.SpiffeID,
+		X509SVID:         x509SVID,
+		X509SVIDKey:      x509SVIDKey,
 		Bundle:           x509Bundles,
 		FederatedBundles: federatedBundles,
 	}, nil
 }
 
 // ParseMetadata parses secret data
-func ParseMetadata(secretData []string) map[string]string {
+func ParseMetadata(secretData []string) (map[string]string, error) {
 	data := make(map[string]string)
 	for _, s := range secretData {
 		value := strings.Split(s, ":")
+		if len(value) < 2 {
+			return nil, fmt.Errorf("metadata does not contains ':': %q", s)
+		}
 		data[value[0]] = value[1]
 	}
 
-	return data
+	return data, nil
 }
 
 func rawKeyToPem(rawKey []byte) (string, error) {
