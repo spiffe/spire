@@ -3,6 +3,7 @@ package federation
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,11 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 )
+
+// FederationRelationships type is used for parsing federation relationships from file
+type federationRelationships struct {
+	FederationRelationships []*federationRelationshipConfig `json:"federationRelationships"`
+}
 
 // federationRelationshipConfig is the configuration for the federation relationship provided either by CLI flags or a JSON file.
 type federationRelationshipConfig struct {
@@ -176,4 +182,32 @@ func printFederationRelationship(fr *types.FederationRelationship, printf func(f
 		_ = printf("Bundle endpoint profile   : %s\n", "https_spiffe")
 		_ = printf("Endpoint SPIFFE ID        : %s\n", profile.HttpsSpiffe.EndpointSpiffeId)
 	}
+}
+
+func appendConfigFlags(config *federationRelationshipConfig, f *flag.FlagSet) {
+	f.StringVar(&config.TrustDomain, "trustDomain", "", `Name of the trust domain to federate with (e.g., example.org)`)
+	f.StringVar(&config.BundleEndpointURL, "bundleEndpointURL", "", "URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)")
+	f.StringVar(&config.BundleEndpointProfile, "bundleEndpointProfile", "", fmt.Sprintf("Endpoint profile type (either %q or %q)", profileHTTPSWeb, profileHTTPSSPIFFE))
+	f.StringVar(&config.EndpointSPIFFEID, "endpointSpiffeID", "", "SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.")
+	f.StringVar(&config.TrustDomainBundlePath, "trustDomainBundlePath", "", "Path to the trust domain bundle data (optional).")
+	f.StringVar(&config.TrustDomainBundleFormat, "trustDomainBundleFormat", util.FormatPEM, fmt.Sprintf("The format of the bundle data (optional). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+}
+
+func getRelationships(config *federationRelationshipConfig, path string) ([]*types.FederationRelationship, error) {
+	if path != "" {
+		if !config.isEmpty() {
+			return nil, errors.New("cannot use other flags to specify relationship fields when 'data' flag is set")
+		}
+		relationships, err := federationRelationshipsFromFile(path)
+		if err != nil {
+			return nil, err
+		}
+		return relationships, nil
+	}
+
+	proto, err := jsonToProto(config)
+	if err != nil {
+		return nil, err
+	}
+	return []*types.FederationRelationship{proto}, nil
 }

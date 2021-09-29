@@ -3,18 +3,103 @@ package federation
 import (
 	"bytes"
 	"context"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+const (
+	testFile = `
+{
+    "federationRelationships": [
+        {
+    	   "trustDomain": "td-1.org",
+    	   "bundleEndpointURL": "https://td-1.org/bundle",
+    	   "bundleEndpointProfile": "https_web"
+        },
+        {
+    	   "trustDomain": "td-2.org",
+    	   "bundleEndpointURL": "https://td-2.org/bundle",
+    	   "bundleEndpointProfile": "https_spiffe",
+    	   "endpointSpiffeID": "spiffe://other.org/bundle"
+        },
+        {
+    	   "trustDomain": "td-3.org",
+    	   "bundleEndpointURL": "https://td-3.org/bundle",
+    	   "bundleEndpointProfile": "https_spiffe",
+    	   "endpointSPIFFEID": "spiffe://td-3.org/bundle",
+    	   "trustDomainBundle": "-----BEGIN CERTIFICATE-----\nMIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa\nGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv\nsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs\nRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw\nF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X\nmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA\ndZglS5kKnYigmwDh+/U=\n-----END CERTIFICATE-----",
+    	   "trustDomainBundleFormat": "pem"
+        },
+        {
+    	    "trustDomain": "td-4.org",
+    	    "bundleEndpointURL": "https://td-4.org/bundle",
+    	    "bundleEndpointProfile": "https_spiffe",
+    	    "endpointSPIFFEID": "spiffe://td-4.org/bundle",
+    	    "trustDomainBundleFormat": "spiffe",
+    	    "trustDomainBundle": {
+                "keys": [
+                    {
+                        "use": "x509-svid",
+                        "kty": "EC",
+                        "crv": "P-256",
+                        "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+                        "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
+                        "x5c": [
+                            "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
+                        ]
+                    },
+                    {
+                        "use": "jwt-svid",
+                        "kty": "EC",
+                        "kid": "KID",
+                        "crv": "P-256",
+                        "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+                        "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
+                    }
+                ]
+            }
+        }
+    ]
+}  
+`
+	pemCert = "-----BEGIN CERTIFICATE-----\nMIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa\nGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv\nsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs\nRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw\nF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X\nmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA\ndZglS5kKnYigmwDh+/U=\n-----END CERTIFICATE-----"
+	jwks    = `{
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI",
+            "x5c": [
+                "MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBaGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyvsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkwF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09Xmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylAdZglS5kKnYigmwDh+/U="
+            ]
+        },
+        {
+            "use": "jwt-svid",
+            "kty": "EC",
+            "kid": "KID",
+            "crv": "P-256",
+            "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
+            "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
+        }
+    ]
+}`
 )
 
 type cmdTest struct {
@@ -46,12 +131,14 @@ type fakeServer struct {
 	expectListReq    *trustdomainv1.ListFederationRelationshipsRequest
 	expectShowReq    *trustdomainv1.GetFederationRelationshipRequest
 	expectRefreshReq *trustdomainv1.RefreshBundleRequest
+	expectUpdateReq  *trustdomainv1.BatchUpdateFederationRelationshipRequest
 
 	createResp  *trustdomainv1.BatchCreateFederationRelationshipResponse
 	deleteResp  *trustdomainv1.BatchDeleteFederationRelationshipResponse
 	listResp    *trustdomainv1.ListFederationRelationshipsResponse
 	showResp    *types.FederationRelationship
 	refreshResp *emptypb.Empty
+	updateResp  *trustdomainv1.BatchUpdateFederationRelationshipResponse
 }
 
 func (f *fakeServer) BatchCreateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {
@@ -102,6 +189,15 @@ func (f *fakeServer) RefreshBundle(ctx context.Context, req *trustdomainv1.Refre
 	return f.refreshResp, nil
 }
 
+func (f *fakeServer) BatchUpdateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchUpdateFederationRelationshipRequest) (*trustdomainv1.BatchUpdateFederationRelationshipResponse, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	spiretest.AssertProtoEqual(f.t, f.expectUpdateReq, req)
+	return f.updateResp, nil
+}
+
 func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTest {
 	stdin := new(bytes.Buffer)
 	stdout := new(bytes.Buffer)
@@ -132,4 +228,30 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTe
 	})
 
 	return test
+}
+
+func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
+	td := spiffeid.RequireTrustDomainFromString(trustDomain)
+	bundlePath := path.Join(t.TempDir(), "bundle.pem")
+	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
+	require.NoError(t, pemutil.SaveCertificates(bundlePath, ca.Bundle(), 0600))
+
+	return &types.Bundle{
+		TrustDomain: td.String(),
+		X509Authorities: []*types.X509Certificate{
+			{Asn1: ca.X509CA().Certificate.Raw},
+		},
+	}, bundlePath
+}
+
+func createCorruptedBundle(t *testing.T) string {
+	bundlePath := path.Join(t.TempDir(), "bundle.pem")
+	require.NoError(t, os.WriteFile(bundlePath, []byte("corrupted-bundle"), 0600))
+	return bundlePath
+}
+
+func createJSONDataFile(t *testing.T, data string) string {
+	jsonDataFilePath := path.Join(t.TempDir(), "bundle.pem")
+	require.NoError(t, os.WriteFile(jsonDataFilePath, []byte(data), 0600))
+	return jsonDataFilePath
 }
