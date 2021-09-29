@@ -154,7 +154,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
 		resp, err := admit.v1beta1(ctx, *requestedAdmissionReview)
 		if err != nil {
-			msg := fmt.Sprintf("internal error occurred: %v", err)
+			msg := fmt.Sprintf("Internal error occurred: %v", err)
 			log.Error(msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
@@ -174,7 +174,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
 		resp, err := admit.v1(ctx, *requestedAdmissionReview)
 		if err != nil {
-			msg := fmt.Sprintf("internal error occurred: %v", err)
+			msg := fmt.Sprintf("Internal error occurred: %v", err)
 			log.Error(msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
@@ -189,7 +189,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Infof("sending response: %v", responseObj)
+	log.Debugf("Dending response: %v", responseObj)
 
 	respBytes, err := json.Marshal(responseObj)
 	if err != nil {
