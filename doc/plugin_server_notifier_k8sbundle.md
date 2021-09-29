@@ -136,48 +136,43 @@ server to
     }
 ```
 
+### Multipe namespaces
+
+```
+    Notifier "k8sbundle" {
+      plugin_data {  
+        clusters = [
+        {
+          # spire namespace due to default values
+        },
+        {
+          namespace = "default"
+        },
+        {
+          namespace = "foo"
+        }
+        ]
+      }
+    }
+
+```
+
 ### Multipe clusters
 
-
 ```
     Notifier "k8sbundle" {
-        plugin_data {
-          namespace = "infra"
-          config_map = "agents"
-          config_map_key = "bootstrap.crt"
-          kube_config_file_path = "/path/to/cluster1-kubeconfig"
-
-          clusters  = [
-            {
-                namespace = "infra"
-                config_map = "agents"
-                config_map_key = "bootstrap.crt"
-                kube_config_file_path = "/path/to/clustrer2-kubeconfig"
-            }            
-          ]
+      plugin_data {  
+        clusters = [
+        {
+          # this is local cluster with default values
+        },
+        {
+          kube_config_file_path = "/cluster2/file/path"
+        },
+        {
+          kube_config_file_path = "/cluster3/file/path"
         }
-    }
-```
-
-or 
-
-```
-    Notifier "k8sbundle" {
-        plugin_data {
-          clusters  = [
-            {
-                namespace = "infra"
-                config_map = "agents"
-                config_map_key = "bootstrap.crt"
-                kube_config_file_path = "/path/to/cluster1-kubeconfig"
-            }
-            {
-                namespace = "infra"
-                config_map = "agents"
-                config_map_key = "bootstrap.crt"
-                kube_config_file_path = "/path/to/clustrer2-kubeconfig"
-            }                  
-          ]
-        }
+        ]
+      }
     }
 ```
