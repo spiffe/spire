@@ -416,7 +416,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 		{
 			name:   "Loading federation relationships from JSON file: multiple flags",
 			args:   []string{"-data", jsonDataInvalidRelationship, "-bundleEndpointURL", "https://td-1.org/bundle"},
-			expErr: "Error: could not use aditional flags when 'data' is set\n",
+			expErr: "Error: cannot use other flags to specify relationship fields when 'data' flag is set\n",
 		},
 	} {
 		tt := tt

@@ -20,15 +20,15 @@ type federationRelationshipConfig struct {
 	EndpointSPIFFEID        string          `json:"endpointSPIFFEID,omitempty"`
 	TrustDomainBundle       json.RawMessage `json:"trustDomainBundle,omitempty"`
 	TrustDomainBundleFormat string          `json:"trustDomainBundleFormat,omitempty"`
-	// BundlePath is the path to the bundle on disk. It is only set via CLI flags. JSON config uses the embedded `Bundle` field instead.
-	BundlePath string `json:"-"`
+	// TrustDomainBundlePath is the path to the bundle on disk. It is only set via CLI flags. JSON config uses the embedded `Bundle` field instead.
+	TrustDomainBundlePath string `json:"-"`
 }
 
 func (c federationRelationshipConfig) isEmpty() bool {
 	return c.BundleEndpointProfile == "" &&
 		c.BundleEndpointURL == "" &&
 		c.TrustDomainBundleFormat == util.FormatPEM &&
-		c.BundlePath == "" &&
+		c.TrustDomainBundlePath == "" &&
 		c.EndpointSPIFFEID == "" &&
 		c.TrustDomain == ""
 }
@@ -111,8 +111,8 @@ func jsonToProto(fr *federationRelationshipConfig) (*types.FederationRelationshi
 
 	var bundle *types.Bundle
 	switch {
-	case fr.BundlePath != "":
-		b, err := bundleFromPath(fr.BundlePath, fr.TrustDomainBundleFormat, bundleTrustDomain)
+	case fr.TrustDomainBundlePath != "":
+		b, err := bundleFromPath(fr.TrustDomainBundlePath, fr.TrustDomainBundleFormat, bundleTrustDomain)
 		if err != nil {
 			return nil, err
 		}

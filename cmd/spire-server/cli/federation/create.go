@@ -52,7 +52,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.config.BundleEndpointURL, "bundleEndpointURL", "", "URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)")
 	f.StringVar(&c.config.BundleEndpointProfile, "bundleEndpointProfile", "", fmt.Sprintf("Endpoint profile type (either %q or %q)", profileHTTPSWeb, profileHTTPSSPIFFE))
 	f.StringVar(&c.config.EndpointSPIFFEID, "endpointSpiffeID", "", "SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.")
-	f.StringVar(&c.config.BundlePath, "trustDomainBundlePath", "", "Path to the trust domain bundle data (optional).")
+	f.StringVar(&c.config.TrustDomainBundlePath, "trustDomainBundlePath", "", "Path to the trust domain bundle data (optional).")
 	f.StringVar(&c.config.TrustDomainBundleFormat, "trustDomainBundleFormat", util.FormatPEM, fmt.Sprintf("The format of the bundle data (optional). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 }
 
@@ -111,7 +111,7 @@ func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 func (c *createCommand) getRelationships() ([]*types.FederationRelationship, error) {
 	if c.path != "" {
 		if !c.config.isEmpty() {
-			return nil, errors.New("could not use aditional flags when 'data' is set")
+			return nil, errors.New("cannot use other flags to specify relationship fields when 'data' flag is set")
 		}
 		relationships, err := federationRelationshipsFromFile(c.path)
 		if err != nil {
