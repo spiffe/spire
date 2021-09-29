@@ -80,6 +80,9 @@ func (cc *CLI) Run(args []string) int {
 		"federation list": func() (cli.Command, error) {
 			return federation.NewListCommand(), nil
 		},
+		"federation show": func() (cli.Command, error) {
+			return federation.NewShowCommand(), nil
+		},
 		"federation refresh": func() (cli.Command, error) {
 			return federation.NewRefreshCommand(), nil
 		},
