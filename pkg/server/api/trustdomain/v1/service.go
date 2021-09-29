@@ -2,6 +2,7 @@ package trustdomain
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -19,10 +20,25 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
+// BundleRefresher defines the bundle refresher interface.
+type BundleRefresher interface {
+	RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error)
+}
+
+// BundleRefresherFunc defines the function.
+type BundleRefresherFunc func(ctx context.Context, td spiffeid.TrustDomain) (bool, error)
+
+// RefreshBundleFor refreshes the trust domain bundle for the given trust
+// domain. If the trust domain is not managed by the manager, false is returned.
+func (fn BundleRefresherFunc) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+	return fn(ctx, td)
+}
+
 // Config is the service configuration.
 type Config struct {
-	DataStore   datastore.DataStore
-	TrustDomain spiffeid.TrustDomain
+	DataStore       datastore.DataStore
+	TrustDomain     spiffeid.TrustDomain
+	BundleRefresher BundleRefresher
 }
 
 // Service implements the v1 trustdomain service.
@@ -31,6 +47,7 @@ type Service struct {
 
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
+	br BundleRefresher
 }
 
 // New creates a new trustdomain service.
@@ -38,6 +55,7 @@ func New(config Config) *Service {
 	return &Service{
 		ds: config.DataStore,
 		td: config.TrustDomain,
+		br: config.BundleRefresher,
 	}
 }
 
@@ -154,7 +172,27 @@ func (s *Service) BatchDeleteFederationRelationship(ctx context.Context, req *tr
 }
 
 func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+	log := rpccontext.Logger(ctx)
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.GetTrustDomain())
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid trust domain", err)
+	}
+
+	log = log.WithField(telemetry.TrustDomainID, trustDomain.String())
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: req.TrustDomain})
+
+	isManagedByBm, err := s.br.RefreshBundleFor(ctx, trustDomain)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to refresh bundle", err)
+	}
+	if !isManagedByBm {
+		return nil, api.MakeErr(log, codes.NotFound, fmt.Sprintf("no relationship with trust domain %q", trustDomain), nil)
+	}
+
+	log.Debug("Bundle refreshed")
+	rpccontext.AuditRPC(ctx)
+	return &emptypb.Empty{}, nil
 }
 
 func (s *Service) createFederationRelationship(ctx context.Context, f *types.FederationRelationship, outputMask *types.FederationRelationshipMask) *trustdomainv1.BatchCreateFederationRelationshipResponse_Result {
@@ -186,6 +224,11 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
 		}
+	}
+
+	// Warning in case of SPIFFE endpoint that does not have a bundle
+	if resp.TrustDomainBundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		validateEndpointBundle(ctx, s.ds, log, resp.EndpointSPIFFEID)
 	}
 
 	log.Debug("Federation relationship created")
@@ -223,6 +266,10 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 			Status: api.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
 		}
+	}
+	// Warning in case of SPIFFE endpoint that does not have a bundle
+	if resp.TrustDomainBundle == nil && resp.BundleEndpointProfile == datastore.BundleEndpointSPIFFE {
+		validateEndpointBundle(ctx, s.ds, log, resp.EndpointSPIFFEID)
 	}
 	log.Debug("Federation relationship updated")
 
@@ -299,15 +346,30 @@ func fieldsFromRelationshipProto(proto *types.FederationRelationship, mask *type
 		case *types.FederationRelationship_HttpsSpiffe:
 			fields[telemetry.BundleEndpointProfile] = datastore.BundleEndpointSPIFFE
 			fields[telemetry.EndpointSpiffeID] = profile.HttpsSpiffe.EndpointSpiffeId
+		}
+	}
 
-			if profile.HttpsSpiffe != nil && profile.HttpsSpiffe.Bundle != nil {
-				bundleFields := api.FieldsFromBundleProto(profile.HttpsSpiffe.Bundle, nil)
-				for key, value := range bundleFields {
-					fields["bundle_"+key] = value
-				}
+	if mask.TrustDomainBundle {
+		if proto.TrustDomainBundle != nil {
+			bundleFields := api.FieldsFromBundleProto(proto.TrustDomainBundle, nil)
+			for key, value := range bundleFields {
+				fields["bundle_"+key] = value
 			}
 		}
 	}
 
 	return fields
+}
+
+func validateEndpointBundle(ctx context.Context, ds datastore.DataStore, log logrus.FieldLogger, endpointSPIFFEID spiffeid.ID) {
+	bundle, err := ds.FetchBundle(ctx, endpointSPIFFEID.TrustDomain().IDString())
+	if err != nil {
+		log.WithField(telemetry.EndpointSpiffeID, endpointSPIFFEID).Warn("failed to check whether a bundle exists for the endpoint SPIFFE ID trust domain")
+
+		return
+	}
+	// Bundle is nil when not found
+	if bundle == nil {
+		log.WithField(telemetry.EndpointSpiffeID, endpointSPIFFEID.String()).Warn("bundle not found for the endpoint SPIFFE ID trust domain")
+	}
 }

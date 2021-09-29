@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	admv1beta1 "k8s.io/api/admission/v1beta1"
+	admv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -126,7 +126,7 @@ func TestControllerIgnoresKubeNamespaces(t *testing.T) {
 	controller, r := newTestController("", "")
 
 	for _, namespace := range []string{"kube-system", "kube-public"} {
-		requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+		request := &admv1.AdmissionRequest{
 			UID: "uid",
 			Kind: metav1.GroupVersionKind{
 				Version: "v1",
@@ -138,6 +138,9 @@ func TestControllerIgnoresKubeNamespaces(t *testing.T) {
 			Object: runtime.RawExtension{
 				Raw: []byte(fakePodWithLabel),
 			},
+		}
+		requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+			Request: request,
 		})
 		require.Empty(t, r.GetEntries(), 0)
 	}
@@ -146,7 +149,7 @@ func TestControllerIgnoresKubeNamespaces(t *testing.T) {
 func TestControllerIgnoresNonPods(t *testing.T) {
 	controller, r := newTestController("", "")
 
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -155,6 +158,9 @@ func TestControllerIgnoresNonPods(t *testing.T) {
 		Namespace: "NAMESPACE",
 		Name:      "SERVICEACCOUNTNAME",
 		Operation: "CREATE",
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 	require.Empty(t, r.GetEntries(), 0)
 }
@@ -162,7 +168,7 @@ func TestControllerIgnoresNonPods(t *testing.T) {
 func TestControllerFailsIfPodUnparsable(t *testing.T) {
 	controller, _ := newTestController("", "")
 
-	requireReviewAdmissionFailure(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -171,13 +177,14 @@ func TestControllerFailsIfPodUnparsable(t *testing.T) {
 		Namespace: "NAMESPACE",
 		Name:      "POD",
 		Operation: "CREATE",
-	}, "unable to unmarshal v1/Pod object")
+	}
+	requireReviewAdmissionFailure(t, controller, admv1.AdmissionReview{Request: request}, "unable to unmarshal v1/Pod object")
 }
 
 func TestControllerIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
 	controller, _ := newTestController("", "")
 
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -186,6 +193,9 @@ func TestControllerIgnoresPodOperationsOtherThanCreateAndDelete(t *testing.T) {
 		Namespace: "NAMESPACE",
 		Name:      "POD",
 		Operation: "UPDATE",
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 }
 
@@ -193,7 +203,7 @@ func TestControllerServiceAccountBasedRegistration(t *testing.T) {
 	controller, r := newTestController("", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -205,6 +215,9 @@ func TestControllerServiceAccountBasedRegistration(t *testing.T) {
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodWithLabel),
 		},
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the registration entry for the pod was created
@@ -241,7 +254,7 @@ func TestControllerCleansUpOnPodDeletion(t *testing.T) {
 		},
 	})
 
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -250,6 +263,9 @@ func TestControllerCleansUpOnPodDeletion(t *testing.T) {
 		Namespace: "NAMESPACE",
 		Name:      "PODNAME",
 		Operation: "DELETE",
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the right registration entry for the pod was removed
@@ -268,7 +284,7 @@ func TestControllerLabelBasedRegistration(t *testing.T) {
 	controller, r := newTestController("spire-workload", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -280,6 +296,9 @@ func TestControllerLabelBasedRegistration(t *testing.T) {
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodWithLabel),
 		},
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the registration entry for the pod was created
@@ -300,7 +319,7 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 	controller, r := newTestController("spire-workload", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -312,6 +331,9 @@ func TestControllerLabelBasedRegistrationIgnoresPodsWithoutLabel(t *testing.T) {
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodOnlySA),
 		},
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the registration entry for the pod was created
@@ -393,7 +415,7 @@ func TestControllerAnnotationBasedRegistration(t *testing.T) {
 	controller, r := newTestController("", "spiffe.io/spiffe-id")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -405,6 +427,9 @@ func TestControllerAnnotationBasedRegistration(t *testing.T) {
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodWithAnnotation),
 		},
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the registration entry for the pod was created
@@ -425,7 +450,7 @@ func TestControllerFederationBasedRegistration(t *testing.T) {
 	controller, r := newTestController("", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -437,6 +462,9 @@ func TestControllerFederationBasedRegistration(t *testing.T) {
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodWithFederation),
 		},
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the registration entry for the pod was created
@@ -458,7 +486,7 @@ func TestControllerMultiFederationBasedRegistration(t *testing.T) {
 	controller, r := newTestController("", "")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	request := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -470,6 +498,9 @@ func TestControllerMultiFederationBasedRegistration(t *testing.T) {
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodWithMultiFederation),
 		},
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{
+		Request: request,
 	})
 
 	// Assert that the registration entry for the pod was created
@@ -491,7 +522,7 @@ func TestControllerAnnotationBasedRegistrationIgnoresPodsWithoutLabel(t *testing
 	controller, r := newTestController("", "spiffe.io/spiffe-id")
 
 	// Send in a POD CREATE and assert that it will be admitted
-	requireReviewAdmissionSuccess(t, controller, &admv1beta1.AdmissionRequest{
+	ar := &admv1.AdmissionRequest{
 		UID: "uid",
 		Kind: metav1.GroupVersionKind{
 			Version: "v1",
@@ -503,7 +534,8 @@ func TestControllerAnnotationBasedRegistrationIgnoresPodsWithoutLabel(t *testing
 		Object: runtime.RawExtension{
 			Raw: []byte(fakePodOnlySA),
 		},
-	})
+	}
+	requireReviewAdmissionSuccess(t, controller, admv1.AdmissionReview{Request: ar})
 
 	// Assert that the registration entry for the pod was created
 	require.Len(t, r.GetEntries(), 0)
@@ -523,17 +555,17 @@ func newTestController(podLabel, podAnnotation string) (*Controller, *fakeEntryC
 	}), e
 }
 
-func requireReviewAdmissionSuccess(t *testing.T, controller *Controller, req *admv1beta1.AdmissionRequest) {
-	resp, err := controller.ReviewAdmission(context.Background(), req)
+func requireReviewAdmissionSuccess(t *testing.T, controller *Controller, ar admv1.AdmissionReview) {
+	resp, err := controller.ReviewAdmission(context.Background(), ar)
 	require.NoError(t, err)
-	require.Equal(t, &admv1beta1.AdmissionResponse{
-		UID:     req.UID,
+	require.Equal(t, &admv1.AdmissionResponse{
+		UID:     ar.Request.UID,
 		Allowed: true,
 	}, resp)
 }
 
-func requireReviewAdmissionFailure(t *testing.T, controller *Controller, req *admv1beta1.AdmissionRequest, contains string) {
-	resp, err := controller.ReviewAdmission(context.Background(), req)
+func requireReviewAdmissionFailure(t *testing.T, controller *Controller, ar admv1.AdmissionReview, contains string) {
+	resp, err := controller.ReviewAdmission(context.Background(), ar)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), contains)
 	require.Nil(t, resp)

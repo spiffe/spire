@@ -88,7 +88,7 @@ users:
 
 # Validating Webhook Configuration for the K8S Workload Registrar
 #
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: k8s-workload-registrar-webhook
@@ -102,6 +102,8 @@ webhooks:
       caBundle: {{ base64 .CaCert }}
     admissionReviewVersions:
     - v1beta1
+	- v1
+	sideEffects: None
     rules:
     - apiGroups: [""]
       apiVersions: ["v1"]

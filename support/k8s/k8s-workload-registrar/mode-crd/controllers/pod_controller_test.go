@@ -16,6 +16,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -55,6 +56,8 @@ func (s *PodControllerTestSuite) SetupSuite() {
 // TestPodLabel adds a label to a pod and check if the SPIFFE ID is generated correctly.
 // It then updates the label and ensures the SPIFFE ID is updated.
 func (s *PodControllerTestSuite) TestPodLabel() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	tests := []struct {
 		PodLabel      string
 		PodAnnotation string
@@ -77,7 +80,6 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		p, err := NewPodReconciler(PodReconcilerConfig{
 			Client:        s.k8sClient,
 			Cluster:       s.cluster,
-			Ctx:           s.ctx,
 			Log:           s.log,
 			PodLabel:      test.PodLabel,
 			PodAnnotation: test.PodAnnotation,
@@ -101,16 +103,16 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 				NodeName: "test-node",
 			},
 		}
-		err = s.k8sClient.Create(s.ctx, &pod)
+		err = s.k8sClient.Create(ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		s.reconcile(ctx, p)
 		labelSelector := labels.Set(map[string]string{
 			"podUid": string(pod.ObjectMeta.UID),
 		})
 
 		// Verify that exactly 1 SPIFFE ID  resource was created for this pod
 		spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
-		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+		err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
 			LabelSelector: labelSelector.AsSelector(),
 		})
 		s.Require().NoError(err)
@@ -124,13 +126,13 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		// Update the labels/annotations
 		pod.Labels["spiffe"] = test.second
 		pod.Annotations["spiffe"] = test.second
-		err = s.k8sClient.Update(s.ctx, &pod)
+		err = s.k8sClient.Update(ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		s.reconcile(ctx, p)
 
 		// Verify that there is still exactly 1 SPIFFE ID resource for this pod
 		spiffeIDList = spiffeidv1beta1.SpiffeIDList{}
-		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+		err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
 			LabelSelector: labelSelector.AsSelector(),
 		})
 		s.Require().NoError(err)
@@ -142,14 +144,16 @@ func (s *PodControllerTestSuite) TestPodLabel() {
 		s.Require().Equal(expectedSpiffeID, actualSpiffeID)
 
 		// Delete Pod
-		err = s.k8sClient.Delete(s.ctx, &pod)
+		err = s.k8sClient.Delete(ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		s.reconcile(ctx, p)
 	}
 }
 
 // TestIdentityTemplate checks the various formats of the SPIFFE ID provided via IdentityTemplate.
 func (s *PodControllerTestSuite) TestIdentityTemplate() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	tests := []struct {
 		identityTemplate      string
 		identityTemplateLabel string
@@ -283,7 +287,6 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		p, err := NewPodReconciler(PodReconcilerConfig{
 			Client:                s.k8sClient,
 			Cluster:               s.cluster,
-			Ctx:                   s.ctx,
 			Log:                   s.log,
 			Scheme:                s.scheme,
 			TrustDomain:           s.trustDomain,
@@ -314,7 +317,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 				ServiceAccountName: PodServiceAccount,
 			},
 		}
-		err = s.k8sClient.Create(s.ctx, &pod)
+		err = s.k8sClient.Create(ctx, &pod)
 		s.Require().NoError(err)
 		req := ctrl.Request{
 			NamespacedName: types.NamespacedName{
@@ -322,10 +325,10 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 				Namespace: PodNamespace,
 			},
 		}
-		_, err = p.Reconcile(req)
+		_, err = p.Reconcile(ctx, req)
 		s.Require().NoError(err)
 
-		_, err = s.r.Reconcile(req)
+		_, err = s.r.Reconcile(ctx, req)
 		s.Require().NoError(err)
 
 		labelSelector := labels.Set(map[string]string{
@@ -334,13 +337,13 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 
 		// Verify that exactly 1 SPIFFE ID resource was created for this pod.
 		spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
-		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+		err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
 			LabelSelector: labelSelector.AsSelector(),
 		})
 		s.Require().NoError(err)
 		s.Require().Len(spiffeIDList.Items, test.spiffeIDCount)
 		if test.spiffeIDCount == 0 {
-			err = s.k8sClient.Delete(s.ctx, &pod)
+			err = s.k8sClient.Delete(ctx, &pod)
 			s.Require().NoError(err)
 			continue
 		}
@@ -350,18 +353,18 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		s.Require().Equal(expectedSpiffeID, actualSpiffeID)
 
 		// Delete Pod.
-		err = s.k8sClient.Delete(s.ctx, &pod)
+		err = s.k8sClient.Delete(ctx, &pod)
 		s.Require().NoError(err)
-		s.reconcile(p)
+		s.reconcile(ctx, p)
 		spiffeIDList = spiffeidv1beta1.SpiffeIDList{}
-		err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+		err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
 			LabelSelector: labelSelector.AsSelector(),
 		})
 		s.Require().NoError(err)
 	}
 }
 
-func (s *PodControllerTestSuite) reconcile(p *PodReconciler) {
+func (s *PodControllerTestSuite) reconcile(ctx context.Context, p *PodReconciler) {
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      PodName,
@@ -369,9 +372,9 @@ func (s *PodControllerTestSuite) reconcile(p *PodReconciler) {
 		},
 	}
 
-	_, err := p.Reconcile(req)
+	_, err := p.Reconcile(ctx, req)
 	s.Require().NoError(err)
 
-	_, err = s.r.Reconcile(req)
+	_, err = s.r.Reconcile(ctx, req)
 	s.Require().NoError(err)
 }

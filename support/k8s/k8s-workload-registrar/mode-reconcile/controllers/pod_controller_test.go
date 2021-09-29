@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake" // nolint: staticcheck // No longer deprecated in newer versions.
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/golang/mock/gomock"
@@ -52,7 +52,7 @@ func (s *PodControllerTestSuite) SetupTest() {
 
 	s.ctrl = mockCtrl
 
-	s.k8sClient = fake.NewFakeClientWithScheme(scheme.Scheme)
+	s.k8sClient = fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 
 	s.log = zap.New()
 }
@@ -125,7 +125,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			err = s.k8sClient.Create(ctx, &pod)
 			s.Assert().NoError(err)
 
-			_, err = r.Reconcile(ctrl.Request{
+			_, err = r.Reconcile(ctx, ctrl.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      "foo",
 					Namespace: "bar",
@@ -146,7 +146,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			err = s.k8sClient.Update(ctx, &pod)
 			s.Assert().NoError(err)
 
-			_, err = r.Reconcile(ctrl.Request{
+			_, err = r.Reconcile(ctx, ctrl.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      "foo",
 					Namespace: "bar",
@@ -169,7 +169,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			err = s.k8sClient.Delete(ctx, &pod)
 			s.Assert().NoError(err)
 
-			_, err = r.Reconcile(ctrl.Request{
+			_, err = r.Reconcile(ctx, ctrl.Request{
 				NamespacedName: types.NamespacedName{
 					Name:      "foo",
 					Namespace: "bar",
@@ -221,7 +221,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	err := s.k8sClient.Create(ctx, &pod)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "foo",
 			Namespace: "bar",
@@ -265,7 +265,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	err = s.k8sClient.Create(ctx, &endpointsToCreate)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "foo",
 			Namespace: "bar",
@@ -359,7 +359,7 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 	err = s.k8sClient.Create(ctx, &endpointsToCreate)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "foo.3.0.0.woo",
 			Namespace: "bar",
@@ -449,7 +449,7 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 	err = s.k8sClient.Create(ctx, &endpointsToCreate)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "foo",
 			Namespace: "bar",
@@ -505,7 +505,7 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 	err := s.k8sClient.Create(ctx, &pod)
 	s.Assert().NoError(err)
 
-	_, err = r.Reconcile(ctrl.Request{
+	_, err = r.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "foo",
 			Namespace: "bar",

@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type cmdTest struct {
@@ -40,13 +41,15 @@ type fakeServer struct {
 	t   *testing.T
 	err error
 
-	expectDeleteReq *trustdomainv1.BatchDeleteFederationRelationshipRequest
-	expectListReq   *trustdomainv1.ListFederationRelationshipsRequest
-	expectShowReq   *trustdomainv1.GetFederationRelationshipRequest
+	expectDeleteReq  *trustdomainv1.BatchDeleteFederationRelationshipRequest
+	expectListReq    *trustdomainv1.ListFederationRelationshipsRequest
+	expectShowReq    *trustdomainv1.GetFederationRelationshipRequest
+	expectRefreshReq *trustdomainv1.RefreshBundleRequest
 
-	deleteResp *trustdomainv1.BatchDeleteFederationRelationshipResponse
-	listResp   *trustdomainv1.ListFederationRelationshipsResponse
-	showResp   *types.FederationRelationship
+	deleteResp  *trustdomainv1.BatchDeleteFederationRelationshipResponse
+	listResp    *trustdomainv1.ListFederationRelationshipsResponse
+	showResp    *types.FederationRelationship
+	refreshResp *emptypb.Empty
 }
 
 func (f *fakeServer) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
@@ -77,6 +80,15 @@ func (f *fakeServer) GetFederationRelationship(ctx context.Context, req *trustdo
 		return f.showResp, nil
 	}
 	return &types.FederationRelationship{}, status.Error(codes.NotFound, "federation relationship does not exist")
+}
+
+func (f *fakeServer) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	spiretest.AssertProtoEqual(f.t, f.expectRefreshReq, req)
+	return f.refreshResp, nil
 }
 
 func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTest {

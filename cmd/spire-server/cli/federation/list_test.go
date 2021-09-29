@@ -38,9 +38,9 @@ func TestList(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://bar.test/id",
-				Bundle:           &types.Bundle{TrustDomain: "bar.test"},
 			},
 		},
+		TrustDomainBundle: &types.Bundle{TrustDomain: "bar.test"},
 	}
 	federation3 := &types.FederationRelationship{
 		TrustDomain:       "baz.test",

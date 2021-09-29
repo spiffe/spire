@@ -38,7 +38,6 @@ import (
 type SpiffeIDReconcilerConfig struct {
 	Client      client.Client
 	Cluster     string
-	Ctx         context.Context
 	Log         logrus.FieldLogger
 	E           entryv1.EntryClient
 	TrustDomain string
@@ -66,10 +65,8 @@ func (r *SpiffeIDReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Reconcile ensures the SPIRE Server entry matches the corresponding CRD
-func (r *SpiffeIDReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *SpiffeIDReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	spiffeID := spiffeidv1beta1.SpiffeID{}
-	ctx := r.c.Ctx
-
 	if err := r.Get(ctx, req.NamespacedName, &spiffeID); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			r.c.Log.WithFields(logrus.Fields{
@@ -161,7 +158,7 @@ func (r *SpiffeIDReconciler) updateOrCreateSpiffeID(ctx context.Context, spiffeI
 	var preexisting bool
 	if spiffeID.Status.EntryId != nil {
 		// Fetch existing entry
-		existing, err = r.c.E.GetEntry(r.c.Ctx, &entryv1.GetEntryRequest{
+		existing, err = r.c.E.GetEntry(ctx, &entryv1.GetEntryRequest{
 			Id: *spiffeID.Status.EntryId,
 		})
 		if err != nil {

@@ -16,6 +16,7 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"testing"
 
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -45,10 +46,11 @@ func (s *EndpointControllerTestSuite) SetupSuite() {
 // TestAddDNSName deploys and endpoint and checks if the SPIFFE ID is updated
 // with the correct DNS name
 func (s *EndpointControllerTestSuite) TestAddDNSName() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	p, err := NewPodReconciler(PodReconcilerConfig{
 		Client:      s.k8sClient,
 		Cluster:     s.cluster,
-		Ctx:         s.ctx,
 		Log:         s.log,
 		PodLabel:    "spiffe",
 		Scheme:      s.scheme,
@@ -58,7 +60,6 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 
 	e := NewEndpointReconciler(EndpointReconcilerConfig{
 		Client: s.k8sClient,
-		Ctx:    s.ctx,
 		Log:    s.log,
 	})
 
@@ -76,10 +77,10 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 			NodeName: "test-node",
 		},
 	}
-	err = s.k8sClient.Create(s.ctx, &pod)
+	err = s.k8sClient.Create(ctx, &pod)
 	s.Require().NoError(err)
 
-	_, err = p.Reconcile(ctrl.Request{
+	_, err = p.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "test-endpoint",
 			Namespace: "default",
@@ -103,10 +104,10 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 			}},
 		}},
 	}
-	err = s.k8sClient.Create(s.ctx, &endpoints)
+	err = s.k8sClient.Create(ctx, &endpoints)
 	s.Require().NoError(err)
 
-	_, err = e.Reconcile(ctrl.Request{
+	_, err = e.Reconcile(ctx, ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "test-endpoint",
 			Namespace: "default",
@@ -119,7 +120,7 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 	labelSelector := labels.Set(map[string]string{
 		"podUid": string(pod.ObjectMeta.UID),
 	})
-	err = s.k8sClient.List(s.ctx, &spiffeIDList, &client.ListOptions{
+	err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
 		LabelSelector: labelSelector.AsSelector(),
 	})
 	s.Require().NoError(err)
