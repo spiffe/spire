@@ -189,7 +189,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Debugf("Dending response: %v", responseObj)
+	log.Debugf("Sending response: %v", responseObj)
 
 	respBytes, err := json.Marshal(responseObj)
 	if err != nil {
