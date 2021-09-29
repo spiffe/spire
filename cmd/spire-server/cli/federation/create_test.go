@@ -20,33 +20,33 @@ import (
 const (
 	testFile = `
 {
-    "federation_relationships": [
+    "federationRelationships": [
         {
-    	"trust_domain": "td-1.org",
-    	"bundle_endpoint_url": "https://td-1.org/bundle",
-    	"bundle_endpoint_profile": "https_web"
+    	   "trustDomain": "td-1.org",
+    	   "bundleEndpointURL": "https://td-1.org/bundle",
+    	   "bundleEndpointProfile": "https_web"
         },
         {
-    	"trust_domain": "td-2.org",
-    	"bundle_endpoint_url": "https://td-2.org/bundle",
-    	"bundle_endpoint_profile": "https_spiffe",
-    	"endpoint_spiffe_id": "spiffe://other.org/bundle"
+    	   "trustDomain": "td-2.org",
+    	   "bundleEndpointURL": "https://td-2.org/bundle",
+    	   "bundleEndpointProfile": "https_spiffe",
+    	   "endpointSpiffeID": "spiffe://other.org/bundle"
         },
         {
-    	"trust_domain": "td-3.org",
-    	"bundle_endpoint_url": "https://td-3.org/bundle",
-    	"bundle_endpoint_profile": "https_spiffe",
-    	"endpoint_spiffe_id": "spiffe://td-3.org/bundle",
-    	"bundle": "-----BEGIN CERTIFICATE-----\nMIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa\nGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv\nsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs\nRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw\nF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X\nmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA\ndZglS5kKnYigmwDh+/U=\n-----END CERTIFICATE-----",
-    	"bundle_format": "pem"
+    	"trustDomain": "td-3.org",
+    	"bundleEndpointURL": "https://td-3.org/bundle",
+    	"bundleEndpointProfile": "https_spiffe",
+    	"endpointSPIFFEID": "spiffe://td-3.org/bundle",
+    	"trustDomainBundle": "-----BEGIN CERTIFICATE-----\nMIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa\nGA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv\nsCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs\nRxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw\nF4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X\nmakw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA\ndZglS5kKnYigmwDh+/U=\n-----END CERTIFICATE-----",
+    	"trustDomainBundleFormat": "pem"
         },
         {
-    	     "trust_domain": "td-4.org",
-    	     "bundle_endpoint_url": "https://td-4.org/bundle",
-    	     "bundle_endpoint_profile": "https_spiffe",
-    	     "endpoint_spiffe_id": "spiffe://td-4.org/bundle",
-    	     "bundle_format": "spiffe",
-    	     "bundle": {
+    	     "trustDomain": "td-4.org",
+    	     "bundleEndpointURL": "https://td-4.org/bundle",
+    	     "bundleEndpointProfile": "https_spiffe",
+    	     "endpointSPIFFEID": "spiffe://td-4.org/bundle",
+    	     "trustDomainBundleFormat": "spiffe",
+    	     "trustDomainBundle": {
                  "keys": [
                      {
                          "use": "x509-svid",
@@ -103,13 +103,9 @@ func TestCreatetHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of federation create:
   -bundleEndpointProfile string
-    	Endpoint profile type (either "https_web" or "https_spiffe") (default "https_spiffe")
+    	Endpoint profile type (either "https_web" or "https_spiffe")
   -bundleEndpointURL string
     	URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)
-  -bundleFormat string
-    	The format of the bundle data (optional). Either "pem" or "spiffe". Only used for 'spiffe' profile. (default "pem")
-  -bundlePath string
-    	Path to the bundle data (optional). Only used for 'spiffe' profile.
   -data string
     	Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.
   -endpointSpiffeID string
@@ -118,6 +114,10 @@ func TestCreatetHelp(t *testing.T) {
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -trustDomain string
     	Name of the trust domain to federate with (e.g., example.org)
+  -trustDomainBundleFormat string
+    	The format of the bundle data (optional). Either "pem" or "spiffe". (default "pem")
+  -trustDomainBundlePath string
+    	Path to the trust domain bundle data (optional).
 `, test.stderr.String())
 }
 
@@ -161,11 +161,11 @@ func TestCreate(t *testing.T) {
 
 	jsonDataInvalidRelationship := createJSONDataFile(t, `
 {
-    "federation_relationships": [
+    "federationRelationships": [
         {
-        	"trust_domain": "",
-        	"bundle_endpoint_url": "https://td-1.org/bundle",
-        	"bundle_endpoint_profile": "https_web"
+        	"trustDomain": "",
+        	"bundleEndpointURL": "https://td-1.org/bundle",
+        	"bundleEndpointProfile": "https_web"
         }
     ]
 }
@@ -254,22 +254,22 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name:   "Missing endpoint SPIFFE ID",
-			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle"},
+			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-bundleEndpointProfile", profileHTTPSSPIFFE},
 			expErr: "Error: endpoint SPIFFE ID is required if 'https_spiffe' endpoint profile is set\n",
 		},
 		{
 			name:   "Invalid bundle endpoint SPIFFE ID",
-			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "invalid-id", "-bundlePath", bundlePath},
+			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "invalid-id", "-trustDomainBundlePath", bundlePath, "-bundleEndpointProfile", profileHTTPSSPIFFE},
 			expErr: "Error: cannot parse bundle endpoint SPIFFE ID: spiffeid: invalid scheme\n",
 		},
 		{
 			name:   "Non-existent bundle file",
-			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "spiffe://td.org/bundle", "-bundlePath", "non-existent-path"},
+			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "spiffe://td.org/bundle", "-trustDomainBundlePath", "non-existent-path", "-bundleEndpointProfile", profileHTTPSWeb},
 			expErr: "Error: cannot read bundle file: open non-existent-path: no such file or directory\n",
 		},
 		{
 			name:   "Corrupted bundle file",
-			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "spiffe://td.org/bundle", "-bundlePath", corruptedBundlePath},
+			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "spiffe://td.org/bundle", "-trustDomainBundlePath", corruptedBundlePath, "-bundleEndpointProfile", profileHTTPSWeb},
 			expErr: "Error: cannot parse bundle file: unable to parse bundle data: no PEM blocks\n",
 		},
 		{
@@ -279,18 +279,8 @@ func TestCreate(t *testing.T) {
 			expErr:    "Error: request failed: rpc error: code = Unknown desc = server error\n",
 		},
 		{
-			name:   "EndpointSpiffeID is used with https_web profile",
-			args:   []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web", "-endpointSpiffeID", "A"},
-			expErr: "Error: the 'https_web' endpoint profile does not expect an endpoint SPIFFE ID\n",
-		},
-		{
-			name:   "BundlePath is used with https_web profile",
-			args:   []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web", "-bundlePath", "A"},
-			expErr: "Error: the 'https_web' endpoint profile does not expect a bundle\n",
-		},
-		{
 			name: "Succeeds for SPIFFE profile",
-			args: []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://other.org/bundle"},
+			args: []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://other.org/bundle", "-bundleEndpointProfile", profileHTTPSSPIFFE},
 			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frSPIFFE},
 			},
@@ -311,7 +301,7 @@ Endpoint SPIFFE ID        : spiffe://other.org/bundle
 		},
 		{
 			name: "Succeeds for SPIFFE profile and bundle",
-			args: []string{"-trustDomain", "td-3.org", "-bundleEndpointURL", "https://td-3.org/bundle", "-endpointSpiffeID", "spiffe://td-3.org/bundle", "-bundlePath", bundlePath},
+			args: []string{"-trustDomain", "td-3.org", "-bundleEndpointURL", "https://td-3.org/bundle", "-endpointSpiffeID", "spiffe://td-3.org/bundle", "-trustDomainBundlePath", bundlePath, "-bundleEndpointProfile", profileHTTPSSPIFFE},
 			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frSPIFFEAndBundle},
 			},
@@ -409,19 +399,24 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 `,
 		},
 		{
-			name:   "Succeeds loading federation relationships from JSON file: invalid path",
+			name:   "Loading federation relationships from JSON file: invalid path",
 			args:   []string{"-data", "somePath"},
 			expErr: "Error: open somePath: no such file or directory\n",
 		},
 		{
-			name:   "Succeeds loading federation relationships from JSON file: no a json",
+			name:   "Loading federation relationships from JSON file: no a json",
 			args:   []string{"-data", bundlePath},
 			expErr: "Error: failed to parse JSON: invalid character '-' in numeric literal\n",
 		},
 		{
-			name:   "Succeeds loading federation relationships from JSON file: invalid relationship",
+			name:   "Loading federation relationships from JSON file: invalid relationship",
 			args:   []string{"-data", jsonDataInvalidRelationship},
 			expErr: "Error: could not parse item 0: trust domain is required\n",
+		},
+		{
+			name:   "Loading federation relationships from JSON file: multiple flags",
+			args:   []string{"-data", jsonDataInvalidRelationship, "-bundleEndpointURL", "https://td-1.org/bundle"},
+			expErr: "Error: could not use aditional flags when 'data' is set\n",
 		},
 	} {
 		tt := tt

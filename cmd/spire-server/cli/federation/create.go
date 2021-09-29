@@ -30,17 +30,12 @@ func newCreateCommand(env *common_cli.Env) cli.Command {
 
 // FederationRelationships type is used for parsing federation relationships from file
 type federationRelationships struct {
-	FederationRelationships []*federationRelationshipJSON `json:"federation_relationships"`
+	FederationRelationships []*federationRelationshipConfig `json:"federationRelationships"`
 }
 
 type createCommand struct {
-	path                  string
-	trustDomain           string
-	bundleEndpointURL     string
-	bundleEndpointProfile string
-	endpointSPIFFEID      string
-	bundleFormat          string
-	bundlePath            string
+	path   string
+	config federationRelationshipConfig
 }
 
 func (*createCommand) Name() string {
@@ -53,12 +48,12 @@ func (*createCommand) Synopsis() string {
 
 func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.path, "data", "", "Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.")
-	f.StringVar(&c.trustDomain, "trustDomain", "", `Name of the trust domain to federate with (e.g., example.org)`)
-	f.StringVar(&c.bundleEndpointURL, "bundleEndpointURL", "", "URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)")
-	f.StringVar(&c.bundleEndpointProfile, "bundleEndpointProfile", profileHTTPSSPIFFE, fmt.Sprintf("Endpoint profile type (either %q or %q)", profileHTTPSWeb, profileHTTPSSPIFFE))
-	f.StringVar(&c.endpointSPIFFEID, "endpointSpiffeID", "", "SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.")
-	f.StringVar(&c.bundlePath, "bundlePath", "", "Path to the bundle data (optional). Only used for 'spiffe' profile.")
-	f.StringVar(&c.bundleFormat, "bundleFormat", util.FormatPEM, fmt.Sprintf("The format of the bundle data (optional). Either %q or %q. Only used for 'spiffe' profile.", util.FormatPEM, util.FormatSPIFFE))
+	f.StringVar(&c.config.TrustDomain, "trustDomain", "", `Name of the trust domain to federate with (e.g., example.org)`)
+	f.StringVar(&c.config.BundleEndpointURL, "bundleEndpointURL", "", "URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol)")
+	f.StringVar(&c.config.BundleEndpointProfile, "bundleEndpointProfile", "", fmt.Sprintf("Endpoint profile type (either %q or %q)", profileHTTPSWeb, profileHTTPSSPIFFE))
+	f.StringVar(&c.config.EndpointSPIFFEID, "endpointSpiffeID", "", "SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.")
+	f.StringVar(&c.config.BundlePath, "trustDomainBundlePath", "", "Path to the trust domain bundle data (optional).")
+	f.StringVar(&c.config.TrustDomainBundleFormat, "trustDomainBundleFormat", util.FormatPEM, fmt.Sprintf("The format of the bundle data (optional). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 }
 
 func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
@@ -115,22 +110,17 @@ func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 
 func (c *createCommand) getRelationships() ([]*types.FederationRelationship, error) {
 	if c.path != "" {
+		if !c.config.isEmpty() {
+			return nil, errors.New("could not use aditional flags when 'data' is set")
+		}
 		relationships, err := federationRelationshipsFromFile(c.path)
 		if err != nil {
 			return nil, err
 		}
 		return relationships, nil
 	}
-	frJSON := &federationRelationshipJSON{
-		TrustDomain:           c.trustDomain,
-		BundleEndpointURL:     c.bundleEndpointURL,
-		BundleEndpointProfile: c.bundleEndpointProfile,
-		EndpointSPIFFEID:      c.endpointSPIFFEID,
-		BundleFormat:          c.bundleFormat,
-		BundlePath:            c.bundlePath,
-	}
 
-	proto, err := jsonToProto(frJSON)
+	proto, err := jsonToProto(&c.config)
 	if err != nil {
 		return nil, err
 	}
