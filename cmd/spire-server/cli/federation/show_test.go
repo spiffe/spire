@@ -40,9 +40,9 @@ func TestShow(t *testing.T) {
 		BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
 				EndpointSpiffeId: "spiffe://endpoint.test/id",
-				Bundle:           &types.Bundle{TrustDomain: "endpoint.test"},
 			},
 		},
+		TrustDomainBundle: &types.Bundle{TrustDomain: "endpoint.test"},
 	}
 
 	for _, tt := range []struct {
