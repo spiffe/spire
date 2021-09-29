@@ -31,6 +31,7 @@ type WebhookHandler struct {
 
 func NewWebhookHandler(log logrus.FieldLogger, controller AdmissionController) *WebhookHandler {
 	_ = admv1.AddToScheme(runtimeScheme)
+	_ = admv1beta1.AddToScheme(runtimeScheme)
 	return &WebhookHandler{
 		log:        log,
 		controller: controller,
