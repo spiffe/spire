@@ -8,16 +8,19 @@ import (
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sync"
 
-	api_workload "github.com/spiffe/spire/api/workload"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/manager/storecache"
+	"github.com/spiffe/spire/pkg/agent/svid/store"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -79,10 +82,14 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	manager, err := a.newManager(ctx, cat, metrics, as)
+	svidStoreCache := a.newSVIDStoreCache()
+
+	manager, err := a.newManager(ctx, cat, metrics, as, svidStoreCache)
 	if err != nil {
 		return err
 	}
+
+	storeService := a.newSVIDStoreService(svidStoreCache, cat, metrics)
 
 	endpoints := a.newEndpoints(cat, metrics, manager)
 
@@ -92,6 +99,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	tasks := []func(context.Context) error{
 		manager.Run,
+		storeService.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
 		util.SerialRun(a.waitForTestDial, healthChecker.ListenAndServe),
@@ -181,7 +189,7 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:            as.SVID,
 		SVIDKey:         as.Key,
@@ -194,6 +202,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
 		SyncInterval:    a.c.SyncInterval,
+		SVIDStoreCache:  cache,
 	}
 
 	mgr := manager.New(config)
@@ -202,6 +211,27 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 	}
 
 	return mgr, nil
+}
+
+func (a *Agent) newSVIDStoreCache() *storecache.Cache {
+	config := &storecache.Config{
+		Log:         a.c.Log.WithField(telemetry.SubsystemName, "svid_store_cache"),
+		TrustDomain: a.c.TrustDomain,
+	}
+
+	return storecache.New(config)
+}
+
+func (a *Agent) newSVIDStoreService(cache *storecache.Cache, cat catalog.Catalog, metrics telemetry.Metrics) *store.SVIDStoreService {
+	config := &store.Config{
+		Log:         a.c.Log.WithField(telemetry.SubsystemName, "svid_store_service"),
+		TrustDomain: a.c.TrustDomain,
+		Cache:       cache,
+		Catalog:     cat,
+		Metrics:     metrics,
+	}
+
+	return store.New(config)
 }
 
 func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
@@ -272,25 +302,17 @@ func (a *Agent) CheckHealth() health.State {
 }
 
 func (a *Agent) checkWorkloadAPI() error {
-	client := api_workload.NewX509Client(&api_workload.X509ClientConfig{
-		Addr:        a.c.BindAddress,
-		FailOnError: true,
-	})
-	defer client.Stop()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- client.Start()
-	}()
-
-	select {
-	case err := <-errCh:
-		if status.Code(err) == codes.Unavailable {
-			return errors.New("workload api is unavailable")
-		}
-	case <-client.UpdateChan():
+	socketPath, err := filepath.Abs(a.c.BindAddress.String())
+	if err != nil {
+		a.c.Log.WithError(err).Error("Failed to resolve absolute socket path for health check")
+		return err
 	}
-
+	_, err = workloadapi.FetchX509Bundles(context.TODO(),
+		workloadapi.WithAddr("unix://"+socketPath))
+	if status.Code(err) == codes.Unavailable {
+		// Only an unavailable status fails the health check.
+		return errors.New("workload api is unavailable")
+	}
 	return nil
 }
 

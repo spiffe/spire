@@ -128,7 +128,9 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("unable to obtain authpolicy engine: %w", err)
 	}
 
-	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager, authPolicyEngine)
+	bundleManager := s.newBundleManager(cat, metrics)
+
+	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager, authPolicyEngine, bundleManager)
 	if err != nil {
 		return err
 	}
@@ -154,8 +156,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}); err != nil {
 		return fmt.Errorf("failed setting AgentStore deps: %w", err)
 	}
-
-	bundleManager := s.newBundleManager(cat, metrics)
 
 	registrationManager := s.newRegistrationManager(cat, metrics)
 
@@ -303,7 +303,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, authPolicyEngine *authpolicy.Engine) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:             s.config.BindAddress,
 		UDSAddr:             s.config.BindUDSAddress,
@@ -320,6 +320,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		CacheReloadInterval: s.config.CacheReloadInterval,
 		AuditLogEnabled:     s.config.AuditLogEnabled,
 		AuthPolicyEngine:    authPolicyEngine,
+		BundleManager:       bundleManager,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
@@ -329,11 +330,15 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 }
 
 func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {
+	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_client")
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
-		Log:          s.config.Log.WithField(telemetry.SubsystemName, "bundle_client"),
-		Metrics:      metrics,
-		DataStore:    cat.GetDataStore(),
-		TrustDomains: s.config.Federation.FederatesWith,
+		Log:       log,
+		Metrics:   metrics,
+		DataStore: cat.GetDataStore(),
+		Source: bundle_client.MergeTrustDomainConfigSources(
+			bundle_client.TrustDomainConfigMap(s.config.Federation.FederatesWith),
+			bundle_client.DataStoreTrustDomainConfigSource(log, cat.GetDataStore()),
+		),
 	})
 }
 

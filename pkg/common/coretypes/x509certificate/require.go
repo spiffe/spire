@@ -31,6 +31,12 @@ func RequireToCommonProtos(x509Certificates []*x509.Certificate) []*common.Certi
 	return out
 }
 
+func RequireToCommonFromPluginProtos(pbs []*plugintypes.X509Certificate) []*common.Certificate {
+	out, err := ToCommonFromPluginProtos(pbs)
+	panicOnError(err)
+	return out
+}
+
 func RequireFromPluginProto(pb *plugintypes.X509Certificate) *x509.Certificate {
 	out, err := FromPluginProto(pb)
 	panicOnError(err)

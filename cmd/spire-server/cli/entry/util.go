@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -13,22 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
 )
-
-// parseSelector parses a CLI string from type:value into a selector type.
-// Everything to the right of the first ":" is considered a selector value.
-func parseSelector(str string) (*types.Selector, error) {
-	parts := strings.SplitAfterN(str, ":", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("selector \"%s\" must be formatted as type:value", str)
-	}
-
-	s := &types.Selector{
-		// Strip the trailing delimiter
-		Type:  strings.TrimSuffix(parts[0], ":"),
-		Value: parts[1],
-	}
-	return s, nil
-}
 
 func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
 	_ = printf("Entry ID         : %s\n", printableEntryID(e.Id))

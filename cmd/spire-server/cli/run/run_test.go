@@ -40,10 +40,6 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
 	assert.Equal(t, 4, len(c.Server.Federation.FederatesWith))
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.Address, "1.2.3.4")
-	assert.True(t, c.Server.Federation.FederatesWith["domain1.test"].DeprecatedBundleEndpoint.UseWebPKI)
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.Address, "5.6.7.8")
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain2.test"].DeprecatedBundleEndpoint.SpiffeID, "spiffe://domain2.test/bundle-provider")
 	assert.Equal(t, c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL, "https://9.10.11.12:8443")
 	trustDomainConfig, err := parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain3.test"])
 	assert.NoError(t, err)
@@ -108,13 +104,13 @@ func TestMergeInput(t *testing.T) {
 	cases := []struct {
 		msg       string
 		fileInput func(*Config)
-		cliInput  func(*serverConfig)
+		cliFlags  []string
 		test      func(*testing.T, *Config)
 	}{
 		{
 			msg:       "bind_address should default to 0.0.0.0 if not set",
 			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
+			cliFlags:  []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "0.0.0.0", c.Server.BindAddress)
 			},
@@ -124,9 +120,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.BindAddress = "10.0.0.1"
 			},
-			cliInput: func(c *serverConfig) {
-				c.BindAddress = ""
-			},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.1", c.Server.BindAddress)
 			},
@@ -136,9 +130,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.BindAddress = ""
 			},
-			cliInput: func(c *serverConfig) {
-				c.BindAddress = "10.0.0.1"
-			},
+			cliFlags: []string{"-bindAddress=10.0.0.1"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.1", c.Server.BindAddress)
 			},
@@ -148,9 +140,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.BindAddress = "10.0.0.1"
 			},
-			cliInput: func(c *serverConfig) {
-				c.BindAddress = "10.0.0.2"
-			},
+			cliFlags: []string{"-bindAddress=10.0.0.2"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "10.0.0.2", c.Server.BindAddress)
 			},
@@ -158,7 +148,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "bind_port should default to 8081 if not set",
 			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
+			cliFlags:  []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 8081, c.Server.BindPort)
 			},
@@ -168,7 +158,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.BindPort = 1337
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Server.BindPort)
 			},
@@ -176,9 +166,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "bind_port should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.BindPort = 1337
-			},
+			cliFlags:  []string{"-serverPort=1337"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Server.BindPort)
 			},
@@ -188,9 +176,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.BindPort = 1336
 			},
-			cliInput: func(c *serverConfig) {
-				c.BindPort = 1337
-			},
+			cliFlags: []string{"-serverPort=1337"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, 1337, c.Server.BindPort)
 			},
@@ -200,7 +186,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.CAKeyType = "rsa-2048"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "rsa-2048", c.Server.CAKeyType)
 			},
@@ -214,7 +200,7 @@ func TestMergeInput(t *testing.T) {
 					CommonName:   "test-cn",
 				}
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, []string{"test-country"}, c.Server.CASubject.Country)
 				require.Equal(t, []string{"test-org"}, c.Server.CASubject.Organization)
@@ -226,7 +212,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.CATTL = "1h"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "1h", c.Server.CATTL)
 			},
@@ -236,7 +222,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.DataDir = "foo"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.DataDir)
 			},
@@ -244,9 +230,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "data_dir should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.DataDir = "foo"
-			},
+			cliFlags:  []string{"-dataDir=foo"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.DataDir)
 			},
@@ -256,9 +240,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.DataDir = "foo"
 			},
-			cliInput: func(c *serverConfig) {
-				c.DataDir = "bar"
-			},
+			cliFlags: []string{"-dataDir=bar"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.DataDir)
 			},
@@ -268,7 +250,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.JWTIssuer = "ISSUER"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "ISSUER", c.Server.JWTIssuer)
 			},
@@ -278,7 +260,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.LogFile = "foo"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.LogFile)
 			},
@@ -286,9 +268,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "log_file should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.LogFile = "foo"
-			},
+			cliFlags:  []string{"-logFile=foo"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.LogFile)
 			},
@@ -298,9 +278,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.LogFile = "foo"
 			},
-			cliInput: func(c *serverConfig) {
-				c.LogFile = "bar"
-			},
+			cliFlags: []string{"-logFile=bar"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.LogFile)
 			},
@@ -308,7 +286,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "log_format should default to log.DefaultFormat if not set",
 			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
+			cliFlags:  []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, log.DefaultFormat, c.Server.LogFormat)
 			},
@@ -318,7 +296,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.LogFormat = "JSON"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Server.LogFormat)
 			},
@@ -326,9 +304,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "log_format should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.LogFormat = "JSON"
-			},
+			cliFlags:  []string{"-logFormat=JSON"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Server.LogFormat)
 			},
@@ -338,9 +314,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.LogFormat = "TEXT"
 			},
-			cliInput: func(c *serverConfig) {
-				c.LogFormat = "JSON"
-			},
+			cliFlags: []string{"-logFormat=JSON"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "JSON", c.Server.LogFormat)
 			},
@@ -348,7 +322,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "log_level should default to INFO if not set",
 			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
+			cliFlags:  []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "INFO", c.Server.LogLevel)
 			},
@@ -358,7 +332,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.LogLevel = "DEBUG"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Server.LogLevel)
 			},
@@ -366,9 +340,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "log_level should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.LogLevel = "DEBUG"
-			},
+			cliFlags:  []string{"-logLevel=DEBUG"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Server.LogLevel)
 			},
@@ -378,9 +350,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.LogLevel = "WARN"
 			},
-			cliInput: func(c *serverConfig) {
-				c.LogLevel = "DEBUG"
-			},
+			cliFlags: []string{"-logLevel=DEBUG"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "DEBUG", c.Server.LogLevel)
 			},
@@ -390,7 +360,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.SocketPath = "foo"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.SocketPath)
 			},
@@ -398,9 +368,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "socket_path should be configuable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.SocketPath = "foo"
-			},
+			cliFlags:  []string{"-socketPath=foo"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.SocketPath)
 			},
@@ -410,9 +378,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.SocketPath = "foo"
 			},
-			cliInput: func(c *serverConfig) {
-				c.SocketPath = "bar"
-			},
+			cliFlags: []string{"-socketPath=bar"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.SocketPath)
 			},
@@ -422,7 +388,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1h"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "1h", c.Server.DefaultSVIDTTL)
 			},
@@ -430,7 +396,7 @@ func TestMergeInput(t *testing.T) {
 		{
 			msg:       "trust_domain should not have a default value",
 			fileInput: func(c *Config) {},
-			cliInput:  func(c *serverConfig) {},
+			cliFlags:  []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "", c.Server.TrustDomain)
 			},
@@ -440,7 +406,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.TrustDomain = "foo"
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.TrustDomain)
 			},
@@ -449,9 +415,7 @@ func TestMergeInput(t *testing.T) {
 			// TODO: should it really?
 			msg:       "trust_domain should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
-			cliInput: func(c *serverConfig) {
-				c.TrustDomain = "foo"
-			},
+			cliFlags:  []string{"-trustDomain=foo"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Server.TrustDomain)
 			},
@@ -461,9 +425,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.TrustDomain = "foo"
 			},
-			cliInput: func(c *serverConfig) {
-				c.TrustDomain = "bar"
-			},
+			cliFlags: []string{"-trustDomain=bar"},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "bar", c.Server.TrustDomain)
 			},
@@ -473,7 +435,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {
 				c.Server.AuditLogEnabled = true
 			},
-			cliInput: func(c *serverConfig) {},
+			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Server.AuditLogEnabled)
 			},
@@ -484,10 +446,10 @@ func TestMergeInput(t *testing.T) {
 		testCase := testCase
 
 		fileInput := &Config{Server: &serverConfig{}}
-		cliInput := &serverConfig{}
 
 		testCase.fileInput(fileInput)
-		testCase.cliInput(cliInput)
+		cliInput, err := parseFlags("run", testCase.cliFlags, os.Stderr)
+		require.NoError(t, err)
 
 		t.Run(testCase.msg, func(t *testing.T) {
 			i, err := mergeInput(fileInput, cliInput)
@@ -638,46 +600,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "bundle federates with section is parsed and configured correctly (deprecated config)",
-			input: func(c *Config) {
-				c.Server.Federation = &federationConfig{
-					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								Port:      1337,
-								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
-								UseWebPKI: false,
-							},
-						},
-						"domain2.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								Port:      1337,
-								UseWebPKI: true,
-							},
-						},
-					},
-				}
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{
-					spiffeid.RequireTrustDomainFromString("domain1.test"): {
-						DeprecatedConfig: true,
-						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
-							EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
-						},
-					},
-					spiffeid.RequireTrustDomainFromString("domain2.test"): {
-						DeprecatedConfig: true,
-						EndpointURL:      "https://192.168.1.1:1337",
-						EndpointProfile:  bundleClient.HTTPSWebProfile{},
-					},
-				}, c.Federation.FederatesWith)
-			},
-		},
-		{
 			msg: "bundle federates with section is parsed and configured correctly",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -700,27 +622,6 @@ func TestNewServerConfig(t *testing.T) {
 						EndpointProfile: bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
-			},
-		},
-		{
-			msg:         "bundle federates with section uses Web PKI and SPIFFE ID (deprecated config)",
-			expectError: true,
-			input: func(c *Config) {
-				c.Server.Federation = &federationConfig{
-					FederatesWith: map[string]federatesWithConfig{
-						"domain1.test": {
-							DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{
-								Address:   "192.168.1.1",
-								SpiffeID:  "spiffe://domain1.test/bundle/endpoint",
-								Port:      1337,
-								UseWebPKI: true,
-							},
-						},
-					},
-				}
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c)
 			},
 		},
 		{
@@ -1136,19 +1037,6 @@ func TestValidateConfig(t *testing.T) {
 				}
 			},
 			expectedErr: "federation.bundle_endpoint.acme.email must be configured",
-		},
-		{
-			name: "federation.bundle_endpoint.address must be configured if the deprecated federates_with is configured",
-			applyConf: func(c *Config) {
-				federatesWith := make(map[string]federatesWithConfig)
-				federatesWith["domain.test"] = federatesWithConfig{
-					DeprecatedBundleEndpoint: &deprecatedFederatesWithBundleEndpointConfig{},
-				}
-				c.Server.Federation = &federationConfig{
-					FederatesWith: federatesWith,
-				}
-			},
-			expectedErr: "federation.federates_with[\"domain.test\"].bundle_endpoint.address must be configured",
 		},
 		{
 			name: "bundle_endpoint_url must be configured if federates_with is configured",

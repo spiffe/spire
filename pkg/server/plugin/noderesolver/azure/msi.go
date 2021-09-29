@@ -72,6 +72,7 @@ type MSIResolverPlugin struct {
 	hooks struct {
 		newClient             func(string, autorest.Authorizer) apiClient
 		fetchInstanceMetadata func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error)
+		msiAuthorizer         func() (autorest.Authorizer, error)
 	}
 }
 
@@ -79,6 +80,10 @@ func New() *MSIResolverPlugin {
 	p := &MSIResolverPlugin{}
 	p.hooks.newClient = newAzureClient
 	p.hooks.fetchInstanceMetadata = azure.FetchInstanceMetadata
+	p.hooks.msiAuthorizer = func() (autorest.Authorizer, error) {
+		return auth.NewMSIConfig().Authorizer()
+	}
+
 	return p
 }
 
@@ -114,7 +119,7 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 		if err != nil {
 			return nil, err
 		}
-		authorizer, err := auth.NewMSIConfig().Authorizer()
+		authorizer, err := p.hooks.msiAuthorizer()
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to get MSI authorizer: %v", err)
 		}

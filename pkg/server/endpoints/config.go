@@ -21,6 +21,7 @@ import (
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire/pkg/server/api/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
+	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -72,6 +73,8 @@ type Config struct {
 	CacheReloadInterval time.Duration
 
 	AuditLogEnabled bool
+
+	BundleManager *bundle_client.Manager
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() Server {
@@ -111,6 +114,7 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServers {
 	ds := c.Catalog.GetDataStore()
 	upstreamPublisher := UpstreamPublisher(c.Manager)
+	bundleRefresher := BundleRefresher(c.BundleManager)
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -148,8 +152,9 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			DataStore:    ds,
 		}),
 		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
-			TrustDomain: c.TrustDomain,
-			DataStore:   ds,
+			TrustDomain:     c.TrustDomain,
+			DataStore:       ds,
+			BundleRefresher: bundleRefresher,
 		}),
 	}
 }

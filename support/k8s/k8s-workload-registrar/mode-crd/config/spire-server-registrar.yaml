@@ -153,14 +153,14 @@ data:
   k8s-workload-registrar.conf: |
     log_level = "debug"
     trust_domain = "example.org"
-    agent_socket_path = "/run/spire/sockets/agent.sock"
     server_socket_path = "/tmp/spire-server/private/api.sock"
     cluster = "demo-cluster"
     pod_controller = true
     add_svc_dns_names = true
     mode = "crd"
     webhook_enabled = true
-    pod_annotation = "spiffe.io/spiffe-id"
+    identity_template = "ns/{{.Pod.Namespace}}/pod/{{.Pod.Name}}"
+    identity_template_label = "spiffe.io/spiffe-id"
 
 ---
 
@@ -209,7 +209,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:1.0.1
+          image: gcr.io/spiffe-io/spire-server:1.0.2
           args:
             - -config
             - /run/spire/config/server.conf
@@ -238,7 +238,7 @@ spec:
               mountPath: /tmp
               readOnly: false
         - name: k8s-workload-registrar
-          image: fmemon/k8s-workload-registrar:latest
+          image: gcr.io/spiffe-io/k8s-workload-registrar:1.0.2
           args:
             - -config
             - /run/spire/config/k8s-workload-registrar.conf
