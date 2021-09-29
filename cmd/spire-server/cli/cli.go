@@ -89,6 +89,9 @@ func (cc *CLI) Run(args []string) int {
 		"federation refresh": func() (cli.Command, error) {
 			return federation.NewRefreshCommand(), nil
 		},
+		"federation update": func() (cli.Command, error) {
+			return federation.NewUpdateCommand(), nil
+		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
 		},

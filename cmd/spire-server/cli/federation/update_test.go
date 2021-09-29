@@ -14,11 +14,11 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func TestCreatetHelp(t *testing.T) {
-	test := setupTest(t, newCreateCommand)
+func TestUpdateHelp(t *testing.T) {
+	test := setupTest(t, newUpdateCommand)
 	test.client.Help()
 
-	require.Equal(t, `Usage of federation create:
+	require.Equal(t, `Usage of federation update:
   -bundleEndpointProfile string
     	Endpoint profile type (either "https_web" or "https_spiffe")
   -bundleEndpointURL string
@@ -38,12 +38,12 @@ func TestCreatetHelp(t *testing.T) {
 `, test.stderr.String())
 }
 
-func TestCreateSynopsis(t *testing.T) {
-	test := setupTest(t, newCreateCommand)
-	require.Equal(t, "Creates a federation relationship to a foreign trust domain", test.client.Synopsis())
+func TestUpdateSynopsis(t *testing.T) {
+	test := setupTest(t, newUpdateCommand)
+	require.Equal(t, "Updates a federation relationship to a foreign trust domain", test.client.Synopsis())
 }
 
-func TestCreate(t *testing.T) {
+func TestUpdate(t *testing.T) {
 	frWeb := &types.FederationRelationship{
 		TrustDomain:           "td-1.org",
 		BundleEndpointUrl:     "https://td-1.org/bundle",
@@ -148,8 +148,8 @@ func TestCreate(t *testing.T) {
 		name string
 		args []string
 
-		expReq    *trustdomainv1.BatchCreateFederationRelationshipRequest
-		fakeResp  *trustdomainv1.BatchCreateFederationRelationshipResponse
+		expReq    *trustdomainv1.BatchUpdateFederationRelationshipRequest
+		fakeResp  *trustdomainv1.BatchUpdateFederationRelationshipResponse
 		serverErr error
 
 		expOut string
@@ -198,11 +198,11 @@ func TestCreate(t *testing.T) {
 		{
 			name: "Succeeds for SPIFFE profile",
 			args: []string{"-trustDomain", "td-2.org", "-bundleEndpointURL", "https://td-2.org/bundle", "-endpointSpiffeID", "spiffe://other.org/bundle", "-bundleEndpointProfile", profileHTTPSSPIFFE},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
+			expReq: &trustdomainv1.BatchUpdateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frSPIFFE},
 			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			fakeResp: &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+				Results: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 					{
 						Status:                 &types.Status{},
 						FederationRelationship: frSPIFFE,
@@ -219,11 +219,11 @@ Endpoint SPIFFE ID        : spiffe://other.org/bundle
 		{
 			name: "Succeeds for SPIFFE profile and bundle",
 			args: []string{"-trustDomain", "td-3.org", "-bundleEndpointURL", "https://td-3.org/bundle", "-endpointSpiffeID", "spiffe://td-3.org/bundle", "-trustDomainBundlePath", bundlePath, "-bundleEndpointProfile", profileHTTPSSPIFFE},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
+			expReq: &trustdomainv1.BatchUpdateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frSPIFFEAndBundle},
 			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			fakeResp: &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+				Results: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 					{
 						Status:                 &types.Status{},
 						FederationRelationship: frSPIFFEAndBundle,
@@ -240,11 +240,11 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 		{
 			name: "Succeeds for web profile",
 			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web"},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
+			expReq: &trustdomainv1.BatchUpdateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frWeb},
 			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			fakeResp: &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+				Results: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 					{
 						Status:                 &types.Status{},
 						FederationRelationship: frWeb,
@@ -258,13 +258,13 @@ Bundle endpoint profile   : https_web
 `,
 		},
 		{
-			name: "Federation relationships that failed to be created are printed",
+			name: "Federation relationships that failed to be updated are printed",
 			args: []string{"-trustDomain", "td-1.org", "-bundleEndpointURL", "https://td-1.org/bundle", "-bundleEndpointProfile", "https_web"},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
+			expReq: &trustdomainv1.BatchUpdateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{frWeb},
 			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			fakeResp: &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+				Results: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 					{
 						Status: &types.Status{
 							Code:    int32(codes.AlreadyExists),
@@ -274,17 +274,17 @@ Bundle endpoint profile   : https_web
 					},
 				},
 			},
-			expErr: `Failed to create the following federation relationship (code: AlreadyExists, msg: "the message"):
+			expErr: `Failed to update the following federation relationship (code: AlreadyExists, msg: "the message"):
 Trust domain              : td-1.org
 Bundle endpoint URL       : https://td-1.org/bundle
 Bundle endpoint profile   : https_web
-Error: failed to create one or more federation relationships
+Error: failed to update one or more federation relationships
 `,
 		},
 		{
 			name: "Succeeds loading federation relationships from JSON file",
 			args: []string{"-data", jsonDataFilePath},
-			expReq: &trustdomainv1.BatchCreateFederationRelationshipRequest{
+			expReq: &trustdomainv1.BatchUpdateFederationRelationshipRequest{
 				FederationRelationships: []*types.FederationRelationship{
 					frWeb,
 					frSPIFFE,
@@ -292,8 +292,8 @@ Error: failed to create one or more federation relationships
 					frSPIFFEAuthority,
 				},
 			},
-			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
-				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
+			fakeResp: &trustdomainv1.BatchUpdateFederationRelationshipResponse{
+				Results: []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
 					{FederationRelationship: frWeb, Status: &types.Status{}},
 					{FederationRelationship: frSPIFFE, Status: &types.Status{}},
 					{FederationRelationship: frPemAuthority, Status: &types.Status{}},
@@ -338,10 +338,10 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t, newCreateCommand)
+			test := setupTest(t, newUpdateCommand)
 			test.server.err = tt.serverErr
-			test.server.expectCreateReq = tt.expReq
-			test.server.createResp = tt.fakeResp
+			test.server.expectUpdateReq = tt.expReq
+			test.server.updateResp = tt.fakeResp
 
 			args := append(test.args, tt.args...)
 			rc := test.client.Run(args)
