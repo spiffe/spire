@@ -138,8 +138,9 @@ github.com/aws/aws-sdk-go v1.25.37/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpi
 github.com/aws/aws-sdk-go v1.30.27/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
 github.com/aws/aws-sdk-go v1.40.44 h1:kECaYybTWYZY5IKHvQMxbE6Wi5Qrb+7hbkV7zQV3Sg8=
 github.com/aws/aws-sdk-go v1.40.44/go.mod h1:585smgzpB/KqRA+K3y/NL/oYRqQvpNJYvLm+LY1U59Q=
-github.com/aws/aws-sdk-go-v2 v1.9.0 h1:+S+dSqQCN3MSU5vJRu1HqHrq00cJn6heIMU7X9hcsoo=
 github.com/aws/aws-sdk-go-v2 v1.9.0/go.mod h1:cK/D0BBs0b/oWPIcX/Z/obahJK1TT7IPVjy53i/mX/4=
+github.com/aws/aws-sdk-go-v2 v1.9.1 h1:ZbovGV/qo40nrOJ4q8G33AGICzaPI45FHQWJ9650pF4=
+github.com/aws/aws-sdk-go-v2 v1.9.1/go.mod h1:cK/D0BBs0b/oWPIcX/Z/obahJK1TT7IPVjy53i/mX/4=
 github.com/aws/aws-sdk-go-v2/config v1.8.1 h1:AcAenV2NVwOViG+3ts73uT08L1olN4NBNNz7lUlHSUo=
 github.com/aws/aws-sdk-go-v2/config v1.8.1/go.mod h1:AQtpYfVYjuuft4Dgh0jGSkPQJ9MvmK9vXfSub7oSXlI=
 github.com/aws/aws-sdk-go-v2/credentials v1.4.1 h1:oDiUP50hKRwC6xAgESAj46lgL2prJRZQWnCBzn+TU/c=
@@ -152,6 +153,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.3.0 h1:VNJ5NLBteV
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.3.0/go.mod h1:R1KK+vY8AfalhG1AOu5e35pOD2SdoPKQCFLTvnxiohk=
 github.com/aws/aws-sdk-go-v2/service/kms v1.6.0 h1:HT72gDSqXoE9xZ7x7lvfyIjNOgvwT4Gqvjs0UsVrDBA=
 github.com/aws/aws-sdk-go-v2/service/kms v1.6.0/go.mod h1:w7JuP9Oq1IKMFQPkNe3V6s9rOssXzOVEMNEqK1L1bao=
+github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.6.1 h1:vjOsFgkexFPvOTaVdbnoZR56b3XRZkNc22mYxp5+c7I=
+github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.6.1/go.mod h1:GztflSgYVtItQWZE8onI4SRKWnj5TA54D5Uz+wUk6IQ=
 github.com/aws/aws-sdk-go-v2/service/sso v1.4.0 h1:sHXMIKYS6YiLPzmKSvDpPmOpJDHxmAUgbiF49YNVztg=
 github.com/aws/aws-sdk-go-v2/service/sso v1.4.0/go.mod h1:+1fpWnL96DL23aXPpMGbsmKe8jLTEfbjuQoA4WS1VaA=
 github.com/aws/aws-sdk-go-v2/service/sts v1.7.0 h1:1at4e5P+lvHNl2nUktdM2/v+rpICg/QSEr9TO/uW9vU=
@@ -787,8 +790,8 @@ github.com/spf13/viper v1.7.0/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5q
 github.com/spf13/viper v1.8.1/go.mod h1:o0Pch8wJ9BVSWGQMbra6iw0oQ5oktSIBaujf1rJH9Ns=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.8 h1:ou8ywBGFdYdG4BXjB/EBk2ND3OhtAwiMxLEbYcUS+ts=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.8/go.mod h1:TEfgrEcyFhuSuvqohJt6IxENUNeHfndWCCV1EX7UaVk=
-github.com/spiffe/spire-api-sdk v1.0.3-0.20210921173842-bbaf2349ec63 h1:KkXd5VvzisCo3sWAijzOLG9A5UneV97tQee97XwkVoo=
-github.com/spiffe/spire-api-sdk v1.0.3-0.20210921173842-bbaf2349ec63/go.mod h1:UylWypx+g3HPJeelhKiKykUvcTJFw5VKIKaSaCYgpFw=
+github.com/spiffe/spire-api-sdk v1.0.3-0.20210928174034-4735c1b6518e h1:xtd002IjGXzXv4+s2qKmZvx/SKkFIRzb51iki/NR79s=
+github.com/spiffe/spire-api-sdk v1.0.3-0.20210928174034-4735c1b6518e/go.mod h1:UylWypx+g3HPJeelhKiKykUvcTJFw5VKIKaSaCYgpFw=
 github.com/spiffe/spire-plugin-sdk v1.0.2 h1:2cXV/rAFeff96cnZucENd9ctZjXVV2BSzyVOXJiu3zY=
 github.com/spiffe/spire-plugin-sdk v1.0.2/go.mod h1:fzNSP83Z848jZtPQYeZ9qPWZkbSPwmd/JFNux1gxsbM=
 github.com/stoewer/go-strcase v1.2.0/go.mod h1:IBiWB2sKIp3wVVQ3Y035++gc+knqhUQag1KpM8ahLw8=

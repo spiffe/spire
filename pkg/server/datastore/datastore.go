@@ -194,8 +194,8 @@ type FederationRelationship struct {
 	TrustDomain           spiffeid.TrustDomain
 	BundleEndpointURL     *url.URL
 	BundleEndpointProfile BundleEndpointType
+	TrustDomainBundle     *common.Bundle
 
 	// Fields only used for 'https_spiffe' bundle endpoint profile
 	EndpointSPIFFEID spiffeid.ID
-	Bundle           *common.Bundle
 }
