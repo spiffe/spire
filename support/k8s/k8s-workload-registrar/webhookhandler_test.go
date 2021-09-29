@@ -9,14 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	admv1beta1 "k8s.io/api/admission/v1beta1"
+	admv1 "k8s.io/api/admission/v1"
 )
 
 func TestHandler(t *testing.T) {
+	log, _ := test.NewNullLogger()
 	controller := newFakeController()
-	handler := NewWebhookHandler(controller)
+	handler := NewWebhookHandler(log, controller)
 
 	testCases := []struct {
 		name       string
@@ -57,7 +59,7 @@ func TestHandler(t *testing.T) {
 			reqHeader: http.Header{
 				"Content-Type": []string{"application/json"},
 			},
-			respBody: "Malformed JSON body\n",
+			respBody: "Malformed JSON body: Object 'Kind' is missing in ''\n",
 		},
 		{
 			name:   "missing request",
@@ -68,7 +70,7 @@ func TestHandler(t *testing.T) {
 				"Content-Type": []string{"application/json"},
 			},
 			reqBody:  "{}",
-			respBody: "AdmissionReview is missing request\n",
+			respBody: "Malformed JSON body: Object 'Kind' is missing in '{}'\n",
 		},
 		{
 			name:   "success",
@@ -78,22 +80,22 @@ func TestHandler(t *testing.T) {
 			reqHeader: http.Header{
 				"Content-Type": []string{"application/json"},
 			},
-			reqBody: "{\"request\": {\"uid\":\"UID\"}}",
+			reqBody: `{ "apiVersion": "admission.k8s.io/v1", "kind": "AdmissionReview", "request": { "uid": "0df28fbd-5f5f-11e8-bc74-36e6bb280816" } }`,
 			respHeader: http.Header{
 				"Content-Type": []string{"application/json"},
 			},
-			respBody: "{\"response\":{\"uid\":\"UID\",\"allowed\":true}}\n",
+			respBody: "{\"kind\":\"AdmissionReview\",\"apiVersion\":\"admission.k8s.io/v1\",\"response\":{\"uid\":\"0df28fbd-5f5f-11e8-bc74-36e6bb280816\",\"allowed\":true}}",
 		},
 		{
 			name:   "failure",
-			status: http.StatusInternalServerError,
+			status: http.StatusBadRequest,
 			method: "POST",
 			path:   "/validate",
 			reqHeader: http.Header{
 				"Content-Type": []string{"application/json"},
 			},
 			reqBody:  "{\"request\": {\"uid\":\"FAILME\"}}",
-			respBody: "Request could not be processed\n",
+			respBody: "Malformed JSON body: Object 'Kind' is missing in '{\"request\": {\"uid\":\"FAILME\"}}'\n",
 		},
 	}
 
@@ -130,12 +132,12 @@ func newFakeController() *fakeController {
 	return &fakeController{}
 }
 
-func (*fakeController) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
-	if req.UID == "FAILME" {
+func (*fakeController) ReviewAdmission(ctx context.Context, ar admv1.AdmissionReview) (*admv1.AdmissionResponse, error) {
+	if ar.Request.UID == "FAILME" {
 		return nil, errors.New("ohno")
 	}
-	return &admv1beta1.AdmissionResponse{
-		UID:     req.UID,
+	return &admv1.AdmissionResponse{
+		UID:     ar.Request.UID,
 		Allowed: true,
 	}, nil
 }

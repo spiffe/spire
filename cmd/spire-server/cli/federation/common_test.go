@@ -7,9 +7,13 @@ import (
 
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -40,11 +44,13 @@ type fakeServer struct {
 	expectCreateReq  *trustdomainv1.BatchCreateFederationRelationshipRequest
 	expectDeleteReq  *trustdomainv1.BatchDeleteFederationRelationshipRequest
 	expectListReq    *trustdomainv1.ListFederationRelationshipsRequest
+	expectShowReq    *trustdomainv1.GetFederationRelationshipRequest
 	expectRefreshReq *trustdomainv1.RefreshBundleRequest
 
 	createResp  *trustdomainv1.BatchCreateFederationRelationshipResponse
 	deleteResp  *trustdomainv1.BatchDeleteFederationRelationshipResponse
 	listResp    *trustdomainv1.ListFederationRelationshipsResponse
+	showResp    *types.FederationRelationship
 	refreshResp *emptypb.Empty
 }
 
@@ -73,6 +79,18 @@ func (f *fakeServer) ListFederationRelationships(ctx context.Context, req *trust
 
 	spiretest.AssertProtoEqual(f.t, f.expectListReq, req)
 	return f.listResp, nil
+}
+
+func (f *fakeServer) GetFederationRelationship(ctx context.Context, req *trustdomainv1.GetFederationRelationshipRequest) (*types.FederationRelationship, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	if f.showResp != nil {
+		require.Equal(f.t, f.showResp.TrustDomain, req.TrustDomain)
+		return f.showResp, nil
+	}
+	return &types.FederationRelationship{}, status.Error(codes.NotFound, "federation relationship does not exist")
 }
 
 func (f *fakeServer) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
