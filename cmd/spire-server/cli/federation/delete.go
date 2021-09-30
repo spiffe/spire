@@ -32,7 +32,7 @@ func (c *deleteCommand) Name() string {
 }
 
 func (c *deleteCommand) Synopsis() string {
-	return "Deletes federation relationship"
+	return "Deletes a dynamic federation relationship"
 }
 
 func (c *deleteCommand) AppendFlags(fs *flag.FlagSet) {

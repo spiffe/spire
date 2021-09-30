@@ -124,7 +124,11 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 ## Federation configuration
 
-SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. This allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
+SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. SPIRE supports configuring federation relationships in the SPIRE Server configuration file (static relationships) and through the [Trust Domain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto) (dynamic relationships). This section describes how to configure statically defined relationships in the configuration file.
+
+_Note: static relationships override dynamic relationships. If you need to configure dynamic relationships, see the [`federation`](#spire-server-federation-create) command. Static relationships are not relflected in the `federation` command._
+
+Configuring a federated trust domain allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
 A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
 Using the `federation` section you will be able to set up SPIRE as a SPIFFE bundle endpoint server and also configure the federated trust domains that this SPIRE Server will fetch bundles from.
 ```hcl
@@ -360,7 +364,7 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 
 ### `spire-server federation create`
 
-Creates a federation relationship with a foreign trust domain.
+Creates a dynamic federation relationship with a foreign trust domain.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -375,7 +379,7 @@ Creates a federation relationship with a foreign trust domain.
 
 ### `spire-server federation delete`
 
-Deletes a federation relationship.
+Deletes a dynamic federation relationship.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -384,7 +388,7 @@ Deletes a federation relationship.
 
 ### `spire-server federation list`
 
-Lists all the federation relationships.
+Lists all the dynamic federation relationships.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -402,7 +406,7 @@ Refreshes the bundle from the specified federated trust domain.
 
 ### `spire-server show`
 
-Shows a federation relationship.
+Shows a dynamic federation relationship.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
@@ -411,7 +415,7 @@ Shows a federation relationship.
 
 ### `spire-server federation update`
 
-Updates a federation relationship with a foreign trust domain.
+Updates a dynamic federation relationship with a foreign trust domain.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
