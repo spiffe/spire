@@ -364,7 +364,7 @@ Creates a federation relationship with a foreign trust domain.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-bundleEndpointProfile` | Endpoint profile type. Eeither `https_web` or `https_spiffe`. | |
+| `-bundleEndpointProfile` | Endpoint profile type. Either `https_web` or `https_spiffe`. | |
 | `-bundleEndpointURL` | URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol). | |
 | `-data` | Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin. | |
 | `-endpointSpiffeID` | SPIFFE ID of the SPIFFE bundle endpoint server. Only used for `https_spiffe` profile. | |
@@ -415,7 +415,7 @@ Updates a federation relationship with a foreign trust domain.
 
 | Command       | Action                                                             | Default        |
 |:--------------|:-------------------------------------------------------------------|:---------------|
-| `-bundleEndpointProfile` | Endpoint profile type. Eeither `https_web` or `https_spiffe`. | |
+| `-bundleEndpointProfile` | Endpoint profile type. Either `https_web` or `https_spiffe`. | |
 | `-bundleEndpointURL` | URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol). | |
 | `-data` | Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin. | |
 | `-endpointSpiffeID` | SPIFFE ID of the SPIFFE bundle endpoint server. Only used for `https_spiffe` profile. | |
