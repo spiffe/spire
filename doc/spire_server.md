@@ -358,6 +358,72 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict` |
 | `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 
+### `spire-server federation create`
+
+Creates a federation relationship with a foreign trust domain.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-bundleEndpointProfile` | Endpoint profile type. Eeither `https_web` or `https_spiffe`. | |
+| `-bundleEndpointURL` | URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol). | |
+| `-data` | Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin. | |
+| `-endpointSpiffeID` | SPIFFE ID of the SPIFFE bundle endpoint server. Only used for `https_spiffe` profile. | |
+| `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
+| `-trustDomain` | Name of the trust domain to federate with (e.g., example.org) | |
+| `-trustDomainBundleFormat` | The format of the bundle data (optional). Either `pem` or `spiffe`. | pem |
+| `-trustDomainBundlePath` | Path to the trust domain bundle data (optional). | |
+
+### `spire-server federation delete`
+
+Deletes a federation relationship.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id` | SPIFFE ID of the trust domain of the relationship. | |
+| `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
+
+### `spire-server federation list`
+
+Lists all the federation relationships.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id` | SPIFFE ID of the trust domain of the relationship | |
+| `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
+
+### `spire-server refresh`
+
+Refreshes the bundle from the specified federated trust domain.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-id` | SPIFFE ID of the trust domain of the relationship | |
+| `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
+
+### `spire-server show`
+
+Shows a federation relationship.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
+| `-trustDomain` | The trust domain name of the federation relationship to show (e.g., example.org) | |
+
+### `spire-server federation update`
+
+Updates a federation relationship with a foreign trust domain.
+
+| Command       | Action                                                             | Default        |
+|:--------------|:-------------------------------------------------------------------|:---------------|
+| `-bundleEndpointProfile` | Endpoint profile type. Eeither `https_web` or `https_spiffe`. | |
+| `-bundleEndpointURL` | URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol). | |
+| `-data` | Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin. | |
+| `-endpointSpiffeID` | SPIFFE ID of the SPIFFE bundle endpoint server. Only used for `https_spiffe` profile. | |
+| `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
+| `-trustDomain` | Name of the trust domain to federate with (e.g., example.org) | |
+| `-trustDomainBundleFormat` | The format of the bundle data (optional). Either `pem` or `spiffe`. | pem |
+| `-trustDomainBundlePath` | Path to the trust domain bundle data (optional). | |
+
 ### `spire-server agent ban`
 
 Ban attested node given its spiffeID. A banned attested node is not able to re-attest.
