@@ -11,10 +11,7 @@ import (
 	"time"
 
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
-	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/notifier"
-	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
-	"github.com/spiffe/spire/test/plugintest"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -31,23 +28,18 @@ const (
 )
 
 func TestBundleWatcherErrorsWhenCannotCreateClient(t *testing.T) {
-	test := setupWatcherTest("")
-	raw := test.loadPluginRaw(t, "")
-
-	_, err := newBundleWatcher(context.TODO(), raw, raw.config)
+	test := setupTest(t, withKubeClientError())
+	_, err := newBundleWatcher(context.Background(), test.rawPlugin, test.rawPlugin.config)
 	require.Equal(t, err.Error(), "kube client not configured")
 }
 
 func TestBundleWatchersStartsAndStops(t *testing.T) {
-	fakeWebhook := newFakeKubeClient()
-	test := setupWatcherTest("", fakeWebhook)
-
-	raw := test.loadPluginRaw(t, "")
+	test := setupTest(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error)
 	watcherStarted := make(chan struct{})
-	watcher, err := newBundleWatcher(ctx, raw, raw.config)
+	watcher, err := newBundleWatcher(ctx, test.rawPlugin, test.rawPlugin.config)
 	require.NoError(t, err)
 
 	watcher.hooks.watch = func(ctx context.Context) error {
@@ -85,73 +77,58 @@ func TestBundleWatchersStartsAndStops(t *testing.T) {
 }
 
 func TestBundleWatcherUpdateConfig(t *testing.T) {
-	w := newFakeWebhook()
-	a := newFakeAPIService()
-
-	clients := []kubeClient{w, a}
-	identityprovider := fakeidentityprovider.New()
-
-	// Start plugin
-	notifier := new(notifier.V1)
-	raw := New()
-	raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
-		require.Equal(t, "/some/file/path", c.KubeConfigFilePath)
-		if len(clients) == 0 {
-			return nil, errors.New("kube client not configured")
-		}
-		return clients, nil
-	}
-
-	pp := plugintest.Load(t, builtIn(raw), notifier,
-		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityprovider)),
-		plugintest.Configure(`
+	initialConfig := `
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+config_map_key = "CONFIGMAPKEY"
 webhook_label = "WEBHOOK_LABEL"
 api_service_label = "API_SERVICE_LABEL"
-kube_config_file_path = "/some/file/path"
-`),
-	)
-
-	require.NotNil(t, raw.cancelWatcher)
+`
+	test := setupTest(t, withPlainConfig(initialConfig))
+	require.NotNil(t, test.rawPlugin.cancelWatcher)
 	require.Eventually(t, func() bool {
-		return w.getWatchLabel() == "WEBHOOK_LABEL"
+		return test.webhookClient.getWatchLabel() == "WEBHOOK_LABEL"
+	}, testTimeout, time.Second)
+	require.Eventually(t, func() bool {
+		return test.apiServiceClient.getWatchLabel() == "API_SERVICE_LABEL"
 	}, testTimeout, time.Second)
 
-	require.Eventually(t, func() bool {
-		return a.getWatchLabel() == "API_SERVICE_LABEL"
-	}, testTimeout, time.Second)
-
-	err := pp.Configure(context.Background(), catalog.CoreConfig{}, `
+	finalConfig := `
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+config_map_key = "CONFIGMAPKEY"
 webhook_label = "WEBHOOK_LABEL2"
 api_service_label = "API_SERVICE_LABEL2"
 kube_config_file_path = "/some/file/path"
-`)
+`
+	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{},
+		HclConfiguration:  finalConfig,
+	})
 	require.NoError(t, err)
-
-	require.NotNil(t, raw.cancelWatcher)
+	require.NotNil(t, test.rawPlugin.cancelWatcher)
 	require.Eventually(t, func() bool {
-		return w.getWatchLabel() == "WEBHOOK_LABEL2"
+		return test.webhookClient.getWatchLabel() == "WEBHOOK_LABEL2"
 	}, testTimeout, time.Second)
-
 	require.Eventually(t, func() bool {
-		return a.getWatchLabel() == "API_SERVICE_LABEL2"
+		return test.apiServiceClient.getWatchLabel() == "API_SERVICE_LABEL2"
 	}, testTimeout, time.Second)
 }
 
 func TestBundleWatcherAddWebhookEvent(t *testing.T) {
-	w := newFakeWebhook()
-	test := setupWatcherTest("/some/file/path", w)
-
-	raw := test.loadPluginRaw(t, `
+	plainConfig := `
 webhook_label = "WEBHOOK_LABEL"
 kube_config_file_path = "/some/file/path"
-`)
+`
 
-	require.NotNil(t, raw.cancelWatcher)
+	test := setupTest(t, withPlainConfig(plainConfig))
+
+	require.NotNil(t, test.rawPlugin.cancelWatcher)
 
 	webhook := newWebhook()
 	test.identityProvider.AppendBundle(testBundle)
-	w.setWebhook(webhook)
-	w.addWatchEvent(webhook)
+	test.webhookClient.setWebhook(webhook)
+	test.webhookClient.addWatchEvent(webhook)
 
 	require.Eventually(t, func() bool {
 		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
@@ -166,24 +143,24 @@ kube_config_file_path = "/some/file/path"
 					},
 				},
 			},
-		}, w.getWebhook(webhook.Name))
+		}, test.webhookClient.getWebhook(webhook.Name))
 	}, testTimeout, time.Second)
 }
 
 func TestBundleWatcherAddAPIServiceEvent(t *testing.T) {
-	a := newFakeAPIService()
-	test := setupWatcherTest("/some/file/path", a)
-	raw := test.loadPluginRaw(t, `
+	plainConfig := `
 api_service_label = "API_SERVICE_LABEL"
 kube_config_file_path = "/some/file/path"
-`)
+`
 
-	require.NotNil(t, raw.cancelWatcher)
+	test := setupTest(t, withPlainConfig(plainConfig))
+
+	require.NotNil(t, test.rawPlugin.cancelWatcher)
 	test.identityProvider.AppendBundle(testBundle)
 
 	apiService := newAPIService()
-	a.setAPIService(apiService)
-	a.addWatchEvent(apiService)
+	test.apiServiceClient.setAPIService(apiService)
+	test.apiServiceClient.addWatchEvent(apiService)
 	require.Eventually(t, func() bool {
 		return assert.Equal(t, &apiregistrationv1.APIService{
 			ObjectMeta: metav1.ObjectMeta{
@@ -193,21 +170,22 @@ kube_config_file_path = "/some/file/path"
 			Spec: apiregistrationv1.APIServiceSpec{
 				CABundle: []byte(testBundleData),
 			},
-		}, a.getAPIService(apiService.Name))
+		}, test.apiServiceClient.getAPIService(apiService.Name))
 	}, testTimeout, time.Second)
 }
 
 type fakeWebhook struct {
-	mu         sync.RWMutex
-	fakeWatch  *watch.FakeWatcher
-	webhooks   map[string]*admissionv1.MutatingWebhookConfiguration
-	watchLabel string
+	mu           sync.RWMutex
+	fakeWatch    *watch.FakeWatcher
+	webhooks     map[string]*admissionv1.MutatingWebhookConfiguration
+	webhookLabel string
 }
 
-func newFakeWebhook() *fakeWebhook {
+func newFakeWebhook(config *pluginConfig) *fakeWebhook {
 	w := &fakeWebhook{
-		fakeWatch: watch.NewFake(),
-		webhooks:  make(map[string]*admissionv1.MutatingWebhookConfiguration),
+		fakeWatch:    watch.NewFake(),
+		webhooks:     make(map[string]*admissionv1.MutatingWebhookConfiguration),
+		webhookLabel: config.WebhookLabel,
 	}
 	return w
 }
@@ -220,7 +198,7 @@ func (w *fakeWebhook) Get(ctx context.Context, namespace, name string) (runtime.
 	return entry, nil
 }
 
-func (w *fakeWebhook) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+func (w *fakeWebhook) GetList(ctx context.Context) (runtime.Object, error) {
 	list := w.getWebhookList()
 	if list.Items == nil {
 		return nil, errors.New("not found")
@@ -228,7 +206,7 @@ func (w *fakeWebhook) GetList(ctx context.Context, config *pluginConfig) (runtim
 	return list, nil
 }
 
-func (w *fakeWebhook) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (w *fakeWebhook) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	webhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Error(codes.Internal, "wrong type, expecting mutating webhook")
@@ -271,10 +249,9 @@ func (w *fakeWebhook) Patch(ctx context.Context, namespace, name string, patchBy
 	return nil
 }
 
-func (w *fakeWebhook) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.watchLabel = config.WebhookLabel
+func (w *fakeWebhook) Watch(ctx context.Context) (watch.Interface, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	return w.fakeWatch, nil
 }
 
@@ -307,7 +284,7 @@ func (w *fakeWebhook) addWatchEvent(obj runtime.Object) {
 func (w *fakeWebhook) getWatchLabel() string {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	return w.watchLabel
+	return w.webhookLabel
 }
 
 func newWebhook() *admissionv1.MutatingWebhookConfiguration {
@@ -325,16 +302,17 @@ func newWebhook() *admissionv1.MutatingWebhookConfiguration {
 }
 
 type fakeAPIService struct {
-	mu          sync.RWMutex
-	fakeWatch   *watch.FakeWatcher
-	apiServices map[string]*apiregistrationv1.APIService
-	watchLabel  string
+	mu              sync.RWMutex
+	fakeWatch       *watch.FakeWatcher
+	apiServices     map[string]*apiregistrationv1.APIService
+	apiServiceLabel string
 }
 
-func newFakeAPIService() *fakeAPIService {
+func newFakeAPIService(config *pluginConfig) *fakeAPIService {
 	return &fakeAPIService{
-		fakeWatch:   watch.NewFake(),
-		apiServices: make(map[string]*apiregistrationv1.APIService),
+		fakeWatch:       watch.NewFake(),
+		apiServices:     make(map[string]*apiregistrationv1.APIService),
+		apiServiceLabel: config.APIServiceLabel,
 	}
 }
 
@@ -346,7 +324,7 @@ func (a *fakeAPIService) Get(ctx context.Context, namespace, name string) (runti
 	return entry, nil
 }
 
-func (a *fakeAPIService) GetList(ctx context.Context, config *pluginConfig) (runtime.Object, error) {
+func (a *fakeAPIService) GetList(ctx context.Context) (runtime.Object, error) {
 	list := a.getAPIServiceList()
 	if list.Items == nil {
 		return nil, errors.New("not found")
@@ -354,7 +332,7 @@ func (a *fakeAPIService) GetList(ctx context.Context, config *pluginConfig) (run
 	return list, nil
 }
 
-func (a *fakeAPIService) CreatePatch(ctx context.Context, config *pluginConfig, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (a *fakeAPIService) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	webhook, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Error(codes.Internal, "wrong type, expecting API service")
@@ -391,10 +369,9 @@ func (a *fakeAPIService) Patch(ctx context.Context, namespace, name string, patc
 	return nil
 }
 
-func (a *fakeAPIService) Watch(ctx context.Context, config *pluginConfig) (watch.Interface, error) {
+func (a *fakeAPIService) Watch(ctx context.Context) (watch.Interface, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.watchLabel = config.APIServiceLabel
 	return a.fakeWatch, nil
 }
 
@@ -427,7 +404,7 @@ func (a *fakeAPIService) addWatchEvent(obj runtime.Object) {
 func (a *fakeAPIService) getWatchLabel() string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.watchLabel
+	return a.apiServiceLabel
 }
 
 func newAPIService() *apiregistrationv1.APIService {
@@ -438,37 +415,4 @@ func newAPIService() *apiregistrationv1.APIService {
 		},
 		Spec: apiregistrationv1.APIServiceSpec{},
 	}
-}
-
-func setupWatcherTest(expectPath string, clients ...kubeClient) *watcherTest {
-	return &watcherTest{
-		identityProvider: fakeidentityprovider.New(),
-		clients:          clients,
-		expectPath:       expectPath,
-	}
-}
-
-type watcherTest struct {
-	clients          []kubeClient
-	expectPath       string
-	identityProvider *fakeidentityprovider.IdentityProvider
-}
-
-func (w *watcherTest) loadPluginRaw(t *testing.T, configuration string) *Plugin {
-	notifier := new(notifier.V1)
-	raw := New()
-	raw.hooks.newKubeClient = func(c *pluginConfig) ([]kubeClient, error) {
-		require.Equal(t, w.expectPath, c.KubeConfigFilePath)
-		if len(w.clients) == 0 {
-			return nil, errors.New("kube client not configured")
-		}
-		return w.clients, nil
-	}
-
-	plugintest.Load(t, builtIn(raw), notifier,
-		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(w.identityProvider)),
-		plugintest.Configure(configuration),
-	)
-
-	return raw
 }

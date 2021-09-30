@@ -16,6 +16,7 @@ The plugin accepts the following configuration options:
 | kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. | |
 | api_service_label     | If set, rotate the CA Bundle in API services with this label set to `true`. | |
 | webhook_label         | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`. | |
+| clusters              | A list of cluster configurations. If set it can be used to configure multiple. Each cluster allows the same values as the root configuration. | |
 
 ## Configuring Kubernetes
 
@@ -132,5 +133,26 @@ server to
             webhook_label    = "spiffe.io/webhook"
             api_service_label = "spiffe.io/api_service"
         }
+    }
+```
+
+### Multipe clusters
+
+```
+    Notifier "k8sbundle" {
+      plugin_data {        
+        # local cluster
+        namespace = "spire"
+
+        # extra clusters
+        clusters = [        
+        {
+          kube_config_file_path = "/cluster2/file/path"
+        },
+        {
+          kube_config_file_path = "/cluster3/file/path"
+        }
+        ]
+      }    
     }
 ```
