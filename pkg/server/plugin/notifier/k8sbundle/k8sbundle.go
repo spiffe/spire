@@ -140,7 +140,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	for i := range config.Clusters {
 		if config.Clusters[i].KubeConfigFilePath == "" {
-			return nil, status.Error(codes.InvalidArgument, "configuration is missing kube config file path")
+			return nil, status.Error(codes.InvalidArgument, "cluster configuration is missing kube_config_file_path")
 		}
 		setDefaultValues(&config.Clusters[i])
 	}
