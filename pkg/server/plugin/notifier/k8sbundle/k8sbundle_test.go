@@ -495,7 +495,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:         "clusters only missing kube_config_file_path",
-			expectedErr:  "configuration is missing kube config file path",
+			expectedErr:  "cluster configuration is missing kube_config_file_path",
 			expectedCode: codes.InvalidArgument,
 			configuration: `
 			clusters  = [
