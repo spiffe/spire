@@ -3,9 +3,11 @@ package awskms
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 type kmsClient interface {
@@ -21,17 +23,29 @@ type kmsClient interface {
 	DeleteAlias(context.Context, *kms.DeleteAliasInput, ...func(*kms.Options)) (*kms.DeleteAliasOutput, error)
 }
 
-func newKMSClient(ctx context.Context, c *Config) (kmsClient, error) {
+type stsClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+func newKMSClient(c aws.Config) (kmsClient, error) {
+	return kms.NewFromConfig(c), nil
+}
+
+func newSTSClient(c aws.Config) (stsClient, error) {
+	return sts.NewFromConfig(c), nil
+}
+
+func newAWSConfig(ctx context.Context, c *Config) (aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(c.Region),
 	)
 	if err != nil {
-		return nil, err
+		return aws.Config{}, err
 	}
 
 	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
 		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
 	}
 
-	return kms.NewFromConfig(cfg), nil
+	return cfg, nil
 }
