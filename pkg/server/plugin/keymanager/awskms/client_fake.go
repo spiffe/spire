@@ -20,7 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -41,6 +43,14 @@ type kmsClientFake struct {
 	signErr                error
 	listKeysErr            error
 	deleteAliasErr         error
+
+	expectedKeyPolicy *string
+}
+
+type stsClientFake struct {
+	account string
+	arn     string
+	err     string
 }
 
 func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
@@ -54,6 +64,37 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 	}
 }
 
+func newSTSClientFake(t *testing.T) *stsClientFake {
+	return &stsClientFake{}
+}
+
+func (s *stsClientFake) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	if s.err != "" {
+		return nil, errors.New(s.err)
+	}
+
+	return &sts.GetCallerIdentityOutput{
+		Account: &s.account,
+		Arn:     &s.arn,
+	}, nil
+}
+
+func (s *stsClientFake) setGetCallerIdentityErr(err string) {
+	s.err = err
+}
+
+func (s *stsClientFake) setGetCallerIdentityAccount(account string) {
+	s.account = account
+}
+
+func (s *stsClientFake) setGetCallerIdentityArn(arn string) {
+	s.arn = arn
+}
+
+func (k *kmsClientFake) setExpectedKeyPolicy(keyPolicy *string) {
+	k.expectedKeyPolicy = keyPolicy
+}
+
 func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput, opts ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
@@ -61,18 +102,25 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 		return nil, k.createKeyErr
 	}
 
+	switch k.expectedKeyPolicy {
+	case nil:
+		require.Nil(k.t, input.Policy)
+	default:
+		require.Equal(k.t, *k.expectedKeyPolicy, *input.Policy)
+	}
+
 	var privateKey crypto.Signer
-	switch input.KeySpec {
-	case types.KeySpecEccNistP256:
+	switch input.CustomerMasterKeySpec { //nolint:staticcheck // not deprecated in a relased version yet
+	case types.CustomerMasterKeySpecEccNistP256:
 		privateKey = k.testKeys.NewEC256(k.t)
-	case types.KeySpecEccNistP384:
+	case types.CustomerMasterKeySpecEccNistP384:
 		privateKey = k.testKeys.NewEC384(k.t)
-	case types.KeySpecRsa2048:
+	case types.CustomerMasterKeySpecRsa2048:
 		privateKey = k.testKeys.NewRSA2048(k.t)
-	case types.KeySpecRsa4096:
+	case types.CustomerMasterKeySpecRsa4096:
 		privateKey = k.testKeys.NewRSA4096(k.t)
 	default:
-		return nil, fmt.Errorf("unknown key type %q", input.KeySpec)
+		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a relased version yet
 	}
 
 	pkixData, err := x509.MarshalPKIXPublicKey(privateKey.Public())
@@ -85,7 +133,7 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 		CreationDate: aws.Time(time.Unix(0, 0)),
 		PublicKey:    pkixData,
 		privateKey:   privateKey,
-		KeySpec:      input.KeySpec,
+		KeySpec:      input.CustomerMasterKeySpec, //nolint:staticcheck // not deprecated in a relased version yet
 		Enabled:      true,
 	}
 
@@ -115,12 +163,12 @@ func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyI
 
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &types.KeyMetadata{
-			KeyId:        keyEntry.KeyID,
-			Arn:          keyEntry.Arn,
-			KeySpec:      keyEntry.KeySpec,
-			Enabled:      keyEntry.Enabled,
-			Description:  keyEntry.Description,
-			CreationDate: keyEntry.CreationDate,
+			KeyId:                 keyEntry.KeyID,
+			Arn:                   keyEntry.Arn,
+			CustomerMasterKeySpec: keyEntry.KeySpec,
+			Enabled:               keyEntry.Enabled,
+			Description:           keyEntry.Description,
+			CreationDate:          keyEntry.CreationDate,
 		},
 	}, nil
 }
@@ -446,7 +494,7 @@ type fakeKeyEntry struct {
 	PublicKey            []byte
 	privateKey           crypto.Signer
 	Enabled              bool
-	KeySpec              types.KeySpec
+	KeySpec              types.CustomerMasterKeySpec
 }
 
 type fakeAlias struct {

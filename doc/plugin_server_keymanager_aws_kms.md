@@ -6,12 +6,14 @@ The `aws_kms` key manager plugin leverages the AWS Key Management Service (KMS) 
 
 The plugin accepts the following configuration options:
 
-| Key                 | Type   | Required                              | Description                                             | Default                                              |
-| ------------------- | ------ | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------- |
-| access_key_id       | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS           | Value of the AWS_ACCESS_KEY_ID environment variable      |
-| secret_access_key   | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS       | Value of the AWS_SECRET_ACCESS_KEY environment variable  |
-| region              | string | yes                                   | The region where the keys will be stored                |                                                      |
-| key_metadata_file   | string | yes                                   | A file path location where information about generated keys will be persisted |                                |
+| Key               | Type   | Required                              | Description                                             | Default                                                    |
+| ----------------- | ------ | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------- |
+| access_key_id     | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS           | Value of the AWS_ACCESS_KEY_ID environment variable        |
+| secret_access_key | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS       | Value of the AWS_SECRET_ACCESS_KEY environment variable    |
+| region            | string | yes                                   | The region where the keys will be stored                |                                                            |
+| key_metadata_file | string | yes                                   | A file path location where information about generated keys will be persisted    |                                   |
+| key_policy_file   | string | no                                    | A file path location to a custom key policy in JSON format                       | ""                                |
+
 
 ### Alias and Key Management
 
@@ -42,6 +44,52 @@ The IAM role must have an attached policy with the following permissions:
 - `kms:UpdateAlias`
 - `kms:DeleteAlias`
 
+
+### Key policy
+The plugin can generate keys using a default key policy or it can load and use a user defined policy.
+
+#### Default key policy
+The default key policy relies on the SPIRE Server's assumed role. Therefore, it is mandatory
+for SPIRE server to assume a role in order to use the default policy.
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Allow full access to the SPIRE Server role",
+			"Effect": "Allow",
+			"Principal": {
+				"AWS": "arn:aws:iam::111122223333:role/example-assumed-role-name"
+			},
+			"Action": "kms:*",
+			"Resource": "*"
+		},
+        {
+            "Sid": "Allow KMS console to display the key and policy",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::111122223333:root"
+            },
+            "Action": [
+                            "kms:Describe*",
+                            "kms:List*",
+                            "kms:Get*"
+            ],
+            "Resource": "*"
+       }
+	]
+}
+```
+
+- The first statement of the policy gives the current SPIRE server assumed role full access to the CMK.
+- The second statement allows the keys and policy to be displayed in the KMS console.
+
+
+#### Custom key policy
+
+It is also possible for the user to define a custom key policy. If the configurable `key_policy_file`
+is set, the plugin uses the policy defined in the file instead of the default policy.
 ## Sample Plugin Configuration
 
 ```

@@ -49,6 +49,17 @@ func AssertLastLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) 
 	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
+func AssertLogsContainEntries(t *testing.T, entries []*logrus.Entry, expectedEntries []LogEntry) {
+	if len(expectedEntries) == 0 {
+		return
+	}
+
+	logEntries := convertLogEntries(entries)
+	for _, entry := range expectedEntries {
+		assert.Contains(t, logEntries, entry)
+	}
+}
+
 func convertLogEntries(entries []*logrus.Entry) (out []LogEntry) {
 	for _, entry := range entries {
 		out = append(out, LogEntry{

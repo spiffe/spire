@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gofrs/uuid"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -60,8 +61,9 @@ type keyEntry struct {
 }
 
 type pluginHooks struct {
-	newClient func(ctx context.Context, config *Config) (kmsClient, error)
-	clk       clock.Clock
+	newKMSClient func(aws.Config) (kmsClient, error)
+	newSTSClient func(aws.Config) (stsClient, error)
+	clk          clock.Clock
 	// just for testing
 	scheduleDeleteSignal chan error
 	refreshAliasesSignal chan error
@@ -78,11 +80,13 @@ type Plugin struct {
 	mu             sync.RWMutex
 	entries        map[string]keyEntry
 	kmsClient      kmsClient
+	stsClient      stsClient
 	trustDomain    string
 	serverID       string
 	scheduleDelete chan string
 	cancelTasks    context.CancelFunc
 	hooks          pluginHooks
+	keyPolicy      *string
 }
 
 // Config provides configuration context for the plugin
@@ -91,19 +95,23 @@ type Config struct {
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	Region          string `hcl:"region" json:"region"`
 	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	KeyPolicyFile   string `hcl:"key_policy_file" json:"key_policy_file"`
 }
 
 // New returns an instantiated plugin
 func New() *Plugin {
-	return newPlugin(newKMSClient)
+	return newPlugin(newKMSClient, newSTSClient)
 }
 
-func newPlugin(newClient func(ctx context.Context, config *Config) (kmsClient, error)) *Plugin {
+func newPlugin(
+	newKMSClient func(aws.Config) (kmsClient, error),
+	newSTSClient func(aws.Config) (stsClient, error)) *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
-			newClient: newClient,
-			clk:       clock.New(),
+			newKMSClient: newKMSClient,
+			newSTSClient: newSTSClient,
+			clk:          clock.New(),
 		},
 		scheduleDelete: make(chan string, 120),
 	}
@@ -127,7 +135,26 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.log.Debug("Loaded server id", "server_id", serverID)
 
-	kc, err := p.hooks.newClient(ctx, config)
+	if config.KeyPolicyFile != "" {
+		policyBytes, err := os.ReadFile(config.KeyPolicyFile)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to read file configured in 'key_policy_file': %v", err)
+		}
+		policyStr := string(policyBytes)
+		p.keyPolicy = &policyStr
+	}
+
+	awsCfg, err := newAWSConfig(ctx, config)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create client configuration: %v", err)
+	}
+
+	sc, err := p.hooks.newSTSClient(awsCfg)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create STS client: %v", err)
+	}
+
+	kc, err := p.hooks.newKMSClient(awsCfg)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create KMS client: %v", err)
 	}
@@ -149,6 +176,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	p.setCache(keyEntries)
 	p.kmsClient = kc
+	p.stsClient = sc
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 
@@ -273,10 +301,19 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 
+	if p.keyPolicy == nil {
+		defaultPolicy, err := p.createDefaultPolicy(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to create policy: %v", err)
+		}
+		p.keyPolicy = defaultPolicy
+	}
+
 	createKeyInput := &kms.CreateKeyInput{
-		Description: aws.String(description),
-		KeyUsage:    types.KeyUsageTypeSignVerify,
-		KeySpec:     keySpec,
+		Description:           aws.String(description),
+		KeyUsage:              types.KeyUsageTypeSignVerify,
+		CustomerMasterKeySpec: keySpec,
+		Policy:                p.keyPolicy,
 	}
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
@@ -707,6 +744,75 @@ func (p *Plugin) notifyDisposeKeys(err error) {
 	}
 }
 
+func (p *Plugin) createDefaultPolicy(ctx context.Context) (*string, error) {
+	result, err := p.stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return nil, fmt.Errorf("cannot get caller identity: %w", err)
+	}
+
+	accountID := *result.Account
+	roleName, err := roleNameFromARN(*result.Arn)
+	if err != nil {
+		// the server has not assumed any role, use default KMS policy and log a warn message
+		p.log.Warn("In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.")
+		return nil, nil
+	}
+
+	policy := fmt.Sprintf(`
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Allow full access to the SPIRE Server role",
+			"Effect": "Allow",
+			"Principal": {
+				"AWS": "arn:aws:iam::%s:role/%s"
+			},
+			"Action": "kms:*",
+			"Resource": "*"
+		},
+		{
+			"Sid": "Allow KMS console to display the key and policy",
+			"Effect": "Allow",
+			"Principal": {
+			    "AWS": "arn:aws:iam::%s:root"
+			},
+			"Action": [
+				"kms:Describe*",
+				"kms:List*",
+				"kms:Get*"
+			],
+			"Resource": "*"
+		}
+	]
+}`,
+		accountID, roleName, accountID)
+
+	return &policy, nil
+}
+
+// roleNameFromARN returns the role name included in an ARN. If no role name exist
+// an error is returned.
+// ARN example: "arn:aws:sts::123456789:assumed-role/the-role-name/i-0001f4f25acfd1234",
+func roleNameFromARN(arn string) (string, error) {
+	arnSegments := strings.Split(arn, ":")
+	lastSegment := arnSegments[len(arnSegments)-1]
+
+	resource := strings.Split(lastSegment, "/")
+	if len(resource) < 2 {
+		return "", fmt.Errorf("incomplete resource, expected 'resource-type/resource-id' but got %q", lastSegment)
+	}
+
+	resourceType := resource[0]
+	if resourceType != "assumed-role" {
+		return "", fmt.Errorf("arn does not contain an assumed role: %q", arn)
+	}
+
+	roleName := resource[1]
+
+	return roleName, nil
+}
+
 func sanitizeTrustDomain(trustDomain string) string {
 	return strings.ReplaceAll(trustDomain, ".", "_")
 }
@@ -777,31 +883,31 @@ func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts interface{}
 	}
 }
 
-func keyTypeFromKeySpec(keySpec types.KeySpec) (keymanagerv1.KeyType, bool) {
+func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanagerv1.KeyType, bool) {
 	switch keySpec {
-	case types.KeySpecRsa2048:
+	case types.CustomerMasterKeySpecRsa2048:
 		return keymanagerv1.KeyType_RSA_2048, true
-	case types.KeySpecRsa4096:
+	case types.CustomerMasterKeySpecRsa4096:
 		return keymanagerv1.KeyType_RSA_4096, true
-	case types.KeySpecEccNistP256:
+	case types.CustomerMasterKeySpecEccNistP256:
 		return keymanagerv1.KeyType_EC_P256, true
-	case types.KeySpecEccNistP384:
+	case types.CustomerMasterKeySpecEccNistP384:
 		return keymanagerv1.KeyType_EC_P384, true
 	default:
 		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, false
 	}
 }
 
-func keySpecFromKeyType(keyType keymanagerv1.KeyType) (types.KeySpec, bool) {
+func keySpecFromKeyType(keyType keymanagerv1.KeyType) (types.CustomerMasterKeySpec, bool) {
 	switch keyType {
 	case keymanagerv1.KeyType_RSA_2048:
-		return types.KeySpecRsa2048, true
+		return types.CustomerMasterKeySpecRsa2048, true
 	case keymanagerv1.KeyType_RSA_4096:
-		return types.KeySpecRsa4096, true
+		return types.CustomerMasterKeySpecRsa4096, true
 	case keymanagerv1.KeyType_EC_P256:
-		return types.KeySpecEccNistP256, true
+		return types.CustomerMasterKeySpecEccNistP256, true
 	case keymanagerv1.KeyType_EC_P384:
-		return types.KeySpecEccNistP384, true
+		return types.CustomerMasterKeySpecEccNistP384, true
 	default:
 		return "", false
 	}
