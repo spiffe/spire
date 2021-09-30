@@ -71,18 +71,18 @@ Usage of health:
 }
 
 func (s *HealthCheckSuite) TestFailsOnUnavailable() {
-	code := s.cmd.Run([]string{"--socketPath", "doesnotexist.sock"})
+	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Equal("Agent is unhealthy: unable to determine health\n", s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestFailsOnUnavailableVerbose() {
-	code := s.cmd.Run([]string{"--socketPath", "doesnotexist.sock", "--verbose"})
+	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Checking agent health...
 `, s.stdout.String(), "stdout")
-	s.Equal(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix doesnotexist.sock: connect: no such file or directory"
+	s.Equal(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix /tmp/doesnotexist.sock: connect: no such file or directory"
 Agent is unhealthy: unable to determine health
 `, s.stderr.String(), "stdout")
 }

@@ -1,16 +1,16 @@
 package api
 
 import (
+	"context"
+	"crypto/x509"
 	"flag"
 	"fmt"
-	"log"
-	"net"
 	"os"
 	"os/signal"
-	"syscall"
+	"path/filepath"
 	"time"
 
-	"github.com/spiffe/spire/api/workload"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 )
 
@@ -20,8 +20,6 @@ type WatchConfig struct {
 
 type WatchCLI struct {
 	config *WatchConfig
-
-	stopChan chan struct{}
 }
 
 func (WatchCLI) Synopsis() string {
@@ -36,33 +34,25 @@ func (w WatchCLI) Help() string {
 func (w *WatchCLI) Run(args []string) int {
 	err := w.parseConfig(args)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 
-	w.stopChan = make(chan struct{})
-	client, errChan := w.startClient()
-
-	updateTime := time.Now()
-	go w.signalListener()
-	for {
-		select {
-		case <-w.stopChan:
-			client.Stop()
-			return 0
-		case err := <-errChan:
-			fmt.Fprintln(os.Stderr, err)
-			return 1
-		case u := <-client.UpdateChan():
-			svids, err := parseAndValidateX509SVIDResponse(u)
-			if err == nil {
-				printX509SVIDResponse(svids, time.Since(updateTime))
-			} else {
-				fmt.Fprintln(os.Stderr, err)
-			}
-			updateTime = time.Now()
-		}
+	socketPath, err := filepath.Abs(w.config.socketPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
 	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	if err := workloadapi.WatchX509Context(ctx, newWatcher(), workloadapi.WithAddr("unix://"+socketPath)); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	return 0
 }
 
 func (w *WatchCLI) parseConfig(args []string) error {
@@ -74,30 +64,42 @@ func (w *WatchCLI) parseConfig(args []string) error {
 	return fs.Parse(args)
 }
 
-func (w *WatchCLI) startClient() (workload.X509Client, chan error) {
-	addr := &net.UnixAddr{
-		Net:  "unix",
-		Name: w.config.socketPath,
-	}
-
-	l := log.New(os.Stdout, "", log.LstdFlags)
-
-	c := &workload.X509ClientConfig{
-		Addr: addr,
-		Log:  l,
-	}
-
-	client := workload.NewX509Client(c)
-	errChan := make(chan error)
-	go func() { errChan <- client.Start() }()
-
-	return client, errChan
+type watcher struct {
+	updateTime time.Time
 }
 
-func (w *WatchCLI) signalListener() {
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+func newWatcher() *watcher {
+	return &watcher{
+		updateTime: time.Now(),
+	}
+}
 
-	<-signalChan
-	close(w.stopChan)
+func (w *watcher) OnX509ContextUpdate(x509Context *workloadapi.X509Context) {
+	svids := make([]*X509SVID, 0, len(x509Context.SVIDs))
+	for _, svid := range x509Context.SVIDs {
+		var bundle []*x509.Certificate
+		federatedBundles := make(map[string][]*x509.Certificate)
+
+		for _, candidateBundle := range x509Context.Bundles.Bundles() {
+			if candidateBundle.TrustDomain() == svid.ID.TrustDomain() {
+				bundle = candidateBundle.X509Authorities()
+			} else {
+				federatedBundles[candidateBundle.TrustDomain().String()] = candidateBundle.X509Authorities()
+			}
+		}
+
+		svids = append(svids, &X509SVID{
+			SPIFFEID:         svid.ID.String(),
+			Certificates:     svid.Certificates,
+			PrivateKey:       svid.PrivateKey,
+			Bundle:           bundle,
+			FederatedBundles: federatedBundles,
+		})
+	}
+	printX509SVIDResponse(svids, time.Since(w.updateTime))
+	w.updateTime = time.Now()
+}
+
+func (w *watcher) OnX509ContextWatchError(err error) {
+	fmt.Fprintln(os.Stderr, err)
 }

@@ -50,9 +50,6 @@ type ClusterConfig struct {
 	// Attestation is denied if coming from a service account that is not in the list
 	ServiceAccountAllowList []string `hcl:"service_account_allow_list"`
 
-	// TODO: Remove this in 1.1.0
-	ServiceAccountAllowListDeprecated []string `hcl:"service_account_whitelist"`
-
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
 	// If audience value is set to an empty slice, k8s apiserver audience will be used
@@ -237,12 +234,6 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureR
 	}
 
 	for name, cluster := range hclConfig.Clusters {
-		// TODO: Remove this in 1.1.0
-		if len(cluster.ServiceAccountAllowListDeprecated) > 0 {
-			p.log.Warn("The `service_account_whitelist` configurable is deprecated and will be removed in a future release. Please use `service_account_allow_list` instead.")
-			cluster.ServiceAccountAllowList = cluster.ServiceAccountAllowListDeprecated
-		}
-
 		if len(cluster.ServiceAccountAllowList) == 0 {
 			return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration must have at least one service account allowed", name)
 		}

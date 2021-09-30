@@ -15,7 +15,7 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	admv1beta1 "k8s.io/api/admission/v1beta1"
+	admv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -51,7 +51,8 @@ func (c *Controller) Initialize(ctx context.Context) error {
 	})
 }
 
-func (c *Controller) ReviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) (*admv1beta1.AdmissionResponse, error) {
+func (c *Controller) ReviewAdmission(ctx context.Context, ar admv1.AdmissionReview) (*admv1.AdmissionResponse, error) {
+	req := ar.Request
 	c.c.Log.WithFields(logrus.Fields{
 		"namespace": req.Namespace,
 		"name":      req.Name,
@@ -64,7 +65,7 @@ func (c *Controller) ReviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 		return nil, err
 	}
 
-	return &admv1beta1.AdmissionResponse{
+	return &admv1.AdmissionResponse{
 		UID:     req.UID,
 		Allowed: true,
 	}, nil
@@ -73,7 +74,7 @@ func (c *Controller) ReviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 // reviewAdmission handles CREATE and DELETE requests for pods in
 // non-kubernetes namespaces. Ideally the ValidatingAdmissionWebhook
 // configuration has filters in place to restrict the admission requests.
-func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.AdmissionRequest) error {
+func (c *Controller) reviewAdmission(ctx context.Context, req *admv1.AdmissionRequest) error {
 	if _, disabled := c.c.DisabledNamespaces[req.Namespace]; disabled {
 		return nil
 	}
@@ -87,13 +88,13 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1beta1.Admiss
 	}
 
 	switch req.Operation {
-	case admv1beta1.Create:
+	case admv1.Create:
 		pod := new(corev1.Pod)
 		if err := json.Unmarshal(req.Object.Raw, pod); err != nil {
 			return errs.New("unable to unmarshal %s/%s object: %v", req.Kind.Version, req.Kind.Kind, err)
 		}
 		return c.createPodEntry(ctx, pod)
-	case admv1beta1.Delete:
+	case admv1.Delete:
 		return c.deletePodEntry(ctx, req.Namespace, req.Name)
 	default:
 		c.c.Log.WithFields(logrus.Fields{

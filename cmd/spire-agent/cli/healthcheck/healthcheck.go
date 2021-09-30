@@ -5,12 +5,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
+	"path/filepath"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/api/workload/dial"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -72,10 +72,12 @@ func (c *healthCheckCommand) run() error {
 		c.env.Printf("Checking agent health...\n")
 	}
 
-	conn, err := dial.Dial(context.Background(), &net.UnixAddr{
-		Name: c.socketPath,
-		Net:  "unix",
-	})
+	socketPath, err := filepath.Abs(c.socketPath)
+	if err != nil {
+		return err
+	}
+
+	conn, err := grpc.DialContext(context.Background(), "unix://"+socketPath, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}

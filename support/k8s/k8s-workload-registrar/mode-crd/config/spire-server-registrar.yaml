@@ -153,7 +153,6 @@ data:
   k8s-workload-registrar.conf: |
     log_level = "debug"
     trust_domain = "example.org"
-    agent_socket_path = "/run/spire/sockets/agent.sock"
     server_socket_path = "/tmp/spire-server/private/api.sock"
     cluster = "demo-cluster"
     pod_controller = true

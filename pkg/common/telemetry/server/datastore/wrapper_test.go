@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -167,6 +168,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.bundle.update",
 			methodName: "UpdateBundle",
+		},
+		{
+			key:        "datastore.federation_relationship.update",
+			methodName: "UpdateFederationRelationship",
 		},
 		{
 			key:        "datastore.registration_entry.update",
@@ -386,4 +391,8 @@ func (ds *fakeDataStore) UpdateBundle(context.Context, *common.Bundle, *common.B
 
 func (ds *fakeDataStore) UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
 	return &common.RegistrationEntry{}, ds.err
+}
+
+func (ds *fakeDataStore) UpdateFederationRelationship(context.Context, *datastore.FederationRelationship, *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
+	return &datastore.FederationRelationship{}, ds.err
 }

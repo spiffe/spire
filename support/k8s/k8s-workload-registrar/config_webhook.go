@@ -78,7 +78,7 @@ func (c *WebhookMode) Run(ctx context.Context) error {
 	server, err := NewServer(ServerConfig{
 		Log:                            log,
 		Addr:                           c.Addr,
-		Handler:                        NewWebhookHandler(controller),
+		Handler:                        NewWebhookHandler(log, controller),
 		CertPath:                       c.CertPath,
 		KeyPath:                        c.KeyPath,
 		CaCertPath:                     c.CaCertPath,

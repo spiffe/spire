@@ -103,11 +103,11 @@ func (s *Service) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest)
 func (s *Service) AppendBundle(ctx context.Context, req *bundlev1.AppendBundleRequest) (*types.Bundle, error) {
 	parseRequest := func() logrus.Fields {
 		fields := logrus.Fields{}
-		for k, v := range fieldsFromJwtAuthoritiesProto(req.JwtAuthorities) {
+		for k, v := range api.FieldsFromJwtAuthoritiesProto(req.JwtAuthorities) {
 			fields[k] = v
 		}
 
-		for k, v := range fieldsFromX509AuthoritiesProto(req.X509Authorities) {
+		for k, v := range api.FieldsFromX509AuthoritiesProto(req.X509Authorities) {
 			fields[k] = v
 		}
 
@@ -281,7 +281,7 @@ func (s *Service) BatchCreateFederatedBundle(ctx context.Context, req *bundlev1.
 		results = append(results, r)
 
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
-			return fieldsFromBundleProto(b, nil)
+			return api.FieldsFromBundleProto(b, nil)
 		})
 	}
 
@@ -395,7 +395,7 @@ func (s *Service) BatchUpdateFederatedBundle(ctx context.Context, req *bundlev1.
 		results = append(results, r)
 
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
-			return fieldsFromBundleProto(b, req.InputMask)
+			return api.FieldsFromBundleProto(b, req.InputMask)
 		})
 	}
 
@@ -464,7 +464,7 @@ func (s *Service) BatchSetFederatedBundle(ctx context.Context, req *bundlev1.Bat
 		results = append(results, r)
 
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
-			return fieldsFromBundleProto(b, nil)
+			return api.FieldsFromBundleProto(b, nil)
 		})
 	}
 
@@ -573,51 +573,4 @@ func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {
 	if !mask.JwtAuthorities {
 		b.JwtAuthorities = nil
 	}
-}
-
-func fieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) logrus.Fields {
-	fields := logrus.Fields{
-		telemetry.TrustDomainID: proto.TrustDomain,
-	}
-
-	if inputMask == nil || inputMask.RefreshHint {
-		fields[telemetry.RefreshHint] = proto.RefreshHint
-	}
-
-	if inputMask == nil || inputMask.SequenceNumber {
-		fields[telemetry.SequenceNumber] = proto.SequenceNumber
-	}
-
-	if inputMask == nil || inputMask.JwtAuthorities {
-		for k, v := range fieldsFromJwtAuthoritiesProto(proto.JwtAuthorities) {
-			fields[k] = v
-		}
-	}
-
-	if inputMask == nil || inputMask.X509Authorities {
-		for k, v := range fieldsFromX509AuthoritiesProto(proto.X509Authorities) {
-			fields[k] = v
-		}
-	}
-	return fields
-}
-
-func fieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields {
-	fields := make(logrus.Fields, 3*len(jwtAuthorities))
-	for i, jwtAuthority := range jwtAuthorities {
-		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityExpiresAt, i)] = jwtAuthority.ExpiresAt
-		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityKeyID, i)] = jwtAuthority.KeyId
-		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityPublicKeySHA256, i)] = api.HashByte(jwtAuthority.PublicKey)
-	}
-
-	return fields
-}
-
-func fieldsFromX509AuthoritiesProto(x509Authorities []*types.X509Certificate) logrus.Fields {
-	fields := make(logrus.Fields, len(x509Authorities))
-	for i, x509Authority := range x509Authorities {
-		fields[fmt.Sprintf("%s.%d", telemetry.X509AuthoritiesASN1SHA256, i)] = api.HashByte(x509Authority.Asn1)
-	}
-
-	return fields
 }

@@ -46,12 +46,13 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 	}
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
-		CertDir:            webhookCertDir,
-		LeaderElection:     leaderElection,
-		LeaderElectionID:   "spire-k8s-registrar-leader-election",
-		MetricsBindAddress: metricsBindAddr,
-		Port:               webhookPort,
-		Scheme:             scheme,
+		CertDir:                    webhookCertDir,
+		LeaderElection:             leaderElection,
+		LeaderElectionID:           "spire-k8s-registrar-leader-election",
+		LeaderElectionResourceLock: "configmaps",
+		MetricsBindAddress:         metricsBindAddr,
+		Port:                       webhookPort,
+		Scheme:                     scheme,
 	})
 	if err != nil {
 		return nil, err

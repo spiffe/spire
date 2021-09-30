@@ -7,6 +7,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	"github.com/spiffe/spire/cmd/spire-server/cli/bundle"
 	"github.com/spiffe/spire/cmd/spire-server/cli/entry"
+	"github.com/spiffe/spire/cmd/spire-server/cli/federation"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
@@ -72,6 +73,24 @@ func (cc *CLI) Run(args []string) int {
 		},
 		"entry show": func() (cli.Command, error) {
 			return entry.NewShowCommand(), nil
+		},
+		"federation create": func() (cli.Command, error) {
+			return federation.NewCreateCommand(), nil
+		},
+		"federation delete": func() (cli.Command, error) {
+			return federation.NewDeleteCommand(), nil
+		},
+		"federation list": func() (cli.Command, error) {
+			return federation.NewListCommand(), nil
+		},
+		"federation show": func() (cli.Command, error) {
+			return federation.NewShowCommand(), nil
+		},
+		"federation refresh": func() (cli.Command, error) {
+			return federation.NewRefreshCommand(), nil
+		},
+		"federation update": func() (cli.Command, error) {
+			return federation.NewUpdateCommand(), nil
 		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
