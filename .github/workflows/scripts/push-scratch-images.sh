@@ -17,8 +17,8 @@ echo "Pushing images tagged as $IMAGETAG..."
 
 for img in spire-server spire-agent; do
     ghcrimg=ghcr.io/"$ORGNAME"/"$img":"${IMAGETAG}"
-    echo "Executing: docker tag $img:latest-local $ghcrimg"
-    docker tag "$img":latest-local "$ghcrimg"
+    echo "Executing: docker tag $img-scratch:latest-local $ghcrimg"
+    docker tag "$img"-scratch:latest-local "$ghcrimg"
     echo "Executing: docker push $ghcrimg"
     docker push "$ghcrimg"
 done
