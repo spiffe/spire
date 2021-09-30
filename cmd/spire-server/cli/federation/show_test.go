@@ -24,7 +24,7 @@ func TestShowHelp(t *testing.T) {
 
 func TestShowSynopsis(t *testing.T) {
 	test := setupTest(t, newShowCommand)
-	require.Equal(t, "Show a federation relationship", test.client.Synopsis())
+	require.Equal(t, "Shows a dynamic federation relationship", test.client.Synopsis())
 }
 
 func TestShow(t *testing.T) {

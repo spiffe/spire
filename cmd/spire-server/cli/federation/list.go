@@ -27,7 +27,7 @@ func (c *listCommand) Name() string {
 }
 
 func (c *listCommand) Synopsis() string {
-	return "List federation relationships"
+	return "Lists all dynamic federation relationships"
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {

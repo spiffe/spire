@@ -24,7 +24,7 @@ func TestDeleteHelp(t *testing.T) {
 
 func TestDeleteSynopsis(t *testing.T) {
 	test := setupTest(t, newDeleteCommand)
-	require.Equal(t, "Deletes federation relationship", test.client.Synopsis())
+	require.Equal(t, "Deletes a dynamic federation relationship", test.client.Synopsis())
 }
 
 func TestDelete(t *testing.T) {
