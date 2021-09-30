@@ -11,7 +11,7 @@ fi
 
 # Extracting org name rather than hardcoding allows this
 # action to be portable across forks
-ORGNAME=`echo $GITHUB_REPOSITORY | tr '/' "\n" | head -1 | tr -d "\n"`
+ORGNAME=$(echo $GITHUB_REPOSITORY | tr '/' "\n" | head -1 | tr -d "\n")
 
 echo "Pushing images tagged as $IMAGETAG..."
 
