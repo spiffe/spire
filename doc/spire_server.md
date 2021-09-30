@@ -126,7 +126,7 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 SPIRE Server can be configured to federate with others SPIRE Servers living in different trust domains. SPIRE supports configuring federation relationships in the SPIRE Server configuration file (static relationships) and through the [Trust Domain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto) (dynamic relationships). This section describes how to configure statically defined relationships in the configuration file.
 
-_Note: static relationships override dynamic relationships. If you need to configure dynamic relationships, see the [`federation`](#spire-server-federation-create) command. Static relationships are not relflected in the `federation` command._
+_Note: static relationships override dynamic relationships. If you need to configure dynamic relationships, see the [`federation`](#spire-server-federation-create) command. Static relationships are not reflected in the `federation` command._
 
 Configuring a federated trust domain allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
 A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
@@ -252,7 +252,7 @@ Creates registration entries.
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
 | `-admin`         | If set, the SPIFFE ID in this entry will be granted access to the Server APIs | |
-| `-data`          | Path to a file containing registration data in JSON format (optional). If set to '-', read the JSON from stdin. |                |
+| `-data`          | Path to a file containing registration data in JSON format (optional, if specified, other flags related with entry information must be omitted). If set to '-', read the JSON from stdin. |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned from the datastore. Please note that this is a data management feature and not a security feature (optional).| |
@@ -271,7 +271,7 @@ Updates registration entries.
 | Command          | Action                                                                 | Default        |
 |:-----------------|:-----------------------------------------------------------------------|:---------------|
 | `-admin`         | If true, the SPIFFE ID in this entry will be granted access to the Server APIs | |
-| `-data`          | Path to a file containing registration data in JSON format (optional). If set to '-', read the JSON from stdin. |                |
+| `-data`          | Path to a file containing registration data in JSON format (optional, if specified, other flags related with entry information must be omitted). If set to '-', read the JSON from stdin. |                |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once | |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server | |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned | |
@@ -370,7 +370,7 @@ Creates a dynamic federation relationship with a foreign trust domain.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-bundleEndpointProfile` | Endpoint profile type. Either `https_web` or `https_spiffe`. | |
 | `-bundleEndpointURL` | URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol). | |
-| `-data` | Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin. | |
+| `-data` | Path to a file containing federation relationships in JSON format (optional, if specified, other flags related with federation relationship information must be omitted). If set to '-', read the JSON from stdin. | |
 | `-endpointSpiffeID` | SPIFFE ID of the SPIFFE bundle endpoint server. Only used for `https_spiffe` profile. | |
 | `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
 | `-trustDomain` | Name of the trust domain to federate with (e.g., example.org) | |
@@ -421,7 +421,7 @@ Updates a dynamic federation relationship with a foreign trust domain.
 |:--------------|:-------------------------------------------------------------------|:---------------|
 | `-bundleEndpointProfile` | Endpoint profile type. Either `https_web` or `https_spiffe`. | |
 | `-bundleEndpointURL` | URL of the SPIFFE bundle endpoint that provides the trust bundle (must use the HTTPS protocol). | |
-| `-data` | Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin. | |
+| `-data` | Path to a file containing federation relationships in JSON format (optional, if specified, other flags related with federation relationship information must be omitted). If set to '-', read the JSON from stdin. | |
 | `-endpointSpiffeID` | SPIFFE ID of the SPIFFE bundle endpoint server. Only used for `https_spiffe` profile. | |
 | `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
 | `-trustDomain` | Name of the trust domain to federate with (e.g., example.org) | |
