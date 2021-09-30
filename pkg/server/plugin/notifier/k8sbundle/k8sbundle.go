@@ -139,6 +139,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		setDefaultValues(&config.cluster)
 	}
 	for i := range config.Clusters {
+		if config.Clusters[i].KubeConfigFilePath == "" {
+			return nil, status.Error(codes.InvalidArgument, "configuration is missing kube config file path")
+		}
 		setDefaultValues(&config.Clusters[i])
 	}
 
@@ -633,12 +636,7 @@ func setDefaultValues(c *cluster) {
 }
 
 func hasRootCluster(config *cluster) bool {
-	return config.Namespace != "" ||
-		config.ConfigMap != "" ||
-		config.ConfigMapKey != "" ||
-		config.KubeConfigFilePath != "" ||
-		config.WebhookLabel != "" ||
-		config.APIServiceLabel != ""
+	return *config != cluster{}
 }
 
 func hasMultipleClusters(clusters []cluster) bool {

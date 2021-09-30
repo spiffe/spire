@@ -168,6 +168,7 @@ clusters  = [
 		namespace = "NAMESPACE2"
 		config_map = "CONFIGMAP2"
 		config_map_key = "CONFIGMAPKEY2"
+		kube_config_file_path = "KUBECONFIGFILEPATH2"
 	}
 ]
 `
@@ -303,6 +304,7 @@ clusters  = [
 		namespace = "NAMESPACE2"
 		config_map = "CONFIGMAP2"
 		config_map_key = "CONFIGMAPKEY2"
+		kube_config_file_path = "KUBECONFIGFILEPATH2"
 	}
 ]
 `
@@ -374,6 +376,8 @@ func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		configuration  string
+		expectedErr    string
+		expectedCode   codes.Code
 		expectedConfig *pluginConfig
 	}{
 		{
@@ -446,7 +450,6 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "root only with partial configuration",
 			configuration: `			
-			kube_config_file_path = "/some/file/path"			
 			api_service_label = "root_api_label"			
 			`,
 			expectedConfig: &pluginConfig{
@@ -454,7 +457,7 @@ func TestConfigure(t *testing.T) {
 					Namespace:          "spire",
 					ConfigMap:          "spire-bundle",
 					ConfigMapKey:       "bundle.crt",
-					KubeConfigFilePath: "/some/file/path",
+					KubeConfigFilePath: "",
 					APIServiceLabel:    "root_api_label",
 				},
 			},
@@ -463,7 +466,8 @@ func TestConfigure(t *testing.T) {
 			name: "clusters only with partial configuration",
 			configuration: `
 			clusters  = [
-			{															
+			{
+				kube_config_file_path = "/cluster1/file/path"														
 			},
 			{
 				namespace = "cluster2"
@@ -475,9 +479,10 @@ func TestConfigure(t *testing.T) {
 			expectedConfig: &pluginConfig{
 				Clusters: []cluster{
 					{
-						Namespace:    "spire",
-						ConfigMap:    "spire-bundle",
-						ConfigMapKey: "bundle.crt",
+						Namespace:          "spire",
+						ConfigMap:          "spire-bundle",
+						ConfigMapKey:       "bundle.crt",
+						KubeConfigFilePath: "/cluster1/file/path",
 					},
 					{
 						Namespace:          "cluster2",
@@ -488,6 +493,24 @@ func TestConfigure(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:         "clusters only missing kube_config_file_path",
+			expectedErr:  "configuration is missing kube config file path",
+			expectedCode: codes.InvalidArgument,
+			configuration: `
+			clusters  = [
+			{
+				namespace = "cluster1"
+				config_map = "cluster1_config_map"														
+			},
+			{
+				namespace = "cluster2"
+				config_map = "cluster2_config_map"				
+				kube_config_file_path = "/cluster2/file/path"				
+			},
+			]
+			`,
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -496,6 +519,11 @@ func TestConfigure(t *testing.T) {
 				HclConfiguration:  tt.configuration,
 				CoreConfiguration: coreConfig,
 			})
+
+			if tt.expectedErr != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.expectedCode, tt.expectedErr)
+				return
+			}
 
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedConfig, test.rawPlugin.config)

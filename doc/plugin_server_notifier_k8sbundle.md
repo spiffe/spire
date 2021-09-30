@@ -136,36 +136,16 @@ server to
     }
 ```
 
-### Multipe namespaces
-
-```
-    Notifier "k8sbundle" {
-      plugin_data {  
-        clusters = [
-        {
-          # spire namespace due to default values
-        },
-        {
-          namespace = "default"
-        },
-        {
-          namespace = "foo"
-        }
-        ]
-      }
-    }
-
-```
-
 ### Multipe clusters
 
 ```
     Notifier "k8sbundle" {
-      plugin_data {  
-        clusters = [
-        {
-          # this is local cluster with default values
-        },
+      plugin_data {        
+        # local cluster
+        namespace = "spire"
+
+        # extra clusters
+        clusters = [        
         {
           kube_config_file_path = "/cluster2/file/path"
         },
@@ -173,6 +153,6 @@ server to
           kube_config_file_path = "/cluster3/file/path"
         }
         ]
-      }
+      }    
     }
 ```
