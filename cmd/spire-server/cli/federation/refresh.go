@@ -32,7 +32,7 @@ func (c *refreshCommand) Name() string {
 }
 
 func (c *refreshCommand) Synopsis() string {
-	return "Refresh bundle"
+	return "Refreshes the bundle from the specified federated trust domain"
 }
 
 func (c *refreshCommand) AppendFlags(fs *flag.FlagSet) {

@@ -30,7 +30,7 @@ func (c *showCommand) Name() string {
 }
 
 func (c *showCommand) Synopsis() string {
-	return "Show a federation relationship"
+	return "Shows a dynamic federation relationship"
 }
 
 func (c *showCommand) AppendFlags(f *flag.FlagSet) {

@@ -40,7 +40,7 @@ func TestUpdateHelp(t *testing.T) {
 
 func TestUpdateSynopsis(t *testing.T) {
 	test := setupTest(t, newUpdateCommand)
-	require.Equal(t, "Updates a federation relationship to a foreign trust domain", test.client.Synopsis())
+	require.Equal(t, "Updates a dynamic federation relationship with a foreign trust domain", test.client.Synopsis())
 }
 
 func TestUpdate(t *testing.T) {

@@ -32,7 +32,7 @@ func (*updateCommand) Name() string {
 }
 
 func (*updateCommand) Synopsis() string {
-	return "Updates a federation relationship to a foreign trust domain"
+	return "Updates a dynamic federation relationship with a foreign trust domain"
 }
 
 func (c *updateCommand) AppendFlags(f *flag.FlagSet) {

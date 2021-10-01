@@ -23,11 +23,11 @@ type bundleWatcher struct {
 
 // newBundleWatcher creates a new watcher for newly created objects
 func newBundleWatcher(ctx context.Context, p *Plugin, config *pluginConfig) (*bundleWatcher, error) {
-	clients, err := p.hooks.newKubeClient(config)
+	clients, err := p.hooks.newKubeClients(config)
 	if err != nil {
 		return nil, err
 	}
-	watchers, clients, err := newWatchers(ctx, clients, config)
+	watchers, clients, err := newWatchers(ctx, clients)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event
 			return err
 		}
 
-		err = b.p.updateBundle(ctx, b.config, client, objectMeta.GetNamespace(), objectMeta.GetName())
+		err = b.p.updateBundle(ctx, client, objectMeta.GetNamespace(), objectMeta.GetName())
 		switch {
 		case err == nil:
 			b.p.log.Debug("Set bundle for object", "name", objectMeta.GetName(), "event", event.Type)
@@ -90,11 +90,11 @@ func (b *bundleWatcher) watchEvent(ctx context.Context, client kubeClient, event
 }
 
 // newWatchers creates a watcher array for all of the clients
-func newWatchers(ctx context.Context, clients []kubeClient, config *pluginConfig) ([]watch.Interface, []kubeClient, error) {
+func newWatchers(ctx context.Context, clients []kubeClient) ([]watch.Interface, []kubeClient, error) {
 	watchers := []watch.Interface{}
 	validClients := []kubeClient{}
 	for _, client := range clients {
-		watcher, err := client.Watch(ctx, config)
+		watcher, err := client.Watch(ctx)
 		if err != nil {
 			return nil, nil, err
 		}

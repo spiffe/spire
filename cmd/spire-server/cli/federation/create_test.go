@@ -40,7 +40,7 @@ func TestCreatetHelp(t *testing.T) {
 
 func TestCreateSynopsis(t *testing.T) {
 	test := setupTest(t, newCreateCommand)
-	require.Equal(t, "Creates a federation relationship to a foreign trust domain", test.client.Synopsis())
+	require.Equal(t, "Creates a dynamic federation relationship with a foreign trust domain", test.client.Synopsis())
 }
 
 func TestCreate(t *testing.T) {

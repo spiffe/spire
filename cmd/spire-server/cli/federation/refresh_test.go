@@ -24,7 +24,7 @@ func TestRefreshHelp(t *testing.T) {
 
 func TestRefreshSynopsis(t *testing.T) {
 	test := setupTest(t, newRefreshCommand)
-	require.Equal(t, "Refresh bundle", test.client.Synopsis())
+	require.Equal(t, "Refreshes the bundle from the specified federated trust domain", test.client.Synopsis())
 }
 
 func TestRefresh(t *testing.T) {

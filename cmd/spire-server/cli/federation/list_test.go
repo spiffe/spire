@@ -22,7 +22,7 @@ func TestListHelp(t *testing.T) {
 
 func TestListSynopsis(t *testing.T) {
 	test := setupTest(t, newListCommand)
-	require.Equal(t, "List federation relationships", test.client.Synopsis())
+	require.Equal(t, "Lists all dynamic federation relationships", test.client.Synopsis())
 }
 
 func TestList(t *testing.T) {
