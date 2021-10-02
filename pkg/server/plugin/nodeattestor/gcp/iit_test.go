@@ -67,7 +67,10 @@ func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 	)
 	s.attestor = attestor
-	s.requireAttestError(s.T(), []byte("payload"), codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
+	// s.requireAttestError(s.T(), []byte("payload"), codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
+	result, err := s.attestor.Attest(context.Background(), []byte("payload"), expectNoChallenge)
+	require.Error(s.T(), err)
+	require.Nil(s.T(), result)
 }
 
 func (s *IITAttestorSuite) TestErrorOnMissingPayload() {
