@@ -166,79 +166,79 @@ We can test this using the NGINX example deployment:
 
 1. Verify the SpiffeID resource was created. The name of the SpiffeID resource will be the same as the name of the Pod.
    ```
-  $ kubectl get spiffeids
-  NAME                                AGE
-  nginx-deployment-7ffbd8bd54-rcnt8   4s
-  $ kubectl get spiffeids nginx-deployment-7ffbd8bd54-rcnt8 -o yaml
-  apiVersion: v1
-  apiVersion: spiffeid.spiffe.io/v1beta1
-  kind: SpiffeID
-  metadata:
-    creationTimestamp: "2021-09-08T00:25:38Z"
-    finalizers:
-    - finalizers.spiffeid.spiffe.io
-    generation: 1
-    labels:
-      podUid: 2849bd42-ed7c-4652-af0b-382911c11f52
-    managedFields:
-    - apiVersion: spiffeid.spiffe.io/v1beta1
-      fieldsType: FieldsV1
-      fieldsV1:
-        f:metadata:
-          f:finalizers:
-            .: {}
-            v:"finalizers.spiffeid.spiffe.io": {}
-          f:labels:
-            .: {}
-            f:podUid: {}
-          f:ownerReferences:
-            .: {}
-            k:{"uid":"2849bd42-ed7c-4652-af0b-382911c11f52"}:
-              .: {}
-              f:apiVersion: {}
-              f:blockOwnerDeletion: {}
-              f:controller: {}
-              f:kind: {}
-              f:name: {}
-              f:uid: {}
-        f:spec:
-          .: {}
-          f:dnsNames: {}
-          f:parentId: {}
-          f:selector:
-            .: {}
-            f:namespace: {}
-            f:nodeName: {}
-            f:podUid: {}
-          f:spiffeId: {}
-        f:status:
-          .: {}
-          f:entryId: {}
-      manager: k8s-workload-registrar
-      operation: Update
-      time: "2021-09-08T00:25:38Z"
-    name: nginx-deployment-7ffbd8bd54-rcnt8
-    namespace: default
-    ownerReferences:
-    - apiVersion: v1
-      blockOwnerDeletion: false
-      controller: true
-      kind: Pod
-      name: nginx-deployment-7ffbd8bd54-rcnt8
-      uid: 2849bd42-ed7c-4652-af0b-382911c11f52
-    resourceVersion: "1271013"
-    uid: 395a6a0b-21bb-43d4-a3df-28a143785235
-  spec:
-    dnsNames:
-    - nginx-deployment-7ffbd8bd54-rcnt8
-    parentId: spiffe://example.org/k8s-workload-registrar/demo-cluster/node/docker-desktop
-    selector:
-      namespace: default
-      nodeName: docker-desktop
-      podUid: 2849bd42-ed7c-4652-af0b-382911c11f52
-    spiffeId: spiffe://example.org/ns/default/pod/nginx-deployment-7ffbd8bd54-rcnt8
-  status:
-    entryId: 617077a0-4c39-491a-8649-6b2f296a60f7
+   $ kubectl get spiffeids
+   NAME                                AGE
+   nginx-deployment-7ffbd8bd54-rcnt8   4s
+   $ kubectl get spiffeids nginx-deployment-7ffbd8bd54-rcnt8 -o yaml
+   apiVersion: v1
+   apiVersion: spiffeid.spiffe.io/v1beta1
+   kind: SpiffeID
+   metadata:
+     creationTimestamp: "2021-09-08T00:25:38Z"
+     finalizers:
+     - finalizers.spiffeid.spiffe.io
+     generation: 1
+     labels:
+       podUid: 2849bd42-ed7c-4652-af0b-382911c11f52
+     managedFields:
+     - apiVersion: spiffeid.spiffe.io/v1beta1
+       fieldsType: FieldsV1
+       fieldsV1:
+         f:metadata:
+           f:finalizers:
+             .: {}
+             v:"finalizers.spiffeid.spiffe.io": {}
+           f:labels:
+             .: {}
+             f:podUid: {}
+           f:ownerReferences:
+             .: {}
+             k:{"uid":"2849bd42-ed7c-4652-af0b-382911c11f52"}:
+               .: {}
+               f:apiVersion: {}
+               f:blockOwnerDeletion: {}
+               f:controller: {}
+               f:kind: {}
+               f:name: {}
+               f:uid: {}
+         f:spec:
+           .: {}
+           f:dnsNames: {}
+           f:parentId: {}
+           f:selector:
+             .: {}
+             f:namespace: {}
+             f:nodeName: {}
+             f:podUid: {}
+           f:spiffeId: {}
+         f:status:
+           .: {}
+           f:entryId: {}
+       manager: k8s-workload-registrar
+       operation: Update
+       time: "2021-09-08T00:25:38Z"
+     name: nginx-deployment-7ffbd8bd54-rcnt8
+     namespace: default
+     ownerReferences:
+     - apiVersion: v1
+       blockOwnerDeletion: false
+       controller: true
+       kind: Pod
+       name: nginx-deployment-7ffbd8bd54-rcnt8
+       uid: 2849bd42-ed7c-4652-af0b-382911c11f52
+     resourceVersion: "1271013"
+     uid: 395a6a0b-21bb-43d4-a3df-28a143785235
+   spec:
+     dnsNames:
+     - nginx-deployment-7ffbd8bd54-rcnt8
+     parentId: spiffe://example.org/k8s-workload-registrar/demo-cluster/node/docker-desktop
+     selector:
+       namespace: default
+       nodeName: docker-desktop
+       podUid: 2849bd42-ed7c-4652-af0b-382911c11f52
+     spiffeId: spiffe://example.org/ns/default/pod/nginx-deployment-7ffbd8bd54-rcnt8
+   status:
+     entryId: 617077a0-4c39-491a-8649-6b2f296a60f7
    ```
 
 1. Delete the NGINX deployment, this will automatically delete the SpiffeID resource
