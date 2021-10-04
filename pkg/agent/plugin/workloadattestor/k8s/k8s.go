@@ -37,8 +37,8 @@ const (
 	defaultMaxPollAttempts   = 60
 	defaultPollRetryInterval = time.Millisecond * 500
 	defaultSecureKubeletPort = 10250
-	defaultKubeletCAPath     = "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	defaultTokenPath         = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
+	defaultKubeletCAPath     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultTokenPath         = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 	defaultNodeNameEnv       = "MY_NODE_NAME"
 	defaultReloadInterval    = time.Minute
 )
