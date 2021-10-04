@@ -51,4 +51,5 @@ A sample configuration:
 | Selector                  	| Example								| Description				|
 | ---------------------------- 	| -----------------------------------------------------------------	| ---------------------------------	|
 | Subject common name		|`tpm_devid:subject:cn:example.org`					| The subject's common name.		|
+| Issuer common name		|`tpm_devid:issuer:cn:authority.org`					| The issuer's common name.		|
 | SHA1 fingerprint		|`tpm_devid:fingerprint:9ba51e2643bea24e91d24bdec3a1aaf8e967b6e5`	| The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.|

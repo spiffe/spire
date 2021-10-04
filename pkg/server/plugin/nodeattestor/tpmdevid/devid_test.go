@@ -545,6 +545,10 @@ func TestAttestSucceeds(t *testing.T) {
 				},
 				{
 					Type:  "tpm_devid",
+					Value: "issuer:cn:intermediate",
+				},
+				{
+					Type:  "tpm_devid",
 					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(devIDRSA.Intermediates[0]),
 				},
 				{
@@ -565,6 +569,10 @@ func TestAttestSucceeds(t *testing.T) {
 				},
 				{
 					Type:  "tpm_devid",
+					Value: "issuer:cn:intermediate",
+				},
+				{
+					Type:  "tpm_devid",
 					Value: "ca:fingerprint:" + tpmdevid.Fingerprint(devIDECC.Intermediates[0]),
 				},
 				{
@@ -582,6 +590,10 @@ func TestAttestSucceeds(t *testing.T) {
 				{
 					Type:  "tpm_devid",
 					Value: "subject:cn:devid-leaf",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "issuer:cn:root",
 				},
 				{
 					Type:  "tpm_devid",
