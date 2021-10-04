@@ -123,7 +123,7 @@ spec:
         - name: spire-agent
           image: spire-agent-scratch:latest-local
           imagePullPolicy: Never
-          args: ["run", "-config", "/run/spire/config/agent.conf"]
+          args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
             - name: spire-config
               mountPath: /run/spire/config
