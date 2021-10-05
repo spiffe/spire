@@ -13,6 +13,10 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
 	}
 
+	if leaf.Issuer.CommonName != "" {
+		selectorValues = append(selectorValues, "issuer:cn:"+leaf.Issuer.CommonName)
+	}
+
 	// Used to avoid duplicating selectors.
 	fingerprints := map[string]*x509.Certificate{}
 	for _, chain := range chains {
