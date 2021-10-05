@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
-	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1beta1"
+	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -28,6 +28,7 @@ func TestInvalidConfigs(t *testing.T) {
 		// Missing project_name
 		`root_cert_spec {
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 			label_value = "true"
 		    }`,
@@ -35,12 +36,14 @@ func TestInvalidConfigs(t *testing.T) {
 		`root_cert_spec {
 			project_name = ""
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 			label_value = "true"
 		    }`,
 		// Missing region name
 		`root_cert_spec {
 			project_name = "proj1"
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 			label_value = "true"
 		    }`,
@@ -48,6 +51,7 @@ func TestInvalidConfigs(t *testing.T) {
 		`root_cert_spec {
 			project_name = "proj1"
 			region_name = ""
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 			label_value = "true"
 		    }`,
@@ -55,12 +59,14 @@ func TestInvalidConfigs(t *testing.T) {
 		`root_cert_spec {
 			project_name = "proj1"
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_value = "true"
 		    }`,
 		// Empty label key
 		`root_cert_spec {
 			project_name = "proj1"
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_key = ""
 			label_value = "true"
 		    }`,
@@ -68,12 +74,14 @@ func TestInvalidConfigs(t *testing.T) {
 		`root_cert_spec {
 			project_name = "proj1"
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 		    }`,
 		// Empty label value
 		`root_cert_spec {
 			project_name = "proj1"
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 			label_value = ""
 		    }`,
@@ -132,6 +140,7 @@ func TestGcpCAS(t *testing.T) {
 		root_cert_spec {
 			project_name = "proj1"
 			region_name = "us-central1"
+			ca_pool = "test-pool"
 			label_key = "proj-signer"
 			label_value = "true"
 		}
@@ -214,11 +223,11 @@ type fakeClient struct { // implements CAClient interface
 func (client *fakeClient) CreateCertificate(ctx context.Context, req *privatecapb.CreateCertificateRequest) (*privatecapb.Certificate, error) {
 	// Confirm that we were called with a request to sign using
 	// the very first CA from the CA List ( i.e. issuance order )
-	require.Equal(client.t, req.Parent, client.mockX509CAs[0][0].Subject.CommonName)
+	require.Equal(client.t, req.IssuingCertificateAuthorityId, client.mockX509CAs[0][0].Subject.CommonName)
 
 	// Mimic GCP GCA signing
 	// By first issuing a x509 cert and then converting it into GCP cert format
-	commonName := req.Certificate.GetConfig().GetSubjectConfig().GetCommonName()
+	commonName := req.Certificate.GetConfig().GetSubjectConfig().GetSubject().GetCommonName()
 	x509ca, _, err := generateCert(client.t, commonName, client.mockX509CAs[0][0],
 		*client.privKeyOfEarliestCA, 1 /* TTL */, testkey.NewEC256)
 	require.NoError(client.t, err)
