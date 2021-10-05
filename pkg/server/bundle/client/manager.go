@@ -121,7 +121,7 @@ func NewManager(config ManagerConfig) *Manager {
 		ds:                config.DataStore,
 		source:            config.Source,
 		newBundleUpdater:  config.newBundleUpdater,
-		configRefreshCh:   make(chan struct{}),
+		configRefreshCh:   make(chan struct{}, 1),
 		configRefreshedCh: config.configRefreshedCh,
 		bundleRefreshedCh: config.bundleRefreshedCh,
 		updaters:          make(map[spiffeid.TrustDomain]*managedBundleUpdater),
@@ -154,10 +154,9 @@ func (m *Manager) Run(ctx context.Context) error {
 // TriggerConfigReload triggers the manager to reload the configuration
 func (m *Manager) TriggerConfigReload() {
 	select {
-	case <-m.configRefreshCh:
+	case m.configRefreshCh <- struct{}{}:
 	default:
 	}
-	m.configRefreshCh <- struct{}{}
 }
 
 // RefreshBundleFor refreshes the trust domain bundle for the given trust
