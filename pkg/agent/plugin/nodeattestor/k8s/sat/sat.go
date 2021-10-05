@@ -19,7 +19,7 @@ import (
 const (
 	pluginName = "k8s_sat"
 
-	defaultTokenPath = "/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
+	defaultTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 )
 
 func BuiltIn() catalog.BuiltIn {
