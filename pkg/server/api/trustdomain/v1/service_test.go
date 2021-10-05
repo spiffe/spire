@@ -2253,7 +2253,7 @@ type fakeBundleRefresher struct {
 	reloads int
 }
 
-func (r *fakeBundleRefresher) TriggerReload() {
+func (r *fakeBundleRefresher) TriggerConfigReload() {
 	r.reloads++
 }
 
