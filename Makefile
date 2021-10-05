@@ -251,15 +251,8 @@ bin/:
 
 build-static: tidy bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
 
-define binary_rule_static
-.PHONY: $1
-$1: | go-check bin/
-	@echo Building $1...
-	$(E)$(go_path) CGO_ENABLED=0 go build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
-
-endef
 # https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
-define binary_rule_external_static
+define binary_rule_static
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
@@ -268,7 +261,7 @@ $1: | go-check bin/
 endef
 
 # static builds
-$(eval $(call binary_rule_external_static,bin/spire-server-static,./cmd/spire-server))
+$(eval $(call binary_rule_static,bin/spire-server-static,./cmd/spire-server))
 $(eval $(call binary_rule_static,bin/spire-agent-static,./cmd/spire-agent))
 $(eval $(call binary_rule_static,bin/k8s-workload-registrar-static,./support/k8s/k8s-workload-registrar))
 $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oidc-discovery-provider))

@@ -73,7 +73,6 @@ data:
           # Minikube does not have a cert in the cluster CA bundle that
           # can authenticate the kubelet cert, so skip validation.
           skip_kubelet_verification = true
-          token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
         }
       }
     }
@@ -123,7 +122,7 @@ spec:
         - name: spire-agent
           image: spire-agent-scratch:latest-local
           imagePullPolicy: Never
-          args: ["run", "-config", "/run/spire/config/agent.conf"]
+          args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
             - name: spire-config
               mountPath: /run/spire/config

@@ -3,9 +3,6 @@
 The `gcp_cas` plugin uses the Certificate Authority from Google Cloud Platform, known as "Certificate Authority Service" (CAS),
  to generate intermediate signing certificates for SPIRE Server.
 
-# Considerations
-**This plugin relies on GCP Certificate Authority Service which is currently in Beta and hence is not recommended to run in production environments**.
-
 # Configuration
 The plugin has a mandatory root_cert_spec section. It is used to specify which CAs are used for signing
  intermediate CAs as well as being part of the trusted root bundle. If it matches multiple CAs,
@@ -17,6 +14,7 @@ The plugin has a mandatory root_cert_spec section. It is used to specify which C
 | ----------------------------- | ----------------------------------------------------------------- |
 | project_name   | Project in GCP that has the root CA certificate                   |
 | region_name    | The name of the region within GCP                                 |
+| ca_pool        | The name of the CA Pool that has the root CA certificate          |
 | label_key      | Label key - value pair is used to filter and select the relevant certificate  |
 | label_value    | Label key - value pair is used to filter and select the relevant certificate  |
 
@@ -28,6 +26,7 @@ UpstreamAuthority "gcp_cas" {
         root_cert_spec {
             project_name = "MyProject"
             region_name = "us-central1"
+            ca_pool = "mypool"
             label_key = "myapp-identity-root"
             label_value = "true"
         }
