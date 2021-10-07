@@ -3,28 +3,28 @@
 ## [1.1.0] - 2021-10-10
 
 ### Added
-- SPIRE images are now published to GitHub Container Registry. They will continue to be published to Google Container Registry for the next release (#2576,#2580)
-- SPIRE Server now implements the TrustDomain API, which allows callers to manage dynamic federation relationships (#2497,#2524,#2532,#2533,#2535,#2536,#2541,#2544,#2545,#2546,#2547,#2549,#2550,#2557,#2559,#2560,#2561,#2562,#2563,#2564,#2565,#2566,#2568,#2571,#2572,#2574,#2575).
+- SPIRE images are now published to GitHub Container Registry. They will continue to be published to Google Container Registry over the course of the next release (#2576,#2580)
+- SPIRE Server now implements the [TrustDomain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto)
+- The SVIDStore plugin type has been introduced to enable, amongst other things, agentless workload scenarios (#2176,#2483)
 - The TPM DevID Node Attestor emits a new `issuer:cn` selector with the common name of the issuing certificate (#2581)
 - The K8s Bundle Notifier plugin now supports pushing the bundle to resources in multiple clusters (#2531)
-- The SVIDStore plugin type has been introduced to enable, amongst other things, agentless workload scenarios (#2176,#2483)
-- A built-in AWS Secrets Manager SVIDStore plugin has been introduced, which can push workload SVIDs into AWS secrets (#2542)
+- A built-in AWS Secrets Manager SVIDStore plugin has been introduced, which can push workload SVIDs into AWS secrets for use in Lambda functions, etc. (#2542)
 - The agent and entry list commands in the CLI gained additional filtering capabilities (#2478,#2479)
+- The GCP CAS UpstreamAuthority has a new `ca_pool` configurable to identify which CA pool the signing CA resides in (#2569)
 
 ### Changed
 - With the GA release of GCP CAS, the UpstreamAuthority plugin now needs to know which pool the CA belongs to. If not configured, it will do a pessimistic scan of all pools to locate the correct CA. This scan will be removed in a future release (#2569)
 - The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540) 
-- Self-signed CA certificates now have a random serial number (#2494)
+- Self-signed CA certificates serial numbers are now conformant to RFC 5280 (#2494)
 - The AWS KMS Key Manager plugin now creates keys with a very strict policy by default (#2424)
-- SPIRE Server CLI commands now page results from the API (#2456)
 - The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accomodate rollback from v1.0 to v0.12 (#2493)
 
 ### Removed
+- Support for the deprecated Registration API has been removed (#2487)
+- Legacy (v0) plugin support has been removed. All plugins must now be authored using the plugin SDK.
 - The deprecated `service_account_whitelist` configurables have been removed from the SAT and PSAT Node Attestor plugins (#2543)
 - The deprecated `projectid_whitelist` configurable has been removed from the GCP IIT Node Attestor plugin (#2492)
 - The deprecated `bundle_endpoint` and `registration_uds_path` configurables have been removed from SPIRE Server (#2486,#2519)
-- Legacy (v0) plugin support has been removed. All plugins must now be authored using the plugin SDK. (#2488,#2490,#2516,#2517,#2518,#2520,#2521,#2522,#2523,#2525,#2528)
-- Support for the deprecated Registration API has been removed (#2487)
 
 ### Fixed
 - The GCP CAS UpstreamAuthority now works with the GA release of GCP CAS (#2569)
@@ -32,6 +32,7 @@
 - Kubernetes Workload Attestor now uses the canonical path for the service account token (#2583)
 - The server socketPath is now appropriately overriden via the configuration file (#2570)
 - The server now restarts appropriately after undergoing forceful shutdown (#2496)
+- The server CLI list commands now work reliably for large listings (#2456)
 
 ## [1.0.2] - 2021-09-02
 
