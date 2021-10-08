@@ -175,6 +175,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 	return &svidstorev1.PutX509SVIDResponse{}, nil
 }
 
+// DeleteX509SVID schedules a deletion to a Secret using AWS secret manager
 func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
 	opt, err := optionsFromSecretData(req.Metadata)
 	if err != nil {
