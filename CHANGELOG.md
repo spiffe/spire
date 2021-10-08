@@ -4,7 +4,7 @@
 
 ### Added
 - SPIRE images are now published to GitHub Container Registry. They will continue to be published to Google Container Registry over the course of the next release (#2576,#2580)
-- SPIRE Server now implements the [TrustDomain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto)
+- SPIRE Server now implements the [TrustDomain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto) and related CLI commands (https://github.com/spiffe/spire/projects/11)
 - The SVIDStore plugin type has been introduced to enable, amongst other things, agentless workload scenarios (#2176,#2483)
 - The TPM DevID Node Attestor emits a new `issuer:cn` selector with the common name of the issuing certificate (#2581)
 - The K8s Bundle Notifier plugin now supports pushing the bundle to resources in multiple clusters (#2531)
