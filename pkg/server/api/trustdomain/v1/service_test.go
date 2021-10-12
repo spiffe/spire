@@ -1022,6 +1022,14 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			spiretest.AssertProtoEqual(t, &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: tt.expectResults,
 			}, resp)
+
+			var expectReloadCount int
+			for _, result := range tt.expectResults {
+				if result.Status.Code == 0 {
+					expectReloadCount = 1
+				}
+			}
+			assert.Equal(t, expectReloadCount, test.br.ReloadCount(), "unexpected reload count")
 		})
 	}
 }
@@ -1302,6 +1310,14 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 			spiretest.AssertProtoEqual(t, &trustdomainv1.BatchDeleteFederationRelationshipResponse{
 				Results: tt.expectResults,
 			}, resp)
+
+			var expectReloadCount int
+			for _, result := range tt.expectResults {
+				if result.Status.Code == 0 {
+					expectReloadCount = 1
+				}
+			}
+			assert.Equal(t, expectReloadCount, test.br.ReloadCount(), "unexpected reload count")
 
 			// Validate DS contains expected federation relationships
 			listResp, err := ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{})
@@ -1973,6 +1989,14 @@ func TestBatchUpdateFederationRelationship(t *testing.T) {
 				Results: tt.expectResults,
 			}, resp)
 
+			var expectReloadCount int
+			for _, result := range tt.expectResults {
+				if result.Status.Code == 0 {
+					expectReloadCount = 1
+				}
+			}
+			assert.Equal(t, expectReloadCount, test.br.ReloadCount(), "unexpected reload count")
+
 			// Check datastore
 			// Unable to use Equal because it contains PROTO + regular structs
 			for _, eachFR := range tt.expectDSFR {
@@ -2144,6 +2168,7 @@ func assertFederationRelationshipWithMask(t *testing.T, expected, actual *types.
 type serviceTest struct {
 	client  trustdomainv1.TrustDomainClient
 	ds      datastore.DataStore
+	br      *fakeBundleRefresher
 	logHook *test.Hook
 	done    func()
 }
@@ -2153,10 +2178,11 @@ func (s *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
+	br := &fakeBundleRefresher{}
 	service := trustdomain.New(trustdomain.Config{
 		DataStore:       ds,
 		TrustDomain:     td,
-		BundleRefresher: fakeBundleRefresher{},
+		BundleRefresher: br,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -2167,6 +2193,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 
 	test := &serviceTest{
 		ds:      ds,
+		br:      br,
 		logHook: logHook,
 	}
 
@@ -2222,9 +2249,19 @@ func (d *fakeDS) UpdateFederationRelationship(c context.Context, fr *datastore.F
 	return d.DataStore.UpdateFederationRelationship(ctx, fr, mask)
 }
 
-type fakeBundleRefresher struct{}
+type fakeBundleRefresher struct {
+	reloads int
+}
 
-func (fakeBundleRefresher) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+func (r *fakeBundleRefresher) TriggerConfigReload() {
+	r.reloads++
+}
+
+func (r *fakeBundleRefresher) ReloadCount() int {
+	return r.reloads
+}
+
+func (r *fakeBundleRefresher) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
 	switch {
 	case td == spiffeid.RequireTrustDomainFromString("good.test"):
 		return true, nil

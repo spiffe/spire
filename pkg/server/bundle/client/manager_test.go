@@ -110,7 +110,7 @@ func TestManagerOnDemandBundleRefresh(t *testing.T) {
 	assert.Equal(t, 1, test.UpdateCount(trustDomain))
 }
 
-func TestManagerConfigRefresh(t *testing.T) {
+func TestManagerConfigPeriodicRefresh(t *testing.T) {
 	td1 := spiffeid.RequireTrustDomainFromString("domain1.test")
 	td2 := spiffeid.RequireTrustDomainFromString("domain2.test")
 	td3 := spiffeid.RequireTrustDomainFromString("domain3.test")
@@ -179,6 +179,39 @@ func TestManagerConfigRefresh(t *testing.T) {
 	assert.Equal(t, 1, test.UpdateCount(td1))
 	assert.Equal(t, 2, test.UpdateCount(td2))
 	assert.Equal(t, 1, test.UpdateCount(td3))
+}
+
+func TestManagerConfigManualRefresh(t *testing.T) {
+	td1 := spiffeid.RequireTrustDomainFromString("domain1.test")
+	td2 := spiffeid.RequireTrustDomainFromString("domain2.test")
+	config1 := TrustDomainConfig{
+		EndpointURL:     "https://domain1.test/bundle",
+		EndpointProfile: HTTPSWebProfile{},
+	}
+	config2 := TrustDomainConfig{
+		EndpointURL:     "https://domain2.test/bundle",
+		EndpointProfile: HTTPSWebProfile{},
+	}
+
+	trustDomainConfigs := make(TrustDomainConfigMap)
+	trustDomainConfigs[td1] = config1
+
+	test := newManagerTest(t, trustDomainConfigs, nil, nil)
+
+	// Wait for the original config to be loaded
+	test.WaitForConfigRefresh()
+	require.Equal(t, map[spiffeid.TrustDomain]TrustDomainConfig{
+		td1: config1,
+	}, test.GetTrustDomainConfigs())
+
+	// Update config and trigger the reload
+	trustDomainConfigs[td2] = config2
+	test.manager.TriggerConfigReload()
+	test.WaitForConfigRefresh()
+	require.Equal(t, map[spiffeid.TrustDomain]TrustDomainConfig{
+		td1: config1,
+		td2: config2,
+	}, test.GetTrustDomainConfigs())
 }
 
 type managerTest struct {
