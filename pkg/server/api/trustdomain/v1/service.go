@@ -20,18 +20,13 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
-// BundleRefresher defines the bundle refresher interface.
+// BundleRefresher is used by the service to refresh bundles.
 type BundleRefresher interface {
+	// TriggerConfigReload triggers the refresher to reload it's configuration
+	TriggerConfigReload()
+
+	// RefreshBundleFor refreshes the bundle for the given trust domain.
 	RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error)
-}
-
-// BundleRefresherFunc defines the function.
-type BundleRefresherFunc func(ctx context.Context, td spiffeid.TrustDomain) (bool, error)
-
-// RefreshBundleFor refreshes the trust domain bundle for the given trust
-// domain. If the trust domain is not managed by the manager, false is returned.
-func (fn BundleRefresherFunc) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
-	return fn(ctx, td)
 }
 
 // Config is the service configuration.
@@ -128,12 +123,20 @@ func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomai
 
 func (s *Service) BatchCreateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {
 	var results []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result
+	var triggerReload bool
 	for _, eachRelationship := range req.FederationRelationships {
 		r := s.createFederationRelationship(ctx, eachRelationship, req.OutputMask)
+		if r.Status.Code == 0 {
+			triggerReload = true
+		}
 		results = append(results, r)
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
 			return fieldsFromRelationshipProto(eachRelationship, nil)
 		})
+	}
+
+	if triggerReload {
+		s.br.TriggerConfigReload()
 	}
 
 	return &trustdomainv1.BatchCreateFederationRelationshipResponse{
@@ -143,14 +146,22 @@ func (s *Service) BatchCreateFederationRelationship(ctx context.Context, req *tr
 
 func (s *Service) BatchUpdateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchUpdateFederationRelationshipRequest) (*trustdomainv1.BatchUpdateFederationRelationshipResponse, error) {
 	var results []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result
-
+	var triggerReload bool
 	for _, eachFR := range req.FederationRelationships {
-		fr := s.updateFederationRelationship(ctx, eachFR, req.InputMask, req.OutputMask)
-		results = append(results, fr)
-		rpccontext.AuditRPCWithTypesStatus(ctx, fr.Status, func() logrus.Fields {
+		r := s.updateFederationRelationship(ctx, eachFR, req.InputMask, req.OutputMask)
+		results = append(results, r)
+		if r.Status.Code == 0 {
+			triggerReload = true
+		}
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
 			return fieldsFromRelationshipProto(eachFR, req.InputMask)
 		})
 	}
+
+	if triggerReload {
+		s.br.TriggerConfigReload()
+	}
+
 	return &trustdomainv1.BatchUpdateFederationRelationshipResponse{
 		Results: results,
 	}, nil
@@ -158,12 +169,20 @@ func (s *Service) BatchUpdateFederationRelationship(ctx context.Context, req *tr
 
 func (s *Service) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
 	var results []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result
+	var triggerReload bool
 	for _, td := range req.TrustDomains {
 		r := s.deleteFederationRelationship(ctx, td)
+		if r.Status.Code == 0 {
+			triggerReload = true
+		}
 		results = append(results, r)
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
 			return logrus.Fields{telemetry.TrustDomainID: td}
 		})
+	}
+
+	if triggerReload {
+		s.br.TriggerConfigReload()
 	}
 
 	return &trustdomainv1.BatchDeleteFederationRelationshipResponse{

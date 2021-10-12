@@ -82,6 +82,7 @@ type Manager struct {
 	clock            clock.Clock
 	ds               datastore.DataStore
 	source           TrustDomainConfigSource
+	configRefreshCh  chan struct{}
 	configRefreshMtx sync.Mutex
 	updatersMtx      sync.RWMutex
 	updaters         map[spiffeid.TrustDomain]*managedBundleUpdater
@@ -120,6 +121,7 @@ func NewManager(config ManagerConfig) *Manager {
 		ds:                config.DataStore,
 		source:            config.Source,
 		newBundleUpdater:  config.newBundleUpdater,
+		configRefreshCh:   make(chan struct{}, 1),
 		configRefreshedCh: config.configRefreshedCh,
 		bundleRefreshedCh: config.bundleRefreshedCh,
 		updaters:          make(map[spiffeid.TrustDomain]*managedBundleUpdater),
@@ -140,11 +142,20 @@ func (m *Manager) Run(ctx context.Context) error {
 		timer.Reset(configRefreshInterval)
 		m.notifyConfigRefreshed(ctx, configRefreshInterval)
 		select {
+		case <-m.configRefreshCh:
 		case <-timer.C:
 		case <-ctx.Done():
 			m.log.Info("Shutting down")
 			return ctx.Err()
 		}
+	}
+}
+
+// TriggerConfigReload triggers the manager to reload the configuration
+func (m *Manager) TriggerConfigReload() {
+	select {
+	case m.configRefreshCh <- struct{}{}:
+	default:
 	}
 }
 

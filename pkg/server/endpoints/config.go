@@ -114,7 +114,6 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServers {
 	ds := c.Catalog.GetDataStore()
 	upstreamPublisher := UpstreamPublisher(c.Manager)
-	bundleRefresher := BundleRefresher(c.BundleManager)
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -154,7 +153,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
 			TrustDomain:     c.TrustDomain,
 			DataStore:       ds,
-			BundleRefresher: bundleRefresher,
+			BundleRefresher: c.BundleManager,
 		}),
 	}
 }
