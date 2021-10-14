@@ -16,7 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -201,26 +200,24 @@ func TestPutX509SVID(t *testing.T) {
 	x509Key, err := pemutil.ParseECPrivateKey([]byte(x509KeyPem))
 	require.NoError(t, err)
 
-	keyByte, err := x509.MarshalPKCS8PrivateKey(x509Key)
-	require.NoError(t, err)
-
-	successReq := &svidstorev1.PutX509SVIDRequest{
-		Svid: &svidstorev1.X509SVID{
-			SpiffeID:   "spiffe://example.org/lambda",
-			CertChain:  [][]byte{x509Cert.Raw},
-			PrivateKey: keyByte,
-			Bundle:     [][]byte{x509Bundle.Raw},
-			ExpiresAt:  123456,
+	expiresAt := time.Now()
+	successReq := &svidstore.X509SVID{
+		SVID: &svidstore.SVID{
+			SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+			CertChain:  []*x509.Certificate{x509Cert},
+			PrivateKey: x509Key,
+			Bundle:     []*x509.Certificate{x509Bundle},
+			ExpiresAt:  expiresAt,
 		},
 		Metadata: []string{"secretname:secret1"},
-		FederatedBundles: map[string][]byte{
-			"federated1": federatedBundle.Raw,
+		FederatedBundles: map[string][]*x509.Certificate{
+			"federated1": {federatedBundle},
 		},
 	}
 
 	for _, tt := range []struct {
 		name       string
-		req        *svidstorev1.PutX509SVIDRequest
+		req        *svidstore.X509SVID
 		expectCode codes.Code
 		expectMsg  string
 		smConfig   *smConfig
@@ -233,17 +230,17 @@ func TestPutX509SVID(t *testing.T) {
 	}{
 		{
 			name: "Put SVID on existing secret",
-			req: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
-					SpiffeID:   "spiffe://example.org/lambda",
-					CertChain:  [][]byte{x509Cert.Raw},
-					PrivateKey: keyByte,
-					Bundle:     [][]byte{x509Bundle.Raw},
-					ExpiresAt:  123456,
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
 				},
 				Metadata: []string{"arn:secret1"},
-				FederatedBundles: map[string][]byte{
-					"federated1": federatedBundle.Raw,
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
 				},
 			},
 			expectDescribeInput: &secretsmanager.DescribeSecretInput{
@@ -271,20 +268,20 @@ func TestPutX509SVID(t *testing.T) {
 		},
 		{
 			name: "Create secret and put SVID",
-			req: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
-					SpiffeID:   "spiffe://example.org/lambda",
-					CertChain:  [][]byte{x509Cert.Raw},
-					PrivateKey: keyByte,
-					Bundle:     [][]byte{x509Bundle.Raw},
-					ExpiresAt:  123456,
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
 				},
 				Metadata: []string{
 					"secretname:secret1",
 					"kmskeyid:some-key-id",
 				},
-				FederatedBundles: map[string][]byte{
-					"federated1": federatedBundle.Raw,
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
 				},
 			},
 			expectCreateSecretInput: func(t *testing.T) *secretsmanager.CreateSecretInput {
@@ -315,44 +312,47 @@ func TestPutX509SVID(t *testing.T) {
 		},
 		{
 			name: "No secret name or arn",
-			req: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
-					SpiffeID:   "spiffe://example.org/lambda",
-					CertChain:  [][]byte{x509Cert.Raw},
-					PrivateKey: keyByte,
-					Bundle:     [][]byte{x509Bundle.Raw},
-					ExpiresAt:  123456,
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
 				},
 				Metadata: []string{"kmskeyid:123"},
-				FederatedBundles: map[string][]byte{
-					"federated1": {4},
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
 				},
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "either the secret name or ARN is required",
+			expectMsg:  "svidstore(aws_secretsmanager): either the secret name or ARN is required",
 			smConfig:   &smConfig{},
 		},
 		{
 			name: "failed to parse request",
-			req: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
-					SpiffeID:  "spiffe://example.org/lambda",
-					CertChain: [][]byte{[]byte("no a certificate")},
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{{Raw: []byte("no a certificate")}},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
 				},
 				Metadata: []string{"secretname:secret1"},
-				FederatedBundles: map[string][]byte{
-					"federated1": federatedBundle.Raw,
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
 				},
 			},
 			smConfig:   &smConfig{},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "failed to parse request: failed to parse CertChain: x509: malformed certificate",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to parse request: failed to parse CertChain: x509: malformed certificate",
 		},
 		{
 			name:       "unnexpected aws error when describe secret",
 			req:        successReq,
 			expectCode: codes.Internal,
-			expectMsg:  "failed to describe secret: InvalidParameterException: failed to describe secret",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to describe secret: InvalidParameterException: failed to describe secret",
 			smConfig: &smConfig{
 				describeErr: &types.InvalidParameterException{Message: aws.String("failed to describe secret")},
 			},
@@ -361,7 +361,7 @@ func TestPutX509SVID(t *testing.T) {
 			name:       "unnexpected regular error when describe secret",
 			req:        successReq,
 			expectCode: codes.Internal,
-			expectMsg:  "failed to describe secret: some error",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to describe secret: some error",
 			smConfig: &smConfig{
 				describeErr: errors.New("some error"),
 			},
@@ -370,7 +370,7 @@ func TestPutX509SVID(t *testing.T) {
 			name:       "secrets does not contains spire-svid tag",
 			req:        successReq,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "secret does not contain the 'spire-svid' tag",
+			expectMsg:  "svidstore(aws_secretsmanager): secret does not contain the 'spire-svid' tag",
 			expectDescribeInput: &secretsmanager.DescribeSecretInput{
 				SecretId: aws.String("secret1"),
 			},
@@ -386,28 +386,28 @@ func TestPutX509SVID(t *testing.T) {
 				createSecretErr: &types.InvalidRequestException{Message: aws.String("some error")},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to create secret: InvalidRequestException: some error",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to create secret: InvalidRequestException: some error",
 		},
 		{
 			name: "Secret name is required to create secrets",
-			req: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
-					SpiffeID:   "spiffe://example.org/lambda",
-					CertChain:  [][]byte{x509Cert.Raw},
-					PrivateKey: keyByte,
-					Bundle:     [][]byte{x509Bundle.Raw},
-					ExpiresAt:  123456,
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
 				},
 				Metadata: []string{"arn:secret1"},
-				FederatedBundles: map[string][]byte{
-					"federated1": federatedBundle.Raw,
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
 				},
 			},
 			smConfig: &smConfig{
 				describeErr: &types.ResourceNotFoundException{Message: aws.String("not found")},
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "failed to create secret: name selector is required",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to create secret: name selector is required",
 		},
 		{
 			name: "Fails to put secret value",
@@ -437,7 +437,7 @@ func TestPutX509SVID(t *testing.T) {
 				putSecretErr: &types.InternalServiceError{Message: aws.String("failed to put secret value")},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to put secret value: InternalServiceError: failed to put secret value",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to put secret value: InternalServiceError: failed to put secret value",
 		},
 		{
 			name: "Restore secret and update value",
@@ -484,7 +484,7 @@ func TestPutX509SVID(t *testing.T) {
 				restoreSecretErr: &types.InvalidRequestException{Message: aws.String("some error")},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to restore secret \"secret1\": InvalidRequestException: some error",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to restore secret \"secret1\": InvalidRequestException: some error",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -514,11 +514,10 @@ func TestPutX509SVID(t *testing.T) {
 				options...,
 			)
 
-			resp, err := p.PutX509SVID(ctx, tt.req)
+			err = ss.PutX509SVID(ctx, tt.req)
 
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
-				require.Nil(t, resp)
 				return
 			}
 
@@ -534,14 +533,12 @@ func TestPutX509SVID(t *testing.T) {
 			if tt.expectPutSecretInput != nil {
 				putSecretInput = tt.expectPutSecretInput(t)
 			}
+
 			require.Equal(t, putSecretInput, sm.putSecretInput)
 
 			require.Equal(t, tt.expectDeleteSecretInput, sm.deleteSecretInput)
 			require.Equal(t, tt.expectDescribeInput, sm.drescribeSecretInput)
 			require.Equal(t, tt.expectRestoreSecretInput, sm.restoreSecretInput)
-
-			// Validate response
-			spiretest.RequireProtoEqual(t, &svidstorev1.PutX509SVIDResponse{}, resp)
 		})
 	}
 }
@@ -549,7 +546,7 @@ func TestPutX509SVID(t *testing.T) {
 func TestDeleteX509SVID(t *testing.T) {
 	for _, tt := range []struct {
 		name                    string
-		req                     *svidstorev1.DeleteX509SVIDRequest
+		metadata                []string
 		smConfig                *smConfig
 		expectDeleteSecretInput *secretsmanager.DeleteSecretInput
 		expectDescribeInput     *secretsmanager.DescribeSecretInput
@@ -557,10 +554,8 @@ func TestDeleteX509SVID(t *testing.T) {
 		expectMsg               string
 	}{
 		{
-			name: "secret is deleted: name",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{"secretname:secret1"},
-			},
+			name:     "secret is deleted: name",
+			metadata: []string{"secretname:secret1"},
 			smConfig: &smConfig{},
 			expectDescribeInput: &secretsmanager.DescribeSecretInput{
 				SecretId: aws.String("secret1"),
@@ -571,10 +566,8 @@ func TestDeleteX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name: "secret is deleted: arn",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{"arn:arn-secret1"},
-			},
+			name:     "secret is deleted: arn",
+			metadata: []string{"arn:arn-secret1"},
 			smConfig: &smConfig{},
 			expectDescribeInput: &secretsmanager.DescribeSecretInput{
 				SecretId: aws.String("arn-secret1"),
@@ -585,28 +578,22 @@ func TestDeleteX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name: "secret name or arn are required",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{},
-			},
+			name:       "secret name or arn are required",
+			metadata:   []string{},
 			smConfig:   &smConfig{},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "either the secret name or ARN is required",
+			expectMsg:  "svidstore(aws_secretsmanager): either the secret name or ARN is required",
 		},
 		{
-			name: "secret already deleted",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{"secretname:secret1"},
-			},
+			name:     "secret already deleted",
+			metadata: []string{"secretname:secret1"},
 			smConfig: &smConfig{
 				describeErr: &types.ResourceNotFoundException{Message: aws.String("some error")},
 			},
 		},
 		{
-			name: "fails to describe secret",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{"secretname:secret1"},
-			},
+			name:     "fails to describe secret",
+			metadata: []string{"secretname:secret1"},
 			smConfig: &smConfig{
 				describeErr: &types.InvalidRequestException{Message: aws.String("some error")},
 			},
@@ -614,13 +601,11 @@ func TestDeleteX509SVID(t *testing.T) {
 				SecretId: aws.String("secret1"),
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to describe secret: InvalidRequestException: some error",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to describe secret: InvalidRequestException: some error",
 		},
 		{
-			name: "secret has no spire-svid tag",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{"secretname:secret1"},
-			},
+			name:     "secret has no spire-svid tag",
+			metadata: []string{"secretname:secret1"},
 			smConfig: &smConfig{
 				noTag: true,
 			},
@@ -628,13 +613,11 @@ func TestDeleteX509SVID(t *testing.T) {
 				SecretId: aws.String("secret1"),
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "secret does not contain the 'spire-svid' tag",
+			expectMsg:  "svidstore(aws_secretsmanager): secret does not contain the 'spire-svid' tag",
 		},
 		{
-			name: "fails to delete secret",
-			req: &svidstorev1.DeleteX509SVIDRequest{
-				Metadata: []string{"secretname:secret1"},
-			},
+			name:     "fails to delete secret",
+			metadata: []string{"secretname:secret1"},
 			smConfig: &smConfig{
 				deleteSecretErr: &types.InvalidRequestException{Message: aws.String("some error")},
 			},
@@ -642,7 +625,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				SecretId: aws.String("secret1"),
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to delete secret \"secret1\": InvalidRequestException: some error",
+			expectMsg:  "svidstore(aws_secretsmanager): failed to delete secret \"secret1\": InvalidRequestException: some error",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -672,11 +655,10 @@ func TestDeleteX509SVID(t *testing.T) {
 				options...,
 			)
 
-			resp, err := p.DeleteX509SVID(ctx, tt.req)
+			err = ss.DeleteX509SVID(ctx, tt.metadata)
 
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
-				require.Nil(t, resp)
 				return
 			}
 
@@ -684,9 +666,6 @@ func TestDeleteX509SVID(t *testing.T) {
 
 			require.Equal(t, tt.expectDeleteSecretInput, sm.deleteSecretInput)
 			require.Equal(t, tt.expectDescribeInput, sm.drescribeSecretInput)
-
-			// Validate response
-			spiretest.RequireProtoEqual(t, &svidstorev1.DeleteX509SVIDResponse{}, resp)
 		})
 	}
 }
