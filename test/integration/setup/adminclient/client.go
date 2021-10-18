@@ -17,6 +17,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"github.com/spiffe/spire/test/testkey"
@@ -110,6 +111,12 @@ func run() string {
 	testRPC("GetAgent", getAgent)
 	testRPC("BanAgent", banAgent)
 	testRPC("DeleteAgent", deleteAgent)
+	// Trustdomain client tests
+	testRPC("BatchCreateFederationRelationship", batchCreateFederationRelationship)
+	testRPC("BatchUpdateFederationRelationship", batchUpdateFederationRelationship)
+	testRPC("GetFederationRelationship", getFederationRelationship)
+	testRPC("ListFederationRelationships", listFederationRelationships)
+	testRPC("BatchDeleteFederationRelationship", batchDeleteFederationRelationship)
 
 	msg := ""
 	for _, failure := range failures {
@@ -826,6 +833,131 @@ func deleteAgent(ctx context.Context, c *itclient.Client) error {
 	if status.Code(err) != codes.NotFound {
 		return errors.New("not found status expected")
 	}
+	return nil
+}
+
+func batchCreateFederationRelationship(ctx context.Context, c *itclient.Client) error {
+	fr := &types.FederationRelationship{
+		TrustDomain:           "federated.test",
+		BundleEndpointUrl:     "https://federated.test/endpoint",
+		BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{HttpsWeb: &types.HTTPSWebProfile{}},
+	}
+	resp, err := c.TrustDomainClient().BatchCreateFederationRelationship(ctx, &trustdomain.BatchCreateFederationRelationshipRequest{
+		FederationRelationships: []*types.FederationRelationship{fr},
+	})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case len(resp.Results) != 1:
+		return errors.New("only one relationship expected")
+	}
+
+	// Validate result
+	r := resp.Results[0]
+	switch {
+	case r.Status.Code != int32(codes.OK):
+		return fmt.Errorf("unexpected status: %v", r.Status)
+	case r.FederationRelationship.TrustDomain != "federated.test":
+		return fmt.Errorf("unexpected trust domain: %q", r.FederationRelationship.TrustDomain)
+	case r.FederationRelationship.BundleEndpointUrl != "https://federated.test/endpoint":
+		return fmt.Errorf("unexpected bundle endpoint: %q", r.FederationRelationship.BundleEndpointUrl)
+	}
+
+	if _, ok := r.FederationRelationship.BundleEndpointProfile.(*types.FederationRelationship_HttpsWeb); !ok {
+		return errors.New("unexpected profile type")
+	}
+
+	return nil
+}
+
+func batchUpdateFederationRelationship(ctx context.Context, c *itclient.Client) error {
+	fr := &types.FederationRelationship{
+		TrustDomain:           "federated.test",
+		BundleEndpointUrl:     "https://federated.test/endpointupdated",
+		BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{HttpsWeb: &types.HTTPSWebProfile{}},
+	}
+	resp, err := c.TrustDomainClient().BatchUpdateFederationRelationship(ctx, &trustdomain.BatchUpdateFederationRelationshipRequest{
+		FederationRelationships: []*types.FederationRelationship{fr},
+	})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case len(resp.Results) != 1:
+		return errors.New("only one relationship expected")
+	}
+
+	r := resp.Results[0]
+	switch {
+	case r.Status.Code != int32(codes.OK):
+		return fmt.Errorf("unexpected status: %v", r.Status)
+	case r.FederationRelationship.TrustDomain != "federated.test":
+		return fmt.Errorf("unexpected trust domain: %q", r.FederationRelationship.TrustDomain)
+	case r.FederationRelationship.BundleEndpointUrl != "https://federated.test/endpointupdated":
+		return fmt.Errorf("unexpected bundle endpoint: %q", r.FederationRelationship.BundleEndpointUrl)
+	}
+
+	if _, ok := r.FederationRelationship.BundleEndpointProfile.(*types.FederationRelationship_HttpsWeb); !ok {
+		return errors.New("unexpected profile type")
+	}
+
+	return nil
+}
+
+func listFederationRelationships(ctx context.Context, c *itclient.Client) error {
+	resp, err := c.TrustDomainClient().ListFederationRelationships(ctx, &trustdomain.ListFederationRelationshipsRequest{})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case len(resp.FederationRelationships) != 1:
+		return errors.New("only one relationship expected")
+	}
+
+	return nil
+}
+
+func getFederationRelationship(ctx context.Context, c *itclient.Client) error {
+	resp, err := c.TrustDomainClient().GetFederationRelationship(ctx, &trustdomain.GetFederationRelationshipRequest{
+		TrustDomain: "federated.test",
+	})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case resp.TrustDomain != "federated.test":
+		return fmt.Errorf("unexpected trut domain: %q", resp.TrustDomain)
+	}
+
+	return nil
+}
+
+func batchDeleteFederationRelationship(ctx context.Context, c *itclient.Client) error {
+	resp, err := c.TrustDomainClient().BatchDeleteFederationRelationship(ctx, &trustdomain.BatchDeleteFederationRelationshipRequest{
+		TrustDomains: []string{"federated.test"},
+	})
+	switch {
+	case c.ExpectErrors:
+		return validatePermissionError(err)
+	case err != nil:
+		return err
+	case len(resp.Results) != 1:
+		return errors.New("only one relationship expected")
+	}
+
+	r := resp.Results[0]
+	switch {
+	case r.Status.Code != int32(codes.OK):
+		return fmt.Errorf("unexpected status: %v", r.Status)
+	case r.TrustDomain != "federated.test":
+		return fmt.Errorf("unexpected trust domain: %q", r.TrustDomain)
+	}
+
 	return nil
 }
 

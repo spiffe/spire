@@ -16,6 +16,7 @@ import (
 	debug "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entry "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svid "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -129,6 +130,10 @@ func (c *Client) AgentClient() agent.AgentClient {
 
 func (c *Client) DebugClient() debug.DebugClient {
 	return debug.NewDebugClient(c.connection)
+}
+
+func (c *Client) TrustDomainClient() trustdomain.TrustDomainClient {
+	return trustdomain.NewTrustDomainClient(c.connection)
 }
 
 // Open a client ON THE SPIRE-SERVER container
