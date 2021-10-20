@@ -23,8 +23,13 @@ import (
 	"unicode"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/sigstore/cosign/cmd/cosign/cli"
+	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
+	"github.com/sigstore/cosign/pkg/cosign"
+	"github.com/sigstore/sigstore/pkg/signature/payload"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
@@ -114,6 +119,9 @@ type HCLConfig struct {
 	// ReloadInterval controls how often TLS and token configuration is loaded
 	// from the disk.
 	ReloadInterval string `hcl:"reload_interval"`
+
+	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
+	RekorURL string `hcl:"rekor_url"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -129,6 +137,7 @@ type k8sConfig struct {
 	KubeletCAPath           string
 	NodeName                string
 	ReloadInterval          time.Duration
+	RekorURL                string
 
 	Client     *kubeletClient
 	LastReload time.Time
@@ -199,8 +208,12 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
+				signedPayload, err := getSignaturePayload(status.Image)
+				if err != nil {
+					log.Error("Error retrieving signature payload: ", err.Error())
+				}
 				return &workloadattestorv1.AttestResponse{
-					SelectorValues: getSelectorValuesFromPodInfo(&item, status),
+					SelectorValues: getSelectorValuesFromPodInfo(&item, status, signedPayload),
 				}, nil
 			case containerNotInPod:
 			}
@@ -294,6 +307,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		KubeletCAPath:           config.KubeletCAPath,
 		NodeName:                nodeName,
 		ReloadInterval:          reloadInterval,
+		RekorURL:                config.RekorURL,
 	}
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
@@ -672,10 +686,11 @@ func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[s
 	return podImages
 }
 
-func getSelectorValuesFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []string {
+func getSelectorValuesFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus, signedPayload []cosign.SignedPayload) []string {
 	podImageIdentifiers := getPodImageIdentifiers(pod.Status.ContainerStatuses)
 	podInitImageIdentifiers := getPodImageIdentifiers(pod.Status.InitContainerStatuses)
 	containerImageIdentifiers := getPodImageIdentifiers([]corev1.ContainerStatus{*status})
+	selectorOfSignedImage := getselectorOfSignedImage(signedPayload)
 
 	selectorValues := []string{
 		fmt.Sprintf("sa:%s", pod.Spec.ServiceAccountName),
@@ -706,6 +721,10 @@ func getSelectorValuesFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatu
 		selectorValues = append(selectorValues, fmt.Sprintf("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
 	}
 
+	if selectorOfSignedImage != "" {
+		selectorValues = append(selectorValues, fmt.Sprintf("image-signature-subject:%s", selectorOfSignedImage))
+	}
+
 	return selectorValues
 }
 
@@ -721,4 +740,113 @@ func newCertPool(certs []*x509.Certificate) *x509.CertPool {
 		certPool.AddCert(cert)
 	}
 	return certPool
+}
+
+func getSignaturePayload(imageName string) ([]cosign.SignedPayload, error) {
+	config := new(HCLConfig)
+	ref, err := name.ParseReference(imageName)
+	if err != nil {
+		message := fmt.Sprint("Error parsing the image reference: ", err.Error())
+		return nil, errors.New(message)
+	}
+
+	ctx := context.Background()
+	co := &cosign.CheckOpts{}
+	co.RekorURL = config.RekorURL
+	co.RootCerts = fulcio.GetRoots()
+
+	sigRepo, err := cli.TargetRepositoryForImage(ref)
+	if err != nil {
+		message := fmt.Sprint("TargetRepositoryForImage returned error: ", err.Error())
+		return nil, errors.New(message)
+	}
+	co.SignatureRepo = sigRepo
+
+	verified, err := cosign.Verify(ctx, ref, co)
+
+	if err != nil {
+		message := fmt.Sprint("Error verifying signature: ", err.Error())
+		return nil, errors.New(message)
+	}
+	return verified, nil
+}
+
+func getselectorOfSignedImage(payload []cosign.SignedPayload) string {
+	var selector string
+	// Payload can be empty if the attestor fails to retrieve it
+	// In a non-strict mode this method should be reached and return
+	// an empty selector
+	if payload != nil {
+		// verify which subject
+		selector = getSubjectImage(payload)
+	}
+
+	// return subject as selector
+	return selector
+}
+
+type Subject struct {
+	Subject string
+}
+
+type Optional struct {
+	Optional Subject
+}
+
+func getOnlySubject(payload string) string {
+	var selector []Optional
+	err := json.Unmarshal([]byte(payload), &selector)
+
+	if err != nil {
+		log.Println("Error decoding the payload:", err.Error())
+		return ""
+	}
+
+	re := regexp.MustCompile(`[{}]`)
+
+	subject := fmt.Sprintf("%s", selector[0])
+	subject = re.ReplaceAllString(subject, "")
+
+	return subject
+}
+
+func getSubjectImage(verified []cosign.SignedPayload) string {
+	var outputKeys []payload.SimpleContainerImage
+	for _, vp := range verified {
+		ss := payload.SimpleContainerImage{}
+
+		err := json.Unmarshal(vp.Payload, &ss)
+		if err != nil {
+			log.Println("Error decoding the payload:", err.Error())
+			return ""
+		}
+
+		if vp.Cert != nil {
+			if ss.Optional == nil {
+				ss.Optional = make(map[string]interface{})
+			}
+			ss.Optional["Subject"] = certSubject(vp.Cert)
+		}
+
+		outputKeys = append(outputKeys, ss)
+	}
+	b, err := json.Marshal(outputKeys)
+	if err != nil {
+		log.Println("Error generating the output:", err.Error())
+		return ""
+	}
+
+	subject := getOnlySubject(string(b))
+
+	return subject
+}
+
+func certSubject(c *x509.Certificate) string {
+	switch {
+	case c.EmailAddresses != nil:
+		return c.EmailAddresses[0]
+	case c.URIs != nil:
+		return c.URIs[0].String()
+	}
+	return ""
 }
