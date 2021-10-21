@@ -9,6 +9,7 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 | KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc. |
 | NodeAttestor     | Gathers information used to attest the agent's identity to the server. Generally paired with a server plugin of the same type. |
 | WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it. |
+| SVIDStore        | Stores X509-SVIDs (Private key, leaf certificate and intermediates if any), bundle, and federated bundles into a trust store. |
 
 ## Built-in plugins
 
@@ -27,6 +28,7 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 | WorkloadAttestor | [docker](/doc/plugin_agent_workloadattestor_docker.md) | A workload attestor which allows selectors based on docker constructs such `label` and `image_id`|
 | WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
 | WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
+| SVIDStore        | [aws_secretsmanager](doc/plugin_agent_svidstore_aws_secretsmanager.md) | An SVIDstore which stores secrets in the AWS secrets manager with the resulting X509-SVIDs of the entries that the agent is entitled to. |
 
 ## Agent configuration file
 

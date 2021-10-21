@@ -263,6 +263,7 @@ Creates registration entries.
 | `-socketPath`    | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
+| `-storeSVID`     | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin |
 
 ### `spire-server entry update`
 
@@ -282,6 +283,7 @@ Updates registration entries.
 | `-socketPath`    | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued. | |
 | `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.     | The TTL configured with `default_svid_ttl` |
+| `storeSVID`      | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin |
 
 ### `spire-server entry count`
 
