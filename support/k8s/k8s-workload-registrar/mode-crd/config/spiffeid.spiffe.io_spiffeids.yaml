@@ -82,6 +82,12 @@ spec:
                   serviceAccount:
                     description: ServiceAccount to match for this spiffe ID
                     type: string
+                  cluster:
+                    description: The k8s_psat cluster name
+                    type: string
+                  agent_node_uid:
+                    description: UID of the node
+                    type: string
                 type: object
               spiffeId:
                 type: string
