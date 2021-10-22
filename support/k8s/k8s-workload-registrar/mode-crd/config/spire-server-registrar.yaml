@@ -164,7 +164,7 @@ data:
 
 ---
 
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: k8s-workload-registrar
@@ -172,6 +172,7 @@ metadata:
     spiffe.io/webhook: "true"
 webhooks:
 - name: k8s-workload-registrar.spire.svc
+  admissionReviewVersions: ["v1", "v1beta1"]
   clientConfig:
     service:
       name: k8s-workload-registrar
@@ -183,6 +184,7 @@ webhooks:
     operations: ["CREATE", "UPDATE", "DELETE"]
     resources: ["spiffeids"]
     scope: Namespaced
+  sideEffects: None
 
 ---
 
@@ -209,7 +211,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: spire-server
-          image: gcr.io/spiffe-io/spire-server:1.0.2
+          image: gcr.io/spiffe-io/spire-server:1.1.0
           args:
             - -config
             - /run/spire/config/server.conf
@@ -238,7 +240,7 @@ spec:
               mountPath: /tmp
               readOnly: false
         - name: k8s-workload-registrar
-          image: gcr.io/spiffe-io/k8s-workload-registrar:1.0.2
+          image: gcr.io/spiffe-io/k8s-workload-registrar:1.1.0
           args:
             - -config
             - /run/spire/config/k8s-workload-registrar.conf
