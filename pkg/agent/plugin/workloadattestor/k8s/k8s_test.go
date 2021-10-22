@@ -947,12 +947,19 @@ func TestGetContainerIDFromCGroupPath(t *testing.T) {
 			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
 		},
 		{
-			name:       "not kubepods",
-			cgroupPath: "/something/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			name:        "from a different cgroup namespace",
+			cgroupPath:  "/../../../burstable/pod095e82d2-713c-467a-a18a-cbb50a075296/6d1234da0f5aa7fa0ccae4c7d2d109929eb9a81694e6357bcd4547ab3985911b",
+			containerID: "6d1234da0f5aa7fa0ccae4c7d2d109929eb9a81694e6357bcd4547ab3985911b",
 		},
 		{
-			name:       "just pod uid and container",
-			cgroupPath: "/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			name:        "not kubepods",
+			cgroupPath:  "/something/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+		},
+		{
+			name:        "just pod uid and container",
+			cgroupPath:  "/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 		{
 			name:       "just container segment",
