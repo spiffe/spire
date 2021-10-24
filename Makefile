@@ -161,7 +161,6 @@ mockgen_mocks = \
 	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
 	test/mock/agent/client,github.com/spiffe/spire/pkg/agent/client,Client \
 	test/mock/common/plugin/k8s/apiserver,github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver,Client \
-	test/mock/agent/plugin/workloadattestor/docker,github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker,Docker \
 
 # The following vars are used in rule construction
 comma := ,
