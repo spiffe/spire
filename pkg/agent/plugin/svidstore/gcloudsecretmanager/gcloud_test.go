@@ -1,4 +1,4 @@
-package gcloudsecretsmanager
+package gcloudsecretmanager
 
 import (
 	"context"
@@ -114,7 +114,7 @@ func TestConfigure(t *testing.T) {
 				}))
 			}
 
-			p := new(SecretsManagerPlugin)
+			p := new(SecretManagerPlugin)
 
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
@@ -150,7 +150,7 @@ func TestPutX509SVID(t *testing.T) {
 			"secretproject:project1",
 		},
 		FederatedBundles: map[string][]*x509.Certificate{
-			"federated1": []*x509.Certificate{federatedBundle},
+			"federated1": {federatedBundle},
 		},
 	}
 
@@ -226,7 +226,7 @@ func TestPutX509SVID(t *testing.T) {
 			name:            "Fail to create gcloud client",
 			req:             successReq,
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to create secretmanager client: rpc error: code = Internal desc = oh! no",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to create secretmanager client: rpc error: code = Internal desc = oh! no",
 			clientConfig: &clientConfig{
 				newClientErr: status.Error(codes.Internal, "oh! no"),
 			},
@@ -239,7 +239,7 @@ func TestPutX509SVID(t *testing.T) {
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): invalid metadata: metadata does not contains contain a colon: \"secretproject\"",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): invalid metadata: metadata does not contains contain a colon: \"secretproject\"",
 		},
 		{
 			name: "invalid request, no secret name",
@@ -249,7 +249,7 @@ func TestPutX509SVID(t *testing.T) {
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): secretname is required",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretname is required",
 		},
 		{
 			name: "invalid request, no secret project",
@@ -259,7 +259,7 @@ func TestPutX509SVID(t *testing.T) {
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): secretproject is required",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretproject is required",
 		},
 		{
 			name: "Secret no spire-svid label",
@@ -271,7 +271,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): secret that not contains 'spire-svid' label",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): secret does not contain the 'spire-svid' label",
 		},
 		{
 			name: "failed to create secret",
@@ -284,7 +284,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to create secret: rpc error: code = Internal desc = some error",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to create secret: rpc error: code = Internal desc = some error",
 		},
 		{
 			name: "failed to get secret",
@@ -296,7 +296,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to get secret: rpc error: code = Internal desc = some error",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to get secret: rpc error: code = Internal desc = some error",
 		},
 		{
 			name: "failed to parse request",
@@ -321,7 +321,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to parse request: failed to parse CertChain: x509: malformed certificate",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to parse request: failed to parse CertChain: x509: malformed certificate",
 		},
 		{
 			name: "Failed to add secret version",
@@ -333,7 +333,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to add secret version: rpc error: code = DeadlineExceeded desc = some error",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to add secret version: rpc error: code = DeadlineExceeded desc = some error",
 		},
 	} {
 		tt := tt
@@ -347,7 +347,7 @@ func TestPutX509SVID(t *testing.T) {
 			}
 
 			// Prepare plungin
-			p := new(SecretsManagerPlugin)
+			p := new(SecretManagerPlugin)
 			p.hooks.newClient = client.newClient
 
 			var err error
@@ -367,7 +367,7 @@ func TestPutX509SVID(t *testing.T) {
 			err = ss.PutX509SVID(ctx, tt.req)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsgPrefix)
 
-			// Validate what is send to gcloud
+			// Validate what is sent to gcloud
 			spiretest.AssertProtoEqual(t, tt.expectAddSecretVersionReq, client.addSecretVersionReq)
 			spiretest.AssertProtoEqual(t, tt.expectCreateSecretReq, client.createSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectGetSecretReq, client.getSecretReq)
@@ -408,7 +408,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				"secretname:secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): secretproject is required",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretproject is required",
 		},
 		{
 			name: "no name provided",
@@ -416,7 +416,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				"secretproject:project1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): secretname is required",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretname is required",
 		},
 		{
 			name: "failed to create client",
@@ -428,7 +428,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				newClientErr: errors.New("oh! no"),
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to create secretmanager client: oh! no",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to create secretmanager client: oh! no",
 		},
 		{
 			name: "Secret is not managed",
@@ -443,7 +443,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): secret that not contains 'spire-svid' label",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): secret does not contain the 'spire-svid' label",
 		},
 		{
 			name: "Secret not found",
@@ -474,7 +474,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretsmanager): failed to delete secret: oh! no",
+			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to delete secret: oh! no",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -486,8 +486,8 @@ func TestDeleteX509SVID(t *testing.T) {
 				c: tt.clientConfig,
 			}
 
-			// Prepare plungin
-			p := new(SecretsManagerPlugin)
+			// Prepare plugin
+			p := new(SecretManagerPlugin)
 			p.hooks.newClient = client.newClient
 
 			var err error

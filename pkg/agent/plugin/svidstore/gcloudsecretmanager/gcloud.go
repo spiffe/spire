@@ -1,4 +1,4 @@
-package gcloudsecretsmanager
+package gcloudsecretmanager
 
 import (
 	"context"
@@ -18,26 +18,26 @@ import (
 )
 
 const (
-	pluginName = "gcloud_secretsmanager"
+	pluginName = "gcloud_secretmanager"
 )
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *SecretsManagerPlugin) catalog.BuiltIn {
+func builtin(p *SecretManagerPlugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		svidstorev1.SVIDStorePluginServer(p),
 		configv1.ConfigServiceServer(p),
 	)
 }
 
-func New() *SecretsManagerPlugin {
+func New() *SecretManagerPlugin {
 	return newPlugin(newClient)
 }
 
-func newPlugin(newClient func(context.Context, string) (secretsClient, error)) *SecretsManagerPlugin {
-	p := &SecretsManagerPlugin{}
+func newPlugin(newClient func(context.Context, string) (secretsClient, error)) *SecretManagerPlugin {
+	p := &SecretManagerPlugin{}
 	p.hooks.newClient = newClient
 
 	return p
@@ -47,7 +47,7 @@ type Configuration struct {
 	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
 }
 
-type SecretsManagerPlugin struct {
+type SecretManagerPlugin struct {
 	svidstorev1.UnsafeSVIDStoreServer
 	configv1.UnsafeConfigServer
 
@@ -60,12 +60,12 @@ type SecretsManagerPlugin struct {
 	}
 }
 
-func (p *SecretsManagerPlugin) SetLogger(log hclog.Logger) {
+func (p *SecretManagerPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
 // Configure configures the SecretsMangerPlugin.
-func (p *SecretsManagerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
@@ -81,7 +81,7 @@ func (p *SecretsManagerPlugin) Configure(ctx context.Context, req *configv1.Conf
 }
 
 // PutX509SVID puts the specified X509-SVID in the configured Google Cloud Secrets Manager
-func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
+func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
 	opt, err := optionsFromSecretData(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 	}
 	defer client.Close()
 
-	// Get secret, if it does not exists a secret is created
+	// Get secret, if it does not exist, a secret is created
 	secret, err := getSecret(ctx, client, opt.secretName())
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 }
 
 // DeleteX509SVID deletes a Secret in the configured Google Cloud Secrets manager
-func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
+func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
 	opt, err := optionsFromSecretData(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 	}
 
 	if secret == nil {
-		p.log.With("secret_name", opt.secretName()).Warn("Secret not found")
+		p.log.With("secret_name", opt.secretName()).Warn("Secret to delete not found")
 		return &svidstorev1.DeleteX509SVIDResponse{}, nil
 	}
 
@@ -191,7 +191,7 @@ func getSecret(ctx context.Context, client secretsClient, secretName string) (*s
 	case codes.OK:
 		// Verify that secret contains "spire-svid" label and it is enabled
 		if ok := validateLabels(secret.Labels); !ok {
-			return nil, status.Error(codes.InvalidArgument, "secret that not contains 'spire-svid' label")
+			return nil, status.Error(codes.InvalidArgument, "secret does not contain the 'spire-svid' label")
 		}
 	case codes.NotFound:
 		return nil, nil
