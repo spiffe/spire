@@ -23,11 +23,11 @@ setup-tests() {
     docker-compose exec -T upstream-spire-server \
         /opt/spire/bin/spire-server federation create \
         -bundleEndpointProfile "https_spiffe" \
-	-bundleEndpointURL "https://downstream-federated-spire-server:8443" \
-	-endpointSpiffeID "spiffe://federated-domain.test/spire/server" \
-	-trustDomain "federated-domain.test" \
-	-trustDomainBundleFormat "spiffe" \
-	-trustDomainBundlePath "/opt/spire/conf/server/federated-domain.test.bundle"
+        -bundleEndpointURL "https://downstream-federated-spire-server:8443" \
+        -endpointSpiffeID "spiffe://federated-domain.test/spire/server" \
+        -trustDomain "federated-domain.test" \
+        -trustDomainBundleFormat "spiffe" \
+        -trustDomainBundlePath "/opt/spire/conf/server/federated-domain.test.bundle"
     
     log-debug "bootstrapping bundle from upstream to downstream federated server..."
     docker-compose exec -T upstream-spire-server \
@@ -40,8 +40,8 @@ setup-tests() {
         /opt/spire/bin/spire-server federation create \
         -bundleEndpointProfile "https_spiffe" \
         -bundleEndpointURL "https://upstream-spire-server" \
-	-endpointSpiffeID "spiffe://domain.test/spire/server" \
-	-trustDomain "spiffe://domain.test"
+        -endpointSpiffeID "spiffe://domain.test/spire/server" \
+        -trustDomain "spiffe://domain.test"
 
     # Register workloads
     log-debug "creating registration entry for downstream federated proxy..."
