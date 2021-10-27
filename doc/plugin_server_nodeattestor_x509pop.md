@@ -39,5 +39,5 @@ A sample configuration:
 
 | Selector            | Example                                                   | Description                                                           |
 | ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
-| Common Name         | `subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)             |
-| SHA1 Fingerprint    | `ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.  |
+| Common Name         | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)             |
+| SHA1 Fingerprint    | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.  |
