@@ -597,37 +597,38 @@ func (ds *Plugin) closeDB() {
 // consistency that prevents two transactions from doing read-modify-write
 // concurrently.
 func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	isolationLevel := sql.LevelRepeatableRead
-	if ds.db.databaseType == MySQL {
-		// MySQL REPEATABLE READ is weaker than that of PostgreSQL. Namely,
-		// PostgreSQL, beyond providing the minimum consistency guarantees
-		// mandated for REPEATABLE READ in the standard, automatically fails
-		// concurrent transactions that try to update the same target row.
-		//
-		// MySQL SERIALIZABLE is the same as REPEATABLE READ except that it
-		// automatically converts `SELECT` to `SELECT ... LOCK FOR SHARE MODE`
-		// which "sets a shared lock that permits other transactions to read
-		// the examined rows but not to update or delete them", which is what
-		// we want.
-		isolationLevel = sql.LevelSerializable
-	}
-	return ds.withTx(ctx, op, false, &sql.TxOptions{Isolation: isolationLevel})
+	return ds.withTx(ctx, func(tx *gorm.DB) error {
+		if ds.db.databaseType == MySQL {
+			// MySQL REPEATABLE READ is weaker than that of PostgreSQL. Namely,
+			// PostgreSQL, beyond providing the minimum consistency guarantees
+			// mandated for REPEATABLE READ in the standard, automatically fails
+			// concurrent transactions that try to update the same target row.
+			//
+			// To get the same consistency guarantees, have the queries do a
+			// `SELECT .. FOR UPDATE` which will implicitly lock queried rows
+			// from update by other transactions. This is preferred to a stronger
+			// isolation level, like SERIALIZABLE, which is not supported by
+			// some MySQL-compatible databases (i.e. Percona XtraDB cluster)
+			tx = tx.Set("gorm:query_option", "FOR UPDATE")
+		}
+		return op(tx)
+	}, false)
 }
 
 // withWriteTx wraps the operation in a transaction appropriate for operations
 // that unconditionally create/update rows, without reading them first. If two
 // transactions try and update at the same time, last writer wins.
 func (ds *Plugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, false, nil)
+	return ds.withTx(ctx, op, false)
 }
 
 // withWriteTx wraps the operation in a transaction appropriate for operations
 // that only read rows.
 func (ds *Plugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
-	return ds.withTx(ctx, op, true, nil)
+	return ds.withTx(ctx, op, true)
 }
 
-func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool, opts *sql.TxOptions) error {
+func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOnly bool) error {
 	ds.mu.Lock()
 	db := ds.db
 	ds.mu.Unlock()
@@ -640,7 +641,7 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 		defer db.opMu.Unlock()
 	}
 
-	tx := db.BeginTx(ctx, opts)
+	tx := db.BeginTx(ctx, nil)
 	if err := tx.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
