@@ -5,10 +5,8 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"math"
 	"os"
@@ -36,7 +34,7 @@ import (
 )
 
 var (
-	_awsTimeout     = 5 * time.Second
+	awsTimeout      = 5 * time.Second
 	instanceFilters = []*ec2.Filter{
 		{
 			Name: aws.String("instance-state-name"),
@@ -55,26 +53,6 @@ const (
 	// secretAccessKeyVarName env car name for AWS secret access key
 	secretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
 )
-
-const awsCaCertPEM = `-----BEGIN CERTIFICATE-----
-MIIDIjCCAougAwIBAgIJAKnL4UEDMN/FMA0GCSqGSIb3DQEBBQUAMGoxCzAJBgNV
-BAYTAlVTMRMwEQYDVQQIEwpXYXNoaW5ndG9uMRAwDgYDVQQHEwdTZWF0dGxlMRgw
-FgYDVQQKEw9BbWF6b24uY29tIEluYy4xGjAYBgNVBAMTEWVjMi5hbWF6b25hd3Mu
-Y29tMB4XDTE0MDYwNTE0MjgwMloXDTI0MDYwNTE0MjgwMlowajELMAkGA1UEBhMC
-VVMxEzARBgNVBAgTCldhc2hpbmd0b24xEDAOBgNVBAcTB1NlYXR0bGUxGDAWBgNV
-BAoTD0FtYXpvbi5jb20gSW5jLjEaMBgGA1UEAxMRZWMyLmFtYXpvbmF3cy5jb20w
-gZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAIe9GN//SRK2knbjySG0ho3yqQM3
-e2TDhWO8D2e8+XZqck754gFSo99AbT2RmXClambI7xsYHZFapbELC4H91ycihvrD
-jbST1ZjkLQgga0NE1q43eS68ZeTDccScXQSNivSlzJZS8HJZjgqzBlXjZftjtdJL
-XeE4hwvo0sD4f3j9AgMBAAGjgc8wgcwwHQYDVR0OBBYEFCXWzAgVyrbwnFncFFIs
-77VBdlE4MIGcBgNVHSMEgZQwgZGAFCXWzAgVyrbwnFncFFIs77VBdlE4oW6kbDBq
-MQswCQYDVQQGEwJVUzETMBEGA1UECBMKV2FzaGluZ3RvbjEQMA4GA1UEBxMHU2Vh
-dHRsZTEYMBYGA1UEChMPQW1hem9uLmNvbSBJbmMuMRowGAYDVQQDExFlYzIuYW1h
-em9uYXdzLmNvbYIJAKnL4UEDMN/FMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEF
-BQADgYEAFYcz1OgEhQBXIwIdsgCOS8vEtiJYF+j9uO6jz7VOmJqO+pRlAbRlvY8T
-C1haGgSI/A1uZUKs/Zfnph0oEI0/hu1IIJ/SKBDtN5lvmZ/IzbOPIJWirlsllQIQ
-7zvWbGd9c9+Rm3p04oTvhup99la7kZqevJK0QRdD/6NpCKsqP/0=
------END CERTIFICATE-----`
 
 // BuiltIn creates a new built-in plugin
 func BuiltIn() catalog.BuiltIn {
@@ -98,10 +76,12 @@ type IIDAttestorPlugin struct {
 	mtx     sync.RWMutex
 	clients *clientsCache
 
+	// test hooks
 	hooks struct {
-		// in test, this can be overridden to mock OS env
-		getenv func(string) string
+		getAWSCAPublicKey func() (*rsa.PublicKey, error)
+		getenv            func(string) string
 	}
+
 	log hclog.Logger
 }
 
@@ -115,24 +95,20 @@ type IIDAttestorConfig struct {
 	AssumeRole                      string   `hcl:"assume_role"`
 	pathTemplate                    *template.Template
 	trustDomain                     string
-	awsCaCertPublicKey              *rsa.PublicKey
+	awsCAPublicKey                  *rsa.PublicKey
 }
 
 // New creates a new IIDAttestorPlugin.
 func New() *IIDAttestorPlugin {
 	p := &IIDAttestorPlugin{}
 	p.clients = newClientsCache(defaultNewClientCallback)
+	p.hooks.getAWSCAPublicKey = getAWSCAPublicKey
 	p.hooks.getenv = os.Getenv
 	return p
 }
 
 // Attest implements the server side logic for the aws iid node attestation plugin.
 func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
-	c, err := p.getConfig()
-	if err != nil {
-		return err
-	}
-
 	req, err := stream.Recv()
 	if err != nil {
 		return err
@@ -143,7 +119,12 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.awsCaCertPublicKey)
+	c, err := p.getConfig()
+	if err != nil {
+		return err
+	}
+
+	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.awsCAPublicKey)
 	if err != nil {
 		return err
 	}
@@ -161,7 +142,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.Internal, "failed to get client: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(stream.Context(), _awsTimeout)
+	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
 	defer cancel()
 
 	instancesDesc, err := awsClient.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{
@@ -233,18 +214,14 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	block, _ := pem.Decode([]byte(awsCaCertPEM))
-
-	awsCaCert, err := x509.ParseCertificate(block.Bytes)
+	// Get the AWS CA public key. We do this lazily on configure so deployments
+	// not using this plugin don't pay for parsing it on startup. This
+	// operation should not fail, but we check the return value just case...
+	awsCAPublicKey, err := p.hooks.getAWSCAPublicKey()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to read AWS CA certificate: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to load the AWS CA public key: %v", err)
 	}
-
-	awsCaCertPublicKey, ok := awsCaCert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, status.Error(codes.Internal, "failed to extract the AWS CA Certificate's public key")
-	}
-	config.awsCaCertPublicKey = awsCaCertPublicKey
+	config.awsCAPublicKey = awsCAPublicKey
 
 	if err := config.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
 		return nil, err
@@ -285,7 +262,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
 
 	if ifaceZeroDeviceIndex != 0 {
-		return fmt.Errorf("failed to verify the EC2 instance's NetworkInterface[0].DeviceIndex is 0, the DeviceIndex is %d", ifaceZeroDeviceIndex)
+		return fmt.Errorf("the EC2 instance network interface attachment device index must be zero (has %d)", ifaceZeroDeviceIndex)
 	}
 
 	ifaceZeroAttachTime := instance.NetworkInterfaces[0].Attachment.AttachTime
@@ -395,7 +372,7 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 				if err != nil {
 					return nil, err
 				}
-				ctx, cancel := context.WithTimeout(parent, _awsTimeout)
+				ctx, cancel := context.WithTimeout(parent, awsTimeout)
 				defer cancel()
 				output, err := client.GetInstanceProfileWithContext(ctx, &iam.GetInstanceProfileInput{
 					InstanceProfileName: aws.String(instanceProfileName),

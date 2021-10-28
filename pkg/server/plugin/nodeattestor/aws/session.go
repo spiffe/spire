@@ -38,7 +38,7 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 }
 
 // newAWSSession create an AWS Session from the config and given region
-func newAWSSession(accessKeyID, secretAccessKey, region, asssumeRoleArn string) (*session.Session, error) {
+func newAWSSession(accessKeyID, secretAccessKey, region, assumeRoleArn string) (*session.Session, error) {
 	var awsConf *aws.Config
 	if secretAccessKey != "" && accessKeyID != "" {
 		creds := credentials.NewStaticCredentials(accessKeyID, secretAccessKey, "")
@@ -48,7 +48,7 @@ func newAWSSession(accessKeyID, secretAccessKey, region, asssumeRoleArn string) 
 	}
 
 	// Optional: Assuming role
-	if asssumeRoleArn != "" {
+	if assumeRoleArn != "" {
 		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConf.Credentials})
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to create new session: %v", err)
@@ -56,7 +56,7 @@ func newAWSSession(accessKeyID, secretAccessKey, region, asssumeRoleArn string) 
 
 		awsConf.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
 			Client:   sts.New(staticsess),
-			RoleARN:  asssumeRoleArn,
+			RoleARN:  assumeRoleArn,
 			Duration: 15 * time.Minute,
 		})
 	}
