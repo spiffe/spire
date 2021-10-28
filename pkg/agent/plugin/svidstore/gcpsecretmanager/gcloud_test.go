@@ -1,4 +1,4 @@
-package gcloudsecretmanager
+package gcpsecretmanager
 
 import (
 	"context"
@@ -79,15 +79,16 @@ func TestConfigure(t *testing.T) {
 		name string
 
 		customConfig    string
+		newClientErr    error
 		expectCode      codes.Code
 		expectMsgPrefix string
-		filePath        string
+		expectFilePath  string
 		expectConfig    *Configuration
 	}{
 		{
-			name:         "success",
-			filePath:     "someFile",
-			expectConfig: &Configuration{ServiceAccountFile: "someFile"},
+			name:           "success",
+			expectFilePath: "someFile",
+			expectConfig:   &Configuration{ServiceAccountFile: "someFile"},
 		},
 		{
 			name:         "no config file",
@@ -98,6 +99,23 @@ func TestConfigure(t *testing.T) {
 			customConfig:    "{no a config}",
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to decode configuration:",
+		},
+		{
+			name:            "failed to create client",
+			expectConfig:    &Configuration{ServiceAccountFile: "someFile"},
+			newClientErr:    errors.New("oh! no"),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "failed to create secretmanager client: oh! no",
+		},
+		{
+			name: "contains unused keys",
+			customConfig: `
+service_account_file = "some_file"
+invalid1 = "something"
+invalid2 = "another"
+`,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unknown configurations detected: invalid1,invalid2",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,15 +128,31 @@ func TestConfigure(t *testing.T) {
 				options = append(options, plugintest.Configure(tt.customConfig))
 			} else {
 				options = append(options, plugintest.ConfigureJSON(Configuration{
-					ServiceAccountFile: tt.filePath,
+					ServiceAccountFile: tt.expectFilePath,
 				}))
 			}
 
-			p := new(SecretManagerPlugin)
+			newClient := func(ctx context.Context, serviceAccountFile string) (secretsClient, error) {
+				assert.Equal(t, tt.expectFilePath, serviceAccountFile)
+				if tt.newClientErr != nil {
+					return nil, tt.newClientErr
+				}
+
+				return &fakeClient{}, nil
+			}
+
+			p := newPlugin(newClient)
 
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
-			require.Equal(t, tt.expectConfig, p.config)
+
+			// Expect no client unsuccess calls
+			switch tt.expectCode {
+			case codes.OK:
+				require.NotNil(t, p.client)
+			default:
+				require.Nil(t, p.client)
+			}
 		})
 	}
 }
@@ -146,8 +180,8 @@ func TestPutX509SVID(t *testing.T) {
 			ExpiresAt:  expiresAt,
 		},
 		Metadata: []string{
-			"secretname:secret1",
-			"secretproject:project1",
+			"name:secret1",
+			"projectid:project1",
 		},
 		FederatedBundles: map[string][]*x509.Certificate{
 			"federated1": {federatedBundle},
@@ -223,43 +257,34 @@ func TestPutX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name:            "Fail to create gcloud client",
-			req:             successReq,
-			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to create secretmanager client: rpc error: code = Internal desc = oh! no",
-			clientConfig: &clientConfig{
-				newClientErr: status.Error(codes.Internal, "oh! no"),
-			},
-		},
-		{
 			name: "invalid metadata",
 			req: &svidstore.X509SVID{
 				SVID:             successReq.SVID,
-				Metadata:         []string{"secretproject"},
+				Metadata:         []string{"projectid"},
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): invalid metadata: metadata does not contains contain a colon: \"secretproject\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): invalid metadata: metadata does not contains contain a colon: \"projectid\"",
 		},
 		{
 			name: "invalid request, no secret name",
 			req: &svidstore.X509SVID{
 				SVID:             successReq.SVID,
-				Metadata:         []string{"secretproject:project1"},
+				Metadata:         []string{"projectid:project1"},
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretname is required",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): name is required",
 		},
 		{
 			name: "invalid request, no secret project",
 			req: &svidstore.X509SVID{
 				SVID:             successReq.SVID,
-				Metadata:         []string{"secretname:secret1"},
+				Metadata:         []string{"name:secret1"},
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretproject is required",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): projectid is required",
 		},
 		{
 			name: "Secret no spire-svid label",
@@ -271,7 +296,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): secret does not contain the 'spire-svid' label",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label",
 		},
 		{
 			name: "failed to create secret",
@@ -284,7 +309,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to create secret: rpc error: code = Internal desc = some error",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to create secret: rpc error: code = Internal desc = some error",
 		},
 		{
 			name: "failed to get secret",
@@ -296,7 +321,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to get secret: rpc error: code = Internal desc = some error",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to get secret: rpc error: code = Internal desc = some error",
 		},
 		{
 			name: "failed to parse request",
@@ -311,8 +336,8 @@ func TestPutX509SVID(t *testing.T) {
 					ExpiresAt:  expiresAt,
 				},
 				Metadata: []string{
-					"secretname:secret1",
-					"secretproject:project1",
+					"name:secret1",
+					"projectid:project1",
 				},
 				FederatedBundles: successReq.FederatedBundles,
 			},
@@ -321,7 +346,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to parse request: failed to parse CertChain: x509: malformed certificate",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to parse request: failed to parse CertChain: x509: malformed certificate",
 		},
 		{
 			name: "Failed to add secret version",
@@ -333,7 +358,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to add secret version: rpc error: code = DeadlineExceeded desc = some error",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to add secret version: rpc error: code = DeadlineExceeded desc = some error",
 		},
 	} {
 		tt := tt
@@ -348,7 +373,7 @@ func TestPutX509SVID(t *testing.T) {
 
 			// Prepare plungin
 			p := new(SecretManagerPlugin)
-			p.hooks.newClient = client.newClient
+			p.client = client
 
 			var err error
 			options := []plugintest.Option{
@@ -367,7 +392,7 @@ func TestPutX509SVID(t *testing.T) {
 			err = ss.PutX509SVID(ctx, tt.req)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsgPrefix)
 
-			// Validate what is sent to gcloud
+			// Validate what is sent to gcp
 			spiretest.AssertProtoEqual(t, tt.expectAddSecretVersionReq, client.addSecretVersionReq)
 			spiretest.AssertProtoEqual(t, tt.expectCreateSecretReq, client.createSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectGetSecretReq, client.getSecretReq)
@@ -391,8 +416,8 @@ func TestDeleteX509SVID(t *testing.T) {
 		{
 			name: "delete successfully",
 			metadata: []string{
-				"secretname:secret1",
-				"secretproject:project1",
+				"name:secret1",
+				"projectid:project1",
 			},
 			clientConfig: &clientConfig{},
 			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
@@ -405,36 +430,24 @@ func TestDeleteX509SVID(t *testing.T) {
 		{
 			name: "no project provided",
 			metadata: []string{
-				"secretname:secret1",
+				"name:secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretproject is required",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): projectid is required",
 		},
 		{
 			name: "no name provided",
 			metadata: []string{
-				"secretproject:project1",
+				"projectid:project1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): secretname is required",
-		},
-		{
-			name: "failed to create client",
-			metadata: []string{
-				"secretname:secret1",
-				"secretproject:project1",
-			},
-			clientConfig: &clientConfig{
-				newClientErr: errors.New("oh! no"),
-			},
-			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to create secretmanager client: oh! no",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): name is required",
 		},
 		{
 			name: "Secret is not managed",
 			metadata: []string{
-				"secretname:secret1",
-				"secretproject:project1",
+				"name:secret1",
+				"projectid:project1",
 			},
 			clientConfig: &clientConfig{
 				noLabels: true,
@@ -443,13 +456,13 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): secret does not contain the 'spire-svid' label",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label",
 		},
 		{
 			name: "Secret not found",
 			metadata: []string{
-				"secretname:secret1",
-				"secretproject:project1",
+				"name:secret1",
+				"projectid:project1",
 			},
 			clientConfig: &clientConfig{
 				getSecretErr: status.Error(codes.NotFound, "secret not found"),
@@ -461,8 +474,8 @@ func TestDeleteX509SVID(t *testing.T) {
 		{
 			name: "DeleteSecret fails",
 			metadata: []string{
-				"secretname:secret1",
-				"secretproject:project1",
+				"name:secret1",
+				"projectid:project1",
 			},
 			clientConfig: &clientConfig{
 				deleteSecretErr: errors.New("oh! no"),
@@ -474,7 +487,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "svidstore(gcloud_secretmanager): failed to delete secret: oh! no",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to delete secret: oh! no",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -488,7 +501,7 @@ func TestDeleteX509SVID(t *testing.T) {
 
 			// Prepare plugin
 			p := new(SecretManagerPlugin)
-			p.hooks.newClient = client.newClient
+			p.client = client
 
 			var err error
 			options := []plugintest.Option{
@@ -507,7 +520,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			err = ss.DeleteX509SVID(ctx, tt.metadata)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsgPrefix)
 
-			// Validate what is send to gcloud
+			// Validate what is send to gcp
 			spiretest.AssertProtoEqual(t, tt.expectDeleteSecretReq, client.deleteSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectGetSecretReq, client.getSecretReq)
 		})
@@ -521,7 +534,6 @@ type clientConfig struct {
 	createSecretErr     error
 	deleteSecretErr     error
 	getSecretErr        error
-	newClientErr        error
 }
 
 type fakeClient struct {
@@ -532,14 +544,6 @@ type fakeClient struct {
 	deleteSecretReq     *secretmanagerpb.DeleteSecretRequest
 	getSecretReq        *secretmanagerpb.GetSecretRequest
 	c                   *clientConfig
-}
-
-func (c *fakeClient) newClient(ctx context.Context, serviceAccountFile string) (secretsClient, error) {
-	if c.c.newClientErr != nil {
-		return nil, c.c.newClientErr
-	}
-
-	return c, nil
 }
 
 func (c *fakeClient) AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {

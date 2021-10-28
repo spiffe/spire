@@ -1,4 +1,4 @@
-package gcloudsecretmanager
+package gcpsecretmanager
 
 import (
 	"context"

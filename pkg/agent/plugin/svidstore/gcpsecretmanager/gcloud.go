@@ -1,9 +1,10 @@
-package gcloudsecretmanager
+package gcpsecretmanager
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -18,7 +19,7 @@ import (
 )
 
 const (
-	pluginName = "gcloud_secretmanager"
+	pluginName = "gcp_secretmanager"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -44,7 +45,8 @@ func newPlugin(newClient func(context.Context, string) (secretsClient, error)) *
 }
 
 type Configuration struct {
-	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
+	ServiceAccountFile string   `hcl:"service_account_file" json:"service_account_file"`
+	UnusedKeys         []string `hcl:",unusedKeys" json:",omitempty"`
 }
 
 type SecretManagerPlugin struct {
@@ -52,8 +54,8 @@ type SecretManagerPlugin struct {
 	configv1.UnsafeConfigServer
 
 	log    hclog.Logger
-	config *Configuration
 	mtx    sync.RWMutex
+	client secretsClient
 
 	hooks struct {
 		newClient func(context.Context, string) (secretsClient, error)
@@ -72,10 +74,19 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
+	if len(config.UnusedKeys) != 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(config.UnusedKeys, ","))
+	}
+
+	client, err := p.hooks.newClient(ctx, config.ServiceAccountFile)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create secretmanager client: %v", err)
+	}
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.config = config
+	p.client = client
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -87,22 +98,15 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 		return nil, err
 	}
 
-	// Create client
-	client, err := p.hooks.newClient(ctx, p.config.ServiceAccountFile)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create secretmanager client: %v", err)
-	}
-	defer client.Close()
-
 	// Get secret, if it does not exist, a secret is created
-	secret, err := getSecret(ctx, client, opt.secretName())
+	secret, err := getSecret(ctx, p.client, opt.secretName())
 	if err != nil {
 		return nil, err
 	}
 
 	// Secret not found, create it
 	if secret == nil {
-		secret, err = client.CreateSecret(ctx, &secretmanagerpb.CreateSecretRequest{
+		secret, err = p.client.CreateSecret(ctx, &secretmanagerpb.CreateSecretRequest{
 			Parent:   opt.parent(),
 			SecretId: opt.name,
 			Secret: &secretmanagerpb.Secret{
@@ -130,10 +134,10 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 
 	secretBinary, err := json.Marshal(secretData)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to parse payload: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to marshal payload: %v", err)
 	}
 
-	resp, err := client.AddSecretVersion(ctx, &secretmanagerpb.AddSecretVersionRequest{
+	resp, err := p.client.AddSecretVersion(ctx, &secretmanagerpb.AddSecretVersionRequest{
 		Parent: secret.Name,
 		Payload: &secretmanagerpb.SecretPayload{
 			Data: secretBinary,
@@ -155,23 +159,17 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 		return nil, err
 	}
 
-	client, err := p.hooks.newClient(ctx, p.config.ServiceAccountFile)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create secretmanager client: %v", err)
-	}
-	defer client.Close()
-
-	secret, err := getSecret(ctx, client, opt.secretName())
+	secret, err := getSecret(ctx, p.client, opt.secretName())
 	if err != nil {
 		return nil, err
 	}
 
 	if secret == nil {
-		p.log.With("secret_name", opt.secretName()).Warn("Secret to delete not found")
+		p.log.With("secret_name", opt.secretName()).Debug("Secret to delete not found")
 		return &svidstorev1.DeleteX509SVIDResponse{}, nil
 	}
 
-	if err := client.DeleteSecret(ctx, &secretmanagerpb.DeleteSecretRequest{
+	if err := p.client.DeleteSecret(ctx, &secretmanagerpb.DeleteSecretRequest{
 		Name: secret.Name,
 		Etag: secret.Etag,
 	}); err != nil {
@@ -182,7 +180,7 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
 }
 
-// getSecret gets secret from GCloud and validtes if it has `spire-svid` label, nil if not found
+// getSecret gets secret from Google Cloud and validates if it has `spire-svid` label, nil if not found
 func getSecret(ctx context.Context, client secretsClient, secretName string) (*secretmanagerpb.Secret, error) {
 	secret, err := client.GetSecret(ctx, &secretmanagerpb.GetSecretRequest{
 		Name: secretName,
@@ -224,14 +222,14 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	}
 
 	// Getting secret name and project, both are required.
-	name, ok := data["secretname"]
+	name, ok := data["name"]
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "secretname is required")
+		return nil, status.Error(codes.InvalidArgument, "name is required")
 	}
 
-	projectID, ok := data["secretproject"]
+	projectID, ok := data["projectid"]
 	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "secretproject is required")
+		return nil, status.Error(codes.InvalidArgument, "projectid is required")
 	}
 
 	return &secretOptions{
