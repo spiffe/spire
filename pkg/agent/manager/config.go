@@ -58,16 +58,16 @@ func newManager(c *Config) *manager {
 	cache := cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle, c.Metrics)
 
 	rotCfg := &svid.RotatorConfig{
-		Catalog:      c.Catalog,
-		Log:          c.Log,
-		Metrics:      c.Metrics,
-		SVID:         c.SVID,
-		SVIDKey:      c.SVIDKey,
-		BundleStream: cache.SubscribeToBundleChanges(),
-		ServerAddr:   c.ServerAddr,
-		TrustDomain:  c.TrustDomain,
-		Interval:     c.RotationInterval,
-		Clk:          c.Clk,
+		SVIDKeyManager: keymanager.ForSVID(c.Catalog.GetKeyManager()),
+		Log:            c.Log,
+		Metrics:        c.Metrics,
+		SVID:           c.SVID,
+		SVIDKey:        c.SVIDKey,
+		BundleStream:   cache.SubscribeToBundleChanges(),
+		ServerAddr:     c.ServerAddr,
+		TrustDomain:    c.TrustDomain,
+		Interval:       c.RotationInterval,
+		Clk:            c.Clk,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

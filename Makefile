@@ -159,7 +159,6 @@ service-protos := \
 # mock-destination-pkg,src-go-pkg,interface[,additional interfaces]
 mockgen_mocks = \
 	test/mock/server/aws,github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws,Client \
-	test/mock/agent/client,github.com/spiffe/spire/pkg/agent/client,Client \
 	test/mock/common/plugin/k8s/apiserver,github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver,Client \
 
 # The following vars are used in rule construction
