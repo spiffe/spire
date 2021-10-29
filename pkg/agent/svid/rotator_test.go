@@ -60,7 +60,7 @@ func TestRotator(t *testing.T) {
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
-			svid := createSVID(t, svidKey, caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
+			svid := createTestSVID(t, svidKey, caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
@@ -76,7 +76,7 @@ func TestRotator(t *testing.T) {
 			rotator.client = client
 
 			// Hook the rotation loop so we can determine when the rotator
-			// has finished an rotation evaluation (does not imply anything
+			// has finished a rotation evaluation (does not imply anything
 			// was actually rotated, just that the rotator evaluated the
 			// SVID expiration and attempted rotation if needed).
 			rotationDone := make(chan struct{}, 1)
@@ -188,7 +188,7 @@ func (c *fakeClient) Release() {
 	c.releaseCount++
 }
 
-func createSVID(t *testing.T, svidKey crypto.Signer, ca *x509.Certificate, caKey crypto.Signer, notBefore time.Time, notAfter time.Time) []*x509.Certificate {
+func createTestSVID(t *testing.T, svidKey crypto.Signer, ca *x509.Certificate, caKey crypto.Signer, notBefore time.Time, notAfter time.Time) []*x509.Certificate {
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		NotBefore:    notBefore,
