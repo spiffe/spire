@@ -20,7 +20,7 @@ The format that is used to store in a secret the issued identity is the followin
 
 ### Required GCP permissions
 
-In order to exercise plugin capabilities, IAM must contains following permissions 
+This plugin requires the following IAM permissions in order to function:
 ```
 secretmanager.secrets.create
 secretmanager.secrets.delete
@@ -28,7 +28,7 @@ secretmanager.secrets.get
 secretmanager.secrets.update
 secretmanager.versions.add
 ```
-Plugin never access to Secret versions that contains payloads.
+Please note that this plugin does not require permission to read secret payloads stored on secret version.
 
 ### Configuration
 
