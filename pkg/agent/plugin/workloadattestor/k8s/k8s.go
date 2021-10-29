@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
@@ -30,6 +31,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -165,7 +167,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return nil, err
 	}
 
-	containerID, err := p.getContainerIDFromCGroups(req.Pid)
+	podUID, containerID, err := p.getPodUIDAndContainerIDFromCGroups(req.Pid)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +177,10 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
-	log := p.log.With(telemetry.ContainerID, containerID)
+	log := p.log.With(
+		telemetry.PodUID, podUID,
+		telemetry.ContainerID, containerID,
+	)
 
 	// Poll pod information and search for the pod with the container. If
 	// the pod is not found then delay for a little bit and try again.
@@ -189,6 +194,10 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 		for _, item := range list.Items {
 			item := item
+			if item.UID != podUID {
+				continue
+			}
+
 			status, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
@@ -316,13 +325,13 @@ func (p *Plugin) getConfig() (*k8sConfig, error) {
 	return p.config, nil
 }
 
-func (p *Plugin) getContainerIDFromCGroups(pid int32) (string, error) {
+func (p *Plugin) getPodUIDAndContainerIDFromCGroups(pid int32) (types.UID, string, error) {
 	cgroups, err := cgroups.GetCgroups(pid, p.fs)
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
+		return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 	}
 
-	return getContainerIDFromCGroups(cgroups)
+	return getPodUIDAndContainerIDFromCGroups(cgroups)
 }
 
 func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
@@ -531,44 +540,51 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	return out, nil
 }
 
-func getContainerIDFromCGroups(cgroups []cgroups.Cgroup) (string, error) {
+func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, string, error) {
+	var podUID types.UID
 	var containerID string
 	for _, cgroup := range cgroups {
-		candidate, ok := getContainerIDFromCGroupPath(cgroup.GroupPath)
+		candidatePodUID, candidateContainerID, ok := getPodUIDAndContainerIDFromCGroupPath(cgroup.GroupPath)
 		switch {
 		case !ok:
 			// Cgroup did not contain a container ID.
 			continue
 		case containerID == "":
 			// This is the first container ID found so far.
-			containerID = candidate
-		case containerID != candidate:
+			podUID = candidatePodUID
+			containerID = candidateContainerID
+		case containerID != candidateContainerID:
 			// More than one container ID found in the cgroups.
-			return "", status.Errorf(codes.FailedPrecondition, "multiple container IDs found in cgroups (%s, %s)",
-				containerID, candidate)
+			return "", "", status.Errorf(codes.FailedPrecondition, "multiple container IDs found in cgroups (%s, %s)",
+				containerID, candidateContainerID)
+		case podUID != candidatePodUID:
+			// More than one pod UID found in the cgroups.
+			return "", "", status.Errorf(codes.FailedPrecondition, "multiple pod UIDs found in cgroups (%s, %s)",
+				podUID, candidatePodUID)
 		}
 	}
 
-	return containerID, nil
+	return podUID, containerID, nil
 }
 
-// containerIDRe is the regex used to parse out the container ID from a cgroup
-// name. It assumes that any ".scope" suffix has been trimmed off beforehand.
-// CAUTION: we used to verify that the pod and container id were descendants of
-// a kubepods directory, however, as of Kubernetes 1.21, cgroups namespaces are in
-// use and therefore we can no longer discern if that is the case from within SPIRE agent
-// container (since the container itself is namespaced). As such, the regex has been
-// relaxed to simply find the pod UID followed by the container ID with allowances for
-// arbitrary punctuation, and container runtime prefixes, etc.
-var containerIDRe = regexp.MustCompile(`` +
-	// "pod"-prefixed Pod UUID (with punctuation separated groups) followed by punctuation
-	`[[:punct:]]pod[[:xdigit:]]{8}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{12}[[:punct:]]` +
+// cgroupRE is the regex used to parse out the pod UID and container ID from a
+// cgroup name. It assumes that any ".scope" suffix has been trimmed off
+// beforehand.  CAUTION: we used to verify that the pod and container id were
+// descendants of a kubepods directory, however, as of Kubernetes 1.21, cgroups
+// namespaces are in use and therefore we can no longer discern if that is the
+// case from within SPIRE agent container (since the container itself is
+// namespaced). As such, the regex has been relaxed to simply find the pod UID
+// followed by the container ID with allowances for arbitrary punctuation, and
+// container runtime prefixes, etc.
+var cgroupRE = regexp.MustCompile(`` +
+	// "pod"-prefixed Pod UID (with punctuation separated groups) followed by punctuation
+	`[[:punct:]]pod([[:xdigit:]]{8}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{12})[[:punct:]]` +
 	// zero or more punctuation separated "segments" (e.g. "docker-")
 	`(?:[[:^punct:]]+[[:punct:]])*` +
 	// non-punctuation end of string, i.e., the container ID
 	`([[:^punct:]]+)$`)
 
-func getContainerIDFromCGroupPath(cgroupPath string) (string, bool) {
+func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
 	// We are only interested in kube pods entries, for example:
 	// - /kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
 	// - /docker/8d461fa5765781bcf5f7eb192f101bc3103d4b932e26236f43feecfa20664f96/kubepods/besteffort/poddaa5c7ee-3484-4533-af39-3591564fd03e/aff34703e5e1f89443e9a1bffcc80f43f74d4808a2dd22c8f88c08547b323934
@@ -581,11 +597,23 @@ func getContainerIDFromCGroupPath(cgroupPath string) (string, bool) {
 	// is cheap.
 	cgroupPath = strings.TrimSuffix(cgroupPath, ".scope")
 
-	matches := containerIDRe.FindStringSubmatch(cgroupPath)
+	matches := cgroupRE.FindStringSubmatch(cgroupPath)
 	if matches != nil {
-		return matches[1], true
+		return canonicalizePodUID(matches[1]), matches[2], true
 	}
-	return "", false
+	return "", "", false
+}
+
+// canonicalizePodUID converts a Pod UID, as represented in a cgroup path, into
+// a canonical form. Practically this means that we convert any punctuation to
+// dashes, which is how the UID is represented within Kubernetes.
+func canonicalizePodUID(uid string) types.UID {
+	return types.UID(strings.Map(func(r rune) rune {
+		if unicode.IsPunct(r) {
+			r = '-'
+		}
+		return r
+	}, uid))
 }
 
 func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.ContainerStatus, containerLookup) {

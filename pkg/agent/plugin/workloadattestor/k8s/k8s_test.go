@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -861,25 +862,28 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name        string
-		cgroupPaths []string
-		containerID string
-		expectCode  codes.Code
-		expectMsg   string
+		name              string
+		cgroupPaths       []string
+		expectPodUID      types.UID
+		expectContainerID string
+		expectCode        codes.Code
+		expectMsg         string
 	}{
 		{
-			name:        "no cgroups",
-			cgroupPaths: []string{},
-			containerID: "",
-			expectCode:  codes.OK,
+			name:              "no cgroups",
+			cgroupPaths:       []string{},
+			expectPodUID:      "",
+			expectContainerID: "",
+			expectCode:        codes.OK,
 		},
 		{
 			name: "no container ID in cgroups",
 			cgroupPaths: []string{
 				"/user.slice",
 			},
-			containerID: "",
-			expectCode:  codes.OK,
+			expectPodUID:      "",
+			expectContainerID: "",
+			expectCode:        codes.OK,
 		},
 		{
 			name: "one container ID in cgroups",
@@ -887,79 +891,113 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 				"/user.slice",
 				"/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
 			},
-			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
-			expectCode:  codes.OK,
+			expectPodUID:      "2c48913c-b29f-11e7-9350-020968147796",
+			expectContainerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			expectCode:        codes.OK,
+		},
+		{
+			name: "pod UID canonicalized",
+			cgroupPaths: []string{
+				"/user.slice",
+				"/kubepods/pod2c48913c_b29f_11e7_9350_020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			},
+			expectPodUID:      "2c48913c-b29f-11e7-9350-020968147796",
+			expectContainerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			expectCode:        codes.OK,
 		},
 		{
 			name: "more than one container ID in cgroups",
 			cgroupPaths: []string{
 				"/user.slice",
 				"/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
-				"/kubepods/kubepods/besteffort/pod6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
+				"/kubepods/kubepods/besteffort/pod2c48913c-b29f-11e7-9350-020968147796/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
 			},
-			containerID: "",
-			expectCode:  codes.FailedPrecondition,
-			expectMsg:   "multiple container IDs found in cgroups (9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961, a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38)",
+			expectPodUID:      "",
+			expectContainerID: "",
+			expectCode:        codes.FailedPrecondition,
+			expectMsg:         "multiple container IDs found in cgroups (9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961, a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38)",
+		},
+		{
+			name: "more than one pod UID in cgroups",
+			cgroupPaths: []string{
+				"/user.slice",
+				"/kubepods/pod11111111-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+				"/kubepods/kubepods/besteffort/pod22222222-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			},
+			expectPodUID:      "",
+			expectContainerID: "",
+			expectCode:        codes.FailedPrecondition,
+			expectMsg:         "multiple pod UIDs found in cgroups (11111111-b29f-11e7-9350-020968147796, 22222222-b29f-11e7-9350-020968147796)",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			containerID, err := getContainerIDFromCGroups(makeCGroups(tt.cgroupPaths))
+			podUID, containerID, err := getPodUIDAndContainerIDFromCGroups(makeCGroups(tt.cgroupPaths))
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
 				assert.Empty(t, containerID)
 				return
 			}
-			assert.Equal(t, tt.containerID, containerID)
+			assert.Equal(t, tt.expectPodUID, podUID)
+			assert.Equal(t, tt.expectContainerID, containerID)
 		})
 	}
 }
 
-func TestGetContainerIDFromCGroupPath(t *testing.T) {
+func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		cgroupPath  string
-		containerID string
+		name              string
+		cgroupPath        string
+		expectPodUID      types.UID
+		expectContainerID string
 	}{
 		{
-			name:        "without QOS",
-			cgroupPath:  "/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
-			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			name:              "without QOS",
+			cgroupPath:        "/kubepods/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			expectPodUID:      "2c48913c-b29f-11e7-9350-020968147796",
+			expectContainerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
 		},
 		{
-			name:        "with QOS",
-			cgroupPath:  "/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/34a2062fd26c805aa8cf814cdfe479322b791f80afb9ea4db02d50375df14b41",
-			containerID: "34a2062fd26c805aa8cf814cdfe479322b791f80afb9ea4db02d50375df14b41",
+			name:              "with QOS",
+			cgroupPath:        "/kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/34a2062fd26c805aa8cf814cdfe479322b791f80afb9ea4db02d50375df14b41",
+			expectPodUID:      "2c48913c-b29f-11e7-9350-020968147796",
+			expectContainerID: "34a2062fd26c805aa8cf814cdfe479322b791f80afb9ea4db02d50375df14b41",
 		},
 		{
-			name:        "docker for desktop with QOS",
-			cgroupPath:  "/kubepods/kubepods/besteffort/pod6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
-			containerID: "a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
+			name:              "docker for desktop with QOS",
+			cgroupPath:        "/kubepods/kubepods/besteffort/pod6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904/a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
+			expectPodUID:      "6bd2a4d3-a55a-4450-b6fd-2a7ecc72c904",
+			expectContainerID: "a55d9ac3b312d8a2627824b6d6dd8af66fbec439bf4e0ec22d6d9945ad337a38",
 		},
 		{
-			name:        "kind with QOS",
-			cgroupPath:  "/docker/93529524695bb00d91c1f6dba692ea8d3550c3b94fb2463af7bc9ec82f992d26/kubepods/besteffort/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
-			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			name:              "kind with QOS",
+			cgroupPath:        "/docker/93529524695bb00d91c1f6dba692ea8d3550c3b94fb2463af7bc9ec82f992d26/kubepods/besteffort/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			expectPodUID:      "a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80",
+			expectContainerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 		{
-			name:        "systemd with QOS and container runtime",
-			cgroupPath:  "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope",
-			containerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
+			name:              "systemd with QOS and container runtime",
+			cgroupPath:        "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope",
+			expectPodUID:      "2c48913c-b29f-11e7-9350-020968147796",
+			expectContainerID: "9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961",
 		},
 		{
-			name:        "from a different cgroup namespace",
-			cgroupPath:  "/../../../burstable/pod095e82d2-713c-467a-a18a-cbb50a075296/6d1234da0f5aa7fa0ccae4c7d2d109929eb9a81694e6357bcd4547ab3985911b",
-			containerID: "6d1234da0f5aa7fa0ccae4c7d2d109929eb9a81694e6357bcd4547ab3985911b",
+			name:              "from a different cgroup namespace",
+			cgroupPath:        "/../../../burstable/pod095e82d2-713c-467a-a18a-cbb50a075296/6d1234da0f5aa7fa0ccae4c7d2d109929eb9a81694e6357bcd4547ab3985911b",
+			expectPodUID:      "095e82d2-713c-467a-a18a-cbb50a075296",
+			expectContainerID: "6d1234da0f5aa7fa0ccae4c7d2d109929eb9a81694e6357bcd4547ab3985911b",
 		},
 		{
-			name:        "not kubepods",
-			cgroupPath:  "/something/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
-			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			name:              "not kubepods",
+			cgroupPath:        "/something/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			expectPodUID:      "a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80",
+			expectContainerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 		{
-			name:        "just pod uid and container",
-			cgroupPath:  "/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
-			containerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			name:              "just pod uid and container",
+			cgroupPath:        "/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
+			expectPodUID:      "a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80",
+			expectContainerID: "09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 		{
 			name:       "just container segment",
@@ -974,22 +1012,25 @@ func TestGetContainerIDFromCGroupPath(t *testing.T) {
 			cgroupPath: "/kubepods/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6",
 		},
 		{
-			name:        "cri-containerd",
-			cgroupPath:  "/kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
-			containerID: "b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
+			name:              "cri-containerd",
+			cgroupPath:        "/kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
+			expectPodUID:      "72f7f152-440c-66ac-9084-e0fc1d8a910c",
+			expectContainerID: "b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("cgroup path=%s", tt.cgroupPath)
-			containerID, ok := getContainerIDFromCGroupPath(tt.cgroupPath)
-			if tt.containerID == "" {
+			podUID, containerID, ok := getPodUIDAndContainerIDFromCGroupPath(tt.cgroupPath)
+			if tt.expectContainerID == "" {
 				assert.False(t, ok)
+				assert.Empty(t, podUID)
 				assert.Empty(t, containerID)
 				return
 			}
 			assert.True(t, ok)
-			assert.Equal(t, tt.containerID, containerID)
+			assert.Equal(t, tt.expectPodUID, podUID)
+			assert.Equal(t, tt.expectContainerID, containerID)
 		})
 	}
 }
