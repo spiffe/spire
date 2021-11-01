@@ -1,6 +1,7 @@
 package x509util
 
 import (
+	"fmt"
 	"crypto"
 	"crypto/x509"
 
@@ -13,6 +14,17 @@ func CertificateMatchesPublicKey(certificate *x509.Certificate, publicKey crypto
 
 func CertificateMatchesPrivateKey(certificate *x509.Certificate, privateKey crypto.PrivateKey) (bool, error) {
 	return cryptoutil.KeyMatches(privateKey, certificate.PublicKey)
+}
+
+func CACertHasRequiredExtensionFlags(certificate *x509.Certificate) (error) {
+	if !certificate.IsCA {
+		return fmt.Errorf("Signing certificate must have CA flag set to true")
+	}
+	if certificate.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return fmt.Errorf("Signing certificate must have 'keyCertSign' set as key usage")
+	}
+
+	return nil
 }
 
 func DedupeCertificates(bundles ...[]*x509.Certificate) []*x509.Certificate {
