@@ -202,11 +202,6 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 	if !matched {
 		return nil, nil, status.Error(codes.InvalidArgument, "unable to load upstream CA: certificate and private key do not match")
 	}
-	// Validate cert has required x509 flags
-	err = x509util.CACertHasRequiredExtensionFlags(caCert)
-	if err != nil {
-		return nil, nil, status.Error(codes.InvalidArgument, fmt.Sprintf("unable to load upstream CA: CA is missing required x509 extensions: %s", err))
-	}
 
 	intermediates := x509.NewCertPool()
 	roots := x509.NewCertPool()

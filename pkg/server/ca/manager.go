@@ -608,6 +608,12 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 		return nil, "", errs.New("unable to parse CA certificate: %v", err)
 	}
 
+	// Validate CA cert has required x509 flags
+	err = x509util.CACertHasRequiredExtensionFlags(cert)
+	if err != nil {
+		return nil, "", errs.New("unable to load CA certificate: CA is missing required x509 extensions: %s", err)
+	}
+
 	var upstreamChain []*x509.Certificate
 	for _, certDER := range entry.UpstreamChain {
 		cert, err := x509.ParseCertificate(certDER)
