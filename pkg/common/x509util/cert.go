@@ -1,9 +1,9 @@
 package x509util
 
 import (
-	"fmt"
 	"crypto"
 	"crypto/x509"
+	"fmt"
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 )
