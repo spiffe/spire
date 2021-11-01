@@ -611,7 +611,7 @@ func (m *Manager) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntr
 	// Validate CA cert has required x509 flags
 	err = x509util.CACertHasRequiredExtensionFlags(cert)
 	if err != nil {
-		return nil, "", errs.New("unable to load CA certificate: CA is missing required x509 extensions: %s", err)
+		return nil, "", errs.New("unable to load CA certificate: CA cert is missing required x509 extensions: %s", err)
 	}
 
 	var upstreamChain []*x509.Certificate
