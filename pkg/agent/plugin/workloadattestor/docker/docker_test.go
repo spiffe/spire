@@ -13,12 +13,10 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	gomock "github.com/golang/mock/gomock"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/test/clock"
-	mock_docker "github.com/spiffe/spire/test/mock/agent/plugin/workloadattestor/docker"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
 )
@@ -74,23 +72,15 @@ func TestDockerSelectors(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
-
-			mockDocker := mock_docker.NewMockDocker(mockCtrl)
+			d := fakeContainer{
+				Labels: tt.mockContainerLabels,
+				Image:  tt.mockImageID,
+				Env:    tt.mockEnv,
+			}
 
 			fs := newFakeFileSystem(testCgroupEntries)
 
-			p := newTestPlugin(t, withMockDocker(mockDocker), withFileSystem(fs))
-
-			container := types.ContainerJSON{
-				Config: &container.Config{
-					Labels: tt.mockContainerLabels,
-					Image:  tt.mockImageID,
-					Env:    tt.mockEnv,
-				},
-			}
-			mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
+			p := newTestPlugin(t, withDocker(d), withFileSystem(fs))
 
 			selectorValues, err := doAttest(t, p)
 			require.NoError(t, err)
@@ -157,27 +147,22 @@ func TestContainerExtraction(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
-			mockDocker := mock_docker.NewMockDocker(mockCtrl)
-
 			fs := newFakeFileSystem(tt.cgroups)
+
+			var d Docker = dockerError{}
+			if tt.hasMatch {
+				d = fakeContainer{
+					Image: "image-id",
+				}
+			}
 
 			p := newTestPlugin(
 				t,
 				withConfig(t, tt.cfg), // this must be the first option
-				withMockDocker(mockDocker),
+				withDocker(d),
 				withFileSystem(fs),
 			)
 
-			if tt.hasMatch {
-				container := types.ContainerJSON{
-					Config: &container.Config{
-						Image: "image-id",
-					},
-				}
-				mockDocker.EXPECT().ContainerInspect(gomock.Any(), testContainerID).Return(container, nil)
-			}
 			selectorValues, err := doAttest(t, p)
 			if tt.expectErr != "" {
 				require.Error(t, err)
@@ -206,22 +191,14 @@ func TestCgroupFileNotFound(t *testing.T) {
 }
 
 func TestDockerError(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockDocker := mock_docker.NewMockDocker(mockCtrl)
-
 	fs := newFakeFileSystem(testCgroupEntries)
 
 	p := newTestPlugin(
 		t,
-		withMockDocker(mockDocker),
 		withFileSystem(fs),
+		withDocker(dockerError{}),
 		withDisabledRetryer(),
 	)
-
-	mockDocker.EXPECT().
-		ContainerInspect(gomock.Any(), testContainerID).
-		Return(types.ContainerJSON{}, errors.New("docker error"))
 
 	selectorValues, err := doAttest(t, p)
 	require.Error(t, err)
@@ -230,9 +207,6 @@ func TestDockerError(t *testing.T) {
 }
 
 func TestDockerErrorRetries(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockDocker := mock_docker.NewMockDocker(mockCtrl)
 	mockClock := clock.NewMock(t)
 
 	fs := newFakeFileSystem(testCgroupEntries)
@@ -240,14 +214,9 @@ func TestDockerErrorRetries(t *testing.T) {
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
-		withMockDocker(mockDocker),
+		withDocker(dockerError{}),
 		withFileSystem(fs),
 	)
-
-	mockDocker.EXPECT().
-		ContainerInspect(gomock.Any(), testContainerID).
-		Return(types.ContainerJSON{}, errors.New("docker error")).
-		Times(4)
 
 	go func() {
 		mockClock.WaitForAfter(time.Second, "never got call to 'after' 1")
@@ -265,9 +234,6 @@ func TestDockerErrorRetries(t *testing.T) {
 }
 
 func TestDockerErrorContextCancel(t *testing.T) {
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockDocker := mock_docker.NewMockDocker(mockCtrl)
 	mockClock := clock.NewMock(t)
 
 	fs := newFakeFileSystem(testCgroupEntries)
@@ -275,15 +241,10 @@ func TestDockerErrorContextCancel(t *testing.T) {
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
-		withMockDocker(mockDocker),
 		withFileSystem(fs),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	mockDocker.EXPECT().
-		ContainerInspect(gomock.Any(), testContainerID).
-		Return(types.ContainerJSON{}, errors.New("docker error"))
 
 	go func() {
 		mockClock.WaitForAfter(time.Second, "never got call to 'after'")
@@ -375,9 +336,9 @@ func doConfigure(t *testing.T, p *Plugin, cfg string) error {
 
 type testPluginOpt func(*Plugin)
 
-func withMockDocker(m *mock_docker.MockDocker) testPluginOpt {
+func withDocker(docker Docker) testPluginOpt {
 	return func(p *Plugin) {
-		p.docker = m
+		p.docker = docker
 	}
 }
 
@@ -416,6 +377,24 @@ func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 		o(p)
 	}
 	return p
+}
+
+type dockerError struct{}
+
+func (dockerError) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
+	return types.ContainerJSON{}, errors.New("docker error")
+}
+
+type fakeContainer container.Config
+
+func (f fakeContainer) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
+	if containerID != testContainerID {
+		return types.ContainerJSON{}, errors.New("expected test container ID")
+	}
+	config := container.Config(f)
+	return types.ContainerJSON{
+		Config: &config,
+	}, nil
 }
 
 func newFakeFileSystem(cgroups string) FakeFileSystem {
