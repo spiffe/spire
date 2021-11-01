@@ -20,6 +20,10 @@ The plugin accepts the following configuration options:
 | key_file_path   | Path to the "upstream" CA key file. Key files must contain a single PEM encoded key. The supported key types are EC (ASN.1 or PKCS8 encoded) or RSA (PKCS1 or PKCS8 encoded).|
 | bundle_file_path| If SPIRE is using a self-signed CA, `bundle_file_path` can be left unset. If not self-signed, then `bundle_file_path` should be the path to a file that must contain one or more certificates representing the upstream root certificates and the file at cert_file_path contains one or more certificates necessary to chain up the the root certificates in bundle_file_path (where the first certificate in cert_file_path is the upstream CA certificate). |
 
+> NOTE: The CA cert provided to SPIRE (whether self-signed or not) must have the following x509 extensions set:
+> CA:TRUE
+> KeyUsage: Certificate Sign
+
 The `disk` plugin is able to function as either a root CA, or join an existing PKI.
 
 When joining an existing PKI, the trust bundle for that PKI MUST be set explicitly
