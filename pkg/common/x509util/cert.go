@@ -16,7 +16,7 @@ func CertificateMatchesPrivateKey(certificate *x509.Certificate, privateKey cryp
 	return cryptoutil.KeyMatches(privateKey, certificate.PublicKey)
 }
 
-func CACertHasRequiredExtensionFlags(certificate *x509.Certificate) (error) {
+func CACertHasRequiredExtensionFlags(certificate *x509.Certificate) error {
 	if !certificate.IsCA {
 		return fmt.Errorf("Signing certificate must have CA flag set to true")
 	}
