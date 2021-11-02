@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -27,7 +26,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
-	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -59,8 +57,6 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgpHVYFq6Z/LgGIG/X
 +i+PWZEFjGVEUpjrMzlz95tDl4yhRANCAAQAc/I3bBO9XhgTTbLBuNA6XJBSvds9
 c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
 -----END PRIVATE KEY-----`)
-
-	notNil = gomock.Not(gomock.Nil())
 )
 
 func TestAttestorPlugin(t *testing.T) {
@@ -70,17 +66,16 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir        string
-	fooKey     *rsa.PrivateKey
-	fooSigner  jose.Signer
-	barKey     *ecdsa.PrivateKey
-	barSigner  jose.Signer
-	bazSigner  jose.Signer
-	attestor   nodeattestor.NodeAttestor
-	agentStore *fakeagentstore.AgentStore
-	now        time.Time
-	mockCtrl   *gomock.Controller
-	mockClient *k8s_apiserver_mock.MockClient
+	dir             string
+	fooKey          *rsa.PrivateKey
+	fooSigner       jose.Signer
+	barKey          *ecdsa.PrivateKey
+	barSigner       jose.Signer
+	bazSigner       jose.Signer
+	attestor        nodeattestor.NodeAttestor
+	agentStore      *fakeagentstore.AgentStore
+	now             time.Time
+	apiServerClient *fakeAPIServerClient
 }
 
 func (s *AttestorSuite) SetupSuite() {
@@ -117,14 +112,9 @@ func (s *AttestorSuite) SetupSuite() {
 }
 
 func (s *AttestorSuite) SetupTest() {
-	s.mockCtrl = gomock.NewController(s.T())
 	s.agentStore = fakeagentstore.New()
 	s.attestor = s.loadPlugin()
 	s.now = time.Now()
-}
-
-func (s *AttestorSuite) TearDownTest() {
-	s.mockCtrl.Finish()
 }
 
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
@@ -193,7 +183,6 @@ func (s *AttestorSuite) TestAttestFailsWithBadSignature() {
 
 func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(nil, errors.New("an error"))
 	s.requireAttestError(makePayload("BAR", token),
 		codes.Internal,
 		"unable to validate token with TokenReview API")
@@ -224,7 +213,7 @@ func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
 func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 	token := s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", false)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
+	s.apiServerClient.SetTokenStatus(token, status)
 	s.requireAttestError(makePayload("BAR", token), codes.PermissionDenied, "token not authenticated")
 }
 
@@ -236,7 +225,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceFromTokenStatus() {
 	token := s.signToken(s.barSigner, "", "SA2")
 	status := createTokenStatus("", "SA2", true)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
+	s.apiServerClient.SetTokenStatus(token, status)
 	s.requireAttestError(makePayload("BAR", token), codes.Internal, "fail to parse username from token review status")
 }
 
@@ -248,7 +237,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "")
 	status := createTokenStatus("NS2", "", true)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
+	s.apiServerClient.SetTokenStatus(token, status)
 	s.requireAttestError(makePayload("BAR", token), codes.Internal, "fail to parse username from token review status")
 }
 
@@ -260,7 +249,7 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowListedFromTokenCl
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowListedFromTokenStatus() {
 	token := s.signToken(s.barSigner, "NS2", "NO-WHITHELISTED-SA")
 	status := createTokenStatus("NS2", "NO-WHITHELISTED-SA", true)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
+	s.apiServerClient.SetTokenStatus(token, status)
 	s.requireAttestError(makePayload("BAR", token), codes.PermissionDenied, `"NS2:NO-WHITHELISTED-SA" is not an allowed service account`)
 }
 
@@ -285,7 +274,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	// Success with BAR signed token (token review API validation)
 	token = s.signToken(s.barSigner, "NS2", "SA2")
 	status := createTokenStatus("NS2", "SA2", true)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{}).Return(status, nil).Times(1)
+	s.apiServerClient.SetTokenStatus(token, status)
 	result, err = s.attestor.Attest(context.Background(), makePayload("BAR", token), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().NotNil(result)
@@ -472,9 +461,9 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	)
 
 	// TODO: provide this client in a cleaner way
-	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
-	attestor.config.clusters["FOO"].client = s.mockClient
-	attestor.config.clusters["BAR"].client = s.mockClient
+	s.apiServerClient = newFakeAPIServerClient()
+	attestor.config.clusters["FOO"].client = s.apiServerClient
+	attestor.config.clusters["BAR"].client = s.apiServerClient
 	return v1
 }
 
@@ -537,4 +526,29 @@ func createTokenStatus(namespace, serviceAccountName string, authenticated bool)
 
 func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+type fakeAPIServerClient struct {
+	status map[string]*authv1.TokenReviewStatus
+}
+
+func newFakeAPIServerClient() *fakeAPIServerClient {
+	return &fakeAPIServerClient{
+		status: make(map[string]*authv1.TokenReviewStatus),
+	}
+}
+
+func (c *fakeAPIServerClient) SetTokenStatus(token string, status *authv1.TokenReviewStatus) {
+	c.status[token] = status
+}
+
+func (c *fakeAPIServerClient) ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
+	if len(audiences) > 0 {
+		return nil, fmt.Errorf("unexpected audiences %q", audiences)
+	}
+	status, ok := c.status[token]
+	if !ok {
+		return nil, errors.New("no status configured by test for token")
+	}
+	return status, nil
 }

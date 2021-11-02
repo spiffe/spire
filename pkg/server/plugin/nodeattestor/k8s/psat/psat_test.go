@@ -17,21 +17,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/google/go-cmp/cmp"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
-	k8s_apiserver_mock "github.com/spiffe/spire/test/mock/common/plugin/k8s/apiserver"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 	authv1 "k8s.io/api/authentication/v1"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -59,8 +58,6 @@ MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgpHVYFq6Z/LgGIG/X
 +i+PWZEFjGVEUpjrMzlz95tDl4yhRANCAAQAc/I3bBO9XhgTTbLBuNA6XJBSvds9
 c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
 -----END PRIVATE KEY-----`)
-
-	notNil = gomock.Not(gomock.Nil())
 )
 
 func TestAttestorPlugin(t *testing.T) {
@@ -70,15 +67,14 @@ func TestAttestorPlugin(t *testing.T) {
 type AttestorSuite struct {
 	spiretest.Suite
 
-	dir        string
-	fooKey     *rsa.PrivateKey
-	fooSigner  jose.Signer
-	barKey     *ecdsa.PrivateKey
-	barSigner  jose.Signer
-	bazSigner  jose.Signer
-	attestor   nodeattestor.NodeAttestor
-	mockCtrl   *gomock.Controller
-	mockClient *k8s_apiserver_mock.MockClient
+	dir             string
+	fooKey          *rsa.PrivateKey
+	fooSigner       jose.Signer
+	barKey          *ecdsa.PrivateKey
+	barSigner       jose.Signer
+	bazSigner       jose.Signer
+	attestor        nodeattestor.NodeAttestor
+	apiServerClient *fakeAPIServerClient
 }
 
 type TokenData struct {
@@ -126,12 +122,7 @@ func (s *AttestorSuite) SetupSuite() {
 }
 
 func (s *AttestorSuite) SetupTest() {
-	s.mockCtrl = gomock.NewController(s.T())
 	s.attestor = s.loadPlugin()
-}
-
-func (s *AttestorSuite) TearDownTest() {
-	s.mockCtrl.Finish()
 }
 
 func (s *AttestorSuite) TestAttestFailsWhenNotConfigured() {
@@ -171,7 +162,6 @@ func (s *AttestorSuite) TestAttestFailsIfTokenReviewAPIFails() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(nil, errors.New("an error"))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): unable to validate token with TokenReview API")
@@ -185,7 +175,7 @@ func (s *AttestorSuite) TestAttestFailsIfTokenNotAuthenticated() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, false), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, false, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.PermissionDenied,
 		"nodeattestor(k8s_psat): token not authenticated")
@@ -198,7 +188,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): fail to parse username from token review status")
@@ -211,7 +201,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 		podUID:    "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): fail to parse username from token review status")
@@ -224,7 +214,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): fail to get pod name from token review status")
@@ -237,7 +227,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 		podName:            "PODNAME",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): fail to get pod UID from token review status")
@@ -251,7 +241,7 @@ func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowed() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.PermissionDenied,
 		`nodeattestor(k8s_psat): "NS1:SERVICEACCOUNTNAME" is not an allowed service account`)
@@ -265,8 +255,7 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(nil, errors.New("an error"))
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): fail to get pod from k8s API server")
@@ -280,9 +269,8 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME", "172.16.0.1"), nil)
-	s.mockClient.EXPECT().GetNode(notNil, "NODENAME").Return(nil, errors.New("an error"))
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "NODENAME", "172.16.0.1"))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"nodeattestor(k8s_psat): fail to get node from k8s API server")
@@ -296,9 +284,9 @@ func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
 		podUID:             "PODUID",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME").Return(createPod("NODENAME", "172.16.0.1"), nil)
-	s.mockClient.EXPECT().GetNode(notNil, "NODENAME").Return(createNode(""), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "NODENAME", "172.16.0.1"))
+	s.apiServerClient.SetNode(createNode("NODENAME", ""))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"node UID is empty")
@@ -313,9 +301,9 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		podUID:             "PODUID-1",
 	}
 	token := s.signToken(s.fooSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, defaultAudience).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS1", "PODNAME-1").Return(createPod("NODENAME-1", "172.16.10.1"), nil)
-	s.mockClient.EXPECT().GetNode(notNil, "NODENAME-1").Return(createNode("NODEUID-1"), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-1", "NODENAME-1", "172.16.10.1"))
+	s.apiServerClient.SetNode(createNode("NODENAME-1", "NODEUID-1"))
 
 	result, err := s.attestor.Attest(context.Background(), makePayload("FOO", token), expectNoChallenge)
 	s.Require().NoError(err)
@@ -342,9 +330,9 @@ func (s *AttestorSuite) TestAttestSuccess() {
 		podUID:             "PODUID-2",
 	}
 	token = s.signToken(s.barSigner, tokenData)
-	s.mockClient.EXPECT().ValidateToken(notNil, token, []string{"AUDIENCE"}).Return(createTokenStatus(tokenData, true), nil)
-	s.mockClient.EXPECT().GetPod(notNil, "NS2", "PODNAME-2").Return(createPod("NODENAME-2", "172.16.10.2"), nil)
-	s.mockClient.EXPECT().GetNode(notNil, "NODENAME-2").Return(createNode("NODEUID-2"), nil)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, []string{"AUDIENCE"}))
+	s.apiServerClient.SetPod(createPod("NS2", "PODNAME-2", "NODENAME-2", "172.16.10.2"))
+	s.apiServerClient.SetNode(createNode("NODENAME-2", "NODEUID-2"))
 
 	// Success with BAR signed token
 	result, err = s.attestor.Attest(context.Background(), makePayload("BAR", token), expectNoChallenge)
@@ -449,9 +437,9 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	}))
 
 	// TODO: provide this client in a cleaner way
-	s.mockClient = k8s_apiserver_mock.NewMockClient(s.mockCtrl)
-	attestor.config.clusters["FOO"].client = s.mockClient
-	attestor.config.clusters["BAR"].client = s.mockClient
+	s.apiServerClient = newFakeAPIServerClient()
+	attestor.config.clusters["FOO"].client = s.apiServerClient
+	attestor.config.clusters["BAR"].client = s.apiServerClient
 	return v1
 }
 
@@ -488,7 +476,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
 }
 
-func createTokenStatus(tokenData *TokenData, authenticated bool) *authv1.TokenReviewStatus {
+func createTokenStatus(tokenData *TokenData, authenticated bool, audience []string) *authv1.TokenReviewStatus {
 	values := make(map[string]authv1.ExtraValue)
 	values["authentication.kubernetes.io/pod-name"] = authv1.ExtraValue([]string{tokenData.podName})
 	values["authentication.kubernetes.io/pod-uid"] = authv1.ExtraValue([]string{tokenData.podUID})
@@ -498,30 +486,34 @@ func createTokenStatus(tokenData *TokenData, authenticated bool) *authv1.TokenRe
 			Username: fmt.Sprintf("system:serviceaccount:%s:%s", tokenData.namespace, tokenData.serviceAccountName),
 			Extra:    values,
 		},
+		Audiences: audience,
 	}
 }
 
-func createPod(nodeName string, hostIP string) *v1.Pod {
-	return &v1.Pod{
+func createPod(namespace, podName, nodeName string, hostIP string) *corev1.Pod {
+	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      podName,
 			Labels: map[string]string{
 				"PODLABEL-A": "A",
 				"PODLABEL-B": "B",
 			},
 		},
-		Spec: v1.PodSpec{
+		Spec: corev1.PodSpec{
 			NodeName: nodeName,
 		},
-		Status: v1.PodStatus{
+		Status: corev1.PodStatus{
 			HostIP: hostIP,
 		},
 	}
 }
 
-func createNode(nodeUID string) *v1.Node {
-	return &v1.Node{
+func createNode(nodeName, nodeUID string) *corev1.Node {
+	return &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			UID: types.UID(nodeUID),
+			Name: nodeName,
+			UID:  types.UID(nodeUID),
 			Labels: map[string]string{
 				"NODELABEL-A": "A",
 				"NODELABEL-B": "B",
@@ -532,4 +524,62 @@ func createNode(nodeUID string) *v1.Node {
 
 func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+type namespacedName struct {
+	namespace string
+	name      string
+}
+
+type fakeAPIServerClient struct {
+	status map[string]*authv1.TokenReviewStatus
+	pods   map[namespacedName]*corev1.Pod
+	nodes  map[string]*corev1.Node
+}
+
+func newFakeAPIServerClient() *fakeAPIServerClient {
+	return &fakeAPIServerClient{
+		status: make(map[string]*authv1.TokenReviewStatus),
+		pods:   make(map[namespacedName]*corev1.Pod),
+		nodes:  make(map[string]*corev1.Node),
+	}
+}
+
+func (c *fakeAPIServerClient) SetNode(node *corev1.Node) {
+	c.nodes[node.Name] = node
+}
+
+func (c *fakeAPIServerClient) SetPod(pod *corev1.Pod) {
+	c.pods[namespacedName{namespace: pod.Namespace, name: pod.Name}] = pod
+}
+
+func (c *fakeAPIServerClient) SetTokenStatus(token string, status *authv1.TokenReviewStatus) {
+	c.status[token] = status
+}
+
+func (c *fakeAPIServerClient) GetNode(ctx context.Context, nodeName string) (*corev1.Node, error) {
+	node, ok := c.nodes[nodeName]
+	if !ok {
+		return nil, fmt.Errorf("node %s not found", nodeName)
+	}
+	return node, nil
+}
+
+func (c *fakeAPIServerClient) GetPod(ctx context.Context, namespace, podName string) (*corev1.Pod, error) {
+	pod, ok := c.pods[namespacedName{namespace: namespace, name: podName}]
+	if !ok {
+		return nil, fmt.Errorf("pod %s/%s not found", namespace, podName)
+	}
+	return pod, nil
+}
+
+func (c *fakeAPIServerClient) ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
+	status, ok := c.status[token]
+	if !ok {
+		return nil, errors.New("no status configured by test for token")
+	}
+	if !cmp.Equal(status.Audiences, audiences) {
+		return nil, fmt.Errorf("got audiences %q; expected %q", audiences, status.Audiences)
+	}
+	return status, nil
 }
