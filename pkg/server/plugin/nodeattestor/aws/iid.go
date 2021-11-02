@@ -216,7 +216,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 
 	// Get the AWS CA public key. We do this lazily on configure so deployments
 	// not using this plugin don't pay for parsing it on startup. This
-	// operation should not fail, but we check the return value just case...
+	// operation should not fail, but we check the return value just case.
 	awsCAPublicKey, err := p.hooks.getAWSCAPublicKey()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to load the AWS CA public key: %v", err)
