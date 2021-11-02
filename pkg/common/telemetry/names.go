@@ -326,6 +326,9 @@ const (
 	// PluginType tags type of some plugin
 	PluginType = "plugin_type"
 
+	// PodUID tags some pod UID, most likely for use in attestation
+	PodUID = "pod_uid"
+
 	// PreferredServiceName tags the preferred service name
 	PreferredServiceName = "preferred_service_name"
 
