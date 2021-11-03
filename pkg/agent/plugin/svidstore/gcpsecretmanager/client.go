@@ -9,7 +9,7 @@ import (
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
-type secretsClient interface {
+type secretManagerClient interface {
 	AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error)
 	Close() error
 	CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
@@ -17,7 +17,7 @@ type secretsClient interface {
 	GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
 }
 
-func newClient(ctx context.Context, serviceAccountFile string) (secretsClient, error) {
+func newSecretManagerClient(ctx context.Context, serviceAccountFile string) (secretManagerClient, error) {
 	var opts []option.ClientOption
 	if serviceAccountFile != "" {
 		opts = append(opts, option.WithCredentialsFile(serviceAccountFile))

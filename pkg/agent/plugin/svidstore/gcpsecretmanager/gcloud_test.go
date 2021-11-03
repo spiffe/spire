@@ -74,21 +74,29 @@ dZglS5kKnYigmwDh+/U=
 `
 )
 
+var (
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+)
+
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
 		customConfig    string
 		newClientErr    error
+		trustDomain     spiffeid.TrustDomain
 		expectCode      codes.Code
 		expectMsgPrefix string
 		expectFilePath  string
 		expectConfig    *Configuration
+		expectTD        string
 	}{
 		{
 			name:           "success",
 			expectFilePath: "someFile",
 			expectConfig:   &Configuration{ServiceAccountFile: "someFile"},
+			trustDomain:    trustDomain,
+			expectTD:       "example.org",
 		},
 		{
 			name:         "no config file",
@@ -122,6 +130,9 @@ invalid2 = "another"
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: tt.trustDomain,
+				}),
 			}
 
 			if tt.customConfig != "" {
@@ -132,7 +143,7 @@ invalid2 = "another"
 				}))
 			}
 
-			newClient := func(ctx context.Context, serviceAccountFile string) (secretsClient, error) {
+			newClient := func(ctx context.Context, serviceAccountFile string) (secretManagerClient, error) {
 				assert.Equal(t, tt.expectFilePath, serviceAccountFile)
 				if tt.newClientErr != nil {
 					return nil, tt.newClientErr
@@ -145,6 +156,8 @@ invalid2 = "another"
 
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+
+			require.Equal(t, tt.expectTD, p.td)
 
 			// Expect no client unsuccess calls
 			switch tt.expectCode {
@@ -239,7 +252,7 @@ func TestPutX509SVID(t *testing.T) {
 						},
 					},
 					Labels: map[string]string{
-						"spire-svid": "true",
+						"spire-svid": "example.org",
 					},
 				},
 			},
@@ -296,7 +309,19 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
+		},
+		{
+			name: "Secret is in another trust domain",
+			req:  successReq,
+			clientConfig: &clientConfig{
+				customLabelTD: "another.td",
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
 		},
 		{
 			name: "failed to create secret",
@@ -372,14 +397,13 @@ func TestPutX509SVID(t *testing.T) {
 			}
 
 			// Prepare plungin
-			p := new(SecretManagerPlugin)
-			p.client = client
+			p := newPlugin(client.newClient)
 
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
 				plugintest.CoreConfig(catalog.CoreConfig{
-					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+					TrustDomain: trustDomain,
 				}),
 				plugintest.ConfigureJSON(&Configuration{}),
 			}
@@ -387,6 +411,7 @@ func TestPutX509SVID(t *testing.T) {
 			plugintest.Load(t, builtin(p), ss,
 				options...,
 			)
+			require.NoError(t, err)
 
 			// Call PutX509SVID
 			err = ss.PutX509SVID(ctx, tt.req)
@@ -456,7 +481,22 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
+		},
+		{
+			name: "Secret is in another TD",
+			metadata: []string{
+				"name:secret1",
+				"projectid:project1",
+			},
+			clientConfig: &clientConfig{
+				customLabelTD: "another.td",
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
 		},
 		{
 			name: "Secret not found",
@@ -500,8 +540,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			}
 
 			// Prepare plugin
-			p := new(SecretManagerPlugin)
-			p.client = client
+			p := newPlugin(client.newClient)
 
 			var err error
 			options := []plugintest.Option{
@@ -511,6 +550,8 @@ func TestDeleteX509SVID(t *testing.T) {
 				}),
 				plugintest.ConfigureJSON(&Configuration{}),
 			}
+			require.NoError(t, err)
+
 			ss := new(svidstore.V1)
 			plugintest.Load(t, builtin(p), ss,
 				options...,
@@ -528,7 +569,8 @@ func TestDeleteX509SVID(t *testing.T) {
 }
 
 type clientConfig struct {
-	noLabels bool
+	noLabels      bool
+	customLabelTD string
 
 	addSecretVersionErr error
 	createSecretErr     error
@@ -544,6 +586,10 @@ type fakeClient struct {
 	deleteSecretReq     *secretmanagerpb.DeleteSecretRequest
 	getSecretReq        *secretmanagerpb.GetSecretRequest
 	c                   *clientConfig
+}
+
+func (c *fakeClient) newClient(context.Context, string) (secretManagerClient, error) {
+	return c, nil
 }
 
 func (c *fakeClient) AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {
@@ -582,7 +628,11 @@ func (c *fakeClient) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecr
 		Name: req.Name,
 	}
 	if !c.c.noLabels {
-		resp.Labels = map[string]string{"spire-svid": "true"}
+		labelTD := trustDomain.String()
+		if c.c.customLabelTD != "" {
+			labelTD = c.c.customLabelTD
+		}
+		resp.Labels = map[string]string{"spire-svid": labelTD}
 	}
 
 	return resp, nil

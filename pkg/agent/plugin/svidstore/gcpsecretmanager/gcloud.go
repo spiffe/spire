@@ -34,10 +34,10 @@ func builtin(p *SecretManagerPlugin) catalog.BuiltIn {
 }
 
 func New() *SecretManagerPlugin {
-	return newPlugin(newClient)
+	return newPlugin(newSecretManagerClient)
 }
 
-func newPlugin(newClient func(context.Context, string) (secretsClient, error)) *SecretManagerPlugin {
+func newPlugin(newClient func(context.Context, string) (secretManagerClient, error)) *SecretManagerPlugin {
 	p := &SecretManagerPlugin{}
 	p.hooks.newClient = newClient
 
@@ -55,10 +55,11 @@ type SecretManagerPlugin struct {
 
 	log    hclog.Logger
 	mtx    sync.RWMutex
-	client secretsClient
+	client secretManagerClient
+	td     string
 
 	hooks struct {
-		newClient func(context.Context, string) (secretsClient, error)
+		newClient func(context.Context, string) (secretManagerClient, error)
 	}
 }
 
@@ -87,6 +88,7 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 	defer p.mtx.Unlock()
 
 	p.client = client
+	p.td = req.CoreConfiguration.TrustDomain
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -99,7 +101,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 	}
 
 	// Get secret, if it does not exist, a secret is created
-	secret, err := getSecret(ctx, p.client, opt.secretName())
+	secret, err := getSecret(ctx, p.client, opt.secretName(), p.td)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 					},
 				},
 				Labels: map[string]string{
-					"spire-svid": "true",
+					"spire-svid": p.td,
 				},
 			},
 		})
@@ -159,7 +161,7 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 		return nil, err
 	}
 
-	secret, err := getSecret(ctx, p.client, opt.secretName())
+	secret, err := getSecret(ctx, p.client, opt.secretName(), p.td)
 	if err != nil {
 		return nil, err
 	}
@@ -181,15 +183,15 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 }
 
 // getSecret gets secret from Google Cloud and validates if it has `spire-svid` label, nil if not found
-func getSecret(ctx context.Context, client secretsClient, secretName string) (*secretmanagerpb.Secret, error) {
+func getSecret(ctx context.Context, client secretManagerClient, secretName string, td string) (*secretmanagerpb.Secret, error) {
 	secret, err := client.GetSecret(ctx, &secretmanagerpb.GetSecretRequest{
 		Name: secretName,
 	})
 	switch status.Code(err) {
 	case codes.OK:
 		// Verify that secret contains "spire-svid" label and it is enabled
-		if ok := validateLabels(secret.Labels); !ok {
-			return nil, status.Error(codes.InvalidArgument, "secret does not contain the 'spire-svid' label")
+		if ok := validateLabels(secret.Labels, td); !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "secret does not contain the 'spire-svid' label for trust domain %q", td)
 		}
 	case codes.NotFound:
 		return nil, nil
@@ -238,7 +240,7 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	}, nil
 }
 
-func validateLabels(labels map[string]string) bool {
+func validateLabels(labels map[string]string, td string) bool {
 	spireLabel, ok := labels["spire-svid"]
-	return ok && spireLabel == "true"
+	return ok && spireLabel == td
 }
