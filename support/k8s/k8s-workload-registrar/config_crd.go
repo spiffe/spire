@@ -144,12 +144,11 @@ func (c *CRDMode) Run(ctx context.Context) error {
 				}
 			}()
 		}
-		err = spiffeidv1beta1.AddSpiffeIDWebhook(spiffeidv1beta1.SpiffeIDWebhookConfig{
-			Ctx:         ctx,
+		err = spiffeidv1beta1.AddSpiffeIDWebhook(spiffeidv1beta1.SpiffeIDWebhook{
+			E:           entryClient,
 			Log:         log,
 			Mgr:         mgr,
 			Namespace:   myPodNamespace,
-			E:           entryClient,
 			TrustDomain: c.TrustDomain,
 		})
 		if err != nil {

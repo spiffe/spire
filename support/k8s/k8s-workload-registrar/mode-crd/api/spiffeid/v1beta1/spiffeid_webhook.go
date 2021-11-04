@@ -17,6 +17,7 @@ package v1beta1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,43 +26,40 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/zeebo/errs"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-type SpiffeIDWebhookConfig struct {
-	Ctx         context.Context
+type SpiffeIDWebhook struct {
+	E           entryv1.EntryClient
 	Log         logrus.FieldLogger
 	Mgr         ctrl.Manager
 	Namespace   string
-	E           entryv1.EntryClient
 	TrustDomain string
 }
 
-var c SpiffeIDWebhookConfig
-
-func AddSpiffeIDWebhook(config SpiffeIDWebhookConfig) error {
-	c = config
-	return ctrl.NewWebhookManagedBy(config.Mgr).
+func AddSpiffeIDWebhook(w SpiffeIDWebhook) error {
+	return ctrl.NewWebhookManagedBy(w.Mgr).
 		For(&SpiffeID{}).
+		WithValidator(w).
 		Complete()
 }
 
-var _ webhook.Validator = &SpiffeID{}
-
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (s *SpiffeID) ValidateCreate() error {
-	if err := s.validateSpiffeID(); err != nil {
+func (w SpiffeIDWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) error {
+	s, ok := obj.(*SpiffeID)
+	if !ok {
+		return errors.New("wrong type, expecting SpiffeID")
+	}
+
+	if err := w.validateSpiffeID(s); err != nil {
 		return err
 	}
 
 	// TODO: filter additionally by SPIFFE ID? what about parent ID?
 
 	// Check for duplicates
-	resp, err := c.E.ListEntries(c.Ctx, &entryv1.ListEntriesRequest{
+	resp, err := w.E.ListEntries(ctx, &entryv1.ListEntriesRequest{
 		Filter: &entryv1.ListEntriesRequest_Filter{
 			BySelectors: &types.SelectorMatch{
 				Match:     types.SelectorMatch_MATCH_EXACT,
@@ -80,12 +78,12 @@ func (s *SpiffeID) ValidateCreate() error {
 		}
 		if s.Spec.SpiffeId == entrySPIFFEID.String() {
 			if s.Status.EntryId == nil || *s.Status.EntryId != entry.Id {
-				c.Log.WithFields(logrus.Fields{
+				w.Log.WithFields(logrus.Fields{
 					"spiffeID": s.Spec.SpiffeId,
 					"name":     s.ObjectMeta.Name,
 					"entryId":  s.Status.EntryId,
 				}).Info("Duplicate detected")
-				return errs.New("Duplicate detected")
+				return errors.New("Duplicate detected")
 			}
 		}
 	}
@@ -94,38 +92,43 @@ func (s *SpiffeID) ValidateCreate() error {
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (s *SpiffeID) ValidateUpdate(old runtime.Object) error {
-	return s.validateSpiffeID()
+func (w SpiffeIDWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) error {
+	s, ok := newObj.(*SpiffeID)
+	if !ok {
+		return errors.New("wrong type, expecting SpiffeID")
+	}
+
+	return w.validateSpiffeID(s)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (s *SpiffeID) ValidateDelete() error {
+func (w SpiffeIDWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) error {
 	return nil
 }
 
 // validateSpiffeID does basic checks to make sure the SPIFFE ID resource is formatted correctly
-func (s *SpiffeID) validateSpiffeID() error {
-	spiffeIDPrefix := "spiffe://" + c.TrustDomain
+func (w SpiffeIDWebhook) validateSpiffeID(s *SpiffeID) error {
+	spiffeIDPrefix := "spiffe://" + w.TrustDomain
 
 	// Validate Spiffe and Parent IDs have the correct format
 	if !strings.HasPrefix(s.Spec.ParentId, spiffeIDPrefix) {
-		return errs.New("spec.parentId must begin with " + spiffeIDPrefix)
+		return errors.New("spec.parentId must begin with " + spiffeIDPrefix)
 	}
 
 	if !strings.HasPrefix(s.Spec.SpiffeId, spiffeIDPrefix) {
-		return errs.New("spec.spiffeId must begin with " + spiffeIDPrefix)
+		return errors.New("spec.spiffeId must begin with " + spiffeIDPrefix)
 	}
 
 	if s.Spec.Selector.Cluster != "" || s.Spec.Selector.AgentNodeUid != "" {
 		// k8s_psat selectors can only be used from the k8s-workload-registrar namespace
-		if s.ObjectMeta.Namespace != c.Namespace {
-			return errs.New("spec.Selector.Cluster and spec.Selector.AgentNodeUid can " +
+		if s.ObjectMeta.Namespace != w.Namespace {
+			return errors.New("spec.Selector.Cluster and spec.Selector.AgentNodeUid can " +
 				"only be used by the k8s-workload-registrar")
 		}
 	} else {
 		// Ensure namespace selector matches namespace of Spiffe ID resource for k8s selectors
 		if s.ObjectMeta.Namespace != s.Spec.Selector.Namespace {
-			return errs.New("spec.Selector.Namespace must match namespace of resource")
+			return errors.New("spec.Selector.Namespace must match namespace of resource")
 		}
 	}
 
