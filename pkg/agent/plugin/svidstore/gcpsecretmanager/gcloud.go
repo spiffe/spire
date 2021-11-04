@@ -2,7 +2,7 @@ package gcpsecretmanager
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" //nolint: gosec // We use sha1 to hash TD in 128b to avoid label restrictions
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -88,7 +88,7 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 	}
 
 	// gcp secret manager does not allow ".", hash td as label
-	tdHash := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain))
+	tdHash := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain)) //nolint: gosec // We use sha1 to hash TD in 128b to avoid label restrictions
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()

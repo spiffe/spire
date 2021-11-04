@@ -2,7 +2,7 @@ package gcpsecretmanager
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" //nolint: gosec // usage of SHA1 is according to specification
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
@@ -79,7 +79,7 @@ dZglS5kKnYigmwDh+/U=
 
 var (
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
-	tdSum       = sha1.Sum([]byte("example.org"))
+	tdSum       = sha1.Sum([]byte("example.org")) //nolint: gosec // We use sha1 to hash TD in 128b to avoid label restrictions
 	tdHash      = hex.EncodeToString(tdSum[:])
 )
 
