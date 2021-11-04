@@ -7,6 +7,7 @@ import (
 	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/option"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
+	iampb "google.golang.org/genproto/googleapis/iam/v1"
 )
 
 type secretManagerClient interface {
@@ -15,6 +16,7 @@ type secretManagerClient interface {
 	CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
 	DeleteSecret(ctx context.Context, req *secretmanagerpb.DeleteSecretRequest, opts ...gax.CallOption) error
 	GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
+	SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error)
 }
 
 func newSecretManagerClient(ctx context.Context, serviceAccountFile string) (secretManagerClient, error) {

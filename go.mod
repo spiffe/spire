@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	cloud.google.com/go v0.95.0 // indirect
-	cloud.google.com/go/secretmanager v0.1.0
+	cloud.google.com/go/secretmanager v1.0.0
 	cloud.google.com/go/security v0.1.0
 	cloud.google.com/go/storage v1.16.1
 	github.com/Azure/azure-sdk-for-go v57.3.0+incompatible

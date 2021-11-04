@@ -2,6 +2,8 @@ package gcpsecretmanager
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
+	"google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -56,7 +59,7 @@ type SecretManagerPlugin struct {
 	log    hclog.Logger
 	mtx    sync.RWMutex
 	client secretManagerClient
-	td     string
+	tdHash string
 
 	hooks struct {
 		newClient func(context.Context, string) (secretManagerClient, error)
@@ -84,11 +87,14 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 		return nil, status.Errorf(codes.Internal, "failed to create secretmanager client: %v", err)
 	}
 
+	// gcp secret manager does not allow ".", hash td as label
+	tdHash := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain))
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	p.client = client
-	p.td = req.CoreConfiguration.TrustDomain
+	p.tdHash = hex.EncodeToString(tdHash[:])
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -101,7 +107,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 	}
 
 	// Get secret, if it does not exist, a secret is created
-	secret, err := getSecret(ctx, p.client, opt.secretName(), p.td)
+	secret, err := getSecret(ctx, p.client, opt.secretName(), p.tdHash)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +125,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 					},
 				},
 				Labels: map[string]string{
-					"spire-svid": p.td,
+					"spire-svid": p.tdHash,
 				},
 			},
 		})
@@ -127,6 +133,31 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 			return nil, status.Errorf(codes.Internal, "failed to create secret: %v", err)
 		}
 		p.log.With("secret_name", secret.Name).Debug("Secret created")
+
+		if opt.roleName != "" && len(opt.members) > 0 {
+			// Create a policy without conditions and a single binding
+			resp, err := p.client.SetIamPolicy(ctx, &iam.SetIamPolicyRequest{
+				Resource: opt.secretName(),
+				Policy: &iam.Policy{
+					Bindings: []*iam.Binding{
+						{
+							// Selector roles:NAME
+							Role: opt.roleName,
+							// Members examples:
+							//    "user:user1@example.com",
+							//    "group:group1@example.com",
+							//    "domain:google.com",
+							//    "serviceAccount:project-id@appspot.gserviceaccount.com"
+							Members: opt.members,
+						},
+					},
+				},
+			})
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to set IAM policy to secret: %v", err)
+			}
+			p.log.With("version", resp.Version).With("etag", resp.Etag).With("secret_name", secret.Name).Debug("Secret IAM Policy updated")
+		}
 	}
 
 	secretData, err := svidstore.SecretFromProto(req)
@@ -161,7 +192,7 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 		return nil, err
 	}
 
-	secret, err := getSecret(ctx, p.client, opt.secretName(), p.td)
+	secret, err := getSecret(ctx, p.client, opt.secretName(), p.tdHash)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +236,8 @@ func getSecret(ctx context.Context, client secretManagerClient, secretName strin
 type secretOptions struct {
 	projectID string
 	name      string
+	roleName  string
+	members   []string
 }
 
 // parent gets parent in the format `projects/*`
@@ -234,9 +267,33 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 		return nil, status.Error(codes.InvalidArgument, "projectid is required")
 	}
 
+	var members []string
+
+	// example: "user:user1@example.com"
+	if user, ok := data["user"]; ok {
+		members = append(members, fmt.Sprintf("user:%s", user))
+	}
+
+	// example: "group:role1@example.com",
+	if group, ok := data["group"]; ok {
+		members = append(members, fmt.Sprintf("group:%s", group))
+	}
+
+	// example: "domain:google.com",
+	if domain, ok := data["domain"]; ok {
+		members = append(members, fmt.Sprintf("domain:%s", domain))
+	}
+
+	// example: "serviceAccount:project-id@appspot.gserviceaccount.com"
+	if serviceAccount, ok := data["serviceaccount"]; ok {
+		members = append(members, fmt.Sprintf("serviceAccount:%s", serviceAccount))
+	}
+
 	return &secretOptions{
 		name:      name,
 		projectID: projectID,
+		roleName:  data["roles"],
+		members:   members,
 	}, nil
 }
 

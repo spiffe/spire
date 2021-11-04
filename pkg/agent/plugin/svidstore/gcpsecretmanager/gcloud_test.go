@@ -2,7 +2,9 @@ package gcpsecretmanager
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
+	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -76,6 +79,8 @@ dZglS5kKnYigmwDh+/U=
 
 var (
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+	tdSum       = sha1.Sum([]byte("example.org"))
+	tdHash      = hex.EncodeToString(tdSum[:])
 )
 
 func TestConfigure(t *testing.T) {
@@ -96,11 +101,13 @@ func TestConfigure(t *testing.T) {
 			expectFilePath: "someFile",
 			expectConfig:   &Configuration{ServiceAccountFile: "someFile"},
 			trustDomain:    trustDomain,
-			expectTD:       "example.org",
+			expectTD:       tdHash,
 		},
 		{
 			name:         "no config file",
 			expectConfig: &Configuration{ServiceAccountFile: ""},
+			trustDomain:  trustDomain,
+			expectTD:     tdHash,
 		},
 		{
 			name:            "malformed configuration",
@@ -157,11 +164,10 @@ invalid2 = "another"
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
 
-			require.Equal(t, tt.expectTD, p.td)
-
 			// Expect no client unsuccess calls
 			switch tt.expectCode {
 			case codes.OK:
+				require.Equal(t, tt.expectTD, p.tdHash)
 				require.NotNil(t, p.client)
 			default:
 				require.Nil(t, p.client)
@@ -221,6 +227,7 @@ func TestPutX509SVID(t *testing.T) {
 
 		clientConfig *clientConfig
 
+		expectSetIamPolicyReq     *iampb.SetIamPolicyRequest
 		expectAddSecretVersionReq *secretmanagerpb.AddSecretVersionRequest
 		expectCreateSecretReq     *secretmanagerpb.CreateSecretRequest
 		expectGetSecretReq        *secretmanagerpb.GetSecretRequest
@@ -252,7 +259,7 @@ func TestPutX509SVID(t *testing.T) {
 						},
 					},
 					Labels: map[string]string{
-						"spire-svid": "example.org",
+						"spire-svid": tdHash,
 					},
 				},
 			},
@@ -268,6 +275,104 @@ func TestPutX509SVID(t *testing.T) {
 			clientConfig: &clientConfig{
 				getSecretErr: status.Error(codes.NotFound, "secret not found"),
 			},
+		},
+		{
+			name: "Add IAM policy when creating",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"roles:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+					"user:user1@example.com",
+					"group:group1@example.com",
+					"domain:testdomain.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_Automatic_{
+							Automatic: &secretmanagerpb.Replication_Automatic{},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectSetIamPolicyReq: &iampb.SetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+				Policy: &iampb.Policy{
+					Version: 0,
+					Bindings: []*iampb.Binding{
+						{
+							Role: "roles/secretmanager.viewer",
+							Members: []string{
+								"user:user1@example.com",
+								"group:group1@example.com",
+								"domain:testdomain.com",
+								"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com",
+							},
+						},
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				getSecretErr: status.Error(codes.NotFound, "secret not found"),
+			},
+		},
+		{
+			name: "Failed to create IAM policy",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"roles:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+					"user:user1@example.com",
+					"group:group1@example.com",
+					"domain:testdomain.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_Automatic_{
+							Automatic: &secretmanagerpb.Replication_Automatic{},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			clientConfig: &clientConfig{
+				getSecretErr:    status.Error(codes.NotFound, "secret not found"),
+				setIamPolicyErr: status.Error(codes.Internal, "oh! no"),
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to set IAM policy to secret: rpc error: code = Internal desc = oh! no",
 		},
 		{
 			name: "invalid metadata",
@@ -309,7 +414,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
 		},
 		{
 			name: "Secret is in another trust domain",
@@ -321,7 +426,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
 		},
 		{
 			name: "failed to create secret",
@@ -421,6 +526,7 @@ func TestPutX509SVID(t *testing.T) {
 			spiretest.AssertProtoEqual(t, tt.expectAddSecretVersionReq, client.addSecretVersionReq)
 			spiretest.AssertProtoEqual(t, tt.expectCreateSecretReq, client.createSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectGetSecretReq, client.getSecretReq)
+			spiretest.AssertProtoEqual(t, tt.expectSetIamPolicyReq, client.setIamPolicyReq)
 		})
 	}
 }
@@ -481,7 +587,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
 		},
 		{
 			name: "Secret is in another TD",
@@ -496,7 +602,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"example.org\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
 		},
 		{
 			name: "Secret not found",
@@ -576,6 +682,7 @@ type clientConfig struct {
 	createSecretErr     error
 	deleteSecretErr     error
 	getSecretErr        error
+	setIamPolicyErr     error
 }
 
 type fakeClient struct {
@@ -585,6 +692,7 @@ type fakeClient struct {
 	createSecretReq     *secretmanagerpb.CreateSecretRequest
 	deleteSecretReq     *secretmanagerpb.DeleteSecretRequest
 	getSecretReq        *secretmanagerpb.GetSecretRequest
+	setIamPolicyReq     *iampb.SetIamPolicyRequest
 	c                   *clientConfig
 }
 
@@ -628,7 +736,7 @@ func (c *fakeClient) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecr
 		Name: req.Name,
 	}
 	if !c.c.noLabels {
-		labelTD := trustDomain.String()
+		labelTD := tdHash
 		if c.c.customLabelTD != "" {
 			labelTD = c.c.customLabelTD
 		}
@@ -646,4 +754,17 @@ func (c *fakeClient) DeleteSecret(ctx context.Context, req *secretmanagerpb.Dele
 
 func (c *fakeClient) Close() error {
 	return nil
+}
+
+func (c *fakeClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
+	if c.c.setIamPolicyErr != nil {
+		return nil, c.c.setIamPolicyErr
+	}
+
+	c.setIamPolicyReq = req
+
+	return &iampb.Policy{
+		Version: 0,
+		Etag:    []byte{1},
+	}, nil
 }
