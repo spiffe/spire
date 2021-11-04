@@ -283,11 +283,8 @@ func TestPutX509SVID(t *testing.T) {
 				Metadata: []string{
 					"name:secret1",
 					"projectid:project1",
-					"roles:roles/secretmanager.viewer",
+					"role:roles/secretmanager.viewer",
 					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
-					"user:user1@example.com",
-					"group:group1@example.com",
-					"domain:testdomain.com",
 				},
 				FederatedBundles: successReq.FederatedBundles,
 			},
@@ -313,9 +310,6 @@ func TestPutX509SVID(t *testing.T) {
 						{
 							Role: "roles/secretmanager.viewer",
 							Members: []string{
-								"user:user1@example.com",
-								"group:group1@example.com",
-								"domain:testdomain.com",
 								"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com",
 							},
 						},
@@ -336,17 +330,28 @@ func TestPutX509SVID(t *testing.T) {
 			},
 		},
 		{
+			name: "Role or service account no set",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"role:roles/secretmanager.viewer",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "svidstore(gcp_secretmanager): roles and service account must be set together",
+		},
+		{
 			name: "Failed to create IAM policy",
 			req: &svidstore.X509SVID{
 				SVID: successReq.SVID,
 				Metadata: []string{
 					"name:secret1",
 					"projectid:project1",
-					"roles:roles/secretmanager.viewer",
+					"role:roles/secretmanager.viewer",
 					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
-					"user:user1@example.com",
-					"group:group1@example.com",
-					"domain:testdomain.com",
 				},
 				FederatedBundles: successReq.FederatedBundles,
 			},

@@ -134,21 +134,15 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 		}
 		p.log.With("secret_name", secret.Name).Debug("Secret created")
 
-		if opt.roleName != "" && len(opt.members) > 0 {
+		if opt.roleName != "" && opt.serviceAccount != "" {
 			// Create a policy without conditions and a single binding
 			resp, err := p.client.SetIamPolicy(ctx, &iam.SetIamPolicyRequest{
 				Resource: opt.secretName(),
 				Policy: &iam.Policy{
 					Bindings: []*iam.Binding{
 						{
-							// Selector roles:NAME
-							Role: opt.roleName,
-							// Members examples:
-							//    "user:user1@example.com",
-							//    "group:group1@example.com",
-							//    "domain:google.com",
-							//    "serviceAccount:project-id@appspot.gserviceaccount.com"
-							Members: opt.members,
+							Role:    opt.roleName,
+							Members: []string{opt.serviceAccount},
 						},
 					},
 				},
@@ -234,10 +228,10 @@ func getSecret(ctx context.Context, client secretManagerClient, secretName strin
 }
 
 type secretOptions struct {
-	projectID string
-	name      string
-	roleName  string
-	members   []string
+	projectID      string
+	name           string
+	roleName       string
+	serviceAccount string
 }
 
 // parent gets parent in the format `projects/*`
@@ -267,33 +261,22 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 		return nil, status.Error(codes.InvalidArgument, "projectid is required")
 	}
 
-	var members []string
-
-	// example: "user:user1@example.com"
-	if user, ok := data["user"]; ok {
-		members = append(members, fmt.Sprintf("user:%s", user))
-	}
-
-	// example: "group:role1@example.com",
-	if group, ok := data["group"]; ok {
-		members = append(members, fmt.Sprintf("group:%s", group))
-	}
-
-	// example: "domain:google.com",
-	if domain, ok := data["domain"]; ok {
-		members = append(members, fmt.Sprintf("domain:%s", domain))
-	}
-
 	// example: "serviceAccount:project-id@appspot.gserviceaccount.com"
-	if serviceAccount, ok := data["serviceaccount"]; ok {
-		members = append(members, fmt.Sprintf("serviceAccount:%s", serviceAccount))
+	var serviceAccount string
+	if sa, ok := data["serviceaccount"]; ok {
+		serviceAccount = fmt.Sprintf("serviceAccount:%s", sa)
+	}
+
+	roleName := data["role"]
+	if (serviceAccount != "" && roleName == "") || (serviceAccount == "" && roleName != "") {
+		return nil, status.Error(codes.InvalidArgument, "roles and service account must be set together")
 	}
 
 	return &secretOptions{
-		name:      name,
-		projectID: projectID,
-		roleName:  data["roles"],
-		members:   members,
+		name:           name,
+		projectID:      projectID,
+		roleName:       roleName,
+		serviceAccount: serviceAccount,
 	}, nil
 }
 

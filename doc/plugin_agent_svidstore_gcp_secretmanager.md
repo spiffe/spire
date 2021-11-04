@@ -54,9 +54,6 @@ Selectors are used on `storable` entries to describre metadata that is needed by
 | ----------------------------- | ------------------------------------------ | -------- | --------------------------------------------   |
 | `gcp_secretmanager:name`      | `gcp_secretmanager:secretname:some-name`   | x        | The secrets name where SVID will be stored     |
 | `gcp_secretmanager:projectid` | `gcp_secretmanager:projectid:some-project` | x        | The Google Cloud project that contains secrets |
-| `gcp_secretmanager:roles`     | `gcp_secretmanager:roles:roles/secretmanager.viewer` | -        | The Google Cloud role id for IAM policy |
-| `gcp_secretmanager:serviceaccount` | `gcp_secretmanager:serviceaccount:test-secret@test-proj.iam.gserviceaccount.com` | -        | The Google Cloud Service account for IAM policy |
-| `gcp_secretmanager:user` | `gcp_secretmanager:user:user1@example.com` | -        | The Google Cloud user for IAM policy |
-| `gcp_secretmanager:group` | `gcp_secretmanager:group:group1@example.com` | -        | The Google Cloud group for IAM policy |
-| `gcp_secretmanager:domain` | `gcp_secretmanager:domain:somedomain.com` | -        | The Google Cloud domain for IAM policy |
+| `gcp_secretmanager:role`     | `gcp_secretmanager:role:roles/secretmanager.viewer` | -        | The Google Cloud role id for IAM policy (serviceaccount required when set) |
+| `gcp_secretmanager:serviceaccount` | `gcp_secretmanager:serviceaccount:test-secret@test-proj.iam.gserviceaccount.com` | -        | The Google Cloud Service account for IAM policy (role required when set) |
 
