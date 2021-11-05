@@ -2,7 +2,7 @@ package gcpsecretmanager
 
 import (
 	"context"
-	"crypto/sha1" //nolint: gosec // usage of SHA1 is according to specification
+	"crypto/sha1" //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid secret label restrictions
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
@@ -79,7 +79,7 @@ dZglS5kKnYigmwDh+/U=
 
 var (
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
-	tdSum       = sha1.Sum([]byte("example.org")) //nolint: gosec // We use sha1 to hash TD in 128b to avoid label restrictions
+	tdSum       = sha1.Sum([]byte("example.org")) //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid secret label restrictions
 	tdHash      = hex.EncodeToString(tdSum[:])
 )
 
@@ -330,7 +330,7 @@ func TestPutX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name: "Role or service account no set",
+			name: "SA is required when role is set",
 			req: &svidstore.X509SVID{
 				SVID: successReq.SVID,
 				Metadata: []string{
@@ -341,7 +341,21 @@ func TestPutX509SVID(t *testing.T) {
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): roles and service account must be set together",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): service account is required when role is set",
+		},
+		{
+			name: "Role is required when SA is set",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "svidstore(gcp_secretmanager): role is required when service account is set",
 		},
 		{
 			name: "Failed to create IAM policy",
@@ -419,7 +433,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret is not managed by this SPIRE deployment",
 		},
 		{
 			name: "Secret is in another trust domain",
@@ -431,7 +445,7 @@ func TestPutX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret is not managed by this SPIRE deployment",
 		},
 		{
 			name: "failed to create secret",
@@ -592,7 +606,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret is not managed by this SPIRE deployment",
 		},
 		{
 			name: "Secret is in another TD",
@@ -607,7 +621,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				Name: "projects/project1/secrets/secret1",
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): secret does not contain the 'spire-svid' label for trust domain \"" + tdHash + "\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): secret is not managed by this SPIRE deployment",
 		},
 		{
 			name: "Secret not found",

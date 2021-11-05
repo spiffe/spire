@@ -2,7 +2,7 @@ package gcpsecretmanager
 
 import (
 	"context"
-	"crypto/sha1" //nolint: gosec // We use sha1 to hash TD in 128b to avoid label restrictions
+	"crypto/sha1" //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid secret label restrictions
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -70,7 +70,7 @@ func (p *SecretManagerPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-// Configure configures the SecretsMangerPlugin.
+// Configure configures the SecretMangerPlugin.
 func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
@@ -88,7 +88,7 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 	}
 
 	// gcp secret manager does not allow ".", hash td as label
-	tdHash := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain)) //nolint: gosec // We use sha1 to hash TD in 128b to avoid label restrictions
+	tdHash := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain)) //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid secret label restrictions
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -118,7 +118,6 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 			Parent:   opt.parent(),
 			SecretId: opt.name,
 			Secret: &secretmanagerpb.Secret{
-				// TODO: what replication type must we use here?
 				Replication: &secretmanagerpb.Replication{
 					Replication: &secretmanagerpb.Replication_Automatic_{
 						Automatic: &secretmanagerpb.Replication_Automatic{},
@@ -179,7 +178,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 	return &svidstorev1.PutX509SVIDResponse{}, nil
 }
 
-// DeleteX509SVID deletes a Secret in the configured Google Cloud Secrets manager
+// DeleteX509SVID deletes a secret in the configured Google Cloud Secret manager
 func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
 	opt, err := optionsFromSecretData(req.Metadata)
 	if err != nil {
@@ -207,16 +206,17 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
 }
 
-// getSecret gets secret from Google Cloud and validates if it has `spire-svid` label, nil if not found
-func getSecret(ctx context.Context, client secretManagerClient, secretName string, td string) (*secretmanagerpb.Secret, error) {
+// getSecret gets secret from Google Cloud and validates if it has `spire-svid` label with hashed trust domain as value,
+// nil if not found
+func getSecret(ctx context.Context, client secretManagerClient, secretName string, tdHash string) (*secretmanagerpb.Secret, error) {
 	secret, err := client.GetSecret(ctx, &secretmanagerpb.GetSecretRequest{
 		Name: secretName,
 	})
 	switch status.Code(err) {
 	case codes.OK:
 		// Verify that secret contains "spire-svid" label and it is enabled
-		if ok := validateLabels(secret.Labels, td); !ok {
-			return nil, status.Errorf(codes.InvalidArgument, "secret does not contain the 'spire-svid' label for trust domain %q", td)
+		if ok := validateLabels(secret.Labels, tdHash); !ok {
+			return nil, status.Error(codes.InvalidArgument, "secret is not managed by this SPIRE deployment")
 		}
 	case codes.NotFound:
 		return nil, nil
@@ -268,8 +268,12 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	}
 
 	roleName := data["role"]
-	if (serviceAccount != "" && roleName == "") || (serviceAccount == "" && roleName != "") {
-		return nil, status.Error(codes.InvalidArgument, "roles and service account must be set together")
+	switch {
+	case serviceAccount != "" && roleName == "":
+		return nil, status.Error(codes.InvalidArgument, "role is required when service account is set")
+
+	case serviceAccount == "" && roleName != "":
+		return nil, status.Error(codes.InvalidArgument, "service account is required when role is set")
 	}
 
 	return &secretOptions{
@@ -280,7 +284,7 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	}, nil
 }
 
-func validateLabels(labels map[string]string, td string) bool {
+func validateLabels(labels map[string]string, tdHash string) bool {
 	spireLabel, ok := labels["spire-svid"]
-	return ok && spireLabel == td
+	return ok && spireLabel == tdHash
 }
