@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package tpmutil_test
@@ -10,7 +11,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/google/go-tpm-tools/tpm2tools"
+	"github.com/google/go-tpm-tools/client"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
@@ -609,7 +610,7 @@ func (f keyCloser) Close() error {
 // flush the key once it is no more required.
 // This function is used to out-of-memory the TPM in unit tests.
 func createTPMKey(t *testing.T) io.Closer {
-	srk, err := tpm2tools.NewKey(sim, tpm2.HandlePlatform, tpm2tools.DefaultEKTemplateRSA())
+	srk, err := client.NewKey(sim, tpm2.HandlePlatform, client.DefaultEKTemplateRSA())
 	require.NoError(t, err)
 	return keyCloser(srk.Close)
 }

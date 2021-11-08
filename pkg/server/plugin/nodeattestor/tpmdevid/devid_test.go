@@ -1,4 +1,5 @@
-//+build linux
+//go:build linux
+// +build linux
 
 package tpmdevid_test
 
@@ -7,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"testing"
@@ -25,12 +25,11 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/tpmsimulator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	sim *tpmsimulator.TPMSimulator
-
 	devIDBundlePath       string
 	endorsementBundlePath string
 
@@ -41,11 +40,14 @@ var (
 	}
 )
 
-func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAuthority) {
+func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAuthority) *tpmsimulator.TPMSimulator {
 	// Creates a new global TPM simulator
-	simulator, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
+	sim, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
 	require.NoError(t, err)
-	sim = simulator
+	t.Cleanup(func() {
+		assert.NoError(t, sim.Close(), "unexpected error encountered closing simulator")
+	})
+	tpmutil.OpenTPM = sim.OpenTPM
 
 	// Create a temporal directory to store configuration files
 	dir := t.TempDir()
@@ -65,10 +67,7 @@ func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAutho
 		pemutil.EncodeCertificate(sim.GetEKRoot()),
 		0600),
 	)
-}
-
-func teardownSimulator(t *testing.T) {
-	require.NoError(t, sim.Close())
+	return sim
 }
 
 func TestConfigure(t *testing.T) {
@@ -78,7 +77,6 @@ func TestConfigure(t *testing.T) {
 
 	// Setup the TPM simulator
 	setupSimulator(t, provisioningCA)
-	defer teardownSimulator(t)
 
 	tests := []struct {
 		name     string
@@ -174,8 +172,7 @@ func TestAttestFailiures(t *testing.T) {
 	anotherSim.Close()
 
 	// Set up the main TPM simulator
-	setupSimulator(t, provisioningCA)
-	defer teardownSimulator(t)
+	sim := setupSimulator(t, provisioningCA)
 
 	// Generate DevIDs using the main provisioning authority
 	devID, err := sim.GenerateDevID(provisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
@@ -189,7 +186,6 @@ func TestAttestFailiures(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a TPM session to generate payload and challenge response data
-	tpmutil.OpenTPM = func(string) (io.ReadWriteCloser, error) { return sim, nil }
 	session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv: devID.PrivateBlob,
 		DevIDPub:  devID.PublicBlob,
@@ -507,8 +503,7 @@ func TestAttestSucceeds(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup the main TPM simulator
-	setupSimulator(t, provisioningCA)
-	defer teardownSimulator(t)
+	sim := setupSimulator(t, provisioningCA)
 
 	// Generate DevIDs with RSA and ECC key types
 	devIDRSA, err := sim.GenerateDevID(provisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
@@ -607,7 +602,6 @@ func TestAttestSucceeds(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a TPM session to generate payload and challenge response data
-			tpmutil.OpenTPM = func(string) (io.ReadWriteCloser, error) { return sim, nil }
 			session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 				DevIDPriv: tt.devID.PrivateBlob,
 				DevIDPub:  tt.devID.PublicBlob,
