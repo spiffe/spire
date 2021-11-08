@@ -122,7 +122,7 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 		return true
 
 	case codes.InvalidArgument:
-		log.WithError(err).Debug("Failed to delete because malformed selectors")
+		log.WithError(err).Debug("Failed to delete SVID because of malformed selectors")
 		return true
 
 	default:
