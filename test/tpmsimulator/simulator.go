@@ -196,6 +196,10 @@ func (c *Credential) ChainPem() []byte {
 }
 
 func (s *TPMSimulator) OpenTPM(path string) (io.ReadWriteCloser, error) {
+	const tpmDevicePath = "/dev/tpmrm0"
+	if path != tpmDevicePath {
+		return nil, fmt.Errorf("unexpected TPM device path %q (expected %q)", path, tpmDevicePath)
+	}
 	return struct {
 		io.ReadCloser
 		io.Writer

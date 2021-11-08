@@ -187,10 +187,11 @@ func TestAttestFailiures(t *testing.T) {
 
 	// Create a TPM session to generate payload and challenge response data
 	session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
-		DevIDPriv: devID.PrivateBlob,
-		DevIDPub:  devID.PublicBlob,
-		Passwords: tpmPasswords,
-		Log:       hclog.NewNullLogger(),
+		DevicePath: "/dev/tpmrm0",
+		DevIDPriv:  devID.PrivateBlob,
+		DevIDPub:   devID.PublicBlob,
+		Passwords:  tpmPasswords,
+		Log:        hclog.NewNullLogger(),
 	})
 	require.NoError(t, err)
 
@@ -603,10 +604,11 @@ func TestAttestSucceeds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a TPM session to generate payload and challenge response data
 			session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
-				DevIDPriv: tt.devID.PrivateBlob,
-				DevIDPub:  tt.devID.PublicBlob,
-				Passwords: tpmPasswords,
-				Log:       hclog.NewNullLogger(),
+				DevicePath: "/dev/tpmrm0",
+				DevIDPriv:  tt.devID.PrivateBlob,
+				DevIDPub:   tt.devID.PublicBlob,
+				Passwords:  tpmPasswords,
+				Log:        hclog.NewNullLogger(),
 			})
 			require.NoError(t, err)
 			defer session.Close()
