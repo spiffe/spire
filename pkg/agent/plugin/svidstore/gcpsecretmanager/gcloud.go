@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -40,9 +41,9 @@ func New() *SecretManagerPlugin {
 	return newPlugin(newSecretManagerClient)
 }
 
-func newPlugin(newClient func(context.Context, string) (secretManagerClient, error)) *SecretManagerPlugin {
+func newPlugin(newSecretManagerClient func(context.Context, string) (secretManagerClient, error)) *SecretManagerPlugin {
 	p := &SecretManagerPlugin{}
-	p.hooks.newClient = newClient
+	p.hooks.newSecretManagerClient = newSecretManagerClient
 
 	return p
 }
@@ -56,13 +57,13 @@ type SecretManagerPlugin struct {
 	svidstorev1.UnsafeSVIDStoreServer
 	configv1.UnsafeConfigServer
 
-	log    hclog.Logger
-	mtx    sync.RWMutex
-	client secretManagerClient
-	tdHash string
+	log                 hclog.Logger
+	mtx                 sync.RWMutex
+	secretManagerClient secretManagerClient
+	tdHash              string
 
 	hooks struct {
-		newClient func(context.Context, string) (secretManagerClient, error)
+		newSecretManagerClient func(context.Context, string) (secretManagerClient, error)
 	}
 }
 
@@ -82,7 +83,7 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(config.UnusedKeys, ","))
 	}
 
-	client, err := p.hooks.newClient(ctx, config.ServiceAccountFile)
+	secretMangerClient, err := p.hooks.newSecretManagerClient(ctx, config.ServiceAccountFile)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create secretmanager client: %v", err)
 	}
@@ -93,7 +94,7 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.client = client
+	p.secretManagerClient = secretMangerClient
 	p.tdHash = hex.EncodeToString(tdHash[:])
 
 	return &configv1.ConfigureResponse{}, nil
@@ -107,14 +108,14 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 	}
 
 	// Get secret, if it does not exist, a secret is created
-	secret, err := getSecret(ctx, p.client, opt.secretName(), p.tdHash)
+	secret, secretFound, err := getSecret(ctx, p.secretManagerClient, opt.secretName(), p.tdHash)
 	if err != nil {
 		return nil, err
 	}
 
 	// Secret not found, create it
-	if secret == nil {
-		secret, err = p.client.CreateSecret(ctx, &secretmanagerpb.CreateSecretRequest{
+	if !secretFound {
+		secret, err = p.secretManagerClient.CreateSecret(ctx, &secretmanagerpb.CreateSecretRequest{
 			Parent:   opt.parent(),
 			SecretId: opt.name,
 			Secret: &secretmanagerpb.Secret{
@@ -132,24 +133,24 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 			return nil, status.Errorf(codes.Internal, "failed to create secret: %v", err)
 		}
 		p.log.With("secret_name", secret.Name).Debug("Secret created")
+	}
 
-		if opt.roleName != "" && opt.serviceAccount != "" {
-			// Create a policy without conditions and a single binding
-			resp, err := p.client.SetIamPolicy(ctx, &iam.SetIamPolicyRequest{
-				Resource: opt.secretName(),
-				Policy: &iam.Policy{
-					Bindings: []*iam.Binding{
-						{
-							Role:    opt.roleName,
-							Members: []string{opt.serviceAccount},
-						},
-					},
-				},
-			})
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to set IAM policy to secret: %v", err)
+	if opt.roleName != "" && opt.serviceAccount != "" {
+		if !secretFound {
+			if err := p.setIamPolicy(ctx, secret.Name, opt); err != nil {
+				return nil, err
 			}
-			p.log.With("version", resp.Version).With("etag", resp.Etag).With("secret_name", secret.Name).Debug("Secret IAM Policy updated")
+		} else {
+			ok, err := p.shouldSetPolicy(ctx, secret.Name, opt)
+			if err != nil {
+				return nil, err
+			}
+
+			if ok {
+				if err := p.setIamPolicy(ctx, secret.Name, opt); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 
@@ -163,7 +164,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 		return nil, status.Errorf(codes.Internal, "failed to marshal payload: %v", err)
 	}
 
-	resp, err := p.client.AddSecretVersion(ctx, &secretmanagerpb.AddSecretVersionRequest{
+	resp, err := p.secretManagerClient.AddSecretVersion(ctx, &secretmanagerpb.AddSecretVersionRequest{
 		Parent: secret.Name,
 		Payload: &secretmanagerpb.SecretPayload{
 			Data: secretBinary,
@@ -185,17 +186,17 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 		return nil, err
 	}
 
-	secret, err := getSecret(ctx, p.client, opt.secretName(), p.tdHash)
+	secret, ok, err := getSecret(ctx, p.secretManagerClient, opt.secretName(), p.tdHash)
 	if err != nil {
 		return nil, err
 	}
 
-	if secret == nil {
+	if !ok {
 		p.log.With("secret_name", opt.secretName()).Debug("Secret to delete not found")
 		return &svidstorev1.DeleteX509SVIDResponse{}, nil
 	}
 
-	if err := p.client.DeleteSecret(ctx, &secretmanagerpb.DeleteSecretRequest{
+	if err := p.secretManagerClient.DeleteSecret(ctx, &secretmanagerpb.DeleteSecretRequest{
 		Name: secret.Name,
 		Etag: secret.Etag,
 	}); err != nil {
@@ -208,7 +209,7 @@ func (p *SecretManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstore
 
 // getSecret gets secret from Google Cloud and validates if it has `spire-svid` label with hashed trust domain as value,
 // nil if not found
-func getSecret(ctx context.Context, client secretManagerClient, secretName string, tdHash string) (*secretmanagerpb.Secret, error) {
+func getSecret(ctx context.Context, client secretManagerClient, secretName string, tdHash string) (*secretmanagerpb.Secret, bool, error) {
 	secret, err := client.GetSecret(ctx, &secretmanagerpb.GetSecretRequest{
 		Name: secretName,
 	})
@@ -216,15 +217,60 @@ func getSecret(ctx context.Context, client secretManagerClient, secretName strin
 	case codes.OK:
 		// Verify that secret contains "spire-svid" label and it is enabled
 		if ok := validateLabels(secret.Labels, tdHash); !ok {
-			return nil, status.Error(codes.InvalidArgument, "secret is not managed by this SPIRE deployment")
+			return nil, false, status.Error(codes.InvalidArgument, "secret is not managed by this SPIRE deployment")
 		}
 	case codes.NotFound:
-		return nil, nil
+		return nil, false, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "failed to get secret: %v", err)
+		return nil, false, status.Errorf(codes.Internal, "failed to get secret: %v", err)
 	}
 
-	return secret, nil
+	return secret, true, nil
+}
+
+func (p *SecretManagerPlugin) shouldSetPolicy(ctx context.Context, secretName string, opt *secretOptions) (bool, error) {
+	policy, err := p.secretManagerClient.GetIamPolicy(ctx, &iam.GetIamPolicyRequest{
+		Resource: secretName,
+	})
+	if err != nil {
+		return false, status.Errorf(codes.Internal, "failed to get IAM policy: %v", err)
+	}
+
+	bindings := policy.Bindings
+	if len(bindings) != 1 {
+		return true, nil
+	}
+
+	binding := bindings[0]
+	switch {
+	case binding.Role != opt.roleName:
+		return true, nil
+	case !reflect.DeepEqual(binding.Members, []string{opt.serviceAccount}):
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
+func (p *SecretManagerPlugin) setIamPolicy(ctx context.Context, secretName string, opt *secretOptions) error {
+	// Create a policy without conditions and a single binding
+	resp, err := p.secretManagerClient.SetIamPolicy(ctx, &iam.SetIamPolicyRequest{
+		Resource: opt.secretName(),
+		Policy: &iam.Policy{
+			Bindings: []*iam.Binding{
+				{
+					Role:    opt.roleName,
+					Members: []string{opt.serviceAccount},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to set IAM policy to secret: %v", err)
+	}
+	p.log.With("version", resp.Version).With("etag", string(resp.Etag)).With("secret_name", secretName).Debug("Secret IAM Policy updated")
+
+	return nil
 }
 
 type secretOptions struct {

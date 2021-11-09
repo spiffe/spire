@@ -168,9 +168,9 @@ invalid2 = "another"
 			switch tt.expectCode {
 			case codes.OK:
 				require.Equal(t, tt.expectTD, p.tdHash)
-				require.NotNil(t, p.client)
+				require.NotNil(t, p.secretManagerClient)
 			default:
-				require.Nil(t, p.client)
+				require.Nil(t, p.secretManagerClient)
 			}
 		})
 	}
@@ -228,6 +228,7 @@ func TestPutX509SVID(t *testing.T) {
 		clientConfig *clientConfig
 
 		expectSetIamPolicyReq     *iampb.SetIamPolicyRequest
+		expectGetIamPolicyReq     *iampb.GetIamPolicyRequest
 		expectAddSecretVersionReq *secretmanagerpb.AddSecretVersionRequest
 		expectCreateSecretReq     *secretmanagerpb.CreateSecretRequest
 		expectGetSecretReq        *secretmanagerpb.GetSecretRequest
@@ -245,6 +246,186 @@ func TestPutX509SVID(t *testing.T) {
 				},
 			},
 			clientConfig: &clientConfig{},
+		},
+		{
+			name: "Update policy on existing secret: no bindings",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"role:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectGetIamPolicyReq: &iampb.GetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+			},
+			expectSetIamPolicyReq: &iampb.SetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+				Policy: &iampb.Policy{
+					Version: 0,
+					Bindings: []*iampb.Binding{
+						{
+							Role:    "roles/secretmanager.viewer",
+							Members: []string{"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com"},
+						},
+					},
+				},
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{},
+		},
+		{
+			name: "Update policy on existing secret: different role",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"role:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectGetIamPolicyReq: &iampb.GetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+			},
+			expectSetIamPolicyReq: &iampb.SetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+				Policy: &iampb.Policy{
+					Version: 0,
+					Bindings: []*iampb.Binding{
+						{
+							Role:    "roles/secretmanager.viewer",
+							Members: []string{"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com"},
+						},
+					},
+				},
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				binding: &iampb.Binding{
+					Role:    "roles/custom",
+					Members: []string{"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com"},
+				},
+			},
+		},
+		{
+			name: "Update policy on existing secret: different member",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"role:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectGetIamPolicyReq: &iampb.GetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+			},
+			expectSetIamPolicyReq: &iampb.SetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+				Policy: &iampb.Policy{
+					Version: 0,
+					Bindings: []*iampb.Binding{
+						{
+							Role:    "roles/secretmanager.viewer",
+							Members: []string{"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com"},
+						},
+					},
+				},
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				binding: &iampb.Binding{
+					Role:    "roles/secretmanager.viewer",
+					Members: []string{"serviceAccount:another@test-proj.iam.gserviceaccount.com"},
+				},
+			},
+		},
+		{
+			name: "No SetIamPolicy required",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"role:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectGetIamPolicyReq: &iampb.GetIamPolicyRequest{
+				Resource: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				binding: &iampb.Binding{
+					Role:    "roles/secretmanager.viewer",
+					Members: []string{"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com"},
+				},
+			},
+		},
+		{
+			name: "Failed to get IAM policy",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"role:roles/secretmanager.viewer",
+					"serviceaccount:test-secret@test-proj.iam.gserviceaccount.com",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			clientConfig: &clientConfig{
+				binding: &iampb.Binding{
+					Role:    "roles/secretmanager.viewer",
+					Members: []string{"serviceAccount:test-secret@test-proj.iam.gserviceaccount.com"},
+				},
+				getIamPolicyErr: status.Error(codes.Internal, "oh! no"),
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to get IAM policy: rpc error: code = Internal desc = oh! no",
 		},
 		{
 			name: "Add payload and create secret",
@@ -546,6 +727,7 @@ func TestPutX509SVID(t *testing.T) {
 			spiretest.AssertProtoEqual(t, tt.expectCreateSecretReq, client.createSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectGetSecretReq, client.getSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectSetIamPolicyReq, client.setIamPolicyReq)
+			spiretest.AssertProtoEqual(t, tt.expectGetIamPolicyReq, client.getIamPolicyReq)
 		})
 	}
 }
@@ -702,6 +884,8 @@ type clientConfig struct {
 	deleteSecretErr     error
 	getSecretErr        error
 	setIamPolicyErr     error
+	getIamPolicyErr     error
+	binding             *iampb.Binding
 }
 
 type fakeClient struct {
@@ -712,6 +896,7 @@ type fakeClient struct {
 	deleteSecretReq     *secretmanagerpb.DeleteSecretRequest
 	getSecretReq        *secretmanagerpb.GetSecretRequest
 	setIamPolicyReq     *iampb.SetIamPolicyRequest
+	getIamPolicyReq     *iampb.GetIamPolicyRequest
 	c                   *clientConfig
 }
 
@@ -773,6 +958,25 @@ func (c *fakeClient) DeleteSecret(ctx context.Context, req *secretmanagerpb.Dele
 
 func (c *fakeClient) Close() error {
 	return nil
+}
+
+func (c *fakeClient) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
+	if c.c.getIamPolicyErr != nil {
+		return nil, c.c.getIamPolicyErr
+	}
+
+	c.getIamPolicyReq = req
+
+	bindings := []*iampb.Binding{}
+	if c.c.binding != nil {
+		bindings = append(bindings, c.c.binding)
+	}
+
+	return &iampb.Policy{
+		Version:  0,
+		Etag:     []byte{1},
+		Bindings: bindings,
+	}, nil
 }
 
 func (c *fakeClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
