@@ -17,6 +17,8 @@ import (
 	telemetry_store "github.com/spiffe/spire/pkg/common/telemetry/agent/store"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -112,13 +114,21 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 		return false
 	}
 
-	if err := svidStore.DeleteX509SVID(ctx, metadata); err != nil {
+	err = svidStore.DeleteX509SVID(ctx, metadata)
+
+	switch status.Code(err) {
+	case codes.OK:
+		log.Debug("SVID deleted successfully")
+		return true
+
+	case codes.InvalidArgument:
+		log.WithError(err).Debug("Failed to delete SVID because of malformed selectors")
+		return true
+
+	default:
 		log.WithError(err).Error("Failed to delete SVID")
 		return false
 	}
-
-	log.Debug("SVID deleted successfully")
-	return true
 }
 
 // storeSVID creates or updates an SVID using SVIDStore plugin. It get the plugin name from entry selectors

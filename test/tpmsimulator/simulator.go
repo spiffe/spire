@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package tpmsimulator
@@ -9,14 +10,19 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"time"
 
+	"github.com/google/go-tpm-tools/client"
 	"github.com/google/go-tpm-tools/simulator"
-	"github.com/google/go-tpm-tools/tpm2tools"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+)
+
+var (
+	ErrUsingClosedSimulator = simulator.ErrUsingClosedSimulator
 )
 
 type TPMSimulator struct {
@@ -189,6 +195,20 @@ func (c *Credential) ChainPem() []byte {
 	return pemutil.EncodeCertificates(chain)
 }
 
+func (s *TPMSimulator) OpenTPM(path string) (io.ReadWriteCloser, error) {
+	const tpmDevicePath = "/dev/tpmrm0"
+	if path != tpmDevicePath {
+		return nil, fmt.Errorf("unexpected TPM device path %q (expected %q)", path, tpmDevicePath)
+	}
+	return struct {
+		io.ReadCloser
+		io.Writer
+	}{
+		ReadCloser: io.NopCloser(s),
+		Writer:     s,
+	}, nil
+}
+
 // GenerateDevID generates a new DevID credential using the given provisioning
 // authority and key type.
 // DevIDs generated using this function are for test only. There is not guarantee
@@ -281,7 +301,7 @@ func (s *TPMSimulator) createEndorsementCertificate() (*x509.Certificate, error)
 			tpm2.PCRSelection{},
 			s.endorsementHierarchyPassword,
 			"",
-			tpm2tools.DefaultEKTemplateRSA())
+			client.DefaultEKTemplateRSA())
 	if err != nil {
 		return nil, fmt.Errorf("cannot generate endorsement key pair: %w", err)
 	}
@@ -398,13 +418,13 @@ func generateRSAKey() (*rsa.PrivateKey, error) {
 }
 
 func defaultDevIDTemplateRSA() tpm2.Public {
-	devIDKeyTemplateRSA := tpm2tools.AIKTemplateRSA()
+	devIDKeyTemplateRSA := client.AKTemplateRSA()
 	devIDKeyTemplateRSA.Attributes = flagDevIDKeyDefault
 	return devIDKeyTemplateRSA
 }
 
 func defaultDevIDTemplateECC() tpm2.Public {
-	devIDKeyTemplateECC := tpm2tools.AIKTemplateECC()
+	devIDKeyTemplateECC := client.AKTemplateECC()
 	devIDKeyTemplateECC.Attributes = flagDevIDKeyDefault
 	return devIDKeyTemplateECC
 }

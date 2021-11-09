@@ -21,6 +21,8 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -199,6 +201,86 @@ func TestRunDeleteSecrets(t *testing.T) {
 						telemetry.Entry:          "foh",
 						telemetry.SPIFFEID:       "spiffe://example.org/foh",
 						telemetry.SVIDStore:      "store1",
+					},
+				},
+			},
+		},
+		{
+			name: "delete fails because unexpected selectors",
+			stores: map[string]*fakeSVIDStore{
+				"store1": {
+					name: "store1",
+					err:  status.Error(codes.InvalidArgument, "no valid selector"),
+				},
+			},
+			readyRecords: []*storecache.Record{
+				{
+					ID: "foh",
+					HandledEntry: &common.RegistrationEntry{
+						EntryId:  "foh",
+						SpiffeId: "spiffe://example.org/foh",
+						Selectors: []*common.Selector{
+							{Type: "store1", Value: "a:1"},
+							{Type: "store1", Value: "i:1"},
+						},
+					},
+					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						td: bundle,
+					},
+					ExpiresAt: now,
+					Revision:  1,
+				},
+			},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Failed to delete SVID because of malformed selectors",
+					Data: logrus.Fields{
+						telemetry.RevisionNumber: "1",
+						telemetry.Entry:          "foh",
+						telemetry.SPIFFEID:       "spiffe://example.org/foh",
+						telemetry.SVIDStore:      "store1",
+						logrus.ErrorKey:          "rpc error: code = InvalidArgument desc = no valid selector",
+					},
+				},
+			},
+		},
+		{
+			name: "failed to delete using store",
+			stores: map[string]*fakeSVIDStore{
+				"store1": {
+					name: "store1",
+					err:  status.Error(codes.Internal, "oh! no"),
+				},
+			},
+			readyRecords: []*storecache.Record{
+				{
+					ID: "foh",
+					HandledEntry: &common.RegistrationEntry{
+						EntryId:  "foh",
+						SpiffeId: "spiffe://example.org/foh",
+						Selectors: []*common.Selector{
+							{Type: "store1", Value: "a:1"},
+							{Type: "store1", Value: "i:1"},
+						},
+					},
+					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+						td: bundle,
+					},
+					ExpiresAt: now,
+					Revision:  1,
+				},
+			},
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to delete SVID",
+					Data: logrus.Fields{
+						telemetry.RevisionNumber: "1",
+						telemetry.Entry:          "foh",
+						telemetry.SPIFFEID:       "spiffe://example.org/foh",
+						telemetry.SVIDStore:      "store1",
+						logrus.ErrorKey:          "rpc error: code = Internal desc = oh! no",
 					},
 				},
 			},
