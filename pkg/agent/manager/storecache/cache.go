@@ -126,6 +126,11 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 				continue
 			}
 
+			if record.entry == nil {
+				// Entry waiting to be removed on platform
+				continue
+			}
+
 			c.c.Log.WithFields(logrus.Fields{
 				telemetry.Entry:    id,
 				telemetry.SPIFFEID: record.entry.SpiffeId,
