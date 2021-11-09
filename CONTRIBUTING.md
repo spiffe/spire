@@ -207,10 +207,19 @@ look for and hinders aggregation.
 
 Log messages and error messages should not end with periods.
 
-## Mocks
+## Mocks v.s. Fakes
 
-Unit tests should avoid mock tests as much as possible. When necessary we should inject mocked
-object generated through mockgen
+Unit tests should avoid mocks (e.g. those generated via go-mock) and instead
+prefer fake implementations. Mocks tend to be brittle as they encode specific
+call patterns and are tightly coupled with the arguments, results, and call order
+of a given dependency. This makes it difficult to implement and maintain the
+behaviors that the unit depends on, leading to increased time maintaining the tests
+when the dependency, or its usage pattern, changes. Fakes on the other hand
+are more about implementing the assumed behaviors of the dependency, albeit in
+drastically simple terms with provisions for behavior injection. A single
+implementation can easily serve the needs for an entire suite of tests and
+the behavior is in a centralized location when it needs to be updated. Fakes
+are also less inclined to be impacted by changes to usage patterns.
 
 # Git hooks
 

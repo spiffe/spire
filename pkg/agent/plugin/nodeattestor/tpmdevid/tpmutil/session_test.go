@@ -1,29 +1,26 @@
+//go:build linux
 // +build linux
 
 package tpmutil_test
 
 import (
 	"crypto/x509"
-	"errors"
 	"io"
 	"os"
 	"path"
 	"testing"
 
-	"github.com/google/go-tpm-tools/tpm2tools"
+	"github.com/google/go-tpm-tools/client"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/tpmsimulator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	// sim is a TPM simulator instance. Only one instance at the time is allowed
-	// by the interal simulator library.
-	sim *tpmsimulator.TPMSimulator
-
 	// DevID identities
 	devIDRSA *tpmsimulator.Credential
 	devIDECC *tpmsimulator.Credential
@@ -36,23 +33,14 @@ var (
 	}
 )
 
-// openSimulatedTPM works in the same way than tpmutil.OpenTPM() but it ignores
-// the path argument and opens a connection to a simulated TPM.
-func openSimulatedTPM(tpmPath string) (io.ReadWriteCloser, error) {
-	if tpmPath == "" {
-		return nil, errors.New("empty path")
-	}
-	return sim, nil
-}
-
-func setupSimulator(t *testing.T) {
-	// Override OpenTPM fuction to use a simulator instead of a phisical TPM
-	tpmutil.OpenTPM = openSimulatedTPM
-
+func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
 	// Create a new TPM simulator
-	simulator, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
+	sim, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
 	require.NoError(t, err)
-	sim = simulator
+	t.Cleanup(func() {
+		assert.NoError(t, sim.Close(), "failed to close the TPM simulator")
+	})
+	tpmutil.OpenTPM = sim.OpenTPM
 
 	// Create DevIDs
 	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
@@ -69,21 +57,18 @@ func setupSimulator(t *testing.T) {
 		tpmsimulator.ECC,
 		tpmPasswords.DevIDKey)
 	require.NoError(t, err)
-}
 
-func teardownSimulator(t *testing.T) {
-	require.NoError(t, sim.Close())
+	return sim
 }
 
 func TestNewSession(t *testing.T) {
-	setupSimulator(t)
-	defer teardownSimulator(t)
+	sim := setupSimulator(t)
 
 	tests := []struct {
 		name   string
 		expErr string
 		scfg   *tpmutil.SessionConfig
-		hook   func(*testing.T) io.Closer
+		hook   func(*testing.T, *tpmsimulator.TPMSimulator) io.Closer
 	}{
 		{
 			name:   "NewSession fails if logger is not provided",
@@ -92,7 +77,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name:   "NewSession fails if a wrong device path is provided",
-			expErr: `cannot open TPM at "": empty path`,
+			expErr: `cannot open TPM at "": unexpected TPM device path "" (expected "/dev/tpmrm0")`,
 			scfg: &tpmutil.SessionConfig{
 				Log: hclog.NewNullLogger(),
 			},
@@ -167,7 +152,7 @@ func TestNewSession(t *testing.T) {
 			// Run hook if exists, generally used to intentionally cause an error
 			// and test more code paths.
 			if tt.hook != nil {
-				closer := tt.hook(t)
+				closer := tt.hook(t, sim)
 				defer closer.Close()
 			}
 
@@ -186,7 +171,6 @@ func TestNewSession(t *testing.T) {
 
 func TestSolveDevIDChallenge(t *testing.T) {
 	setupSimulator(t)
-	defer teardownSimulator(t)
 
 	tests := []struct {
 		name   string
@@ -276,7 +260,6 @@ func TestSolveDevIDChallenge(t *testing.T) {
 
 func TestSolveCredActivationChallenge(t *testing.T) {
 	setupSimulator(t)
-	defer teardownSimulator(t)
 
 	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv:  devIDRSA.PrivateBlob,
@@ -338,7 +321,6 @@ func TestSolveCredActivationChallenge(t *testing.T) {
 
 func TestCertifyDevIDKey(t *testing.T) {
 	setupSimulator(t)
-	defer teardownSimulator(t)
 
 	tests := []struct {
 		name      string
@@ -399,8 +381,7 @@ func TestCertifyDevIDKey(t *testing.T) {
 }
 
 func TestGetEKCert(t *testing.T) {
-	setupSimulator(t)
-	defer teardownSimulator(t)
+	sim := setupSimulator(t)
 
 	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv:  devIDRSA.PrivateBlob,
@@ -473,8 +454,7 @@ func TestGetEKCert(t *testing.T) {
 }
 
 func TestGetEKPublic(t *testing.T) {
-	setupSimulator(t)
-	defer teardownSimulator(t)
+	sim := setupSimulator(t)
 
 	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv:  devIDRSA.PrivateBlob,
@@ -608,8 +588,8 @@ func (f keyCloser) Close() error {
 // createTPMKey creates a key on the simulated TPM. It returns a io.Closer to
 // flush the key once it is no more required.
 // This function is used to out-of-memory the TPM in unit tests.
-func createTPMKey(t *testing.T) io.Closer {
-	srk, err := tpm2tools.NewKey(sim, tpm2.HandlePlatform, tpm2tools.DefaultEKTemplateRSA())
+func createTPMKey(t *testing.T, sim *tpmsimulator.TPMSimulator) io.Closer {
+	srk, err := client.NewKey(sim, tpm2.HandlePlatform, client.DefaultEKTemplateRSA())
 	require.NoError(t, err)
 	return keyCloser(srk.Close)
 }

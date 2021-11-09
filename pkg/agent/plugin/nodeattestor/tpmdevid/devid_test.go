@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package tpmdevid_test
@@ -7,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path"
 	"testing"
@@ -23,11 +23,11 @@ import (
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/tpmsimulator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	sim                 *tpmsimulator.TPMSimulator
 	devID               *tpmsimulator.Credential
 	devIDNoItermediates *tpmsimulator.Credential
 
@@ -48,22 +48,16 @@ var (
 )
 
 // openSimulatedTPM works in the same way than tpmutil.OpenTPM() but it ignores
-// the path argument and opens a connection to a simulated TPM.
-func openSimulatedTPM(tpmPath string) (io.ReadWriteCloser, error) {
-	if tpmPath != tpmDevicePath {
-		return nil, errors.New("unable to open TPM")
-	}
-	return sim, nil
-}
-
-func setupSimulator(t *testing.T) {
-	// Override OpenTPM fuction to use a simulator instead of a phisical TPM
-	tpmutil.OpenTPM = openSimulatedTPM
-
+func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
 	// Create a new TPM simulator
-	simulator, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
+	sim, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
 	require.NoError(t, err)
-	sim = simulator
+	t.Cleanup(func() {
+		assert.NoError(t, sim.Close(), "unexpected error encountered closing simulator")
+	})
+
+	// Override OpenTPM fuction to use a simulator instead of a physical TPM
+	tpmutil.OpenTPM = sim.OpenTPM
 
 	// Create DevID with intermediate cert
 	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
@@ -81,10 +75,7 @@ func setupSimulator(t *testing.T) {
 
 	// Write files into temporal directory
 	writeDevIDFiles(t)
-}
-
-func teardownSimulator(t *testing.T) {
-	require.NoError(t, sim.Close())
+	return sim
 }
 
 func writeDevIDFiles(t *testing.T) {
@@ -110,7 +101,6 @@ func writeDevIDFiles(t *testing.T) {
 
 func TestConfigure(t *testing.T) {
 	setupSimulator(t)
-	defer teardownSimulator(t)
 
 	tests := []struct {
 		name               string
@@ -321,8 +311,7 @@ func TestAidAttestationFailiures(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			setupSimulator(t)
-			defer teardownSimulator(t)
+			sim := setupSimulator(t)
 
 			if tt.getEKFail {
 				// Remove EK cert from TPM
@@ -358,7 +347,6 @@ func TestAidAttestationFailiures(t *testing.T) {
 
 func TestAidAttestationSucceeds(t *testing.T) {
 	setupSimulator(t)
-	defer teardownSimulator(t)
 
 	// Override tpmdevid.NewSession() with a local function that returns a
 	// pointer to the TPM session.

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/google/go-tpm-tools/tpm2tools"
+	"github.com/google/go-tpm-tools/client"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpmutil"
 	"github.com/hashicorp/go-hclog"
@@ -125,7 +125,7 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 			tpm2.PCRSelection{},
 			scfg.Passwords.EndorsementHierarchy,
 			"",
-			tpm2tools.DefaultEKTemplateRSA())
+			client.DefaultEKTemplateRSA())
 	if err != nil {
 		return nil, fmt.Errorf("cannot create endorsement key: %w", err)
 	}
@@ -338,7 +338,7 @@ func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([
 		tpm2.PCRSelection{},
 		parentKeyPassword,
 		keyPassword,
-		tpm2tools.AIKTemplateRSA(),
+		client.AKTemplateRSA(),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create AK: %w", err)

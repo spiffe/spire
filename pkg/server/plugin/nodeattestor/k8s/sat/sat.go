@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gopkg.in/square/go-jose.v2/jwt"
+	authv1 "k8s.io/api/authentication/v1"
 )
 
 const (
@@ -70,11 +71,15 @@ type AttestorConfig struct {
 	Clusters map[string]*ClusterConfig `hcl:"clusters"`
 }
 
+type apiServerClient interface {
+	ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error)
+}
+
 type clusterConfig struct {
 	serviceAccountKeys []crypto.PublicKey
 	serviceAccounts    map[string]bool
 	useTokenReviewAPI  bool
-	client             apiserver.Client
+	client             apiServerClient
 }
 
 type attestorConfig struct {
@@ -282,7 +287,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureR
 	config.trustDomain = req.CoreConfiguration.TrustDomain
 	for name, cluster := range hclConfig.Clusters {
 		var serviceAccountKeys []crypto.PublicKey
-		var apiserverClient apiserver.Client
+		var apiserverClient apiServerClient
 		var err error
 		if cluster.UseTokenReviewAPI {
 			apiserverClient = apiserver.New(cluster.KubeConfigFile)

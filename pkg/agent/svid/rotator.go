@@ -27,9 +27,14 @@ type Rotator interface {
 	SetRotationFinishedHook(func())
 }
 
+type Client interface {
+	RenewSVID(ctx context.Context, csr []byte) (*client.X509SVID, error)
+	Release()
+}
+
 type rotator struct {
 	c      *RotatorConfig
-	client client.Client
+	client Client
 
 	state observer.Property
 	clk   clock.Clock
@@ -139,14 +144,12 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	defer r.rotMtx.Unlock()
 	r.c.Log.Debug("Rotating agent SVID")
 
-	svidKM := keymanager.ForSVID(r.c.Catalog.GetKeyManager())
-
 	var existingKey keymanager.Key
 	if state, ok := r.state.Value().(State); ok && state.Key != nil {
 		existingKey, _ = state.Key.(keymanager.Key)
 	}
 
-	key, err := svidKM.GenerateKey(ctx, existingKey)
+	key, err := r.c.SVIDKeyManager.GenerateKey(ctx, existingKey)
 	if err != nil {
 		return err
 	}
