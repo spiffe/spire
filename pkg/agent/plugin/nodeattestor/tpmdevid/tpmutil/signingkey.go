@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/google/go-tpm-tools/tpm2tools"
+	"github.com/google/go-tpm-tools/client"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpmutil"
 	"github.com/hashicorp/go-hclog"
@@ -86,9 +86,9 @@ func (k *SigningKey) Certify(object tpmutil.Handle, objectPassword string) ([]by
 // SRKTemplateHighRSA returns the default high range SRK template (called H-1 in the specification).
 // https://trustedcomputinggroup.org/wp-content/uploads/TCG_IWG_EKCredentialProfile_v2p3_r2_pub.pdf#page=41
 func SRKTemplateHighRSA() tpm2.Public {
-	// The tpm2tools library does not have a function to build the high range template
+	// The client library does not have a function to build the high range template
 	// so we build it based on the previous template.
-	template := tpm2tools.SRKTemplateRSA()
+	template := client.SRKTemplateRSA()
 	template.RSAParameters.ModulusRaw = []byte{}
 	return template
 }
@@ -96,9 +96,9 @@ func SRKTemplateHighRSA() tpm2.Public {
 // SRKTemplateHighECC returns the default high range SRK template (called H-2 in the specification).
 // https://trustedcomputinggroup.org/wp-content/uploads/TCG_IWG_EKCredentialProfile_v2p3_r2_pub.pdf#page=42
 func SRKTemplateHighECC() tpm2.Public {
-	// The tpm2tools library does not have a function to build the high range template
+	// The client library does not have a function to build the high range template
 	// so we build it based on the previous template.
-	template := tpm2tools.SRKTemplateECC()
+	template := client.SRKTemplateECC()
 	template.ECCParameters.Point.XRaw = []byte{}
 	template.ECCParameters.Point.YRaw = []byte{}
 	return template
