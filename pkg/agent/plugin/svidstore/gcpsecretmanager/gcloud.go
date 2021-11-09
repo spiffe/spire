@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -136,20 +135,14 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 	}
 
 	if opt.roleName != "" && opt.serviceAccount != "" {
-		if !secretFound {
+		ok, err := p.shouldSetPolicy(ctx, secret.Name, opt, secretFound)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
 			if err := p.setIamPolicy(ctx, secret.Name, opt); err != nil {
 				return nil, err
-			}
-		} else {
-			ok, err := p.shouldSetPolicy(ctx, secret.Name, opt)
-			if err != nil {
-				return nil, err
-			}
-
-			if ok {
-				if err := p.setIamPolicy(ctx, secret.Name, opt); err != nil {
-					return nil, err
-				}
 			}
 		}
 	}
@@ -228,7 +221,10 @@ func getSecret(ctx context.Context, client secretManagerClient, secretName strin
 	return secret, true, nil
 }
 
-func (p *SecretManagerPlugin) shouldSetPolicy(ctx context.Context, secretName string, opt *secretOptions) (bool, error) {
+func (p *SecretManagerPlugin) shouldSetPolicy(ctx context.Context, secretName string, opt *secretOptions, secretFound bool) (bool, error) {
+	if !secretFound {
+		return true, nil
+	}
 	policy, err := p.secretManagerClient.GetIamPolicy(ctx, &iam.GetIamPolicyRequest{
 		Resource: secretName,
 	})
@@ -245,7 +241,8 @@ func (p *SecretManagerPlugin) shouldSetPolicy(ctx context.Context, secretName st
 	switch {
 	case binding.Role != opt.roleName:
 		return true, nil
-	case !reflect.DeepEqual(binding.Members, []string{opt.serviceAccount}):
+	// Expecting a single Service account as member
+	case !expectedBindingMembers(binding.Members, opt.serviceAccount):
 		return true, nil
 	default:
 		return false, nil
@@ -333,4 +330,10 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 func validateLabels(labels map[string]string, tdHash string) bool {
 	spireLabel, ok := labels["spire-svid"]
 	return ok && spireLabel == tdHash
+}
+
+// expectedBindingMembers ensures that there is exactly one binding member, and
+// that it matches the provided service account name
+func expectedBindingMembers(bindingMembers []string, serviceAccount string) bool {
+	return len(bindingMembers) == 1 && bindingMembers[0] == serviceAccount
 }
