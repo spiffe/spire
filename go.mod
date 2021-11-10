@@ -3,7 +3,8 @@ module github.com/spiffe/spire
 go 1.17
 
 require (
-	cloud.google.com/go v0.94.1 // indirect
+	cloud.google.com/go v0.95.0 // indirect
+	cloud.google.com/go/secretmanager v1.0.0
 	cloud.google.com/go/security v0.1.0
 	cloud.google.com/go/storage v1.16.1
 	github.com/Azure/azure-sdk-for-go v57.3.0+incompatible
@@ -80,7 +81,7 @@ require (
 	github.com/google/go-tpm-tools v0.3.1
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
-	github.com/googleapis/gax-go/v2 v2.1.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.1.0
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/errwrap v1.0.0 // indirect
@@ -153,7 +154,7 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272
-	golang.org/x/net v0.0.0-20210916014120-12bc252f5db8
+	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210915083310-ed5796bab164
@@ -164,7 +165,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/api v0.57.0
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20210916144049-3192f974c780
+	google.golang.org/genproto v0.0.0-20210921142501-181ce0d877f6
 	google.golang.org/grpc v1.40.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/inf.v0 v0.9.1 // indirect
