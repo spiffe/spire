@@ -56,7 +56,7 @@ func ProtoToFederationRelationshipWithMask(f *types.FederationRelationship, mask
 		switch profile := f.BundleEndpointProfile.(type) {
 		case *types.FederationRelationship_HttpsSpiffe:
 			if profile.HttpsSpiffe == nil {
-				return nil, errors.New("bundle endpoint profile does not contains \"HttpsSpiffe\"")
+				return nil, errors.New("bundle endpoint profile does not contain \"HttpsSpiffe\"")
 			}
 
 			spiffeID, err := spiffeid.FromString(profile.HttpsSpiffe.EndpointSpiffeId)

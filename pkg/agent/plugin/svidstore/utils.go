@@ -59,13 +59,14 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 	}, nil
 }
 
-// ParseMetadata parses secret data
-func ParseMetadata(secretData []string) (map[string]string, error) {
+// ParseMetadata parses metadata from a slice of strings
+// into a map that can be consumed by SVIDStore plugins
+func ParseMetadata(metaData []string) (map[string]string, error) {
 	data := make(map[string]string)
-	for _, s := range secretData {
+	for _, s := range metaData {
 		value := strings.Split(s, ":")
 		if len(value) < 2 {
-			return nil, fmt.Errorf("metadata does not contains contain a colon: %q", s)
+			return nil, fmt.Errorf("metadata does not contain a colon: %q", s)
 		}
 		data[value[0]] = value[1]
 	}
