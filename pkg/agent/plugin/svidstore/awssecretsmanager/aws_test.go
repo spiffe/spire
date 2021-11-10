@@ -367,7 +367,7 @@ func TestPutX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name:       "secrets does not contains spire-svid tag",
+			name:       "secrets does not contain spire-svid tag",
 			req:        successReq,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "svidstore(aws_secretsmanager): secret does not contain the 'spire-svid' tag",

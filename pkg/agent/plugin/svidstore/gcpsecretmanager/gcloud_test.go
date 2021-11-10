@@ -582,7 +582,7 @@ func TestPutX509SVID(t *testing.T) {
 				FederatedBundles: successReq.FederatedBundles,
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "svidstore(gcp_secretmanager): invalid metadata: metadata does not contains contain a colon: \"projectid\"",
+			expectMsgPrefix: "svidstore(gcp_secretmanager): invalid metadata: metadata does not contain a colon: \"projectid\"",
 		},
 		{
 			name: "invalid request, no secret name",

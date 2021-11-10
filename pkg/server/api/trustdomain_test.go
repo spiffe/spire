@@ -187,7 +187,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsSpiffe{},
 			},
-			expectErr: "bundle endpoint profile does not contains \"HttpsSpiffe\"",
+			expectErr: "bundle endpoint profile does not contain \"HttpsSpiffe\"",
 		},
 		{
 			name: "BundleEndpointUrl must start with https",
