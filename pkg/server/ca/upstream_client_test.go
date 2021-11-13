@@ -31,7 +31,9 @@ func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 		UseIntermediate: true,
 	})
 
-	x509CA, err := client.MintX509CA(context.Background(), csr, 0)
+	x509CA, err := client.MintX509CA(context.Background(), csr, 0, func(_ context.Context, _, _ []*x509.Certificate) error {
+		return nil
+	})
 	require.NoError(t, err)
 	require.Len(t, x509CA, 2)
 
@@ -86,7 +88,9 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 				MutateMintX509CAResponse: tt.mutate,
 			})
 
-			_, err := client.MintX509CA(context.Background(), csr, 0)
+			_, err := client.MintX509CA(context.Background(), csr, 0, func(_ context.Context, _, _ []*x509.Certificate) error {
+				return nil
+			})
 			spiretest.RequireGRPCStatusContains(t, err, codes.Internal, tt.err)
 		})
 	}

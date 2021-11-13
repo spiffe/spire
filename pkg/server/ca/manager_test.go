@@ -177,6 +177,21 @@ func (s *ManagerSuite) TestUpstreamSigned() {
 	)
 }
 
+func (s *ManagerSuite) TestUpstreamSignedProducesInvalidChain() {
+	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+		TrustDomain: testTrustDomain,
+		// SPIFFE specification mandates that IF key usage is set, that it
+		// be set to keyCertSign and optionally keyCrlSign. This key usage
+		// should cause the intermdiate CA to be rejected since it will
+		// produce a non-conformant chain.
+		KeyUsage: x509.KeyUsageDigitalSignature,
+	})
+
+	s.cat.SetUpstreamAuthority(upstreamAuthority)
+	s.m = NewManager(s.selfSignedConfig())
+	s.Require().EqualError(s.m.Initialize(context.Background()), `X509 CA produced an invalid X509-SVID chain: x509svid: could not verify leaf certificate: x509: certificate signed by unknown authority (possibly because of "x509: invalid signature: parent certificate cannot sign this kind of certificate" while trying to verify candidate authority certificate "FAKEUPSTREAMAUTHORITY-ROOT")`)
+}
+
 func (s *ManagerSuite) TestUpstreamIntermediateSigned() {
 	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
@@ -679,7 +694,7 @@ func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamautho
 
 	c := s.selfSignedConfig()
 	s.m = NewManager(c)
-	s.NoError(s.m.Initialize(context.Background()))
+	s.Require().NoError(s.m.Initialize(context.Background()))
 }
 
 func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
@@ -743,6 +758,9 @@ type signerInfo struct {
 }
 
 func (s *ManagerSuite) getX509CAInfo(x509CA *X509CA) x509CAInfo {
+	if x509CA == nil {
+		return x509CAInfo{}
+	}
 	return x509CAInfo{
 		Signer:        s.getSignerInfo(x509CA.Signer),
 		Certificate:   x509CA.Certificate,
@@ -751,6 +769,9 @@ func (s *ManagerSuite) getX509CAInfo(x509CA *X509CA) x509CAInfo {
 }
 
 func (s *ManagerSuite) getJWTKeyInfo(jwtKey *JWTKey) jwtKeyInfo {
+	if jwtKey == nil {
+		return jwtKeyInfo{}
+	}
 	return jwtKeyInfo{
 		Signer:   s.getSignerInfo(jwtKey.Signer),
 		Kid:      jwtKey.Kid,
