@@ -44,9 +44,9 @@ cloud.google.com/go/pubsub v1.0.1/go.mod h1:R0Gpsv3s54REJCy4fxDixWD93lHJMoZTyQ2k
 cloud.google.com/go/pubsub v1.1.0/go.mod h1:EwwdRX2sKPjnvnqCa270oGRyludottCI76h+R3AArQw=
 cloud.google.com/go/pubsub v1.2.0/go.mod h1:jhfEVHT8odbXTkndysNHCcx0awwzvfOlguIAii9o8iA=
 cloud.google.com/go/pubsub v1.3.1/go.mod h1:i+ucay31+CNRpDW4Lu78I4xXG+O1r/MAHgjpRVR+TSU=
+cloud.google.com/go/pubsub v1.5.0/go.mod h1:ZEwJccE3z93Z2HWvstpri00jOg7oO4UZDtKhwDwqF0w=
 cloud.google.com/go/secretmanager v1.0.0 h1:Wbw6lsRrpatsE8GVpuwYqImn+sY5DmRjaEImYPwcSMY=
 cloud.google.com/go/secretmanager v1.0.0/go.mod h1:+Qkm5qxIJ5mk74xxIXA+87fseaY1JLYBcFPQoc/GQxg=
-cloud.google.com/go/pubsub v1.5.0/go.mod h1:ZEwJccE3z93Z2HWvstpri00jOg7oO4UZDtKhwDwqF0w=
 cloud.google.com/go/security v0.1.0 h1:mg3X6jqKsskwV1njJlbTXOhlNIHKqMcZnthwXaFy2cA=
 cloud.google.com/go/security v0.1.0/go.mod h1:eUUQwjXqLJtaWUqDYZSQG9ZPSm4aobU7GMtgwBsBuLE=
 cloud.google.com/go/spanner v1.7.0/go.mod h1:sd3K2gZ9Fd0vMPLXzeCrF6fq4i63Q7aTLW/lBIfBkIk=
@@ -868,10 +868,10 @@ github.com/spf13/viper v1.7.0/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5q
 github.com/spf13/viper v1.8.1/go.mod h1:o0Pch8wJ9BVSWGQMbra6iw0oQ5oktSIBaujf1rJH9Ns=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.8 h1:ou8ywBGFdYdG4BXjB/EBk2ND3OhtAwiMxLEbYcUS+ts=
 github.com/spiffe/go-spiffe/v2 v2.0.0-beta.8/go.mod h1:TEfgrEcyFhuSuvqohJt6IxENUNeHfndWCCV1EX7UaVk=
-github.com/spiffe/spire-api-sdk v1.1.0 h1:n7EQHhCOUpmMfggUJ6pAECFzE8P/hVRe++h/mxai6So=
-github.com/spiffe/spire-api-sdk v1.1.0/go.mod h1:UylWypx+g3HPJeelhKiKykUvcTJFw5VKIKaSaCYgpFw=
-github.com/spiffe/spire-plugin-sdk v1.1.0 h1:o2MMUG8XFQpbYwf0UnqQf7MQoNN4rxgk9EbeG3xt4nY=
-github.com/spiffe/spire-plugin-sdk v1.1.0/go.mod h1:fzNSP83Z848jZtPQYeZ9qPWZkbSPwmd/JFNux1gxsbM=
+github.com/spiffe/spire-api-sdk v1.1.1 h1:h3bZQVSaW4+LnggZqLvUAuVbyMMmvn/Eo452xK+GJHg=
+github.com/spiffe/spire-api-sdk v1.1.1/go.mod h1:UylWypx+g3HPJeelhKiKykUvcTJFw5VKIKaSaCYgpFw=
+github.com/spiffe/spire-plugin-sdk v1.1.1 h1:19zNeDHHMEmJjXSByTNf9pV1mxCn0cb5Pt8KlBbBY88=
+github.com/spiffe/spire-plugin-sdk v1.1.1/go.mod h1:fzNSP83Z848jZtPQYeZ9qPWZkbSPwmd/JFNux1gxsbM=
 github.com/stoewer/go-strcase v1.2.0/go.mod h1:IBiWB2sKIp3wVVQ3Y035++gc+knqhUQag1KpM8ahLw8=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1 h1:2vfRuCMp5sSVIDSqO8oNnWJq7mPa6KVP3iPIwFBuy8A=
