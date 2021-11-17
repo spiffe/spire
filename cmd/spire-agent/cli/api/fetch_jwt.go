@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -22,6 +23,7 @@ func newFetchJWTCommand(env *common_cli.Env, clientMaker workloadClientMaker) cl
 type fetchJWTCommand struct {
 	audience common_cli.CommaStringsFlag
 	spiffeID string
+	format string
 }
 
 func (c *fetchJWTCommand) name() string {
@@ -37,6 +39,11 @@ func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *
 		return errors.New("audience must be specified")
 	}
 
+	if len(c.format) != 0 && c.format != "json" {
+
+		return errors.New("format currently can only be json")
+	}
+
 	bundlesResp, err := c.fetchJWTBundles(ctx, client)
 	if err != nil {
 		return err
@@ -46,20 +53,49 @@ func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *
 		return err
 	}
 
-	for _, svid := range svidResp.Svids {
-		fmt.Printf("token(%s):\n\t%s\n", svid.SpiffeId, svid.Svid)
-	}
+	if c.format != "" {
+		if c.format == "json" {
+			sep := ""
+			fmt.Printf("{\n    \"tokens\": {\n")
+			for i, svid := range svidResp.Svids {
+				if i == len(svidResp.Svids) - 1 {
+					sep = ""
+				} else {
+					sep = ","
+				}
+				fmt.Printf("        \"%s\": \"%s\"%s\n", svid.SpiffeId, svid.Svid, sep)
+			}
+			fmt.Printf("    },\n    \"bundles\": {\n")
+			i := 0
+			for trustDomainID, jwksJSON := range bundlesResp.Bundles {
+				if i == len(bundlesResp.Bundles) - 1 {
+					sep = ""
+				} else {
+					sep = ","
+				}
+				s := strings.Replace(strings.TrimSpace(string(jwksJSON)), "\n", "\n        ", -1)
+				fmt.Printf("        \"%s\": %s%s\n", trustDomainID, s, sep)
+				i += 1
+			}
+			fmt.Printf("    }\n}\n")
+		}
+	} else {
 
-	for trustDomainID, jwksJSON := range bundlesResp.Bundles {
-		fmt.Printf("bundle(%s):\n\t%s\n", trustDomainID, string(jwksJSON))
-	}
+		for _, svid := range svidResp.Svids {
+			fmt.Printf("token(%s):\n\t%s\n", svid.SpiffeId, svid.Svid)
+		}
 
+		for trustDomainID, jwksJSON := range bundlesResp.Bundles {
+			fmt.Printf("bundle(%s):\n\t%s\n", trustDomainID, string(jwksJSON))
+		}
+	}
 	return nil
 }
 
 func (c *fetchJWTCommand) appendFlags(fs *flag.FlagSet) {
 	fs.Var(&c.audience, "audience", "comma separated list of audience values")
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID subject (optional)")
+	fs.StringVar(&c.format, "format", "", "format [json] (optional)")
 }
 
 func (c *fetchJWTCommand) fetchJWTSVID(ctx context.Context, client *workloadClient) (*workload.JWTSVIDResponse, error) {
