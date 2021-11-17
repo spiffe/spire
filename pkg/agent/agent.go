@@ -96,7 +96,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-
 	endpoints := a.newEndpoints(metrics, manager, workloadAttestor)
 
 	if err := healthChecker.AddCheck("agent", a); err != nil {
