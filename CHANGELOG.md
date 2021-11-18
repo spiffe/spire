@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.1] - 2021-11-17
+
+### Added
+- SPIRE Agent can now store SVIDs with Google Cloud Secrets Manager (#2595)
+
+### Changed
+- SPIRE Server downloads federated bundles a little sooner when federated relationships are added or updated (#2585)
+
+### Fixed
+- Fixed a regression in Percona XTRA DB Cluster support introduced in 0.12.2 (#2605)
+- Kubernetes Workload Attestation fixed for Kubernetes 1.21+ (#2600)
+- SPIRE Agent now retries failed removals of SVIDs stored by SVIDStore plugins (#2620)
+
 ## [1.1.0] - 2021-10-10
 
 ### Added
