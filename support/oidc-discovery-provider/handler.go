@@ -14,15 +14,17 @@ type Handler struct {
 	source              JWKSSource
 	domainPolicy        DomainPolicy
 	allowInsecureScheme bool
+	keyUse              string
 
 	http.Handler
 }
 
-func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool) *Handler {
+func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, keyUse string) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
+		keyUse:              keyUse,
 	}
 
 	mux := http.NewServeMux()
@@ -100,6 +102,12 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.Error(w, "document not available", http.StatusInternalServerError)
 		return
+	}
+
+	if len(h.keyUse) > 0 {
+		for i, _ := range(jwks.Keys) {
+			jwks.Keys[i].Use = h.keyUse
+		}
 	}
 
 	jwksBytes, err := json.MarshalIndent(jwks, "", "  ")

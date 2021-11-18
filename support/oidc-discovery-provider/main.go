@@ -55,7 +55,7 @@ func run(configPath string) error {
 		domainPolicy = AllowAnyDomain()
 	}
 
-	var handler http.Handler = NewHandler(domainPolicy, source, config.AllowInsecureScheme)
+	var handler http.Handler = NewHandler(domainPolicy, source, config.AllowInsecureScheme, config.KeyUse)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)
