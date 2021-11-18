@@ -25,22 +25,12 @@ The plugin supports **Client Certificate**, **Token** and **AppRole** authentica
 - **Token** method authenticates to Vault using the token in a HTTP Request header.
 - **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
 
-the [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/main/doc/spire_server.md#server-configuration-file) should be less than or equal to the Vault's PKI secret engine TTL.
-To configure the TTL value, either increase the default TTL of the Engine or set the `max_ttl` in the Role configuration.
+The [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/main/doc/spire_server.md#server-configuration-file) should be less than or equal to the Vault's PKI secret engine TTL.
+To configure the TTL value, tune the engine.
 
-e.g. increase the default TTL
+e.g.
 ```
 $ vault secrets tune -max-lease-ttl=8760h pki
-```
-
-e.g. configure the max TTL of the Role
-```
-$ vault write pki/roles/my-spire-role \
-    allowed_domains=example.com \
-    allow_subdomains=true \
-    key_type=ec \
-    key_bits=256 \
-    max_ttl=8760h
 ```
 
 The configured token needs to be attached to a policy that has at least the following capabilities:
