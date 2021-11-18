@@ -21,6 +21,7 @@ func TestHandlerHTTPS(t *testing.T) {
 		modTime time.Time
 		code    int
 		body    string
+		keyUse  string
 	}{
 		{
 			name:   "GET well-known",
@@ -100,6 +101,35 @@ func TestHandlerHTTPS(t *testing.T) {
 			code:   http.StatusMethodNotAllowed,
 			body:   "method not allowed\n",
 		},
+		{
+			name:   "GET keys with key use set",
+			method: "GET",
+			path:   "/keys",
+			jwks: &jose.JSONWebKeySet{
+				Keys: []jose.JSONWebKey{
+					{
+						Key:       ec256Pubkey,
+						KeyID:     "KEYID",
+						Algorithm: "ES256",
+					},
+				},
+			},
+			code: http.StatusOK,
+			body: `{
+  "keys": [
+    {
+      "use": "sig",
+      "kty": "EC",
+      "kid": "KEYID",
+      "crv": "P-256",
+      "alg": "ES256",
+      "x": "iSt7S4ih6QLodw9wf-zdPV8bmAlDJBCRRy24_UAZY70",
+      "y": "Gb4gkQCeHj7HCbZzdctcAx9dxoDgC9sudsSG7ZLIWJs"
+    }
+  ]
+}`,
+			keyUse: "sig",
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -112,7 +142,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, false)
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.keyUse)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -222,7 +252,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true)
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true, testCase.keyUse)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -389,7 +419,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false)
+			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, testCase.keyUse)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -501,7 +531,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test"), source, false)
+			h := NewHandler(domainAllowlist(t, "domain.test"), source, false, testCase.keyUse)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())

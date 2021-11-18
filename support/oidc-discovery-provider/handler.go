@@ -105,7 +105,7 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(h.keyUse) > 0 {
-		for i, _ := range(jwks.Keys) {
+		for i := range jwks.Keys {
 			jwks.Keys[i].Use = h.keyUse
 		}
 	}
