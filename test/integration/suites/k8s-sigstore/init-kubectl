@@ -1,0 +1,9 @@
+#!/bin/bash
+
+KUBECONFIG="${RUNDIR}/kubeconfig"
+KUBEBIN="./bin/kubectl"
+if [ ! -f "${RUNDIR}/kubeconfig" ]; then
+    ./bin/kind get kubeconfig --name=k8stest > "${RUNDIR}/kubeconfig"
+fi
+export KUBECONFIG
+export KUBEBIN

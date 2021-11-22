@@ -1,0 +1,12 @@
+#!/bin/sh
+
+source init-kubectl
+source check_for_workload_svid
+
+check_for_workload_svid "spiffe://example.org/ns/default/sa/default/workload-signed" example-workload-signed
+
+if [ "${DONE}" -eq 1 ]; then
+    log-info "SPIFFE ID found."
+else
+    fail-now "timed out waiting for workload to obtain credentials."
+fi

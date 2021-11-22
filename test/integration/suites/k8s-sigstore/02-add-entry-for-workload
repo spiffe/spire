@@ -1,0 +1,28 @@
+#!/bin/bash
+
+source init-kubectl
+
+#1 - namespace
+#2 - app_name
+#3 workload spiffeID
+add_entry_for_workload() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/k8s-workload-registrar/example-cluster/node"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+    if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+    -spiffeID ${workload_spiffe_id} \
+    -parentID ${CLUSTERNODESPIFFEID} \
+    -selector k8s:image-signature-subject:mvtms@cesar.org.br \
+    -selector k8s:ns:${ns} \
+    -selector k8s:pod-name:${WORKLOAD_POD} ;then
+        return
+    fi
+    fail-now "Failed creating entry for workload "
+}
+
+add_entry_for_workload spire example-workload-signed spiffe://example.org/ns/default/sa/default/workload-signed
+add_entry_for_workload spire example-workload-unsigned spiffe://example.org/ns/spire/sa/default/workload-unsigned
+add_entry_for_workload spire example-workload-signed-wrong-subject spiffe://example.org/ns/spire/sa/default/workload-signed-wrong-subject

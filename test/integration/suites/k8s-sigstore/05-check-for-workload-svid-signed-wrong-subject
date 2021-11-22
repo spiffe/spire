@@ -1,0 +1,12 @@
+#!/bin/sh
+
+source init-kubectl
+source check_for_workload_svid
+
+check_for_workload_svid "spiffe://example.org/ns/default/sa/default/workload-signed-wrong-subject" example-workload-signed-wrong-subject
+
+if [ -z "${DONE}" ]; then
+    log-info "No SPIFFE ID with subject selector provided for the image"
+else
+    fail-now "Unexpected SPIFFE ID with subject selector provided for the image"
+fi

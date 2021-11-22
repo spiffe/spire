@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-workload-signed-wrong-subject
+  namespace: spire
+  labels:
+    app: example-workload-signed-wrong-subject
+spec:
+  selector:
+    matchLabels:
+      app: example-workload-signed-wrong-subject
+  template:
+    metadata:
+      namespace: spire
+      labels:
+        app: example-workload-signed-wrong-subject
+        spire-workload: example-workload-signed-wrong-subject
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: example-workload-signed-wrong-subject
+          image: marcusvtms/spire-tests:signed_wrong_subject
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
+          args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /tmp/spire-agent/public
+              readOnly: true
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/agent-sockets
+            type: Directory
