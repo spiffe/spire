@@ -1,17 +1,15 @@
-//go:build !windows
-// +build !windows
+//go:build windows
+// +build windows
 
 package diskutil
 
 import (
 	"os"
-	"path/filepath"
 )
 
 // AtomicWriteFile writes data out.  It writes to a temp file first, fsyncs that file,
 // then swaps the file in.  os.Rename is an atomic operation, so this sequence avoids having
-// a partially written file at the final location.  Finally, fsync is called on the directory
-// to ensure the rename is persisted.
+// a partially written file at the final location.
 func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
 	tmpPath := path + ".tmp"
 	if err := write(tmpPath, data, mode); err != nil {
@@ -22,17 +20,12 @@ func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 
-	dir, err := os.Open(filepath.Dir(path))
+	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 
-	if err := dir.Sync(); err != nil {
-		dir.Close()
-		return err
-	}
-
-	return dir.Close()
+	return f.Close()
 }
 
 func write(tmpPath string, data []byte, mode os.FileMode) error {

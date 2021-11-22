@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build windows
+// +build windows
 
 package diskutil
 
@@ -16,24 +16,28 @@ func TestAtomicWriteFile(t *testing.T) {
 	dir := spiretest.TempDir(t)
 
 	tests := []struct {
-		name string
-		data []byte
-		mode os.FileMode
+		name       string
+		data       []byte
+		mode       os.FileMode
+		expectMode os.FileMode
 	}{
 		{
-			name: "basic test",
-			data: []byte("Hello, World"),
-			mode: 0600,
+			name:       "basic test",
+			data:       []byte("Hello, World"),
+			mode:       0600,
+			expectMode: 0666,
 		},
 		{
-			name: "empty",
-			data: []byte{},
-			mode: 0440,
+			name:       "empty",
+			data:       []byte{},
+			mode:       0440,
+			expectMode: 0444,
 		},
 		{
-			name: "binary",
-			data: []byte{0xFF, 0, 0xFF, 0x3D, 0xD8, 0xA9, 0xDC, 0xF0, 0x9F, 0x92, 0xA9},
-			mode: 0644,
+			name:       "binary",
+			data:       []byte{0xFF, 0, 0xFF, 0x3D, 0xD8, 0xA9, 0xDC, 0xF0, 0x9F, 0x92, 0xA9},
+			mode:       0644,
+			expectMode: 0666,
 		},
 	}
 	for _, tt := range tests {
@@ -45,7 +49,8 @@ func TestAtomicWriteFile(t *testing.T) {
 
 			info, err := os.Stat(file)
 			require.NoError(t, err)
-			require.EqualValues(t, tt.mode, info.Mode())
+			// Windows returns another set of permissions
+			require.EqualValues(t, tt.expectMode, info.Mode())
 
 			content, err := os.ReadFile(file)
 			require.NoError(t, err)
