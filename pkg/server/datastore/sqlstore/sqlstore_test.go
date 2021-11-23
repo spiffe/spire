@@ -1365,14 +1365,9 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	s.Require().NoError(err)
 	fetchedRegistrationEntry := &common.RegistrationEntry{}
 	defaultLastLog := spiretest.LogEntry{
-		Level:   logrus.InfoLevel,
 		Message: "Connected to SQL database",
-		Data: logrus.Fields{
-			telemetry.Type:     "sqlite3",
-			telemetry.Version:  "3.36.0",
-			telemetry.ReadOnly: "false",
-		},
 	}
+	prunedLogMessage := "Pruned an expired registration"
 
 	for _, tt := range []struct {
 		name                      string
@@ -1398,7 +1393,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 			expectedRegistrationEntry: (*common.RegistrationEntry)(nil),
 			expectedLastLog: spiretest.LogEntry{
 				Level:   logrus.InfoLevel,
-				Message: "Pruned an expired registration",
+				Message: prunedLogMessage,
 				Data: logrus.Fields{
 					telemetry.SPIFFEID:       createdRegistrationEntry.SpiffeId,
 					telemetry.ParentID:       createdRegistrationEntry.ParentId,
@@ -1415,7 +1410,11 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
-			spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
+			if tt.expectedLastLog.Message == prunedLogMessage {
+				spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
+			} else {
+				assert.Equal(t, s.hook.LastEntry().Message, tt.expectedLastLog.Message)
+			}
 		})
 	}
 }
