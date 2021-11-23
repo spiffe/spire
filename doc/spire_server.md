@@ -67,6 +67,8 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                                                            | INFO                                                           |
 | `log_format`                | Format of logs, \<text\|json\>                                                                                                 | text                                                           |
 | `profiling_enabled`         | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                                                          |
+| `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                  |
+| `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)             |                                  |
 | `profiling_port`            | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`. |                                                                |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                               |                                                                |
 | `socket_path`               | Path to bind the SPIRE Server API socket to                                                                                    | /tmp/spire-server/private/api.sock                             |
@@ -98,6 +100,15 @@ This may be useful for templating configuration files, for example across differ
 | `policy_data_path`            | File to retrieve databindings for policy evaluation.     |                |
 
 
+### Profiling Names
+These are the available profiles that can be set in the `profiling_freq` configuration value:
+- `goroutine`
+- `threadcreate`
+- `heap`
+- `block`
+- `mutex`
+- `trace`
+- `cpu`
 
 ## Plugin configuration
 

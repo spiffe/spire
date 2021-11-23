@@ -53,6 +53,8 @@ This may be useful for templating configuration files, for example across differ
 | `log_level`                       | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                                                            | INFO                             |
 | `log_format`                      | Format of logs, \<text\|json\>                                                                                                 | Text                             |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                            |
+| `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                  |
+| `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)             |                                  |
 | `profiling_port`                  | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`. |                                  |
 | `server_address`                  | DNS name or IP address of the SPIRE server                                                                                     |                                  |
 | `server_port`                     | Port number of the SPIRE server                                                                                                |                                  |
@@ -79,6 +81,15 @@ Only one of these three options may be set at a time.
 | `default_bundle_name`      | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA            |
 | `default_all_bundles_name` | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL               |
 
+### Profiling Names
+These are the available profiles that can be set in the `profiling_freq` configuration value:
+- `goroutine`
+- `threadcreate`
+- `heap`
+- `block`
+- `mutex`
+- `trace`
+- `cpu`
 
 ## Plugin configuration
 
