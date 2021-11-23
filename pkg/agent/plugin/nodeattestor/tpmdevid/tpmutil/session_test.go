@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 package tpmutil_test
 
 import (
@@ -8,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"testing"
 
 	"github.com/google/go-tpm-tools/client"
@@ -40,7 +38,9 @@ func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
 	t.Cleanup(func() {
 		assert.NoError(t, sim.Close(), "failed to close the TPM simulator")
 	})
-	tpmutil.OpenTPM = sim.OpenTPM
+	tpmutil.OpenTPM = func(s ...string) (io.ReadWriteCloser, error) {
+		return sim.OpenTPM(s...)
+	}
 
 	// Create DevIDs
 	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
@@ -65,19 +65,22 @@ func TestNewSession(t *testing.T) {
 	sim := setupSimulator(t)
 
 	tests := []struct {
-		name   string
-		expErr string
-		scfg   *tpmutil.SessionConfig
-		hook   func(*testing.T, *tpmsimulator.TPMSimulator) io.Closer
+		name          string
+		expErr        string
+		expWindowsErr string
+		scfg          *tpmutil.SessionConfig
+		hook          func(*testing.T, *tpmsimulator.TPMSimulator) io.Closer
 	}{
 		{
 			name:   "NewSession fails if logger is not provided",
 			expErr: `missing logger`,
 			scfg:   &tpmutil.SessionConfig{},
 		},
+		// TODO: windows is not allowing to set a path, so what must we do here?
 		{
-			name:   "NewSession fails if a wrong device path is provided",
-			expErr: `cannot open TPM at "": unexpected TPM device path "" (expected "/dev/tpmrm0")`,
+			name:          "NewSession fails if a wrong device path is provided",
+			expErr:        `cannot open TPM at "": unexpected TPM device path "" (expected "/dev/tpmrm0")`,
+			expWindowsErr: "cannot load DevID key on TPM: tpm2.DecodePublic failed: decoding TPMT_PUBLIC: EOF",
 			scfg: &tpmutil.SessionConfig{
 				Log: hclog.NewNullLogger(),
 			},
@@ -158,7 +161,12 @@ func TestNewSession(t *testing.T) {
 
 			tpm, err := tpmutil.NewSession(tt.scfg)
 			if tt.expErr != "" {
-				require.EqualError(t, err, tt.expErr)
+				expectErr := tt.expErr
+				if runtime.GOOS == "windows" && tt.expWindowsErr != "" {
+					expectErr = tt.expWindowsErr
+				}
+
+				require.EqualError(t, err, expectErr)
 				require.Nil(t, tpm)
 				return
 			}
@@ -510,6 +518,7 @@ func TestAutoDetectTPMPath(t *testing.T) {
 		deviceNames      []string
 		targetDeviceName string
 		expErr           string
+		expWindowsErr    string
 	}{
 		{
 			name:             "AutoDetectTPMPath succeeds for 'tpmrmX' device names",
@@ -548,10 +557,11 @@ func TestAutoDetectTPMPath(t *testing.T) {
 			deviceNames: []string{"not-a-tpm-device-1", "tpm0", "not-a-tpm-device-2", "tpm1"},
 		},
 		{
-			name:        "AutoDetectTPMPath fails to detect TPM if TPM base directory cannot be read",
-			baseTPMDir:  "non-existent-dir",
-			expErr:      "open non-existent-dir: no such file or directory",
-			deviceNames: []string{"tpm0"},
+			name:          "AutoDetectTPMPath fails to detect TPM if TPM base directory cannot be read",
+			baseTPMDir:    "non-existent-dir",
+			expErr:        "open non-existent-dir: no such file or directory",
+			expWindowsErr: "open non-existent-dir: The system cannot find the file specified.",
+			deviceNames:   []string{"tpm0"},
 		},
 	}
 
@@ -566,7 +576,11 @@ func TestAutoDetectTPMPath(t *testing.T) {
 			expectedPath := path.Join(tt.baseTPMDir, tt.targetDeviceName)
 			detectedPath, err := tpmutil.AutoDetectTPMPath(tt.baseTPMDir)
 			if tt.expErr != "" {
-				require.EqualError(t, err, tt.expErr)
+				expectErr := tt.expErr
+				if runtime.GOOS == "windows" && tt.expWindowsErr != "" {
+					expectErr = tt.expWindowsErr
+				}
+				require.EqualError(t, err, expectErr)
 				require.Empty(t, detectedPath)
 				return
 			}

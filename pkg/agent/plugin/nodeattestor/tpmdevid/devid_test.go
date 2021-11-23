@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 package tpmdevid_test
 
 import (
@@ -8,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"testing"
@@ -57,7 +55,9 @@ func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
 	})
 
 	// Override OpenTPM fuction to use a simulator instead of a physical TPM
-	tpmutil.OpenTPM = sim.OpenTPM
+	tpmutil.OpenTPM = func(s ...string) (io.ReadWriteCloser, error) {
+		return sim.OpenTPM(s...)
+	}
 
 	// Create DevID with intermediate cert
 	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
@@ -135,7 +135,7 @@ func TestConfigure(t *testing.T) {
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
 						tpm_device_path = "/dev/tpmrm0"`,
-			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate(s): open non-existent-path/to/devid.cert: no such file or directory",
+			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate(s): open non-existent-path/to/devid.cert:",
 		},
 		{
 			name: "Configure fails if TPM path is not provided and it cannot be auto detected",
@@ -151,7 +151,7 @@ func TestConfigure(t *testing.T) {
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
 						tpm_device_path = "/dev/tpmrm0"`, devIDCertPath),
-			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load private key: open non-existent-path/to/devid-private-blob: no such file or directory",
+			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load private key: open non-existent-path/to/devid-private-blob:",
 		},
 		{
 			name: "Configure fails if DevID public key cannot be opened",
@@ -161,7 +161,7 @@ func TestConfigure(t *testing.T) {
 						tpm_device_path = "/dev/tpmrm0"`,
 				devIDCertPath,
 				devIDPrivPath),
-			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load public key: open non-existent-path/to/devid-public-blob: no such file or directory",
+			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load public key: open non-existent-path/to/devid-public-blob:",
 		},
 		{
 			name: "Configure succeeds providing a TPM path",

@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 package tpmdevid_test
 
 import (
@@ -112,14 +109,14 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:     "Configure fails if DevID trust bundle cannot be loaded",
-			expErr:   "rpc error: code = Internal desc = unable to load DevID trust bundle: open non-existent/devid/bundle/path: no such file or directory",
+			expErr:   "rpc error: code = Internal desc = unable to load DevID trust bundle: open non-existent/devid/bundle/path:",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 			hclConf: `devid_ca_path = "non-existent/devid/bundle/path"
 					  endorsement_ca_path = "non-existent/endorsement/bundle/path"`,
 		},
 		{
 			name:     "Configure fails if endorsement trust bundle cannot be opened",
-			expErr:   "rpc error: code = Internal desc = unable to load endorsement trust bundle: open non-existent/endorsement/bundle/path: no such file or directory",
+			expErr:   "rpc error: code = Internal desc = unable to load endorsement trust bundle: open non-existent/endorsement/bundle/path:",
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 			hclConf: fmt.Sprintf(`devid_ca_path = %q
 								endorsement_ca_path = "non-existent/endorsement/bundle/path"`,

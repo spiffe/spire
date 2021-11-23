@@ -52,7 +52,7 @@ type SessionConfig struct {
 	Log        hclog.Logger
 }
 
-var OpenTPM func(string) (io.ReadWriteCloser, error) = tpm2.OpenTPM
+var OpenTPM func(...string) (io.ReadWriteCloser, error) = openTPM
 
 // NewSession opens a connection to a TPM and configures it to be used for
 // node attestation.
@@ -154,11 +154,7 @@ func (c *Session) Close() {
 	}
 
 	if c.rwc != nil {
-		// EmulatorReadWriteCloser type does not need to be closed. It closes
-		// the connection after each Read() call. Closing it again results in
-		// an error.
-		_, ok := c.rwc.(*tpmutil.EmulatorReadWriteCloser)
-		if ok {
+		if mayClose(c.rwc) {
 			return
 		}
 
