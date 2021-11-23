@@ -261,6 +261,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck // not ready to port
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithReturnConnectionError(),
 	)
 }
 
