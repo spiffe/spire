@@ -74,6 +74,8 @@ type Config struct {
 
 	// List of allowed claims response when calling ValidateJWTSVID using a foreign identity
 	AllowedForeignJWTClaims []string
+
+	AuthorizedDelegates []string
 }
 
 func New(c *Config) *Agent {

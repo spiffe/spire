@@ -649,6 +649,9 @@ const (
 	// DebugAPI functionality related to debug endpoints
 	DebugAPI = "debug_api"
 
+	// DelegatedIdentityAPI functionality related to delegated identity endpoints
+	DelegatedIdentityAPI = "delegated_identity_api"
+
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
 
