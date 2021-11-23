@@ -49,26 +49,28 @@ SPIRE configuration files may be represented in either HCL or JSON. Please see t
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like database connection passwords.
 
-| Configuration               | Description                                                                                       | Default                                                        |
-|:----------------------------|:--------------------------------------------------------------------------------------------------|:---------------------------------------------------------------|
-| `audit_log_enabled`         | If true, enables audit logging                                                                    | false                                                          |
-| `bind_address`              | IP address or DNS name of the SPIRE server                                                        | 0.0.0.0                                                        |
-| `bind_port`                 | HTTP Port number of the SPIRE server                                                              | 8081                                                           |
-| `ca_key_type`               | The key type used for the server CA (both X509 and JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\> | ec-p256 (the JWT key type can be overridden by `jwt_key_type`) |
-| `ca_subject`                | The Subject that CA certificates should use (see below)                                           |                                                                |
-| `ca_ttl`                    | The default CA/signing key TTL                                                                    | 24h                                                            |
-| `data_dir`                  | A directory the server can use for its runtime                                                    |                                                                |
-| `default_svid_ttl`          | The default SVID TTL                                                                              | 1h                                                             |
-| `experimental`              | The experimental options that are subject to change or removal (see below)                        |                                                                |
-| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)           |                                                                |
-| `jwt_key_type`              | The key type used for the server CA (JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>               | The value of `ca_key_type` or ec-p256 if not defined           |
-| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                      |                                                                |
-| `log_file`                  | File to write logs to                                                                             |                                                                |
-| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                               | INFO                                                           |
-| `log_format`                | Format of logs, \<text\|json\>                                                                    | text                                                           |
-| `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)  |                                                                |
-| `socket_path`               | Path to bind the SPIRE Server API socket to                                                       | /tmp/spire-server/private/api.sock                             |
-| `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)              |                                                                |
+| Configuration               | Description                                                                                                                    | Default                                                        |
+|:----------------------------|:-------------------------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------|
+| `audit_log_enabled`         | If true, enables audit logging                                                                                                 | false                                                          |
+| `bind_address`              | IP address or DNS name of the SPIRE server                                                                                     | 0.0.0.0                                                        |
+| `bind_port`                 | HTTP Port number of the SPIRE server                                                                                           | 8081                                                           |
+| `ca_key_type`               | The key type used for the server CA (both X509 and JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                              | ec-p256 (the JWT key type can be overridden by `jwt_key_type`) |
+| `ca_subject`                | The Subject that CA certificates should use (see below)                                                                        |                                                                |
+| `ca_ttl`                    | The default CA/signing key TTL                                                                                                 | 24h                                                            |
+| `data_dir`                  | A directory the server can use for its runtime                                                                                 |                                                                |
+| `default_svid_ttl`          | The default SVID TTL                                                                                                           | 1h                                                             |
+| `experimental`              | The experimental options that are subject to change or removal (see below)                                                     |                                                                |
+| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)                                        |                                                                |
+| `jwt_key_type`              | The key type used for the server CA (JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                                            | The value of `ca_key_type` or ec-p256 if not defined           |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                                                   |                                                                |
+| `log_file`                  | File to write logs to                                                                                                          |                                                                |
+| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                                                            | INFO                                                           |
+| `log_format`                | Format of logs, \<text\|json\>                                                                                                 | text                                                           |
+| `profiling_enabled`         | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                                                          |
+| `profiling_port`            | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`. |                                                                |
+| `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                               |                                                                |
+| `socket_path`               | Path to bind the SPIRE Server API socket to                                                                                    | /tmp/spire-server/private/api.sock                             |
+| `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)                                           |                                                                |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
