@@ -390,7 +390,7 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 // before the date in the message
 func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntries(tx, expiresBefore)
+		err = pruneRegistrationEntries(tx, expiresBefore, ds)
 		return err
 	})
 }
@@ -3209,7 +3209,7 @@ func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
 	return nil
 }
 
-func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time) error {
+func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, ds *Plugin) error {
 	var registrationEntries []RegisteredEntry
 	if err := tx.Where("expiry != 0").Where("expiry < ?", expiresBefore.Unix()).Find(&registrationEntries).Error; err != nil {
 		return err
@@ -3219,6 +3219,10 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time) error {
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
 			return err
 		}
+		ds.log.WithFields(logrus.Fields{
+			telemetry.SPIFFEID: entry.SpiffeID,
+			telemetry.ParentID: entry.ParentID,
+		}).Info("Pruned an expired registration")
 	}
 
 	return nil
