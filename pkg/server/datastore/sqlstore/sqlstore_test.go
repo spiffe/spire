@@ -1400,8 +1400,9 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 				Level:   logrus.InfoLevel,
 				Message: "Pruned an expired registration",
 				Data: logrus.Fields{
-					telemetry.SPIFFEID: entry.SpiffeId,
-					telemetry.ParentID: entry.ParentId,
+					telemetry.SPIFFEID:       createdRegistrationEntry.SpiffeId,
+					telemetry.ParentID:       createdRegistrationEntry.ParentId,
+					telemetry.RegistrationID: createdRegistrationEntry.EntryId,
 				},
 			},
 		},
@@ -1409,10 +1410,10 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
-			s.Require().NoError(err)
+			require.NoError(t, err)
 			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
-			s.Require().NoError(err)
-			s.Equal(tt.expectedRegistrationEntry, fetchedRegistrationEntry)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
 		})
