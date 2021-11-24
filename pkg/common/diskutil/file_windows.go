@@ -74,5 +74,5 @@ func rename(oldPath, newPath string) error {
 		return err
 	}
 
-	return windows.MoveFileExW(from, to, movefileReplaceExisting|movefileWriteThrough)
+	return windows.MoveFileEx(from, to, movefileReplaceExisting|movefileWriteThrough)
 }
