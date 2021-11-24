@@ -6,7 +6,8 @@ package diskutil
 import (
 	"os"
 	"syscall"
-	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -73,17 +74,5 @@ func rename(oldPath, newPath string) error {
 		return err
 	}
 
-	return moveFileEx(from, to, movefileReplaceExisting|movefileWriteThrough)
-}
-
-func moveFileEx(from *uint16, to *uint16, flags uint32) (err error) {
-	r1, _, e1 := syscall.Syscall(procMoveFileExW.Addr(), 3, uintptr(unsafe.Pointer(from)), uintptr(unsafe.Pointer(to)), uintptr(flags))
-	if r1 == 0 {
-		if e1 != 0 {
-			return e1
-		}
-		return syscall.EINVAL
-	}
-
-	return nil
+	return windows.MoveFileExW(from, to, movefileReplaceExisting|movefileWriteThrough)
 }
