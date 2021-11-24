@@ -15,11 +15,6 @@ const (
 	movefileWriteThrough    = 0x8
 )
 
-var (
-	modkernel32     = syscall.NewLazyDLL("kernel32.dll")
-	procMoveFileExW = modkernel32.NewProc("MoveFileExW")
-)
-
 // AtomicWriteFile writes data out.  It writes to a temp file first, fsyncs that file,
 // then swaps the file in. Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH' witch waits until
 // file is synced to disk.
