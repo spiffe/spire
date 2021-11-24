@@ -690,6 +690,119 @@ func TestPutX509SVID(t *testing.T) {
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to add secret version: rpc error: code = DeadlineExceeded desc = some error",
 		},
+		{
+			name: "Add payload and create secret in specific region",
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/foh"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
+				},
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"location:us-central1",
+				},
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
+				},
+			},
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_UserManaged_{
+							UserManaged: &secretmanagerpb.Replication_UserManaged{
+								Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+									{
+										Location:                  "us-central1",
+									},
+								},
+							},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				getSecretErr: status.Error(codes.NotFound, "secret not found"),
+			},
+		},
+		{
+			name: "Add payload and create secret in multiple regions",
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/foh"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
+				},
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"location:us-central1",
+					"location:europe-north1",
+					"location:asia-west1",
+				},
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle},
+				},
+			},
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_UserManaged_{
+							UserManaged: &secretmanagerpb.Replication_UserManaged{
+								Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+									{
+										Location: "us-central1",
+									},
+									{
+										Location: "europe-north1",
+									},
+									{
+										Location: "asia-west1",
+									},
+								},
+							},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				getSecretErr: status.Error(codes.NotFound, "secret not found"),
+			},
+		},
+
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -741,6 +854,8 @@ func TestDeleteX509SVID(t *testing.T) {
 		expectMsgPrefix string
 
 		clientConfig *clientConfig
+
+		req             *svidstore.X509SVID
 
 		expectDeleteSecretReq *secretmanagerpb.DeleteSecretRequest
 		expectGetSecretReq    *secretmanagerpb.GetSecretRequest

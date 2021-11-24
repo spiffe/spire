@@ -234,15 +234,42 @@ func (o *secretOptions) getSecretID() string {
 }
 
 func optionsFromSecretData(metadata []string) (*secretOptions, error) {
-	data, err := svidstore.ParseMetadata(metadata)
+	selectors, err := svidstore.ParseMetadata(pluginName, metadata)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to parse Metadata: %v", err)
 	}
 
+	var secretName string
+	_, err = svidstore.ExtractSelectorValue(selectors, "secretname", func(s string) {
+		secretName = s
+	})
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
+
+	var arn string
+	_, err = svidstore.ExtractSelectorValue(selectors, "arn", func(s string) {
+		arn = s
+	})
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
+
+	var kmsKeyID string
+	_, err = svidstore.ExtractSelectorValue(selectors, "kmskeyid", func(s string) {
+		kmsKeyID = s
+	})
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
+
 	opt := &secretOptions{
-		name:     data["secretname"],
-		arn:      data["arn"],
-		kmsKeyID: data["kmskeyid"],
+		name:     secretName,
+		arn:      arn,
+		kmsKeyID: kmsKeyID,
 	}
 
 	if opt.name == "" && opt.arn == "" {

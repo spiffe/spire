@@ -3,11 +3,11 @@ package svidstore
 import (
 	"crypto/x509"
 	"fmt"
-	"strings"
-
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/proto/spire/common"
 	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
+	"strings"
 )
 
 type Data struct {
@@ -59,20 +59,40 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 	}, nil
 }
 
-// ParseMetadata parses metadata from a slice of strings
-// into a map that can be consumed by SVIDStore plugins
-func ParseMetadata(metaData []string) (map[string]string, error) {
-	data := make(map[string]string)
-	for _, s := range metaData {
-		value := strings.Split(s, ":")
-		if len(value) < 2 {
-			return nil, fmt.Errorf("metadata does not contain a colon: %q", s)
+func ParseMetadata(pluginKey string, metaData []string) ([]*common.Selector, error) {
+	selectors := make([]*common.Selector, len(metaData))
+	for i, selectorValue := range metaData {
+		s := strings.Split(selectorValue, ":")
+		if len(s) < 2 {
+			return nil, fmt.Errorf("metadata does not contain a colon: \"%s\"", selectorValue)
 		}
-		data[value[0]] = value[1]
+
+		selectors[i] = &common.Selector{
+			Type:  pluginKey,
+			Value: selectorValue,
+		}
 	}
 
-	return data, nil
+	return selectors, nil
 }
+
+func ExtractSelectorValue(selectors []*common.Selector, key string, valueFn func(string)) (bool, error) {
+	var ok bool
+	for _, selector := range selectors {
+		s := strings.Split(selector.Value, ":")
+		if len(s) < 2 {
+			return false, fmt.Errorf("metadata does not contain a colon: \"%s\"", selector.Value)
+		}
+
+		if s[0] == key {
+			ok = true
+			valueFn(strings.Join(s[1:], ":"))
+		}
+	}
+
+	return ok, nil
+}
+
 
 func rawKeyToPem(rawKey []byte) (string, error) {
 	key, err := x509.ParsePKCS8PrivateKey(rawKey)

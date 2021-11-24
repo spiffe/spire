@@ -114,15 +114,37 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 
 	// Secret not found, create it
 	if !secretFound {
+		// Figure out if to use automatic or regionalized replication
+		// Some use org policies that prohibit the use of a "global" location which eliminates the use of automatic replication
+		var replication *secretmanagerpb.Replication
+		if opt.locations != nil && len(opt.locations) > 0 {
+			replicas := make([]*secretmanagerpb.Replication_UserManaged_Replica, len(opt.locations))
+			for i, location := range opt.locations {
+				replicas[i] = &secretmanagerpb.Replication_UserManaged_Replica{
+					Location: location,
+				}
+			}
+
+			replication = &secretmanagerpb.Replication{
+				Replication: &secretmanagerpb.Replication_UserManaged_{
+					UserManaged: &secretmanagerpb.Replication_UserManaged{
+						Replicas: replicas,
+					},
+				},
+			}
+		} else {
+			replication = &secretmanagerpb.Replication{
+				Replication: &secretmanagerpb.Replication_Automatic_{
+					Automatic: &secretmanagerpb.Replication_Automatic{},
+				},
+			}
+		}
+
 		secret, err = p.secretManagerClient.CreateSecret(ctx, &secretmanagerpb.CreateSecretRequest{
 			Parent:   opt.parent(),
 			SecretId: opt.name,
 			Secret: &secretmanagerpb.Secret{
-				Replication: &secretmanagerpb.Replication{
-					Replication: &secretmanagerpb.Replication_Automatic_{
-						Automatic: &secretmanagerpb.Replication_Automatic{},
-					},
-				},
+				Replication: replication,
 				Labels: map[string]string{
 					"spire-svid": p.tdHash,
 				},
@@ -275,6 +297,7 @@ type secretOptions struct {
 	name           string
 	roleName       string
 	serviceAccount string
+	locations      []string
 }
 
 // parent gets parent in the format `projects/*`
@@ -288,29 +311,58 @@ func (s *secretOptions) secretName() string {
 }
 
 func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
-	data, err := svidstore.ParseMetadata(selectorData)
+	selectors, err := svidstore.ParseMetadata(pluginName, selectorData)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 
-	// Getting secret name and project, both are required.
-	name, ok := data["name"]
-	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "name is required")
+	var projectID string
+	ok, err := svidstore.ExtractSelectorValue(selectors, "projectid", func(s string) {
+		projectID = s
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 
-	projectID, ok := data["projectid"]
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "projectid is required")
 	}
 
-	// example: "serviceAccount:project-id@appspot.gserviceaccount.com"
-	var serviceAccount string
-	if sa, ok := data["serviceaccount"]; ok {
-		serviceAccount = fmt.Sprintf("serviceAccount:%s", sa)
+	var name string
+	ok, err = svidstore.ExtractSelectorValue(selectors, "name", func(s string) {
+		name = s
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 
-	roleName := data["role"]
+	if !ok {
+		return nil, status.Error(codes.InvalidArgument, "name is required")
+	}
+
+	// example: "serviceAccount:project-id@appspot.gserviceaccount.com"
+	var serviceAccount string
+	ok, err = svidstore.ExtractSelectorValue(selectors, "serviceaccount", func(s string) {
+		serviceAccount = s
+	})
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
+
+	if ok {
+		serviceAccount = fmt.Sprintf("serviceAccount:%s", serviceAccount)
+	}
+
+	var roleName string
+	_, err = svidstore.ExtractSelectorValue(selectors, "role", func(s string) {
+		roleName = s
+	})
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
+
 	switch {
 	case serviceAccount != "" && roleName == "":
 		return nil, status.Error(codes.InvalidArgument, "role is required when service account is set")
@@ -319,11 +371,21 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 		return nil, status.Error(codes.InvalidArgument, "service account is required when role is set")
 	}
 
+	locations := make([]string, 0)
+	ok, err = svidstore.ExtractSelectorValue(selectors, "location", func(s string) {
+		locations = append(locations, s)
+	})
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
+
 	return &secretOptions{
 		name:           name,
 		projectID:      projectID,
 		roleName:       roleName,
 		serviceAccount: serviceAccount,
+		locations:      locations,
 	}, nil
 }
 

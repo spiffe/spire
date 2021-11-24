@@ -2,6 +2,7 @@ package svidstore_test
 
 import (
 	"crypto/x509"
+	"github.com/spiffe/spire/proto/spire/common"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
@@ -64,7 +65,7 @@ dZglS5kKnYigmwDh+/U=
 func TestParseMetadata(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
-		expect     map[string]string
+		expect     []*common.Selector
 		secretData []string
 		expectErr  string
 	}{
@@ -75,16 +76,25 @@ func TestParseMetadata(t *testing.T) {
 				"b:2",
 				"c:3",
 			},
-			expect: map[string]string{
-				"a": "1",
-				"b": "2",
-				"c": "3",
+			expect: []*common.Selector{
+				{
+					Type: "plugin_key",
+					Value: "a:1",
+				},
+				{
+					Type: "plugin_key",
+					Value: "b:2",
+				},
+				{
+					Type: "plugin_key",
+					Value: "c:3",
+				},
 			},
 		},
 		{
 			name:       "no data",
 			secretData: []string{},
-			expect:     map[string]string{},
+			expect:     []*common.Selector{},
 		},
 		{
 			name:       "invalid data",
@@ -94,7 +104,7 @@ func TestParseMetadata(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svidstore.ParseMetadata(tt.secretData)
+			result, err := svidstore.ParseMetadata("plugin_key", tt.secretData)
 			if tt.expectErr != "" {
 				require.EqualError(t, err, tt.expectErr)
 				require.Nil(t, result)
