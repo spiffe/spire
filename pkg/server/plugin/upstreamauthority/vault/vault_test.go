@@ -25,7 +25,7 @@ import (
 )
 
 func TestConfigure(t *testing.T) {
-	fakeVaultServer := setupFakeVautServer()
+	fakeVaultServer := setupFakeVaultServer()
 	fakeVaultServer.CertAuthResponseCode = 200
 	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
 	fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
@@ -702,7 +702,7 @@ func TestMintX509CA(t *testing.T) {
 }
 
 func TestMintX509CA_InvalidCSR(t *testing.T) {
-	fakeVaultServer := setupFakeVautServer()
+	fakeVaultServer := setupFakeVaultServer()
 	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 	fakeVaultServer.LookupSelfResponseCode = 200
 
@@ -737,7 +737,7 @@ func TestMintX509CA_InvalidCSR(t *testing.T) {
 }
 
 func TestPublishJWTKey(t *testing.T) {
-	fakeVaultServer := setupFakeVautServer()
+	fakeVaultServer := setupFakeVaultServer()
 	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 
 	s, addr, err := fakeVaultServer.NewTLSServer()
@@ -782,7 +782,7 @@ func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {
 	return c.String()
 }
 
-func setupFakeVautServer() *FakeVaultServerConfig {
+func setupFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer := NewFakeVaultServerConfig()
 	fakeVaultServer.ServerCertificatePemPath = testServerCert
 	fakeVaultServer.ServerKeyPemPath = testServerKey
@@ -792,7 +792,7 @@ func setupFakeVautServer() *FakeVaultServerConfig {
 }
 
 func setupSuccessFakeVaultServer() *FakeVaultServerConfig {
-	fakeVaultServer := setupFakeVautServer()
+	fakeVaultServer := setupFakeVaultServer()
 	fakeVaultServer.CertAuthResponseCode = 200
 	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
 	fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
