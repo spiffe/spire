@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/webhook"
 	"github.com/zeebo/errs"
-	"golang.org/x/sys/unix"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -115,7 +113,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 
 	if c.WebhookEnabled {
 		// Backwards compatibility check
-		exists, err := c.certDirExistsAndReadOnly()
+		exists, err := dirExistsAndReadOnly(c.WebhookCertDir)
 		if err != nil {
 			return fmt.Errorf("checking webhook certificate directory permissions: %w", err)
 		}
@@ -204,18 +202,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 
 	return mgr.Start(ctrl.SetupSignalHandler())
-}
-
-func (c *CRDMode) certDirExistsAndReadOnly() (bool, error) {
-	err := unix.Access(c.WebhookCertDir, unix.W_OK)
-	switch {
-	case err == nil, errors.Is(err, unix.ENOENT):
-		return false, nil
-	case errors.Is(err, unix.EROFS):
-		return true, nil
-	default:
-		return false, err
-	}
 }
 
 func getMyPodNamespace() (string, error) {

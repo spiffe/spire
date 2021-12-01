@@ -75,6 +75,9 @@ os2=osx
 else ifeq ($(os1),Linux)
 os1=linux
 os2=linux
+else ifeq (,$(findstring MYSYS_NT-10-0-, $(os1)))
+os1=windows
+os2=windows
 else
 $(error unsupported OS: $(os1))
 endif
@@ -97,8 +100,15 @@ build_dir := $(DIR)/.build/$(os1)-$(arch1)
 go_version_full := $(shell cat .go-version)
 go_version := $(go_version_full:.0=)
 go_dir := $(build_dir)/go/$(go_version)
-go_bin_dir := $(go_dir)/bin
-go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+
+ifeq ($(os1),windows)
+	go_bin_dir = $(go_dir)/go/bin
+	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
+else 
+	go_bin_dir = $(go_dir)/bin
+	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+endif
+
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
 golangci_lint_version = v1.39.0
@@ -107,7 +117,9 @@ golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
 protoc_version = 3.14.0
-ifeq ($(arch1),aarch64)
+ifeq ($(os1),windows)
+protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
+else ifeq ($(arch1),aarch64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
 else
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-$(arch1).zip
@@ -216,7 +228,7 @@ define binary_rule
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $1 $2
+	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o bin/ $2
 endef
 
 # main SPIRE binaries
@@ -241,7 +253,7 @@ define binary_rule_static
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1 $2
+	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o bin/ $2
 
 endef
 
@@ -272,7 +284,11 @@ else
 endif
 
 integration:
+ifeq ($(os1), windows)
+	$(error Integration tests are no supported on windows)
+else 
 	$(E)./test/integration/test.sh $(SUITES)
+endif
 
 #############################################################################
 # Build Artifact
@@ -443,7 +459,14 @@ dev-shell: | go-check
 # execute on the go binary and also need the right path in order to locate the
 # correct go binary.
 go-check:
-ifneq (go$(go_version), $(shell $(go_path) go version 2>/dev/null | cut -f3 -d' '))
+ifeq (go$(go_version), $(shell $(go_path) go version 2>/dev/null | cut -f3 -d' '))
+else ifeq ($(os1),windows)
+	@echo "Installing go$(go_version)..."
+	$(E)rm -rf $(dir $(go_dir))
+	$(E)mkdir -p $(go_dir)
+	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url) 
+	$(E)unzip -qq $(go_dir)\go.zip -d $(go_dir)
+else 
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
