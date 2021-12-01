@@ -15,7 +15,7 @@ import (
 )
 
 func TestPeerTrackerAttestor(t *testing.T) {
-	attestor := peerTrackerAttestor{Attestor: FakeAttestor{}}
+	attestor := PeerTrackerAttestor{Attestor: FakeAttestor{}}
 	t.Run("requires peertracker watcher on context", func(t *testing.T) {
 		selectors, err := attestor.Attest(context.Background())
 		spiretest.AssertGRPCStatus(t, err, codes.Internal, "peer tracker watcher missing from context")

@@ -37,7 +37,7 @@ type Endpoints struct {
 }
 
 func New(c Config) *Endpoints {
-	attestor := peerTrackerAttestor{Attestor: c.Attestor}
+	attestor := PeerTrackerAttestor{Attestor: c.Attestor}
 
 	if c.newWorkloadAPIServer == nil {
 		c.newWorkloadAPIServer = func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
