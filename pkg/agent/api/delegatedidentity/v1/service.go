@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"sort"
 
 	"github.com/sirupsen/logrus"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
@@ -155,6 +156,10 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 	for td := range update.FederatedBundles {
 		resp.FederatesWith = append(resp.FederatesWith, td.IDString())
 	}
+
+	// Sort list to give a stable response instead of one dependent on the map
+	// iteration order above.
+	sort.Strings(resp.FederatesWith)
 
 	for _, identity := range update.Identities {
 		// Do not send admin nor downstream SVIDs to the caller
