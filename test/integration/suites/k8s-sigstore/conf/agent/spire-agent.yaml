@@ -124,6 +124,9 @@ spec:
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
+            - name: ca-pem-volume
+              mountPath: /etc/ssl/certs/domain.crt
+              subPath: certs
             - name: spire-config
               mountPath: /run/spire/config
               readOnly: true
@@ -148,6 +151,12 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:
+        - name: ca-pem-volume
+          configMap:
+            name: ca-pem-store
+            items:
+              - key: domain.crt
+                path: certs
         - name: spire-config
           configMap:
             name: spire-agent

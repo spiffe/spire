@@ -12,3 +12,4 @@ fi
 
 export KUBECONFIG=
 ./bin/kind delete cluster --name k8stest
+docker-down

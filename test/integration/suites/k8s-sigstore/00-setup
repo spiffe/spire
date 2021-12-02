@@ -19,8 +19,33 @@ download-kubectl "${KUBECTL_PATH}"
 sed -i.bak "s#CONFDIR#${PWD}/conf#g" conf/kind-config.yaml
 rm conf/kind-config.yaml.bak
 
+#create folder which will contain the registry certificate information
+mkdir ${PWD}/conf/docker-registry
+mkdir ${PWD}/conf/docker-registry/certs
+
+#create local registry self signed certificate files
+openssl req -new -newkey rsa:4096 -nodes -sha256 -keyout ${PWD}/conf/docker-registry/certs/domain.key -addext "subjectAltName = DNS:docker-registry-local" -x509 -days 365 -subj "/C=BR/ST=PE/L=Recife" -out ${PWD}/conf/docker-registry/certs/domain.crt
+
 # Start the kind cluster.
 start-kind-cluster "${KIND_PATH}" k8stest ./conf/kind-config.yaml
+
+#start local registry service connected to kind network
+docker-up registry
+
+#copy signed images from public to local registry
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/projectsigstore/cosign:v1.2.1 copy hpespirex/spire-workload:signed docker-registry-local:5000/workload:signed
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/projectsigstore/cosign:v1.2.1 copy hpespirex/spire-workload:signed-wrong-subject docker-registry-local:5000/workload:signed-wrong-subject
+#copying unsigned image with crane tool from public to local registry
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:unsigned docker-registry-local:5000/workload:unsigned
+
+#copy certificate to ssl certicates dest folder on kind cluster
+docker exec k8stest-control-plane cp /mnt/reg-certificate/docker-registry/certs/domain.crt /etc/ssl/certs/
+
+#append registry certificate to registry secret configmap
+sed 's/^/    /' ${PWD}/conf/docker-registry/certs/domain.crt >> ${PWD}/conf/registry-secret.yaml
+
+#copy configmap to kustomization directory of spire-agent
+cp ${PWD}/conf/registry-secret.yaml ${PWD}/conf/agent
 
 # Load the given images in the cluster.
 container_images=("spire-server:latest-local" "spire-agent:latest-local" "k8s-workload-registrar:latest-local")

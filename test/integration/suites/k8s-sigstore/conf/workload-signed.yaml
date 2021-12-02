@@ -21,7 +21,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: example-workload-signed
-          image: marcusvtms/spire-tests:signed
+          image: docker-registry-local:5000/workload:signed
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
