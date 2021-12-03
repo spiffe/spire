@@ -107,7 +107,12 @@ func (s *SVIDStoreService) deleteSVID(ctx context.Context, log logrus.FieldLogge
 		return false
 	}
 
-	log = log.WithField(telemetry.SVIDStore, storeName)
+	log = log.WithFields(logrus.Fields{
+		telemetry.SVIDStore: storeName,
+		telemetry.Entry:     entry.EntryId,
+		telemetry.SPIFFEID:  entry.SpiffeId,
+	})
+
 	svidStore, ok := s.cat.GetSVIDStoreNamed(storeName)
 	if !ok {
 		log.Error("Error deleting SVID: SVIDStore not found")
