@@ -25,7 +25,7 @@ import (
 
 const (
 	pluginName = "disk"
-	attrName   = "spire-svid"
+	attrName   = "user.spire-svid"
 )
 
 type certFile struct {
