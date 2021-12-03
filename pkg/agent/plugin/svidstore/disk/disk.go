@@ -137,28 +137,28 @@ func (p *DiskPlugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.Delete
 	if err != nil {
 		return nil, err
 	}
-	storeOptions, err := newDiskStore(req.Metadata, config.Directory)
+	diskStore, err := newDiskStore(req.Metadata, config.Directory)
 	if err != nil {
 		return nil, err
 	}
 
-	if errRemoveCertChain := storeOptions.certChain.delete(); errRemoveCertChain != nil {
+	if errRemoveCertChain := diskStore.certChain.delete(); errRemoveCertChain != nil {
 		if os.IsNotExist(errRemoveCertChain) {
-			p.log.With("file_path", storeOptions.certChain.filePath).Warn("Could not delete certificate chain file: File not found")
+			p.log.With("file_path", diskStore.certChain.filePath).Warn("Could not delete certificate chain file. File not found")
 		} else {
 			err = multierr.Append(err, fmt.Errorf("failed to delete certificate chain file: %w", errRemoveCertChain))
 		}
 	}
-	if errRemoveKey := storeOptions.key.delete(); errRemoveKey != nil {
+	if errRemoveKey := diskStore.key.delete(); errRemoveKey != nil {
 		if os.IsNotExist(errRemoveKey) {
-			p.log.With("file_path", storeOptions.key.filePath).Warn("Could not delete key file. File not found")
+			p.log.With("file_path", diskStore.key.filePath).Warn("Could not delete key file. File not found")
 		} else {
 			err = multierr.Append(err, fmt.Errorf("failed to delete key file: %w", errRemoveKey))
 		}
 	}
-	if errRemoveBundle := storeOptions.bundle.delete(); errRemoveBundle != nil {
+	if errRemoveBundle := diskStore.bundle.delete(); errRemoveBundle != nil {
 		if os.IsNotExist(errRemoveBundle) {
-			p.log.With("file_path", storeOptions.bundle.filePath).Warn("Could not delete bundle file. File not found")
+			p.log.With("file_path", diskStore.bundle.filePath).Warn("Could not delete bundle file. File not found")
 		} else {
 			err = multierr.Append(err, fmt.Errorf("failed to delete bundle file: %w", errRemoveBundle))
 		}
@@ -181,7 +181,7 @@ func (p *DiskPlugin) getConfig() (*configuration, error) {
 }
 
 func (c *certFile) write(attrValue string) error {
-	if err := validateAttr(c.filePath, attrValue); err != nil {
+	if err := validateXattr(c.filePath, attrValue); err != nil {
 		return err
 	}
 
@@ -243,7 +243,12 @@ func newDiskStore(metaData []string, dir string) (*diskStore, error) {
 	}, nil
 }
 
-func validateAttr(filePath, attrValue string) error {
+// validateXattr validates that the specified file has
+// a an extended attribute (https://en.wikipedia.org/wiki/Extended_file_attributes)
+// set by this plugin, with the trust domain as the valid.
+// This is a best-effort attempt to avoid collisions with other systems.
+// Some platforms do not support this mechanism.
+func validateXattr(filePath, attrValue string) error {
 	if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
 		return nil
 	}

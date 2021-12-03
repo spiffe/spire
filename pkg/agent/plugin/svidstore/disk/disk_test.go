@@ -263,15 +263,25 @@ func TestDeleteX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name:          "Delete X509-SVID (successful - file already deleted)",
+			name:          "Delete X509-SVID (successful - files already deleted)",
 			certChainFile: "tls.crt",
 			keyFile:       "tls.key",
 			bundleFile:    "ca.crt",
-			existingFiles: []string{
-				filepath.Join(baseDir, "tls.crt"),
-				filepath.Join(baseDir, "tls.key"),
-			},
 			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not delete certificate chain file. File not found",
+					Data: logrus.Fields{
+						"file_path": filepath.Join(baseDir, "tls.crt"),
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not delete key file. File not found",
+					Data: logrus.Fields{
+						"file_path": filepath.Join(baseDir, "tls.key"),
+					},
+				},
 				{
 					Level:   logrus.WarnLevel,
 					Message: "Could not delete bundle file. File not found",
