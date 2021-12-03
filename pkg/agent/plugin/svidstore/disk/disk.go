@@ -244,8 +244,8 @@ func newDiskStore(metaData []string, dir string) (*diskStore, error) {
 }
 
 // validateXattr validates that the specified file has
-// a an extended attribute (https://en.wikipedia.org/wiki/Extended_file_attributes)
-// set by this plugin, with the trust domain as the valid.
+// an extended attribute (https://en.wikipedia.org/wiki/Extended_file_attributes)
+// set by this plugin, with the trust domain as the value.
 // This is a best-effort attempt to avoid collisions with other systems.
 // Some platforms do not support this mechanism.
 func validateXattr(filePath, attrValue string) error {
