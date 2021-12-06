@@ -231,13 +231,14 @@ func TestParseConfig(t *testing.T) {
 			err: "insecure_addr and listen_socket_path are mutually exclusive",
 		},
 		{
-			name: "with insecure addr",
+			name: "with insecure addr and key use",
 			in: `
 				domains = ["domain.test"]
 				insecure_addr = ":8080"
 				server_api {
 					address = "unix:///some/socket/path"
 				}
+				key_use = "sig"
 			`,
 			out: &Config{
 				LogLevel:     defaultLogLevel,
@@ -247,6 +248,7 @@ func TestParseConfig(t *testing.T) {
 					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
 				},
+				KeyUse: "sig",
 			},
 		},
 		{
@@ -292,7 +294,6 @@ func TestParseConfig(t *testing.T) {
 			`,
 			err: "the server_api and workload_api sections are mutually exclusive",
 		},
-
 		{
 			name: "minimal server API config",
 			in:   minimalServerAPIConfig,
@@ -481,6 +482,18 @@ func TestParseConfig(t *testing.T) {
 				}
 			`,
 			err: "trust_domain must be configured in the workload_api configuration section",
+		},
+		{
+			name: "invalid key use",
+			in: `
+				domains = ["domain.test"]
+				insecure_addr = ":8080"
+				server_api {
+					socket_path = "/some/socket/path"
+				}
+				key_use = "invalid"
+			`,
+			err: "key_use can be one of the following values: [sig]",
 		},
 	}
 

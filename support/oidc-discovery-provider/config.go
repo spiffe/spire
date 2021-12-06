@@ -153,7 +153,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	if c.KeyUse != "" && c.KeyUse != "sig" {
-		return nil, errs.New("key_use can only be set to sig at the moment")
+		return nil, errs.New("key_use can be one of the following values: [sig]")
 	}
 
 	if c.ACME != nil {
