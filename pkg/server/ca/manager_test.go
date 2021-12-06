@@ -35,6 +35,8 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -144,6 +146,9 @@ func (s *ManagerSuite) TestSelfSigning() {
 	}
 	s.Empty(x509CA.UpstreamChain)
 	s.Require().Equal(1, x509CA.Certificate.SerialNumber.Cmp(big.NewInt(0)))
+
+	// Assert that the self-signed X.509 CA produces a valid certificate chain
+	validateSelfSignedX509CA(s.T(), x509CA.Certificate, x509CA.Signer)
 }
 
 func (s *ManagerSuite) TestUpstreamSigned() {
@@ -189,7 +194,7 @@ func (s *ManagerSuite) TestUpstreamSignedProducesInvalidChain() {
 
 	s.cat.SetUpstreamAuthority(upstreamAuthority)
 	s.m = NewManager(s.selfSignedConfig())
-	s.Require().EqualError(s.m.Initialize(context.Background()), `X509 CA produced an invalid X509-SVID chain: x509svid: could not verify leaf certificate: x509: certificate signed by unknown authority (possibly because of "x509: invalid signature: parent certificate cannot sign this kind of certificate" while trying to verify candidate authority certificate "FAKEUPSTREAMAUTHORITY-ROOT")`)
+	s.RequireGRPCStatus(s.m.Initialize(context.Background()), codes.InvalidArgument, `X509 CA minted by upstream authority is invalid: X509 CA produced an invalid X509-SVID chain: x509svid: could not verify leaf certificate: x509: certificate signed by unknown authority (possibly because of "x509: invalid signature: parent certificate cannot sign this kind of certificate" while trying to verify candidate authority certificate "FAKEUPSTREAMAUTHORITY-ROOT")`)
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSigned() {
@@ -949,4 +954,12 @@ func (s *fakeCA) SetJWTKey(jwtKey *JWTKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jwtKey = jwtKey
+}
+
+func validateSelfSignedX509CA(t *testing.T, ca *x509.Certificate, signer crypto.Signer) {
+	validator := X509CAValidator{
+		TrustDomain: testTrustDomain,
+		Signer:      signer,
+	}
+	require.NoError(t, validator.ValidateSelfSignedX509CA(ca))
 }

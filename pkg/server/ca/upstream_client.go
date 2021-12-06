@@ -24,7 +24,7 @@ type BundleUpdater interface {
 
 // ValidateX509CAFunc is used by the upstream client to validate an X509CA
 // newly minted by an upstream authority before it accepts it.
-type ValidateX509CAFunc = func(ctx context.Context, x509CA, x509Roots []*x509.Certificate) error
+type ValidateX509CAFunc = func(x509CA, x509Roots []*x509.Certificate) error
 
 // UpstreamClientConfig is the configuration for an UpstreamClient. Each field
 // is required.
@@ -142,7 +142,8 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, tt
 	// Before we append the roots and return the response, we must first
 	// validate that the minted intermediate can sign a valid, conformant
 	// X509-SVID chain of trust using the provided callback.
-	if err := validateX509CA(ctx, x509CA, x509Roots); err != nil {
+	if err := validateX509CA(x509CA, x509Roots); err != nil {
+		err = status.Errorf(codes.InvalidArgument, "X509 CA minted by upstream authority is invalid: %v", err)
 		firstResultCh <- mintX509CAResult{err: err}
 		return
 	}

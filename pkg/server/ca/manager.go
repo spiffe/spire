@@ -1022,7 +1022,7 @@ func UpstreamSignX509CA(ctx context.Context, signer crypto.Signer, trustDomain s
 		Signer:      signer,
 	}
 
-	caChain, err := upstreamClient.MintX509CA(ctx, csr, caTTL, validator.ValidateX509CA)
+	caChain, err := upstreamClient.MintX509CA(ctx, csr, caTTL, validator.ValidateUpstreamX509CA)
 	if err != nil {
 		return nil, err
 	}

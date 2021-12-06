@@ -1,11 +1,9 @@
 package ca
 
 import (
-	"context"
 	"crypto"
 	"crypto/x509"
 	"fmt"
-	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -25,32 +23,26 @@ type X509CAValidator struct {
 	Signer      crypto.Signer
 }
 
-func (v X509CAValidator) ValidateX509CA(ctx context.Context, x509CA, upstreamRoots []*x509.Certificate) error {
+func (v X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
+	return v.validateX509CA(x509CA[0], upstreamRoots, x509CA)
+}
+func (v X509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) error {
+	return v.validateX509CA(x509CA, []*x509.Certificate{x509CA}, nil)
+}
+
+func (v X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
 	params := X509SVIDParams{
 		SpiffeID:  v.TrustDomain.NewID("/spire/throwaway"),
 		PublicKey: validationPubkey,
 	}
 
-	var bundle *x509bundle.Bundle
-	var upstreamChain []*x509.Certificate
-	if len(upstreamRoots) > 0 {
-		// If there are upstream roots, this is an upstream signed intermediate
-		// CA, so set the bundle to the upstream roots and set the upstream
-		// chain appropriately.
-		bundle = x509bundle.FromX509Authorities(v.TrustDomain, upstreamRoots)
-		upstreamChain = x509CA
-	} else {
-		// If there are no upstream roots, this is a self-signed CA so set
-		// the bundle to the CA itself and don't set the upstream chain.
-		bundle = x509bundle.FromX509Authorities(v.TrustDomain, x509CA)
-	}
+	bundle := x509bundle.FromX509Authorities(v.TrustDomain, x509Roots)
 
-	now := time.Now()
-	svid, err := SignX509SVID(ctx, v.TrustDomain, &X509CA{
+	svid, err := signX509SVID(v.TrustDomain, &X509CA{
 		Signer:        v.Signer,
-		Certificate:   x509CA[0],
+		Certificate:   x509CA,
 		UpstreamChain: upstreamChain,
-	}, params, now, now.Add(5*time.Minute))
+	}, params, x509CA.NotBefore, x509CA.NotAfter)
 	if err != nil {
 		return fmt.Errorf("unable to sign throwaway SVID for X509 CA validation: %w", err)
 	}

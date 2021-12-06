@@ -194,7 +194,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
 
-	x509SVID, err := SignX509SVID(ctx, ca.c.TrustDomain, x509CA, params, notBefore, notAfter)
+	x509SVID, err := signX509SVID(ca.c.TrustDomain, x509CA, params, notBefore, notAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func (ca *CA) capLifetime(ttl time.Duration, expirationCap time.Time) (notBefore
 	return notBefore, notAfter
 }
 
-func SignX509SVID(ctx context.Context, td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
+func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
 	}
