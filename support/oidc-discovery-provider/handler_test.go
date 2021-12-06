@@ -105,6 +105,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			name:   "GET keys with key use set",
 			method: "GET",
 			path:   "/keys",
+			keyUse: "sig",
 			jwks: &jose.JSONWebKeySet{
 				Keys: []jose.JSONWebKey{
 					{
@@ -128,7 +129,6 @@ func TestHandlerHTTPS(t *testing.T) {
     }
   ]
 }`,
-			keyUse: "sig",
 		},
 	}
 
@@ -252,7 +252,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true, testCase.keyUse)
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -419,7 +419,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, testCase.keyUse)
+			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -531,7 +531,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test"), source, false, testCase.keyUse)
+			h := NewHandler(domainAllowlist(t, "domain.test"), source, false, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
