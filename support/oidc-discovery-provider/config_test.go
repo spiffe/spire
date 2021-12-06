@@ -238,7 +238,7 @@ func TestParseConfig(t *testing.T) {
 				server_api {
 					address = "unix:///some/socket/path"
 				}
-				key_use = "sig"
+				set_key_use = true
 			`,
 			out: &Config{
 				LogLevel:     defaultLogLevel,
@@ -248,7 +248,7 @@ func TestParseConfig(t *testing.T) {
 					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
 				},
-				KeyUse: "sig",
+				SetKeyUse: true,
 			},
 		},
 		{
@@ -482,18 +482,6 @@ func TestParseConfig(t *testing.T) {
 				}
 			`,
 			err: "trust_domain must be configured in the workload_api configuration section",
-		},
-		{
-			name: "invalid key use",
-			in: `
-				domains = ["domain.test"]
-				insecure_addr = ":8080"
-				server_api {
-					socket_path = "/some/socket/path"
-				}
-				key_use = "invalid"
-			`,
-			err: "key_use can be one of the following values: [sig]",
 		},
 	}
 

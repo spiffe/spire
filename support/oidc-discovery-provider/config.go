@@ -34,8 +34,8 @@ type Config struct {
 	// are rejected.
 	Domains []string `hcl:"domains"`
 
-	// Set the 'use' field on all keys to the specified string. Useful with buggy clients
-	KeyUse string `hcl:"key_use"`
+	// Set the 'use' field on all keys. Required for some non-conformant JWKS clients.
+	SetKeyUse bool `hcl:"set_key_use"`
 
 	// AllowInsecureScheme, if true, causes HTTP URLs to be rendered in the
 	// returned discovery document. This option should only be used for testing purposes as HTTP does
@@ -150,10 +150,6 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.Domains = dedupeList(c.Domains)
 	case c.Domain != "" && len(c.Domains) > 0:
 		return nil, errs.New("domain is deprecated and will be removed in a future release; please use domains instead")
-	}
-
-	if c.KeyUse != "" && c.KeyUse != "sig" {
-		return nil, errs.New("key_use can be one of the following values: [sig]")
 	}
 
 	if c.ACME != nil {

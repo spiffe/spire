@@ -10,21 +10,25 @@ import (
 	"github.com/gorilla/handlers"
 )
 
+const (
+	keyUse = "sig"
+)
+
 type Handler struct {
 	source              JWKSSource
 	domainPolicy        DomainPolicy
 	allowInsecureScheme bool
-	keyUse              string
+	setKeyUse           bool
 
 	http.Handler
 }
 
-func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, keyUse string) *Handler {
+func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
-		keyUse:              keyUse,
+		setKeyUse:           setKeyUse,
 	}
 
 	mux := http.NewServeMux()
@@ -104,9 +108,9 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(h.keyUse) > 0 {
+	if h.setKeyUse {
 		for i := range jwks.Keys {
-			jwks.Keys[i].Use = h.keyUse
+			jwks.Keys[i].Use = keyUse
 		}
 	}
 

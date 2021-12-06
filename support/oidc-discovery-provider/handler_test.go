@@ -14,14 +14,14 @@ import (
 
 func TestHandlerHTTPS(t *testing.T) {
 	testCases := []struct {
-		name    string
-		method  string
-		path    string
-		jwks    *jose.JSONWebKeySet
-		modTime time.Time
-		code    int
-		body    string
-		keyUse  string
+		name      string
+		method    string
+		path      string
+		jwks      *jose.JSONWebKeySet
+		modTime   time.Time
+		code      int
+		body      string
+		setKeyUse bool
 	}{
 		{
 			name:   "GET well-known",
@@ -102,10 +102,10 @@ func TestHandlerHTTPS(t *testing.T) {
 			body:   "method not allowed\n",
 		},
 		{
-			name:   "GET keys with key use set",
-			method: "GET",
-			path:   "/keys",
-			keyUse: "sig",
+			name:      "GET keys with key use",
+			method:    "GET",
+			path:      "/keys",
+			setKeyUse: true,
 			jwks: &jose.JSONWebKeySet{
 				Keys: []jose.JSONWebKey{
 					{
@@ -142,7 +142,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.keyUse)
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -252,7 +252,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true, "")
+			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -419,7 +419,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, "")
+			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -531,7 +531,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test"), source, false, "")
+			h := NewHandler(domainAllowlist(t, "domain.test"), source, false, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
