@@ -208,11 +208,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	defer p.m.Unlock()
 
 	switch {
-	case runtime.GOOS == "windows":
-		// Windows does not allow set a device path
-	case extConf.DevicePath != "":
+	case runtime.GOOS == "windows" && extConf.DevicePath == "":
+		// OK
+	case runtime.GOOS == "windows" && extConf.DevIDCertPath != "":
+		return nil, status.Error(codes.InvalidArgument, "device path is not allowed on windows")
+	case runtime.GOOS != "windows" && extConf.DevicePath != "":
 		p.c.devicePath = extConf.DevicePath
-	default:
+	case runtime.GOOS != "windows" && extConf.DevicePath == "":
 		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "tpm autodetection failed: %v", err)

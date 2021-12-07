@@ -15,10 +15,10 @@ func openTPM(paths ...string) (io.ReadWriteCloser, error) {
 	return tpm2.OpenTPM(paths[0])
 }
 
-// mayClose EmulatorReadWriteCloser type does not need to be closed. It closes
+// closeTPM EmulatorReadWriteCloser type does not need to be closed. It closes
 // the connection after each Read() call. Closing it again results in
 // an error.
-func mayClose(closer io.ReadWriteCloser) bool {
+func closeTPM(closer io.ReadWriteCloser) bool {
 	_, ok := closer.(*tpmutil.EmulatorReadWriteCloser)
 	return ok
 }

@@ -154,7 +154,7 @@ func (c *Session) Close() {
 	}
 
 	if c.rwc != nil {
-		if mayClose(c.rwc) {
+		if closeTPM(c.rwc) {
 			return
 		}
 
