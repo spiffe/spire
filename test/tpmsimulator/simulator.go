@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"runtime"
 	"time"
 
 	"github.com/google/go-tpm-tools/client"
@@ -193,9 +194,13 @@ func (c *Credential) ChainPem() []byte {
 }
 
 func (s *TPMSimulator) OpenTPM(path ...string) (io.ReadWriteCloser, error) {
-	const tpmDevicePath = "/dev/tpmrm0"
-	if len(path) != 0 && path[0] != tpmDevicePath {
-		return nil, fmt.Errorf("unexpected TPM device path %q (expected %q)", path[0], tpmDevicePath)
+	expectedTPMDevicePath := "/dev/tpmrm0"
+	if runtime.GOOS == "windows" {
+		expectedTPMDevicePath = ""
+	}
+
+	if len(path) != 0 && path[0] != expectedTPMDevicePath {
+		return nil, fmt.Errorf("unexpected TPM device path %q (expected %q)", path[0], expectedTPMDevicePath)
 	}
 	return struct {
 		io.ReadCloser

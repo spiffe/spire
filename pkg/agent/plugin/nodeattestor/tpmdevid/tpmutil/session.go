@@ -45,6 +45,8 @@ type TPMPasswords struct {
 }
 
 type SessionConfig struct {
+	// in future iterations of tpm libraries, TPM will accept a
+	// list of device paths (https://github.com/google/go-tpm/pull/256)
 	DevicePath string
 	DevIDPriv  []byte
 	DevIDPub   []byte

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"runtime"
 	"testing"
 
 	"github.com/google/go-tpm/tpm2"
@@ -43,6 +44,7 @@ var (
 	}
 
 	streamBuilder = nodeattestortest.ServerStream("tpm_devid")
+	isWindows     = runtime.GOOS == "windows"
 )
 
 // openSimulatedTPM works in the same way than tpmutil.OpenTPM() but it ignores
@@ -105,8 +107,11 @@ func TestConfigure(t *testing.T) {
 	tests := []struct {
 		name               string
 		hclConf            string
+		windowsHclConf     string
 		expErr             string
 		autoDetectTPMFails bool
+		// test with this flag must not be runned on windows
+		unableToRunWindow bool
 	}{
 		{
 			name:    "Configure fails if receives wrong HCL configuration",
@@ -135,6 +140,9 @@ func TestConfigure(t *testing.T) {
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
 						tpm_device_path = "/dev/tpmrm0"`,
+			windowsHclConf: `	devid_cert_path = "non-existent-path/to/devid.cert" 
+						devid_priv_path = "non-existent-path/to/devid-private-blob"
+						devid_pub_path = "non-existent-path/to/devid-public-blob"`,
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate(s): open non-existent-path/to/devid.cert:",
 		},
 		{
@@ -144,6 +152,8 @@ func TestConfigure(t *testing.T) {
 					devid_pub_path = "non-existent-path/to/devid-public-blob"`,
 			expErr:             "rpc error: code = Internal desc = tpm autodetection failed: unable to autodetect TPM",
 			autoDetectTPMFails: true,
+			// This test is not supported on windows, autodetect is not supported there
+			unableToRunWindow: true,
 		},
 		{
 			name: "Configure fails if DevID private key cannot be opened",
@@ -151,6 +161,9 @@ func TestConfigure(t *testing.T) {
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
 						tpm_device_path = "/dev/tpmrm0"`, devIDCertPath),
+			windowsHclConf: fmt.Sprintf(`devid_cert_path = %q 
+						devid_priv_path = "non-existent-path/to/devid-private-blob"
+						devid_pub_path = "non-existent-path/to/devid-public-blob"`, devIDCertPath),
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load private key: open non-existent-path/to/devid-private-blob:",
 		},
 		{
@@ -161,6 +174,11 @@ func TestConfigure(t *testing.T) {
 						tpm_device_path = "/dev/tpmrm0"`,
 				devIDCertPath,
 				devIDPrivPath),
+			windowsHclConf: fmt.Sprintf(`devid_cert_path = %q 
+						devid_priv_path = %q
+						devid_pub_path = "non-existent-path/to/devid-public-blob"`,
+				devIDCertPath,
+				devIDPrivPath),
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load public key: open non-existent-path/to/devid-public-blob:",
 		},
 		{
@@ -169,6 +187,12 @@ func TestConfigure(t *testing.T) {
 						devid_priv_path = %q
 						devid_pub_path = %q
 						tpm_device_path = "/dev/tpmrm0"`,
+				devIDCertPath,
+				devIDPrivPath,
+				devIDPubPath),
+			windowsHclConf: fmt.Sprintf(`devid_cert_path = %q 
+						devid_priv_path = %q
+						devid_pub_path = %q`,
 				devIDCertPath,
 				devIDPrivPath,
 				devIDPubPath),
@@ -196,7 +220,15 @@ func TestConfigure(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			// Does not run test that are not allowed for windows
+			if isWindows && tt.unableToRunWindow {
+				return
+			}
 			tpmdevid.AutoDetectTPMPath = func(string) (string, error) {
+				if isWindows {
+					return "", errors.New("autodetect is not supported on windows")
+				}
+
 				if tt.autoDetectTPMFails {
 					return "", errors.New("unable to autodetect TPM")
 				}
@@ -204,7 +236,12 @@ func TestConfigure(t *testing.T) {
 			}
 
 			plugin := tpmdevid.New()
-			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{HclConfiguration: tt.hclConf})
+
+			config := tt.hclConf
+			if isWindows && tt.windowsHclConf != "" {
+				config = tt.windowsHclConf
+			}
+			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{HclConfiguration: config})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
 				require.Nil(t, resp)
@@ -361,10 +398,14 @@ func TestAidAttestationSucceeds(t *testing.T) {
 	}
 	tpmdevid.NewSession = newSession
 
+	devicePath := tpmDevicePath
+	if isWindows {
+		devicePath = ""
+	}
 	// Pregenerate a new session so we can have access to the session object
 	// The tpmdevid.NewSession() function will return a pointer to this session
 	session, err := newSession(&tpmutil.SessionConfig{
-		DevicePath: tpmDevicePath,
+		DevicePath: devicePath,
 		DevIDPriv:  devID.PrivateBlob,
 		DevIDPub:   devID.PublicBlob,
 		Passwords:  tpmPasswords,
@@ -422,6 +463,10 @@ func TestAidAttestationSucceeds(t *testing.T) {
 }
 
 func loadAndConfigurePlugin(t *testing.T, passwords tpmutil.TPMPasswords) nodeattestor.NodeAttestor {
+	devicePath := tpmDevicePath
+	if isWindows {
+		devicePath = ""
+	}
 	config := fmt.Sprintf(`
 		tpm_device_path = %q	 
 		devid_cert_path = %q
@@ -431,7 +476,7 @@ func loadAndConfigurePlugin(t *testing.T, passwords tpmutil.TPMPasswords) nodeat
 		owner_hierarchy_password = %q
 		endorsement_hierarchy_password = %q`,
 
-		tpmDevicePath,
+		devicePath,
 		devIDCertPath,
 		devIDPrivPath,
 		devIDPubPath,

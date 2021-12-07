@@ -29,6 +29,7 @@ var (
 		OwnerHierarchy:       "owner-hierarchy-pass",
 		DevIDKey:             "devid-pass",
 	}
+	isWindows = runtime.GOOS == "windows"
 )
 
 func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
@@ -159,10 +160,14 @@ func TestNewSession(t *testing.T) {
 				defer closer.Close()
 			}
 
+			if isWindows {
+				tt.scfg.DevicePath = ""
+			}
+
 			tpm, err := tpmutil.NewSession(tt.scfg)
 			if tt.expErr != "" {
 				expectErr := tt.expErr
-				if runtime.GOOS == "windows" && tt.expWindowsErr != "" {
+				if isWindows && tt.expWindowsErr != "" {
 					expectErr = tt.expWindowsErr
 				}
 
@@ -246,6 +251,9 @@ func TestSolveDevIDChallenge(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			if isWindows {
+				tt.scfg.DevicePath = ""
+			}
 			tpm, err := tpmutil.NewSession(tt.scfg)
 			require.NoError(t, err)
 			defer tpm.Close()
@@ -269,10 +277,14 @@ func TestSolveDevIDChallenge(t *testing.T) {
 func TestSolveCredActivationChallenge(t *testing.T) {
 	setupSimulator(t)
 
+	var devicePath string
+	if !isWindows {
+		devicePath = "/dev/tpmrm0"
+	}
 	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv:  devIDRSA.PrivateBlob,
 		DevIDPub:   devIDRSA.PublicBlob,
-		DevicePath: "/dev/tpmrm0",
+		DevicePath: devicePath,
 		Log:        hclog.NewNullLogger(),
 		Passwords:  tpmPasswords,
 	})
@@ -353,10 +365,15 @@ func TestCertifyDevIDKey(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			var devicePath string
+			if !isWindows {
+				devicePath = "/dev/tpmrm0"
+			}
+
 			tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 				DevIDPriv:  devIDRSA.PrivateBlob,
 				DevIDPub:   devIDRSA.PublicBlob,
-				DevicePath: "/dev/tpmrm0",
+				DevicePath: devicePath,
 				Log:        hclog.NewNullLogger(),
 				Passwords:  tt.passwords,
 			})
@@ -391,10 +408,15 @@ func TestCertifyDevIDKey(t *testing.T) {
 func TestGetEKCert(t *testing.T) {
 	sim := setupSimulator(t)
 
+	var devicePath string
+	if !isWindows {
+		devicePath = "/dev/tpmrm0"
+	}
+
 	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv:  devIDRSA.PrivateBlob,
 		DevIDPub:   devIDRSA.PublicBlob,
-		DevicePath: "/dev/tpmrm0",
+		DevicePath: devicePath,
 		Log:        hclog.NewNullLogger(),
 		Passwords:  tpmPasswords,
 	})
@@ -464,10 +486,15 @@ func TestGetEKCert(t *testing.T) {
 func TestGetEKPublic(t *testing.T) {
 	sim := setupSimulator(t)
 
+	var devicePath string
+	if !isWindows {
+		devicePath = "/dev/tpmrm0"
+	}
+
 	tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
 		DevIDPriv:  devIDRSA.PrivateBlob,
 		DevIDPub:   devIDRSA.PublicBlob,
-		DevicePath: "/dev/tpmrm0",
+		DevicePath: devicePath,
 		Log:        hclog.NewNullLogger(),
 		Passwords:  tpmPasswords,
 	})
