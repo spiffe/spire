@@ -16,11 +16,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -68,6 +70,7 @@ type PluginSuite struct {
 	dir    string
 	nextID int
 	ds     *Plugin
+	hook   *test.Hook
 
 	readOnlyDelay time.Duration
 }
@@ -120,8 +123,9 @@ func (s *PluginSuite) TearDownTest() {
 }
 
 func (s *PluginSuite) newPlugin() *Plugin {
-	log, _ := test.NewNullLogger()
+	log, hook := test.NewNullLogger()
 	ds := New(log)
+	s.hook = hook
 
 	// When the test suite is executed normally, we test against sqlite3 since
 	// it requires no external dependencies. The integration test framework
@@ -1359,30 +1363,60 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 
 	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
 	s.Require().NoError(err)
+	fetchedRegistrationEntry := &common.RegistrationEntry{}
+	defaultLastLog := spiretest.LogEntry{
+		Message: "Connected to SQL database",
+	}
+	prunedLogMessage := "Pruned an expired registration"
 
-	// Ensure we don't prune valid entries, wind clock back 10s
-	err = s.ds.PruneRegistrationEntries(ctx, now.Add(-10*time.Second))
-	s.Require().NoError(err)
+	for _, tt := range []struct {
+		name                      string
+		time                      time.Time
+		expectedRegistrationEntry *common.RegistrationEntry
+		expectedLastLog           spiretest.LogEntry
+	}{
+		{
+			name:                      "Don't prune valid entries",
+			time:                      now.Add(-10 * time.Second),
+			expectedRegistrationEntry: createdRegistrationEntry,
+			expectedLastLog:           defaultLastLog,
+		},
+		{
+			name:                      "Don't prune exact ExpiresBefore",
+			time:                      now,
+			expectedRegistrationEntry: createdRegistrationEntry,
+			expectedLastLog:           defaultLastLog,
+		},
+		{
+			name:                      "Prune old entries",
+			time:                      now.Add(10 * time.Second),
+			expectedRegistrationEntry: (*common.RegistrationEntry)(nil),
+			expectedLastLog: spiretest.LogEntry{
+				Level:   logrus.InfoLevel,
+				Message: prunedLogMessage,
+				Data: logrus.Fields{
+					telemetry.SPIFFEID:       createdRegistrationEntry.SpiffeId,
+					telemetry.ParentID:       createdRegistrationEntry.ParentId,
+					telemetry.RegistrationID: createdRegistrationEntry.EntryId,
+				},
+			},
+		},
+	} {
+		tt := tt
+		s.T().Run(tt.name, func(t *testing.T) {
+			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
+			require.NoError(t, err)
+			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
-	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
-	s.Require().NoError(err)
-	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
-
-	// Ensure we don't prune on the exact ExpiresBefore
-	err = s.ds.PruneRegistrationEntries(ctx, now)
-	s.Require().NoError(err)
-
-	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
-	s.Require().NoError(err)
-	s.Equal(createdRegistrationEntry, fetchedRegistrationEntry)
-
-	// Ensure we prune old entries
-	err = s.ds.PruneRegistrationEntries(ctx, now.Add(10*time.Second))
-	s.Require().NoError(err)
-
-	fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
-	s.Require().NoError(err)
-	s.Nil(fetchedRegistrationEntry)
+			if tt.expectedLastLog.Message == prunedLogMessage {
+				spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
+			} else {
+				assert.Equal(t, s.hook.LastEntry().Message, tt.expectedLastLog.Message)
+			}
+		})
+	}
 }
 
 func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {

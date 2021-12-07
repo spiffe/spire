@@ -10,11 +10,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type peerTrackerAttestor struct {
+type PeerTrackerAttestor struct {
 	Attestor attestor.Attestor
 }
 
-func (a peerTrackerAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+func (a PeerTrackerAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
 	watcher, ok := peertracker.WatcherFromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Internal, "peer tracker watcher missing from context")

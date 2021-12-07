@@ -177,8 +177,8 @@ func TestEndpoints(t *testing.T) {
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
-					attestor, ok := c.Attestor.(peerTrackerAttestor)
-					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
+					attestor, ok := c.Attestor.(PeerTrackerAttestor)
+					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
 					if tt.expectClaims != nil {
 						assert.Equal(t, tt.expectClaims, c.AllowedForeignJWTClaims)
@@ -190,8 +190,8 @@ func TestEndpoints(t *testing.T) {
 
 				// Assert the provided config and return a fake SDS server
 				newSDSv2Server: func(c sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer {
-					attestor, ok := c.Attestor.(peerTrackerAttestor)
-					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
+					attestor, ok := c.Attestor.(PeerTrackerAttestor)
+					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
@@ -200,8 +200,8 @@ func TestEndpoints(t *testing.T) {
 
 				// Assert the provided config and return a fake SDS server
 				newSDSv3Server: func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
-					attestor, ok := c.Attestor.(peerTrackerAttestor)
-					require.True(t, ok, "attestor was not a peerTrackerAttestor wrapper")
+					attestor, ok := c.Attestor.(PeerTrackerAttestor)
+					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
@@ -257,7 +257,7 @@ type FakeManager struct {
 }
 
 type FakeWorkloadAPIServer struct {
-	Attestor peerTrackerAttestor
+	Attestor PeerTrackerAttestor
 	*workload_pb.UnimplementedSpiffeWorkloadAPIServer
 }
 
@@ -269,7 +269,7 @@ func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, in *workload_pb
 }
 
 type FakeSDSv2Server struct {
-	Attestor peerTrackerAttestor
+	Attestor PeerTrackerAttestor
 	*discovery_v2.UnimplementedSecretDiscoveryServiceServer
 }
 
@@ -281,7 +281,7 @@ func (s FakeSDSv2Server) FetchSecrets(ctx context.Context, in *api_v2.DiscoveryR
 }
 
 type FakeSDSv3Server struct {
-	Attestor peerTrackerAttestor
+	Attestor PeerTrackerAttestor
 	*secret_v3.UnimplementedSecretDiscoveryServiceServer
 }
 
@@ -296,7 +296,7 @@ type FakeHealthServer struct {
 	*grpc_health_v1.UnimplementedHealthServer
 }
 
-func attest(ctx context.Context, attestor peerTrackerAttestor) error {
+func attest(ctx context.Context, attestor PeerTrackerAttestor) error {
 	log := rpccontext.Logger(ctx)
 	selectors, err := attestor.Attest(ctx)
 	if err != nil {
