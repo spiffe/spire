@@ -1,5 +1,4 @@
-//go:build linux || darwin
-// +build linux darwin
+// +build linux darwin freebsd netbsd
 
 package disk
 
@@ -17,8 +16,8 @@ func setxattr(filePath, attr string, data []byte) error {
 	return nil
 }
 
-func getxattr(filePath, attr string, dest []byte) (err error) {
-	if _, err = unix.Getxattr(filePath, attr, dest); err != nil && !errors.Is(err, unix.ENOTSUP) {
+func getxattr(filePath, attr string, dest []byte) error {
+	if _, err := unix.Getxattr(filePath, attr, dest); err != nil && !errors.Is(err, unix.ENOTSUP) {
 		return fmt.Errorf("error getting extended attribute: %w", err)
 	}
 	return nil

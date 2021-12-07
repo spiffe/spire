@@ -1,15 +1,16 @@
 // +build !linux
 // +build !darwin
+// +build !freebsd
+// +build !netbsd
 
 package disk
-
-import "errors"
 
 func setxattr(filePath, attr string, data []byte) error {
 	// On unsupported systems, we just do nothing
 	return nil
+}
 
-func getxattr(filePath, attr string, dest []byte) (err error) {
+func getxattr(filePath, attr string, dest []byte) error {
 	// On unsupported systems, we just do nothing
 	return nil
 }

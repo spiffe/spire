@@ -28,15 +28,38 @@ const (
 	attrName   = "user.spire-svid"
 )
 
-type certFile struct {
+type diskStore struct {
+	certChain svidFile
+	key       svidFile
+	bundle    svidFile
+}
+
+type svidFile struct {
 	filePath string
 	pemBytes []byte
 }
 
-type diskStore struct {
-	certChain certFile
-	key       certFile
-	bundle    certFile
+func (c *svidFile) write(attrValue string) error {
+	if err := validateXattr(c.filePath, attrValue); err != nil {
+		return err
+	}
+
+	if err := createBaseDirectoryIfNeeded(c.filePath); err != nil {
+		return err
+	}
+
+	if err := diskutil.AtomicWriteFile(c.filePath, c.pemBytes, 0600); err != nil {
+		return err
+	}
+	if err := setxattr(c.filePath, attrName, []byte(attrValue)); err != nil {
+		return fmt.Errorf("failed to set extended attribute to file: %w", err)
+	}
+
+	return nil
+}
+
+func (c *svidFile) delete() error {
+	return os.Remove(c.filePath)
 }
 
 func BuiltIn() catalog.BuiltIn {
@@ -70,9 +93,6 @@ type DiskPlugin struct {
 
 // SetLogger sets the logger used by the plugin
 func (p *DiskPlugin) SetLogger(log hclog.Logger) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
 	p.log = log
 }
 
@@ -82,15 +102,15 @@ func (p *DiskPlugin) Configure(ctx context.Context, req *configv1.ConfigureReque
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
+	if config.Directory == "" {
+		return nil, status.Error(codes.InvalidArgument, "a directory must be configured")
+	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.config = config
-	if config.Directory == "" {
-		return nil, status.Error(codes.InvalidArgument, "a directory must be configured")
-	}
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -106,7 +126,7 @@ func (p *DiskPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SV
 
 	diskStore, err := newDiskStore(req.Metadata, config.Directory)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, err
 	}
 
 	diskStore.certChain.pemBytes = certChainPEMBytes(req.Svid.CertChain)
@@ -180,29 +200,6 @@ func (p *DiskPlugin) getConfig() (*configuration, error) {
 	return p.config, nil
 }
 
-func (c *certFile) write(attrValue string) error {
-	if err := validateXattr(c.filePath, attrValue); err != nil {
-		return err
-	}
-
-	if err := createBaseDirectoryIfNeeded(c.filePath); err != nil {
-		return err
-	}
-
-	if err := diskutil.AtomicWriteFile(c.filePath, c.pemBytes, 0600); err != nil {
-		return err
-	}
-	if err := setxattr(c.filePath, attrName, []byte(attrValue)); err != nil {
-		return fmt.Errorf("failed to set extended attribute to file: %w", err)
-	}
-
-	return nil
-}
-
-func (c *certFile) delete() error {
-	return os.Remove(c.filePath)
-}
-
 func getFileMetadata(metadataMap map[string]string, key string) (string, error) {
 	value := metadataMap[key]
 	if value == "" {
@@ -237,9 +234,9 @@ func newDiskStore(metaData []string, dir string) (*diskStore, error) {
 	}
 
 	return &diskStore{
-		certChain: certFile{filePath: filepath.Join(dir, certChainFilePath)},
-		key:       certFile{filePath: filepath.Join(dir, keyFilePath)},
-		bundle:    certFile{filePath: filepath.Join(dir, bundleFilePath)},
+		certChain: svidFile{filePath: filepath.Join(dir, certChainFilePath)},
+		key:       svidFile{filePath: filepath.Join(dir, keyFilePath)},
+		bundle:    svidFile{filePath: filepath.Join(dir, bundleFilePath)},
 	}, nil
 }
 
