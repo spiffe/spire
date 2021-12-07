@@ -285,7 +285,7 @@ endif
 
 integration:
 ifeq ($(os1), windows)
-	$(error Integration tests are no supported on windows)
+	$(error Integration tests are not supported on windows)
 else 
 	$(E)./test/integration/test.sh $(SUITES)
 endif
