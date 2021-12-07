@@ -292,6 +292,17 @@ func TestConfigureWindows(t *testing.T) {
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load private key: open non-existent-path/to/devid-private-blob:",
 		},
 		{
+			name: "Configure fails if Device Path is provided",
+			hclConf: fmt.Sprintf(`devid_cert_path = %q 
+						devid_priv_path = %q
+						devid_pub_path = %q
+						tpm_device_path = "/dev/tpmrm0"`,
+				devIDCertPath,
+				devIDPrivPath,
+				devIDPubPath),
+			expErr: "rpc error: code = InvalidArgument desc = device path is not allowed on windows",
+		},
+		{
 			name: "Configure fails if DevID public key cannot be opened",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q

@@ -210,7 +210,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	switch {
 	case runtime.GOOS == "windows" && extConf.DevicePath == "":
 		// OK
-	case runtime.GOOS == "windows" && extConf.DevIDCertPath != "":
+	case runtime.GOOS == "windows" && extConf.DevicePath != "":
 		return nil, status.Error(codes.InvalidArgument, "device path is not allowed on windows")
 	case runtime.GOOS != "windows" && extConf.DevicePath != "":
 		p.c.devicePath = extConf.DevicePath
