@@ -364,6 +364,133 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 	}
 }
 
+// TestDNSNameTemplate checks that DNS name templates can be rendered properly into dnsNames.
+func (s *PodControllerTestSuite) TestDNSNameTemplate() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tests := []struct {
+		dnsNameTemplates []string
+		expList          []string
+		context          map[string]string
+		err              string
+	}{
+		{
+			// no template
+			dnsNameTemplates: nil,
+			expList:          nil,
+		},
+		{
+			// invalid template
+			dnsNameTemplates: []string{"{{.Does.Not.Exist}}"},
+			err:              "can't evaluate field",
+		},
+		{
+			// invalid dns name
+			dnsNameTemplates: []string{"$%^&*"},
+			err:              "validating the dns name template",
+		},
+		{
+			// literal value
+			dnsNameTemplates: []string{"my.dns.name"},
+			expList:          []string{"my.dns.name"},
+		},
+		{
+			// single DNS using Pod fields
+			dnsNameTemplates: []string{"{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc"},
+			expList:          []string{"serviceAccount.default.svc"},
+		},
+		{
+			// single DNS using context fields
+			context: map[string]string{
+				"Namespace": "my-network",
+			},
+			dnsNameTemplates: []string{"{{.Pod.ServiceAccount}}.{{.Context.Namespace}}.svc"},
+			expList:          []string{"serviceAccount.my-network.svc"},
+		},
+		{
+			// multiple DNS entries without space
+			dnsNameTemplates: []string{"{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Pod.Name}}.svc"},
+			expList:          []string{"serviceAccount.default.svc", "test-pod.svc"},
+		},
+		{
+			// multiple DNS entries with space
+			dnsNameTemplates: []string{"{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Pod.Name}}.svc"},
+			expList:          []string{"serviceAccount.default.svc", "test-pod.svc"},
+		},
+	}
+
+	for _, test := range tests {
+		p, err := NewPodReconciler(PodReconcilerConfig{
+			Client:           s.k8sClient,
+			Cluster:          s.cluster,
+			Log:              s.log,
+			Scheme:           s.scheme,
+			TrustDomain:      s.trustDomain,
+			Context:          test.context,
+			DNSNameTemplates: test.dnsNameTemplates,
+		})
+		if test.err != "" {
+			s.Require().Error(err)
+			s.Require().Contains(err.Error(), test.err)
+			continue
+		}
+		s.Require().NoError(err)
+
+		pod := corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      PodName,
+				Namespace: PodNamespace,
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{
+					Name: PodName,
+				}},
+				NodeName:           "test-node",
+				Hostname:           "hostname",
+				ServiceAccountName: PodServiceAccount,
+			},
+		}
+		err = s.k8sClient.Create(ctx, &pod)
+		s.Require().NoError(err)
+
+		req := ctrl.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      PodName,
+				Namespace: PodNamespace,
+			},
+		}
+		_, err = p.Reconcile(ctx, req)
+		s.Require().NoError(err)
+
+		_, err = s.r.Reconcile(ctx, req)
+		s.Require().NoError(err)
+
+		labelSelector := labels.Set(map[string]string{
+			"podUid": string(pod.ObjectMeta.UID),
+		})
+
+		// Verify that exactly 1 SPIFFE ID  resource was created for this pod
+		spiffeIDList := spiffeidv1beta1.SpiffeIDList{}
+		err = s.k8sClient.List(ctx, &spiffeIDList, &client.ListOptions{
+			LabelSelector: labelSelector.AsSelector(),
+		})
+		s.Require().NoError(err)
+		s.Require().Len(spiffeIDList.Items, 1)
+
+		// Verify the dnsNames match what we expect
+		dnsNames := spiffeIDList.Items[0].Spec.DnsNames
+		s.Require().Equal(test.expList, dnsNames)
+
+		// Delete Pod and SpiffeID
+		err = s.k8sClient.Delete(ctx, &pod)
+		s.Require().NoError(err)
+		err = s.k8sClient.Delete(ctx, &spiffeIDList.Items[0])
+		s.Require().NoError(err)
+		s.reconcile(ctx, p)
+	}
+}
+
 func (s *PodControllerTestSuite) reconcile(ctx context.Context, p *PodReconciler) {
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{

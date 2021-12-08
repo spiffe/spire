@@ -57,6 +57,7 @@ func TestLoadModeCRD(t *testing.T) {
 		WebhookPort:        defaultWebhookPort,
 		WebhookServiceName: defaultWebhookServiceName,
 		IdentityTemplate:   "IDENTITYTEMPLATE",
+		DNSNameTemplates:   &[]string{defaultDNSTemplate},
 	}, config)
 
 	testCases := []struct {
@@ -87,6 +88,7 @@ func TestLoadModeCRD(t *testing.T) {
 				WebhookPort:        defaultWebhookPort,
 				WebhookServiceName: defaultWebhookServiceName,
 				IdentityTemplate:   "IDENTITYTEMPLATE",
+				DNSNameTemplates:   &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -109,6 +111,7 @@ func TestLoadModeCRD(t *testing.T) {
 				webhook_enabled = false
 				mode = "crd"
 				identity_template = "IDENTITYTEMPLATE"
+				dns_name_templates = ["DNSNAMETEMPLATE"]
 			`,
 			out: &CRDMode{
 				CommonMode: CommonMode{
@@ -130,6 +133,7 @@ func TestLoadModeCRD(t *testing.T) {
 				WebhookPort:        defaultWebhookPort,
 				WebhookServiceName: defaultWebhookServiceName,
 				IdentityTemplate:   "IDENTITYTEMPLATE",
+				DNSNameTemplates:   &[]string{"DNSNAMETEMPLATE"},
 			},
 		},
 		{
@@ -164,6 +168,7 @@ func TestLoadModeCRD(t *testing.T) {
 					"region":       "EU-DE",
 					"cluster_name": "CLUSTER",
 				},
+				DNSNameTemplates: &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -195,6 +200,7 @@ func TestLoadModeCRD(t *testing.T) {
 				Context: map[string]string{
 					"cluster_name": "CLUSTER",
 				},
+				DNSNameTemplates: &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -219,6 +225,7 @@ func TestLoadModeCRD(t *testing.T) {
 				WebhookCertDir:     defaultWebhookCertDir,
 				WebhookPort:        defaultWebhookPort,
 				WebhookServiceName: defaultWebhookServiceName,
+				DNSNameTemplates:   &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -251,7 +258,7 @@ func TestLoadModeCRD(t *testing.T) {
 			err: "workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label",
 		},
 		{
-			name: "missing context 1",
+			name: "identity_template missing context (with space)",
 			in: `
 				trust_domain = "TRUSTDOMAIN"
 				server_socket_path = "SOCKETPATH"
@@ -262,7 +269,7 @@ func TestLoadModeCRD(t *testing.T) {
 			err: "identity_template references non-existing context",
 		},
 		{
-			name: "missing context 2",
+			name: "identity_template missing context (without space)",
 			in: `
 				trust_domain = "TRUSTDOMAIN"
 				server_socket_path = "SOCKETPATH"
@@ -271,6 +278,76 @@ func TestLoadModeCRD(t *testing.T) {
 				identity_template = "region/{{.Context.region}}"
 			`,
 			err: "identity_template references non-existing context",
+		},
+		{
+			name: "dns_name_templates",
+			in: testMinimalCRDConfig + `
+				dns_name_templates = ["{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Pod.Name}}.svc"]
+			`,
+			out: &CRDMode{
+				CommonMode: CommonMode{
+					LogLevel:           "info",
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "TRUSTDOMAIN",
+					Cluster:            "CLUSTER",
+					Mode:               "crd",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+				},
+				AddSvcDNSName:      true,
+				MetricsBindAddr:    ":8080",
+				PodController:      true,
+				WebhookCertDir:     defaultWebhookCertDir,
+				WebhookPort:        defaultWebhookPort,
+				WebhookServiceName: defaultWebhookServiceName,
+				DNSNameTemplates:   &[]string{"{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Pod.Name}}.svc"},
+			},
+		},
+		{
+			name: "dns_name_templates empty",
+			in: testMinimalCRDConfig + `
+				dns_name_templates = []
+			`,
+			out: &CRDMode{
+				CommonMode: CommonMode{
+					LogLevel:           "info",
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "TRUSTDOMAIN",
+					Cluster:            "CLUSTER",
+					Mode:               "crd",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+				},
+				AddSvcDNSName:      true,
+				MetricsBindAddr:    ":8080",
+				PodController:      true,
+				WebhookCertDir:     defaultWebhookCertDir,
+				WebhookPort:        defaultWebhookPort,
+				WebhookServiceName: defaultWebhookServiceName,
+				DNSNameTemplates:   &[]string{},
+			},
+		},
+		{
+			name: "dns_name_templates missing context (with space)",
+			in: `
+				trust_domain = "TRUSTDOMAIN"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				mode = "crd"
+				dns_name_templates = ["{{ .Context.namespace}}"]
+			`,
+			err: "dns_name_template references non-existing context",
+		},
+		{
+			name: "dns_name_templates missing context (without space)",
+			in: `
+				trust_domain = "TRUSTDOMAIN"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				mode = "crd"
+				dns_name_templates = ["{{.Context.namespace}}"]
+			`,
+			err: "dns_name_template references non-existing context",
 		},
 	}
 

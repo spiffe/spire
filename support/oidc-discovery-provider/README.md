@@ -30,19 +30,20 @@ The provider has the following command line flags:
 The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                     | Type    | Required?      | Description                                              | Default  |
-| ----------------------  | --------| -------------- | -------------------------------------------------------- | -------- |
-| `acme`                  | section | required[1]    | Provides the ACME configuration.                         |          |
-| `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.        | `false`  |
-| `domains`               | strings | required       | One or more domains the provider is being served from.   |          |
-| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                             |          |
-| `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.        |          |
-| `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)         | `""`     |
-| `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`) | `"info"` |
-| `log_path`              | string  | optional       | Path on disk to write the log.                           |          |
-| `log_requests`          | bool    | optional       | If true, all HTTP requests are logged at the debug level | false    |
-| `server_api`            | section | required[2]    | Provides SPIRE Server API details.                       |          |
-| `workload_api`          | section | required[2]    | Provides Workload API details.                           |          |
+| Key                     | Type    | Required?      | Description                                                                  | Default  |
+| ----------------------  | --------| -------------- | ---------------------------------------------------------------------------- | -------- |
+| `acme`                  | section | required[1]    | Provides the ACME configuration.                                             |          |
+| `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.                            | `false`  |
+| `domains`               | strings | required       | One or more domains the provider is being served from.                       |          |
+| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                                                 |          |
+| `set_key_use`           | bool    | optional       | If true, the `use` parameter on JWKs will be set to `sig`.                   | `false`  |
+| `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.                            |          |
+| `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)                             | `""`     |
+| `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)                     | `"info"` |
+| `log_path`              | string  | optional       | Path on disk to write the log.                                               |          |
+| `log_requests`          | bool    | optional       | If true, all HTTP requests are logged at the debug level                     | `false`  |
+| `server_api`            | section | required[2]    | Provides SPIRE Server API details.                                           |          |
+| `workload_api`          | section | required[2]    | Provides Workload API details.                                               |          |
 
 [1]: One of `acme` or `listen_socket_path` must be defined.
 
