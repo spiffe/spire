@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"runtime"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -206,9 +207,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	if extConf.DevicePath != "" {
+	switch {
+	case runtime.GOOS == "windows" && extConf.DevicePath == "":
+		// OK
+	case runtime.GOOS == "windows" && extConf.DevicePath != "":
+		return nil, status.Error(codes.InvalidArgument, "device path is not allowed on windows")
+	case runtime.GOOS != "windows" && extConf.DevicePath != "":
 		p.c.devicePath = extConf.DevicePath
-	} else {
+	case runtime.GOOS != "windows" && extConf.DevicePath == "":
 		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "tpm autodetection failed: %v", err)
