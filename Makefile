@@ -104,9 +104,11 @@ go_dir := $(build_dir)/go/$(go_version)
 ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
+	exe=".exe"
 else 
 	go_bin_dir = $(go_dir)/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+	exe=
 endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
@@ -228,7 +230,7 @@ define binary_rule
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o bin/ $2
+	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $1${exe} $2
 endef
 
 # main SPIRE binaries
@@ -253,7 +255,7 @@ define binary_rule_static
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o bin/ $2
+	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1${exe} $2
 
 endef
 
