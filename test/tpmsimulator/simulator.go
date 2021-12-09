@@ -1,6 +1,3 @@
-//go:build linux
-// +build linux
-
 package tpmsimulator
 
 import (
@@ -12,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"runtime"
 	"time"
 
 	"github.com/google/go-tpm-tools/client"
@@ -195,10 +193,14 @@ func (c *Credential) ChainPem() []byte {
 	return pemutil.EncodeCertificates(chain)
 }
 
-func (s *TPMSimulator) OpenTPM(path string) (io.ReadWriteCloser, error) {
-	const tpmDevicePath = "/dev/tpmrm0"
-	if path != tpmDevicePath {
-		return nil, fmt.Errorf("unexpected TPM device path %q (expected %q)", path, tpmDevicePath)
+func (s *TPMSimulator) OpenTPM(path ...string) (io.ReadWriteCloser, error) {
+	expectedTPMDevicePath := "/dev/tpmrm0"
+	if runtime.GOOS == "windows" {
+		expectedTPMDevicePath = ""
+	}
+
+	if len(path) != 0 && path[0] != expectedTPMDevicePath {
+		return nil, fmt.Errorf("unexpected TPM device path %q (expected %q)", path[0], expectedTPMDevicePath)
 	}
 	return struct {
 		io.ReadCloser
