@@ -33,8 +33,8 @@ func TestNew(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//hacky way of testing the constructor is using cosign.Verify, above is an example of how any other function would fail the test
-			//it just compares the string representation of the struct, including its function pointer, which is not a good way to test the constructor, but it works
+			// hacky way of testing the constructor is using cosign.Verify, above is an example of how any other function would fail the test
+			// it just compares the string representation of the struct, including its function pointer, which is not a good way to test the constructor, but it works
 			if got := New(); fmt.Sprintf("%v", got) != fmt.Sprintf("%v", tt.want) {
 				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
