@@ -50,8 +50,8 @@ func (sigstore Sigstoreimpl) FetchSignaturePayload(imageName string, rekorURL st
 		return nil, errors.New(message)
 	}
 	// TODO: decide if http is allowed
-	if /*rekorURI.Scheme != "http" && */ rekorURI.Scheme != "https" {
-		return nil, errors.New("Invalid rekor URL Scheme")
+	if rekorURI.Scheme != "" && rekorURI.Scheme != "http" && rekorURI.Scheme != "https" {
+		return nil, errors.New("Invalid rekor URL Scheme: " + rekorURI.Scheme)
 	}
 	co.RekorClient = rekorclient.NewHTTPClientWithConfig(nil, &rekorclient.TransportConfig{
 		Schemes:  []string{rekorURI.Scheme},
