@@ -90,6 +90,7 @@ func TestSigstoreimpl_ExtractselectorOfSignedImage(t *testing.T) {
 		want   string
 	}{
 		// TODO: Add test cases.
+		// need fake oci signature objects
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -130,9 +131,16 @@ func Test_getOnlySubject(t *testing.T) {
 		{
 			name: "getOnlySubject",
 			args: args{
-				payload: "{\"optional\":{\"subject\":\"test3\"}}",
+				payload: "[{\"optional\":{\"Subject\":\"test3\"}}]",
 			},
 			want: "test3",
+		},
+		{
+			name: "getOnlySubject",
+			args: args{
+				payload: "[{\"optional\":{\"Subject\":\"test4\"}},{\"optional\":{\"Subject\":\"test5\"}}]",
+			},
+			want: "test4",
 		},
 	}
 	for _, tt := range tests {

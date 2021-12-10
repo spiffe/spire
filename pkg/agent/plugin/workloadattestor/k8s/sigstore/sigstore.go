@@ -91,11 +91,11 @@ func (Sigstoreimpl) ExtractselectorOfSignedImage(signatures []oci.Signature) str
 }
 
 type Subject struct {
-	Subject string
+	Subject string `json:"Subject"`
 }
 
 type Optional struct {
-	Optional Subject
+	Optional Subject `json:"optional"`
 }
 
 func getOnlySubject(payload string) string {
