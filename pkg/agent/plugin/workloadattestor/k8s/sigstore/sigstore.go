@@ -161,7 +161,7 @@ func certSubject(c *x509.Certificate) string {
 	case c.EmailAddresses != nil:
 		return c.EmailAddresses[0]
 	case c.URIs != nil:
-		//removing leading '//' from c.URIs[0].String()
+		// removing leading '//' from c.URIs[0].String()
 		re := regexp.MustCompile(`^\/*(?P<email>.*)`)
 		return re.ReplaceAllString(c.URIs[0].String(), "$email")
 	}
