@@ -224,7 +224,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/shirou/gopsutil v3.21.8+incompatible
-	github.com/sigstore/cosign v1.2.1
+	github.com/sigstore/cosign v1.4.0
 	github.com/sigstore/sigstore v0.0.0-20210729211320-56a91f560f44
 	github.com/sirupsen/logrus v1.8.1
 >>>>>>> 35bb73eb... SPIREX-63 Change K8s wl to validate signature subject as a selector (#6)
