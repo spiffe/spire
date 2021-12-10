@@ -400,3 +400,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	knative.dev/pkg v0.0.0-20210908025933-71508fc69a57 // indirect
 )
+replace github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
+
+replace k8s.io/klog/v2 => k8s.io/klog/v2 v2.10.0
