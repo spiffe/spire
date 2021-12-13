@@ -3,6 +3,8 @@ package healthcheck
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -82,9 +84,15 @@ func (s *HealthCheckSuite) TestFailsOnUnavailableVerbose() {
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Checking agent health...
 `, s.stdout.String(), "stdout")
-	s.Equal(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix /tmp/doesnotexist.sock: connect: no such file or directory"
+
+	expectSocketPath, err := filepath.Abs("/tmp/doesnotexist.sock")
+	s.Require().NoError(err)
+	expectSocketPath = filepath.ToSlash(expectSocketPath)
+
+	expectedErr := fmt.Sprintf(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix %s: connect: %s"
 Agent is unhealthy: unable to determine health
-`, s.stderr.String(), "stdout")
+`, expectSocketPath, spiretest.SocketFileNotFound())
+	s.Equal(expectedErr, s.stderr.String(), "stdout")
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {

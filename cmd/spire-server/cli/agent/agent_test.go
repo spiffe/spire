@@ -3,6 +3,7 @@ package agent_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -95,7 +96,7 @@ func TestBan(t *testing.T) {
 			name:             "wrong UDS path",
 			args:             []string{"-socketPath", "does-not-exist.sock"},
 			expectReturnCode: 1,
-			expectStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
 		},
 		{
 			name:             "server error",
@@ -154,7 +155,7 @@ func TestEvict(t *testing.T) {
 			name:               "wrong UDS path",
 			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
 		},
 		{
 			name:               "server error",
@@ -218,7 +219,7 @@ func TestCount(t *testing.T) {
 			name:               "wrong UDS path",
 			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
 		},
 	} {
 		tt := tt
@@ -393,7 +394,7 @@ func TestList(t *testing.T) {
 			name:               "wrong UDS path",
 			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
 		},
 	} {
 		tt := tt
@@ -457,7 +458,7 @@ func TestShow(t *testing.T) {
 			name:               "wrong UDS path",
 			args:               []string{"-socketPath", "does-not-exist.sock"},
 			expectedReturnCode: 1,
-			expectedStderr:     "Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: no such file or directory\"\n",
+			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
 		},
 		{
 			name:               "show selectors",

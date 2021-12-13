@@ -1,3 +1,4 @@
+//go:build cgo
 // +build cgo
 
 package sqlstore
@@ -5,6 +6,8 @@ package sqlstore
 import (
 	"errors"
 	"net/url"
+	"path/filepath"
+	"runtime"
 
 	"github.com/jinzhu/gorm"
 	"github.com/mattn/go-sqlite3"
@@ -64,6 +67,12 @@ func openSQLite3(connString string) (*gorm.DB, error) {
 // enabled for *each* connection opened by db/sql. If the connection string is
 // not already a file: URI, it is converted first.
 func embellishSQLite3ConnString(connectionString string) (string, error) {
+	// On "Windows" when parsing an absolute path for example "c:\tmp\lite",
+	// "c" is parsed as URL schema
+	if runtime.GOOS == "windows" && filepath.IsAbs(connectionString) {
+		connectionString = "/" + connectionString
+	}
+
 	u, err := url.Parse(connectionString)
 	if err != nil {
 		return "", sqlError.Wrap(err)

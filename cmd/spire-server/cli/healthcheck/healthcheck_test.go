@@ -3,6 +3,7 @@ package healthcheck
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -74,16 +75,16 @@ func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
 	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: no such file or directory"
-`, s.stderr.String(), "stderr")
+	s.Equal(fmt.Sprintf(`Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: %s"
+`, spiretest.SocketFileNotFound()), s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
 	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: no such file or directory"
-`, s.stderr.String(), "stderr")
+	s.Equal(fmt.Sprintf(`Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: %s"
+`, spiretest.SocketFileNotFound()), s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {

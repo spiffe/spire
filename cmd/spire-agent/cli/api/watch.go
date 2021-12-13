@@ -47,7 +47,7 @@ func (w *WatchCLI) Run(args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := workloadapi.WatchX509Context(ctx, newWatcher(), workloadapi.WithAddr("unix://"+socketPath)); err != nil {
+	if err := workloadapi.WatchX509Context(ctx, newWatcher(), workloadapi.WithAddr("unix:"+socketPath)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

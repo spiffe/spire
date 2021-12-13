@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -404,7 +405,11 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 func buildTestPlugin(t *testing.T, srcPath string) string {
 	dir := spiretest.TempDir(t)
 
-	pluginPath := filepath.Join(dir, "test")
+	binaryName := "test"
+	if runtime.GOOS == "windows" {
+		binaryName = "test.exe"
+	}
+	pluginPath := filepath.Join(dir, binaryName)
 
 	now := time.Now()
 	buildOutput, err := exec.Command("go", "build", "-o", pluginPath, srcPath).CombinedOutput()
