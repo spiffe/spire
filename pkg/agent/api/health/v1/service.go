@@ -47,7 +47,7 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
 	}
 
-	_, err := workloadapi.FetchX509Context(ctx, workloadapi.WithAddr("unix://"+s.socketPath))
+	_, err := workloadapi.FetchX509Context(ctx, workloadapi.WithAddr("unix:"+s.socketPath))
 
 	healthStatus := grpc_health_v1.HealthCheckResponse_SERVING
 	switch status.Code(err) {

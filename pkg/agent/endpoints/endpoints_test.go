@@ -235,7 +235,7 @@ func TestEndpoints(t *testing.T) {
 				Backoff: backoff.DefaultConfig,
 			}
 			connectParams.Backoff.BaseDelay = 5 * time.Millisecond
-			conn, err := grpc.DialContext(ctx, "unix:///"+udsPath,
+			conn, err := grpc.DialContext(ctx, "unix:"+udsPath,
 				grpc.WithReturnConnectionError(),
 				grpc.WithConnectParams(connectParams),
 				grpc.WithInsecure())

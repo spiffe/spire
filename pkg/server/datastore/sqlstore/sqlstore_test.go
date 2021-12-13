@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -37,7 +38,8 @@ import (
 )
 
 var (
-	ctx = context.Background()
+	ctx       = context.Background()
+	isWindows = runtime.GOOS == "windows"
 
 	// The following are set by the linker during integration tests to
 	// run these unit tests against various SQL backends.
@@ -134,6 +136,13 @@ func (s *PluginSuite) newPlugin() *Plugin {
 	case "":
 		s.nextID++
 		dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
+
+		// When joining paths on Windows libraries translate "/" to "\\"
+		// it causes an error on the HCL library and fails to parse.
+		if isWindows {
+			dbPath = filepath.ToSlash(dbPath)
+		}
+
 		err := ds.Configure(fmt.Sprintf(`
 			database_type = "sqlite3"
 			log_sql = true
@@ -627,6 +636,9 @@ func (s *PluginSuite) TestFetchAttestedNodeMissing() {
 }
 
 func (s *PluginSuite) TestListAttestedNodes() {
+	// Connection is never used, each test creates a connection to a diffent database
+	s.ds.closeDB()
+
 	now := time.Now()
 	expired := now.Add(-time.Hour)
 	unexpired := now.Add(time.Hour)
@@ -960,6 +972,9 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	updatedExpires := int64(3)
 	updatedNewSerial := ""
 	updatedNewExpires := int64(0)
+
+	// This connection is never used, each plugin is creating a connection to a new database
+	s.ds.closeDB()
 
 	for _, tt := range []struct {
 		name           string
@@ -1426,6 +1441,9 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntries() {
+	// Connection is never used, each test creates new connection to a different database
+	s.ds.closeDB()
+
 	s.testListRegistrationEntries(datastore.RequireCurrent)
 	s.testListRegistrationEntries(datastore.TolerateStale)
 
@@ -2529,6 +2547,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
+			defer ds.closeDB()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -3863,6 +3882,11 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 
 	dbName := fmt.Sprintf("v%d.sqlite3", dbVersion)
 	dbPath := filepath.Join(s.dir, "unsafe-disabled-migration-"+dbName)
+	// When joining paths on Windows libraries translate "/" to "\\"
+	// it causes an error on the HCL library and fails to parse.
+	if isWindows {
+		dbPath = "/" + filepath.ToSlash(dbPath)
+	}
 	dump := migrationDump(dbVersion)
 	s.Require().NotEmpty(dump, "no migration dump set up for version %d", dbVersion)
 	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", dbVersion)
@@ -3880,6 +3904,9 @@ func (s *PluginSuite) TestMigration() {
 	for i := 0; i < latestSchemaVersion; i++ {
 		dbName := fmt.Sprintf("v%d.sqlite3", i)
 		dbPath := filepath.Join(s.dir, "migration-"+dbName)
+		if isWindows {
+			dbPath = "/" + filepath.ToSlash(dbPath)
+		}
 		dbURI := fmt.Sprintf("file://%s", dbPath)
 		dump := migrationDump(i)
 		s.Require().NotEmpty(dump, "no migration dump set up for version %d", i)
@@ -4005,25 +4032,34 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
 		case 8:
 			db, err := openSQLite3(dbURI)
+			defer db.Close()
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
 			s.Require().True(db.Dialect().HasIndex("selectors", "idx_selectors_type_value"))
 		case 9:
 			db, err := openSQLite3(dbURI)
+			defer db.Close()
+			s.Require().NoError(err)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
 		case 10:
 			db, err := openSQLite3(dbURI)
+			defer db.Close()
+			s.Require().NoError(err)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		case 11:
 			db, err := openSQLite3(dbURI)
+			defer db.Close()
+			s.Require().NoError(err)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		case 12:
 			// Ensure attested_nodes_entries gained two new columns
 			db, err := openSQLite3(dbURI)
+			defer db.Close()
+			s.Require().NoError(err)
 			s.Require().NoError(err)
 
 			// Assert attested_node_entries tables gained the new columns
@@ -4046,6 +4082,8 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
 		case 14:
 			db, err := openSQLite3(dbURI)
+			defer db.Close()
+			s.Require().NoError(err)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
 		case 15:
@@ -4205,6 +4243,9 @@ func (s *PluginSuite) TestConfigure() {
 		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
 			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
+			if isWindows {
+				dbPath = filepath.ToSlash(dbPath)
+			}
 
 			log, _ := test.NewNullLogger()
 
@@ -4216,6 +4257,7 @@ func (s *PluginSuite) TestConfigure() {
 				%s
 			`, dbPath, tt.giveDBConfig))
 			require.NoError(t, err)
+			defer p.closeDB()
 
 			db := p.db.DB.DB()
 			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)

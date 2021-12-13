@@ -588,7 +588,7 @@ func TestConfigureTLSInvalidClientCert(t *testing.T) {
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to parse client cert and private-key: open testdata/keys/EC/invalid_client_cert.pem: no such file or directory")
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, fmt.Sprintf("failed to parse client cert and private-key: open testdata/keys/EC/invalid_client_cert.pem: %s", spiretest.FileNotFound()))
 }
 
 func TestConfigureTLSRequireClientCertAndKey(t *testing.T) {

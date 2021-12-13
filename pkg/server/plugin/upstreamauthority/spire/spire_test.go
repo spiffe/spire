@@ -51,7 +51,7 @@ func TestConfigure(t *testing.T) {
 			serverPort:              "8081",
 			workloadAPISocket:       "socketPath",
 			expectServerID:          "spiffe://example.org/spire/server",
-			expectWorkloadAPISocket: "unix://socketPath",
+			expectWorkloadAPISocket: "unix:socketPath",
 			expectServerAddr:        "localhost:8081",
 		},
 		{

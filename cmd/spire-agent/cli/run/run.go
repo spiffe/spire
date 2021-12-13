@@ -392,7 +392,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
 		}
 
-		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
+		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+string(os.PathSeparator)) {
 			return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
 		}
 
