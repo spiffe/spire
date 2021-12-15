@@ -4,7 +4,7 @@
 
 ### Added
 - SPIRE Agent now supports the Delegated Identity API for delegating SVID management to trusted platform components (#2481)
-- The k8s workload registrar now supports configuring DNS name templates (#2643)
+- The K8s Workload Registrar now supports configuring DNS name templates (#2643)
 - SPIRE Server now logs a message when expired registration entries are pruned (#2637)
 - OIDC Discovery Provider now supports setting the `use` property on the JWKs it serves (#2634)
 
