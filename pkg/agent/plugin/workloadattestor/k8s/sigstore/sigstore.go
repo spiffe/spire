@@ -109,10 +109,14 @@ func getOnlySubject(payload string) string {
 
 	re := regexp.MustCompile(`[{}]`)
 
-	subject := fmt.Sprintf("%s", selector[0])
-	subject = re.ReplaceAllString(subject, "")
+	if len(selector) > 0 {
+		subject := fmt.Sprintf("%s", selector[0])
+		subject = re.ReplaceAllString(subject, "")
 
-	return subject
+		return subject
+	}
+
+	return ""
 }
 
 func getImageSubject(verified []oci.Signature) string {

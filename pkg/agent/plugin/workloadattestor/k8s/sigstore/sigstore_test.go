@@ -11,7 +11,134 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
+	"gotest.tools/assert"
+
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
+
+type signature struct {
+	v1.Layer
+
+	payload []byte
+	cert    *x509.Certificate
+}
+
+func (signature) Annotations() (map[string]string, error) {
+	return nil, nil
+}
+
+func (s signature) Payload() ([]byte, error) {
+	return s.payload, nil
+}
+
+func (signature) Base64Signature() (string, error) {
+	return "", nil
+}
+
+func (s signature) Cert() (*x509.Certificate, error) {
+	return s.cert, nil
+}
+
+func (signature) Chain() ([]*x509.Certificate, error) {
+	return nil, nil
+}
+
+func (signature) Bundle() (*oci.Bundle, error) {
+	return nil, nil
+}
+
+func TestExtractSelectorOfSignedImage(t *testing.T) {
+	sigstore := New()
+
+	for _, tc := range []struct {
+		name     string
+		payload  []oci.Signature
+		expected string
+	}{
+		{
+			name: "with one payload",
+			payload: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
+				},
+			},
+			expected: "spirex@hpe.com",
+		},
+		{
+			name: "with two payloads",
+			payload: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "hpe@hpe.com","key2": "value 2","key3": "value 3"}}`),
+				},
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
+				},
+			},
+			expected: "hpe@hpe.com",
+		},
+		{
+			name: "with invalid payload",
+			payload: []oci.Signature{
+				signature{
+					payload: []byte{},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "with subject certificate",
+			payload: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"}}`),
+					cert: &x509.Certificate{
+						EmailAddresses: []string{
+							"spirex@hpe.com",
+							"hpe@hpe.com",
+						},
+					},
+				},
+			},
+			expected: "spirex@hpe.com",
+		},
+		{
+			name: "with URI certificate",
+			payload: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"}}`),
+					cert: &x509.Certificate{
+						URIs: []*url.URL{
+							{
+								Scheme: "https",
+								Host:   "www.hpe.com",
+								Path:   "somepath1",
+							},
+							{
+								Scheme: "https",
+								Host:   "www.spirex.com",
+								Path:   "somepath2",
+							},
+						},
+					},
+				},
+			},
+			expected: "https://www.hpe.com/somepath1",
+		},
+		{
+			name:     "no payload",
+			payload:  []oci.Signature{},
+			expected: "",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if len(tc.payload) > 0 {
+				signature, _ := tc.payload[0].Payload()
+				t.Logf("payload: %s", string(signature))
+			}
+
+			assert.Equal(t, tc.expected, sigstore.ExtractselectorOfSignedImage(tc.payload))
+		})
+	}
+}
 
 func TestNew(t *testing.T) {
 	tests := []struct {
@@ -25,7 +152,7 @@ func TestNew(t *testing.T) {
 		// { //this would break testing, but is a good example if you wan't to be sure that the test suite would test for function identity
 		// 	name: "New",
 		// 	want: &Sigstoreimpl{
-		// 		verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]cosign.SignedPayload, error) {
+		// 		verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, error) {
 		// 			return nil, nil
 		// 		},
 		// 	},
