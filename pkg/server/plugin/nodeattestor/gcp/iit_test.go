@@ -63,11 +63,13 @@ func (s *IITAttestorSuite) SetupTest() {
 
 func (s *IITAttestorSuite) TestErrorWhenNotConfigured() {
 	attestor := new(nodeattestor.V1)
-	plugintest.Load(s.T(), BuiltIn(), attestor,
+	plugintest.Load(s.T(), builtin(s.newPlugin()), attestor,
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 	)
 	s.attestor = attestor
-	s.requireAttestError(s.T(), []byte("payload"), codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
+
+	payload := s.signDefaultToken()
+	s.requireAttestError(s.T(), payload, codes.FailedPrecondition, "nodeattestor(gcp_iit): not configured")
 }
 
 func (s *IITAttestorSuite) TestErrorOnMissingPayload() {
@@ -316,13 +318,10 @@ projectid_allow_list = ["test-project"]
 }
 
 func (s *IITAttestorSuite) loadPluginWithConfig(config string) nodeattestor.NodeAttestor {
-	p := New()
-	p.jwksRetriever = testKeyRetriever{}
-	p.client = s.client
+	p := s.newPlugin()
 
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(p), v1,
-		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
@@ -331,6 +330,13 @@ func (s *IITAttestorSuite) loadPluginWithConfig(config string) nodeattestor.Node
 	)
 
 	return v1
+}
+
+func (s *IITAttestorSuite) newPlugin() *IITAttestorPlugin {
+	p := New()
+	p.jwksRetriever = testKeyRetriever{}
+	p.client = s.client
+	return p
 }
 
 func (s *IITAttestorSuite) signToken(key crypto.Signer, kid string, claims interface{}) []byte {
