@@ -2996,8 +2996,7 @@ func setupServiceTest(t *testing.T, agentTTL time.Duration) *serviceTest {
 		TrustDomain: td,
 		Clock:       clk,
 		Catalog:     cat,
-
-		AgentTTL: agentTTL,
+		AgentTTL:    agentTTL,
 	})
 
 	log, logHook := test.NewNullLogger()
