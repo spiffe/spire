@@ -52,6 +52,9 @@ type Config struct {
 	// Array of profiles names that will be generated on each profiling tick.
 	ProfilingNames []string
 
+	// AgentTTL is time-to-live for agent SVIDs
+	AgentTTL time.Duration
+
 	// SVIDTTL is default time-to-live for SVIDs
 	SVIDTTL time.Duration
 

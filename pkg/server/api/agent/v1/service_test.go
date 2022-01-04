@@ -213,7 +213,7 @@ func TestCountAgents(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
 
 			for i := 0; i < int(tt.count); i++ {
@@ -251,7 +251,7 @@ func TestCountAgents(t *testing.T) {
 }
 
 func TestListAgents(t *testing.T) {
-	test := setupServiceTest(t)
+	test := setupServiceTest(t, 0)
 	defer test.Cleanup()
 
 	notAfter := time.Now().Add(-time.Minute).Unix()
@@ -1105,7 +1105,7 @@ func TestBanAgent(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
 			ctx := context.Background()
 
@@ -1349,7 +1349,7 @@ func TestDeleteAgent(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
 
 			_, err := test.ds.CreateAttestedNode(ctx, node1)
@@ -1577,7 +1577,7 @@ func TestGetAgent(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, 0)
 			test.createTestNodes(ctx, t)
 			test.ds.SetNextError(tt.dsError)
 			agent, err := test.client.GetAgent(context.Background(), tt.req)
@@ -1627,6 +1627,7 @@ func TestRenewAgent(t *testing.T) {
 
 		dsError        []error
 		createNode     *common.AttestedNode
+		agentTTL       time.Duration
 		expectLogs     []spiretest.LogEntry
 		failCallerID   bool
 		failSigning    bool
@@ -1638,6 +1639,7 @@ func TestRenewAgent(t *testing.T) {
 		{
 			name:       "success",
 			createNode: cloneAttestedNode(defaultNode),
+			agentTTL:   42 * time.Minute,
 			expectLogs: []spiretest.LogEntry{
 				renewingMessage,
 				{
@@ -1893,7 +1895,7 @@ func TestRenewAgent(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup test
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, tt.agentTTL)
 			defer test.Cleanup()
 
 			if tt.createNode != nil {
@@ -1912,6 +1914,11 @@ func TestRenewAgent(t *testing.T) {
 			}
 			now := test.ca.Clock().Now().UTC()
 			expiredAt := now.Add(test.ca.X509SVIDTTL())
+
+			// Verify non-default agent TTL if set
+			if tt.agentTTL != 0 {
+				expiredAt = now.Add(tt.agentTTL)
+			}
 
 			// Send param message
 			resp, err := test.client.RenewAgent(ctx, tt.req)
@@ -2054,7 +2061,7 @@ func TestCreateJoinToken(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, 0)
 			test.ds.SetNextError(tt.dsError)
 
 			result, err := test.client.CreateJoinToken(context.Background(), tt.request)
@@ -2073,7 +2080,7 @@ func TestCreateJoinToken(t *testing.T) {
 }
 
 func TestCreateJoinTokenWithAgentId(t *testing.T) {
-	test := setupServiceTest(t)
+	test := setupServiceTest(t, 0)
 
 	_, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
@@ -2897,7 +2904,7 @@ func TestAttestAgent(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			test := setupServiceTest(t)
+			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -2977,7 +2984,7 @@ func (s *serviceTest) Cleanup() {
 	}
 }
 
-func setupServiceTest(t *testing.T) *serviceTest {
+func setupServiceTest(t *testing.T, agentTTL time.Duration) *serviceTest {
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
@@ -2989,6 +2996,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		TrustDomain: td,
 		Clock:       clk,
 		Catalog:     cat,
+		AgentTTL:    agentTTL,
 	})
 
 	log, logHook := test.NewNullLogger()

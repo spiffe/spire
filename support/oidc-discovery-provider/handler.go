@@ -10,19 +10,25 @@ import (
 	"github.com/gorilla/handlers"
 )
 
+const (
+	keyUse = "sig"
+)
+
 type Handler struct {
 	source              JWKSSource
 	domainPolicy        DomainPolicy
 	allowInsecureScheme bool
+	setKeyUse           bool
 
 	http.Handler
 }
 
-func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool) *Handler {
+func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
+		setKeyUse:           setKeyUse,
 	}
 
 	mux := http.NewServeMux()
@@ -100,6 +106,12 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.Error(w, "document not available", http.StatusInternalServerError)
 		return
+	}
+
+	if h.setKeyUse {
+		for i := range jwks.Keys {
+			jwks.Keys[i].Use = keyUse
+		}
 	}
 
 	jwksBytes, err := json.MarshalIndent(jwks, "", "  ")
