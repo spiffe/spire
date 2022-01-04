@@ -35,6 +35,8 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -144,6 +146,9 @@ func (s *ManagerSuite) TestSelfSigning() {
 	}
 	s.Empty(x509CA.UpstreamChain)
 	s.Require().Equal(1, x509CA.Certificate.SerialNumber.Cmp(big.NewInt(0)))
+
+	// Assert that the self-signed X.509 CA produces a valid certificate chain
+	validateSelfSignedX509CA(s.T(), x509CA.Certificate, x509CA.Signer)
 }
 
 func (s *ManagerSuite) TestUpstreamSigned() {
@@ -175,6 +180,30 @@ func (s *ManagerSuite) TestUpstreamSigned() {
 			"by this server may have trouble communicating with workloads outside "+
 			"this cluster when using JWT-SVIDs."),
 	)
+}
+
+func (s *ManagerSuite) TestUpstreamSignedProducesInvalidChain() {
+	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
+		TrustDomain: testTrustDomain,
+		// The verification code relies on go-spiffe, which for compat reasons,
+		// does not currently validate SPIFFE conformance beyond the leaf
+		// certificate. The manager relies on other layers to produce a valid
+		// leaf SVID, making it difficult to influence the leaf to produce an
+		// invalid chain without some refactoring. For now, to produce an
+		// invalid chain, we'll set a key usage on the intermediate CA that is
+		// not allowed by RFC 5280 for signing certificates. This will cause
+		// the go x509 stack to reject the signature on the leaf when the
+		// manager does the validation.
+		//
+		// We want to ensure that the manager is verifying the chain via
+		// go-spiffe, and the error message produced has go-spiffe specific
+		// markers in it. This is probably good enough.
+		KeyUsage: x509.KeyUsageDigitalSignature,
+	})
+
+	s.cat.SetUpstreamAuthority(upstreamAuthority)
+	s.m = NewManager(s.selfSignedConfig())
+	s.RequireGRPCStatus(s.m.Initialize(context.Background()), codes.InvalidArgument, `X509 CA minted by upstream authority is invalid: X509 CA produced an invalid X509-SVID chain: x509svid: could not verify leaf certificate: x509: certificate signed by unknown authority (possibly because of "x509: invalid signature: parent certificate cannot sign this kind of certificate" while trying to verify candidate authority certificate "FAKEUPSTREAMAUTHORITY-ROOT")`)
 }
 
 func (s *ManagerSuite) TestUpstreamIntermediateSigned() {
@@ -679,7 +708,7 @@ func (s *ManagerSuite) initUpstreamSignedManager(upstreamAuthority upstreamautho
 
 	c := s.selfSignedConfig()
 	s.m = NewManager(c)
-	s.NoError(s.m.Initialize(context.Background()))
+	s.Require().NoError(s.m.Initialize(context.Background()))
 }
 
 func (s *ManagerSuite) setNotifier(notifier notifier.Notifier) {
@@ -743,6 +772,9 @@ type signerInfo struct {
 }
 
 func (s *ManagerSuite) getX509CAInfo(x509CA *X509CA) x509CAInfo {
+	if x509CA == nil {
+		return x509CAInfo{}
+	}
 	return x509CAInfo{
 		Signer:        s.getSignerInfo(x509CA.Signer),
 		Certificate:   x509CA.Certificate,
@@ -751,6 +783,9 @@ func (s *ManagerSuite) getX509CAInfo(x509CA *X509CA) x509CAInfo {
 }
 
 func (s *ManagerSuite) getJWTKeyInfo(jwtKey *JWTKey) jwtKeyInfo {
+	if jwtKey == nil {
+		return jwtKeyInfo{}
+	}
 	return jwtKeyInfo{
 		Signer:   s.getSignerInfo(jwtKey.Signer),
 		Kid:      jwtKey.Kid,
@@ -928,4 +963,12 @@ func (s *fakeCA) SetJWTKey(jwtKey *JWTKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jwtKey = jwtKey
+}
+
+func validateSelfSignedX509CA(t *testing.T, ca *x509.Certificate, signer crypto.Signer) {
+	validator := X509CAValidator{
+		TrustDomain: testTrustDomain,
+		Signer:      signer,
+	}
+	require.NoError(t, validator.ValidateSelfSignedX509CA(ca))
 }
