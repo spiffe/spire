@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.2] - 2021-12-15
+
+### Added
+- SPIRE Agent now supports the Delegated Identity API for delegating SVID management to trusted platform components (#2481)
+- The K8s Workload Registrar now supports configuring DNS name templates (#2643)
+- SPIRE Server now logs a message when expired registration entries are pruned (#2637)
+- OIDC Discovery Provider now supports setting the `use` property on the JWKs it serves (#2634)
+
+### Fixed
+- SPIRE Agent now provides reason for failure during certain kinds of attestation errors (#2628)
+
 ## [1.1.1] - 2021-11-17
 
 ### Added
