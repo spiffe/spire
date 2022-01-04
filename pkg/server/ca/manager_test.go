@@ -185,10 +185,19 @@ func (s *ManagerSuite) TestUpstreamSigned() {
 func (s *ManagerSuite) TestUpstreamSignedProducesInvalidChain() {
 	upstreamAuthority, _ := fakeupstreamauthority.Load(s.T(), fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
-		// SPIFFE specification mandates that IF key usage is set, that it
-		// be set to keyCertSign and optionally keyCrlSign. This key usage
-		// should cause the intermdiate CA to be rejected since it will
-		// produce a non-conformant chain.
+		// The verification code relies on go-spiffe, which for compat reasons,
+		// does not currently validate SPIFFE conformance beyond the leaf
+		// certificate. The manager relies on other layers to produce a valid
+		// leaf SVID, making it difficult to influence the leaf to produce an
+		// invalid chain without some refactoring. For now, to produce an
+		// invalid chain, we'll set a key usage on the intermediate CA that is
+		// not allowed by RFC 5280 for signing certificates. This will cause
+		// the go x509 stack to reject the signature on the leaf when the
+		// manager does the validation.
+		//
+		// We want to ensure that the manager is verifying the chain via
+		// go-spiffe, and the error message produced has go-spiffe specific
+		// markers in it. This is probably good enough.
 		KeyUsage: x509.KeyUsageDigitalSignature,
 	})
 
