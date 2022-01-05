@@ -289,13 +289,13 @@ func getFileMetadata(metadataMap map[string]string, key string) (string, error) 
 		return "", status.Errorf(codes.InvalidArgument, "%q must be specified", key)
 	}
 	if containsDotDot(value) {
-		return "", status.Errorf(codes.InvalidArgument, "invalid %q. Cannot contain \"..\"", key)
+		return "", status.Errorf(codes.InvalidArgument, `invalid %q: cannot contain ".."`, key)
 	}
 
 	return value, nil
 }
 
-func newDiskStore(metaData []string, dir string) (*diskStore, error) {
+func newDiskStore(metaData []string, baseDir string) (*diskStore, error) {
 	metadataMap, err := svidstore.ParseMetadata(metaData)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "error parsing metadata: %v", err)
@@ -304,6 +304,11 @@ func newDiskStore(metaData []string, dir string) (*diskStore, error) {
 	certChainFilePath, err := getFileMetadata(metadataMap, "certchainfile")
 	if err != nil {
 		return nil, err
+	}
+
+	dir := filepath.Dir(certChainFilePath)
+	if dir == "." || dir[0] == filepath.Separator {
+		return nil, status.Error(codes.InvalidArgument, "files cannot reside in the base directory")
 	}
 
 	keyFilePath, err := getFileMetadata(metadataMap, "keyfile")
@@ -354,9 +359,9 @@ func newDiskStore(metaData []string, dir string) (*diskStore, error) {
 	}
 
 	return &diskStore{
-		certChain: svidFile{filePath: filepath.Join(dir, certChainFilePath)},
-		key:       svidFile{filePath: filepath.Join(dir, keyFilePath)},
-		bundle:    svidFile{filePath: filepath.Join(dir, bundleFilePath)},
+		certChain: svidFile{filePath: filepath.Join(baseDir, certChainFilePath)},
+		key:       svidFile{filePath: filepath.Join(baseDir, keyFilePath)},
+		bundle:    svidFile{filePath: filepath.Join(baseDir, bundleFilePath)},
 		gid:       int(gidInt),
 	}, nil
 }
@@ -373,7 +378,7 @@ func createDirectoryIfNeeded(dir string) error {
 
 func sameDirectory(filePath1, filePath2 string) error {
 	if filepath.Dir(filePath1) != filepath.Dir(filePath2) {
-		return status.Error(codes.InvalidArgument, "file paths must be on the same directory")
+		return status.Error(codes.InvalidArgument, "files must be in the same directory")
 	}
 
 	return nil
