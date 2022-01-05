@@ -23,6 +23,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	idutil "github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 
@@ -47,6 +48,7 @@ type PodReconcilerConfig struct {
 	TrustDomain           string
 	IdentityTemplate      string
 	IdentityTemplateLabel string
+	DNSNameTemplates      []string
 	Context               map[string]string
 }
 
@@ -79,8 +81,9 @@ type IdentityMaps struct {
 // PodReconciler holds the runtime configuration and state of this controller
 type PodReconciler struct {
 	client.Client
-	c             PodReconcilerConfig
-	identityTempl *template.Template
+	c                PodReconcilerConfig
+	identityTempl    *template.Template
+	dnsNameTemplates []*template.Template
 }
 
 // NewPodReconciler creates a new PodReconciler object
@@ -88,19 +91,56 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 	if config.IdentityTemplate == "" && config.PodAnnotation == "" && config.PodLabel == "" {
 		config.IdentityTemplate = DefaultSpiffeIDPath
 	}
-	if config.IdentityTemplate == "" {
-		return &PodReconciler{
-			Client: config.Client,
-			c:      config,
-		}, nil
+
+	identityTempl, dnsNameTemplates, err := parseTemplates(config)
+	if err != nil {
+		return &PodReconciler{}, err
 	}
 
-	tmpl, err := template.New("IdentityTemplate").Parse(config.IdentityTemplate)
-	if err != nil {
-		config.Log.WithError(err).WithField("identity_template", config.IdentityTemplate).Error("error parsing identity template")
-		return &PodReconciler{}, fmt.Errorf("parsing identity template: %w", err)
+	if err := validateTemplates(config, identityTempl, dnsNameTemplates); err != nil {
+		return &PodReconciler{}, err
 	}
-	// While the Context is persitent and can be tested here, PodInfo is dynamic and changes with each Pod update, so using a dummy entry.
+
+	return &PodReconciler{
+		Client:           config.Client,
+		c:                config,
+		identityTempl:    identityTempl,
+		dnsNameTemplates: dnsNameTemplates,
+	}, nil
+}
+
+func parseTemplates(config PodReconcilerConfig) (*template.Template, []*template.Template, error) {
+	var identityTempl *template.Template
+	var err error
+	if config.IdentityTemplate != "" {
+		identityTempl, err = template.New("IdentityTemplate").Parse(config.IdentityTemplate)
+		if err != nil {
+			config.Log.WithError(err).WithField("identity_template", config.IdentityTemplate).Error("error parsing identity template")
+			return nil, nil, fmt.Errorf("parsing identity template: %w", err)
+		}
+	}
+
+	dnsNameTemplates := make([]*template.Template, 0, len(config.DNSNameTemplates))
+	for _, dnsNameTemplate := range config.DNSNameTemplates {
+		strippedTemplate := strings.ReplaceAll(dnsNameTemplate, " ", "")
+
+		tmpl, err := template.New("DNSNameTemplate").Parse(strippedTemplate)
+		if err != nil {
+			config.Log.WithError(err).WithField("dns_name_template", strippedTemplate).Error("error parsing dns name template")
+			return nil, nil, fmt.Errorf("parsing dns name template: %w", err)
+		}
+		dnsNameTemplates = append(dnsNameTemplates, tmpl)
+	}
+
+	return identityTempl, dnsNameTemplates, nil
+}
+
+func validateTemplates(
+	config PodReconcilerConfig,
+	identityTempl *template.Template,
+	dnsNameTemplates []*template.Template,
+) error {
+	// While the Context is persistent and can be tested here, PodInfo is dynamic and changes with each Pod update, so using a dummy entry.
 	templateMaps := IdentityMaps{
 		Context: config.Context,
 		Pod: PodInfo{
@@ -112,30 +152,48 @@ func NewPodReconciler(config PodReconcilerConfig) (*PodReconciler, error) {
 			NodeName:       "xx",
 		},
 	}
-	var sb strings.Builder
-	if err := tmpl.Execute(&sb, templateMaps); err != nil {
-		config.Log.WithError(err).WithFields(logrus.Fields{
-			"identity_template": config.IdentityTemplate,
-			"context":           config.Context,
-		}).Error("Error executing the identity template")
-		return &PodReconciler{}, fmt.Errorf("executing identity template: %w", err)
-	}
-	testSpiffeIDPath := sb.String()
-	testSpiffeID := fmt.Sprintf("spiffe://testdomain/%s", testSpiffeIDPath)
-	if err := idutil.CheckIDStringNormalization(testSpiffeID); err != nil {
-		// The format of the template is incorrect and it is resulting in invalid SPIFFE ID paths.
-		config.Log.WithError(err).WithFields(logrus.Fields{
-			"identity_template": config.IdentityTemplate,
-			"context":           config.Context,
-		}).Error("Error validating the identity template components")
-		return &PodReconciler{}, fmt.Errorf("validating identity template: %w", err)
+
+	if identityTempl != nil {
+		var sb strings.Builder
+		if err := identityTempl.Execute(&sb, templateMaps); err != nil {
+			config.Log.WithError(err).WithFields(logrus.Fields{
+				"identity_template": config.IdentityTemplate,
+				"context":           config.Context,
+			}).Error("Error executing the identity template")
+			return fmt.Errorf("executing identity template: %w", err)
+		}
+		testSpiffeIDPath := sb.String()
+		testSpiffeID := fmt.Sprintf("spiffe://testdomain/%s", testSpiffeIDPath)
+		if err := idutil.CheckIDStringNormalization(testSpiffeID); err != nil {
+			// The format of the template is incorrect and it is resulting in invalid SPIFFE ID paths.
+			config.Log.WithError(err).WithFields(logrus.Fields{
+				"identity_template": config.IdentityTemplate,
+				"context":           config.Context,
+			}).Error("Error validating the identity template components")
+			return fmt.Errorf("validating identity template: %w", err)
+		}
 	}
 
-	return &PodReconciler{
-		Client:        config.Client,
-		c:             config,
-		identityTempl: tmpl,
-	}, nil
+	for i, dnsNameTemplate := range dnsNameTemplates {
+		var sb strings.Builder
+		if err := dnsNameTemplate.Execute(&sb, templateMaps); err != nil {
+			config.Log.WithError(err).WithFields(logrus.Fields{
+				"dns_name_template":      config.DNSNameTemplates[i],
+				"dns_name_template_maps": templateMaps,
+			}).Error("Error executing the dns name template")
+			return fmt.Errorf("executing the dns name template: %w", err)
+		}
+
+		if err := x509util.ValidateDNS(sb.String()); err != nil {
+			config.Log.WithError(err).WithFields(logrus.Fields{
+				"dns_name_template": config.DNSNameTemplates[i],
+				"context":           config.Context,
+			}).Error("Error validating the dns name template")
+			return fmt.Errorf("validating the dns name template: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // SetupWithManager adds a controller manager to manage this reconciler
@@ -181,6 +239,12 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 	}
 	federationDomains := federation.GetFederationDomains(pod)
 
+	// create DNS names
+	dnsNames, err := r.createDNSNames(pod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
 		ObjectMeta: metav1.ObjectMeta{
@@ -193,7 +257,7 @@ func (r *PodReconciler) updateorCreatePodEntry(ctx context.Context, pod *corev1.
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
 			SpiffeId:      spiffeIDURI,
 			ParentId:      r.podParentID(pod.Spec.NodeName),
-			DnsNames:      []string{pod.Name}, // Set pod name as first DNS name
+			DnsNames:      dnsNames,
 			FederatesWith: federationDomains,
 			Selector: spiffeidv1beta1.Selector{
 				PodUid:    pod.GetUID(),
@@ -315,4 +379,34 @@ func (r *PodReconciler) generateSpiffeIDPath(pod *corev1.Pod) (string, error) {
 		return spiffeIDPathBuilder.String(), err
 	}
 	return spiffeIDPathBuilder.String(), nil
+}
+
+func (r *PodReconciler) createDNSNames(pod *corev1.Pod) ([]string, error) {
+	dnsNames := make([]string, 0, len(r.c.DNSNameTemplates))
+	// Create the IdentityMaps struct, with Pod and Context map
+	templateMaps := IdentityMaps{
+		Context: r.c.Context,
+		Pod: PodInfo{
+			ServiceAccount: pod.Spec.ServiceAccountName,
+			Namespace:      pod.Namespace,
+			Name:           pod.Name,
+			UID:            pod.UID,
+			Hostname:       pod.Spec.Hostname,
+			NodeName:       pod.Spec.NodeName,
+		},
+	}
+
+	for i, dnsNameTemplate := range r.dnsNameTemplates {
+		var dnsNameBuilder strings.Builder
+		if err := dnsNameTemplate.Execute(&dnsNameBuilder, templateMaps); err != nil {
+			r.c.Log.WithError(err).WithFields(logrus.Fields{
+				"dns_name_template":      r.c.DNSNameTemplates[i],
+				"dns_name_template_maps": templateMaps,
+			}).Error("Error executing the dns name template")
+			return nil, err
+		}
+		dnsNames = append(dnsNames, dnsNameBuilder.String())
+	}
+
+	return dnsNames, nil
 }

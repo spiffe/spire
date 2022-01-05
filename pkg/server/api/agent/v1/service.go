@@ -38,6 +38,7 @@ type Config struct {
 	Clock       clock.Clock
 	DataStore   datastore.DataStore
 	ServerCA    ca.ServerCA
+	AgentTTL    time.Duration
 	TrustDomain spiffeid.TrustDomain
 }
 
@@ -45,21 +46,23 @@ type Config struct {
 type Service struct {
 	agentv1.UnsafeAgentServer
 
-	cat catalog.Catalog
-	clk clock.Clock
-	ds  datastore.DataStore
-	ca  ca.ServerCA
-	td  spiffeid.TrustDomain
+	cat      catalog.Catalog
+	clk      clock.Clock
+	ds       datastore.DataStore
+	ca       ca.ServerCA
+	td       spiffeid.TrustDomain
+	agentTTL time.Duration
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
-		cat: config.Catalog,
-		clk: config.Clock,
-		ds:  config.DataStore,
-		ca:  config.ServerCA,
-		td:  config.TrustDomain,
+		cat:      config.Catalog,
+		clk:      config.Clock,
+		ds:       config.DataStore,
+		ca:       config.ServerCA,
+		td:       config.TrustDomain,
+		agentTTL: config.AgentTTL,
 	}
 }
 
@@ -513,6 +516,10 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
 		SpiffeID:  agentID,
 		PublicKey: parsedCsr.PublicKey,
+
+		// If agent TTL is unset, CA will fall back to the default
+		// X509-SVID TTL which is the desired behavior
+		TTL: s.agentTTL,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509 SVID", err)
