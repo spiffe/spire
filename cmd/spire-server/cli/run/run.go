@@ -64,6 +64,7 @@ type Config struct {
 }
 
 type serverConfig struct {
+	AgentTTL        string             `hcl:"agent_ttl"`
 	AuditLogEnabled bool               `hcl:"audit_log_enabled"`
 	BindAddress     string             `hcl:"bind_address"`
 	BindPort        int                `hcl:"bind_port"`
@@ -439,6 +440,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingPort = c.Server.ProfilingPort
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
+
+	if c.Server.AgentTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.AgentTTL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse agent ttl %q: %w", c.Server.AgentTTL, err)
+		}
+		sc.AgentTTL = ttl
+	}
 
 	if c.Server.DefaultSVIDTTL != "" {
 		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)

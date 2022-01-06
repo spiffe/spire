@@ -50,6 +50,9 @@ type Config struct {
 	// Server CA for signing SVIDs
 	ServerCA ca.ServerCA
 
+	// TTL to use when signing agent SVIDs
+	AgentTTL time.Duration
+
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
@@ -119,6 +122,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 		AgentServer: agentv1.New(agentv1.Config{
 			DataStore:   ds,
 			ServerCA:    c.ServerCA,
+			AgentTTL:    c.AgentTTL,
 			TrustDomain: c.TrustDomain,
 			Catalog:     c.Catalog,
 			Clock:       c.Clock,

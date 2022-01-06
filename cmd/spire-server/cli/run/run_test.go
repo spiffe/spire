@@ -1509,6 +1509,28 @@ func TestExpandEnv(t *testing.T) {
 	}
 }
 
+func TestAgentTTL(t *testing.T) {
+	for _, c := range []struct {
+		agentTTL         string
+		expectedDuration time.Duration
+	}{
+		{
+			agentTTL:         "168h",
+			expectedDuration: 168 * time.Hour,
+		},
+		{
+			agentTTL:         "",
+			expectedDuration: 0,
+		},
+	} {
+		config := defaultValidConfig()
+		config.Server.AgentTTL = c.agentTTL
+		sconfig, err := NewServerConfig(config, []log.Option{}, false)
+		assert.NoError(t, err)
+		assert.Equal(t, c.expectedDuration, sconfig.AgentTTL)
+	}
+}
+
 func httpsSPIFFEConfigTest(t *testing.T) federatesWithConfig {
 	configString := `bundle_endpoint_url = "https://192.168.1.1:1337"
 	bundle_endpoint_profile "https_spiffe" {

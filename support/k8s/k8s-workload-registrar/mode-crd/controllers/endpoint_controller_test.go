@@ -125,6 +125,6 @@ func (s *EndpointControllerTestSuite) TestAddDNSName() {
 	})
 	s.Require().NoError(err)
 	s.Require().Len(spiffeIDList.Items, 1)
-	s.Require().Len(spiffeIDList.Items[0].Spec.DnsNames, 2)
-	s.Require().Equal("test-endpoint.default.svc", spiffeIDList.Items[0].Spec.DnsNames[1])
+	s.Require().Len(spiffeIDList.Items[0].Spec.DnsNames, 1)
+	s.Require().Equal("test-endpoint.default.svc", spiffeIDList.Items[0].Spec.DnsNames[0])
 }

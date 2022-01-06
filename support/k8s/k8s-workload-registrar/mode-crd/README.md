@@ -33,7 +33,8 @@ The configuration file is a **required** by the registrar. It contains
 | `agent_socket_path`        | string   | optional | Path to the Unix domain socket of the SPIRE agent. Required if server_address is not a unix domain socket address. | |
 | `cluster`                  | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `context`                  | map[string]string | optional | The map of key/value pairs of arbitrary string parameters to be used by `identity_template` | |
-| `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
+| `disabled_namespaces`      | []string | optional | Comma separated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
+| `dns_name_templates`       | []string | optional | Comma separated list of templates to be used to generate [additional DNS names](#additional-dns-names) for a workload | `[{{.Pod.Name}}]` |
 | `identity_template`        | string   | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
 | `identity_template_label`  | string   | optional | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set  |  |
 | `leader_election`          | bool     | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
@@ -386,6 +387,31 @@ spec:
   containers:
   ...
 ```
+
+### Additional DNS Names
+
+If additional DNS names are desired for your workload, they can be specified using the `dns_name_templates` configuration option. Similar to the `identity_template` field, `dns_name_templates` uses Golang
+[text/template](https://pkg.go.dev/text/template) conventions. It can reference arbitrary values provided in the `context` map of strings, in addition to the following Pod-specific arguments:
+* Pod.Name
+* Pod.UID
+* Pod.Namespace
+* Pod.ServiceAccount
+* Pod.Hostname
+* Pod.NodeName
+
+`dns_name_templates` is a list of strings, and gets added to the `dnsNames` list in the SpiffeID CRD.
+
+For example if the registrar was configured with the following:
+```
+dns_name_templates = ["{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Context.Domain}}.{{.Pod.Name}}.svc"]
+context {
+  Domain = "my-domain"
+}
+```
+and the _example-workload_ pod was deployed in _production_ namespace and _myserviceacct_ service account, the following DNS names will be added to the SpiffeID CRD:
+
+- myserviceacct.production.svc
+- my-domain.example-workload.svc
 
 ## How it Works
 
