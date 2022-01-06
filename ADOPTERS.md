@@ -40,6 +40,8 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * [Dapr](https://github.com/dapr)
 * [App Mesh Controller](https://github.com/aws/aws-app-mesh-controller-for-k8s)
 * [Tornjak](https://github.com/spiffe/tornjak)
+* [Tekton](https://github.com/tektoncd/chains)
+* [Sigstore](https://github.com/sigstore/fulcio)
 
 
 ## Case Studies/User Stories
