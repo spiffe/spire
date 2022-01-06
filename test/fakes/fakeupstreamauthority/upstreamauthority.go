@@ -33,6 +33,7 @@ type Config struct {
 	TrustDomain                 spiffeid.TrustDomain
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
+	KeyUsage                    x509.KeyUsage
 	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
 	MutatePublishJWTKeyResponse func(*upstreamauthorityv1.PublishJWTKeyResponse)
 }
@@ -262,7 +263,7 @@ func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv1.
 }
 
 func (ua *UpstreamAuthority) createRootCertificate() {
-	template := createCATemplate("FAKEUPSTREAMAUTHORITY-ROOT", ua.nextX509CASN())
+	template := createCATemplate("FAKEUPSTREAMAUTHORITY-ROOT", ua.nextX509CASN(), ua.config.KeyUsage)
 	ua.x509Root = createCertificate(ua.t, template, template, &x509RootKey.PublicKey, x509RootKey)
 	ua.x509Roots = append(ua.x509Roots, ua.x509Root)
 }
@@ -271,7 +272,7 @@ func (ua *UpstreamAuthority) createIntermediateCertificate() {
 	if ua.x509Root == nil {
 		ua.createRootCertificate()
 	}
-	template := createCATemplate("FAKEUPSTREAMAUTHORITY-INT", ua.nextX509CASN())
+	template := createCATemplate("FAKEUPSTREAMAUTHORITY-INT", ua.nextX509CASN(), ua.config.KeyUsage)
 	ua.x509Intermediate = createCertificate(ua.t, template, ua.x509Root, &x509IntKey.PublicKey, x509RootKey)
 }
 
@@ -280,15 +281,18 @@ func (ua *UpstreamAuthority) nextX509CASN() int64 {
 	return ua.x509CASN
 }
 
-func createCATemplate(cn string, sn int64) *x509.Certificate {
+func createCATemplate(cn string, sn int64, keyUsage x509.KeyUsage) *x509.Certificate {
+	now := time.Now()
 	return &x509.Certificate{
 		SerialNumber: big.NewInt(sn),
 		Subject: pkix.Name{
 			CommonName: cn,
 		},
-		NotAfter:              time.Now().Add(time.Hour),
-		IsCA:                  true,
+		NotBefore:             now,
+		NotAfter:              now.Add(time.Hour),
 		BasicConstraintsValid: true,
+		IsCA:                  true,
+		KeyUsage:              keyUsage,
 	}
 }
 

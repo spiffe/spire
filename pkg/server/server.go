@@ -311,6 +311,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		TrustDomain:         s.config.TrustDomain,
 		Catalog:             catalog,
 		ServerCA:            serverCA,
+		AgentTTL:            s.config.AgentTTL,
 		Log:                 s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:             metrics,
 		Manager:             caManager,

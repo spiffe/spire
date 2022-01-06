@@ -94,17 +94,17 @@ func (p *IITAttestorPlugin) SetLogger(log hclog.Logger) {
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
 func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
-	c, err := p.getConfig()
-	if err != nil {
-		return err
-	}
-
 	jwks, err := p.jwksRetriever.retrieveJWKS(stream.Context())
 	if err != nil {
 		return err
 	}
 
 	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, jwks)
+	if err != nil {
+		return err
+	}
+
+	c, err := p.getConfig()
 	if err != nil {
 		return err
 	}
