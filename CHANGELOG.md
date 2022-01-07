@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.3] - 2022-01-07
+
+### Security
+- Fixed CVE-2021-44716
+
 ## [1.1.2] - 2021-12-15
 
 ### Added
@@ -57,6 +62,11 @@
 - The server socketPath is now appropriately overriden via the configuration file (#2570)
 - The server now restarts appropriately after undergoing forceful shutdown (#2496)
 - The server CLI list commands now work reliably for large listings (#2456)
+
+## [1.0.3] - 2022-01-07
+
+### Security
+- Fixed CVE-2021-44716
 
 ## [1.0.2] - 2021-09-02
 
