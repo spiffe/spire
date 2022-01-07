@@ -1,3 +1,7 @@
+//go:build !windows
+// +build !windows
+
+// TODO: plugin is not supported on windows until workload api works
 package spireplugin
 
 import (

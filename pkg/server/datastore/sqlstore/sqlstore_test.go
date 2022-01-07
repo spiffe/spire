@@ -137,8 +137,8 @@ func (s *PluginSuite) newPlugin() *Plugin {
 		s.nextID++
 		dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
 
-		// When joining paths on Windows libraries translate "/" to "\\"
-		// it causes an error on the HCL library and fails to parse.
+		// When joining paths on Windows, libraries translate "/" to "\\"
+		// which causes an error on the HCL library, failing to parse.
 		if isWindows {
 			dbPath = filepath.ToSlash(dbPath)
 		}
@@ -3882,8 +3882,8 @@ func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
 
 	dbName := fmt.Sprintf("v%d.sqlite3", dbVersion)
 	dbPath := filepath.Join(s.dir, "unsafe-disabled-migration-"+dbName)
-	// When joining paths on Windows libraries translate "/" to "\\"
-	// it causes an error on the HCL library and fails to parse.
+	// When joining paths on Windows, libraries translate "/" to "\\"
+	// which causes an error on the HCL library, failing to parse.
 	if isWindows {
 		dbPath = "/" + filepath.ToSlash(dbPath)
 	}
@@ -4041,25 +4041,21 @@ func (s *PluginSuite) TestMigration() {
 			db, err := openSQLite3(dbURI)
 			defer db.Close()
 			s.Require().NoError(err)
-			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
 		case 10:
 			db, err := openSQLite3(dbURI)
 			defer db.Close()
-			s.Require().NoError(err)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
 		case 11:
 			db, err := openSQLite3(dbURI)
 			defer db.Close()
 			s.Require().NoError(err)
-			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
 		case 12:
 			// Ensure attested_nodes_entries gained two new columns
 			db, err := openSQLite3(dbURI)
 			defer db.Close()
-			s.Require().NoError(err)
 			s.Require().NoError(err)
 
 			// Assert attested_node_entries tables gained the new columns
@@ -4083,7 +4079,6 @@ func (s *PluginSuite) TestMigration() {
 		case 14:
 			db, err := openSQLite3(dbURI)
 			defer db.Close()
-			s.Require().NoError(err)
 			s.Require().NoError(err)
 			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
 		case 15:

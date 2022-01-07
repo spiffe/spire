@@ -184,7 +184,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:   "Non-existent bundle file",
 			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "spiffe://td.org/bundle", "-trustDomainBundlePath", "non-existent-path", "-bundleEndpointProfile", profileHTTPSWeb},
-			expErr: fmt.Sprintf("Error: cannot read bundle file: open non-existent-path: %s\n", spiretest.PathNotFound()),
+			expErr: fmt.Sprintf("Error: cannot read bundle file: open non-existent-path: %s\n", spiretest.FileNotFound()),
 		},
 		{
 			name:   "Corrupted bundle file",
@@ -320,7 +320,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 		{
 			name:   "Loading federation relationships from JSON file: invalid path",
 			args:   []string{"-data", "somePath"},
-			expErr: fmt.Sprintf("Error: open somePath: %s\n", spiretest.PathNotFound()),
+			expErr: fmt.Sprintf("Error: open somePath: %s\n", spiretest.FileNotFound()),
 		},
 		{
 			name:   "Loading federation relationships from JSON file: no a json",

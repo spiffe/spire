@@ -67,8 +67,8 @@ func openSQLite3(connString string) (*gorm.DB, error) {
 // enabled for *each* connection opened by db/sql. If the connection string is
 // not already a file: URI, it is converted first.
 func embellishSQLite3ConnString(connectionString string) (string, error) {
-	// On "Windows" when parsing an absolute path for example "c:\tmp\lite",
-	// "c" is parsed as URL schema
+	// On Windows, when parsing an absolute path like "c:\tmp\lite",
+	// "c" is parsed as the URL scheme
 	if runtime.GOOS == "windows" && filepath.IsAbs(connectionString) {
 		connectionString = "/" + connectionString
 	}

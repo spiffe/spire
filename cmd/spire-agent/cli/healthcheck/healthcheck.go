@@ -78,7 +78,7 @@ func (c *healthCheckCommand) run() error {
 		return err
 	}
 	if runtime.GOOS == "windows" {
-		// Abs on windows returns "\\", parse it to use "/" instead
+		// filepath.Abs on Windows  uses "\\" as separator, use "/" instead
 		socketPath = filepath.ToSlash(socketPath)
 	}
 	conn, err := grpc.DialContext(context.Background(), "unix:"+socketPath, grpc.WithInsecure())

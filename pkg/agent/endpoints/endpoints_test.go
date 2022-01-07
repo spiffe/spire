@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -37,6 +38,11 @@ import (
 )
 
 func TestEndpoints(t *testing.T) {
+	// TODO: Endpoint uses peertracker that is not compatible with Windows.
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 

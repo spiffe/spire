@@ -1,3 +1,7 @@
+//go:build !windows
+// +build !windows
+
+// TODO: attestor is not supported on windows yet, skip running unit tests until we solve issues
 package docker
 
 import (
