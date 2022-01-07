@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-tpm/tpm2"
 )
 
-// openTPM open a channel to the TPM, Windows does not recieve a path.
+// openTPM open a channel to the TPM, Windows does not receive a path.
 func openTPM(paths ...string) (io.ReadWriteCloser, error) {
 	if len(paths) != 0 && paths[0] != "" {
 		return nil, errors.New("open tpm does not allows to set a device path")

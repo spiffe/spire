@@ -13,8 +13,6 @@ const (
 	defaultInitialBackoff = 100 * time.Millisecond
 )
 
-var disabledRetryer = &retryer{disabled: true}
-
 type retryer struct {
 	clock          clock.Clock
 	disabled       bool

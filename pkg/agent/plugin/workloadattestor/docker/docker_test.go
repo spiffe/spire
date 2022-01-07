@@ -30,6 +30,8 @@ const (
 	testContainerID   = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
 )
 
+var disabledRetryer = &retryer{disabled: true}
+
 func TestDockerSelectors(t *testing.T) {
 	tests := []struct {
 		desc                 string
