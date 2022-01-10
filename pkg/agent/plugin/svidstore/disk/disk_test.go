@@ -74,13 +74,13 @@ func TestConfigure(t *testing.T) {
 		{
 			name:            "no directory provided",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "a directory must be configured",
+			expectMsgPrefix: "a base directory must be configured",
 			customConfig:    "{}",
 			expectConfig:    nil,
 		},
 		{
 			name:         "valid config",
-			expectConfig: &configuration{Directory: t.TempDir()},
+			expectConfig: &configuration{BaseDir: t.TempDir()},
 			expectCode:   codes.OK,
 		},
 		{
@@ -101,7 +101,7 @@ func TestConfigure(t *testing.T) {
 				options = append(options, plugintest.Configure(tt.customConfig))
 			} else {
 				options = append(options, plugintest.ConfigureJSON(configuration{
-					Directory: tt.expectConfig.Directory,
+					BaseDir: tt.expectConfig.BaseDir,
 				}))
 			}
 
@@ -124,75 +124,97 @@ func TestPutX509SVID(t *testing.T) {
 	x509Bundle, err := pemutil.ParseCertificate([]byte(x509BundlePem))
 	require.NoError(t, err)
 
+	u, err := user.Current()
+	require.NoError(t, err)
+
 	for _, tt := range []struct {
 		name string
 
 		req           *svidstore.X509SVID
 		expectCode    codes.Code
 		expectMsg     string
+		subDir        string
+		groupID       string
+		groupName     string
 		certChainFile string
 		keyFile       string
 		bundleFile    string
 	}{
 		{
 			name:          "successful",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
-			bundleFile:    "workload-1/ca.crt",
+			subDir:        "workload-1",
+			groupID:       u.Gid,
+			certChainFile: "custom_tls.crt",
+			keyFile:       "custom_tls.key",
+			bundleFile:    "custom_ca.crt",
 		},
 		{
-			name:          "base dir",
-			certChainFile: "/tls.crt",
+			name:    "successful - default file names",
+			subDir:  "workload-1",
+			groupID: u.Gid,
+		},
+		{
+			name:          "no subdir",
+			groupID:       u.Gid,
+			certChainFile: "tls.crt",
 			keyFile:       "tls.key",
-			bundleFile:    "./ca.crt",
+			bundleFile:    "ca.crt",
 			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): files cannot reside in the base directory`,
+			expectMsg:     `svidstore(disk): sub_dir must be specified`,
 		},
 		{
-			name:          "different dir",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-2/tls.key",
-			bundleFile:    "workload-1/ca.crt",
-			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): files must be in the same directory`,
+			name:       "no group",
+			subDir:     "workload-1",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `svidstore(disk): either group_id or group_name must be specified`,
 		},
 		{
-			name:          "no key file name",
-			certChainFile: "workload-1/tls.crt",
-			bundleFile:    "workload-1/ca.crt",
-			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): "keyfile" must be specified`,
+			name:       "group ID and group name",
+			groupID:    "20",
+			groupName:  "staff",
+			subDir:     "workload-1",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `svidstore(disk): either group_id or group_name must be specified, not both`,
 		},
 		{
-			name:          "no bundle file name",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
+			name:          "invalid subdir",
+			subDir:        "../invalid/path",
+			groupID:       u.Gid,
+			certChainFile: "tls.crt",
+			keyFile:       "tls.key",
+			bundleFile:    "ca.crt",
 			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): "bundlefile" must be specified`,
+			expectMsg:     `svidstore(disk): invalid subdir: cannot contain ".."`,
 		},
 		{
-			name:          "invalid cert file name",
-			certChainFile: "workload-1/../workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
-			bundleFile:    "workload-1/ca.crt",
+			name:          "invalid cert chain file name",
+			subDir:        "workload-1",
+			groupID:       u.Gid,
+			certChainFile: "/path/to/tls.crt",
+			keyFile:       "tls.key",
+			bundleFile:    "ca.crt",
 			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): invalid "certchainfile": cannot contain ".."`,
+			expectMsg:     `svidstore(disk): invalid "cert_chain_file": must be a file name, not a file path`,
 		},
 		{
 			name:          "invalid key file name",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/../workload-1/tls.key",
-			bundleFile:    "workload-1/ca.crt",
+			subDir:        "workload-1",
+			groupID:       u.Gid,
+			certChainFile: "tls.crt",
+			keyFile:       "/path/to/tls.key",
+			bundleFile:    "ca.crt",
 			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): invalid "keyfile": cannot contain ".."`,
+			expectMsg:     `svidstore(disk): invalid "key_file": must be a file name, not a file path`,
 		},
 		{
 			name:          "invalid bundle file name",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
-			bundleFile:    "workload-1/../workload-1/ca.crt",
+			subDir:        "workload-1",
+			groupID:       u.Gid,
+			certChainFile: "tls.crt",
+			keyFile:       "tls.key",
+			bundleFile:    "/path/to/ca.crt",
 			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): invalid "bundlefile": cannot contain ".."`,
+			expectMsg:     `svidstore(disk): invalid "bundle_file": must be a file name, not a file path`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -206,7 +228,7 @@ func TestPutX509SVID(t *testing.T) {
 				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
-				plugintest.ConfigureJSON(&configuration{Directory: t.TempDir()}),
+				plugintest.ConfigureJSON(&configuration{BaseDir: t.TempDir()}),
 			}
 			ss := new(svidstore.V1)
 			plugintest.Load(t, builtin(p), ss,
@@ -221,7 +243,7 @@ func TestPutX509SVID(t *testing.T) {
 					Bundle:     []*x509.Certificate{x509Bundle},
 					ExpiresAt:  time.Now(),
 				},
-				Metadata: buildMetadata(t, tt.certChainFile, tt.keyFile, tt.bundleFile)})
+				Metadata: buildMetadata(tt.subDir, tt.groupID, tt.groupName, tt.certChainFile, tt.keyFile, tt.bundleFile)})
 
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
@@ -229,15 +251,24 @@ func TestPutX509SVID(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			certChain, err := pemutil.LoadCertificate(filepath.Join(p.config.Directory, tt.certChainFile))
+			if tt.certChainFile == "" {
+				tt.certChainFile = defaultCertChainFileName
+			}
+			if tt.keyFile == "" {
+				tt.keyFile = defaultKeyFileName
+			}
+			if tt.bundleFile == "" {
+				tt.bundleFile = defaultBundleFileName
+			}
+			certChain, err := pemutil.LoadCertificate(filepath.Join(p.config.BaseDir, tt.subDir, tt.certChainFile))
 			require.NoError(t, err)
 			require.Equal(t, x509Cert, certChain)
 
-			key, err := pemutil.LoadPrivateKey(filepath.Join(p.config.Directory, tt.keyFile))
+			key, err := pemutil.LoadPrivateKey(filepath.Join(p.config.BaseDir, tt.subDir, tt.keyFile))
 			require.NoError(t, err)
 			require.Equal(t, x509Key, key)
 
-			bundle, err := pemutil.LoadCertificate(filepath.Join(p.config.Directory, tt.bundleFile))
+			bundle, err := pemutil.LoadCertificate(filepath.Join(p.config.BaseDir, tt.subDir, tt.bundleFile))
 			require.NoError(t, err)
 			require.Equal(t, x509Bundle, bundle)
 		})
@@ -246,11 +277,16 @@ func TestPutX509SVID(t *testing.T) {
 
 func TestDeleteX509SVID(t *testing.T) {
 	baseDir := t.TempDir()
+	u, err := user.Current()
+	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name          string
 		expectCode    codes.Code
 		expectMsg     string
+		subDir        string
+		groupID       string
+		groupName     string
 		certChainFile string
 		keyFile       string
 		bundleFile    string
@@ -259,64 +295,85 @@ func TestDeleteX509SVID(t *testing.T) {
 	}{
 		{
 			name:          "successful - existing files",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
-			bundleFile:    "workload-1/ca.crt",
+			subDir:        "workload-1",
+			groupID:       u.Gid,
+			certChainFile: "custom_tls.crt",
+			keyFile:       "custom_tls.key",
+			bundleFile:    "custom_ca.crt",
 			existingFiles: []string{
-				filepath.Join(baseDir, "workload-1/tls.crt"),
-				filepath.Join(baseDir, "workload-1/tls.key"),
-				filepath.Join(baseDir, "workload-1/ca.crt"),
+				filepath.Join(baseDir, "workload-1/custom_tls.crt"),
+				filepath.Join(baseDir, "workload-1/custom_tls.key"),
+				filepath.Join(baseDir, "workload-1/custom_ca.crt"),
+			},
+		},
+		{
+			name:    "successful - default file names - existing files",
+			subDir:  "workload-1",
+			groupID: u.Gid,
+			existingFiles: []string{
+				filepath.Join(baseDir, "workload-1", defaultCertChainFileName),
+				filepath.Join(baseDir, "workload-1", defaultKeyFileName),
+				filepath.Join(baseDir, "workload-1", defaultBundleFileName),
 			},
 		},
 		{
 			name:          "successful - files already deleted",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
-			bundleFile:    "workload-1/ca.crt",
+			subDir:        "workload-1",
+			groupID:       u.Gid,
+			certChainFile: "custom_tls.crt",
+			keyFile:       "custom_tls.key",
+			bundleFile:    "custom_ca.crt",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
 					Message: "Could not delete certificate chain file. File not found",
 					Data: logrus.Fields{
-						"file_path": filepath.Join(baseDir, "workload-1/tls.crt"),
+						"file_path": filepath.Join(baseDir, "workload-1/custom_tls.crt"),
 					},
 				},
 				{
 					Level:   logrus.WarnLevel,
 					Message: "Could not delete key file. File not found",
 					Data: logrus.Fields{
-						"file_path": filepath.Join(baseDir, "workload-1/tls.key"),
+						"file_path": filepath.Join(baseDir, "workload-1/custom_tls.key"),
 					},
 				},
 				{
 					Level:   logrus.WarnLevel,
 					Message: "Could not delete bundle file. File not found",
 					Data: logrus.Fields{
-						"file_path": filepath.Join(baseDir, "workload-1/ca.crt"),
+						"file_path": filepath.Join(baseDir, "workload-1/custom_ca.crt"),
 					},
 				},
 			},
 		},
 		{
-			name:       "no cert file name",
-			keyFile:    "workload-1/tls.key",
-			bundleFile: "workload-1/ca.crt",
-			expectCode: codes.InvalidArgument,
-			expectMsg:  `svidstore(disk): "certchainfile" must be specified`,
-		},
-		{
-			name:          "no key file name",
-			certChainFile: "workload-1/tls.crt",
-			bundleFile:    "workload-1/ca.crt",
-			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): "keyfile" must be specified`,
-		},
-		{
-			name:          "no bundle file name",
-			certChainFile: "workload-1/tls.crt",
-			keyFile:       "workload-1/tls.key",
-			expectCode:    codes.InvalidArgument,
-			expectMsg:     `svidstore(disk): "bundlefile" must be specified`,
+			name:    "successful - default file names - files already deleted",
+			subDir:  "workload-1",
+			groupID: u.Gid,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not delete certificate chain file. File not found",
+					Data: logrus.Fields{
+						"file_path": filepath.Join(baseDir, "workload-1", defaultCertChainFileName),
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not delete key file. File not found",
+					Data: logrus.Fields{
+						"file_path": filepath.Join(baseDir, "workload-1", defaultKeyFileName),
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not delete bundle file. File not found",
+					Data: logrus.Fields{
+						"file_path": filepath.Join(baseDir, "workload-1", defaultBundleFileName),
+					},
+				},
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -331,7 +388,7 @@ func TestDeleteX509SVID(t *testing.T) {
 				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
-				plugintest.ConfigureJSON(&configuration{Directory: baseDir}),
+				plugintest.ConfigureJSON(&configuration{BaseDir: baseDir}),
 				plugintest.Log(log),
 			}
 			ss := new(svidstore.V1)
@@ -339,13 +396,13 @@ func TestDeleteX509SVID(t *testing.T) {
 				options...,
 			)
 			createFiles(t, tt.existingFiles)
-			err = ss.DeleteX509SVID(ctx, buildMetadata(t, tt.certChainFile, tt.keyFile, tt.bundleFile))
+			err = ss.DeleteX509SVID(ctx, buildMetadata(tt.subDir, tt.groupID, tt.groupName, tt.certChainFile, tt.keyFile, tt.bundleFile))
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
 			if tt.expectCode != codes.OK {
 				return
 			}
-			require.NoFileExists(t, filepath.Join(p.config.Directory, tt.bundleFile))
+			require.NoFileExists(t, filepath.Join(p.config.BaseDir, tt.bundleFile))
 			require.NoError(t, err)
 		})
 	}
@@ -360,14 +417,13 @@ func createFiles(t *testing.T, files []string) {
 	}
 }
 
-func buildMetadata(t *testing.T, certChainFile, keyFile, bundleFile string) []string {
-	u, err := user.Current()
-	require.NoError(t, err)
-
+func buildMetadata(subDir, groupID, grpupName, certChainFile, keyFile, bundleFile string) []string {
 	return []string{
-		fmt.Sprintf("certchainfile:%s", certChainFile),
-		fmt.Sprintf("keyfile:%s", keyFile),
-		fmt.Sprintf("bundlefile:%s", bundleFile),
-		fmt.Sprintf("gid:%s", u.Gid),
+		fmt.Sprintf("sub_dir:%s", subDir),
+		fmt.Sprintf("cert_chain_file:%s", certChainFile),
+		fmt.Sprintf("key_file:%s", keyFile),
+		fmt.Sprintf("bundle_file:%s", bundleFile),
+		fmt.Sprintf("group_id:%s", groupID),
+		fmt.Sprintf("group_name:%s", grpupName),
 	}
 }
