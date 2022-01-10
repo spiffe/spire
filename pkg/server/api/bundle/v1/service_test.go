@@ -2912,7 +2912,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.isAdmin {
-			ctx = rpccontext.WithCallerAdminEntries(ctx, []*types.Entry{{Admin: true}})
+			ctx = rpccontext.WithAdminCaller(ctx)
 		}
 		if test.isAgent {
 			ctx = rpccontext.WithAgentCaller(ctx)

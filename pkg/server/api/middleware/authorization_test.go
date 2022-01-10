@@ -57,7 +57,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		},
 	}
 
-	adminx509SVID := &x509.Certificate{URIs: []*url.URL{adminID.URL()}}
+	adminX509SVID := &x509.Certificate{URIs: []*url.URL{adminID.URL()}}
 	adminPeer := &peer.Peer{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("2.2.2.2"),
@@ -66,12 +66,26 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		AuthInfo: credentials.TLSInfo{
 			State: tls.ConnectionState{
 				HandshakeComplete: true,
-				PeerCertificates:  []*x509.Certificate{adminx509SVID},
+				PeerCertificates:  []*x509.Certificate{adminX509SVID},
 			},
 		},
 	}
 
-	downstreamx509SVID := &x509.Certificate{URIs: []*url.URL{downstreamID.URL()}}
+	staticAdminX509SVID := &x509.Certificate{URIs: []*url.URL{staticAdminID.URL()}}
+	staticAdminPeer := &peer.Peer{
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("2.2.2.2"),
+			Port: 2,
+		},
+		AuthInfo: credentials.TLSInfo{
+			State: tls.ConnectionState{
+				HandshakeComplete: true,
+				PeerCertificates:  []*x509.Certificate{staticAdminX509SVID},
+			},
+		},
+	}
+
+	downstreamX509SVID := &x509.Certificate{URIs: []*url.URL{downstreamID.URL()}}
 	downstreamPeer := &peer.Peer{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("2.2.2.2"),
@@ -80,7 +94,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		AuthInfo: credentials.TLSInfo{
 			State: tls.ConnectionState{
 				HandshakeComplete: true,
-				PeerCertificates:  []*x509.Certificate{downstreamx509SVID},
+				PeerCertificates:  []*x509.Certificate{downstreamX509SVID},
 			},
 		},
 	}
@@ -92,6 +106,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		peer            *peer.Peer
 		rego            string
 		agentAuthorizer middleware.AgentAuthorizer
+		adminIDs        []spiffeid.ID
 		authorizerErr   error
 		expectCode      codes.Code
 		expectMsg       string
@@ -138,6 +153,16 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			name:       "allow_if_admin admin caller test",
 			fullMethod: fakeFullMethod,
 			peer:       adminPeer,
+			rego: simpleRego(map[string]bool{
+				"allow_if_admin": true,
+			}),
+			expectCode: codes.OK,
+		},
+		{
+			name:       "allow_if_admin static admin caller test",
+			fullMethod: fakeFullMethod,
+			peer:       staticAdminPeer,
+			adminIDs:   []spiffeid.ID{staticAdminID},
 			rego: simpleRego(map[string]bool{
 				"allow_if_admin": true,
 			}),
@@ -265,7 +290,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			if tt.agentAuthorizer == nil {
 				tt.agentAuthorizer = noAgentAuthorizer
 			}
-			m := middleware.WithAuthorization(policyEngine, entryFetcher, tt.agentAuthorizer)
+			m := middleware.WithAuthorization(policyEngine, entryFetcher, tt.agentAuthorizer, tt.adminIDs)
 
 			// Set up the incoming context with a logger and optionally a peer.
 			log, _ := test.NewNullLogger()
@@ -292,7 +317,7 @@ func TestWithAuthorizationPostprocess(t *testing.T) {
 	ctx := context.Background()
 	policyEngine, err := authpolicy.DefaultAuthPolicy(ctx)
 	require.NoError(t, err, "failed to initialize policy engine")
-	m := middleware.WithAuthorization(policyEngine, entryFetcher, yesAgentAuthorizer)
+	m := middleware.WithAuthorization(policyEngine, entryFetcher, yesAgentAuthorizer, nil)
 
 	m.Postprocess(context.Background(), "", false, nil)
 	m.Postprocess(context.Background(), "", true, errors.New("ohno"))
@@ -304,6 +329,8 @@ var (
 		{Id: "1", Admin: true},
 		{Id: "2"},
 	}
+
+	staticAdminID = spiffeid.Must("example.org", "static-admin")
 
 	nonAdminID      = spiffeid.Must("example.org", "non-admin")
 	nonAdminEntries = []*types.Entry{

@@ -77,6 +77,10 @@ type Config struct {
 
 	AuditLogEnabled bool
 
+	// AdminIDs are a list of fixed IDs that when presented by a caller in an
+	// X509-SVID, are granted admin rights.
+	AdminIDs []spiffeid.ID
+
 	BundleManager *bundle_client.Manager
 }
 

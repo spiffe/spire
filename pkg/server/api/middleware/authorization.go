@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -13,11 +14,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func WithAuthorization(authPolicyEngine *authpolicy.Engine, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) middleware.Middleware {
+func WithAuthorization(authPolicyEngine *authpolicy.Engine, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer, adminIDs []spiffeid.ID) middleware.Middleware {
 	return &authorizationMiddleware{
 		authPolicyEngine: authPolicyEngine,
 		entryFetcher:     entryFetcher,
 		agentAuthorizer:  agentAuthorizer,
+		adminIDs:         adminIDSet(adminIDs),
 	}
 }
 
@@ -25,6 +27,7 @@ type authorizationMiddleware struct {
 	authPolicyEngine *authpolicy.Engine
 	entryFetcher     EntryFetcher
 	agentAuthorizer  AgentAuthorizer
+	adminIDs         map[spiffeid.ID]struct{}
 }
 
 func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string, req interface{}) (context.Context, error) {
@@ -67,4 +70,12 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 
 func (m *authorizationMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {
 	// Intentionally empty.
+}
+
+func adminIDSet(ids []spiffeid.ID) map[spiffeid.ID]struct{} {
+	set := make(map[spiffeid.ID]struct{})
+	for _, id := range ids {
+		set[id] = struct{}{}
+	}
+	return set
 }

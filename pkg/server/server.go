@@ -322,6 +322,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		AuditLogEnabled:     s.config.AuditLogEnabled,
 		AuthPolicyEngine:    authPolicyEngine,
 		BundleManager:       bundleManager,
+		AdminIDs:            s.config.AdminIDs,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

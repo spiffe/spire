@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
@@ -34,7 +35,7 @@ func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, 
 		return ctx, false, err
 	}
 
-	ctx, allow, err := reconcileResult(ctx, result, m.entryFetcher, m.agentAuthorizer)
+	ctx, allow, err := m.reconcileResult(ctx, result)
 	if err != nil {
 		return ctx, false, err
 	}
@@ -42,7 +43,7 @@ func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, 
 	return ctx, allow, nil
 }
 
-func reconcileResult(ctx context.Context, res authpolicy.Result, entryFetcher EntryFetcher, agentAuthorizer AgentAuthorizer) (context.Context, bool, error) {
+func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authpolicy.Result) (context.Context, bool, error) {
 	// Check things in order of cost
 	if res.Allow {
 		return ctx, true, nil
@@ -53,33 +54,37 @@ func reconcileResult(ctx context.Context, res authpolicy.Result, entryFetcher En
 		return ctx, true, nil
 	}
 
-	// Get entries
+	// Check statically configured admin entries
+	if res.AllowIfAdmin {
+		if ctx, ok := isAdminViaConfig(ctx, m.adminIDs); ok {
+			return ctx, true, nil
+		}
+	}
+
+	// Check entry-based admin and downstream auth
 	if res.AllowIfAdmin || res.AllowIfDownstream {
-		ctx, entries, err := WithCallerEntries(ctx, entryFetcher)
+		ctx, entries, err := WithCallerEntries(ctx, m.entryFetcher)
 		if err != nil {
 			return ctx, false, err
 		}
 
 		if res.AllowIfAdmin {
-			if ctx, ok := isAdmin(ctx, entries); ok {
+			if ctx, ok := isAdminViaEntry(ctx, entries); ok {
 				return ctx, true, nil
 			}
 		}
 
 		if res.AllowIfDownstream {
-			if ctx, ok := isDownstream(ctx, entries); ok {
+			if ctx, ok := isDownstreamViaEntry(ctx, entries); ok {
 				return ctx, true, nil
 			}
 		}
 	}
 
 	if res.AllowIfAgent && !rpccontext.CallerIsLocal(ctx) {
-		ctx, isAgent, err := isAgent(ctx, agentAuthorizer)
-		if err != nil {
+		if ctx, ok, err := isAgent(ctx, m.agentAuthorizer); err != nil {
 			return ctx, false, err
-		}
-
-		if isAgent {
+		} else if ok {
 			return ctx, true, nil
 		}
 	}
@@ -87,21 +92,25 @@ func reconcileResult(ctx context.Context, res authpolicy.Result, entryFetcher En
 	return ctx, false, nil
 }
 
-func isAdmin(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
-	adminEntries := make([]*types.Entry, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Admin {
-			adminEntries = append(adminEntries, entry)
+func isAdminViaConfig(ctx context.Context, adminIDs map[spiffeid.ID]struct{}) (context.Context, bool) {
+	if callerID, ok := rpccontext.CallerID(ctx); ok {
+		if _, ok := adminIDs[callerID]; ok {
+			return rpccontext.WithAdminCaller(ctx), true
 		}
 	}
-
-	if len(adminEntries) == 0 {
-		return ctx, false
-	}
-	return rpccontext.WithCallerAdminEntries(ctx, adminEntries), true
+	return ctx, false
 }
 
-func isDownstream(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
+func isAdminViaEntry(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
+	for _, entry := range entries {
+		if entry.Admin {
+			return rpccontext.WithAdminCaller(ctx), true
+		}
+	}
+	return ctx, false
+}
+
+func isDownstreamViaEntry(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
 	downstreamEntries := make([]*types.Entry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Downstream {

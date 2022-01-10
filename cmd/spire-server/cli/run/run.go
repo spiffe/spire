@@ -64,6 +64,7 @@ type Config struct {
 }
 
 type serverConfig struct {
+	AdminIDs        []string           `hcl:"admin_ids"`
 	AgentTTL        string             `hcl:"agent_ttl"`
 	AuditLogEnabled bool               `hcl:"audit_log_enabled"`
 	BindAddress     string             `hcl:"bind_address"`
@@ -440,6 +441,17 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingPort = c.Server.ProfilingPort
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
+
+	for _, adminID := range c.Server.AdminIDs {
+		id, err := spiffeid.FromString(adminID)
+		switch {
+		case err != nil:
+			return nil, fmt.Errorf("could not parse admin ID %q: %w", adminID, err)
+		case !id.MemberOf(sc.TrustDomain):
+			return nil, fmt.Errorf("admin ID %q does not belong to trust domain %q", id, sc.TrustDomain)
+		}
+		sc.AdminIDs = append(sc.AdminIDs, id)
+	}
 
 	if c.Server.AgentTTL != "" {
 		ttl, err := time.ParseDuration(c.Server.AgentTTL)

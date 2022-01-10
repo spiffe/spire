@@ -51,8 +51,9 @@ This may be useful for templating configuration files, for example across differ
 
 | Configuration               | Description                                                                                                                    | Default                                                        |
 |:----------------------------|:-------------------------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------|
-| `audit_log_enabled`         | If true, enables audit logging                                                                                                 | false                                                          |
+| `admin_ids`                 | SPIFFE IDs that, when present in a caller's X509-SVID, grant that caller admin privileges. The admin IDs must reside in the same trust domain as the server. | |
 | `agent_ttl`                 | The TTL to use for agent SVIDs                                                                                                 | The value of `default_svid_ttl`                                |
+| `audit_log_enabled`         | If true, enables audit logging                                                                                                 | false                                                          |
 | `bind_address`              | IP address or DNS name of the SPIRE server                                                                                     | 0.0.0.0                                                        |
 | `bind_port`                 | HTTP Port number of the SPIRE server                                                                                           | 8081                                                           |
 | `ca_key_type`               | The key type used for the server CA (both X509 and JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                              | ec-p256 (the JWT key type can be overridden by `jwt_key_type`) |
