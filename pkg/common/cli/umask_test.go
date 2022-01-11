@@ -40,7 +40,7 @@ func TestUmask(t *testing.T) {
 	for _, testCase := range testCases {
 		log, hook := test.NewNullLogger()
 		t.Logf("test case: %+v", testCase)
-		setUmask(testCase.Initial)
+		_ = setUmask(testCase.Initial)
 		SetUmask(log)
 		actualUmask := setUmask(0022)
 		assert.Equal(t, testCase.Expected, actualUmask, "umask")

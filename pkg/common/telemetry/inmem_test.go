@@ -3,7 +3,7 @@ package telemetry
 import (
 	"context"
 	"os"
-	"syscall"
+	"runtime"
 	"testing"
 	"time"
 
@@ -70,6 +70,10 @@ func TestDisabledNewInmemRunner(t *testing.T) {
 }
 
 func TestWarnOnFutureDisable(t *testing.T) {
+	// It is not possible to send signals to process on windows except for kill
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
 	logger, hook := test.NewNullLogger()
 
 	// Get a real logrus.Entry
@@ -94,7 +98,9 @@ func TestWarnOnFutureDisable(t *testing.T) {
 	// Send signal, wait for signal handling + logging
 	util.RunWithTimeout(t, time.Minute, func() {
 		for {
-			require.NoError(t, syscall.Kill(os.Getpid(), metrics.DefaultSignal))
+			p, err := os.FindProcess(os.Getpid())
+			require.NoError(t, err)
+			require.NoError(t, p.Signal(metrics.DefaultSignal))
 
 			require.NoError(t, ctx.Err())
 

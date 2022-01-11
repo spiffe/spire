@@ -23,12 +23,6 @@ type Config struct {
 	// LogRequests is a debug option that logs all incoming requests
 	LogRequests bool `hcl:"log_requests"`
 
-	// Domain is the domain this provider will be hosted under. It is used
-	// when obtaining certs via ACME (unless ListenSocketPath is specified).
-	// Deprecated. Domains should be used instead.
-	// Deprecated: remove in 1.2.0
-	Domain string `hcl:"domain"`
-
 	// Domains are the domains this provider will be hosted under. Incoming requests
 	// that are not received on (or proxied through) one of the domains specified by this list
 	// are rejected.
@@ -141,16 +135,10 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.LogLevel = defaultLogLevel
 	}
 
-	switch {
-	case c.Domain == "" && len(c.Domains) == 0:
+	if len(c.Domains) == 0 {
 		return nil, errs.New("at least one domain must be configured")
-	case c.Domain != "" && len(c.Domains) == 0:
-		c.Domains = []string{c.Domain}
-	case c.Domain == "" && len(c.Domains) > 0:
-		c.Domains = dedupeList(c.Domains)
-	case c.Domain != "" && len(c.Domains) > 0:
-		return nil, errs.New("domain is deprecated and will be removed in a future release; please use domains instead")
 	}
+	c.Domains = dedupeList(c.Domains)
 
 	if c.ACME != nil {
 		c.ACME.CacheDir = defaultCacheDir

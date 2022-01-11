@@ -3,6 +3,7 @@ package federation
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -10,6 +11,7 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -182,7 +184,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:   "Non-existent bundle file",
 			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "spiffe://td.org/bundle", "-trustDomainBundlePath", "non-existent-path", "-bundleEndpointProfile", profileHTTPSWeb},
-			expErr: "Error: cannot read bundle file: open non-existent-path: no such file or directory\n",
+			expErr: fmt.Sprintf("Error: cannot read bundle file: open non-existent-path: %s\n", spiretest.FileNotFound()),
 		},
 		{
 			name:   "Corrupted bundle file",
@@ -318,7 +320,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 		{
 			name:   "Loading federation relationships from JSON file: invalid path",
 			args:   []string{"-data", "somePath"},
-			expErr: "Error: open somePath: no such file or directory\n",
+			expErr: fmt.Sprintf("Error: open somePath: %s\n", spiretest.FileNotFound()),
 		},
 		{
 			name:   "Loading federation relationships from JSON file: no a json",

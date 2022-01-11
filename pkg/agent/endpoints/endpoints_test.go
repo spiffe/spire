@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -37,6 +38,11 @@ import (
 )
 
 func TestEndpoints(t *testing.T) {
+	// TODO: Endpoint uses peertracker that is not compatible with Windows.
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -235,7 +241,7 @@ func TestEndpoints(t *testing.T) {
 				Backoff: backoff.DefaultConfig,
 			}
 			connectParams.Backoff.BaseDelay = 5 * time.Millisecond
-			conn, err := grpc.DialContext(ctx, "unix:///"+udsPath,
+			conn, err := grpc.DialContext(ctx, "unix:"+udsPath,
 				grpc.WithReturnConnectionError(),
 				grpc.WithConnectParams(connectParams),
 				grpc.WithInsecure())

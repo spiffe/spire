@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"runtime"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
@@ -76,8 +77,11 @@ func (c *healthCheckCommand) run() error {
 	if err != nil {
 		return err
 	}
-
-	conn, err := grpc.DialContext(context.Background(), "unix://"+socketPath, grpc.WithInsecure())
+	if runtime.GOOS == "windows" {
+		// filepath.Abs on Windows  uses "\\" as separator, use "/" instead
+		socketPath = filepath.ToSlash(socketPath)
+	}
+	conn, err := grpc.DialContext(context.Background(), "unix:"+socketPath, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}

@@ -311,7 +311,7 @@ func (a *Agent) checkWorkloadAPI() error {
 		return err
 	}
 	_, err = workloadapi.FetchX509Bundles(context.TODO(),
-		workloadapi.WithAddr("unix://"+socketPath))
+		workloadapi.WithAddr("unix:"+socketPath))
 	if status.Code(err) == codes.Unavailable {
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")
