@@ -57,7 +57,7 @@ func TestCreateToken(t *testing.T) {
 			args: []string{
 				"-spiffeID", "invalid id",
 			},
-			expectedStderr: "Error: spiffeid: invalid scheme\n",
+			expectedStderr: "Error: scheme is missing or invalid\n",
 		},
 		{
 			name: "server fails to create token",

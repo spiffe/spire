@@ -133,11 +133,6 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:           "invalid trust domain ID",
-			expectedStderr: "Error: \"spiffe://otherdomain.test/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n",
-			args:           []string{"-id", "spiffe://otherdomain.test/spire/server"},
-		},
-		{
-			name:           "invalid trust domain ID",
 			expectedStderr: "Error: unable to parse bundle data: no PEM blocks\n",
 			args:           []string{"-id", "spiffe://otherdomain.test"},
 		},
@@ -146,12 +141,6 @@ func TestSet(t *testing.T) {
 			stdin:          cert1PEM,
 			args:           []string{"-id", "spiffe://otherdomain.test", "-format", "invalidFormat"},
 			expectedStderr: "Error: invalid format: \"invalidformat\"\n",
-		},
-		{
-			name:           "invalid trustdomain",
-			stdin:          cert1PEM,
-			args:           []string{"-id", "otherdomain test"},
-			expectedStderr: "Error: \"otherdomain%20test\" is not a valid trust domain SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name:           "invalid bundle (pem)",
@@ -527,11 +516,6 @@ func TestList(t *testing.T) {
 			expectedStdout: cert2PEM,
 		},
 		{
-			name:           "one bundle invalid id",
-			args:           []string{"-id", "spiffe://domain2.test/host"},
-			expectedStderr: "Error: \"spiffe://domain2.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
-		},
-		{
 			name:           "one bundle server fails",
 			args:           []string{"-id", "spiffe://domain2.test"},
 			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
@@ -694,11 +678,6 @@ func TestDelete(t *testing.T) {
 			name:           "invalid mode",
 			args:           []string{"-id", "spiffe://domain1.test", "-mode", "invalid"},
 			expectedStderr: "Error: unsupported mode \"invalid\"\n",
-		},
-		{
-			name:           "invalid id",
-			args:           []string{"-id", "spiffe://domain1.test/host"},
-			expectedStderr: "Error: \"spiffe://domain1.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
 		},
 		{
 			name:           "server fails",

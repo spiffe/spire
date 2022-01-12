@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"fmt"
 	"time"
 
 	"github.com/imkira/go-observer"
@@ -88,8 +89,14 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
+	serverID, err := idutil.ServerID(r.c.TrustDomain)
+	if err != nil {
+		// this should never fail; it is purely defensive
+		return fmt.Errorf("unable to determine server ID: %w", err)
+	}
+
 	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  idutil.ServerID(r.c.TrustDomain),
+		SpiffeID:  serverID,
 		PublicKey: signer.Public(),
 	})
 	if err != nil {

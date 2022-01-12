@@ -37,7 +37,7 @@ func TestServiceCheck(t *testing.T) {
 	}
 
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
+	x509SVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/workload"))
 	bundle := ca.X509Bundle()
 
 	for _, tt := range []struct {

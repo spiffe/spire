@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/hcl"
 
 	hclog "github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -66,7 +67,7 @@ type IITAttestorPlugin struct {
 // IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
 	idPathTemplate      *agentpathtemplate.Template
-	trustDomain         string
+	trustDomain         spiffeid.TrustDomain
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
@@ -120,9 +121,9 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
 	}
 
-	id, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityMetadata)
+	id, err := gcp.MakeAgentID(c.trustDomain, c.idPathTemplate, identityMetadata)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create spiffe ID: %v", err)
+		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
 
 	attested, err := p.IsAttested(stream.Context(), id.String())
@@ -178,7 +179,11 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	if req.CoreConfiguration.TrustDomain == "" {
 		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
-	hclConfig.trustDomain = req.CoreConfiguration.TrustDomain
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+	}
 
 	if len(hclConfig.ProjectIDAllowList) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "projectid_allow_list is required")
@@ -212,6 +217,7 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	}
 
 	hclConfig.idPathTemplate = tmpl
+	hclConfig.trustDomain = trustDomain
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()

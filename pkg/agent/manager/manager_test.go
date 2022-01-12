@@ -49,8 +49,8 @@ import (
 
 var (
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
-	agentID     = trustDomain.NewID("agent")
-	joinTokenID = trustDomain.NewID("spire/agent/join_token/abcd")
+	agentID     = spiffeid.RequireFromPath(trustDomain, "/agent")
+	joinTokenID = spiffeid.RequireFromPath(trustDomain, "/spire/agent/join_token/abcd")
 
 	serverKey = testkey.MustEC256()
 )
@@ -1107,7 +1107,7 @@ func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 
 	h.rotateCA()
 
-	serverID := idutil.ServerID(trustDomain)
+	serverID := idutil.RequireServerID(trustDomain)
 	h.svid = createSVIDWithKey(t, config.clk, h.ca, h.caKey, serverID, time.Hour, serverKey)
 
 	tlsConfig := &tls.Config{

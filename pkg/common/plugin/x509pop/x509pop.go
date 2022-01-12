@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
@@ -25,7 +26,7 @@ const (
 )
 
 // DefaultAgentPathTemplate is the default template
-var DefaultAgentPathTemplate = agentpathtemplate.MustParse("{{ .PluginName }}/{{ .Fingerprint }}")
+var DefaultAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .Fingerprint }}")
 
 type agentPathTemplateData struct {
 	*x509.Certificate
@@ -263,17 +264,18 @@ func Fingerprint(cert *x509.Certificate) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// MakeSpiffeID creates a SPIFFE ID from X.509 Certificate data.
-func MakeSpiffeID(trustDomain string, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate) (string, error) {
+// MakeAgentID creates an agent ID from X.509 certificate data.
+func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		Certificate: cert,
 		PluginName:  PluginName,
 		Fingerprint: Fingerprint(cert),
 	})
 	if err != nil {
-		return "", err
+		return spiffeid.ID{}, err
 	}
-	return idutil.AgentURI(trustDomain, agentPath).String(), nil
+
+	return idutil.AgentID(td, agentPath)
 }
 
 func generateNonce() ([]byte, error) {

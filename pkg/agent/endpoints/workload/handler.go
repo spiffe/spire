@@ -172,19 +172,18 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		return nil, err
 	}
 
-	keyStore := keyStoreFromBundles(h.getWorkloadBundles(selectors))
+	keyStore, err := keyStoreFromBundles(h.getWorkloadBundles(selectors))
+	if err != nil {
+		log.WithError(err).Error("Failed to build key store from bundles")
+		return nil, err
+	}
 
-	spiffeID, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
+	id, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})
 	if err != nil {
 		log.WithError(err).Warn("Failed to validate JWT")
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
-	log.WithField(telemetry.SPIFFEID, spiffeID).Debug("Successfully validated JWT")
-
-	id, err := spiffeid.FromString(spiffeID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unexpected SPIFFE ID: %v", err)
-	}
+	log.WithField(telemetry.SPIFFEID, id).Debug("Successfully validated JWT")
 
 	if !id.MemberOf(h.c.TrustDomain) {
 		for claim := range claims {
@@ -201,7 +200,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	}
 
 	return &workload.ValidateJWTSVIDResponse{
-		SpiffeId: spiffeID,
+		SpiffeId: id.String(),
 		Claims:   s,
 	}, nil
 }
@@ -445,12 +444,16 @@ func marshalBundle(certs []*x509.Certificate) []byte {
 	return bundle
 }
 
-func keyStoreFromBundles(bundles []*bundleutil.Bundle) jwtsvid.KeyStore {
-	trustDomainKeys := make(map[string]map[string]crypto.PublicKey)
+func keyStoreFromBundles(bundles []*bundleutil.Bundle) (jwtsvid.KeyStore, error) {
+	trustDomainKeys := make(map[spiffeid.TrustDomain]map[string]crypto.PublicKey)
 	for _, bundle := range bundles {
-		trustDomainKeys[bundle.TrustDomainID()] = bundle.JWTSigningKeys()
+		td, err := spiffeid.TrustDomainFromString(bundle.TrustDomainID())
+		if err != nil {
+			return nil, err
+		}
+		trustDomainKeys[td] = bundle.JWTSigningKeys()
 	}
-	return jwtsvid.NewKeyStore(trustDomainKeys)
+	return jwtsvid.NewKeyStore(trustDomainKeys), nil
 }
 
 func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {

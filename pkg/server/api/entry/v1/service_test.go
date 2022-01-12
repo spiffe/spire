@@ -143,8 +143,8 @@ func TestCountEntries(t *testing.T) {
 
 			for i := 0; i < int(tt.count); i++ {
 				_, err := test.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
-					ParentId: td.NewID(fmt.Sprintf("parent%d", i)).String(),
-					SpiffeId: td.NewID(fmt.Sprintf("child%d", i)).String(),
+					ParentId: spiffeid.RequireFromSegments(td, fmt.Sprintf("parent%d", i)).String(),
+					SpiffeId: spiffeid.RequireFromSegments(td, fmt.Sprintf("child%d", i)).String(),
 					Selectors: []*common.Selector{
 						{Type: "unix", Value: "uid:1000"},
 						{Type: "unix", Value: "gid:1000"},
@@ -172,9 +172,9 @@ func TestCountEntries(t *testing.T) {
 }
 
 func TestListEntries(t *testing.T) {
-	parentID := td.NewID("parent")
-	childID := td.NewID("child")
-	secondChildID := td.NewID("second_child")
+	parentID := spiffeid.RequireFromSegments(td, "parent")
+	childID := spiffeid.RequireFromSegments(td, "child")
+	secondChildID := spiffeid.RequireFromSegments(td, "second_child")
 
 	protoParentID := api.ProtoFromID(parentID)
 	protoChildID := api.ProtoFromID(childID)
@@ -206,7 +206,7 @@ func TestListEntries(t *testing.T) {
 		},
 	}
 	badRegEntry := &common.RegistrationEntry{
-		ParentId: td.NewID("malformed").String(),
+		ParentId: spiffeid.RequireFromSegments(td, "malformed").String(),
 		SpiffeId: "zzz://malformed id",
 		Selectors: []*common.Selector{
 			{Type: "unix", Value: "uid:1001"},
@@ -328,7 +328,7 @@ func TestListEntries(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: fmt.Sprintf("Failed to convert entry: %q", badEntry.EntryId),
 					Data: logrus.Fields{
-						logrus.ErrorKey: `invalid SPIFFE ID: spiffeid: unable to parse: parse "zzz://malformed id": invalid character " " in host name`,
+						logrus.ErrorKey: `invalid SPIFFE ID: scheme is missing or invalid`,
 					},
 				},
 				{
@@ -972,7 +972,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name: "bad parent ID filter",
-			err:  "malformed parent ID filter: trust domain is empty",
+			err:  "malformed parent ID filter: trust domain is missing",
 			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
@@ -984,7 +984,7 @@ func TestListEntries(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed parent ID filter",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "trust domain is empty",
+						logrus.ErrorKey: "trust domain is missing",
 					},
 				},
 				{
@@ -994,14 +994,14 @@ func TestListEntries(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "malformed parent ID filter: trust domain is empty",
+						telemetry.StatusMessage: "malformed parent ID filter: trust domain is missing",
 					},
 				},
 			},
 		},
 		{
 			name: "bad SPIFFE ID filter",
-			err:  "malformed SPIFFE ID filter: trust domain is empty",
+			err:  "malformed SPIFFE ID filter: trust domain is missing",
 			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
@@ -1013,7 +1013,7 @@ func TestListEntries(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed SPIFFE ID filter",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "trust domain is empty",
+						logrus.ErrorKey: "trust domain is missing",
 					},
 				},
 				{
@@ -1023,7 +1023,7 @@ func TestListEntries(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "malformed SPIFFE ID filter: trust domain is empty",
+						telemetry.StatusMessage: "malformed SPIFFE ID filter: trust domain is missing",
 					},
 				},
 			},
@@ -1128,7 +1128,7 @@ func TestListEntries(t *testing.T) {
 		},
 		{
 			name: "bad federates with filter (bad trust domain)",
-			err:  "malformed federates with filter: spiffeid: trust domain is empty",
+			err:  "malformed federates with filter: trust domain is missing",
 			code: codes.InvalidArgument,
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
@@ -1144,7 +1144,7 @@ func TestListEntries(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: malformed federates with filter",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: trust domain is empty",
+						logrus.ErrorKey: "trust domain is missing",
 					},
 				},
 				{
@@ -1154,7 +1154,7 @@ func TestListEntries(t *testing.T) {
 						telemetry.Status:             "error",
 						telemetry.Type:               "audit",
 						telemetry.StatusCode:         "InvalidArgument",
-						telemetry.StatusMessage:      "malformed federates with filter: spiffeid: trust domain is empty",
+						telemetry.StatusMessage:      "malformed federates with filter: trust domain is missing",
 						telemetry.FederatesWith:      "",
 						telemetry.FederatesWithMatch: "MATCH_EXACT",
 					},
@@ -1194,8 +1194,8 @@ func TestGetEntry(t *testing.T) {
 	// Create fedeated bundles, that we use on "FederatesWith"
 	createFederatedBundles(t, test.ds)
 
-	parent := td.NewID("foo")
-	entry1SpiffeID := td.NewID("bar")
+	parent := spiffeid.RequireFromSegments(td, "foo")
+	entry1SpiffeID := spiffeid.RequireFromSegments(td, "bar")
 	expiresAt := time.Now().Unix()
 	goodEntry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		ParentId: parent.String(),
@@ -1385,14 +1385,14 @@ func TestGetEntry(t *testing.T) {
 			name:    "malformed entry",
 			code:    codes.Internal,
 			entryID: malformedEntry.EntryId,
-			err:     "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
+			err:     "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
 						telemetry.RegistrationID: malformedEntry.EntryId,
-						logrus.ErrorKey:          "invalid SPIFFE ID: spiffeid: invalid scheme",
+						logrus.ErrorKey:          "invalid SPIFFE ID: scheme is missing or invalid",
 					},
 				},
 				{
@@ -1402,7 +1402,7 @@ func TestGetEntry(t *testing.T) {
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
 						telemetry.StatusCode:     "Internal",
-						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
+						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
 						telemetry.RegistrationID: malformedEntry.EntryId,
 					},
 				},
@@ -1434,8 +1434,8 @@ func TestGetEntry(t *testing.T) {
 }
 
 func TestBatchCreateEntry(t *testing.T) {
-	entryParentID := td.NewID("foo")
-	entrySpiffeID := td.NewID("bar")
+	entryParentID := spiffeid.RequireFromSegments(td, "foo")
+	entrySpiffeID := spiffeid.RequireFromSegments(td, "bar")
 	expiresAt := time.Now().Unix()
 
 	useDefaultEntryID := "DEFAULT_ENTRY_ID"
@@ -1458,8 +1458,8 @@ func TestBatchCreateEntry(t *testing.T) {
 	// Create a test entry
 	testEntry := &types.Entry{
 		Id:       "entry1",
-		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "host"},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "workload"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 		Selectors: []*types.Selector{
 			{Type: "type", Value: "value1"},
 			{Type: "type", Value: "value2"},
@@ -1603,7 +1603,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					ParentId: &types.SPIFFEID{
 						TrustDomain: "example.org",
-						Path:        "agent",
+						Path:        "/agent",
 					},
 					SpiffeId: &types.SPIFFEID{
 						TrustDomain: "example.org",
@@ -1615,7 +1615,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Id: "entry2",
 					ParentId: &types.SPIFFEID{
 						TrustDomain: "example.org",
-						Path:        "agent",
+						Path:        "/agent",
 					},
 					SpiffeId: &types.SPIFFEID{
 						TrustDomain: "example.org",
@@ -1672,7 +1672,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Id: "entry1",
 					ParentId: &types.SPIFFEID{
 						TrustDomain: "example.org",
-						Path:        "agent",
+						Path:        "/agent",
 					},
 					SpiffeId: &types.SPIFFEID{
 						TrustDomain: "example.org",
@@ -1905,7 +1905,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: trust domain is empty",
+						Message: "failed to convert entry: invalid parent ID: trust domain is missing",
 					},
 				},
 			},
@@ -1914,7 +1914,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "invalid parent ID: trust domain is empty",
+						logrus.ErrorKey: "invalid parent ID: trust domain is missing",
 					},
 				},
 				{
@@ -1930,13 +1930,13 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.TTL:            "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "InvalidArgument",
-						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
+						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
 					},
 				},
 			},
 			reqEntries: []*types.Entry{
 				{
-					ParentId: &types.SPIFFEID{TrustDomain: "", Path: "path"},
+					ParentId: &types.SPIFFEID{TrustDomain: "", Path: "/path"},
 				},
 			},
 		},
@@ -1995,7 +1995,7 @@ func TestBatchCreateEntry(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to convert entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "invalid SPIFFE ID: spiffeid: invalid scheme",
+						logrus.ErrorKey:    "invalid SPIFFE ID: scheme is missing or invalid",
 						telemetry.SPIFFEID: "spiffe://example.org/workload",
 					},
 				},
@@ -2019,7 +2019,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.TTL:            "60",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
-						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
+						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
 					},
 				},
 			},
@@ -2027,7 +2027,7 @@ func TestBatchCreateEntry(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.Internal),
-						Message: "failed to convert entry: invalid SPIFFE ID: spiffeid: invalid scheme",
+						Message: "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
 					},
 				},
 			},
@@ -2036,7 +2036,7 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
 			dsResults: map[string]*common.RegistrationEntry{"entry1": {
 				ParentId: "spiffe://example.org/path",
-				SpiffeId: "invalid id",
+				SpiffeId: "sparfe://invalid/scheme",
 			}},
 		},
 	} {
@@ -2083,23 +2083,23 @@ func TestBatchCreateEntry(t *testing.T) {
 
 func TestBatchDeleteEntry(t *testing.T) {
 	expiresAt := time.Now().Unix()
-	parentID := td.NewID("host").String()
+	parentID := spiffeid.RequireFromSegments(td, "host").String()
 
-	fooSpiffeID := td.NewID("foo").String()
+	fooSpiffeID := spiffeid.RequireFromSegments(td, "foo").String()
 	fooEntry := &common.RegistrationEntry{
 		ParentId:    parentID,
 		SpiffeId:    fooSpiffeID,
 		Selectors:   []*common.Selector{{Type: "not", Value: "relevant"}},
 		EntryExpiry: expiresAt,
 	}
-	barSpiffeID := td.NewID("bar").String()
+	barSpiffeID := spiffeid.RequireFromSegments(td, "bar").String()
 	barEntry := &common.RegistrationEntry{
 		ParentId:    parentID,
 		SpiffeId:    barSpiffeID,
 		Selectors:   []*common.Selector{{Type: "not", Value: "relevant"}},
 		EntryExpiry: expiresAt,
 	}
-	bazSpiffeID := td.NewID("baz").String()
+	bazSpiffeID := spiffeid.RequireFromSegments(td, "baz").String()
 	baz := &common.RegistrationEntry{
 		ParentId:    parentID,
 		SpiffeId:    bazSpiffeID,
@@ -3343,7 +3343,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid spiffe ID: trust domain is empty"},
+						Message: "failed to convert entry: invalid spiffe ID: trust domain is missing"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -3353,7 +3353,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							logrus.ErrorKey:          "invalid spiffe ID: trust domain is empty",
+							logrus.ErrorKey:          "invalid spiffe ID: trust domain is missing",
 						},
 					},
 					{
@@ -3364,7 +3364,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.StatusCode:     "InvalidArgument",
-							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is empty",
+							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is missing",
 						},
 					},
 				}
@@ -3384,7 +3384,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: trust domain is empty"},
+						Message: "failed to convert entry: invalid parent ID: trust domain is missing"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -3394,7 +3394,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							logrus.ErrorKey:          "invalid parent ID: trust domain is empty",
+							logrus.ErrorKey:          "invalid parent ID: trust domain is missing",
 						},
 					},
 					{
@@ -3405,7 +3405,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.StatusCode:     "InvalidArgument",
-							telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
+							telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
 						},
 					},
 				}
@@ -3425,7 +3425,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: trust domain is empty"},
+						Message: "failed to convert entry: invalid parent ID: trust domain is missing"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -3434,7 +3434,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
-							"error":                  "invalid parent ID: trust domain is empty",
+							"error":                  "invalid parent ID: trust domain is missing",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
@@ -3446,7 +3446,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.StatusCode:     "InvalidArgument",
-							telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is empty",
+							telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
 						},
 					},
 				}
@@ -3466,7 +3466,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid spiffe ID: trust domain is empty"},
+						Message: "failed to convert entry: invalid spiffe ID: trust domain is missing"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -3475,7 +3475,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: failed to convert entry",
 						Data: logrus.Fields{
-							"error":                  "invalid spiffe ID: trust domain is empty",
+							"error":                  "invalid spiffe ID: trust domain is missing",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
@@ -3487,7 +3487,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.StatusCode:     "InvalidArgument",
-							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is empty",
+							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is missing",
 						},
 					},
 				}

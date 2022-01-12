@@ -46,7 +46,7 @@ func main() {
 		SerialNumber: big.NewInt(1),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		NotAfter:     neverExpires,
-		Subject:      pkix.Name{CommonName: "some common name"},
+		Subject:      pkix.Name{CommonName: "COMMONNAME"},
 	}, intermediateKey, intermediateCert)
 
 	writeKey("leaf-key.pem", leafKey)

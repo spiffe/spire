@@ -119,15 +119,19 @@ func TestMintX509CA(t *testing.T) {
 	ca := testca.New(t, trustDomain)
 
 	// Create SVID returned when fetching
-	s := ca.CreateX509SVID(trustDomain.NewID("workload"))
+	s := ca.CreateX509SVID(spiffeid.RequireFromPath(trustDomain, "/workload"))
 	svidCert, svidKey, err := s.MarshalRaw()
 	require.NoError(t, err)
 
 	// Create sever's CA
-	serverCert, serverKey := ca.CreateX509Certificate(testca.WithURIs(trustDomain.NewID("/spire/server").URL()))
+	serverCert, serverKey := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/spire/server")),
+	)
 
 	// Create CA for updates
-	serverCertUpdate, _ := ca.CreateX509Certificate(testca.WithURIs(trustDomain.NewID("/another").URL()))
+	serverCertUpdate, _ := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/another")),
+	)
 
 	csr, pubKey, err := util.NewCSRTemplate(trustDomain.IDString())
 	require.NoError(t, err)
@@ -175,7 +179,7 @@ func TestMintX509CA(t *testing.T) {
 				return csr, pubKey
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: "invalid://localhost" is not a valid trust domain SPIFFE ID: invalid scheme`,
+			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: CSR SPIFFE ID "invalid://localhost" is invalid: scheme is missing or invalid`,
 		},
 		{
 			name: "wrong trust domain",
@@ -185,7 +189,7 @@ func TestMintX509CA(t *testing.T) {
 				return csr, pubKey
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: "spiffe://not-trusted" does not belong to trust domain "example.org"`,
+			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: CSR SPIFFE ID "spiffe://not-trusted" is not the trust domain ID for trust domain "example.org"`,
 		},
 		{
 			name: "invalid CSR",
@@ -300,8 +304,12 @@ func TestMintX509CA(t *testing.T) {
 
 func TestPublishJWTKey(t *testing.T) {
 	ca := testca.New(t, trustDomain)
-	serverCert, serverKey := ca.CreateX509Certificate(testca.WithURIs(trustDomain.NewID("/spire/server").URL()))
-	s := ca.CreateX509SVID(trustDomain.NewID("workload"))
+	serverCert, serverKey := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/spire/server")),
+	)
+	s := ca.CreateX509SVID(
+		spiffeid.RequireFromPath(trustDomain, "/workload"),
+	)
 	svidCert, svidKey, err := s.MarshalRaw()
 	require.NoError(t, err)
 

@@ -121,14 +121,14 @@ func TestGetFederationRelationship(t *testing.T) {
 
 			name:        "malformed trust domain",
 			trustDomain: "https://foot.test",
-			err:         "failed to parse trust domain: spiffeid: invalid scheme",
+			err:         "failed to parse trust domain: scheme is missing or invalid",
 			code:        codes.InvalidArgument,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to parse trust domain",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "spiffeid: invalid scheme",
+						logrus.ErrorKey: "scheme is missing or invalid",
 					},
 				},
 				{
@@ -139,7 +139,7 @@ func TestGetFederationRelationship(t *testing.T) {
 						telemetry.Type:          "audit",
 						telemetry.TrustDomainID: "https://foot.test",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "failed to parse trust domain: spiffeid: invalid scheme",
+						telemetry.StatusMessage: "failed to parse trust domain: scheme is missing or invalid",
 					},
 				},
 			},
@@ -790,7 +790,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert federation relationship",
 					Data: logrus.Fields{
-						logrus.ErrorKey:         "failed to parse trust domain: spiffeid: unable to parse: parse \"spiffe://no a td\": invalid character \" \" in host name",
+						logrus.ErrorKey:         "failed to parse trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 						telemetry.TrustDomainID: "no a td",
 					},
 				},
@@ -804,7 +804,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 						telemetry.Type:                  "audit",
 						telemetry.Status:                "error",
 						telemetry.StatusCode:            "InvalidArgument",
-						telemetry.StatusMessage:         "failed to convert federation relationship: failed to parse trust domain: spiffeid: unable to parse: parse \"spiffe://no a td\": invalid character \" \" in host name",
+						telemetry.StatusMessage:         "failed to convert federation relationship: failed to parse trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 			},
@@ -812,7 +812,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: `failed to convert federation relationship: failed to parse trust domain: spiffeid: unable to parse: parse "spiffe://no a td": invalid character " " in host name`,
+						Message: "failed to convert federation relationship: failed to parse trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 			},
@@ -1196,7 +1196,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: "failed to parse trust domain: spiffeid: invalid scheme",
+						Message: "failed to parse trust domain: scheme is missing or invalid",
 					},
 					TrustDomain: "https://foot.test",
 				},
@@ -1206,7 +1206,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to parse trust domain",
 					Data: logrus.Fields{
-						logrus.ErrorKey:         "spiffeid: invalid scheme",
+						logrus.ErrorKey:         "scheme is missing or invalid",
 						telemetry.TrustDomainID: "https://foot.test",
 					},
 				},
@@ -1218,7 +1218,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 						telemetry.TrustDomainID: "https://foot.test",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "failed to parse trust domain: spiffeid: invalid scheme",
+						telemetry.StatusMessage: "failed to parse trust domain: scheme is missing or invalid",
 					},
 				},
 			},
@@ -2078,13 +2078,13 @@ func TestRefreshBundle(t *testing.T) {
 			name:       "trust domain malformed with invalid scheme",
 			td:         "http://malformed.test",
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "invalid trust domain: spiffeid: invalid scheme",
+			expectMsg:  "failed to parse trust domain: scheme is missing or invalid",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid trust domain",
+					Message: "Invalid argument: failed to parse trust domain",
 					Data: logrus.Fields{
-						telemetry.Error: "spiffeid: invalid scheme",
+						telemetry.Error: "scheme is missing or invalid",
 					},
 				},
 				{
@@ -2093,7 +2093,7 @@ func TestRefreshBundle(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid trust domain: spiffeid: invalid scheme",
+						telemetry.StatusMessage: "failed to parse trust domain: scheme is missing or invalid",
 						telemetry.Type:          "audit",
 					},
 				},

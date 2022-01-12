@@ -80,14 +80,14 @@ func TestGetFederatedBundle(t *testing.T) {
 		{
 			name:    "Trust domain is empty",
 			isAdmin: true,
-			err:     "rpc error: code = InvalidArgument desc = trust domain argument is not valid: spiffeid: trust domain is empty",
+			err:     "rpc error: code = InvalidArgument desc = trust domain argument is not valid: trust domain is missing",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "",
-						logrus.ErrorKey:         "spiffeid: trust domain is empty",
+						logrus.ErrorKey:         "trust domain is missing",
 					},
 				},
 				{
@@ -96,7 +96,7 @@ func TestGetFederatedBundle(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "trust domain argument is not valid: spiffeid: trust domain is empty",
+						telemetry.StatusMessage: "trust domain argument is not valid: trust domain is missing",
 						telemetry.TrustDomainID: "",
 						telemetry.Type:          "audit",
 					},
@@ -107,14 +107,14 @@ func TestGetFederatedBundle(t *testing.T) {
 			name:        "Trust domain is not a valid trust domain",
 			isAdmin:     true,
 			trustDomain: "malformed id",
-			err:         `rpc error: code = InvalidArgument desc = trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+			err:         `rpc error: code = InvalidArgument desc = trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+						logrus.ErrorKey:         `trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 					},
 				},
 				{
@@ -123,7 +123,7 @@ func TestGetFederatedBundle(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+						telemetry.StatusMessage: `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 						telemetry.TrustDomainID: "malformed id",
 						telemetry.Type:          "audit",
 					},
@@ -962,7 +962,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: trust domain argument is not valid",
 					Data: logrus.Fields{
-						logrus.ErrorKey:                     `spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
+						logrus.ErrorKey:                     `trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 						telemetry.TrustDomainID:             "malformed TD",
 						telemetry.DeleteFederatedBundleMode: "RESTRICT",
 					},
@@ -973,7 +973,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
+						telemetry.StatusMessage: `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 						telemetry.Type:          "audit",
 						telemetry.Mode:          "RESTRICT",
 						telemetry.TrustDomainID: "malformed TD",
@@ -984,7 +984,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				{
 					Status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed TD": invalid character " " in host name`,
+						Message: `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 					},
 					TrustDomain: "malformed TD",
 				},
@@ -1868,7 +1868,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1876,7 +1876,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					Message: `Invalid argument: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+						logrus.ErrorKey:         `trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 					},
 				},
 				{
@@ -1885,7 +1885,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:                 "error",
 						telemetry.StatusCode:             "InvalidArgument",
-						telemetry.StatusMessage:          `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+						telemetry.StatusMessage:          `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 						telemetry.Type:                   "audit",
 						telemetry.RefreshHint:            "60",
 						telemetry.SequenceNumber:         "0",
@@ -2220,7 +2220,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2228,7 +2228,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 					Message: `Invalid argument: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "malformed id",
-						logrus.ErrorKey:         `spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+						logrus.ErrorKey:         `trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 					},
 				},
 				{
@@ -2242,7 +2242,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 						telemetry.TrustDomainID:          "malformed id",
 						"x509_authorities_asn1_sha256.0": x509BundleHash,
 						telemetry.StatusCode:             "InvalidArgument",
-						telemetry.StatusMessage:          `trust domain argument is not valid: spiffeid: unable to parse: parse "spiffe://malformed id": invalid character " " in host name`,
+						telemetry.StatusMessage:          `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 					},
 				},
 			},
@@ -2671,7 +2671,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: spiffeid: trust domain is empty`)},
+				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2679,7 +2679,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 					Message: `Invalid argument: trust domain argument is not valid`,
 					Data: logrus.Fields{
 						telemetry.TrustDomainID: "//notvalid",
-						logrus.ErrorKey:         "spiffeid: trust domain is empty",
+						logrus.ErrorKey:         "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 				{
@@ -2690,7 +2690,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 						telemetry.SequenceNumber:         "0",
 						telemetry.Status:                 "error",
 						telemetry.StatusCode:             "InvalidArgument",
-						telemetry.StatusMessage:          "trust domain argument is not valid: spiffeid: trust domain is empty",
+						telemetry.StatusMessage:          "trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 						telemetry.TrustDomainID:          "//notvalid",
 						telemetry.Type:                   "audit",
 						"x509_authorities_asn1_sha256.0": x509BundleHash,

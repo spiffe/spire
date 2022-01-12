@@ -56,15 +56,17 @@ func TestBundleToProto(t *testing.T) {
 					},
 				},
 			},
-		}, {
+		},
+		{
 			name:        "no bundle",
 			expectError: "no bundle provided",
-		}, {
+		},
+		{
 			name: "invalid trust domain",
 			bundle: &common.Bundle{
 				TrustDomainId: "invalid TD",
 			},
-			expectError: `spiffeid: unable to parse: parse "spiffe://invalid TD": invalid character " " in host name`,
+			expectError: "invalid trust domain id: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 		},
 	} {
 		tt := tt
@@ -183,7 +185,7 @@ func TestProtoToBundle(t *testing.T) {
 			bundle: &types.Bundle{
 				TrustDomain: "invalid TD",
 			},
-			expectError: `spiffeid: unable to parse: parse "spiffe://invalid TD": invalid character " " in host name`,
+			expectError: "invalid trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 		},
 	} {
 		tt := tt

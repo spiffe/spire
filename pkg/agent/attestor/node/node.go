@@ -244,7 +244,11 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 				return errs.New("server chain is unexpectedly empty")
 			}
 
-			expectedServerID := idutil.ServerID(a.c.TrustDomain)
+			expectedServerID, err := idutil.ServerID(a.c.TrustDomain)
+			if err != nil {
+				return err
+			}
+
 			serverCert, err := x509.ParseCertificate(rawCerts[0])
 			if err != nil {
 				return err

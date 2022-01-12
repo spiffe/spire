@@ -78,7 +78,7 @@ func (s *Suite) TestAttestSuccess() {
 		},
 		{
 			desc:          "success with custom agent id (ca_bundle_path)",
-			expectAgentID: "spiffe://example.org/spire/agent/cn/some%20common%20name",
+			expectAgentID: "spiffe://example.org/spire/agent/cn/COMMONNAME",
 			giveConfig:    s.createConfiguration("ca_bundle_path", `agent_path_template = "/cn/{{ .Subject.CommonName }}"`),
 		},
 		{
@@ -88,7 +88,7 @@ func (s *Suite) TestAttestSuccess() {
 		},
 		{
 			desc:          "success with custom agent id (ca_bundle_paths)",
-			expectAgentID: "spiffe://example.org/spire/agent/cn/some%20common%20name",
+			expectAgentID: "spiffe://example.org/spire/agent/cn/COMMONNAME",
 			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/cn/{{ .Subject.CommonName }}"`),
 		},
 	}
@@ -121,7 +121,7 @@ func (s *Suite) TestAttestSuccess() {
 
 			spiretest.AssertProtoListEqual(t,
 				[]*common.Selector{
-					{Type: "x509pop", Value: "subject:cn:some common name"},
+					{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
 				}, result.Selectors)

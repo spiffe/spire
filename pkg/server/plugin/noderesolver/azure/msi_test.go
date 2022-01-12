@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
 	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
 	"github.com/Azure/go-autorest/autorest"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -23,6 +25,8 @@ const (
 )
 
 var (
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
+
 	// these are vars because the address is needed
 	niResourceID        = "/subscriptions/SUBSCRIPTIONID/resourceGroups/RESOURCEGROUP/providers/Microsoft.Network/networkInterfaces/NETWORKINTERFACE"
 	nsgResourceID       = "/subscriptions/SUBSCRIPTIONID/resourceGroups/NSGRESOURCEGROUP/providers/Microsoft.Network/networkSecurityGroups/NETWORKSECURITYGROUP"
@@ -56,11 +60,11 @@ func (s *MSIResolverSuite) SetupTest() {
 	s.api = newFakeAPIClient(s.T())
 }
 
-func (s *MSIResolverSuite) TestResolveWithNonAgentID() {
+func (s *MSIResolverSuite) TestResolveWithIDFromAnotherTrustDomain() {
 	nr := s.loadPluginWithTenant()
-	s.assertResolveFailure(nr, "spiffe://example.org/spire/server/whatever",
+	s.assertResolveFailure(nr, "spiffe://otherdomain.test/whatever",
 		codes.InvalidArgument,
-		`noderesolver(azure_msi): invalid agent ID: "spiffe://example.org/spire/server/whatever" is not a valid agent SPIFFE ID`)
+		`noderesolver(azure_msi): invalid agent ID: id "spiffe://otherdomain.test/whatever" is not a member of trust domain "example.org"`)
 }
 
 func (s *MSIResolverSuite) TestResolveWithNonAzureAgentID() {
@@ -182,19 +186,32 @@ func (s *MSIResolverSuite) TestResolveVirtualMachine() {
 func (s *MSIResolverSuite) TestConfigure() {
 	var err error
 
+	coreConfig := catalog.CoreConfig{
+		TrustDomain: trustDomain,
+	}
+
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
 		plugintest.Configure("blah"),
 	)
 	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
+	// missing trust domain in core configuration
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{}),
+		plugintest.Configure(""),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "trust domain is missing")
+
 	// no tenants (not using MSI)
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(coreConfig),
 		plugintest.Configure(""),
 	)
 	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration must have at least one tenant when not using MSI")
 
 	// tenant missing subscription id
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(coreConfig),
 		plugintest.Configure(`tenants = {
 			TENANT = {
 				app_id = "APPID"
@@ -206,6 +223,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 
 	// tenant missing app id
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(coreConfig),
 		plugintest.Configure(`tenants = {
 			TENANT = {
 				subscription_id = "SUBSCRIPTION"
@@ -217,6 +235,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 
 	// tenant missing app secret
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(coreConfig),
 		plugintest.Configure(`tenants = {
 			TENANT = {
 				subscription_id = "SUBSCRIPTION"
@@ -228,6 +247,7 @@ func (s *MSIResolverSuite) TestConfigure() {
 
 	// both MSI and tenant
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(coreConfig),
 		plugintest.Configure(`
 			use_msi = true
 			tenants = {
@@ -238,11 +258,18 @@ func (s *MSIResolverSuite) TestConfigure() {
 	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration cannot have tenants when using MSI")
 
 	// MSI only
-	s.loadPlugin(plugintest.Configure(`use_msi = true`))
+	s.loadPlugin(
+		plugintest.CoreConfig(coreConfig),
+		plugintest.Configure(`use_msi = true`),
+	)
 }
 
 func (s *MSIResolverSuite) loadPluginWithTenant() noderesolver.NodeResolver {
-	return s.loadPlugin(plugintest.Configure(`
+	return s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: trustDomain,
+		}),
+		plugintest.Configure(`
 		tenants = {
 			TENANT = {
 				subscription_id = "SUBSCRIPTION"

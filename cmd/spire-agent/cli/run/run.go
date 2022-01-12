@@ -435,7 +435,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.AllowUnauthenticatedVerifiers = c.Agent.AllowUnauthenticatedVerifiers
 
 	for _, authorizedDelegate := range c.Agent.AuthorizedDelegates {
-		if err := idutil.ValidateSpiffeID(authorizedDelegate, idutil.AllowTrustDomainWorkload(ac.TrustDomain)); err != nil {
+		if _, err := idutil.MemberFromString(ac.TrustDomain, authorizedDelegate); err != nil {
 			return nil, fmt.Errorf("error validating authorized delegate: %w", err)
 		}
 	}

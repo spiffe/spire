@@ -13,9 +13,9 @@ import (
 
 func TestIDFromProto(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain.test")
-	workload := td.NewID("/workload")
-	reserved := td.NewID("/spire/reserved")
-	agent := td.NewID("/spire/agent/foo")
+	workload := spiffeid.RequireFromPath(td, "/workload")
+	reserved := spiffeid.RequireFromPath(td, "/spire/reserved")
+	agent := spiffeid.RequireFromPath(td, "/spire/agent/foo")
 
 	type testCase struct {
 		name        string
@@ -33,7 +33,7 @@ func TestIDFromProto(t *testing.T) {
 		{
 			name:        "missing trust domain",
 			spiffeID:    &types.SPIFFEID{Path: "/workload"},
-			expectedErr: "trust domain is empty",
+			expectedErr: "trust domain is missing",
 		},
 		{
 			name:        "wrong trust domain",
@@ -163,7 +163,7 @@ func TestAttestedNodeToProto(t *testing.T) {
 			attNode: &common.AttestedNode{
 				SpiffeId: "invalid",
 			},
-			err: "node has malformed SPIFFE ID: spiffeid: invalid scheme",
+			err: "node has malformed SPIFFE ID: scheme is missing or invalid",
 		},
 		{
 			name: "missing node",

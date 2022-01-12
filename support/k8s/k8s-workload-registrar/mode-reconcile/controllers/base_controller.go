@@ -43,10 +43,10 @@ import (
 type ObjectReconciler interface {
 	// Returns an instance of the object type to be reconciled
 	getObject() ObjectWithMetadata
-	// Return a SPIFFE ID to register for the object, or "" if no registration should be created
-	makeSpiffeID(ObjectWithMetadata) *spiretypes.SPIFFEID
+	// Return a SPIFFE ID to register for the object, or nil if no registration should be created
+	makeSpiffeID(ObjectWithMetadata) (*spiretypes.SPIFFEID, error)
 	// Return the SPIFFE ID to be used as a parent for the object, or "" if no registration should be created
-	makeParentID(ObjectWithMetadata) *spiretypes.SPIFFEID
+	makeParentID(ObjectWithMetadata) (*spiretypes.SPIFFEID, error)
 	// Return all registration entries owned by the controller
 	getAllEntries(context.Context) ([]*spiretypes.Entry, error)
 	// Return the selectors that should be used for a name
@@ -217,8 +217,15 @@ func (r *BaseReconciler) createEntry(ctx context.Context, entryToCreate *spirety
 }
 
 func (r *BaseReconciler) makeEntryForObject(ctx context.Context, obj ObjectWithMetadata) (*spiretypes.Entry, error) {
-	spiffeID := r.makeSpiffeID(obj)
-	parentID := r.makeParentID(obj)
+	spiffeID, err := r.makeSpiffeID(obj)
+	if err != nil {
+		return nil, err
+	}
+	parentID, err := r.makeParentID(obj)
+	if err != nil {
+		return nil, err
+	}
+
 	federationDomains := federation.GetFederationDomains(obj)
 
 	if spiffeID == nil || parentID == nil {

@@ -129,7 +129,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 				BundleEndpointUrl:     "https://some.url/path",
 				BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 			},
-			expectErr: "failed to parse trust domain: spiffeid: unable to parse:",
+			expectErr: "failed to parse trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 		},
 		{
 			name: "malformed BundleEndpointURL",
@@ -170,7 +170,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 					TrustDomain: "no a td",
 				},
 			},
-			expectErr: "failed to parse bundle: spiffeid: unable to parse:",
+			expectErr: "failed to parse bundle: invalid trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 		},
 		{
 			name: "no BundleEndpointProfile provided",
@@ -283,7 +283,7 @@ func TestFederationRelationshipToProto(t *testing.T) {
 				TrustDomain:           td,
 				BundleEndpointURL:     endpointURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
-				EndpointSPIFFEID:      td.NewID("endpoint"),
+				EndpointSPIFFEID:      spiffeid.RequireFromPath(td, "/endpoint"),
 				TrustDomainBundle: &common.Bundle{
 					TrustDomainId: "example.org",
 				},
@@ -307,7 +307,7 @@ func TestFederationRelationshipToProto(t *testing.T) {
 				TrustDomain:           td,
 				BundleEndpointURL:     endpointURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
-				EndpointSPIFFEID:      td.NewID("endpoint"),
+				EndpointSPIFFEID:      spiffeid.RequireFromPath(td, "/endpoint"),
 				TrustDomainBundle: &common.Bundle{
 					TrustDomainId: "example.org",
 				},
@@ -340,19 +340,19 @@ func TestFederationRelationshipToProto(t *testing.T) {
 				TrustDomain:           td,
 				BundleEndpointURL:     endpointURL,
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
-				EndpointSPIFFEID:      td.NewID("endpoint"),
+				EndpointSPIFFEID:      spiffeid.RequireFromPath(td, "/endpoint"),
 				TrustDomainBundle: &common.Bundle{
 					TrustDomainId: "sparfe://example.org",
 				},
 			},
-			expectErr: "spiffeid: invalid scheme",
+			expectErr: "invalid trust domain id: scheme is missing or invalid",
 		},
 		{
 			name: "no BundleEndpointProvider provided",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:       td,
 				BundleEndpointURL: endpointURL,
-				EndpointSPIFFEID:  td.NewID("endpoint"),
+				EndpointSPIFFEID:  spiffeid.RequireFromPath(td, "/endpoint"),
 			},
 			expectErr: "unsupported BundleEndpointProfile: ",
 		},

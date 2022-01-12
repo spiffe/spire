@@ -18,7 +18,7 @@ import (
 )
 
 func TestCallerContextFromContext(t *testing.T) {
-	workloadID := spiffeid.Must("example.org", "workload")
+	workloadID := spiffeid.RequireFromString("spiffe://example.org/workload")
 	workloadX509SVID := &x509.Certificate{URIs: []*url.URL{workloadID.URL()}}
 
 	ipPeer := &peer.Peer{
@@ -162,7 +162,7 @@ func TestCallerContextFromContext(t *testing.T) {
 			name:       "mtls peer with malformed URI SAN",
 			peer:       mtlsPeerMalformedURISAN,
 			expectCode: codes.Unauthenticated,
-			expectMsg:  "client certificate has a malformed URI SAN: scheme must be 'spiffe'",
+			expectMsg:  "client certificate has a malformed URI SAN: scheme is missing or invalid",
 		},
 	} {
 		tt := tt

@@ -5,13 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	testMinimalConfig = `
-		trust_domain = "TRUSTDOMAIN"
+		trust_domain = "domain.test"
 		cluster = "CLUSTER"
 		server_socket_path = "SOCKETPATH"
 `
@@ -38,11 +39,12 @@ func TestLoadMode(t *testing.T) {
 		CommonMode: CommonMode{
 			ServerSocketPath:   "SOCKETPATH",
 			ServerAddress:      "unix://SOCKETPATH",
-			TrustDomain:        "TRUSTDOMAIN",
+			TrustDomain:        "domain.test",
 			Cluster:            "CLUSTER",
 			LogLevel:           defaultLogLevel,
 			Mode:               "webhook",
 			DisabledNamespaces: []string{"kube-system", "kube-public"},
+			trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 		},
 		Addr:       ":8443",
 		CertPath:   defaultCertPath,
@@ -64,10 +66,11 @@ func TestLoadMode(t *testing.T) {
 					LogLevel:           defaultLogLevel,
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "webhook",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				Addr:                           ":8443",
 				CertPath:                       defaultCertPath,
@@ -87,7 +90,7 @@ func TestLoadMode(t *testing.T) {
 				cacert_path = "CACERTOVERRIDE"
 				insecure_skip_client_verification = true
 				server_socket_path = "SOCKETPATHOVERRIDE"
-				trust_domain = "TRUSTDOMAINOVERRIDE"
+				trust_domain = "domain.test"
 				cluster = "CLUSTEROVERRIDE"
 				pod_label = "PODLABEL"
 			`,
@@ -97,11 +100,12 @@ func TestLoadMode(t *testing.T) {
 					LogPath:            "PATHOVERRIDE",
 					ServerSocketPath:   "SOCKETPATHOVERRIDE",
 					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
-					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTEROVERRIDE",
 					PodLabel:           "PODLABEL",
 					Mode:               "webhook",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				Addr:                           ":1234",
 				CertPath:                       "CERTOVERRIDE",
@@ -118,7 +122,7 @@ func TestLoadMode(t *testing.T) {
 		{
 			name: "missing server_socket_path/address",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				cluster = "CLUSTER"
 			`,
 			err: "server_address or server_socket_path must be specified",
@@ -134,7 +138,7 @@ func TestLoadMode(t *testing.T) {
 		{
 			name: "missing cluster",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 			`,
 			err: "cluster must be specified",

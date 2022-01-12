@@ -37,6 +37,9 @@ var (
 	trustDomain2 = spiffeid.RequireTrustDomainFromString("domain.test")
 	trustDomain3 = spiffeid.RequireTrustDomainFromString("otherdomain.test")
 
+	id1 = spiffeid.RequireFromPath(trustDomain1, "/one")
+	id2 = spiffeid.RequireFromPath(trustDomain2, "/one")
+
 	bundle1 = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte("AAA")})
 	bundle2 = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte("BBB")})
 )
@@ -44,8 +47,8 @@ var (
 func TestSubscribeToX509SVIDs(t *testing.T) {
 	ca := testca.New(t, trustDomain1)
 
-	x509SVID1 := ca.CreateX509SVID(trustDomain1.NewID("/one"))
-	x509SVID2 := ca.CreateX509SVID(trustDomain1.NewID("/two"))
+	x509SVID1 := ca.CreateX509SVID(id1)
+	x509SVID2 := ca.CreateX509SVID(id2)
 
 	bundle := ca.Bundle()
 	federatedBundle1 := testca.New(t, trustDomain2).Bundle()
@@ -254,7 +257,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 func TestSubscribeToX509Bundles(t *testing.T) {
 	ca := testca.New(t, trustDomain1)
 
-	x509SVID1 := ca.CreateX509SVID(trustDomain1.NewID("/one"))
+	x509SVID1 := ca.CreateX509SVID(id1)
 
 	for _, tt := range []struct {
 		testName     string

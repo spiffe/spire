@@ -25,6 +25,9 @@ var (
 	federatedTD     = spiffeid.RequireTrustDomainFromString("federated.td1")
 	tdBundle        = bundleutil.BundleFromRootCA(td, &x509.Certificate{Raw: []byte{1}})
 	federatedBundle = bundleutil.BundleFromRootCA(federatedTD, &x509.Certificate{Raw: []byte{2}})
+	fohID           = spiffeid.RequireFromPath(td, "/foh")
+	barID           = spiffeid.RequireFromPath(td, "/bar")
+	bazID           = spiffeid.RequireFromPath(td, "/baz")
 )
 
 func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
@@ -47,7 +50,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 					{Type: "a", Value: "b:1"},
 					{Type: "a", Value: "c:2"},
 				},
-				SpiffeId:       td.NewID("foh").String(),
+				SpiffeId:       fohID.String(),
 				StoreSvid:      true,
 				RevisionNumber: 1,
 			},
@@ -56,7 +59,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 				Selectors: []*common.Selector{
 					{Type: "d", Value: "b:1"},
 				},
-				SpiffeId:       td.NewID("bar").String(),
+				SpiffeId:       barID.String(),
 				StoreSvid:      true,
 				FederatesWith:  []string{federatedTD.IDString()},
 				RevisionNumber: 1,
@@ -119,7 +122,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 				Selectors: []*common.Selector{
 					{Type: "a", Value: "b:1"},
 				},
-				SpiffeId:  td.NewID("foh").String(),
+				SpiffeId:  fohID.String(),
 				StoreSvid: true,
 				// Set a new entry revision number
 				RevisionNumber: 3,
@@ -129,7 +132,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 				Selectors: []*common.Selector{
 					{Type: "d", Value: "b:1"},
 				},
-				SpiffeId:       td.NewID("bar").String(),
+				SpiffeId:       barID.String(),
 				StoreSvid:      true,
 				FederatesWith:  []string{federatedTD.IDString()},
 				RevisionNumber: 1,
@@ -227,7 +230,7 @@ func TestUpdateEntries(t *testing.T) {
 							{Type: "a", Value: "c:2"},
 						},
 						FederatesWith:  []string{"federated.td1"},
-						SpiffeId:       td.NewID("foh").String(),
+						SpiffeId:       fohID.String(),
 						StoreSvid:      true,
 						RevisionNumber: 1,
 					},
@@ -272,7 +275,7 @@ func TestUpdateEntries(t *testing.T) {
 							{Type: "a", Value: "b:1"},
 							{Type: "a", Value: "c:2"},
 						},
-						SpiffeId:       td.NewID("foh").String(),
+						SpiffeId:       fohID.String(),
 						FederatesWith:  []string{"federated.td1"},
 						StoreSvid:      true,
 						RevisionNumber: 1,
@@ -319,7 +322,7 @@ func TestUpdateEntries(t *testing.T) {
 							{Type: "a", Value: "c:2"},
 						},
 						FederatesWith:  []string{"federated.td1"},
-						SpiffeId:       td.NewID("foh").String(),
+						SpiffeId:       fohID.String(),
 						StoreSvid:      true,
 						RevisionNumber: 1,
 					},
@@ -371,7 +374,7 @@ func TestUpdateEntries(t *testing.T) {
 							{Type: "a", Value: "c:2"},
 						},
 						FederatesWith:  []string{"federated.td1"},
-						SpiffeId:       td.NewID("foh").String(),
+						SpiffeId:       fohID.String(),
 						StoreSvid:      true,
 						RevisionNumber: 3,
 						Ttl:            1234,
@@ -421,7 +424,7 @@ func TestUpdateEntries(t *testing.T) {
 							{Type: "a", Value: "c:2"},
 						},
 						FederatesWith:  []string{"federated.td1"},
-						SpiffeId:       td.NewID("foh").String(),
+						SpiffeId:       fohID.String(),
 						StoreSvid:      true,
 						RevisionNumber: 1,
 					},
@@ -452,7 +455,7 @@ func TestUpdateEntries(t *testing.T) {
 				newEntry := &common.RegistrationEntry{
 					EntryId:  "bar",
 					ParentId: td.IDString(),
-					SpiffeId: td.NewID("bar").String(),
+					SpiffeId: barID.String(),
 					Selectors: []*common.Selector{
 						{Type: "c", Value: "c:3"},
 					},
@@ -495,7 +498,7 @@ func TestUpdateEntries(t *testing.T) {
 							{Type: "a", Value: "c:2"},
 						},
 						FederatesWith:  []string{"federated.td1"},
-						SpiffeId:       td.NewID("foh").String(),
+						SpiffeId:       fohID.String(),
 						StoreSvid:      true,
 						RevisionNumber: 1,
 					},
@@ -561,7 +564,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 					{Type: "a", Value: "b:1"},
 					{Type: "a", Value: "c:2"},
 				},
-				SpiffeId:       td.NewID("foh").String(),
+				SpiffeId:       fohID.String(),
 				StoreSvid:      true,
 				RevisionNumber: 1,
 			},
@@ -570,7 +573,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				Selectors: []*common.Selector{
 					{Type: "d", Value: "b:1"},
 				},
-				SpiffeId:       td.NewID("bar").String(),
+				SpiffeId:       barID.String(),
 				StoreSvid:      true,
 				FederatesWith:  []string{federatedTD.IDString()},
 				RevisionNumber: 1,
@@ -633,7 +636,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 					{Type: "a", Value: "b:1"},
 					{Type: "a", Value: "c:2"},
 				},
-				SpiffeId:       td.NewID("foh").String(),
+				SpiffeId:       fohID.String(),
 				StoreSvid:      true,
 				RevisionNumber: 1,
 			},
@@ -810,7 +813,7 @@ func TestUpdateEntriesCreatesNewEntriesOnCache(t *testing.T) {
 					{Type: "a", Value: "b:1"},
 					{Type: "a", Value: "c:2"},
 				},
-				SpiffeId:       td.NewID("foh").String(),
+				SpiffeId:       fohID.String(),
 				StoreSvid:      true,
 				RevisionNumber: 1,
 			},
@@ -819,7 +822,7 @@ func TestUpdateEntriesCreatesNewEntriesOnCache(t *testing.T) {
 				Selectors: []*common.Selector{
 					{Type: "d", Value: "b:1"},
 				},
-				SpiffeId:       td.NewID("bar").String(),
+				SpiffeId:       barID.String(),
 				StoreSvid:      true,
 				FederatesWith:  []string{federatedTD.IDString()},
 				RevisionNumber: 1,
@@ -920,12 +923,12 @@ func TestUpdateSVIDs(t *testing.T) {
 
 	updateSVIDs := &cache.UpdateSVIDs{
 		X509SVIDs: map[string]*cache.X509SVID{
-			"noFoundEntry": {
-				Chain:      []*x509.Certificate{{URIs: []*url.URL{td.NewID("nofound").URL()}}},
+			"baz": {
+				Chain:      []*x509.Certificate{{URIs: []*url.URL{bazID.URL()}}},
 				PrivateKey: key,
 			},
 			"foh": {
-				Chain:      []*x509.Certificate{{URIs: []*url.URL{td.NewID("foh").URL()}}},
+				Chain:      []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}},
 				PrivateKey: key,
 			},
 		},
@@ -971,7 +974,7 @@ func TestUpdateSVIDs(t *testing.T) {
 				federatedTD: federatedBundle,
 			},
 			Svid: &cache.X509SVID{
-				Chain:      []*x509.Certificate{{URIs: []*url.URL{td.NewID("foh").URL()}}},
+				Chain:      []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}},
 				PrivateKey: key,
 			},
 		},
@@ -982,7 +985,7 @@ func TestUpdateSVIDs(t *testing.T) {
 		{
 			Level:   logrus.ErrorLevel,
 			Message: "Entry not found",
-			Data:    logrus.Fields{"entry_id": "noFoundEntry"},
+			Data:    logrus.Fields{"entry_id": "baz"},
 		},
 		{
 			Level:   logrus.DebugLevel,
@@ -1026,7 +1029,7 @@ func TestGetStaleEntries(t *testing.T) {
 			"foh": {
 				Chain: []*x509.Certificate{
 					{
-						URIs:     []*url.URL{td.NewID("foh").URL()},
+						URIs:     []*url.URL{fohID.URL()},
 						NotAfter: expiresAt,
 					},
 				},
@@ -1081,7 +1084,7 @@ func TestCheckSVID(t *testing.T) {
 	})
 
 	x509SVID := &cache.X509SVID{
-		Chain: []*x509.Certificate{{URIs: []*url.URL{td.NewID("foh").URL()}}},
+		Chain: []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}},
 	}
 	// Set an SVID to record
 	c.UpdateSVIDs(&cache.UpdateSVIDs{
@@ -1207,7 +1210,7 @@ func createUpdateEntries() *cache.UpdateEntries {
 					{Type: "a", Value: "b:1"},
 					{Type: "a", Value: "c:2"},
 				},
-				SpiffeId:       td.NewID("foh").String(),
+				SpiffeId:       fohID.String(),
 				StoreSvid:      true,
 				RevisionNumber: 1,
 			},
@@ -1216,7 +1219,7 @@ func createUpdateEntries() *cache.UpdateEntries {
 				Selectors: []*common.Selector{
 					{Type: "d", Value: "b:1"},
 				},
-				SpiffeId:       td.NewID("bar").String(),
+				SpiffeId:       barID.String(),
 				StoreSvid:      true,
 				FederatesWith:  []string{federatedTD.IDString()},
 				RevisionNumber: 1,
@@ -1232,7 +1235,7 @@ func createTestEntry() *common.RegistrationEntry {
 			{Type: "a", Value: "b:1"},
 			{Type: "a", Value: "c:2"},
 		},
-		SpiffeId:       td.NewID("foh").String(),
+		SpiffeId:       fohID.String(),
 		FederatesWith:  []string{federatedTD.String()},
 		StoreSvid:      true,
 		RevisionNumber: 1,

@@ -141,7 +141,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 				S:                  svidClient,
 				Log:                log,
 				Namespace:          myPodNamespace,
-				TrustDomain:        c.TrustDomain,
+				TrustDomain:        c.trustDomain,
 				WebhookCertDir:     c.WebhookCertDir,
 				WebhookServiceName: c.WebhookServiceName,
 			})

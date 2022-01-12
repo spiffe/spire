@@ -5,23 +5,23 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
-func ParseAndValidateCSR(csrDER []byte, validationMode idutil.ValidationMode) (csr *x509.CertificateRequest, err error) {
+func ParseAndValidateCSR(csrDER []byte, td spiffeid.TrustDomain) (csr *x509.CertificateRequest, err error) {
 	csr, err = x509.ParseCertificateRequest(csrDER)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse CSR: %w", err)
 	}
 
-	if err := ValidateCSR(csr, validationMode); err != nil {
+	if err := ValidateCSR(csr, td); err != nil {
 		return nil, err
 	}
 
 	return csr, nil
 }
 
-func ValidateCSR(csr *x509.CertificateRequest, validationMode idutil.ValidationMode) error {
+func ValidateCSR(csr *x509.CertificateRequest, td spiffeid.TrustDomain) error {
 	if err := csr.CheckSignature(); err != nil {
 		return fmt.Errorf("CSR signature check failed: %w", err)
 	}
@@ -30,5 +30,12 @@ func ValidateCSR(csr *x509.CertificateRequest, validationMode idutil.ValidationM
 		return errors.New("CSR must have exactly one URI SAN")
 	}
 
-	return idutil.ValidateSpiffeIDURL(csr.URIs[0], validationMode)
+	id, err := spiffeid.FromURI(csr.URIs[0])
+	if err != nil {
+		return fmt.Errorf("CSR SPIFFE ID %q is invalid: %w", csr.URIs[0], err)
+	}
+	if id != td.ID() {
+		return fmt.Errorf("CSR SPIFFE ID %q is not the trust domain ID for trust domain %q", id, td)
+	}
+	return nil
 }

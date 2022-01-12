@@ -47,10 +47,10 @@ import (
 
 var (
 	testTD       = spiffeid.RequireTrustDomainFromString("domain.test")
-	serverID     = testTD.NewID("/spire/server")
-	agentID      = testTD.NewID("/spire/agent/foo")
-	adminID      = testTD.NewID("/admin")
-	downstreamID = testTD.NewID("/downstream")
+	serverID     = spiffeid.RequireFromPath(testTD, "/spire/server")
+	agentID      = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
+	adminID      = spiffeid.RequireFromPath(testTD, "/admin")
+	downstreamID = spiffeid.RequireFromPath(testTD, "/downstream")
 	rateLimit    = RateLimitConfig{
 		Attestation: true,
 		Signing:     true,

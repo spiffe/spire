@@ -15,7 +15,12 @@ func spiffeIDFromProto(protoID *types.SPIFFEID) (string, error) {
 		return "", errors.New("request must specify SPIFFE ID")
 	}
 
-	id, err := spiffeid.New(protoID.TrustDomain, protoID.Path)
+	td, err := spiffeid.TrustDomainFromString(protoID.TrustDomain)
+	if err != nil {
+		return "", err
+	}
+
+	id, err := spiffeid.FromPath(td, protoID.Path)
 	if err != nil {
 		return "", err
 	}

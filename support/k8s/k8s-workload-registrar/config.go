@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/spiffe/go-spiffe/v2/logger"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 
 	"github.com/hashicorp/hcl"
@@ -49,9 +50,10 @@ type CommonMode struct {
 	Mode               string   `hcl:"mode"`
 	DisabledNamespaces []string `hcl:"disabled_namespaces"`
 	serverAPI          ServerAPIClients
+	trustDomain        spiffeid.TrustDomain
 }
 
-func (c *CommonMode) ParseConfig(hclConfig string) error {
+func (c *CommonMode) ParseConfig(hclConfig string) (err error) {
 	c.Mode = defaultMode
 	if err := hcl.Decode(c, hclConfig); err != nil {
 		return errs.New("unable to decode configuration: %v", err)
@@ -72,6 +74,10 @@ func (c *CommonMode) ParseConfig(hclConfig string) error {
 	}
 	if c.TrustDomain == "" {
 		return errs.New("trust_domain must be specified")
+	}
+	c.trustDomain, err = spiffeid.TrustDomainFromString(c.TrustDomain)
+	if err != nil {
+		return errs.New("malformed trust domain: %v", err)
 	}
 	if c.Cluster == "" {
 		return errs.New("cluster must be specified")

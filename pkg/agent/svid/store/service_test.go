@@ -27,7 +27,7 @@ import (
 
 var (
 	td            = spiffeid.RequireTrustDomainFromString("example.org")
-	entrySpiffeID = td.NewID("foh")
+	entrySpiffeID = spiffeid.RequireFromPath(td, "/foh")
 )
 
 func TestRun(t *testing.T) {

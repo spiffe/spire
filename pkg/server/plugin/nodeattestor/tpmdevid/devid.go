@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -38,7 +39,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type config struct {
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
 
 	devIDRoots *x509.CertPool
 	ekRoots    *x509.CertPool
@@ -168,13 +169,16 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	// Create SPIFFE ID and selectors
-	spiffeID := idutil.AgentID(conf.trustDomain, fmt.Sprintf("%s/%s", common_devid.PluginName, Fingerprint(devIDCert)))
+	spiffeID, err := idutil.AgentID(conf.trustDomain, fmt.Sprintf("/%s/%s", common_devid.PluginName, Fingerprint(devIDCert)))
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
+	}
 	selectors := buildSelectorValues(devIDCert, chains)
 
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:       spiffeID,
+				SpiffeId:       spiffeID.String(),
 				SelectorValues: selectors,
 			},
 		},
@@ -182,7 +186,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	err := validateCoreConfig(req.CoreConfiguration)
+	trustDomain, err := parseCoreConfig(req.CoreConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +203,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	// Create initial internal configuration
 	intConf := &config{
-		trustDomain: req.CoreConfiguration.TrustDomain,
+		trustDomain: trustDomain,
 	}
 
 	// Load DevID bundle
@@ -240,15 +244,21 @@ func decodePluginConfig(hclConf string) (*Config, error) {
 	return extConfig, nil
 }
 
-func validateCoreConfig(c *configv1.CoreConfiguration) error {
+func parseCoreConfig(c *configv1.CoreConfiguration) (spiffeid.TrustDomain, error) {
 	if c == nil {
-		return status.Error(codes.InvalidArgument, "core configuration is missing")
+		return spiffeid.TrustDomain{}, status.Error(codes.InvalidArgument, "core configuration is missing")
 	}
 
 	if c.TrustDomain == "" {
-		return status.Error(codes.InvalidArgument, "trust_domain is required")
+		return spiffeid.TrustDomain{}, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
-	return nil
+
+	trustDomain, err := spiffeid.TrustDomainFromString(c.TrustDomain)
+	if err != nil {
+		return spiffeid.TrustDomain{}, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+	}
+
+	return trustDomain, nil
 }
 
 func validatePluginConfig(extConf *Config) error {

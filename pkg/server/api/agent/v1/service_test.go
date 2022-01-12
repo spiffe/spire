@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -48,7 +49,7 @@ const (
 var (
 	ctx     = context.Background()
 	td      = spiffeid.RequireTrustDomainFromString("example.org")
-	agentID = td.NewID("agent")
+	agentID = spiffeid.RequireFromPath(td, "/agent")
 
 	testNodes = map[string]*common.AttestedNode{
 		agent1: {
@@ -111,9 +112,9 @@ var (
 
 func TestCountAgents(t *testing.T) {
 	ids := []spiffeid.ID{
-		spiffeid.Must("example.org", "node1"),
-		spiffeid.Must("example.org", "node2"),
-		spiffeid.Must("example.org", "node3"),
+		spiffeid.RequireFromPath(td, "/node1"),
+		spiffeid.RequireFromPath(td, "/node2"),
+		spiffeid.RequireFromPath(td, "/node3"),
 	}
 
 	for _, tt := range []struct {
@@ -256,7 +257,7 @@ func TestListAgents(t *testing.T) {
 
 	notAfter := time.Now().Add(-time.Minute).Unix()
 	newNoAfter := time.Now().Add(time.Minute).Unix()
-	node1ID := spiffeid.Must("example.org", "node1")
+	node1ID := spiffeid.RequireFromPath(td, "/node1")
 	node1 := &common.AttestedNode{
 		SpiffeId:            node1ID.String(),
 		AttestationDataType: "t1",
@@ -274,7 +275,7 @@ func TestListAgents(t *testing.T) {
 	err = test.ds.SetNodeSelectors(ctx, node1.SpiffeId, node1.Selectors)
 	require.NoError(t, err)
 
-	node2ID := spiffeid.Must("example.org", "node2")
+	node2ID := spiffeid.RequireFromPath(td, "/node2")
 	node2 := &common.AttestedNode{
 		SpiffeId:            node2ID.String(),
 		AttestationDataType: "t2",
@@ -292,7 +293,7 @@ func TestListAgents(t *testing.T) {
 	err = test.ds.SetNodeSelectors(ctx, node2.SpiffeId, node2.Selectors)
 	require.NoError(t, err)
 
-	node3ID := spiffeid.Must("example.org", "node3")
+	node3ID := spiffeid.RequireFromPath(td, "/node3")
 	node3 := &common.AttestedNode{
 		SpiffeId:            node3ID.String(),
 		AttestationDataType: "t3",
@@ -870,7 +871,6 @@ func TestListAgents(t *testing.T) {
 }
 
 func TestBanAgent(t *testing.T) {
-	agentTrustDomain := "example.org"
 	agentPath := "/spire/agent/agent-1"
 
 	for _, tt := range []struct {
@@ -884,7 +884,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent succeeds",
 			reqID: &types.SPIFFEID{
-				TrustDomain: agentTrustDomain,
+				TrustDomain: td.String(),
 				Path:        agentPath,
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -892,7 +892,7 @@ func TestBanAgent(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "Agent banned",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
+						telemetry.SPIFFEID: spiffeid.RequireFromPath(td, agentPath).String(),
 					},
 				},
 				{
@@ -938,13 +938,13 @@ func TestBanAgent(t *testing.T) {
 				TrustDomain: "ex ample.org",
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
+			expectMsg:  "invalid agent ID: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
+						logrus.ErrorKey: "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 				{
@@ -954,7 +954,7 @@ func TestBanAgent(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: `invalid agent ID: spiffeid: unable to parse: parse "spiffe://ex ample.org/spire/agent/agent-1": invalid character " " in host name`,
+						telemetry.StatusMessage: "invalid agent ID: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 			},
@@ -962,7 +962,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if ID is not a leaf ID",
 			reqID: &types.SPIFFEID{
-				TrustDomain: agentTrustDomain,
+				TrustDomain: td.String(),
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
@@ -989,8 +989,8 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if ID is not an agent SPIFFE ID",
 			reqID: &types.SPIFFEID{
-				TrustDomain: agentTrustDomain,
-				Path:        "agent-1",
+				TrustDomain: td.String(),
+				Path:        "/agent-1",
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `invalid agent ID: "spiffe://example.org/agent-1" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
@@ -1045,7 +1045,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if agent does not exists",
 			reqID: &types.SPIFFEID{
-				TrustDomain: agentTrustDomain,
+				TrustDomain: td.String(),
 				Path:        "/spire/agent/agent-2",
 			},
 			expectCode: codes.NotFound,
@@ -1055,7 +1055,7 @@ func TestBanAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
 					Data: logrus.Fields{
-						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, "spire/agent/agent-2").String(),
+						telemetry.SPIFFEID: spiffeid.RequireFromPath(td, "/spire/agent/agent-2").String(),
 					},
 				},
 				{
@@ -1074,7 +1074,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if there is a datastore error",
 			reqID: &types.SPIFFEID{
-				TrustDomain: agentTrustDomain,
+				TrustDomain: td.String(),
 				Path:        agentPath,
 			},
 			dsError:    errors.New("unknown datastore error"),
@@ -1086,7 +1086,7 @@ func TestBanAgent(t *testing.T) {
 					Message: "Failed to ban agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey:    "unknown datastore error",
-						telemetry.SPIFFEID: spiffeid.Must(agentTrustDomain, agentPath).String(),
+						telemetry.SPIFFEID: spiffeid.RequireFromPath(td, agentPath).String(),
 					},
 				},
 				{
@@ -1110,7 +1110,7 @@ func TestBanAgent(t *testing.T) {
 			ctx := context.Background()
 
 			node := &common.AttestedNode{
-				SpiffeId:            spiffeid.Must(agentTrustDomain, agentPath).String(),
+				SpiffeId:            spiffeid.RequireFromPath(td, agentPath).String(),
 				AttestationDataType: "attestation-type",
 				CertNotAfter:        100,
 				NewCertNotAfter:     200,
@@ -1140,7 +1140,7 @@ func TestBanAgent(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, banResp)
 
-			attestedNode, err := test.ds.FetchAttestedNode(ctx, spiffeid.Must(tt.reqID.TrustDomain, tt.reqID.Path).String())
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, idutil.RequireIDProtoString(tt.reqID))
 			require.NoError(t, err)
 			require.NotNil(t, attestedNode)
 
@@ -1199,7 +1199,7 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "trust domain is empty",
+						logrus.ErrorKey: "trust domain is missing",
 					},
 				},
 				{
@@ -1209,12 +1209,12 @@ func TestDeleteAgent(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid agent ID: trust domain is empty",
+						telemetry.StatusMessage: "invalid agent ID: trust domain is missing",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid agent ID: trust domain is empty",
+			err:  "invalid agent ID: trust domain is missing",
 			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "",
@@ -1260,7 +1260,7 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `"spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
+						logrus.ErrorKey: "path must have a leading slash",
 					},
 				},
 				{
@@ -1270,12 +1270,12 @@ func TestDeleteAgent(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: `invalid agent ID: "spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
+						telemetry.StatusMessage: "invalid agent ID: path must have a leading slash",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  `invalid agent ID: "spiffe://example.org/host" is not an agent in trust domain "example.org"; path is not in the agent namespace`,
+			err:  "invalid agent ID: path must have a leading slash",
 			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
@@ -1374,7 +1374,7 @@ func TestDeleteAgent(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 
-			id := spiffeid.Must(tt.req.Id.TrustDomain, tt.req.Id.Path)
+			id := idutil.RequireIDFromProto(tt.req.Id)
 
 			attestedNode, err := test.ds.FetchAttestedNode(ctx, id.String())
 			require.NoError(t, err)
@@ -1503,7 +1503,7 @@ func TestGetAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
+						logrus.ErrorKey: "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 				{
@@ -1513,11 +1513,11 @@ func TestGetAgent(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: `invalid agent ID: spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
+						telemetry.StatusMessage: "invalid agent ID: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 					},
 				},
 			},
-			err:  `spiffeid: unable to parse: parse "spiffe://invalid domain": invalid character " " in host name`,
+			err:  "invalid agent ID: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 			code: codes.InvalidArgument,
 		},
 		{
@@ -2084,7 +2084,7 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 
 	_, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
-		AgentId: &types.SPIFFEID{TrustDomain: "badtd.org", Path: "invalid"},
+		AgentId: &types.SPIFFEID{TrustDomain: "badtd.org", Path: "/invalid"},
 	})
 	require.Error(t, err)
 	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `invalid agent ID: "spiffe://badtd.org/invalid" is not a member of trust domain "example.org"`)
@@ -2113,7 +2113,7 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 
 	token, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
-		AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "valid"},
+		AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/valid"},
 	})
 	require.NoError(t, err)
 	spiretest.RequireGRPCStatusContains(t, err, codes.OK, "")
@@ -2375,7 +2375,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:       "attest with join token",
 			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
-			expectedID: td.NewID("/spire/agent/join_token/test_token"),
+			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/join_token/test_token"),
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
@@ -2410,7 +2410,7 @@ func TestAttestAgent(t *testing.T) {
 					Message: "Failed to attest: agent is banned",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
-						telemetry.AgentID:          td.NewID("/spire/agent/join_token/banned_token").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/join_token/banned_token").String(),
 					},
 				},
 				{
@@ -2486,7 +2486,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:       "attest with result",
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
-			expectedID: td.NewID("/spire/agent/test_type/id_with_result"),
+			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "resolved"},
 				{Type: "test_type", Value: "result"},
@@ -2518,7 +2518,7 @@ func TestAttestAgent(t *testing.T) {
 			name:       "attest with result twice",
 			retry:      true,
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
-			expectedID: td.NewID("/spire/agent/test_type/id_with_result"),
+			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "resolved"},
 				{Type: "test_type", Value: "result"},
@@ -2549,7 +2549,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:       "attest with challenge",
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_challenge"), testCsr),
-			expectedID: td.NewID("/spire/agent/test_type/id_with_challenge"),
+			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "challenge"},
 				{Type: "test_type", Value: "resolved_too"},
@@ -2580,7 +2580,7 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:       "attest already attested",
 			request:    getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
-			expectedID: td.NewID("/spire/agent/test_type/id_attested_before"),
+			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "attested_before"},
 			},
@@ -2618,7 +2618,7 @@ func TestAttestAgent(t *testing.T) {
 					Message: "Failed to attest: agent is banned",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "test_type",
-						telemetry.AgentID:          td.NewID("/spire/agent/test_type/id_banned").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_banned").String(),
 					},
 				},
 				{
@@ -2676,7 +2676,7 @@ func TestAttestAgent(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "test_type",
 						logrus.ErrorKey:            expectedCsrErr.Error(),
-						telemetry.AgentID:          td.NewID("/spire/agent/test_type/id_with_result").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result").String(),
 					},
 				},
 				{
@@ -2774,7 +2774,7 @@ func TestAttestAgent(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 						logrus.ErrorKey:            "some error",
-						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/join_token/test_token").String(),
 					},
 				},
 				{
@@ -2811,7 +2811,7 @@ func TestAttestAgent(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 						logrus.ErrorKey:            "some error",
-						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/join_token/test_token").String(),
 					},
 				},
 				{
@@ -2848,7 +2848,7 @@ func TestAttestAgent(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "join_token",
 						logrus.ErrorKey:            "some error",
-						telemetry.AgentID:          td.NewID("/spire/agent/join_token/test_token").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/join_token/test_token").String(),
 					},
 				},
 				{
@@ -2883,7 +2883,7 @@ func TestAttestAgent(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "test_type",
 						logrus.ErrorKey:            "some error",
-						telemetry.AgentID:          td.NewID("/spire/agent/test_type/id_attested_before").String(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before").String(),
 					},
 				},
 				{
@@ -3065,8 +3065,8 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 
 func (s *serviceTest) setupResolver(t *testing.T) {
 	selectors := map[string][]string{
-		td.NewID("/spire/agent/test_type/id_with_result").String():    {"resolved"},
-		td.NewID("/spire/agent/test_type/id_with_challenge").String(): {"resolved_too"},
+		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result").String():    {"resolved"},
+		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge").String(): {"resolved_too"},
 	}
 
 	fakeNodeResolver := fakenoderesolver.New(t, "test_type", selectors)
@@ -3076,7 +3076,7 @@ func (s *serviceTest) setupResolver(t *testing.T) {
 func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 	node := &common.AttestedNode{
 		AttestationDataType: "test_type",
-		SpiffeId:            td.NewID("/spire/agent/test_type/id_attested_before").String(),
+		SpiffeId:            spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before").String(),
 		CertSerialNumber:    "test_serial_number",
 	}
 	_, err := s.ds.CreateAttestedNode(ctx, node)
@@ -3084,7 +3084,7 @@ func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 
 	node = &common.AttestedNode{
 		AttestationDataType: "test_type",
-		SpiffeId:            td.NewID("/spire/agent/test_type/id_banned").String(),
+		SpiffeId:            spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_banned").String(),
 		CertNotAfter:        0,
 		CertSerialNumber:    "",
 	}
@@ -3093,7 +3093,7 @@ func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 
 	node = &common.AttestedNode{
 		AttestationDataType: "join_token",
-		SpiffeId:            td.NewID("/spire/agent/join_token/banned_token").String(),
+		SpiffeId:            spiffeid.RequireFromPath(td, "/spire/agent/join_token/banned_token").String(),
 		CertNotAfter:        0,
 		CertSerialNumber:    "",
 	}

@@ -20,7 +20,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -870,11 +869,6 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 }
 
 func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) error {
-	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return sqlError.Wrap(err)
-	}
-
 	model := new(Bundle)
 	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
 		return sqlError.Wrap(err)
@@ -918,13 +912,8 @@ func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) 
 
 // fetchBundle returns the bundle matching the specified Trust Domain.
 func fetchBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
-	trustDomainID, err := idutil.NormalizeSpiffeID(trustDomainID, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
 	model := new(Bundle)
-	err = tx.Find(model, "trust_domain = ?", trustDomainID).Error
+	err := tx.Find(model, "trust_domain = ?", trustDomainID).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
@@ -3558,18 +3547,13 @@ func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 	if pb == nil {
 		return nil, sqlError.New("missing bundle in request")
 	}
-	id, err := idutil.NormalizeSpiffeID(pb.TrustDomainId, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
 	data, err := proto.Marshal(pb)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
 	return &Bundle{
-		TrustDomain: id,
+		TrustDomain: pb.TrustDomainId,
 		Data:        data,
 	}, nil
 }

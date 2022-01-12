@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -41,10 +42,18 @@ func NewController(config ControllerConfig) *Controller {
 }
 
 func (c *Controller) Initialize(ctx context.Context) error {
+	parentID, err := c.makeID("%s", idutil.ServerIDPath)
+	if err != nil {
+		return err
+	}
+	spiffeID, err := c.nodeID()
+	if err != nil {
+		return err
+	}
 	// ensure there is a node registration entry for PSAT nodes in the cluster.
 	return c.createEntry(ctx, &types.Entry{
-		ParentId: c.makeID("%s", idutil.ServerIDPath),
-		SpiffeId: c.nodeID(),
+		ParentId: parentID,
+		SpiffeId: spiffeID,
 		Selectors: []*types.Selector{
 			{Type: "k8s_psat", Value: fmt.Sprintf("cluster:%s", c.c.Cluster)},
 		},
@@ -106,7 +115,7 @@ func (c *Controller) reviewAdmission(ctx context.Context, req *admv1.AdmissionRe
 }
 
 // podSpiffeID returns the desired spiffe ID for the pod, or nil if it should be ignored
-func (c *Controller) podSpiffeID(pod *corev1.Pod) *types.SPIFFEID {
+func (c *Controller) podSpiffeID(pod *corev1.Pod) (*types.SPIFFEID, error) {
 	if c.c.PodLabel != "" {
 		// the controller has been configured with a pod label. if the pod
 		// has that label, use the value to construct the pod entry. otherwise
@@ -114,7 +123,7 @@ func (c *Controller) podSpiffeID(pod *corev1.Pod) *types.SPIFFEID {
 		if labelValue, ok := pod.Labels[c.c.PodLabel]; ok {
 			return c.makeID("/%s", labelValue)
 		}
-		return nil
+		return nil, nil
 	}
 
 	if c.c.PodAnnotation != "" {
@@ -124,7 +133,7 @@ func (c *Controller) podSpiffeID(pod *corev1.Pod) *types.SPIFFEID {
 		if annotationValue, ok := pod.Annotations[c.c.PodAnnotation]; ok {
 			return c.makeID("/%s", annotationValue)
 		}
-		return nil
+		return nil, nil
 	}
 
 	// the controller has not been configured with a pod label or a pod annotation.
@@ -133,16 +142,25 @@ func (c *Controller) podSpiffeID(pod *corev1.Pod) *types.SPIFFEID {
 }
 
 func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error {
-	spiffeID := c.podSpiffeID(pod)
+	spiffeID, err := c.podSpiffeID(pod)
+	if err != nil {
+		return fmt.Errorf("unable to determine spiffeID: %w", err)
+	}
+
 	// If we have no spiffe ID for the pod, do nothing
 	if spiffeID == nil {
 		return nil
 	}
 
+	parentID, err := c.nodeID()
+	if err != nil {
+		return fmt.Errorf("unable to determine parentID: %w", err)
+	}
+
 	federationDomains := federation.GetFederationDomains(pod)
 
 	return c.createEntry(ctx, &types.Entry{
-		ParentId: c.nodeID(),
+		ParentId: parentID,
 		SpiffeId: spiffeID,
 		Selectors: []*types.Selector{
 			namespaceSelector(pod.Namespace),
@@ -204,15 +222,19 @@ func (c *Controller) deletePodEntry(ctx context.Context, namespace, name string)
 	return errGroup.Err()
 }
 
-func (c *Controller) nodeID() *types.SPIFFEID {
+func (c *Controller) nodeID() (*types.SPIFFEID, error) {
 	return c.makeID("/k8s-workload-registrar/%s/node", c.c.Cluster)
 }
 
-func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) *types.SPIFFEID {
+func (c *Controller) makeID(pathFmt string, pathArgs ...interface{}) (*types.SPIFFEID, error) {
+	path, err := spiffeid.FormatPath(pathFmt, pathArgs...)
+	if err != nil {
+		return nil, err
+	}
 	return &types.SPIFFEID{
 		TrustDomain: c.c.TrustDomain,
-		Path:        idutil.FormatPath(pathFmt, pathArgs...),
-	}
+		Path:        path,
+	}, nil
 }
 
 func (c *Controller) createEntry(ctx context.Context, entry *types.Entry) error {
