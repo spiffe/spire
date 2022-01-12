@@ -4057,6 +4057,9 @@ func (s *PluginSuite) TestMigration() {
 			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "endpoint_spiffe_id"))
 			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "implicit"))
 			s.Require().True(s.ds.db.Dialect().HasIndex("federated_trust_domains", "uix_federated_trust_domains_trust_domain"))
+		case 17:
+			s.Require().True(s.ds.db.Dialect().HasColumn("attested_node_entries", "can_reattest"))
+			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entry", "hint"))
 		default:
 			s.T().Fatalf("no migration test added for version %d", i)
 		}

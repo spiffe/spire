@@ -32,6 +32,7 @@ type AttestedNode struct {
 	ExpiresAt       time.Time `gorm:"index"`
 	NewSerialNumber string
 	NewExpiresAt    *time.Time
+	CanReattest     bool `gorm:"default:false"`
 
 	Selectors []*NodeSelector
 }
@@ -92,6 +93,10 @@ type RegisteredEntry struct {
 
 	// StoreSvid determines if the issued SVID is exportable to a store
 	StoreSvid bool
+
+	// Hint is a "hint string" passed to the workload to distinguish between
+	// multiple SVIDs
+	Hint string
 }
 
 // JoinToken holds a join token
