@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
@@ -93,6 +95,11 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	r.c.Log.WithFields(logrus.Fields{
+		telemetry.SPIFFEID:   svid[0].URIs[0].String(),
+		telemetry.Expiration: svid[0].NotAfter.Format(time.RFC3339),
+	}).Debug("Signed X509 SVID")
 
 	r.state.Update(State{
 		SVID: svid,
