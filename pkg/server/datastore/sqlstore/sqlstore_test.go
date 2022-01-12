@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -38,8 +37,7 @@ import (
 )
 
 var (
-	ctx       = context.Background()
-	isWindows = runtime.GOOS == "windows"
+	ctx = context.Background()
 
 	// The following are set by the linker during integration tests to
 	// run these unit tests against various SQL backends.
@@ -135,14 +133,7 @@ func (s *PluginSuite) newPlugin() *Plugin {
 	switch TestDialect {
 	case "":
 		s.nextID++
-		dbPath := filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID))
-
-		// When joining paths on Windows, libraries translate "/" to "\\"
-		// which causes an error on the HCL library, failing to parse.
-		if isWindows {
-			dbPath = filepath.ToSlash(dbPath)
-		}
-
+		dbPath := filepath.ToSlash(filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID)))
 		err := ds.Configure(fmt.Sprintf(`
 			database_type = "sqlite3"
 			log_sql = true
@@ -3877,222 +3868,56 @@ func (s *PluginSuite) TestUpdateFederationRelationship() {
 	}
 }
 
-func (s *PluginSuite) TestDisabledMigrationBreakingChanges() {
-	dbVersion := 8
-
-	dbName := fmt.Sprintf("v%d.sqlite3", dbVersion)
-	dbPath := filepath.Join(s.dir, "unsafe-disabled-migration-"+dbName)
-	// When joining paths on Windows, libraries translate "/" to "\\"
-	// which causes an error on the HCL library, failing to parse.
-	if isWindows {
-		dbPath = "/" + filepath.ToSlash(dbPath)
-	}
-	dump := migrationDump(dbVersion)
-	s.Require().NotEmpty(dump, "no migration dump set up for version %d", dbVersion)
-	s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", dbVersion)
-
-	// configure the datastore to use the new database
-	err := s.ds.Configure(fmt.Sprintf(`
-		database_type = "sqlite3"
-		connection_string = "file://%s"
-		disable_migration = true
-	`, dbPath))
-	s.Require().EqualError(err, "datastore-sql: auto-migration must be enabled for current DB")
-}
-
 func (s *PluginSuite) TestMigration() {
-	for i := 0; i < latestSchemaVersion; i++ {
-		dbName := fmt.Sprintf("v%d.sqlite3", i)
-		dbPath := filepath.Join(s.dir, "migration-"+dbName)
-		if isWindows {
-			dbPath = "/" + filepath.ToSlash(dbPath)
-		}
-		dbURI := fmt.Sprintf("file://%s", dbPath)
-		dump := migrationDump(i)
-		s.Require().NotEmpty(dump, "no migration dump set up for version %d", i)
-		s.Require().NoError(dumpDB(dbPath, dump), "error with DB dump for version %d", i)
+	for schemaVersion := 0; schemaVersion < latestSchemaVersion; schemaVersion++ {
+		s.T().Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
+			require := require.New(t)
+			dbName := fmt.Sprintf("v%d.sqlite3", schemaVersion)
+			dbPath := filepath.ToSlash(filepath.Join(s.dir, "migration-"+dbName))
+			dbURI := fmt.Sprintf("file://%s", dbPath)
 
-		// configure the datastore to use the new database
-		err := s.ds.Configure(fmt.Sprintf(`
-			database_type = "sqlite3"
-			connection_string = "file://%s"
-		`, dbPath))
-		s.Require().NoError(err)
+			minimalDB := func() string {
+				previousMinor := codeVersion
+				if codeVersion.Minor == 0 {
+					previousMinor.Major--
+				} else {
+					previousMinor.Minor--
+				}
+				return fmt.Sprintf(`
+					CREATE TABLE "migrations" ("id" integer primary key autoincrement, "version" integer,"code_version" varchar(255) );
+					INSERT INTO migrations("version", "code_version") VALUES (%d,%q);
+				`, schemaVersion, previousMinor)
+			}
 
-		switch i {
-		case 0:
-			// the v0 database has two bundles. the spiffe://otherdomain.org
-			// bundle has been soft-deleted. after migration, it should not
-			// exist. if we try and create a bundle with the same id, it should
-			// fail if the migration did not run, due to uniqueness
-			// constraints.
-			_, err := s.ds.CreateBundle(context.Background(), bundleutil.BundleProtoFromRootCAs("spiffe://otherdomain.org", nil))
-			s.Require().NoError(err)
-		case 1:
-			// registration entries should gain the federates_with column.
-			// creating a new registration entry with a federated trust domain
-			// should be sufficient to test.
-			s.createBundle("spiffe://otherdomain.org")
-			s.createRegistrationEntry(&common.RegistrationEntry{
-				SpiffeId:      "spiffe://example.org/foo",
-				Selectors:     []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
-				FederatesWith: []string{"spiffe://otherdomain.org"},
-			})
-		case 2:
-			// assert that SPIFFE IDs in bundles, attested nodes, and registration entries are all normalized.
-			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(bundlesResp.Bundles, 2)
-			s.Require().Equal("spiffe://example.org", bundlesResp.Bundles[0].TrustDomainId)
-			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomainId)
+			prepareDB := func(migrationSupported bool) {
+				dump := migrationDumps[schemaVersion]
+				if migrationSupported {
+					require.NotEmpty(dump, "no migration dump set up for schema version")
+				} else {
+					require.Empty(dump, "migration dump exists for unsupported schema version")
+					dump = minimalDB()
+				}
+				dumpDB(t, dbPath, dump)
+				err := s.ds.Configure(fmt.Sprintf(`
+				database_type = "sqlite3"
+				connection_string = %q
+			`, dbURI))
+				if migrationSupported {
+					require.NoError(err)
+				} else {
+					require.EqualError(err, fmt.Sprintf("datastore-sql: migrating from schema version %d requires a previous SPIRE release; please follow the upgrade strategy at doc/upgrading.md", schemaVersion))
+				}
+			}
 
-			attestedNodesResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(attestedNodesResp.Nodes, 1)
-			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", attestedNodesResp.Nodes[0].SpiffeId)
-
-			entriesResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(entriesResp.Entries, 2)
-			util.SortRegistrationEntries(entriesResp.Entries)
-			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[0].ParentId)
-			s.Require().Equal("spiffe://example.org/bLOg", entriesResp.Entries[0].SpiffeId)
-			s.Require().Len(entriesResp.Entries[0].FederatesWith, 1)
-			s.Require().Equal("spiffe://otherdomain.test", entriesResp.Entries[0].FederatesWith[0])
-			s.Require().Equal("spiffe://example.org/spire/agent/join_token/13f1db93-6018-4496-8e77-6de440a174ed", entriesResp.Entries[1].ParentId)
-			s.Require().Equal("spiffe://example.org/nODe", entriesResp.Entries[1].SpiffeId)
-			s.Require().Len(entriesResp.Entries[1].FederatesWith, 0)
-		case 3:
-			bundlesResp, err := s.ds.ListBundles(context.Background(), &datastore.ListBundlesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(bundlesResp.Bundles, 2)
-			s.Require().Equal("spiffe://example.org", bundlesResp.Bundles[0].TrustDomainId)
-			s.Require().Len(bundlesResp.Bundles[0].RootCas, 3)
-			s.Require().Equal("spiffe://otherdomain.test", bundlesResp.Bundles[1].TrustDomainId)
-			s.Require().Len(bundlesResp.Bundles[1].RootCas, 1)
-		case 4:
-			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().False(resp.Entries[0].Admin)
-
-			resp.Entries[0].Admin = true
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
-			s.Require().NoError(err)
-
-			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().True(resp.Entries[0].Admin)
-		case 5:
-			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().False(resp.Entries[0].Downstream)
-
-			resp.Entries[0].Downstream = true
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
-			s.Require().NoError(err)
-
-			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().True(resp.Entries[0].Downstream)
-		case 6:
-			// ensure implementation of new expiry field
-			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().Zero(resp.Entries[0].EntryExpiry)
-
-			expiryVal := time.Now().Unix()
-			resp.Entries[0].EntryExpiry = expiryVal
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
-			s.Require().NoError(err)
-
-			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().Equal(expiryVal, resp.Entries[0].EntryExpiry)
-		case 7:
-			// ensure implementation of new dns field
-			resp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().Empty(resp.Entries[0].DnsNames)
-
-			resp.Entries[0].DnsNames = []string{"abcd.efg"}
-			_, err = s.ds.UpdateRegistrationEntry(context.Background(), resp.Entries[0], nil)
-			s.Require().NoError(err)
-
-			resp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-			s.Require().NoError(err)
-			s.Require().Len(resp.Entries, 1)
-			s.Require().Len(resp.Entries[0].DnsNames, 1)
-			s.Require().Equal("abcd.efg", resp.Entries[0].DnsNames[0])
-		case 8:
-			db, err := openSQLite3(dbURI)
-			defer db.Close()
-			s.Require().NoError(err)
-			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_parent_id"))
-			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_spiffe_id"))
-			s.Require().True(db.Dialect().HasIndex("selectors", "idx_selectors_type_value"))
-		case 9:
-			db, err := openSQLite3(dbURI)
-			defer db.Close()
-			s.Require().NoError(err)
-			s.Require().True(db.Dialect().HasIndex("registered_entries", "idx_registered_entries_expiry"))
-		case 10:
-			db, err := openSQLite3(dbURI)
-			defer db.Close()
-			s.Require().NoError(err)
-			s.Require().True(db.Dialect().HasIndex("federated_registration_entries", "idx_federated_registration_entries_registered_entry_id"))
-		case 11:
-			db, err := openSQLite3(dbURI)
-			defer db.Close()
-			s.Require().NoError(err)
-			s.Require().True(db.Dialect().HasColumn("migrations", "code_version"))
-		case 12:
-			// Ensure attested_nodes_entries gained two new columns
-			db, err := openSQLite3(dbURI)
-			defer db.Close()
-			s.Require().NoError(err)
-
-			// Assert attested_node_entries tables gained the new columns
-			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_serial_number"))
-			s.Require().True(db.Dialect().HasColumn("attested_node_entries", "new_expires_at"))
-
-			attestedNode, err := s.ds.FetchAttestedNode(context.Background(), "spiffe://example.org/host")
-			s.Require().NoError(err)
-
-			// Assert current serial numbers and expiration time remains the same
-			expectedTime, err := time.Parse(time.RFC3339, "2018-12-19T15:26:58-07:00")
-			s.Require().NoError(err)
-			s.Require().Equal(expectedTime.Unix(), attestedNode.CertNotAfter)
-			s.Require().Equal("111", attestedNode.CertSerialNumber)
-
-			// Assert the new fields are empty for pre-existing entries
-			s.Require().Empty(attestedNode.NewCertSerialNumber)
-			s.Require().Empty(attestedNode.NewCertNotAfter)
-		case 13:
-			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "revision_number"))
-		case 14:
-			db, err := openSQLite3(dbURI)
-			defer db.Close()
-			s.Require().NoError(err)
-			s.Require().True(db.Dialect().HasIndex("attested_node_entries", "idx_attested_node_entries_expires_at"))
-		case 15:
-			s.Require().True(s.ds.db.Dialect().HasColumn("registered_entries", "store_svid"))
-		case 16:
-			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "trust_domain"))
-			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "bundle_endpoint_url"))
-			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "bundle_endpoint_profile"))
-			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "endpoint_spiffe_id"))
-			s.Require().True(s.ds.db.Dialect().HasColumn("federated_trust_domains", "implicit"))
-			s.Require().True(s.ds.db.Dialect().HasIndex("federated_trust_domains", "uix_federated_trust_domains_trust_domain"))
-		default:
-			s.T().Fatalf("no migration test added for version %d", i)
-		}
+			switch schemaVersion {
+			// All of these schema versions were migrated by previous versions
+			// of SPIRE server and no longer have migration code.
+			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17:
+				prepareDB(false)
+			default:
+				t.Fatalf("no migration test added for schema version %d", schemaVersion)
+			}
+		})
 	}
 }
 
@@ -4237,10 +4062,7 @@ func (s *PluginSuite) TestConfigure() {
 	for _, tt := range tests {
 		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
-			dbPath := filepath.Join(s.dir, "test-datastore-configure.sqlite3")
-			if isWindows {
-				dbPath = filepath.ToSlash(dbPath)
-			}
+			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 
 			log, _ := test.NewNullLogger()
 
