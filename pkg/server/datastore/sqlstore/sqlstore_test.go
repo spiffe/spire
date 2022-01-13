@@ -3899,9 +3899,9 @@ func (s *PluginSuite) TestMigration() {
 				}
 				dumpDB(t, dbPath, dump)
 				err := s.ds.Configure(fmt.Sprintf(`
-				database_type = "sqlite3"
-				connection_string = %q
-			`, dbURI))
+					database_type = "sqlite3"
+					connection_string = %q
+				`, dbURI))
 				if migrationSupported {
 					require.NoError(err)
 				} else {
