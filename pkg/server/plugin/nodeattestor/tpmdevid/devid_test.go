@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"testing"
 
 	"github.com/google/go-tpm/tpm2"
@@ -29,6 +30,8 @@ import (
 var (
 	devIDBundlePath       string
 	endorsementBundlePath string
+
+	isWindows = runtime.GOOS == "windows"
 
 	tpmPasswords = tpmutil.TPMPasswords{
 		EndorsementHierarchy: "endorsement-hierarchy-pass",
@@ -182,9 +185,13 @@ func TestAttestFailiures(t *testing.T) {
 	devIDAnotherProvisioningCA, err := sim.GenerateDevID(anotherProvisioningCA, tpmsimulator.RSA, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
+	devicePath := "/dev/tpmrm0"
+	if isWindows {
+		devicePath = ""
+	}
 	// Create a TPM session to generate payload and challenge response data
 	session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
-		DevicePath: "/dev/tpmrm0",
+		DevicePath: devicePath,
 		DevIDPriv:  devID.PrivateBlob,
 		DevIDPub:   devID.PublicBlob,
 		Passwords:  tpmPasswords,
@@ -496,6 +503,11 @@ func TestAttestFailiures(t *testing.T) {
 }
 
 func TestAttestSucceeds(t *testing.T) {
+	devicePath := "/dev/tpmrm0"
+	if isWindows {
+		devicePath = ""
+	}
+
 	// Create a provisioning authority to generate DevIDs
 	provisioningCA, err := tpmsimulator.NewProvisioningCA(&tpmsimulator.ProvisioningConf{})
 	require.NoError(t, err)
@@ -601,7 +613,7 @@ func TestAttestSucceeds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a TPM session to generate payload and challenge response data
 			session, err := tpmutil.NewSession(&tpmutil.SessionConfig{
-				DevicePath: "/dev/tpmrm0",
+				DevicePath: devicePath,
 				DevIDPriv:  tt.devID.PrivateBlob,
 				DevIDPub:   tt.devID.PublicBlob,
 				Passwords:  tpmPasswords,
@@ -659,7 +671,6 @@ func TestAttestSucceeds(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, result)
 
-			fmt.Println(result.Selectors)
 			require.Equal(t, tt.expectedAgentID, result.AgentID)
 			requireSelectorsMatch(t, tt.expectedSelectors, result.Selectors)
 		})

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -169,7 +170,7 @@ func TestPubkeysFromPath(t *testing.T) {
 		{
 			desc:       "nonexistent file",
 			pubkeyPath: "blahblahblah",
-			expectErr:  "open blahblahblah: no such file or directory",
+			expectErr:  fmt.Sprintf("open blahblahblah: %s", spiretest.FileNotFound()),
 		},
 		{
 			desc:       "empty file",

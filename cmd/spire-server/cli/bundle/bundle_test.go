@@ -3,6 +3,7 @@ package bundle
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -269,7 +270,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:           "invalid file name",
-			expectedStderr: "Error: unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n",
+			expectedStderr: fmt.Sprintf("Error: unable to load bundle data: open /not/a/real/path/to/a/bundle: %s\n", spiretest.PathNotFound()),
 			args:           []string{"-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"},
 		},
 		{

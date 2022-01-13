@@ -391,7 +391,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, _ := grpc.DialContext(ctx, "unix://"+socketPath, grpc.WithInsecure())
+	conn, _ := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithInsecure())
 	t.Cleanup(func() { conn.Close() })
 
 	fn(ctx, delegatedidentityv1.NewDelegatedIdentityClient(conn))

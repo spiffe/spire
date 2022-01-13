@@ -26,7 +26,7 @@ func newWorkloadClient(ctx context.Context, socketPath string, timeout time.Dura
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.DialContext(ctx, "unix://"+socketPath, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}

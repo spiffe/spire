@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,11 @@ import (
 )
 
 func TestServerAPISource(t *testing.T) {
+	// TODO: workload source is not supported on windows until we solve workload API
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	const pollInterval = time.Second
 
 	api := &fakeServerAPIServer{}

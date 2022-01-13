@@ -989,7 +989,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, "unix://"+socketPath, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithInsecure())
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 

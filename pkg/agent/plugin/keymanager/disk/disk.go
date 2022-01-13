@@ -4,14 +4,12 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/sirupsen/logrus"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	keymanagerbase "github.com/spiffe/spire/pkg/agent/plugin/keymanager/base"
@@ -82,12 +80,6 @@ func (m *KeyManager) configure(config *configuration) error {
 	if m.config == nil {
 		if err := m.loadEntries(config.Directory); err != nil {
 			return err
-		}
-
-		// Remove the deprecated key
-		// TODO: remove in 1.2
-		if err := os.Remove(deprecatedKeyPath(config.Directory)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			m.log.Warn("Failed to remove deprecated key", logrus.ErrorKey, err)
 		}
 	}
 
@@ -177,8 +169,4 @@ func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
 
 func keysPath(dir string) string {
 	return filepath.Join(dir, "keys.json")
-}
-
-func deprecatedKeyPath(dir string) string {
-	return filepath.Join(dir, "svid.key")
 }

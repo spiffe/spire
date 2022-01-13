@@ -3,6 +3,7 @@ package health_test
 import (
 	"context"
 	"crypto/x509"
+	"runtime"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -30,6 +31,11 @@ var (
 )
 
 func TestServiceCheck(t *testing.T) {
+	// TODO: helth check is no supported on Windows until we make WorkloadAPI compatible
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	ca := testca.New(t, td)
 	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
 	bundle := ca.X509Bundle()

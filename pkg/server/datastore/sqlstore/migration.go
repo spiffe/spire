@@ -19,7 +19,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 17
+	latestSchemaVersion = 18
 )
 
 var (
@@ -237,6 +237,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 		migrateToV15,
 		migrateToV16,
 		migrateToV17,
+		migrateToV18,
 	}
 
 	if currVersion >= len(migrations) {
@@ -484,6 +485,16 @@ func migrateToV16(tx *gorm.DB) error {
 
 func migrateToV17(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&FederatedTrustDomain{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV18(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
