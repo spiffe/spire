@@ -26,97 +26,99 @@ import (
 // SPIRE release, along with what was added in each schema change. SPIRE v0.6.2
 // was the first version to introduce migrations.
 //
-// ============================================================================================
-// | SPIRE   | Schema | What changed                                                          |
-// ============================================================================================
-// | v0.6.2  | 1      | Soft delete support was removed                                       |
-// |*********|********|***********************************************************************|
-// | v0.7.0  | 2      | Created join table between bundles and entries                        |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 3      | Normalized trust domain IDs across all tables                         |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 4      | Converted bundle data from DER to protobuf                            |
-// |---------|        |                                                                       |
-// | v0.7.1  |        |                                                                       |
-// |---------|--------|-----------------------------------------------------------------------|
-// | v0.7.2  | 5      | Added admin column to Entries                                         |
-// |---------|        |                                                                       |
-// | v0.7.3  |        |                                                                       |
-// |*********|********|***********************************************************************|
-// | v0.8.0  | 6      | Added downstream column to entries                                    |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 7      | Added expiry column to entries                                        |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 8      | Added dns name support for entries                                    |
-// |---------|--------|-----------------------------------------------------------------------|
-// | v0.8.1  | 9      | Added parent ID, SPIFFE ID and selector indices for entries           |
-// |---------|--------|-----------------------------------------------------------------------|
-// | v0.8.2  | 10     | Added expiry index for entries                                        |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 11     | Added federates with index for entries                                |
-// |---------|        |                                                                       |
-// | v0.8.3  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.8.4  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.8.5  |        |                                                                       |
-// |*********|********|***********************************************************************|
-// | v0.9.0  | 12     | Added support for tracking the code version in the migration table    |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 13     | Added "prepared" cert columns to the attested nodes                   |
-// |---------|        |                                                                       |
-// | v0.9.1  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.9.2  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.9.3  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.9.4  |        |                                                                       |
-// |*********|********|***********************************************************************|
-// | v0.10.0 | 14     | Added revision number column to entries                               |
-// |---------|        |                                                                       |
-// | v0.10.1 |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.10.2 |        |                                                                       |
-// |*********|        |                                                                       |
-// | v0.11.0 |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.11.1 |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.11.2 |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.11.2 |        |                                                                       |
-// |*********|********|***********************************************************************|
-// | v0.12.0 | 15     | Added expiry index to attested nodes                                  |
-// |---------|        |                                                                       |
-// | v0.12.1 |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.12.2 |        |                                                                       |
-// |---------|        |                                                                       |
-// | v0.12.3 |        |                                                                       |
-// |*********|********|***********************************************************************|
-// | v1.0.0  | 16     | Added exportable identity column to entries                           |
-// |         |--------|-----------------------------------------------------------------------|
-// |         | 17     | Added support for Federated Trust Domains relationships               |
-// |---------|        |-----------------------------------------------------------------------|
-// | v1.0.1  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v1.0.2  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v1.0.3  |        |                                                                       |
-// |*********|        |                                                                       |
-// | v1.1.0  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v1.1.1  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v1.1.2  |        |                                                                       |
-// |---------|        |                                                                       |
-// | v1.1.3  |        |                                                                       |
-// ============================================================================================
+// ================================================================================================
+// | SPIRE   | Schema | What changed                                                              |
+// ================================================================================================
+// | v0.6.2  | 1      | Soft delete support was removed                                           |
+// |*********|********|***************************************************************************|
+// | v0.7.0  | 2      | Created join table between bundles and entries                            |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 3      | Normalized trust domain IDs across all tables                             |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 4      | Converted bundle data from DER to protobuf                                |
+// |---------|        |                                                                           |
+// | v0.7.1  |        |                                                                           |
+// |---------|--------|---------------------------------------------------------------------------|
+// | v0.7.2  | 5      | Added admin column to Entries                                             |
+// |---------|        |                                                                           |
+// | v0.7.3  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v0.8.0  | 6      | Added downstream column to entries                                        |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 7      | Added expiry column to entries                                            |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 8      | Added dns name support for entries                                        |
+// |---------|--------|---------------------------------------------------------------------------|
+// | v0.8.1  | 9      | Added parent ID, SPIFFE ID and selector indices for entries               |
+// |---------|--------|---------------------------------------------------------------------------|
+// | v0.8.2  | 10     | Added expiry index for entries                                            |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 11     | Added federates with index for entries                                    |
+// |---------|        |                                                                           |
+// | v0.8.3  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.8.4  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.8.5  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v0.9.0  | 12     | Added support for tracking the code version in the migration table        |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 13     | Added "prepared" cert columns to the attested nodes                       |
+// |---------|        |                                                                           |
+// | v0.9.1  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.9.2  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.9.3  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.9.4  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v0.10.0 | 14     | Added revision number column to entries                                   |
+// |---------|        |                                                                           |
+// | v0.10.1 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.10.2 |        |                                                                           |
+// |*********|        |                                                                           |
+// | v0.11.0 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.11.1 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.11.2 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.11.2 |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v0.12.0 | 15     | Added expiry index to attested nodes                                      |
+// |---------|        |                                                                           |
+// | v0.12.1 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.12.2 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v0.12.3 |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.0.0  | 16     | Added exportable identity column to entries                               |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 17     | Added support for Federated Trust Domains relationships                   |
+// |---------|        |---------------------------------------------------------------------------|
+// | v1.0.1  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.0.2  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.0.3  |        |                                                                           |
+// |*********|        |                                                                           |
+// | v1.1.0  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.1.1  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.1.2  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.1.3  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.2.0  | 18     | Added hint column to entries and can_reattest column to attested nodes    |
+// ================================================================================================
 
 const (
-	// latestSchemaVersion is the schema version supported by this code
-	latestSchemaVersion = 17
+	// the latest schema version of the database in the code
+	latestSchemaVersion = 18
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -325,12 +327,16 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 		return 0, sqlError.Wrap(err)
 	}
 
+	if currVersion < lastMinorReleaseSchemaVersion {
+		return 0, sqlError.New("migrating from schema version %d requires a previous SPIRE release; please follow the upgrade strategy at doc/upgrading.md", currVersion)
+	}
+
 	// Place all migrations handled by the current minor release here. This
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
-	switch {
-	case currVersion <= lastMinorReleaseSchemaVersion:
-		err = sqlError.New("migrating from schema version %d requires a previous SPIRE release; please follow the upgrade strategy at doc/upgrading.md", currVersion)
+	switch currVersion {
+	case 17:
+		err = migrateToV18(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -339,6 +345,16 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
+}
+
+func migrateToV18(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
