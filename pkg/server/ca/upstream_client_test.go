@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"testing"
 	"time"
 
@@ -31,7 +32,9 @@ func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 		UseIntermediate: true,
 	})
 
-	x509CA, err := client.MintX509CA(context.Background(), csr, 0)
+	x509CA, err := client.MintX509CA(context.Background(), csr, 0, func(_, _ []*x509.Certificate) error {
+		return nil
+	})
 	require.NoError(t, err)
 	require.Len(t, x509CA, 2)
 
@@ -46,37 +49,51 @@ func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
 
 func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 	for _, tt := range []struct {
-		name   string
-		mutate func(*upstreamauthorityv1.MintX509CAResponse)
-		err    string
+		name       string
+		mutate     func(*upstreamauthorityv1.MintX509CAResponse)
+		validator  func(_, _ []*x509.Certificate) error
+		expectCode codes.Code
+		expectMsg  string
 	}{
 		{
 			name: "missing X.509 CA chain",
 			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
 				resp.X509CaChain = nil
 			},
-			err: "plugin response missing X.509 CA chain",
+			expectCode: codes.Internal,
+			expectMsg:  "plugin response missing X.509 CA chain",
 		},
 		{
 			name: "malformed X.509 CA chain",
 			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
 				resp.X509CaChain = []*plugintypes.X509Certificate{{Asn1: []byte{0x00}}}
 			},
-			err: "plugin response has malformed X.509 CA chain:",
+			expectCode: codes.Internal,
+			expectMsg:  "plugin response has malformed X.509 CA chain:",
 		},
 		{
 			name: "missing X.509 roots",
 			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
 				resp.UpstreamX509Roots = nil
 			},
-			err: "plugin response missing upstream X.509 roots",
+			expectCode: codes.Internal,
+			expectMsg:  "plugin response missing upstream X.509 roots",
 		},
 		{
 			name: "malformed X.509 roots",
 			mutate: func(resp *upstreamauthorityv1.MintX509CAResponse) {
 				resp.UpstreamX509Roots = []*plugintypes.X509Certificate{{Asn1: []byte{0x00}}}
 			},
-			err: "plugin response has malformed upstream X.509 roots:",
+			expectCode: codes.Internal,
+			expectMsg:  "plugin response has malformed upstream X.509 roots:",
+		},
+		{
+			name: "validation fails",
+			validator: func(_, _ []*x509.Certificate) error {
+				return errors.New("oh no")
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "X509 CA minted by upstream authority is invalid: oh no",
 		},
 	} {
 		tt := tt
@@ -86,8 +103,15 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 				MutateMintX509CAResponse: tt.mutate,
 			})
 
-			_, err := client.MintX509CA(context.Background(), csr, 0)
-			spiretest.RequireGRPCStatusContains(t, err, codes.Internal, tt.err)
+			validator := func(_, _ []*x509.Certificate) error {
+				return nil
+			}
+			if tt.validator != nil {
+				validator = tt.validator
+			}
+
+			_, err := client.MintX509CA(context.Background(), csr, 0, validator)
+			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 		})
 	}
 }

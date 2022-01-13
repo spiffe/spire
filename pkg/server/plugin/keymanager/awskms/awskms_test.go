@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -45,6 +46,7 @@ const (
 
 var (
 	ctx             = context.Background()
+	isWindows       = runtime.GOOS == "windows"
 	unixEpoch       = time.Unix(0, 0)
 	refreshedDate   = unixEpoch.Add(6 * time.Hour)
 	customPolicy    = `{custom_policy}`
@@ -89,10 +91,14 @@ func TestKeyManagerContract(t *testing.T) {
 			func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
 		)
 		km := new(keymanager.V1)
+		keyMetadataFile := filepath.Join(dir, "metadata.json")
+		if isWindows {
+			keyMetadataFile = filepath.ToSlash(keyMetadataFile)
+		}
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
 			region = "fake-region"
 			key_metadata_file = %q
-		`, filepath.Join(dir, "metadata.json")))
+		`, keyMetadataFile))
 		return km
 	}
 
@@ -226,7 +232,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "custom policy file does not exists",
 			configureRequest: configureRequestWithVars("access_key", "secret_access_key", "region", getEmptyKeyMetadataFile(t), "non-existent-file.json"),
-			err:              "failed to read file configured in 'key_policy_file': open non-existent-file.json: no such file or directory",
+			err:              fmt.Sprintf("failed to read file configured in 'key_policy_file': open non-existent-file.json: %s", spiretest.FileNotFound()),
 			code:             codes.Internal,
 		},
 		{
@@ -1973,12 +1979,19 @@ func getKeyMetadataFile(t *testing.T) string {
 	if err != nil {
 		t.Error(err)
 	}
+	if isWindows {
+		tempFilePath = filepath.ToSlash(tempFilePath)
+	}
 	return tempFilePath
 }
 
 func getEmptyKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
-	return path.Join(tempDir, validServerIDFile)
+	keyMetadataFile := path.Join(tempDir, validServerIDFile)
+	if isWindows {
+		keyMetadataFile = filepath.ToSlash(keyMetadataFile)
+	}
+	return keyMetadataFile
 }
 
 func getCustomPolicyFile(t *testing.T) string {
@@ -1987,6 +2000,9 @@ func getCustomPolicyFile(t *testing.T) string {
 	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0600)
 	if err != nil {
 		t.Error(err)
+	}
+	if isWindows {
+		tempFilePath = filepath.ToSlash(tempFilePath)
 	}
 	return tempFilePath
 }

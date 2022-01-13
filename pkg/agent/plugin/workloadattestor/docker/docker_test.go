@@ -1,3 +1,7 @@
+//go:build !windows
+// +build !windows
+
+// TODO: attestor is not supported on windows yet, skip running unit tests until we solve issues
 package docker
 
 import (
@@ -25,6 +29,8 @@ const (
 	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
 	testContainerID   = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
 )
+
+var disabledRetryer = &retryer{disabled: true}
 
 func TestDockerSelectors(t *testing.T) {
 	tests := []struct {

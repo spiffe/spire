@@ -256,7 +256,7 @@ func TestListenAndServe(t *testing.T) {
 		return conn
 	}
 
-	udsConn, err := grpc.DialContext(ctx, "unix://"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithInsecure())
+	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithInsecure())
 	require.NoError(t, err)
 	defer udsConn.Close()
 

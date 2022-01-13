@@ -5,14 +5,18 @@ import (
 )
 
 // SVIDKeyManager is a wrapper around the key manager specifically used for
-// managing the agent SVID. This is more or less a short term shim until we
-// can remove support for the v0 plugins and no longer have to adapt SVID
-// storage to both the "single" and "multi" key manager.
+// managing the agent SVID.
 type SVIDKeyManager interface {
+	// GenerateKey generates a new key. The current key is passed, if available
+	// so the key manager can determine which which "slot" to occupy (i.e.
+	// which key ID to use for the new key).
 	GenerateKey(ctx context.Context, currentKey Key) (Key, error)
+
+	// GetKeys returns all keys managed by the KeyManager.
 	GetKeys(ctx context.Context) ([]Key, error)
 }
 
+// Returns an SVIDKeyManager over the given KeyManager
 func ForSVID(km KeyManager) SVIDKeyManager {
 	return svidKeyManager{km: km}
 }

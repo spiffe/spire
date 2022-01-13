@@ -81,48 +81,6 @@ func TestParseConfig(t *testing.T) {
 			err: "at least one domain must be configured",
 		},
 		{
-			name: "using deprecated domain configuration",
-			in: `
-				domain = "domain.test"
-				acme {
-					email = "admin@domain.test"
-					tos_accepted = true
-				}
-				server_api {
-					address = "unix:///some/socket/path"
-				}
-			`,
-			out: &Config{
-				LogLevel: defaultLogLevel,
-				Domain:   "domain.test",
-				Domains:  []string{"domain.test"},
-				ACME: &ACMEConfig{
-					CacheDir:    "./.acme-cache",
-					Email:       "admin@domain.test",
-					ToSAccepted: true,
-				},
-				ServerAPI: &ServerAPIConfig{
-					Address:      "unix:///some/socket/path",
-					PollInterval: defaultPollInterval,
-				},
-			},
-		},
-		{
-			name: "using deprecated domain configuration and new configuration",
-			in: `
-				domain = "domain.test"
-				domains = ["domain.test", "domain2.test"]
-				acme {
-					email = "admin@domain.test"
-					tos_accepted = true
-				}
-				server_api {
-					socket_path = "/some/socket/path"
-				}
-			`,
-			err: "domain is deprecated and will be removed in a future release; please use domains instead",
-		},
-		{
 			name: "no ACME configuration",
 			in: `
 				domains = ["domain.test"]
