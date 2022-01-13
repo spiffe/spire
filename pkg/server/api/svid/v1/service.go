@@ -113,16 +113,19 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
 
-	x509SVIDLogFields := logrus.Fields{
-		telemetry.SPIFFEID:  id.String(),
-		telemetry.DNSName:   strings.Join(csr.DNSNames, ","),
-		telemetry.Subject:   csr.Subject,
-		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
+	commonX509SVIDLogFields := logrus.Fields{
+		telemetry.SPIFFEID: id.String(),
+		telemetry.DNSName:  strings.Join(csr.DNSNames, ","),
+		telemetry.Subject:  csr.Subject,
 	}
 
-	rpccontext.AuditRPCWithFields(ctx, x509SVIDLogFields)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
+	})
+
+	rpccontext.AuditRPCWithFields(ctx, commonX509SVIDLogFields)
 	log.WithField(telemetry.Expiration, x509SVID[0].NotAfter.Format(time.RFC3339)).
-		WithFields(x509SVIDLogFields).
+		WithFields(commonX509SVIDLogFields).
 		Debug("Signed X509 SVID")
 
 	return &svidv1.MintX509SVIDResponse{
