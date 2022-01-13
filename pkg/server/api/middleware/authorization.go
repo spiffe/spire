@@ -60,6 +60,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		return nil, err
 	}
 	if allow {
+		//ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithField(telemetry.CallerRole, rpccontext.CallerRole(ctx)))
 		return ctx, nil
 	}
 

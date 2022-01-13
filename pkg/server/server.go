@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -60,8 +61,13 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
+	// Log configuration values that are useful for debugging
+	s.config.Log.WithFields(logrus.Fields{
+		telemetry.AdminIDs: s.config.AdminIDs,
+		telemetry.DataDir:  s.config.DataDir,
+	}).Info("Configured")
+
 	// create the data directory if needed
-	s.config.Log.Infof("Data directory: %q", s.config.DataDir)
 	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
 		return err
 	}

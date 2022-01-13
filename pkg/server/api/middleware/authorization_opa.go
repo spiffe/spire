@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"google.golang.org/grpc/codes"
@@ -44,6 +46,8 @@ func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, 
 }
 
 func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authpolicy.Result) (context.Context, bool, error) {
+	ctx = setAuthorizationLogFields(ctx, "nobody", "")
+
 	// Check things in order of cost
 	if res.Allow {
 		return ctx, true, nil
@@ -51,12 +55,14 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 
 	// Check local
 	if res.AllowIfLocal && rpccontext.CallerIsLocal(ctx) {
+		ctx = setAuthorizationLogFields(ctx, "local", "transport")
 		return ctx, true, nil
 	}
 
 	// Check statically configured admin entries
 	if res.AllowIfAdmin {
 		if ctx, ok := isAdminViaConfig(ctx, m.adminIDs); ok {
+			ctx = setAuthorizationLogFields(ctx, "admin", "config")
 			return ctx, true, nil
 		}
 	}
@@ -69,13 +75,15 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 		}
 
 		if res.AllowIfAdmin {
-			if ctx, ok := isAdminViaEntry(ctx, entries); ok {
+			if ctx, ok := isAdminViaEntries(ctx, entries); ok {
+				ctx = setAuthorizationLogFields(ctx, "admin", "entries")
 				return ctx, true, nil
 			}
 		}
 
 		if res.AllowIfDownstream {
-			if ctx, ok := isDownstreamViaEntry(ctx, entries); ok {
+			if ctx, ok := isDownstreamViaEntries(ctx, entries); ok {
+				ctx = setAuthorizationLogFields(ctx, "downstream", "entries")
 				return ctx, true, nil
 			}
 		}
@@ -83,6 +91,7 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 
 	if res.AllowIfAgent && !rpccontext.CallerIsLocal(ctx) {
 		if ctx, ok, err := isAgent(ctx, m.agentAuthorizer); err != nil {
+			ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
 			return ctx, false, err
 		} else if ok {
 			return ctx, true, nil
@@ -101,7 +110,7 @@ func isAdminViaConfig(ctx context.Context, adminIDs map[spiffeid.ID]struct{}) (c
 	return ctx, false
 }
 
-func isAdminViaEntry(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
+func isAdminViaEntries(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
 	for _, entry := range entries {
 		if entry.Admin {
 			return rpccontext.WithAdminCaller(ctx), true
@@ -110,7 +119,7 @@ func isAdminViaEntry(ctx context.Context, entries []*types.Entry) (context.Conte
 	return ctx, false
 }
 
-func isDownstreamViaEntry(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
+func isDownstreamViaEntries(ctx context.Context, entries []*types.Entry) (context.Context, bool) {
 	downstreamEntries := make([]*types.Entry, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Downstream {
@@ -143,4 +152,11 @@ func isAgent(ctx context.Context, agentAuthorizer AgentAuthorizer) (context.Cont
 	}
 
 	return rpccontext.WithAgentCaller(ctx), true, nil
+}
+
+func setAuthorizationLogFields(ctx context.Context, as, via string) context.Context {
+	return rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(logrus.Fields{
+		telemetry.AuthorizedAs:  as,
+		telemetry.AuthorizedVia: via,
+	}))
 }
