@@ -32,7 +32,7 @@ type AttestedNode struct {
 	ExpiresAt       time.Time `gorm:"index"`
 	NewSerialNumber string
 	NewExpiresAt    *time.Time
-	CanReattest     bool `gorm:"default:false"`
+	CanReattest     bool
 
 	Selectors []*NodeSelector
 }
