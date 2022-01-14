@@ -46,6 +46,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * [Emissary](https://github.com/github/emissary)		
 * [Envoy](https://github.com/envoyproxy/envoy)		
 * [Ghostunnel](https://github.com/square/ghostunnel)		
+* [gRPC](https://pkg.go.dev/github.com/spiffe/go-spiffe/v2/examples/spiffe-grpc) 
 * [Hamlet](https://github.com/vmware/hamlet)		
 * [Istio](https://github.com/istio/istio)		
 * [Knox](https://github.com/pinterest/knox)		
