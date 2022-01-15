@@ -93,6 +93,10 @@ type Config struct {
 
 	// AuthPolicyEngineConfig determines the config for authz policy
 	AuthOpaPolicyEngineConfig *authpolicy.OpaEngineConfig
+
+	// AdminIDs are a list of fixed IDs that when presented by a caller in an
+	// X509-SVID, are granted admin rights.
+	AdminIDs []spiffeid.ID
 }
 
 type ExperimentalConfig struct {

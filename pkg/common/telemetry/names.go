@@ -130,6 +130,9 @@ const (
 	// Admin tags admin access
 	Admin = "admin"
 
+	// AdminIDs are admin IDs
+	AdminIDs = "admin_ids"
+
 	// Agent SPIFFE ID
 	AgentID = "agent_id"
 
@@ -138,6 +141,12 @@ const (
 
 	// Audience tags some audience for a token
 	Audience = "audience"
+
+	// AuthorizedAs indicates who an entity was authorized as
+	AuthorizedAs = "authorized_as"
+
+	// AuthorizedVia indicates by what means an entity was authorized
+	AuthorizedVia = "authorized_via"
 
 	// BundleEndpointProfile is the name of the bundle endpoint profile
 	BundleEndpointProfile = "bundle_endpoint_profile"
@@ -195,6 +204,9 @@ const (
 
 	// CsrSpiffeID represents the SPIFFE ID in a Certificate Signing Request.
 	CsrSpiffeID = "csr_spiffe_id"
+
+	// DataDir is a data directory
+	DataDir = "data_dir"
 
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
