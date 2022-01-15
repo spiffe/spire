@@ -112,12 +112,21 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
-	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
-		telemetry.SPIFFEID:  id.String(),
-		telemetry.DNSName:   strings.Join(csr.DNSNames, ","),
-		telemetry.Subject:   csr.Subject,
+
+	commonX509SVIDLogFields := logrus.Fields{
+		telemetry.SPIFFEID: id.String(),
+		telemetry.DNSName:  strings.Join(csr.DNSNames, ","),
+		telemetry.Subject:  csr.Subject,
+	}
+
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
 	})
+
+	rpccontext.AuditRPCWithFields(ctx, commonX509SVIDLogFields)
+	log.WithField(telemetry.Expiration, x509SVID[0].NotAfter.Format(time.RFC3339)).
+		WithFields(commonX509SVIDLogFields).
+		Debug("Signed X509 SVID")
 
 	return &svidv1.MintX509SVIDResponse{
 		Svid: &types.X509SVID{
@@ -258,6 +267,9 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		}
 	}
 
+	log.WithField(telemetry.Expiration, x509Svid[0].NotAfter.Format(time.RFC3339)).
+		Debug("Signed X509 SVID")
+
 	return &svidv1.BatchNewX509SVIDResponse_Result{
 		Svid: &types.X509SVID{
 			Id:        entry.SpiffeId,
@@ -299,6 +311,11 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to get JWT-SVID expiry", err)
 	}
+
+	log.WithFields(logrus.Fields{
+		telemetry.Audience:   audience,
+		telemetry.Expiration: expiresAt.Format(time.RFC3339),
+	}).Debug("Server CA successfully signed JWT SVID")
 
 	return &types.JWTSVID{
 		Token:     token,
@@ -374,6 +391,11 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
+
+	log.WithFields(logrus.Fields{
+		telemetry.SPIFFEID:   x509CASvid[0].URIs[0].String(),
+		telemetry.Expiration: x509CASvid[0].NotAfter.Format(time.RFC3339),
+	}).Debug("Signed X509 CA SVID")
 
 	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
 	if err != nil {

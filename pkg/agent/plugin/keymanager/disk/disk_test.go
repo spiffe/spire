@@ -3,7 +3,6 @@ package disk_test
 import (
 	"context"
 	"crypto/x509"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -79,25 +78,6 @@ func TestGenerateKeyPersistence(t *testing.T) {
 		publicKeyBytes(t, keyIn),
 		publicKeyBytes(t, keyOut),
 	)
-}
-
-func TestDeprecatedKeyFileIsRemovedOnConfigure(t *testing.T) {
-	// This test asserts behavior expected on upgrade and downgrade scenarios
-	// between the old disk plugin that managed a single key and the new one
-	// that conforms to the multi key manager interface. See the comment in
-	// the writeEntries and loadEntries methods.
-
-	dir := spiretest.TempDir(t)
-
-	deprecatedKeyPath := filepath.Join(dir, "svid.key")
-	err := os.WriteFile(deprecatedKeyPath, nil, 0600)
-	require.NoError(t, err)
-
-	_, err = loadPlugin(t, "directory = %q", dir)
-	require.NoError(t, err)
-
-	_, err = os.Stat(deprecatedKeyPath)
-	require.True(t, errors.Is(err, os.ErrNotExist), "file has not been removed: %v", err)
 }
 
 func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
