@@ -1,10 +1,9 @@
 package gcp
 
 import (
-	"bytes"
 	"net/url"
-	"text/template"
 
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
@@ -14,7 +13,7 @@ const (
 )
 
 // DefaultAgentPathTemplate is the default text/template
-var DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName }}/{{ .ProjectID }}/{{ .InstanceID }}"))
+var DefaultAgentPathTemplate = agentpathtemplate.MustParse("{{ .PluginName }}/{{ .ProjectID }}/{{ .InstanceID }}")
 
 type IdentityToken struct {
 	jwt.Claims
@@ -44,14 +43,14 @@ type agentPathTemplateData struct {
 // MakeSpiffeID makes an agent spiffe ID. The ID always has a host value equal to the given trust domain,
 // the path is created using the given agentPathTemplate which is given access to a fully populated
 // ComputeEngine object.
-func MakeSpiffeID(trustDomain string, agentPathTemplate *template.Template, computeEngine ComputeEngine) (*url.URL, error) {
-	var agentPath bytes.Buffer
-	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
+func MakeSpiffeID(trustDomain string, agentPathTemplate *agentpathtemplate.Template, computeEngine ComputeEngine) (*url.URL, error) {
+	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		ComputeEngine: computeEngine,
 		PluginName:    PluginName,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return idutil.AgentURI(trustDomain, agentPath.String()), nil
+	return idutil.AgentURI(trustDomain, agentPath), nil
 }

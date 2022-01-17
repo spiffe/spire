@@ -5,11 +5,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"sync"
-	"text/template"
 
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -35,7 +35,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type configuration struct {
 	trustDomain  string
 	trustBundle  *x509.CertPool
-	pathTemplate *template.Template
+	pathTemplate *agentpathtemplate.Template
 }
 
 type Config struct {
@@ -175,7 +175,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	pathTemplate := x509pop.DefaultAgentPathTemplate
 	if len(hclConfig.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(hclConfig.AgentPathTemplate)
+		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
 		}

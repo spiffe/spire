@@ -9,8 +9,8 @@ import (
 	"encoding/pem"
 	"math/big"
 	"testing"
-	"text/template"
 
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -131,7 +131,7 @@ func createBadCertificate(privateKey, publicKey interface{}) (*x509.Certificate,
 func TestMakeSPIFFEID(t *testing.T) {
 	tests := []struct {
 		desc         string
-		template     *template.Template
+		template     *agentpathtemplate.Template
 		expectSPIFFE string
 		expectErr    string
 	}{
@@ -142,13 +142,13 @@ func TestMakeSPIFFEID(t *testing.T) {
 		},
 		{
 			desc:         "custom template with subject identifiers",
-			template:     template.Must(template.New("test").Parse("foo/{{ .Subject.CommonName }}")),
+			template:     agentpathtemplate.MustParse("foo/{{ .Subject.CommonName }}"),
 			expectSPIFFE: "spiffe://example.org/spire/agent/foo/test-cert",
 		},
 		{
 			desc:      "custom template with nonexistant fields",
-			template:  template.Must(template.New("test").Parse("{{ .Foo }}")),
-			expectErr: `template: test:1:3: executing "test" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
+			template:  agentpathtemplate.MustParse("{{ .Foo }}"),
+			expectErr: `template: agent-path:1:3: executing "agent-path" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
 		},
 	}
 

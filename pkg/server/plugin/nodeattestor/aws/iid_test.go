@@ -233,9 +233,10 @@ func TestAttest(t *testing.T) {
 			expectSelectors: []*common.Selector{{Type: "aws_iid", Value: "tag:Hostname:host1"}},
 		},
 		{
-			name:     "success with missing tags in template",
-			config:   `agent_path_template = "{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
-			expectID: "spiffe://example.org/spire/agent/aws_iid/zone1/%3Cno%20value%3E",
+			name:            "fails with missing tags in template",
+			config:          `agent_path_template = "{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: `nodeattestor(aws_iid): failed to create spiffe ID: template: agent-path:1:32: executing "agent-path" at <.Tags.Hostname>: map has no entry for key "Hostname"`,
 		},
 		{
 			name: "success with all the selectors",

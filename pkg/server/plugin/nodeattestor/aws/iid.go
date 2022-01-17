@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -26,6 +25,7 @@ import (
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -93,7 +93,7 @@ type IIDAttestorConfig struct {
 	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate               string   `hcl:"agent_path_template"`
 	AssumeRole                      string   `hcl:"assume_role"`
-	pathTemplate                    *template.Template
+	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     string
 	awsCAPublicKey                  *rsa.PublicKey
 }
@@ -237,7 +237,7 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 
 	config.pathTemplate = defaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+		tmpl, err := agentpathtemplate.Parse(config.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}

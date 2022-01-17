@@ -2,19 +2,19 @@ package aws
 
 import (
 	"testing"
-	"text/template"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/stretchr/testify/require"
 )
 
-var templateWithTags = template.Must(template.New("agent-svid").Parse("{{ .Tags.a }}/{{ .Tags.b }}"))
+var templateWithTags = agentpathtemplate.MustParse("{{ .Tags.a }}/{{ .Tags.b }}")
 
 func TestMakeSpiffeID(t *testing.T) {
 	tests := []struct {
 		name              string
 		trustDomain       string
-		agentPathTemplate *template.Template
+		agentPathTemplate *agentpathtemplate.Template
 		doc               ec2metadata.EC2InstanceIdentityDocument
 		tags              instanceTags
 		want              string

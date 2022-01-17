@@ -1,7 +1,6 @@
 package sshpop
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -10,8 +9,8 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"text/template"
 
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
@@ -223,17 +222,17 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func makeAgentID(trustDomain string, agentPathTemplate *template.Template, cert *ssh.Certificate, hostname string) (string, error) {
-	var agentPath bytes.Buffer
-	if err := agentPathTemplate.Execute(&agentPath, agentPathTemplateData{
+func makeAgentID(trustDomain string, agentPathTemplate *agentpathtemplate.Template, cert *ssh.Certificate, hostname string) (string, error) {
+	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		Certificate: cert,
 		PluginName:  PluginName,
 		Fingerprint: urlSafeSSHFingerprintSHA256(cert),
 		Hostname:    hostname,
-	}); err != nil {
+	})
+	if err != nil {
 		return "", err
 	}
-	return idutil.AgentURI(trustDomain, agentPath.String()).String(), nil
+	return idutil.AgentURI(trustDomain, agentPath).String(), nil
 }
 
 // urlSafeSSHFingerprintSHA256 is a modified version of ssh.FingerprintSHA256
