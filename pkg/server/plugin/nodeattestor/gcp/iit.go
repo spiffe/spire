@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -13,6 +12,7 @@ import (
 	hclog "github.com/hashicorp/go-hclog"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -65,7 +65,7 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
-	idPathTemplate      *template.Template
+	idPathTemplate      *agentpathtemplate.Template
 	trustDomain         string
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
@@ -187,7 +187,7 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	tmpl := gcp.DefaultAgentPathTemplate
 	if len(hclConfig.AgentPathTemplate) > 0 {
 		var err error
-		tmpl, err = template.New("agent-path").Parse(hclConfig.AgentPathTemplate)
+		tmpl, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent path template: %q", hclConfig.AgentPathTemplate)
 		}

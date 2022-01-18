@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"text/template"
 
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -96,8 +96,7 @@ func TestHandshake(t *testing.T) {
 
 func TestServerSpiffeID(t *testing.T) {
 	tt := newTest(t, principal("ec2abcdef-uswest1"))
-	agentPathTemplate, err := template.New("agent-path").Parse("static/{{ index .ValidPrincipals 0 }}")
-	require.NoError(t, err)
+	agentPathTemplate := agentpathtemplate.MustParse("static/{{ index .ValidPrincipals 0 }}")
 
 	s := &ServerHandshake{
 		s: &Server{

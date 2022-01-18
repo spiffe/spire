@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,7 +25,7 @@ const (
 
 var (
 	// DefaultAgentPathTemplate is the default text/template.
-	DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
+	DefaultAgentPathTemplate = agentpathtemplate.MustParse("{{ .PluginName}}/{{ .Fingerprint }}")
 )
 
 // agentPathTemplateData is used to hydrate the agent path template used in generating spiffe ids.
@@ -45,7 +45,7 @@ type Client struct {
 // Server is a factory for generating server handshake objects.
 type Server struct {
 	certChecker       *ssh.CertChecker
-	agentPathTemplate *template.Template
+	agentPathTemplate *agentpathtemplate.Template
 	trustDomain       string
 	canonicalDomain   string
 }
@@ -142,7 +142,7 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	}
 	agentPathTemplate := DefaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+		tmpl, err := agentpathtemplate.Parse(config.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}
