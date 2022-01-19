@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -479,7 +478,10 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
-	parentID := s.td.NewID(path.Join("spire", "agent", "join_token", token))
+	parentID, err := joinTokenID(s.td, token)
+	if err != nil {
+		return fmt.Errorf("failed to create join token ID: %w", err)
+	}
 	entry := &common.RegistrationEntry{
 		ParentId: parentID.String(),
 		SpiffeId: agentID,
@@ -487,8 +489,7 @@ func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token st
 			{Type: "spiffe_id", Value: parentID.String()},
 		},
 	}
-	_, err := s.ds.CreateRegistrationEntry(ctx, entry)
-	if err != nil {
+	if _, err := s.ds.CreateRegistrationEntry(ctx, entry); err != nil {
 		return err
 	}
 	return nil
@@ -556,9 +557,13 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
-	tokenPath := path.Join("spire", "agent", "join_token", token)
+	agentID, err := joinTokenID(s.td, token)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to create join token ID", err)
+	}
+
 	return &nodeattestor.AttestResult{
-		AgentID: s.td.NewID(tokenPath).String(),
+		AgentID: agentID.String(),
 	}, nil
 }
 
@@ -679,4 +684,8 @@ func fieldsFromFilterRequest(filter *agentv1.ListAgentsRequest_Filter) logrus.Fi
 	}
 
 	return fields
+}
+
+func joinTokenID(td spiffeid.TrustDomain, token string) (spiffeid.ID, error) {
+	return spiffeid.FromSegments(td, "spire", "agent", "join_token", token)
 }

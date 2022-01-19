@@ -27,8 +27,8 @@ import (
 )
 
 func TestWithAuthorizationPreprocess(t *testing.T) {
-	id := spiffeid.Must("example.org", "workload")
-	x509SVID := &x509.Certificate{URIs: []*url.URL{id.URL()}}
+	workloadID := spiffeid.RequireFromString("spiffe://example.org/workload")
+	x509SVID := &x509.Certificate{URIs: []*url.URL{workloadID.URL()}}
 
 	unixPeer := &peer.Peer{
 		Addr: &net.UnixAddr{
@@ -222,7 +222,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			name:       "check passing of caller id positive test",
 			fullMethod: fakeFullMethod,
 			peer:       mtlsPeer,
-			rego:       condCheckRego(fmt.Sprintf("input.caller == \"%s\"", id.String())),
+			rego:       condCheckRego(fmt.Sprintf("input.caller == \"%s\"", workloadID.String())),
 			expectCode: codes.OK,
 		},
 		{
@@ -324,26 +324,28 @@ func TestWithAuthorizationPostprocess(t *testing.T) {
 }
 
 var (
-	adminID      = spiffeid.Must("example.org", "admin")
+	td           = spiffeid.RequireTrustDomainFromString("example.org")
+	adminID      = spiffeid.RequireFromPath(td, "/admin")
 	adminEntries = []*types.Entry{
 		{Id: "1", Admin: true},
 		{Id: "2"},
 	}
 
-	staticAdminID = spiffeid.Must("example.org", "static-admin")
+	staticAdminID = spiffeid.RequireFromPath(td, "/static-admin")
 
-	nonAdminID      = spiffeid.Must("example.org", "non-admin")
+	nonAdminID = spiffeid.RequireFromPath(td, "/non-admin")
+
 	nonAdminEntries = []*types.Entry{
 		{Id: "3"},
 	}
 
-	downstreamID      = spiffeid.Must("example.org", "downstream")
+	downstreamID      = spiffeid.RequireFromPath(td, "/downstream")
 	downstreamEntries = []*types.Entry{
 		{Id: "1", Downstream: true},
 		{Id: "2"},
 	}
 
-	nonDownstreamID      = spiffeid.Must("example.org", "non-downstream")
+	nonDownstreamID      = spiffeid.RequireFromPath(td, "/non-downstream")
 	nonDownstreamEntries = []*types.Entry{
 		{Id: "3"},
 	}

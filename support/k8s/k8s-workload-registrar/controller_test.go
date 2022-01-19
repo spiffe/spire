@@ -403,9 +403,10 @@ func TestPodSpiffeId(t *testing.T) {
 			}
 
 			// Test:
-			spiffeID := c.podSpiffeID(pod)
+			spiffeID, err := c.podSpiffeID(pod)
 
 			// Verify result:
+			require.NoError(t, err)
 			require.Equal(t, testCase.expectedSpiffeID, stringFromID(spiffeID))
 		})
 	}

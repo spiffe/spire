@@ -5,13 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	testMinimalCRDConfig = `
-		trust_domain = "TRUSTDOMAIN"
+		trust_domain = "domain.test"
 		cluster = "CLUSTER"
 		server_socket_path = "SOCKETPATH"
 		mode = "crd"
@@ -43,11 +44,12 @@ func TestLoadModeCRD(t *testing.T) {
 		CommonMode: CommonMode{
 			ServerSocketPath:   "SOCKETPATH",
 			ServerAddress:      "unix://SOCKETPATH",
-			TrustDomain:        "TRUSTDOMAIN",
+			TrustDomain:        "domain.test",
 			Cluster:            "CLUSTER",
 			LogLevel:           defaultLogLevel,
 			Mode:               "crd",
 			DisabledNamespaces: []string{"kube-system", "kube-public"},
+			trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 		},
 		AddSvcDNSName:      true,
 		MetricsBindAddr:    ":8080",
@@ -74,10 +76,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           defaultLogLevel,
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:      true,
 				LeaderElection:     false,
@@ -102,7 +105,7 @@ func TestLoadModeCRD(t *testing.T) {
 				cacert_path = "CACERTOVERRIDE"
 				insecure_skip_client_verification = true
 				server_socket_path = "SOCKETPATHOVERRIDE"
-				trust_domain = "TRUSTDOMAINOVERRIDE"
+				trust_domain = "override-domain.test"
 				cluster = "CLUSTEROVERRIDE"
 				add_svc_dns_name = false
 				leader_election = false
@@ -119,10 +122,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogPath:            "PATHOVERRIDE",
 					ServerSocketPath:   "SOCKETPATHOVERRIDE",
 					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
-					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					TrustDomain:        "override-domain.test",
 					Cluster:            "CLUSTEROVERRIDE",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("override-domain.test"),
 				},
 				AddSvcDNSName:      false,
 				LeaderElection:     false,
@@ -151,10 +155,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:         true,
 				MetricsBindAddr:       ":8080",
@@ -185,10 +190,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:      true,
 				MetricsBindAddr:    ":8080",
@@ -213,10 +219,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				IdentityTemplate:   "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
 				AddSvcDNSName:      true,
@@ -260,7 +267,7 @@ func TestLoadModeCRD(t *testing.T) {
 		{
 			name: "identity_template missing context (with space)",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 				cluster = "CLUSTER"
 				mode = "crd"
@@ -271,7 +278,7 @@ func TestLoadModeCRD(t *testing.T) {
 		{
 			name: "identity_template missing context (without space)",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 				cluster = "CLUSTER"
 				mode = "crd"
@@ -289,10 +296,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:      true,
 				MetricsBindAddr:    ":8080",
@@ -313,10 +321,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:      true,
 				MetricsBindAddr:    ":8080",
@@ -330,7 +339,7 @@ func TestLoadModeCRD(t *testing.T) {
 		{
 			name: "dns_name_templates missing context (with space)",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 				cluster = "CLUSTER"
 				mode = "crd"
@@ -341,7 +350,7 @@ func TestLoadModeCRD(t *testing.T) {
 		{
 			name: "dns_name_templates missing context (without space)",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 				cluster = "CLUSTER"
 				mode = "crd"

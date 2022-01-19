@@ -29,10 +29,13 @@ func (h *caHealth) CheckHealth() health.State {
 
 	ctx = health.CheckContext(ctx)
 
-	_, err := h.ca.SignX509SVID(ctx, X509SVIDParams{
-		SpiffeID:  h.td.NewID("/for/health/check/only"),
-		PublicKey: caHealthKey,
-	})
+	spiffeID, err := spiffeid.FromPath(h.td, "/for/health/check/only")
+	if err == nil {
+		_, err = h.ca.SignX509SVID(ctx, X509SVIDParams{
+			SpiffeID:  spiffeID,
+			PublicKey: caHealthKey,
+		})
+	}
 
 	// Both liveness and readiness are determined by whether or not the
 	// x509 CA was successfully signed.

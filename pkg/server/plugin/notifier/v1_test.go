@@ -86,7 +86,7 @@ func TestV1(t *testing.T) {
 	t.Run("notify and advise bundle loaded with invalid bundle", func(t *testing.T) {
 		notifier := loadV1Plugin(t, bundleUpdated, nil)
 		err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{})
-		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, "notifier(test): bundle is invalid: spiffeid: trust domain is empty")
+		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, "notifier(test): bundle is invalid: trust domain is missing")
 	})
 
 	t.Run("notify bundle updated success", func(t *testing.T) {
@@ -104,7 +104,7 @@ func TestV1(t *testing.T) {
 	t.Run("notify bundle updated with invalid bundle", func(t *testing.T) {
 		notifier := loadV1Plugin(t, bundleUpdated, nil)
 		err := notifier.NotifyBundleUpdated(context.Background(), &common.Bundle{})
-		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, "notifier(test): bundle is invalid: spiffeid: trust domain is empty")
+		spiretest.AssertGRPCStatus(t, err, codes.InvalidArgument, "notifier(test): bundle is invalid: trust domain is missing")
 	})
 }
 

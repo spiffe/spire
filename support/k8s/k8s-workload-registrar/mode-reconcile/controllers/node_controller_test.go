@@ -6,7 +6,6 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/test/fakes/fakeentryclient"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,9 +62,11 @@ func (s *NodeControllerTestSuite) TearDownTest() {
 }
 
 func (s *NodeControllerTestSuite) makeNodeID(node string) *spiretypes.SPIFFEID {
+	path, err := spiffeid.JoinPathSegments("foo", "node", node)
+	s.Require().NoError(err)
 	return &spiretypes.SPIFFEID{
 		TrustDomain: nodeControllerTestTrustDomain,
-		Path:        idutil.JoinPathSegments("foo", "node", node),
+		Path:        path,
 	}
 }
 

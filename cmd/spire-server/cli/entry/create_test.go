@@ -165,16 +165,6 @@ func TestCreate(t *testing.T) {
 			expErr: "Error: a SPIFFE ID is required\n",
 		},
 		{
-			name:   "Wrong SPIFFE ID",
-			args:   []string{"-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent", "-spiffeID", "invalid-id"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
-		},
-		{
-			name:   "Wrong parent SPIFFE ID",
-			args:   []string{"-selector", "unix:uid:1", "-parentID", "invalid-id", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
-		},
-		{
 			name:   "Wrong selectors",
 			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
 			expErr: "Error: selector \"unix\" must be formatted as type:value\n",
@@ -188,11 +178,6 @@ func TestCreate(t *testing.T) {
 			name:   "Federated node entries",
 			args:   []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-node", "-federatesWith", "spiffe://another.org"},
 			expErr: "Error: node entries can not federate\n",
-		},
-		{
-			name:   "Wrong federated trust domain",
-			args:   []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-federatesWith", "invalid-id"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name: "Server error",
@@ -215,8 +200,8 @@ func TestCreate(t *testing.T) {
 				"-selector", "zebra:zebra:2000",
 				"-selector", "alpha:alpha:2000",
 				"-ttl", "60",
-				"-federatesWith", "spiffe://domainA.test",
-				"-federatesWith", "spiffe://domainB.test",
+				"-federatesWith", "spiffe://domaina.test",
+				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
 				"-entryExpiry", "1552410266",
 				"-dns", "unu1000",

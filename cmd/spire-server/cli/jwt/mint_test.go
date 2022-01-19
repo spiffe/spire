@@ -175,7 +175,7 @@ func TestMintRun(t *testing.T) {
 				Path:        "/workload",
 			},
 			code:              1,
-			stderr:            "Error: spiffeid: invalid scheme\n",
+			stderr:            "Error: scheme is missing or invalid\n",
 			audience:          []string{"AUDIENCE"},
 			noRequestExpected: true,
 		},

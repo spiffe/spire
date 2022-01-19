@@ -195,7 +195,7 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 
 	trustDomain, err := spiffeid.TrustDomainFromString(req.GetTrustDomain())
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid trust domain", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
 	}
 
 	log = log.WithField(telemetry.TrustDomainID, trustDomain.String())

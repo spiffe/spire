@@ -44,7 +44,10 @@ type DialServerConfig struct {
 
 func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn, error) {
 	bundleSource := newBundleSource(config.TrustDomain, config.GetBundle)
-	serverID := idutil.ServerID(config.TrustDomain)
+	serverID, err := idutil.ServerID(config.TrustDomain)
+	if err != nil {
+		return nil, err
+	}
 	authorizer := tlsconfig.AuthorizeID(serverID)
 
 	var tlsConfig *tls.Config

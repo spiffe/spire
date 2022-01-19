@@ -76,7 +76,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				ParentId: "malformed ParentID",
 				SpiffeId: "spiffe://example.org/bar",
 			},
-			err: "invalid parent ID: spiffeid: invalid scheme",
+			err: "invalid parent ID: scheme is missing or invalid",
 		},
 		{
 			name: "malformed SpiffeId",
@@ -84,7 +84,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				ParentId: "spiffe://example.org/foo",
 				SpiffeId: "malformed SpiffeID",
 			},
-			err: "invalid SPIFFE ID: spiffeid: invalid scheme",
+			err: "invalid SPIFFE ID: scheme is missing or invalid",
 		},
 	} {
 		tt := tt
@@ -262,7 +262,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 		},
 		{
 			name: "malformed parent ID",
-			err:  "invalid parent ID: spiffeid: unable to parse:",
+			err:  "invalid parent ID: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 			entry: &types.Entry{
 				ParentId: &types.SPIFFEID{TrustDomain: "invalid domain"},
 				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
@@ -277,7 +277,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 		},
 		{
 			name: "malformed spiffe ID",
-			err:  "invalid spiffe ID: spiffeid: unable to parse:",
+			err:  "invalid spiffe ID: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 			entry: &types.Entry{
 				SpiffeId: &types.SPIFFEID{TrustDomain: "invalid domain"},
 				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
@@ -295,7 +295,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 		},
 		{
 			name: "malformed federated trust domain",
-			err:  `invalid federated trust domain: spiffeid: unable to parse: parse "spiffe://malformed td":`,
+			err:  "invalid federated trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 			entry: &types.Entry{
 				SpiffeId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 				ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},

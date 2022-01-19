@@ -37,7 +37,7 @@ type SVIDConfig struct {
 	Log                logrus.FieldLogger
 	Namespace          string
 	S                  svidv1.SVIDClient
-	TrustDomain        string
+	TrustDomain        spiffeid.TrustDomain
 	WebhookCertDir     string
 	WebhookServiceName string
 }
@@ -56,7 +56,7 @@ func NewSVID(ctx context.Context, config SVIDConfig) (*SVID, error) {
 		return nil, err
 	}
 
-	id, err := spiffeid.New(config.TrustDomain, "k8s-workload-registrar", config.Cluster, "webhook")
+	id, err := spiffeid.FromSegments(config.TrustDomain, "k8s-workload-registrar", config.Cluster, "webhook")
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate SPIFFE ID: %w", err)
 	}

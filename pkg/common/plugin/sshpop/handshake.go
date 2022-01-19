@@ -10,6 +10,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"golang.org/x/crypto/ssh"
@@ -195,7 +196,7 @@ func (s *ServerHandshake) VerifyChallengeResponse(res []byte) error {
 	return nil
 }
 
-func (s *ServerHandshake) AgentID() (string, error) {
+func (s *ServerHandshake) AgentID() (spiffeid.ID, error) {
 	return makeAgentID(s.s.trustDomain, s.s.agentPathTemplate, s.cert, s.hostname)
 }
 
@@ -222,7 +223,7 @@ func combineNonces(challenge, response []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func makeAgentID(trustDomain string, agentPathTemplate *agentpathtemplate.Template, cert *ssh.Certificate, hostname string) (string, error) {
+func makeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *ssh.Certificate, hostname string) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		Certificate: cert,
 		PluginName:  PluginName,
@@ -230,9 +231,10 @@ func makeAgentID(trustDomain string, agentPathTemplate *agentpathtemplate.Templa
 		Hostname:    hostname,
 	})
 	if err != nil {
-		return "", err
+		return spiffeid.ID{}, err
 	}
-	return idutil.AgentURI(trustDomain, agentPath).String(), nil
+
+	return idutil.AgentID(td, agentPath)
 }
 
 // urlSafeSSHFingerprintSHA256 is a modified version of ssh.FingerprintSHA256

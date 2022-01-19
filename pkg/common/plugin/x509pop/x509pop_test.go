@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/stretchr/testify/require"
 )
@@ -128,22 +129,22 @@ func createBadCertificate(privateKey, publicKey interface{}) (*x509.Certificate,
 	return x509.ParseCertificate(certBytes)
 }
 
-func TestMakeSPIFFEID(t *testing.T) {
+func TestMakeAgentID(t *testing.T) {
 	tests := []struct {
-		desc         string
-		template     *agentpathtemplate.Template
-		expectSPIFFE string
-		expectErr    string
+		desc      string
+		template  *agentpathtemplate.Template
+		expectID  string
+		expectErr string
 	}{
 		{
-			desc:         "default template with sha1",
-			template:     DefaultAgentPathTemplate,
-			expectSPIFFE: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			desc:     "default template with sha1",
+			template: DefaultAgentPathTemplate,
+			expectID: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
 		},
 		{
-			desc:         "custom template with subject identifiers",
-			template:     agentpathtemplate.MustParse("foo/{{ .Subject.CommonName }}"),
-			expectSPIFFE: "spiffe://example.org/spire/agent/foo/test-cert",
+			desc:     "custom template with subject identifiers",
+			template: agentpathtemplate.MustParse("foo/{{ .Subject.CommonName }}"),
+			expectID: "spiffe://example.org/spire/agent/foo/test-cert",
 		},
 		{
 			desc:      "custom template with nonexistant fields",
@@ -160,14 +161,14 @@ func TestMakeSPIFFEID(t *testing.T) {
 					CommonName: "test-cert",
 				},
 			}
-			spiffeid, err := MakeSpiffeID("example.org", tt.template, cert)
+			id, err := MakeAgentID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.expectSPIFFE, spiffeid)
+			require.Equal(t, tt.expectID, id.String())
 		})
 	}
 }

@@ -16,6 +16,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-reconcile/controllers"
@@ -72,7 +73,11 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 	}
 	setupLog.Info("Connected to spire server")
 
-	rootID := nodeID(c.TrustDomain, c.ControllerName, c.Cluster)
+	rootID, err := nodeID(c.trustDomain, c.ControllerName, c.Cluster)
+	if err != nil {
+		setupLog.Error(err, "Unable to determine root ID")
+		return err
+	}
 
 	// Setup all Controllers
 	scheme := runtime.NewScheme()
@@ -95,7 +100,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		mgr.GetClient(),
 		ctrl.Log.WithName("controllers").WithName("Node"),
 		mgr.GetScheme(),
-		ServerID(c.TrustDomain),
+		serverID(c.trustDomain),
 		c.Cluster,
 		rootID,
 		spireClient,
@@ -158,17 +163,21 @@ func (slw SpiffeLogWrapper) Errorf(format string, args ...interface{}) {
 	slw.delegate.Info(fmt.Sprintf(format, args...))
 }
 
-// ServerID creates a server SPIFFE ID string given a trustDomain.
-func ServerID(trustDomain string) *spiretypes.SPIFFEID {
+// serverID creates a server SPIFFE ID string given a trustDomain.
+func serverID(td spiffeid.TrustDomain) *spiretypes.SPIFFEID {
 	return &spiretypes.SPIFFEID{
-		TrustDomain: trustDomain,
-		Path:        idutil.JoinPathSegments("spire", "server"),
+		TrustDomain: td.String(),
+		Path:        idutil.ServerIDPath,
 	}
 }
 
-func nodeID(trustDomain string, controllerName string, cluster string) *spiretypes.SPIFFEID {
-	return &spiretypes.SPIFFEID{
-		TrustDomain: trustDomain,
-		Path:        idutil.JoinPathSegments(controllerName, cluster, "node"),
+func nodeID(td spiffeid.TrustDomain, controllerName string, cluster string) (*spiretypes.SPIFFEID, error) {
+	path, err := spiffeid.JoinPathSegments(controllerName, cluster, "node")
+	if err != nil {
+		return nil, err
 	}
+	return &spiretypes.SPIFFEID{
+		TrustDomain: td.String(),
+		Path:        path,
+	}, nil
 }

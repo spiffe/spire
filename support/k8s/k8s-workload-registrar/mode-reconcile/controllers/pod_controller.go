@@ -21,9 +21,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -106,7 +106,7 @@ func (r *PodReconciler) selectorsToNamespacedName(selectors []*spiretypes.Select
 	return nil
 }
 
-func (r *PodReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
+func (r *PodReconciler) makeSpiffeID(obj ObjectWithMetadata) (*spiretypes.SPIFFEID, error) {
 	return r.makeSpiffeIDForPod(obj.(*corev1.Pod))
 }
 
@@ -225,42 +225,54 @@ func (r *PodReconciler) fillEntryForObject(ctx context.Context, entry *spiretype
 	return r.fillEntryForPod(ctx, entry, obj.(*corev1.Pod))
 }
 
-func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID {
-	var spiffeID *spiretypes.SPIFFEID
+func (r *PodReconciler) makeSpiffeIDForPod(pod *corev1.Pod) (*spiretypes.SPIFFEID, error) {
 	switch r.Mode {
 	case PodReconcilerModeServiceAccount:
-		spiffeID = r.makeID("ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName)
+		return r.makeID("ns", pod.Namespace, "sa", pod.Spec.ServiceAccountName)
 	case PodReconcilerModeLabel:
 		if val, ok := pod.GetLabels()[r.Value]; ok {
-			spiffeID = r.makeID(val)
+			return r.makeID(val)
 		}
 	case PodReconcilerModeAnnotation:
 		if val, ok := pod.GetAnnotations()[r.Value]; ok {
-			spiffeID = r.makeID(val)
+			return r.makeID(val)
 		}
+	default:
+		return nil, fmt.Errorf("unhandled pod reconciler mode: %q", r.Mode)
 	}
-	return spiffeID
+
+	// Pod does not have the requisite label or annotation so don't return
+	// a SPIFFE ID.
+	return nil, nil
 }
 
-func (r *PodReconciler) makeID(segments ...string) *spiretypes.SPIFFEID {
+func (r *PodReconciler) makeID(segments ...string) (*spiretypes.SPIFFEID, error) {
+	path, err := spiffeid.JoinPathSegments(segments...)
+	if err != nil {
+		return nil, err
+	}
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.TrustDomain,
-		Path:        idutil.JoinPathSegments(segments...),
-	}
+		Path:        path,
+	}, nil
 }
 
-func (r *PodReconciler) makeParentIDForPod(pod *corev1.Pod) *spiretypes.SPIFFEID {
+func (r *PodReconciler) makeParentIDForPod(pod *corev1.Pod) (*spiretypes.SPIFFEID, error) {
 	nodeName := pod.Spec.NodeName
 	if nodeName == "" {
-		return nil
+		return nil, nil
+	}
+	path, err := spiffeid.JoinPathSegments(nodeName)
+	if err != nil {
+		return nil, err
 	}
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.RootID.TrustDomain,
-		Path:        r.RootID.Path + idutil.JoinPathSegments(nodeName),
-	}
+		Path:        r.RootID.Path + path,
+	}, nil
 }
 
-func (r *PodReconciler) makeParentID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
+func (r *PodReconciler) makeParentID(obj ObjectWithMetadata) (*spiretypes.SPIFFEID, error) {
 	return r.makeParentIDForPod(obj.(*corev1.Pod))
 }
 

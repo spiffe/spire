@@ -179,7 +179,7 @@ func TestCreate(t *testing.T) {
 		{
 			name:   "Invalid bundle endpoint SPIFFE ID",
 			args:   []string{"-trustDomain", "td.org", "-bundleEndpointURL", "https://td.org/bundle", "-endpointSpiffeID", "invalid-id", "-trustDomainBundlePath", bundlePath, "-bundleEndpointProfile", profileHTTPSSPIFFE},
-			expErr: "Error: cannot parse bundle endpoint SPIFFE ID: spiffeid: invalid scheme\n",
+			expErr: "Error: cannot parse bundle endpoint SPIFFE ID: scheme is missing or invalid\n",
 		},
 		{
 			name:   "Non-existent bundle file",

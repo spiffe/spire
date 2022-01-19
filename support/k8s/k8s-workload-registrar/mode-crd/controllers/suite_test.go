@@ -61,11 +61,10 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 	}
 
 	r := NewSpiffeIDReconciler(SpiffeIDReconcilerConfig{
-		Client:      c.k8sClient,
-		Cluster:     Cluster,
-		Log:         log,
-		E:           c.entryClient,
-		TrustDomain: TrustDomain,
+		Client:  c.k8sClient,
+		Cluster: Cluster,
+		Log:     log,
+		E:       c.entryClient,
 	})
 
 	c.r = r

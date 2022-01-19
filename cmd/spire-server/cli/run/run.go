@@ -25,7 +25,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -93,9 +92,6 @@ type serverConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-
-	// TODO: Remove for 1.1.0
-	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -349,13 +345,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.Log = logger
 
-	// This is a terrible hack but is just a short-term band-aid.
-	// TODO: Deprecated and should be removed in 1.1
-	if c.Server.AllowUnsafeIDs != nil {
-		sc.Log.Warn("The insecure allow_unsafe_ids configurable is deprecated and will be removed in a future release.")
-		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
-	}
-
 	ip := net.ParseIP(c.Server.BindAddress)
 	if ip == nil {
 		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
@@ -377,7 +366,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
 
-	td, err := idutil.TrustDomainFromString(c.Server.TrustDomain)
+	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse trust_domain %q: %w", c.Server.TrustDomain, err)
 	}
@@ -417,7 +406,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		federatesWith := map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{}
 
 		for trustDomain, config := range c.Server.Federation.FederatesWith {
-			td, err := idutil.TrustDomainFromString(trustDomain)
+			td, err := spiffeid.TrustDomainFromString(trustDomain)
 			if err != nil {
 				return nil, err
 			}

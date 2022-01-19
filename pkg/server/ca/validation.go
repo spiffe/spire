@@ -31,8 +31,12 @@ func (v X509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) erro
 }
 
 func (v X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
+	spiffeID, err := spiffeid.FromPath(v.TrustDomain, "/spire/throwaway")
+	if err != nil {
+		return fmt.Errorf("unexpected error making ID for validation: %w", err)
+	}
 	params := X509SVIDParams{
-		SpiffeID:  v.TrustDomain.NewID("/spire/throwaway"),
+		SpiffeID:  spiffeID,
 		PublicKey: validationPubkey,
 	}
 

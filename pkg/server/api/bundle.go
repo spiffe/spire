@@ -8,8 +8,8 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -19,9 +19,9 @@ func BundleToProto(b *common.Bundle) (*types.Bundle, error) {
 		return nil, errors.New("no bundle provided")
 	}
 
-	td, err := idutil.TrustDomainFromString(b.TrustDomainId)
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid trust domain id: %w", err)
 	}
 
 	return &types.Bundle{
@@ -60,9 +60,9 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 		return nil, errors.New("no bundle provided")
 	}
 
-	td, err := idutil.TrustDomainFromString(b.TrustDomain)
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid trust domain: %w", err)
 	}
 
 	rootCas, err := ParseX509Authorities(b.X509Authorities)

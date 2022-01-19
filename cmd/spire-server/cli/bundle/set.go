@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
 )
 
@@ -58,17 +57,12 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		return err
 	}
 
-	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return err
-	}
-
 	bundleBytes, err := loadParamData(env.Stdin, c.path)
 	if err != nil {
 		return fmt.Errorf("unable to load bundle data: %w", err)
 	}
 
-	bundle, err := util.ParseBundle(bundleBytes, format, id)
+	bundle, err := util.ParseBundle(bundleBytes, format, c.id)
 	if err != nil {
 		return err
 	}

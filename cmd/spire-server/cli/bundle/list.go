@@ -9,7 +9,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
 // NewListCommand creates a new "list" subcommand for "bundle" command.
@@ -42,12 +41,8 @@ func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
 	if c.id != "" {
-		id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
-		if err != nil {
-			return err
-		}
 		resp, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
-			TrustDomain: id,
+			TrustDomain: c.id,
 		})
 		if err != nil {
 			return err

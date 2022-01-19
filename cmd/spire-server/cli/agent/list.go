@@ -8,11 +8,11 @@ import (
 
 	"github.com/mitchellh/cli"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/idutil"
 
 	"golang.org/x/net/context"
 )
@@ -105,7 +105,7 @@ func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 
 func printAgents(env *common_cli.Env, agents ...*types.Agent) error {
 	for _, agent := range agents {
-		id, err := spiffeid.New(agent.Id.TrustDomain, agent.Id.Path)
+		id, err := idutil.IDFromProto(agent.Id)
 		if err != nil {
 			return err
 		}

@@ -402,7 +402,7 @@ func TestConfigure(t *testing.T) {
 
 	t.Run("missing trust domain", func(t *testing.T) {
 		err := doConfig(t, catalog.CoreConfig{}, ``)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration has invalid trust domain: trust domain is missing")
 	})
 
 	t.Run("fails with access id but no secret", func(t *testing.T) {

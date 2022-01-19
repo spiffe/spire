@@ -171,7 +171,7 @@ func TestCommonBundleFromProto(t *testing.T) {
 			bundle: &types.Bundle{
 				TrustDomain: "invalid TD",
 			},
-			expectError: `spiffeid: unable to parse: parse "spiffe://invalid TD": invalid character " " in host name`,
+			expectError: `bundle has an invalid trust domain "invalid TD": trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 		},
 	} {
 		tt := tt

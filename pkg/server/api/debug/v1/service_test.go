@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/debug/v1"
@@ -44,14 +45,15 @@ Et2IvChBiw2vII7Be7LUQq20qF6YIWaZbIYVLwD3
 )
 
 var (
-	ctx = context.Background()
-	td  = spiffeid.RequireTrustDomainFromString("example.org")
+	ctx      = context.Background()
+	td       = spiffeid.RequireTrustDomainFromString("example.org")
+	serverID = idutil.RequireServerID(td)
 )
 
 func TestGetInfo(t *testing.T) {
 	// Create root CA
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(td.NewID("/spire/server"))
+	x509SVID := ca.CreateX509SVID(serverID)
 	x509SVIDState := svid.State{
 		SVID: x509SVID.Certificates,
 		Key:  x509SVID.PrivateKey.(*ecdsa.PrivateKey),
@@ -74,12 +76,12 @@ func TestGetInfo(t *testing.T) {
 	// Create intermediate with SPIFFE ID and subject
 	now := time.Now()
 	intermediateCANoAfter := now.Add(2 * time.Minute)
-	intermediateCA := ca.ChildCA(testca.WithURIs(td.ID().URL()),
+	intermediateCA := ca.ChildCA(testca.WithID(td.ID()),
 		testca.WithLifetime(now, intermediateCANoAfter),
 		testca.WithSubject(pkix.Name{CommonName: "UPSTREAM-1"}))
 
 	// Create SVID with intermediate
-	svidWithIntermediate := intermediateCA.CreateX509SVID(td.NewID("/spire/server"))
+	svidWithIntermediate := intermediateCA.CreateX509SVID(serverID)
 	stateWithIntermediate := svid.State{
 		SVID: svidWithIntermediate.Certificates,
 		Key:  svidWithIntermediate.PrivateKey.(*ecdsa.PrivateKey),

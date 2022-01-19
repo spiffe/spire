@@ -70,7 +70,7 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 
 	td, err := spiffeid.TrustDomainFromString(b.TrustDomain)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bundle has an invalid trust domain %q: %w", b.TrustDomain, err)
 	}
 
 	var rootCAs []*common.Certificate

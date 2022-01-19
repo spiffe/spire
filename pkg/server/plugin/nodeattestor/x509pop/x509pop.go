@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -33,7 +34,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type configuration struct {
-	trustDomain  string
+	trustDomain  spiffeid.TrustDomain
 	trustBundle  *x509.CertPool
 	pathTemplate *agentpathtemplate.Template
 }
@@ -139,7 +140,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeSpiffeID(config.trustDomain, config.pathTemplate, leaf)
+	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -147,7 +148,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:       spiffeid,
+				SpiffeId:       spiffeid.String(),
 				SelectorValues: buildSelectorValues(leaf, chains),
 			},
 		},
@@ -168,6 +169,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 
+	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+	}
+
 	bundles, err := getBundles(hclConfig)
 	if err != nil {
 		return nil, err
@@ -183,7 +189,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	p.setConfiguration(&configuration{
-		trustDomain:  req.CoreConfiguration.TrustDomain,
+		trustDomain:  trustDomain,
 		trustBundle:  util.NewCertPool(bundles...),
 		pathTemplate: pathTemplate,
 	})

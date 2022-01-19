@@ -239,11 +239,6 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, fb)
 
-	// fetch (with denormalized id)
-	fb, err = s.ds.FetchBundle(ctx, "spiffe://fOO")
-	s.Require().NoError(err)
-	s.AssertProtoEqual(bundle, fb)
-
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -324,14 +319,6 @@ func (s *PluginSuite) TestBundleCRUD() {
 	s.Require().NoError(err)
 	s.Equal(1, len(lresp.Bundles))
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
-
-	// delete (with denormalized id)
-	err = s.ds.DeleteBundle(ctx, "spiffe://bAR", datastore.Restrict)
-	s.Require().NoError(err)
-
-	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	s.Require().NoError(err)
-	s.Empty(lresp.Bundles)
 }
 
 func (s *PluginSuite) TestListBundlesWithPagination() {
@@ -3350,7 +3337,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 		},
 		{
 			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
-			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: spiffeid: invalid scheme",
+			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: scheme is missing or invalid",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
 			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
 				model := FederatedTrustDomain{

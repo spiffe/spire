@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
@@ -127,7 +128,8 @@ func run() string {
 }
 
 func mintX509SVID(ctx context.Context, c *itclient.Client) error {
-	id := c.Td.NewID("new_workload")
+	id := spiffeid.RequireFromPath(c.Td, "/new_workload")
+
 	expectedID := &types.SPIFFEID{
 		TrustDomain: id.TrustDomain().String(),
 		Path:        id.Path(),

@@ -4,16 +4,19 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/stretchr/testify/require"
 )
 
-var templateWithTags = agentpathtemplate.MustParse("{{ .Tags.a }}/{{ .Tags.b }}")
+var (
+	templateWithTags = agentpathtemplate.MustParse("/{{ .Tags.a }}/{{ .Tags.b }}")
+	trustDomain      = spiffeid.RequireTrustDomainFromString("example.org")
+)
 
 func TestMakeSpiffeID(t *testing.T) {
 	tests := []struct {
 		name              string
-		trustDomain       string
 		agentPathTemplate *agentpathtemplate.Template
 		doc               ec2metadata.EC2InstanceIdentityDocument
 		tags              instanceTags
@@ -21,7 +24,6 @@ func TestMakeSpiffeID(t *testing.T) {
 	}{
 		{
 			name:              "default",
-			trustDomain:       "example.org",
 			agentPathTemplate: defaultAgentPathTemplate,
 			doc: ec2metadata.EC2InstanceIdentityDocument{
 				Region:     "region",
@@ -32,7 +34,6 @@ func TestMakeSpiffeID(t *testing.T) {
 		},
 		{
 			name:              "instance tags",
-			trustDomain:       "example.org",
 			agentPathTemplate: templateWithTags,
 			tags: instanceTags{
 				"a": "c",
@@ -44,7 +45,7 @@ func TestMakeSpiffeID(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := makeSpiffeID(tt.trustDomain, tt.agentPathTemplate, tt.doc, tt.tags)
+			got, err := makeAgentID(trustDomain, tt.agentPathTemplate, tt.doc, tt.tags)
 			require.NoError(t, err)
 			require.Equal(t, got.String(), tt.want)
 		})

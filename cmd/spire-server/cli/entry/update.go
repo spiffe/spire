@@ -9,7 +9,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
@@ -154,22 +153,6 @@ func (c *updateCommand) validate() (err error) {
 
 	if c.ttl < 0 {
 		return errors.New("a positive TTL is required")
-	}
-
-	// make sure all SPIFFE ID's are well formed
-	c.spiffeID, err = idutil.NormalizeSpiffeID(c.spiffeID, idutil.AllowAny())
-	if err != nil {
-		return err
-	}
-	c.parentID, err = idutil.NormalizeSpiffeID(c.parentID, idutil.AllowAny())
-	if err != nil {
-		return err
-	}
-	for i := range c.federatesWith {
-		c.federatesWith[i], err = idutil.NormalizeSpiffeID(c.federatesWith[i], idutil.AllowAny())
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

@@ -53,12 +53,6 @@ func TestRefresh(t *testing.T) {
 			expectErr: "Error: id is required\n",
 		},
 		{
-			name: "Malformed ID",
-			args: []string{"-id", "https://example.org"},
-			expectErr: `Error: "https://example.org" is not a valid trust domain SPIFFE ID: invalid scheme
-`,
-		},
-		{
 			name:      "Server client fails",
 			args:      []string{"-id", "spiffe://example.org"},
 			serverErr: status.Error(codes.Internal, "oh! no"),

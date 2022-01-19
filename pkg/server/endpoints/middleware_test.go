@@ -297,11 +297,11 @@ func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.Attes
 }
 
 func createAuthorizedEntryTestData(t testing.TB, ds datastore.DataStore) *testEntries {
-	serverID := testTD.NewID("/spire/server")
-	anotherAgentID := testTD.NewID("/spire/another-agent")
-	nodeAliasID := testTD.NewID("/node-alias")
-	workload1ID := testTD.NewID("/workload1")
-	workload2ID := testTD.NewID("/workload2")
+	serverID := spiffeid.RequireFromPath(testTD, "/spire/server")
+	anotherAgentID := spiffeid.RequireFromPath(testTD, "/spire/another-agent")
+	nodeAliasID := spiffeid.RequireFromPath(testTD, "/node-alias")
+	workload1ID := spiffeid.RequireFromPath(testTD, "/workload1")
+	workload2ID := spiffeid.RequireFromPath(testTD, "/workload2")
 
 	const testAttestationType = "test-nodeattestor"
 	nonMatchingNode := &common.AttestedNode{

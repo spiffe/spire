@@ -77,9 +77,9 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 		first  string
 		second string
 	}{
-		{PodReconcilerModeLabel, "label1", "label2"},
-		{PodReconcilerModeAnnotation, "annotation1", "annotation2"},
-		{PodReconcilerModeServiceAccount, "ns/bar/sa/sa1", "ns/bar/sa/sa2"},
+		{PodReconcilerModeLabel, "/label1", "/label2"},
+		{PodReconcilerModeAnnotation, "/annotation1", "/annotation2"},
+		{PodReconcilerModeServiceAccount, "/ns/bar/sa/sa1", "/ns/bar/sa/sa2"},
 	}
 
 	for _, tt := range tests {
@@ -230,14 +230,15 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	s.Assert().NoError(err)
 
 	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
-		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
+		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es, 1)
-	s.Assert().Equal([]string{
-		"123-123-123-124.bar.pod.cluster.local",
-		"123-123-123-124.bar.pod",
-	}, es[0].DnsNames)
+	if s.Assert().Len(es, 1) {
+		s.Assert().Equal([]string{
+			"123-123-123-124.bar.pod.cluster.local",
+			"123-123-123-124.bar.pod",
+		}, es[0].DnsNames)
+	}
 
 	endpointsToCreate := corev1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
@@ -274,7 +275,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 	s.Assert().NoError(err)
 
 	es, err = listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
-		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
+		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
 	s.Assert().Len(es, 1)
@@ -368,24 +369,25 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 	s.Assert().NoError(err)
 
 	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
-		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
+		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es, 1)
-	s.Assert().ElementsMatch([]string{
-		"123-123-123-124.bar.pod.cluster.local",
-		"foo-svc.bar.svc.cluster.local",
-		"123-123-123-123.foo-svc.bar.svc.cluster.local",
-		"123-123-123-124.bar.pod",
-		"foo-svc.bar.svc",
-		"123-123-123-123.foo-svc.bar.svc",
-		"foo-svc.bar",
-		"123-123-123-123.foo-svc.bar",
-		"foo-svc",
-		"123-123-123-123.foo-svc",
-	}, es[0].DnsNames)
-	// It's important that the pod name is the first in the list so that it gets used as the DN
-	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
+	if s.Assert().Len(es, 1) {
+		s.Assert().ElementsMatch([]string{
+			"123-123-123-124.bar.pod.cluster.local",
+			"foo-svc.bar.svc.cluster.local",
+			"123-123-123-123.foo-svc.bar.svc.cluster.local",
+			"123-123-123-124.bar.pod",
+			"foo-svc.bar.svc",
+			"123-123-123-123.foo-svc.bar.svc",
+			"foo-svc.bar",
+			"123-123-123-123.foo-svc.bar",
+			"foo-svc",
+			"123-123-123-123.foo-svc",
+		}, es[0].DnsNames)
+		// It's important that the pod name is the first in the list so that it gets used as the DN
+		s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
+	}
 }
 
 func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
@@ -458,16 +460,17 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 	s.Assert().NoError(err)
 
 	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
-		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
+		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	s.Assert().Len(es, 1)
-	s.Assert().ElementsMatch([]string{
-		"123-123-123-124.bar.pod.cluster.local",
-		"123-123-123-124.bar.pod",
-	}, es[0].DnsNames)
-	// It's important that the pod name is the first in the list so that it gets used as the DN
-	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
+	if s.Assert().Len(es, 1) {
+		s.Assert().ElementsMatch([]string{
+			"123-123-123-124.bar.pod.cluster.local",
+			"123-123-123-124.bar.pod",
+		}, es[0].DnsNames)
+		// It's important that the pod name is the first in the list so that it gets used as the DN
+		s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
+	}
 }
 
 func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
@@ -514,7 +517,7 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 	s.Assert().NoError(err)
 
 	es, err := listEntries(ctx, s.entryClient, &entryv1.ListEntriesRequest_Filter{
-		BySpiffeId: s.makePodID("ns/bar/sa/sa1"),
+		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
 	s.Assert().Len(es, 0)
