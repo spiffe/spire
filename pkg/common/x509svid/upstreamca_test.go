@@ -59,7 +59,7 @@ func (s *UpstreamCASuite) TestSignCSRWithNoURISAN() {
 func (s *UpstreamCASuite) TestSignCSRWithWrongTrustDomain() {
 	csr := s.makeCSR("spiffe://domain.test")
 	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, 0)
-	s.requireErrorContains(err, `CSR with SPIFFE ID "spiffe://domain.test" is not the trust domain ID for trust domain "example.org"`)
+	s.requireErrorContains(err, `CSR with SPIFFE ID "spiffe://domain.test" is invalid: must use the trust domain ID for trust domain "example.org"`)
 	s.Require().Nil(cert)
 }
 
@@ -67,7 +67,7 @@ func (s *UpstreamCASuite) TestSignCSRWithWorkloadID() {
 	// spiffe ID for workload
 	csr := s.makeCSR("spiffe://example.org/foo")
 	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, 0)
-	s.requireErrorContains(err, `CSR with SPIFFE ID "spiffe://example.org/foo" is not the trust domain ID for trust domain "example.org"`)
+	s.requireErrorContains(err, `CSR with SPIFFE ID "spiffe://example.org/foo" is invalid: must use the trust domain ID for trust domain "example.org"`)
 	s.Require().Nil(cert)
 }
 
