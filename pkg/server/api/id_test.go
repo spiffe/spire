@@ -1,11 +1,15 @@
 package api_test
 
 import (
+	"context"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -18,42 +22,49 @@ func TestIDFromProto(t *testing.T) {
 	agent := spiffeid.RequireFromPath(td, "/spire/agent/foo")
 
 	type testCase struct {
-		name        string
-		spiffeID    *types.SPIFFEID
-		expectedID  spiffeid.ID
-		expectedErr string
+		name       string
+		spiffeID   *types.SPIFFEID
+		expectID   spiffeid.ID
+		expectErr  string
+		expectLogs []spiretest.LogEntry
 	}
 
 	// These test cases are common to all of the *IDFromProto methods
 	baseCases := []testCase{
 		{
-			name:        "no SPIFFE ID",
-			expectedErr: "request must specify SPIFFE ID",
+			name:      "no SPIFFE ID",
+			expectErr: "request must specify SPIFFE ID",
 		},
 		{
-			name:        "missing trust domain",
-			spiffeID:    &types.SPIFFEID{Path: "/workload"},
-			expectedErr: "trust domain is missing",
+			name:      "missing trust domain",
+			spiffeID:  &types.SPIFFEID{Path: "/workload"},
+			expectErr: "trust domain is missing",
 		},
 		{
-			name:        "wrong trust domain",
-			spiffeID:    &types.SPIFFEID{TrustDomain: "otherdomain.test", Path: "/workload"},
-			expectedErr: `"spiffe://otherdomain.test/workload" is not a member of trust domain "domain.test"`,
+			name:      "wrong trust domain",
+			spiffeID:  &types.SPIFFEID{TrustDomain: "otherdomain.test", Path: "/workload"},
+			expectErr: `"spiffe://otherdomain.test/workload" is not a member of trust domain "domain.test"`,
 		},
 	}
 
+	api.RemoveEnsureLeadingSlashLogLimit()
+
 	// runTests exercises all of the test cases against the given function
-	runTests := func(t *testing.T, fn func(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error), testCases []testCase) {
+	runTests := func(t *testing.T, fn func(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error), testCases []testCase) {
 		for _, testCase := range append(baseCases, testCases...) {
 			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
-				id, err := fn(td, testCase.spiffeID)
-				if testCase.expectedErr != "" {
-					require.EqualError(t, err, testCase.expectedErr)
+				log, logHook := test.NewNullLogger()
+
+				id, err := fn(rpccontext.WithLogger(context.Background(), log), td, testCase.spiffeID)
+				if testCase.expectErr != "" {
+					require.EqualError(t, err, testCase.expectErr)
 					return
 				}
 				require.NoError(t, err)
-				require.Equal(t, testCase.expectedID, id)
+				require.Equal(t, testCase.expectID, id)
+
+				spiretest.AssertLogs(t, logHook.AllEntries(), testCase.expectLogs)
 			})
 		}
 	}
@@ -61,24 +72,38 @@ func TestIDFromProto(t *testing.T) {
 	t.Run("TrustDomainMemberIDFromProto", func(t *testing.T) {
 		runTests(t, api.TrustDomainMemberIDFromProto, []testCase{
 			{
-				name:       "workload is valid member",
-				spiffeID:   api.ProtoFromID(workload),
-				expectedID: workload,
+				name:     "workload is valid member",
+				spiffeID: api.ProtoFromID(workload),
+				expectID: workload,
 			},
 			{
-				name:       "reserved is valid member",
-				spiffeID:   api.ProtoFromID(reserved),
-				expectedID: reserved,
+				name:     "reserved is valid member",
+				spiffeID: api.ProtoFromID(reserved),
+				expectID: reserved,
 			},
 			{
-				name:       "agent is valid member",
-				spiffeID:   api.ProtoFromID(agent),
-				expectedID: agent,
+				name:     "agent is valid member",
+				spiffeID: api.ProtoFromID(agent),
+				expectID: agent,
 			},
 			{
-				name:        "no path",
-				spiffeID:    &types.SPIFFEID{TrustDomain: "domain.test"},
-				expectedErr: `"spiffe://domain.test" is not a member of trust domain "domain.test"; path is empty`,
+				name:      "no path",
+				spiffeID:  &types.SPIFFEID{TrustDomain: "domain.test"},
+				expectErr: `"spiffe://domain.test" is not a member of trust domain "domain.test"; path is empty`,
+			},
+			{
+				name:     "path without leading slash",
+				spiffeID: &types.SPIFFEID{TrustDomain: "domain.test", Path: "workload"},
+				expectID: workload,
+				expectLogs: []spiretest.LogEntry{
+					{
+						Level:   logrus.WarnLevel,
+						Message: "API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release",
+						Data: logrus.Fields{
+							"path": "workload",
+						},
+					},
+				},
 			},
 		})
 	})
@@ -86,24 +111,38 @@ func TestIDFromProto(t *testing.T) {
 	t.Run("TrustDomainAgentIDFromProto", func(t *testing.T) {
 		runTests(t, api.TrustDomainAgentIDFromProto, []testCase{
 			{
-				name:        "workload is not an agent",
-				spiffeID:    api.ProtoFromID(workload),
-				expectedErr: `"spiffe://domain.test/workload" is not an agent in trust domain "domain.test"; path is not in the agent namespace`,
+				name:      "workload is not an agent",
+				spiffeID:  api.ProtoFromID(workload),
+				expectErr: `"spiffe://domain.test/workload" is not an agent in trust domain "domain.test"; path is not in the agent namespace`,
 			},
 			{
-				name:        "reserved is not an agent",
-				spiffeID:    api.ProtoFromID(reserved),
-				expectedErr: `"spiffe://domain.test/spire/reserved" is not an agent in trust domain "domain.test"; path is not in the agent namespace`,
+				name:      "reserved is not an agent",
+				spiffeID:  api.ProtoFromID(reserved),
+				expectErr: `"spiffe://domain.test/spire/reserved" is not an agent in trust domain "domain.test"; path is not in the agent namespace`,
 			},
 			{
-				name:       "agent is an agent",
-				spiffeID:   api.ProtoFromID(agent),
-				expectedID: agent,
+				name:     "agent is an agent",
+				spiffeID: api.ProtoFromID(agent),
+				expectID: agent,
 			},
 			{
-				name:        "no path",
-				spiffeID:    &types.SPIFFEID{TrustDomain: "domain.test"},
-				expectedErr: `"spiffe://domain.test" is not an agent in trust domain "domain.test"; path is empty`,
+				name:      "no path",
+				spiffeID:  &types.SPIFFEID{TrustDomain: "domain.test"},
+				expectErr: `"spiffe://domain.test" is not an agent in trust domain "domain.test"; path is empty`,
+			},
+			{
+				name:     "path without leading slash",
+				spiffeID: &types.SPIFFEID{TrustDomain: "domain.test", Path: "spire/agent/foo"},
+				expectID: agent,
+				expectLogs: []spiretest.LogEntry{
+					{
+						Level:   logrus.WarnLevel,
+						Message: "API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release",
+						Data: logrus.Fields{
+							"path": "spire/agent/foo",
+						},
+					},
+				},
 			},
 		})
 	})
@@ -111,24 +150,38 @@ func TestIDFromProto(t *testing.T) {
 	t.Run("TrustDomainWorkloadIDFromProto", func(t *testing.T) {
 		runTests(t, api.TrustDomainWorkloadIDFromProto, []testCase{
 			{
-				name:       "workload is a workload",
-				spiffeID:   api.ProtoFromID(workload),
-				expectedID: workload,
+				name:     "workload is a workload",
+				spiffeID: api.ProtoFromID(workload),
+				expectID: workload,
 			},
 			{
-				name:        "reserved is not a workload",
-				spiffeID:    api.ProtoFromID(reserved),
-				expectedErr: `"spiffe://domain.test/spire/reserved" is not a workload in trust domain "domain.test"; path is in the reserved namespace`,
+				name:      "reserved is not a workload",
+				spiffeID:  api.ProtoFromID(reserved),
+				expectErr: `"spiffe://domain.test/spire/reserved" is not a workload in trust domain "domain.test"; path is in the reserved namespace`,
 			},
 			{
-				name:        "agent is not a workload",
-				spiffeID:    api.ProtoFromID(agent),
-				expectedErr: `"spiffe://domain.test/spire/agent/foo" is not a workload in trust domain "domain.test"; path is in the reserved namespace`,
+				name:      "agent is not a workload",
+				spiffeID:  api.ProtoFromID(agent),
+				expectErr: `"spiffe://domain.test/spire/agent/foo" is not a workload in trust domain "domain.test"; path is in the reserved namespace`,
 			},
 			{
-				name:        "no path",
-				spiffeID:    &types.SPIFFEID{TrustDomain: "domain.test"},
-				expectedErr: `"spiffe://domain.test" is not a workload in trust domain "domain.test"; path is empty`,
+				name:      "no path",
+				spiffeID:  &types.SPIFFEID{TrustDomain: "domain.test"},
+				expectErr: `"spiffe://domain.test" is not a workload in trust domain "domain.test"; path is empty`,
+			},
+			{
+				name:     "path without leading slash",
+				spiffeID: &types.SPIFFEID{TrustDomain: "domain.test", Path: "workload"},
+				expectID: workload,
+				expectLogs: []spiretest.LogEntry{
+					{
+						Level:   logrus.WarnLevel,
+						Message: "API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release",
+						Data: logrus.Fields{
+							"path": "workload",
+						},
+					},
+				},
 			},
 		})
 	})

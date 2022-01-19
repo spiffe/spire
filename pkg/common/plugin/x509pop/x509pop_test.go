@@ -143,13 +143,13 @@ func TestMakeAgentID(t *testing.T) {
 		},
 		{
 			desc:     "custom template with subject identifiers",
-			template: agentpathtemplate.MustParse("foo/{{ .Subject.CommonName }}"),
+			template: agentpathtemplate.MustParse("/foo/{{ .Subject.CommonName }}"),
 			expectID: "spiffe://example.org/spire/agent/foo/test-cert",
 		},
 		{
 			desc:      "custom template with nonexistant fields",
-			template:  agentpathtemplate.MustParse("{{ .Foo }}"),
-			expectErr: `template: agent-path:1:3: executing "agent-path" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
+			template:  agentpathtemplate.MustParse("/{{ .Foo }}"),
+			expectErr: `template: agent-path:1:4: executing "agent-path" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
 		},
 	}
 

@@ -138,7 +138,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 }
 
 func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(req.Id, req.Audience, req.Ttl))
+	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
 		return nil, err
@@ -246,7 +246,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		}
 	}
 
-	spiffeID, err := api.TrustDomainMemberIDFromProto(s.td, entry.SpiffeId)
+	spiffeID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, entry.SpiffeId)
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
 		return &svidv1.BatchNewX509SVIDResponse_Result{
@@ -283,7 +283,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) (*types.JWTSVID, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
+	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
@@ -420,13 +420,13 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	}, nil
 }
 
-func (s Service) fieldsFromJWTSvidParams(protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
+func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
 	fields := logrus.Fields{
 		telemetry.TTL: ttl,
 	}
 	if protoID != nil {
 		// Dont care about parsing error
-		id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
+		id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 		if err == nil {
 			fields[telemetry.SPIFFEID] = id.String()
 		}

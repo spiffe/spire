@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -181,7 +182,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			entry, err := api.ProtoToRegistrationEntryWithMask(td, tt.entry, tt.mask)
+			entry, err := api.ProtoToRegistrationEntryWithMask(context.Background(), td, tt.entry, tt.mask)
 			if tt.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.err)
@@ -348,7 +349,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			entry, err := api.ProtoToRegistrationEntry(td, tt.entry)
+			entry, err := api.ProtoToRegistrationEntry(context.Background(), td, tt.entry)
 			if tt.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.err)

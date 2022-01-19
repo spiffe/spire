@@ -566,7 +566,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			require.NotEmpty(t, certChain)
 			svid := certChain[0]
 
-			id, err := api.TrustDomainWorkloadIDFromProto(td, resp.Svid.Id)
+			id, err := api.TrustDomainWorkloadIDFromProto(context.Background(), td, resp.Svid.Id)
 			require.NoError(t, err)
 
 			require.Equal(t, workloadID, id)
@@ -2094,7 +2094,7 @@ func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID,
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	require.NoError(t, err)
 
-	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(td, jwtsvid.Id)
+	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(context.Background(), td, jwtsvid.Id)
 	require.NoError(t, err)
 	require.Equal(t, id, jwtsvidID)
 	require.Equal(t, id.String(), claims.Subject)

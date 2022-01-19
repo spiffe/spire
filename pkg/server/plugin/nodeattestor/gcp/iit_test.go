@@ -245,7 +245,7 @@ func (s *IITAttestorSuite) TestAttestFailureDueToMissingInstanceMetadata() {
 func (s *IITAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 	attestor := s.loadPluginWithConfig(`
 projectid_allow_list = ["test-project"]
-agent_path_template = "{{ .InstanceID }}"
+agent_path_template = "/{{ .InstanceID }}"
 `)
 
 	expectSVID := "spiffe://example.org/spire/agent/test-instance-id"
@@ -293,7 +293,7 @@ projectid_allow_list = ["bar"]
 	s.T().Run("bad SVID template", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 projectid_allow_list = ["test-project"]
-agent_path_template = "{{ .InstanceID "
+agent_path_template = "/{{ .InstanceID "
 `)
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent path template")
 	})

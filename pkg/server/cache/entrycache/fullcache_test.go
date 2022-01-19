@@ -480,7 +480,7 @@ func BenchmarkBuildSQL(b *testing.B) {
 	ds := newSQLPlugin(b)
 
 	for _, entry := range allEntries {
-		e, _ := api.ProtoToRegistrationEntry(td, entry)
+		e, _ := api.ProtoToRegistrationEntry(context.Background(), td, entry)
 		createRegistrationEntry(ctx, b, ds, e)
 	}
 

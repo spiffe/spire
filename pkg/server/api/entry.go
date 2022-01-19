@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -70,8 +71,8 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 }
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry
-func ProtoToRegistrationEntry(td spiffeid.TrustDomain, e *types.Entry) (*common.RegistrationEntry, error) {
-	return ProtoToRegistrationEntryWithMask(td, e, nil)
+func ProtoToRegistrationEntry(ctx context.Context, td spiffeid.TrustDomain, e *types.Entry) (*common.RegistrationEntry, error) {
+	return ProtoToRegistrationEntryWithMask(ctx, td, e, nil)
 }
 
 // ProtoToRegistrationEntryWithMask converts and validate entry into common registration entry,
@@ -79,7 +80,7 @@ func ProtoToRegistrationEntry(td spiffeid.TrustDomain, e *types.Entry) (*common.
 // in the mask are false.
 // This allows the user to not specify these fields while updating using a mask.
 // All other fields are allowed to be empty (with or without a mask).
-func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
+func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDomain, e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
 	if e == nil {
 		return nil, errors.New("missing entry")
 	}
@@ -90,7 +91,7 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 
 	var parentIDString string
 	if mask.ParentId {
-		parentID, err := TrustDomainMemberIDFromProto(td, e.ParentId)
+		parentID, err := TrustDomainMemberIDFromProto(ctx, td, e.ParentId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid parent ID: %w", err)
 		}
@@ -102,7 +103,7 @@ func ProtoToRegistrationEntryWithMask(td spiffeid.TrustDomain, e *types.Entry, m
 
 	var spiffeIDString string
 	if mask.SpiffeId {
-		spiffeID, err := TrustDomainWorkloadIDFromProto(td, e.SpiffeId)
+		spiffeID, err := TrustDomainWorkloadIDFromProto(ctx, td, e.SpiffeId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid spiffe ID: %w", err)
 		}
