@@ -175,7 +175,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	keyStore, err := keyStoreFromBundles(h.getWorkloadBundles(selectors))
 	if err != nil {
 		log.WithError(err).Error("Failed to build key store from bundles")
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	id, claims, err := jwtsvid.ValidateToken(ctx, req.Svid, keyStore, []string{req.Audience})

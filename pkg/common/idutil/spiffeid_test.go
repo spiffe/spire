@@ -17,11 +17,15 @@ func TestMemberFromString(t *testing.T) {
 	})
 	t.Run("is not a member", func(t *testing.T) {
 		_, err := MemberFromString(td, "spiffe://otherdomain.test/foo")
-		assert.EqualError(t, err, `id "spiffe://otherdomain.test/foo" is not a member of trust domain "domain.test"`)
+		assert.EqualError(t, err, `SPIFFE ID "spiffe://otherdomain.test/foo" is not a member of trust domain "domain.test"`)
 	})
 	t.Run("empty trust domain", func(t *testing.T) {
 		_, err := MemberFromString(spiffeid.TrustDomain{}, "spiffe://domain.test/foo")
-		assert.EqualError(t, err, `id "spiffe://domain.test/foo" is not a member of trust domain ""`)
+		assert.EqualError(t, err, `SPIFFE ID "spiffe://domain.test/foo" is not a member of trust domain ""`)
+	})
+	t.Run("invalid id", func(t *testing.T) {
+		_, err := MemberFromString(td, "spiffe:///foo")
+		assert.EqualError(t, err, "trust domain is missing")
 	})
 }
 

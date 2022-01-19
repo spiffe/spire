@@ -64,7 +64,7 @@ func (s *MSIResolverSuite) TestResolveWithIDFromAnotherTrustDomain() {
 	nr := s.loadPluginWithTenant()
 	s.assertResolveFailure(nr, "spiffe://otherdomain.test/whatever",
 		codes.InvalidArgument,
-		`noderesolver(azure_msi): invalid agent ID: id "spiffe://otherdomain.test/whatever" is not a member of trust domain "example.org"`)
+		`noderesolver(azure_msi): invalid agent ID: SPIFFE ID "spiffe://otherdomain.test/whatever" is not a member of trust domain "example.org"`)
 }
 
 func (s *MSIResolverSuite) TestResolveWithNonAzureAgentID() {

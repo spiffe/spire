@@ -86,7 +86,7 @@ func TestMintX509CA(t *testing.T) {
 			configuration:   selfSignedCA,
 			csr:             makeCSR("invalid://example.org"),
 			expectCode:      codes.Internal,
-			expectMsgPrefix: `upstreamauthority(disk): unable to sign CSR: CSR SPIFFE ID "invalid://example.org" is invalid: scheme is missing or invalid`,
+			expectMsgPrefix: `upstreamauthority(disk): unable to sign CSR: CSR with SPIFFE ID "invalid://example.org" is invalid: scheme is missing or invalid`,
 		},
 		{
 			test:                    "valid using self-signed",

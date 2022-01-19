@@ -18,7 +18,7 @@ func MemberFromString(td spiffeid.TrustDomain, s string) (spiffeid.ID, error) {
 		return spiffeid.ID{}, err
 	}
 	if !id.MemberOf(td) {
-		return spiffeid.ID{}, fmt.Errorf("id %q is not a member of trust domain %q", id, td)
+		return spiffeid.ID{}, fmt.Errorf("SPIFFE ID %q is not a member of trust domain %q", id, td)
 	}
 	return id, nil
 }

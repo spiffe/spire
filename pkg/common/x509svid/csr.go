@@ -32,10 +32,10 @@ func ValidateCSR(csr *x509.CertificateRequest, td spiffeid.TrustDomain) error {
 
 	id, err := spiffeid.FromURI(csr.URIs[0])
 	if err != nil {
-		return fmt.Errorf("CSR SPIFFE ID %q is invalid: %w", csr.URIs[0], err)
+		return fmt.Errorf("CSR with SPIFFE ID %q is invalid: %w", csr.URIs[0], err)
 	}
 	if id != td.ID() {
-		return fmt.Errorf("CSR SPIFFE ID %q is not the trust domain ID for trust domain %q", id, td)
+		return fmt.Errorf("CSR with SPIFFE ID %q is not the trust domain ID for trust domain %q", id, td)
 	}
 	return nil
 }

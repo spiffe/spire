@@ -179,7 +179,7 @@ func TestMintX509CA(t *testing.T) {
 				return csr, pubKey
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: CSR SPIFFE ID "invalid://localhost" is invalid: scheme is missing or invalid`,
+			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: CSR with SPIFFE ID "invalid://localhost" is invalid: scheme is missing or invalid`,
 		},
 		{
 			name: "wrong trust domain",
@@ -189,7 +189,7 @@ func TestMintX509CA(t *testing.T) {
 				return csr, pubKey
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: CSR SPIFFE ID "spiffe://not-trusted" is not the trust domain ID for trust domain "example.org"`,
+			expectMsgPrefix: `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unknown desc = unable to sign CSR: CSR with SPIFFE ID "spiffe://not-trusted" is not the trust domain ID for trust domain "example.org"`,
 		},
 		{
 			name: "invalid CSR",

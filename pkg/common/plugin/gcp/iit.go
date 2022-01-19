@@ -39,7 +39,7 @@ type agentPathTemplateData struct {
 	PluginName string
 }
 
-// MakeAgentID makes an agent spiffe ID. The ID always has a host value equal to the given trust domain,
+// MakeAgentID makes an agent SPIFFE ID. The ID always has a host value equal to the given trust domain,
 // the path is created using the given agentPathTemplate which is given access to a fully populated
 // ComputeEngine object.
 func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, computeEngine ComputeEngine) (spiffeid.ID, error) {

@@ -13,7 +13,7 @@ func RequireIDProtoString(id *types.SPIFFEID) string {
 	return out
 }
 
-// RequireIDFromProto returns SPIFFE ID from the proto representation. It
+// RequireIDFromProto returns a SPIFFE ID from the proto representation. It
 // panics if the proto is not well formed.
 func RequireIDFromProto(id *types.SPIFFEID) spiffeid.ID {
 	out, err := IDFromProto(id)
