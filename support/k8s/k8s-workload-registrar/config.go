@@ -49,8 +49,11 @@ type CommonMode struct {
 	PodAnnotation      string   `hcl:"pod_annotation"`
 	Mode               string   `hcl:"mode"`
 	DisabledNamespaces []string `hcl:"disabled_namespaces"`
-	serverAPI          ServerAPIClients
-	trustDomain        spiffeid.TrustDomain
+
+	// The following are initialized using the above fields after the HCL is
+	// parsed.
+	serverAPI   ServerAPIClients
+	trustDomain spiffeid.TrustDomain
 }
 
 func (c *CommonMode) ParseConfig(hclConfig string) (err error) {

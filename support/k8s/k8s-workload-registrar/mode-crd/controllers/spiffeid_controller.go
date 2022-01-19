@@ -36,11 +36,10 @@ import (
 
 // SpiffeIDReconcilerConfig holds the config passed in when creating the reconciler
 type SpiffeIDReconcilerConfig struct {
-	Client      client.Client
-	Cluster     string
-	Log         logrus.FieldLogger
-	E           entryv1.EntryClient
-	TrustDomain string
+	Client  client.Client
+	Cluster string
+	Log     logrus.FieldLogger
+	E       entryv1.EntryClient
 }
 
 // SpiffeIDReconciler holds the runtime configuration and state of this controller

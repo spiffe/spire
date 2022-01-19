@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	templateWithTags = agentpathtemplate.MustParse("{{ .Tags.a }}/{{ .Tags.b }}")
+	templateWithTags = agentpathtemplate.MustParse("/{{ .Tags.a }}/{{ .Tags.b }}")
 	trustDomain      = spiffeid.RequireTrustDomainFromString("example.org")
 )
 

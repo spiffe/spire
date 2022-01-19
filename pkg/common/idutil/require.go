@@ -30,9 +30,9 @@ func RequireServerID(td spiffeid.TrustDomain) spiffeid.ID {
 }
 
 // RequireAgentID creates an agent SPIFFE ID given a trust domain and a path
-// suffix.  The path suffix must be an absolute path. The /spire/agent prefix
-// is prefixed to the suffix to form the path. It panics if the given trust
-// domain isn't valid.
+// suffix. The path suffix must be an absolute path. The /spire/agent prefix is
+// prefixed to the suffix to form the path. It panics if the given trust domain
+// isn't valid.
 func RequireAgentID(td spiffeid.TrustDomain, suffix string) spiffeid.ID {
 	out, err := AgentID(td, suffix)
 	panicOnErr(err)

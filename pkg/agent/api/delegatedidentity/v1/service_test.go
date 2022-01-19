@@ -38,7 +38,7 @@ var (
 	trustDomain3 = spiffeid.RequireTrustDomainFromString("otherdomain.test")
 
 	id1 = spiffeid.RequireFromPath(trustDomain1, "/one")
-	id2 = spiffeid.RequireFromPath(trustDomain2, "/one")
+	id2 = spiffeid.RequireFromPath(trustDomain1, "/two")
 
 	bundle1 = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte("AAA")})
 	bundle2 = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte("BBB")})
