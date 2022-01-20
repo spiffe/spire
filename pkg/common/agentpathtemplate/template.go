@@ -63,7 +63,7 @@ func (t *Template) Execute(args interface{}) (string, error) {
 
 // SetEnsureLeadingSlashLog sets the logger used to report "ensure leading slash"
 // related deprecation warnings. Called by server/server.go. This is a hack.
-// Deprecate: remove in SPIRE 1.3
+// Deprecated: remove in SPIRE 1.3
 func SetEnsureLeadingSlashLog(log logrus.FieldLogger) {
 	ensureLeadingSlashLog = log
 }
