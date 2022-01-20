@@ -97,7 +97,7 @@ func TestHandshake(t *testing.T) {
 
 func TestServerSpiffeID(t *testing.T) {
 	tt := newTest(t, principal("ec2abcdef-uswest1"))
-	agentPathTemplate := agentpathtemplate.MustParse("static/{{ index .ValidPrincipals 0 }}")
+	agentPathTemplate := agentpathtemplate.MustParse("/static/{{ index .ValidPrincipals 0 }}")
 
 	s := &ServerHandshake{
 		s: &Server{

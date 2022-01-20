@@ -155,7 +155,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
-	agentID, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
+	agentID, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
@@ -190,7 +190,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
+	id, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
@@ -215,7 +215,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
+	id, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
@@ -436,7 +436,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 	var agentID spiffeid.ID
 	var err error
 	if req.AgentId != nil {
-		agentID, err = api.TrustDomainWorkloadIDFromProto(s.td, req.AgentId)
+		agentID, err = api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.AgentId)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 		}

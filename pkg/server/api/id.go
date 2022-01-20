@@ -1,16 +1,25 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"golang.org/x/time/rate"
 )
 
-func TrustDomainMemberIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := idFromProto(protoID)
+var (
+	ensureLeadingSlashLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 1)
+)
+
+func TrustDomainMemberIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
+	id, err := idFromProto(ctx, protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -30,8 +39,8 @@ func VerifyTrustDomainMemberID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 	return nil
 }
 
-func TrustDomainAgentIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := idFromProto(protoID)
+func TrustDomainAgentIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
+	id, err := idFromProto(ctx, protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -54,8 +63,8 @@ func VerifyTrustDomainAgentID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 	return nil
 }
 
-func TrustDomainWorkloadIDFromProto(td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := idFromProto(protoID)
+func TrustDomainWorkloadIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
+	id, err := idFromProto(ctx, protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -87,9 +96,24 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 	}
 }
 
-func idFromProto(protoID *types.SPIFFEID) (spiffeid.ID, error) {
+// RemoveEnsureLeadingSlashLogLimit is a test hook to reset the limit for logs
+// related to "ensure leading slash" conversions.
+// Deprecated: remove in SPIRE 1.3
+func RemoveEnsureLeadingSlashLogLimit() {
+	ensureLeadingSlashLogLimiter.SetLimit(rate.Inf)
+}
+
+func idFromProto(ctx context.Context, protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	if protoID == nil {
 		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
 	}
+	path, modified := idutil.EnsureLeadingSlashForBackcompat(protoID.Path)
+	if modified && ensureLeadingSlashLogLimiter.Allow() {
+		// Deprecated: remove in SPIRE 1.3
+		if log := rpccontext.Logger(ctx); log != nil {
+			log.WithField(telemetry.Path, protoID.Path).Warn("API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release")
+		}
+	}
+	protoID.Path = path
 	return idutil.IDFromProto(protoID)
 }

@@ -1218,7 +1218,7 @@ func TestDeleteAgent(t *testing.T) {
 			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "",
-					Path:        "spiffe://examples.org/spire/agent/node1",
+					Path:        "/spire/agent/node1",
 				},
 			},
 		},
@@ -1260,7 +1260,7 @@ func TestDeleteAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid agent ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "path must have a leading slash",
+						logrus.ErrorKey: "\"spiffe://example.org/host\" is not an agent in trust domain \"example.org\"; path is not in the agent namespace",
 					},
 				},
 				{
@@ -1270,16 +1270,16 @@ func TestDeleteAgent(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid agent ID: path must have a leading slash",
+						telemetry.StatusMessage: "invalid agent ID: \"spiffe://example.org/host\" is not an agent in trust domain \"example.org\"; path is not in the agent namespace",
 					},
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "invalid agent ID: path must have a leading slash",
+			err:  "invalid agent ID: \"spiffe://example.org/host\" is not an agent in trust domain \"example.org\"; path is not in the agent namespace",
 			req: &agentv1.DeleteAgentRequest{
 				Id: &types.SPIFFEID{
 					TrustDomain: "example.org",
-					Path:        "host",
+					Path:        "/host",
 				},
 			},
 		},
