@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	svidstorev1unofficial "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1unofficial"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -19,29 +19,29 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestV1DeleteX509SVID(t *testing.T) {
+func TestV1UnofficialDeleteX509SVID(t *testing.T) {
 	svidValues := []string{"a:1", "b:2"}
 
-	expectRequest := &svidstorev1.DeleteX509SVIDRequest{
+	expectRequest := &svidstorev1unofficial.DeleteX509SVIDRequest{
 		Metadata: []string{"a:1", "b:2"},
 	}
 
 	t.Run("delete fails", func(t *testing.T) {
-		fake := &fakePluginV1{t: t}
-		svidStore := makeFakeV1Plugin(fake)
+		fake := &fakePluginV1Unofficial{t: t}
+		svidStore := makeFakeV1UnofficialPlugin(fake)
 		err := svidStore.DeleteX509SVID(context.Background(), []string{})
 		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "svidstore(test): oh no!")
 	})
 
 	t.Run("deleted successfully", func(t *testing.T) {
-		fake := &fakePluginV1{t: t, expectDeleteRequest: expectRequest}
-		svidStore := makeFakeV1Plugin(fake)
+		fake := &fakePluginV1Unofficial{t: t, expectDeleteRequest: expectRequest}
+		svidStore := makeFakeV1UnofficialPlugin(fake)
 		err := svidStore.DeleteX509SVID(context.Background(), svidValues)
 		assert.NoError(t, err)
 	})
 }
 
-func TestV1PutX509SVID(t *testing.T) {
+func TestV1UnofficialPutX509SVID(t *testing.T) {
 	expiresAt := time.Now().Add(time.Minute)
 	key := testkey.MustEC256()
 	keyData, err := x509.MarshalPKCS8PrivateKey(key)
@@ -71,15 +71,15 @@ func TestV1PutX509SVID(t *testing.T) {
 
 	for _, tt := range []struct {
 		name             string
-		expectPutRequest *svidstorev1.PutX509SVIDRequest
+		expectPutRequest *svidstorev1unofficial.PutX509SVIDRequest
 		expectCode       codes.Code
 		expectMsgPrefix  string
 		x509SVID         *svidstore.X509SVID
 	}{
 		{
 			name: "success",
-			expectPutRequest: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
+			expectPutRequest: &svidstorev1unofficial.PutX509SVIDRequest{
+				Svid: &svidstorev1unofficial.X509SVID{
 					SpiffeID:   "spiffe://example.org/workload",
 					PrivateKey: keyData,
 					CertChain:  [][]byte{{1}, {3}},
@@ -100,8 +100,8 @@ func TestV1PutX509SVID(t *testing.T) {
 		},
 		{
 			name: "no federated bundles",
-			expectPutRequest: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
+			expectPutRequest: &svidstorev1unofficial.PutX509SVIDRequest{
+				Svid: &svidstorev1unofficial.X509SVID{
 					SpiffeID:   "spiffe://example.org/workload",
 					PrivateKey: keyData,
 					CertChain:  [][]byte{{1}, {3}},
@@ -137,8 +137,8 @@ func TestV1PutX509SVID(t *testing.T) {
 		},
 		{
 			name: "fails to put svid",
-			expectPutRequest: &svidstorev1.PutX509SVIDRequest{
-				Svid: &svidstorev1.X509SVID{
+			expectPutRequest: &svidstorev1unofficial.PutX509SVIDRequest{
+				Svid: &svidstorev1unofficial.X509SVID{
 					SpiffeID:   "spiffe://example.org/workload",
 					PrivateKey: keyData,
 					CertChain:  [][]byte{{1}, {3}},
@@ -168,48 +168,48 @@ func TestV1PutX509SVID(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			fake := &fakePluginV1{
+			fake := &fakePluginV1Unofficial{
 				t:                t,
 				expectPutRequest: tt.expectPutRequest,
 			}
-			svidStore := makeFakeV1Plugin(fake)
+			svidStore := makeFakeV1UnofficialPlugin(fake)
 			err := svidStore.PutX509SVID(context.Background(), tt.x509SVID)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
 		})
 	}
 }
 
-func makeFakeV1Plugin(p *fakePluginV1) svidstore.SVIDStore {
-	server := svidstorev1.SVIDStorePluginServer(p)
+func makeFakeV1UnofficialPlugin(p *fakePluginV1Unofficial) svidstore.SVIDStore {
+	server := svidstorev1unofficial.SVIDStorePluginServer(p)
 
-	plugin := new(svidstore.V1)
+	plugin := new(svidstore.V1Unofficial)
 	plugintest.Load(p.t, catalog.MakeBuiltIn("test", server), plugin)
 	return plugin
 }
 
-type fakePluginV1 struct {
+type fakePluginV1Unofficial struct {
 	t *testing.T
-	svidstorev1.UnimplementedSVIDStoreServer
+	svidstorev1unofficial.UnimplementedSVIDStoreServer
 
-	expectDeleteRequest *svidstorev1.DeleteX509SVIDRequest
-	expectPutRequest    *svidstorev1.PutX509SVIDRequest
+	expectDeleteRequest *svidstorev1unofficial.DeleteX509SVIDRequest
+	expectPutRequest    *svidstorev1unofficial.PutX509SVIDRequest
 }
 
 // Deletes stored SVID
-func (p *fakePluginV1) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
+func (p *fakePluginV1Unofficial) DeleteX509SVID(ctx context.Context, req *svidstorev1unofficial.DeleteX509SVIDRequest) (*svidstorev1unofficial.DeleteX509SVIDResponse, error) {
 	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")
 	}
 	spiretest.AssertProtoEqual(p.t, p.expectDeleteRequest, req)
 
-	return &svidstorev1.DeleteX509SVIDResponse{}, nil
+	return &svidstorev1unofficial.DeleteX509SVIDResponse{}, nil
 }
 
-func (p *fakePluginV1) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
+func (p *fakePluginV1Unofficial) PutX509SVID(ctx context.Context, req *svidstorev1unofficial.PutX509SVIDRequest) (*svidstorev1unofficial.PutX509SVIDResponse, error) {
 	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")
 	}
 	spiretest.AssertProtoEqual(p.t, p.expectPutRequest, req)
 
-	return &svidstorev1.PutX509SVIDResponse{}, nil
+	return &svidstorev1unofficial.PutX509SVIDResponse{}, nil
 }

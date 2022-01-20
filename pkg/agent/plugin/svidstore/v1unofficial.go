@@ -4,20 +4,20 @@ import (
 	"context"
 	"crypto/x509"
 
-	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	svidstorev1unofficial "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1unofficial"
 	"google.golang.org/grpc/codes"
 )
 
-type V1 struct {
+type V1Unofficial struct {
 	plugin.Facade
 
-	svidstorev1.SVIDStorePluginClient
+	svidstorev1unofficial.SVIDStorePluginClient
 }
 
-func (v1 *V1) DeleteX509SVID(ctx context.Context, metadata []string) error {
-	_, err := v1.SVIDStorePluginClient.DeleteX509SVID(ctx, &svidstorev1.DeleteX509SVIDRequest{
+func (v1 *V1Unofficial) DeleteX509SVID(ctx context.Context, metadata []string) error {
+	_, err := v1.SVIDStorePluginClient.DeleteX509SVID(ctx, &svidstorev1unofficial.DeleteX509SVIDRequest{
 		Metadata: metadata,
 	})
 
@@ -28,7 +28,7 @@ func (v1 *V1) DeleteX509SVID(ctx context.Context, metadata []string) error {
 	return nil
 }
 
-func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
+func (v1 *V1Unofficial) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 	federatedBundles := make(map[string][]byte)
 	for id, bundle := range x509SVID.FederatedBundles {
 		federatedBundles[id] = x509util.DERFromCertificates(bundle)
@@ -42,9 +42,9 @@ func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 	if err != nil {
 		return v1.Errorf(codes.InvalidArgument, "failed to marshal key: %v", err)
 	}
-	var svid *svidstorev1.X509SVID
+	var svid *svidstorev1unofficial.X509SVID
 	if x509SVID.SVID != nil {
-		svid = &svidstorev1.X509SVID{
+		svid = &svidstorev1unofficial.X509SVID{
 			SpiffeID:   x509SVID.SVID.SPIFFEID.String(),
 			CertChain:  x509util.RawCertsFromCertificates(x509SVID.SVID.CertChain),
 			PrivateKey: keyData,
@@ -53,7 +53,7 @@ func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 		}
 	}
 
-	req := &svidstorev1.PutX509SVIDRequest{
+	req := &svidstorev1unofficial.PutX509SVIDRequest{
 		Svid:             svid,
 		Metadata:         x509SVID.Metadata,
 		FederatedBundles: federatedBundles,
