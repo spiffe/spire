@@ -51,7 +51,7 @@ func (t *Template) Execute(args interface{}) (string, error) {
 	}
 	path := buf.String()
 
-	// Deprecate: remove in SPIRE 1.3
+	// Deprecated: remove in SPIRE 1.3
 	ensuredPath, modified := idutil.EnsureLeadingSlashForBackcompat(path)
 	if modified && ensureLeadingSlashLog != nil && ensureLeadingSlashLogLimiter.Allow() {
 		ensureLeadingSlashLog.WithField(telemetry.Path, path).
