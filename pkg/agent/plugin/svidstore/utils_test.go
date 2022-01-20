@@ -4,9 +4,9 @@ import (
 	"crypto/x509"
 	"testing"
 
+	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/stretchr/testify/require"
 )
 

@@ -12,10 +12,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

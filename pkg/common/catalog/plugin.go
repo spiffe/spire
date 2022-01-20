@@ -144,7 +144,7 @@ func warnIfDeprecated(log logrus.FieldLogger, thisVersion, latestVersion Version
 	if thisVersion.Deprecated() {
 		log = log.WithField(telemetry.DeprecatedServiceName, thisVersion.New().GRPCServiceName())
 		if !latestVersion.Deprecated() {
-			log.WithField(telemetry.PreferredServiceName, latestVersion.New().GRPCServiceName())
+			log = log.WithField(telemetry.PreferredServiceName, latestVersion.New().GRPCServiceName())
 		}
 		log.Warn("Service is deprecated and will be removed in a future release")
 	}
