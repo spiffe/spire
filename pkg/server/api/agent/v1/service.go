@@ -283,21 +283,26 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		}
 	}
 
-	agentID := attestResult.AgentID
+	// Ideally we'd do stronger validation that the ID is within the Node
+	// Attestors scoped area of the reserved agent namespace, but historically
+	// we haven't been strict here and there are deployments that are emitting
+	// such IDs.
+	// TODO: Enforce that IDs produced by Node Attestors are in the reserved
+	// namesepace for that Node Attestor.
+	//     e.g. spiffe://<trustdomain>/spire/agent/<nodeattestor>/<remainder>
+	agentID, err := spiffeid.FromString(attestResult.AgentID)
+	if err != nil {
+		return api.MakeErr(log, codes.Internal, "invalid agent ID", err)
+	}
+	if agentID.Path() == idutil.ServerIDPath {
+		return api.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
+	}
+
 	log = log.WithField(telemetry.AgentID, agentID)
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: attestResult.AgentID})
 
-	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
-		return api.MakeErr(log, codes.Internal, "agent ID is malformed", err)
-	}
-
-	agentSpiffeID, err := spiffeid.FromString(agentID)
-	if err != nil {
-		return api.MakeErr(log, codes.Internal, "invalid agent id", err)
-	}
-
 	// fetch the agent/node to check if it was already attested or banned
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID)
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
@@ -307,7 +312,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// parse and sign CSR
-	svid, err := s.signSvid(ctx, agentSpiffeID, params.Params.Csr, log)
+	svid, err := s.signSvid(ctx, agentID, params.Params.Csr, log)
 	if err != nil {
 		return err
 	}
@@ -318,7 +323,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
-	err = s.ds.SetNodeSelectors(ctx, agentID, append(attestResult.Selectors, resolvedSelectors...))
+	err = s.ds.SetNodeSelectors(ctx, agentID.String(), append(attestResult.Selectors, resolvedSelectors...))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -327,7 +332,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	if attestedNode == nil {
 		node := &common.AttestedNode{
 			AttestationDataType: params.Data.Type,
-			SpiffeId:            agentID,
+			SpiffeId:            agentID.String(),
 			CertNotAfter:        svid[0].NotAfter.Unix(),
 			CertSerialNumber:    svid[0].SerialNumber.String(),
 		}
@@ -336,7 +341,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		}
 	} else {
 		node := &common.AttestedNode{
-			SpiffeId:         agentID,
+			SpiffeId:         agentID.String(),
 			CertNotAfter:     svid[0].NotAfter.Unix(),
 			CertSerialNumber: svid[0].SerialNumber.String(),
 		}
@@ -346,7 +351,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// build and send response
-	response := getAttestAgentResponse(agentSpiffeID, svid)
+	response := getAttestAgentResponse(agentID, svid)
 
 	if p, ok := peer.FromContext(ctx); ok {
 		log = log.WithField(telemetry.Address, p.Addr.String())
@@ -441,9 +446,6 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 		}
 		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
-		if err := idutil.CheckIDProtoNormalization(req.AgentId); err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "agent ID is malformed", err)
-		}
 		log.WithField(telemetry.SPIFFEID, agentID.String())
 	}
 
@@ -600,9 +602,9 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	return result, nil
 }
 
-func (s *Service) resolveSelectors(ctx context.Context, agentID string, attestationType string) ([]*common.Selector, error) {
+func (s *Service) resolveSelectors(ctx context.Context, agentID spiffeid.ID, attestationType string) ([]*common.Selector, error) {
 	if nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType); ok {
-		return nodeResolver.Resolve(ctx, agentID)
+		return nodeResolver.Resolve(ctx, agentID.String())
 	}
 	return nil, nil
 }

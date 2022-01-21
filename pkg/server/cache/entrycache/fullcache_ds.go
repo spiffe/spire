@@ -6,7 +6,6 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -72,10 +71,10 @@ func (it *entryIteratorDS) filterEntries(in []*common.RegistrationEntry) []*comm
 		// Filter out entries with invalid SPIFFE IDs. Operators are notified
 		// that they are ignored on server startup (see
 		// pkg/server/scanentries.go)
-		if err := idutil.CheckIDStringNormalization(entry.SpiffeId); err != nil {
+		if _, err := spiffeid.FromString(entry.SpiffeId); err != nil {
 			continue
 		}
-		if err := idutil.CheckIDStringNormalization(entry.ParentId); err != nil {
+		if _, err := spiffeid.FromString(entry.ParentId); err != nil {
 			continue
 		}
 		out = append(out, entry)
