@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -132,6 +134,28 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "pod-uid:d488cae9-b2a0-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "sa:flannel"},
 	}
+
+	testSigstoreSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
+		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "container-name:blog"},
+		{Type: "k8s", Value: "image-signature-subject:sigstore-subject"},
+		{Type: "k8s", Value: "node-name:k8s-node-1"},
+		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-image-count:2"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/ghostunnel@sha256:b2fc20676c92a433b9a91f3f4535faddec0c2c3613849ac12f02c1d5cfcd4c3a"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/ghostunnel:latest"},
+		{Type: "k8s", Value: "pod-init-image-count:0"},
+		{Type: "k8s", Value: "pod-label:k8s-app:blog"},
+		{Type: "k8s", Value: "pod-label:version:v0"},
+		{Type: "k8s", Value: "pod-name:blog-24ck7"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
+		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:default"},
+	}
 )
 
 type attestResult struct {
@@ -156,6 +180,8 @@ type Suite struct {
 	server      *httptest.Server
 	kubeletCert *x509.Certificate
 	clientCert  *x509.Certificate
+	selector    string
+	sigs        []oci.Signature
 }
 
 func (s *Suite) SetupTest() {
@@ -167,6 +193,9 @@ func (s *Suite) SetupTest() {
 
 	s.podList = nil
 	s.env = map[string]string{}
+
+	s.selector = ""
+	s.sigs = nil
 }
 
 func (s *Suite) TearDownTest() {
@@ -179,6 +208,14 @@ func (s *Suite) TestAttestWithPidInPod() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithPod(p)
+}
+
+func (s *Suite) TestAttestWithSigstoreSignatures() {
+	s.startInsecureKubelet()
+	s.setSigstoreSelector("sigstore-subject")
+	p := s.loadInsecurePlugin()
+	s.requireAttestSuccessWithPodandSignature(p)
+	s.setSigstoreSelector("")
 }
 
 func (s *Suite) TestAttestWithPidInKindPod() {
@@ -614,6 +651,58 @@ func (s *Suite) TestConfigure() {
 	}
 }
 
+type signature struct {
+	v1.Layer
+
+	payload []byte
+	cert    *x509.Certificate
+}
+
+func (signature) Annotations() (map[string]string, error) {
+	return nil, nil
+}
+
+func (s signature) Payload() ([]byte, error) {
+	return s.payload, nil
+}
+
+func (signature) Base64Signature() (string, error) {
+	return "", nil
+}
+
+func (s signature) Cert() (*x509.Certificate, error) {
+	return s.cert, nil
+}
+
+func (signature) Chain() ([]*x509.Certificate, error) {
+	return nil, nil
+}
+
+func (signature) Bundle() (*oci.Bundle, error) {
+	return nil, nil
+}
+
+type SigstoreMock struct {
+	selector string
+	sigs     []oci.Signature
+}
+
+func (s *SigstoreMock) SetSelector(selector string) {
+	s.selector = selector
+}
+
+func (s *SigstoreMock) SetSig(sigs []oci.Signature) {
+	s.sigs = sigs
+}
+
+func (s *SigstoreMock) FetchSignaturePayload(imageName string, rekorURL string) ([]oci.Signature, error) {
+	return s.sigs, nil
+}
+
+func (s *SigstoreMock) ExtractselectorOfSignedImage(signatures []oci.Signature) string {
+	return s.selector
+}
+
 func (s *Suite) newPlugin() *Plugin {
 	p := New()
 	p.fs = testFS(s.dir)
@@ -621,6 +710,11 @@ func (s *Suite) newPlugin() *Plugin {
 	p.getenv = func(key string) string {
 		return s.env[key]
 	}
+	p.sigstore = &SigstoreMock{
+		selector: s.selector,
+		sigs:     s.sigs,
+	}
+
 	return p
 }
 
@@ -629,6 +723,20 @@ func (s *Suite) setServer(server *httptest.Server) {
 		s.server.Close()
 	}
 	s.server = server
+}
+
+func (s *Suite) setSigstoreSelector(selector string) {
+	s.selector = selector
+	if s.selector == "" {
+		s.sigs = nil
+	} else {
+		s.sigs = []oci.Signature{
+			signature{
+				payload: []byte("payload"),
+				cert:    &x509.Certificate{},
+			},
+		}
+	}
 }
 
 func (s *Suite) writeFile(path, data string) {
@@ -788,6 +896,12 @@ func (s *Suite) requireAttestSuccessWithPod(p workloadattestor.WorkloadAttestor)
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 	s.requireAttestSuccess(p, testPodSelectors)
+}
+
+func (s *Suite) requireAttestSuccessWithPodandSignature(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgPidInPodFilePath)
+	s.requireAttestSuccess(p, testSigstoreSelectors)
 }
 
 func (s *Suite) requireAttestSuccessWithKindPod(p workloadattestor.WorkloadAttestor) {
