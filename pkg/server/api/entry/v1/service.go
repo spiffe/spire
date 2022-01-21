@@ -9,7 +9,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -186,7 +185,7 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreate
 		r := s.createEntry(ctx, eachEntry, req.OutputMask)
 		results = append(results, r)
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
-			return fieldsFromEntryProto(eachEntry, nil)
+			return fieldsFromEntryProto(ctx, eachEntry, nil)
 		})
 	}
 
@@ -241,7 +240,7 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entryv1.BatchUpdate
 		e := s.updateEntry(ctx, eachEntry, req.InputMask, req.OutputMask)
 		results = append(results, e)
 		rpccontext.AuditRPCWithTypesStatus(ctx, e.Status, func() logrus.Fields {
-			return fieldsFromEntryProto(eachEntry, req.InputMask)
+			return fieldsFromEntryProto(ctx, eachEntry, req.InputMask)
 		})
 	}
 
@@ -432,7 +431,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	}
 }
 
-func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {
+func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {
 	fields := logrus.Fields{}
 
 	if proto == nil {
@@ -444,14 +443,14 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 	}
 
 	if (inputMask == nil || inputMask.SpiffeId) && proto.SpiffeId != nil {
-		id, err := idutil.IDFromProto(proto.SpiffeId)
+		id, err := api.IDFromProto(ctx, proto.SpiffeId)
 		if err == nil {
 			fields[telemetry.SPIFFEID] = id.String()
 		}
 	}
 
 	if (inputMask == nil || inputMask.ParentId) && proto.ParentId != nil {
-		id, err := idutil.IDFromProto(proto.ParentId)
+		id, err := api.IDFromProto(ctx, proto.ParentId)
 		if err == nil {
 			fields[telemetry.ParentID] = id.String()
 		}
