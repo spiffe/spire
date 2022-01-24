@@ -1,11 +1,8 @@
-// +build !linux
-// +build !darwin
-// +build !freebsd
-// +build !netbsd
-// +build !openbsd
+//go:build !linux && !darwin && !freebsd && !netbsd && !openbsd
+// +build !linux,!darwin,!freebsd,!netbsd,!openbsd
 
 package peertracker
 
-func getCallerInfo(fd uintptr) (CallerInfo, error) {
+func getCallerInfoFromFileDescriptor(fd uintptr) (CallerInfo, error) {
 	return CallerInfo{}, ErrUnsupportedPlatform
 }

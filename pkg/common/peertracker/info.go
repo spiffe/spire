@@ -1,19 +1,8 @@
 package peertracker
 
-import (
-	"net"
-)
-
 const (
 	authType = "spire-attestation"
 )
-
-type CallerInfo struct {
-	Addr net.Addr
-	PID  int32
-	UID  uint32
-	GID  uint32
-}
 
 type AuthInfo struct {
 	Caller  CallerInfo
