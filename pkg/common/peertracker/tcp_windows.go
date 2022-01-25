@@ -72,9 +72,6 @@ func getSIDsFromPID(pid int) (uid, gid string, err error) {
 		return "", "", err
 	}
 	defer token.Close()
-	if err != nil {
-		return "", "", err
-	}
 	tokenUser, err := token.GetTokenUser()
 	if err != nil {
 		return "", "", err
@@ -97,6 +94,8 @@ func getSIDsFromPID(pid int) (uid, gid string, err error) {
 
 func getOwningPIDFromLocalConn(localPort, remotePort int) (pid int, err error) {
 	var (
+		localHost = net.IPv4(127, 0, 0, 1)
+
 		tcpTable *MIB_TCPTABLE_OWNER_PID
 		buffer   []byte
 		size     uint32
