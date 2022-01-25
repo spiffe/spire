@@ -2934,7 +2934,7 @@ func TestAttestAgent(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "The node attestor produced an invalid agent ID; proper namespacing will be enforced in a future release",
+					Message: "The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "test_type",
 						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/id_outside_namespace").String(),

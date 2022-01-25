@@ -301,7 +301,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
 	}
 	if err := api.VerifyTrustDomainAgentIDForNodeAttestor(s.td, agentID, params.Data.Type); err != nil {
-		log.WithError(err).Warn("The node attestor produced an invalid agent ID; proper namespacing will be enforced in a future release")
+		log.WithError(err).Warn("The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor")
 	}
 
 	// fetch the agent/node to check if it was already attested or banned
