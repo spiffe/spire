@@ -283,23 +283,26 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		}
 	}
 
-	// Ideally we'd do stronger validation that the ID is within the Node
-	// Attestors scoped area of the reserved agent namespace, but historically
-	// we haven't been strict here and there are deployments that are emitting
-	// such IDs.
-	// TODO: Enforce that IDs produced by Node Attestors are in the reserved
-	// namesepace for that Node Attestor.
-	//     e.g. spiffe://<trustdomain>/spire/agent/<nodeattestor>/<remainder>
 	agentID, err := spiffeid.FromString(attestResult.AgentID)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "invalid agent ID", err)
 	}
+
+	log = log.WithField(telemetry.AgentID, agentID)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: agentID})
+
+	// Ideally we'd do stronger validation that the ID is within the Node
+	// Attestors scoped area of the reserved agent namespace, but historically
+	// we haven't been strict here and there are deployments that are emitting
+	// such IDs.
+	// Deprecated: enforce that IDs produced by Node Attestors are in the
+	// reserved namespace for that Node Attestor starting in SPIRE 1.4.
 	if agentID.Path() == idutil.ServerIDPath {
 		return api.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
 	}
-
-	log = log.WithField(telemetry.AgentID, agentID)
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: attestResult.AgentID})
+	if err := api.VerifyTrustDomainAgentIDForNodeAttestor(s.td, agentID, params.Data.Type); err != nil {
+		log.WithError(err).Warn("The node attestor produced an invalid agent ID; proper namespacing will be enforced in a future release")
+	}
 
 	// fetch the agent/node to check if it was already attested or banned
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
