@@ -1,6 +1,7 @@
 package sigstore
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/json"
@@ -11,36 +12,55 @@ import (
 	"regexp"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type Sigstore interface {
-	FetchSignaturePayload(imageName string, rekorURL string) ([]oci.Signature, error)
-	ExtractselectorOfSignedImage(signatures []oci.Signature) string
+	FetchImageSignatures(imageName string, rekorURL string) ([]oci.Signature, error)
+	SelectorValuesFromSignature(oci.Signature) []string
+	ExtractSelectorsFromSignatures(signatures []oci.Signature) []string
+	ShouldSkipImage(status corev1.ContainerStatus) (bool, error)
+	AddSkippedImage(imageID string)
+	ClearSkipList()
 }
 
 type Sigstoreimpl struct {
-	verifyFunction func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
+	verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
+	fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
+	skippedImages              map[string]bool
 }
 
 func New() Sigstore {
 	return &Sigstoreimpl{
-		verifyFunction: cosign.VerifyImageSignatures,
+		verifyFunction:             cosign.VerifyImageSignatures,
+		fetchImageManifestFunction: remote.Get,
+		skippedImages:              nil,
 	}
 }
 
-// FetchSignaturePayload retrieves the signature payload from the specified image
-func (sigstore Sigstoreimpl) FetchSignaturePayload(imageName string, rekorURL string) ([]oci.Signature, error) {
+// FetchImageSignatures retrieves signatures for specified image via cosign, using the specified rekor server.
+// Returns a list of verified signatures, and an error if any.
+func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string, rekorURL string) ([]oci.Signature, error) {
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
 		message := fmt.Sprint("Error parsing image reference: ", err.Error())
 		return nil, errors.New(message)
 	}
+
+	_, err = sigstore.ValidateImage(ref)
+	if err != nil {
+		message := fmt.Sprint("Could not validate image reference digest: ", err.Error())
+		return nil, errors.New(message)
+	}
+
 	co := &cosign.CheckOpts{}
 	if rekorURL != "" {
 		rekorURI, err := url.Parse(rekorURL)
@@ -58,9 +78,6 @@ func (sigstore Sigstoreimpl) FetchSignaturePayload(imageName string, rekorURL st
 	} else {
 		co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig())
 	}
-	if co.RekorClient == nil {
-		return nil, errors.New("Error creating rekor client")
-	}
 	co.RootCerts = fulcio.GetRoots()
 
 	ctx := context.Background()
@@ -77,82 +94,70 @@ func (sigstore Sigstoreimpl) FetchSignaturePayload(imageName string, rekorURL st
 	return sigs, nil
 }
 
-func (Sigstoreimpl) ExtractselectorOfSignedImage(signatures []oci.Signature) string {
-	var selector string
+// ExtractSelectorsFromSignatures extracts selectors from a list of image signatures.
+// returns a list of selector strings.
+func (sigstore *Sigstoreimpl) ExtractSelectorsFromSignatures(signatures []oci.Signature) []string {
 	// Payload can be empty if the attestor fails to retrieve it
-	// In a non-strict mode this method should be reached and return
-	// an empty selector
-	if signatures != nil {
-		// verify which subject
-		selector = getImageSubject(signatures)
+	if signatures == nil {
+		return nil
 	}
-
-	// return subject as selector
-	return selector
+	var selectors []string
+	for _, sig := range signatures {
+		// verify which subject
+		sigSelectors := sigstore.SelectorValuesFromSignature(sig)
+		if sigSelectors != nil {
+			selectors = append(selectors, sigSelectors...)
+		}
+	}
+	return selectors
 }
 
-type Subject struct {
-	Subject string `json:"Subject"`
-}
-
-type Optional struct {
-	Optional Subject `json:"optional"`
-}
-
-func getOnlySubject(payload string) string {
-	var selector []Optional
-	err := json.Unmarshal([]byte(payload), &selector)
-
+func getSignatureSubject(signature oci.Signature) string {
+	if signature == nil {
+		return ""
+	}
+	ss := payload.SimpleContainerImage{}
+	pl, err := signature.Payload()
+	if err != nil {
+		log.Println("Error accessing the payload:", err.Error())
+		return ""
+	}
+	err = json.Unmarshal(pl, &ss)
 	if err != nil {
 		log.Println("Error decoding the payload:", err.Error())
 		return ""
 	}
-
-	re := regexp.MustCompile(`[{}]`) // brackets regex
-
-	if len(selector) > 0 { // if there is a subject
-		subject := fmt.Sprintf("%s", selector[0])  // get the first subject
-		subject = re.ReplaceAllString(subject, "") // remove the brackets
-
-		return subject
+	cert, err := signature.Cert()
+	if err != nil {
+		log.Println("Error accessing the certificate:", err.Error())
+		return ""
 	}
 
-	return ""
-}
-
-func getImageSubject(verified []oci.Signature) string {
-	var outputKeys []payload.SimpleContainerImage
-	for _, vs := range verified {
-		ss := payload.SimpleContainerImage{}
-		pl, err := vs.Payload()
-		if err != nil {
-			log.Println("Error accessing the payload:", err.Error())
-			return ""
+	subject := ""
+	if ss.Optional != nil {
+		subjString := ss.Optional["subject"]
+		if _, ok := subjString.(string); ok {
+			subject = subjString.(string)
 		}
-		err = json.Unmarshal(pl, &ss)
-		if err != nil {
-			log.Println("Error decoding the payload:", err.Error())
-			return ""
-		}
-		cert, err := vs.Cert()
-		if err != nil {
-			log.Println("Error accessing the certificate:", err.Error())
-			return ""
-		}
-		if cert != nil {
-			if ss.Optional == nil {
-				ss.Optional = make(map[string]interface{})
-			}
-			ss.Optional["Subject"] = certSubject(cert)
-		}
-
-		outputKeys = append(outputKeys, ss)
 	}
-	b, _ := json.Marshal(outputKeys)
-
-	subject := getOnlySubject(string(b))
+	if cert != nil {
+		subject = certSubject(cert)
+	}
 
 	return subject
+}
+
+// SelectorValuesFromSignature extracts selectors from a signature.
+// returns a list of selectors.
+func (sigstore *Sigstoreimpl) SelectorValuesFromSignature(signature oci.Signature) []string {
+	subject := getSignatureSubject(signature)
+
+	if subject != "" {
+		return []string{
+			fmt.Sprintf("image-signature-subject:%s", subject),
+		}
+	}
+	return nil
 }
 
 func certSubject(c *x509.Certificate) string {
@@ -167,4 +172,63 @@ func certSubject(c *x509.Certificate) string {
 		return re.ReplaceAllString(c.URIs[0].String(), "$email")
 	}
 	return ""
+}
+
+// ShouldSkipImage checks the skip list for the image ID in the container status.
+// If the image ID is found in the skip list, it returns true.
+// If the image ID is not found in the skip list, it returns false.
+func (sigstore *Sigstoreimpl) ShouldSkipImage(status corev1.ContainerStatus) (bool, error) {
+	if sigstore.skippedImages == nil {
+		return false, nil
+	}
+	if status.ImageID == "" {
+		return false, errors.New("Container status does not contain an image ID")
+	}
+	if _, ok := sigstore.skippedImages[status.ImageID]; ok {
+		return true, nil
+	}
+	return false, nil
+}
+
+// AddSkippedImage adds the image ID and selectors to the skip list.
+func (sigstore *Sigstoreimpl) AddSkippedImage(imageID string) {
+	if sigstore.skippedImages == nil {
+		sigstore.skippedImages = make(map[string]bool)
+	}
+	sigstore.skippedImages[imageID] = true
+}
+
+// ClearSkipList clears the skip list.
+func (sigstore *Sigstoreimpl) ClearSkipList() {
+	for k := range sigstore.skippedImages {
+		delete(sigstore.skippedImages, k)
+	}
+	sigstore.skippedImages = nil
+}
+
+// Validates if the image manifest hash matches the digest in the image reference
+func (sigstore *Sigstoreimpl) ValidateImage(ref name.Reference) (bool, error) {
+	desc, err := sigstore.fetchImageManifestFunction(ref)
+	if err != nil {
+		return false, err
+	}
+	if desc.Manifest == nil {
+		return false, errors.New("Manifest is nil")
+	}
+	hash, _, err := v1.SHA256(bytes.NewReader(desc.Manifest))
+	if err != nil {
+		return false, err
+	}
+
+	return validateRefDigest(ref, hash.String())
+}
+
+func validateRefDigest(ref name.Reference, digest string) (bool, error) {
+	if dgst, ok := ref.(name.Digest); ok {
+		if dgst.DigestStr() == digest {
+			return true, nil
+		}
+		return false, fmt.Errorf("Digest %s does not match %s", digest, dgst.DigestStr())
+	}
+	return false, fmt.Errorf("Reference %s is not a digest", ref.String())
 }
