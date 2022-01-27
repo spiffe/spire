@@ -55,11 +55,12 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                       string    `hcl:"data_dir"`
-	AdminSocketPath               string    `hcl:"admin_socket_path"`
-	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
-	JoinToken                     string    `hcl:"join_token"`
-	LogFile                       string    `hcl:"log_file"`
+	DataDir                       string `hcl:"data_dir"`
+	AdminSocketPath               string `hcl:"admin_socket_path"`
+	InsecureBootstrap             bool   `hcl:"insecure_bootstrap"`
+	JoinToken                     string `hcl:"join_token"`
+	LogFile                       string `hcl:"log_file"`
+	LogReopener                   log.ReopenableWriteCloser
 	LogFormat                     string    `hcl:"log_format"`
 	LogLevel                      string    `hcl:"log_level"`
 	SDS                           sdsConfig `hcl:"sds"`
@@ -190,6 +191,9 @@ func (cmd *Command) Run(args []string) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	util.SignalListener(ctx, cancel)
+	if c.LogReopener != nil {
+		go log.ReopenOnSignal(ctx, c.LogReopener)
+	}
 
 	err = a.Run(ctx)
 	if err != nil {
@@ -363,7 +367,15 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
 		log.WithFormat(c.Agent.LogFormat),
-		log.WithOutputFile(c.Agent.LogFile))
+	)
+	if c.Agent.LogFile != "" {
+		reopenableFile, err := log.NewReopenableFile(c.Agent.LogFile)
+		if err != nil {
+			return nil, err
+		}
+		logOptions = append(logOptions, log.WithReopenableOutputFile(reopenableFile))
+		ac.LogReopener = reopenableFile
+	}
 
 	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
