@@ -38,18 +38,19 @@ type Mode interface {
 }
 
 type CommonMode struct {
-	LogFormat          string   `hcl:"log_format"`
-	LogLevel           string   `hcl:"log_level"`
-	LogPath            string   `hcl:"log_path"`
-	TrustDomain        string   `hcl:"trust_domain"`
-	ServerSocketPath   string   `hcl:"server_socket_path"`
-	AgentSocketPath    string   `hcl:"agent_socket_path"`
-	ServerAddress      string   `hcl:"server_address"`
-	Cluster            string   `hcl:"cluster"`
-	PodLabel           string   `hcl:"pod_label"`
-	PodAnnotation      string   `hcl:"pod_annotation"`
-	Mode               string   `hcl:"mode"`
-	DisabledNamespaces []string `hcl:"disabled_namespaces"`
+	LogFormat             string   `hcl:"log_format"`
+	LogLevel              string   `hcl:"log_level"`
+	LogPath               string   `hcl:"log_path"`
+	TrustDomain           string   `hcl:"trust_domain"`
+	ServerSocketPath      string   `hcl:"server_socket_path"`
+	AgentSocketPath       string   `hcl:"agent_socket_path"`
+	ServerAddress         string   `hcl:"server_address"`
+	Cluster               string   `hcl:"cluster"`
+	PodLabel              string   `hcl:"pod_label"`
+	PodAnnotation         string   `hcl:"pod_annotation"`
+	Mode                  string   `hcl:"mode"`
+	DisabledNamespaces    []string `hcl:"disabled_namespaces"`
+	CheckSignatureEnabled bool     `hcl:"check_signature_enabled"`
 
 	// The following are initialized using the above fields after the HCL is
 	// parsed.
