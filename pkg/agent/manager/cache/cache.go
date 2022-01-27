@@ -685,14 +685,21 @@ func (c *Cache) getRecordsForSelectors(set selectorSet) (recordSet, func()) {
 // getSelectorIndex gets the selector index for the selector. If one doesn't
 // exist, it is created.
 func (c *Cache) getSelectorIndex(s selector) *selectorIndex {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	index, ok := c.selectors[s]
 	if !ok {
-		c.mu.RLock()
-		defer c.mu.RUnlock()
 		index = newSelectorIndex()
-		c.selectors[s] = index
+		c.setSelectorIndex(s, index)
 	}
 	return index
+}
+
+// setSelectorIndex sets the selector index for the selector.
+func (c *Cache) setSelectorIndex(s selector, index *selectorIndex) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.selectors[s] = index
 }
 
 type cacheRecord struct {
