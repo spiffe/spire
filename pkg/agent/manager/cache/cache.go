@@ -506,7 +506,7 @@ func (c *Cache) addSelectorIndicesRecord(selectors selectorSet, record *cacheRec
 }
 
 func (c *Cache) addSelectorIndexRecord(s selector, record *cacheRecord) {
-	index := c.getSelectorIndex(s)
+	index := c.getSelectorIndexForWrite(s)
 	index.records[record] = struct{}{}
 }
 
@@ -529,7 +529,7 @@ func (c *Cache) delSelectorIndexRecord(s selector, record *cacheRecord) {
 }
 
 func (c *Cache) addSelectorIndexSub(s selector, sub *subscriber) {
-	index := c.getSelectorIndex(s)
+	index := c.getSelectorIndexForWrite(s)
 	index.subs[sub] = struct{}{}
 }
 
@@ -594,9 +594,10 @@ func (c *Cache) allSubscribers() (subscriberSet, func()) {
 func (c *Cache) getSubscribers(set selectorSet) (subscriberSet, func()) {
 	subs, subsDone := allocSubscriberSet()
 	for s := range set {
-		index := c.getSelectorIndex(s)
-		for sub := range index.subs {
-			subs[sub] = struct{}{}
+		if index := c.getSelectorIndexForRead(s); index != nil {
+			for sub := range index.subs {
+				subs[sub] = struct{}{}
+			}
 		}
 	}
 	return subs, subsDone
@@ -661,12 +662,13 @@ func (c *Cache) getRecordsForSelectors(set selectorSet) (recordSet, func()) {
 	// entries to check.
 	records, recordsDone := allocRecordSet()
 	for selector := range set {
-		index := c.getSelectorIndex(selector)
-		for record := range index.records {
-			if record.svid == nil {
-				continue
+		if index := c.getSelectorIndexForRead(selector); index != nil {
+			for record := range index.records {
+				if record.svid == nil {
+					continue
+				}
+				records[record] = struct{}{}
 			}
-			records[record] = struct{}{}
 		}
 	}
 
@@ -682,15 +684,24 @@ func (c *Cache) getRecordsForSelectors(set selectorSet) (recordSet, func()) {
 	return records, recordsDone
 }
 
-// getSelectorIndex gets the selector index for the selector. If one doesn't
-// exist, it is created.
-func (c *Cache) getSelectorIndex(s selector) *selectorIndex {
+// getSelectorIndexForWrite gets the selector index for the selector. If one
+// doesn't exist, it is created. Callers must hold the write lock.
+func (c *Cache) getSelectorIndexForWrite(s selector) *selectorIndex {
 	index, ok := c.selectors[s]
 	if !ok {
 		index = newSelectorIndex()
 		c.selectors[s] = index
 	}
 	return index
+}
+
+// getSelectorIndexForRead gets the selector index for the selector. If one
+// doesn't exist, nil is returned.
+func (c *Cache) getSelectorIndexForRead(s selector) *selectorIndex {
+	if index, ok := c.selectors[s]; ok {
+		return index
+	}
+	return nil
 }
 
 type cacheRecord struct {
