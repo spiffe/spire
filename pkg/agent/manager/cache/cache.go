@@ -687,6 +687,8 @@ func (c *Cache) getRecordsForSelectors(set selectorSet) (recordSet, func()) {
 func (c *Cache) getSelectorIndex(s selector) *selectorIndex {
 	index, ok := c.selectors[s]
 	if !ok {
+		c.mu.RLock()
+		defer c.mu.RUnlock()
 		index = newSelectorIndex()
 		c.selectors[s] = index
 	}
