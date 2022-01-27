@@ -17,6 +17,9 @@ const (
 // An Option can change the Logger to apply desired configuration in NewLogger
 type Option func(*Logger) error
 
+// WithOutputFile does not support logrotate without copytruncate.
+//
+// Deprecated: Use WithReopenableOutputFile instead.
 func WithOutputFile(file string) Option {
 	return func(logger *Logger) error {
 		if file == "" {
@@ -37,6 +40,24 @@ func WithOutputFile(file string) Option {
 		}
 
 		logger.Closer = fd
+		return nil
+	}
+}
+
+// WithReopenableOutputFile uses ReopenableFile to support handling a signal
+// to rotate log files (e.g. from a logrotate postrotate script).
+func WithReopenableOutputFile(reopenableFile *ReopenableFile) Option {
+	return func(logger *Logger) error {
+		logger.SetOutput(reopenableFile)
+
+		// If, for some reason, there's another closer set, close it first.
+		if logger.Closer != nil {
+			if err := logger.Closer.Close(); err != nil {
+				return err
+			}
+		}
+
+		logger.Closer = reopenableFile
 		return nil
 	}
 }

@@ -67,3 +67,40 @@ func TestOutputFile(t *testing.T) {
 		}
 	}
 }
+
+// Make sure writing to reopenable logfile behaves identically to static file.
+func TestReopenableOutputFile(t *testing.T) {
+	msg := "This should get written"
+
+	for _, format := range []string{DefaultFormat, TextFormat, JSONFormat} {
+		f, err := os.CreateTemp("", "testoutputfile")
+		require.NoError(t, err)
+		tmpfile := f.Name()
+		defer os.Remove(tmpfile)
+
+		reopenableFile, err := NewReopenableFile(f.Name())
+		require.NoError(t, err)
+
+		logger, err := NewLogger(WithReopenableOutputFile(reopenableFile), WithFormat(format))
+		require.NoError(t, err)
+
+		logger.Warning(msg)
+
+		require.NoError(t, logger.Close())
+
+		log, err := io.ReadAll(f)
+		require.NoError(t, err)
+
+		if format == JSONFormat {
+			var data map[string]string
+			require.NoError(t, json.Unmarshal(log, &data))
+			assert.Equal(t, data["level"], "warning")
+			assert.Equal(t, data["msg"], msg)
+			assert.Contains(t, data, "time")
+			assert.EqualValues(t, len(data), 3, "%q", data)
+		} else {
+			expected := fmt.Sprintf("level=warning msg=\"%s\"", msg)
+			require.Contains(t, string(log), expected)
+		}
+	}
+}
