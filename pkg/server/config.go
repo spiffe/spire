@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -22,6 +23,9 @@ type Config struct {
 	PluginConfigs common.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
+
+	// LogReopener facilitates handling a signal to rotate log file.
+	LogReopener log.ReopenableWriteCloser
 
 	// If true enables audit logs
 	AuditLogEnabled bool
