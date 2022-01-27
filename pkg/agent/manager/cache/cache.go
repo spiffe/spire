@@ -107,6 +107,8 @@ type Cache struct {
 
 	mu sync.RWMutex
 
+	mux sync.Mutex
+
 	// records holds the records for registration entries, keyed by registration entry ID
 	records map[string]*cacheRecord
 
@@ -695,8 +697,8 @@ func (c *Cache) getSelectorIndex(s selector) *selectorIndex {
 
 // setSelectorIndex sets the selector index for the selector.
 func (c *Cache) setSelectorIndex(s selector, index *selectorIndex) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	c.selectors[s] = index
 }
 
