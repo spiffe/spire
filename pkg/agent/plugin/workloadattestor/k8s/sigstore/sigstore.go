@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -147,17 +148,63 @@ func getSignatureSubject(signature oci.Signature) string {
 	return subject
 }
 
+// The following structs are used to go through the payload json objects
+type BundleSignature struct {
+	Content   string            `json:"content"`
+	Format    string            `json:"format"`
+	PublicKey map[string]string `json:"publicKey"`
+}
+
+type BundleSpec struct {
+	Data      map[string]map[string]string `json:"data"`
+	Signature BundleSignature              `json:"signature"`
+}
+
+type BundleBody struct {
+	APIVersion string     `json:"apiVersion"`
+	Kind       string     `json:"kind"`
+	Spec       BundleSpec `json:"spec"`
+}
+
+func getBundleSignatureContent(bundle *oci.Bundle) (string, error) {
+	if bundle == nil {
+		return "", errors.New("Bundle is nil")
+	}
+	body64, ok := bundle.Payload.Body.(string)
+	if !ok {
+		return "", errors.New("Payload body is not a string")
+	}
+	body, err := base64.StdEncoding.DecodeString(body64)
+	if err != nil {
+		return "", err
+	}
+	var bundlebody BundleBody
+	err = json.Unmarshal(body, &bundlebody)
+
+	if err != nil {
+		return "", err
+	}
+
+	if bundlebody.Spec.Signature.Content == "" {
+		return "", errors.New("Bundle payload body has no signature content")
+	}
+
+	return bundlebody.Spec.Signature.Content, nil
+}
+
 // SelectorValuesFromSignature extracts selectors from a signature.
 // returns a list of selectors.
 func (sigstore *Sigstoreimpl) SelectorValuesFromSignature(signature oci.Signature) []string {
 	subject := getSignatureSubject(signature)
-
-	if subject != "" {
-		return []string{
-			fmt.Sprintf("image-signature-subject:%s", subject),
-		}
+	if subject == "" {
+		return nil
 	}
-	return nil
+	bundle, _ := signature.Bundle()
+	sigContent, _ := getBundleSignatureContent(bundle)
+	return []string{
+		fmt.Sprintf("image-signature-subject:%s", subject),
+		fmt.Sprintf("image-signature-content:%s", sigContent),
+	}
 }
 
 func certSubject(c *x509.Certificate) string {

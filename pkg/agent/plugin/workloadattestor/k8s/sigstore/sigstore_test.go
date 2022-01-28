@@ -22,6 +22,7 @@ type signature struct {
 
 	payload []byte
 	cert    *x509.Certificate
+	bundle  *oci.Bundle
 }
 
 func (signature) Annotations() (map[string]string, error) {
@@ -44,8 +45,8 @@ func (signature) Chain() ([]*x509.Certificate, error) {
 	return nil, nil
 }
 
-func (signature) Bundle() (*oci.Bundle, error) {
-	return nil, nil
+func (s signature) Bundle() (*oci.Bundle, error) {
+	return s.bundle, nil
 }
 
 func TestNew(t *testing.T) {
@@ -376,11 +377,16 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			args: args{
 				signatures: []oci.Signature{
 					signature{
-						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
+						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@hpe.com"}}`),
+						bundle: &oci.Bundle{
+							Payload: oci.BundlePayload{
+								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							},
+						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@hpe.com"},
+			want: []string{"image-signature-subject:spirex@hpe.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
 		},
 		{
 			name: "extract selector from image signature array with multiple entries",
@@ -391,13 +397,23 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				signatures: []oci.Signature{
 					signature{
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex1@hpe.com","key2": "value 2","key3": "value 3"}}`),
+						bundle: &oci.Bundle{
+							Payload: oci.BundlePayload{
+								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							},
+						},
 					},
 					signature{
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex2@hpe.com","key2": "value 2","key3": "value 3"}}`),
+						bundle: &oci.Bundle{
+							Payload: oci.BundlePayload{
+								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUI9IgogICAgfQogIH0KfQo=",
+							},
+						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex1@hpe.com", "image-signature-subject:spirex2@hpe.com"},
+			want: []string{"image-signature-subject:spirex1@hpe.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-subject:spirex2@hpe.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smB="},
 		},
 		{
 			name: "with invalid payload",
@@ -428,10 +444,15 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								"hpe@hpe.com",
 							},
 						},
+						bundle: &oci.Bundle{
+							Payload: oci.BundlePayload{
+								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							},
+						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@hpe.com"},
+			want: []string{"image-signature-subject:spirex@hpe.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
 		},
 		{
 			name: "extract selector from image signature with URI certificate",
@@ -456,10 +477,15 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								},
 							},
 						},
+						bundle: &oci.Bundle{
+							Payload: oci.BundlePayload{
+								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							},
+						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:https://www.hpe.com/somepath1"},
+			want: []string{"image-signature-subject:https://www.hpe.com/somepath1", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
 		},
 		{
 			name: "extract selector from empty array",
@@ -1063,6 +1089,111 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("Sigstoreimpl.ValidateImage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getBundleSignatureContent(t *testing.T) {
+	type args struct {
+		bundle *oci.Bundle
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "nil bundle",
+			args: args{
+				bundle: nil,
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Bundle payload body is not a string",
+			args: args{
+				bundle: &oci.Bundle{
+					Payload: oci.BundlePayload{
+						Body: 42,
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Bundle payload body is not valid base64",
+			args: args{
+				bundle: &oci.Bundle{
+					Payload: oci.BundlePayload{
+						Body: "abc..........def",
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Bundle payload body has no signature content",
+			args: args{
+				bundle: &oci.Bundle{
+					Payload: oci.BundlePayload{
+						Body: "ewogICAgInNwZWMiOiB7CiAgICAgICJzaWduYXR1cmUiOiB7CiAgICAgIH0KICAgIH0KfQ==",
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Bundle payload body signature content is empty",
+			args: args{
+				bundle: &oci.Bundle{
+					Payload: oci.BundlePayload{
+						Body: "ewogICAgInNwZWMiOiB7CiAgICAgICAgInNpZ25hdHVyZSI6IHsKICAgICAgICAiY29udGVudCI6ICIiCiAgICAgICAgfQogICAgfQp9",
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Bundle payload body is not a valid JSON",
+			args: args{
+				bundle: &oci.Bundle{
+					Payload: oci.BundlePayload{
+						Body: "ewogICJzcGVjIjosLCB7CiAgICAic2lnbmF0dXJlIjogewogICAgICAiY29udGVudCI6ICJNRVVDSVFDeWVtOEdjcjBzUEZNUDdmVFhhekNONTdOY041K01qeEp3OU9vMHgyZU0rQUlnZGdCUDk2Qk8xVGUvTmRiakhiVWViMEJVeWU2ZGVSZ1Z0UUV2NU5vNXNtQT0iCiAgICB9CiAgfQp9",
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Bundle payload body signature content is correct",
+			args: args{
+				bundle: &oci.Bundle{
+					Payload: oci.BundlePayload{
+						Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+					},
+				},
+			},
+			want:    "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getBundleSignatureContent(tt.args.bundle)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getBundleSignatureContent() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("getBundleSignatureContent() = %v, want %v", got, tt.want)
 			}
 		})
 	}
