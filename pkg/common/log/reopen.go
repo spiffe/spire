@@ -73,6 +73,12 @@ func (r *ReopenableFile) Close() error {
 	return r.f.Close()
 }
 
+// Name implements part of os.FileInfo without needing a lock on the
+// underlying file.
+func (r *ReopenableFile) Name() string {
+	return r.name
+}
+
 func ReopenOnSignal(ctx context.Context, rwc ReopenableWriteCloser) {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, _reopenSignal)
