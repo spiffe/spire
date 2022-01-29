@@ -21,11 +21,14 @@ import (
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/testca"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRotator(t *testing.T) {
+	util.SkipFlakyTest(t)
+
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
 
 	for _, tt := range []struct {

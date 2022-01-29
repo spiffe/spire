@@ -22,6 +22,7 @@ import (
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/tpmsimulator"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -346,6 +347,8 @@ func TestConfigureWindows(t *testing.T) {
 }
 
 func TestAidAttestationFailiures(t *testing.T) {
+	util.SkipFlakyTest(t)
+
 	tests := []struct {
 		name                              string
 		openTPMFail                       bool
@@ -474,6 +477,7 @@ func TestAidAttestationFailiures(t *testing.T) {
 }
 
 func TestAidAttestationSucceeds(t *testing.T) {
+	util.SkipFlakyTest(t)
 	setupSimulator(t)
 
 	// Override tpmdevid.NewSession() with a local function that returns a

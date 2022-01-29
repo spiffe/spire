@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const _flakyTestEnvKey = "SKIP_FLAKY_TESTS"
+
 var (
 	raceTestNumThreads = 2
 	raceTestNumLoops   = 2
@@ -42,4 +44,11 @@ func getEnvInt(name string, fallback int) int {
 		return val
 	}
 	return fallback
+}
+
+func SkipFlakyTest(t *testing.T) {
+	t.Helper()
+	if _, skip := os.LookupEnv(_flakyTestEnvKey); skip {
+		t.Skip("Test is flaky under race detector.")
+	}
 }
