@@ -192,7 +192,10 @@ func (cmd *Command) Run(args []string) int {
 	defer cancel()
 	util.SignalListener(ctx, cancel)
 	if c.LogReopener != nil {
-		go log.ReopenOnSignal(ctx, c.LogReopener)
+		go func() {
+			c.Log.Info("spawning logfile reopener")
+			log.ReopenOnSignal(ctx, c.LogReopener)
+		}()
 	}
 
 	err = a.Run(ctx)

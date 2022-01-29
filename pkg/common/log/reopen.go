@@ -9,7 +9,11 @@ import (
 	"syscall"
 )
 
-const _reopenSignal = syscall.SIGUSR2
+const (
+	_fileFlags    = os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	_fileMode     = 0640
+	_reopenSignal = syscall.SIGUSR2
+)
 
 var _ ReopenableWriteCloser = (*ReopenableFile)(nil)
 
@@ -30,7 +34,7 @@ type ReopenableFile struct {
 }
 
 func NewReopenableFile(name string) (*ReopenableFile, error) {
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	file, err := os.OpenFile(name, _fileFlags, _fileMode)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +54,7 @@ func (r *ReopenableFile) Reopen() error {
 		}
 		r.f = nil
 	}
-	newFile, err := os.OpenFile(r.name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	newFile, err := os.OpenFile(r.name, _fileFlags, _fileMode)
 	if err != nil {
 		r.f = nil
 		return err

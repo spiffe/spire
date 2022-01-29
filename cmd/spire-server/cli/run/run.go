@@ -232,7 +232,7 @@ func (cmd *Command) Run(args []string) int {
 	util.SignalListener(ctx, cancel)
 	if c.LogReopener != nil {
 		go func() {
-			c.Log.Info("spawning reopener")
+			c.Log.Info("spawning logfile reopener")
 			log.ReopenOnSignal(ctx, c.LogReopener)
 		}()
 	}
