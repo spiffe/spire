@@ -14,3 +14,6 @@ if [ -n "${COVERALLS_TOKEN}" ]; then
     "$(go env GOPATH)"/bin/goveralls -coverprofile="${COVERPROFILE}" \
             -service=github
 fi
+
+# re-run with race detector
+make race-test
