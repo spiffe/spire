@@ -95,7 +95,8 @@ func reopenOnSignal(
 		case <-ctx.Done():
 			return
 		case <-signalCh:
-			rwc.Reopen()
+			// satisfy errcheck
+			_ = rwc.Reopen()
 		}
 	}
 }

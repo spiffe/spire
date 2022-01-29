@@ -50,7 +50,8 @@ func TestReopenOnSignal(t *testing.T) {
 	renamedCh := make(chan struct{})
 	go func() {
 		// emulate logrotate
-		os.Rename(logFileName, rotatedLogFileName)
+		err = os.Rename(logFileName, rotatedLogFileName)
+		require.NoError(t, err)
 		signalCh <- _reopenSignal
 		close(renamedCh)
 	}()
