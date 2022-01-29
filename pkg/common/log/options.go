@@ -17,9 +17,9 @@ const (
 // An Option can change the Logger to apply desired configuration in NewLogger
 type Option func(*Logger) error
 
-// WithOutputFile does not support logrotate without copytruncate.
+// WithOutputFile requires lossy copytruncate directive in logrotate.
 //
-// Deprecated: Use WithReopenableOutputFile instead.
+// Used by oidc-discovery-provider and k8s-workload-registrar.
 func WithOutputFile(file string) Option {
 	return func(logger *Logger) error {
 		if file == "" {
