@@ -478,6 +478,7 @@ func TestAidAttestationFailiures(t *testing.T) {
 
 func TestAidAttestationSucceeds(t *testing.T) {
 	util.SkipFlakyTest(t)
+
 	setupSimulator(t)
 
 	// Override tpmdevid.NewSession() with a local function that returns a
