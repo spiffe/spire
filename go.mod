@@ -28,7 +28,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.9.9
 	github.com/go-logr/logr v1.2.2
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.6
