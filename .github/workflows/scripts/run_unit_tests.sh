@@ -19,4 +19,4 @@ fi
 echo
 echo "Re-running with race detector enabled, skipping flaky tests..."
 echo
-make race-test
+GOVERBOSE=1 make race-test
