@@ -69,7 +69,8 @@ func TestCount(t *testing.T) {
 			test := setupTest(t, NewCountCommandWithEnv)
 			test.server.err = tt.serverErr
 			test.server.countEntriesResp = tt.fakeCountResp
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 
 			rc := test.client.Run(args)
 			if tt.expErr != "" {

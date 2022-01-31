@@ -356,7 +356,8 @@ func TestShow(t *testing.T) {
 			test.server.expGetEntryReq = tt.expGetReq
 			test.server.getEntryResp = tt.fakeGetResp
 
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			rc := test.client.Run(args)
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)

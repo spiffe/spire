@@ -19,7 +19,7 @@ type BundleUpdaterConfig struct {
 	TrustDomainConfig TrustDomainConfig
 
 	// newClientHook is a test hook for injecting client behavior
-	newClientHook func(ClientConfig) (Client, error)
+	newClientHook func(Config) (Client, error)
 }
 
 type BundleUpdater interface {
@@ -43,7 +43,7 @@ type BundleUpdater interface {
 type bundleUpdater struct {
 	td            spiffeid.TrustDomain
 	ds            datastore.DataStore
-	newClientHook func(ClientConfig) (Client, error)
+	newClientHook func(Config) (Client, error)
 
 	trustDomainConfigMtx sync.Mutex
 	trustDomainConfig    TrustDomainConfig
@@ -109,7 +109,7 @@ func (u *bundleUpdater) SetTrustDomainConfig(trustDomainConfig TrustDomainConfig
 }
 
 func (u *bundleUpdater) newClient(ctx context.Context, trustDomainConfig TrustDomainConfig) (Client, error) {
-	clientConfig := ClientConfig{
+	clientConfig := Config{
 		TrustDomain: u.td,
 		EndpointURL: trustDomainConfig.EndpointURL,
 	}

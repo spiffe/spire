@@ -76,7 +76,8 @@ func TestShow(t *testing.T) {
 			},
 			}
 
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			rc := test.client.Run(args)
 			if tt.expectedError != "" {
 				require.Equal(t, 1, rc)
@@ -341,7 +342,8 @@ func TestSet(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, newSetCommand)
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			test.server.expectedSetBundle = tt.toSet
 			test.server.setResponse = tt.setResponse
 			test.server.err = tt.serverErr
@@ -444,7 +446,8 @@ func TestCount(t *testing.T) {
 			}
 
 			test.server.bundles = bundles[0:tt.count]
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			rc := test.client.Run(args)
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
@@ -559,7 +562,8 @@ func TestList(t *testing.T) {
 				},
 			}
 
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			rc := test.client.Run(args)
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
@@ -710,7 +714,8 @@ func TestDelete(t *testing.T) {
 			test.server.mode = tt.mode
 			test.server.toDelete = tt.toDelete
 
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			rc := test.client.Run(args)
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)

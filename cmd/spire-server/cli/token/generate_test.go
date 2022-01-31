@@ -76,7 +76,8 @@ func TestCreateToken(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t)
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			test.server.token = tt.token
 			test.server.expectReq = tt.expectedReq
 			test.server.err = tt.serverErr

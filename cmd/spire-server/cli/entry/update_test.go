@@ -355,7 +355,8 @@ Error: failed to update one or more entries
 			test.server.expBatchUpdateEntryReq = tt.expReq
 			test.server.batchUpdateEntryResp = tt.fakeResp
 
-			args := append(test.args, tt.args...)
+			args := test.args
+			args = append(args, tt.args...)
 			rc := test.client.Run(args)
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)

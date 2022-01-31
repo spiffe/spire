@@ -42,7 +42,8 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	e := createAuthorizedEntryTestData(t, ds)
 	expectedNodeAliasEntries := e.nodeAliasEntries
 	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
-	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
+	expectedEntries := expectedNodeAliasEntries
+	expectedEntries = append(expectedEntries, expectedWorkloadEntries...)
 
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		entryMap := map[spiffeid.ID][]*types.Entry{

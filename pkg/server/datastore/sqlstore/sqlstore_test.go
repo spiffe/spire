@@ -1175,7 +1175,8 @@ func (s *PluginSuite) TestListNodeSelectors() {
 		}
 	}
 
-	allAttNodesToCreate := append(nonExpiredAttNodes, expiredAttNodes...)
+	allAttNodesToCreate := nonExpiredAttNodes
+	allAttNodesToCreate = append(allAttNodesToCreate, expiredAttNodes...)
 	selectorMap := make(map[string][]*common.Selector)
 	for i, n := range allAttNodesToCreate {
 		_, err := s.ds.CreateAttestedNode(ctx, n)

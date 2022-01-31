@@ -122,7 +122,8 @@ Endpoint SPIFFE ID        : spiffe://baz.test/id
 			test.server.expectListReq = tt.expectListReq
 			test.server.listResp = tt.listResp
 
-			args := append(test.args, tt.arg...)
+			args := test.args
+			args = append(args, tt.arg...)
 			rc := test.client.Run(args)
 			if tt.expectErr != "" {
 				require.Equal(t, 1, rc)

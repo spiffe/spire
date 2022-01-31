@@ -23,7 +23,7 @@ type SPIFFEAuthConfig struct {
 	RootCAs []*x509.Certificate
 }
 
-type ClientConfig struct { //nolint: golint // name stutter is intentional
+type Config struct { //nolint: golint // name stutter is intentional
 	// TrustDomain is the federated trust domain (i.e. domain.test)
 	TrustDomain spiffeid.TrustDomain
 
@@ -43,11 +43,11 @@ type Client interface {
 }
 
 type client struct {
-	c      ClientConfig
+	c      Config
 	client *http.Client
 }
 
-func NewClient(config ClientConfig) (Client, error) {
+func NewClient(config Config) (Client, error) {
 	httpClient := &http.Client{}
 	if config.SPIFFEAuth != nil {
 		endpointID := config.SPIFFEAuth.EndpointSpiffeID
