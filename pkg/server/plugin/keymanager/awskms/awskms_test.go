@@ -344,7 +344,8 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestGenerateKey(t *testing.T) {
-	util.SkipFlakyTest(t)
+	// Flaky under -race: https://github.com/spiffe/spire/issues/2714
+	util.SkipFlakyTestUnderRaceDetector(t)
 
 	for _, tt := range []struct {
 		name                   string

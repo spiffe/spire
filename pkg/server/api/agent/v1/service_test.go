@@ -32,7 +32,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -2140,7 +2139,6 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 }
 
 func TestAttestAgent(t *testing.T) {
-	util.SkipFlakyTest(t)
 
 	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testkey.MustEC256())
 	require.NoError(t, err)

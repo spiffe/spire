@@ -46,7 +46,7 @@ func getEnvInt(name string, fallback int) int {
 	return fallback
 }
 
-func SkipFlakyTest(t *testing.T) {
+func SkipFlakyTestUnderRaceDetector(t *testing.T) {
 	t.Helper()
 	if _, skip := os.LookupEnv(_flakyTestEnvKey); skip {
 		t.Skip("Test is flaky under race detector.")
