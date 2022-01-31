@@ -2139,7 +2139,6 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 }
 
 func TestAttestAgent(t *testing.T) {
-
 	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testkey.MustEC256())
 	require.NoError(t, err)
 

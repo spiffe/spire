@@ -478,7 +478,6 @@ func TestAidAttestationFailures(t *testing.T) {
 }
 
 func TestAidAttestationSucceeds(t *testing.T) {
-
 	setupSimulator(t)
 
 	// Override tpmdevid.NewSession() with a local function that returns a
