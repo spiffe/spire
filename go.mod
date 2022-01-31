@@ -5,7 +5,7 @@ go 1.17
 require (
 	cloud.google.com/go/secretmanager v1.0.0
 	cloud.google.com/go/security v1.1.1
-	cloud.google.com/go/storage v1.16.1
+	cloud.google.com/go/storage v1.19.0
 	github.com/Azure/azure-sdk-for-go v57.3.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.21
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.8
@@ -31,7 +31,7 @@ require (
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.7
 	github.com/google/go-tpm v0.3.2
 	github.com/google/go-tpm-tools v0.3.1
 	github.com/googleapis/gax-go/v2 v2.1.1
@@ -62,10 +62,10 @@ require (
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211210111614-af8b64212486
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
-	google.golang.org/api v0.63.0
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa
+	google.golang.org/api v0.65.0
+	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5
 	google.golang.org/grpc v1.40.1
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -79,7 +79,9 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.99.0 // indirect
+	cloud.google.com/go v0.100.2 // indirect
+	cloud.google.com/go/compute v0.1.0 // indirect
+	cloud.google.com/go/iam v0.1.1 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.14 // indirect
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.2 // indirect
@@ -103,10 +105,7 @@ require (
 	github.com/aws/smithy-go v1.8.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
-	github.com/census-instrumentation/opencensus-proto v0.2.1 // indirect
-	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
-	github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403 // indirect
 	github.com/cncf/xds/go v0.0.0-20210312221358-fbca930ec8ed // indirect
 	github.com/containerd/containerd v1.3.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
