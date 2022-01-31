@@ -1,0 +1,12 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: "/"
+  schedule:
+    interval: "daily"
+    time: "09:00"
+    timezone: "America/Los_Angeles"
+  ignore:
+  - dependency-name: "github.com/spiffe/spire-api-sdk"
+  - dependency-name: "github.com/spiffe/spire-plugin-sdk"
+  open-pull-requests-limit: 5
