@@ -16,7 +16,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
-	svidproto_v1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -24,7 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	svid_v1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
+	svid "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -546,7 +546,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			}
 
 			// Mint CSR
-			resp, err := test.client.MintX509SVID(context.Background(), &svidproto_v1.MintX509SVIDRequest{
+			resp, err := test.client.MintX509SVID(context.Background(), &svidv1.MintX509SVIDRequest{
 				Csr: csr,
 				Ttl: int32(tt.ttl / time.Second),
 			})
@@ -797,7 +797,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 				test.ca.SetJWTKey(nil)
 			}
 
-			resp, err := test.client.MintJWTSVID(context.Background(), &svidproto_v1.MintJWTSVIDRequest{
+			resp, err := test.client.MintJWTSVID(context.Background(), &svidv1.MintJWTSVIDRequest{
 				Id:       api.ProtoFromID(tt.id),
 				Audience: tt.audience,
 				Ttl:      int32(tt.ttl / time.Second),
@@ -1077,7 +1077,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			test.rateLimiter.err = tt.rateLimiterErr
 			test.withCallerID = !tt.failCallerID
 
-			resp, err := test.client.NewJWTSVID(context.Background(), &svidproto_v1.NewJWTSVIDRequest{
+			resp, err := test.client.NewJWTSVID(context.Background(), &svidv1.NewJWTSVIDRequest{
 				EntryId:  tt.entry.Id,
 				Audience: tt.audience,
 			})
@@ -1665,14 +1665,14 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			test.ef.err = tt.fetcherErr
 
 			csrMap := make(map[string][]byte, len(tt.reqs))
-			var params []*svidproto_v1.NewX509SVIDParams
+			var params []*svidv1.NewX509SVIDParams
 			for _, entryID := range tt.reqs {
 				// Create CSR
 				csr := createCSR(t, &x509.CertificateRequest{})
 				if tt.mutateCSR != nil {
 					csr = tt.mutateCSR(csr)
 				}
-				params = append(params, &svidproto_v1.NewX509SVIDParams{
+				params = append(params, &svidv1.NewX509SVIDParams{
 					EntryId: entryID,
 					Csr:     csr,
 				})
@@ -1680,7 +1680,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			}
 
 			// Batch svids
-			resp, err := test.client.BatchNewX509SVID(ctx, &svidproto_v1.BatchNewX509SVIDRequest{
+			resp, err := test.client.BatchNewX509SVID(ctx, &svidv1.BatchNewX509SVIDRequest{
 				Params: params,
 			})
 			expectLogs := tt.expectLogs(csrMap)
@@ -1975,7 +1975,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 				test.downstream.entries = []*types.Entry{tt.entry}
 			}
 
-			resp, err := test.client.NewDownstreamX509CA(ctx, &svidproto_v1.NewDownstreamX509CARequest{
+			resp, err := test.client.NewDownstreamX509CA(ctx, &svidv1.NewDownstreamX509CARequest{
 				Csr: csr,
 			})
 			expectLogs := tt.expectLogs(csr)
@@ -2003,7 +2003,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 }
 
 type serviceTest struct {
-	client       svidproto_v1.SVIDClient
+	client       svidv1.SVIDClient
 	ef           *entryFetcher // Stores entries explicitly fetched using FetchAuthorizedEntries
 	downstream   *entryFetcher // Stores Downstream entries which end up in the context
 	ca           *fakeserverca.CA
@@ -2026,7 +2026,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	ds := fakedatastore.New(t)
 
 	rateLimiter := &fakeRateLimiter{}
-	service := svid_v1.New(svid_v1.Config{
+	service := svid.New(svid.Config{
 		EntryFetcher: ef,
 		ServerCA:     ca,
 		TrustDomain:  trustDomain,
@@ -2035,7 +2035,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	log, logHook := test.NewNullLogger()
 	registerFn := func(s *grpc.Server) {
-		svid_v1.RegisterService(s, service)
+		svid.RegisterService(s, service)
 	}
 
 	test := &serviceTest{
@@ -2071,7 +2071,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	// Set create client and add to test
 	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
-	test.client = svidproto_v1.NewSVIDClient(conn)
+	test.client = svidv1.NewSVIDClient(conn)
 	test.done = done
 
 	return test
