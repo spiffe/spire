@@ -26,7 +26,7 @@ require (
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v20.10.8+incompatible
 	github.com/envoyproxy/go-control-plane v0.9.9
-	github.com/go-logr/logr v0.4.0
+	github.com/go-logr/logr v1.2.2
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang/mock v1.6.0
