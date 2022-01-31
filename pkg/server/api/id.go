@@ -19,7 +19,7 @@ var (
 )
 
 func TrustDomainMemberIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := idFromProto(ctx, protoID)
+	id, err := IDFromProto(ctx, protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -40,7 +40,7 @@ func VerifyTrustDomainMemberID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 }
 
 func TrustDomainAgentIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := idFromProto(ctx, protoID)
+	id, err := IDFromProto(ctx, protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -64,7 +64,7 @@ func VerifyTrustDomainAgentID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 }
 
 func TrustDomainWorkloadIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
-	id, err := idFromProto(ctx, protoID)
+	id, err := IDFromProto(ctx, protoID)
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
@@ -103,7 +103,8 @@ func RemoveEnsureLeadingSlashLogLimit() {
 	ensureLeadingSlashLogLimiter.SetLimit(rate.Inf)
 }
 
-func idFromProto(ctx context.Context, protoID *types.SPIFFEID) (spiffeid.ID, error) {
+// IDFromProto converts a SPIFFEID message into an ID type
+func IDFromProto(ctx context.Context, protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	if protoID == nil {
 		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
 	}
