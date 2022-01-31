@@ -685,7 +685,8 @@ func (c *Cache) getRecordsForSelectors(set selectorSet) (recordSet, func()) {
 }
 
 // getSelectorIndexForWrite gets the selector index for the selector. If one
-// doesn't exist, it is created. Callers must hold the write lock.
+// doesn't exist, it is created. Callers must hold the write lock. If the index
+// is only being read, then getSelectorIndexForRead should be used instead.
 func (c *Cache) getSelectorIndexForWrite(s selector) *selectorIndex {
 	index, ok := c.selectors[s]
 	if !ok {
@@ -696,7 +697,9 @@ func (c *Cache) getSelectorIndexForWrite(s selector) *selectorIndex {
 }
 
 // getSelectorIndexForRead gets the selector index for the selector. If one
-// doesn't exist, nil is returned.
+// doesn't exist, nil is returned. Callers should hold the read or write lock.
+// If the index is being modified, callers should use getSelectorIndexForWrite
+// instead.
 func (c *Cache) getSelectorIndexForRead(s selector) *selectorIndex {
 	if index, ok := c.selectors[s]; ok {
 		return index
