@@ -63,11 +63,11 @@ func (r *ReopenableFile) Reopen() error {
 	return nil
 }
 
-func (r *ReopenableFile) Write(p []byte) (n int, err error) {
+func (r *ReopenableFile) Write(b []byte) (n int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return r.f.Write(p)
+	return r.f.Write(b)
 }
 
 func (r *ReopenableFile) Close() error {

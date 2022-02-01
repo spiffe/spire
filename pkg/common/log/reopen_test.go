@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,9 +19,7 @@ func TestReopenOnSignal(t *testing.T) {
 		_firstMsg        = "a message"
 		_secondMsg       = "another message"
 	)
-	dir, err := os.MkdirTemp("", _tempDir)
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := spiretest.TempDir(t)
 
 	logFileName := filepath.Join(dir, _testLogFileName)
 	rotatedLogFileName := logFileName + "." + _rotatedSuffix
@@ -40,12 +38,11 @@ func TestReopenOnSignal(t *testing.T) {
 	fsInfo, err = rf.f.Stat()
 	require.NoError(t, err)
 	initialLogSize := fsInfo.Size()
+	initialLogModTime := fsInfo.ModTime()
 	assert.NotEqual(t, int64(0), fsInfo.Size(), "%s should not be empty", fsInfo.Name())
 
 	signalCh := make(chan os.Signal, 1)
-	// prevent test from hanging until test runner timeout when failing
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	renamedCh := make(chan struct{})
 	go func() {
@@ -54,6 +51,7 @@ func TestReopenOnSignal(t *testing.T) {
 		require.NoError(t, err)
 		signalCh <- _reopenSignal
 		close(renamedCh)
+		cancel()
 	}()
 	reopenOnSignal(ctx, rf, signalCh)
 	<-renamedCh
@@ -66,6 +64,7 @@ func TestReopenOnSignal(t *testing.T) {
 	fsInfo, err = rotatedLog.Stat()
 	require.NoError(t, err)
 	assert.Equal(t, initialLogSize, fsInfo.Size(), "%s should be same size as before rename", fsInfo.Name())
+	assert.Equal(t, initialLogModTime, fsInfo.ModTime(), "%s should have same mod time as before rename", fsInfo.Name())
 
 	logger.Warning(_secondMsg)
 	fsInfo, err = rf.f.Stat()

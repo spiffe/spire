@@ -18,8 +18,6 @@ const (
 type Option func(*Logger) error
 
 // WithOutputFile requires lossy copytruncate directive in logrotate.
-//
-// Used by oidc-discovery-provider and k8s-workload-registrar.
 func WithOutputFile(file string) Option {
 	return func(logger *Logger) error {
 		if file == "" {

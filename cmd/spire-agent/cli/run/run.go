@@ -55,12 +55,11 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                       string `hcl:"data_dir"`
-	AdminSocketPath               string `hcl:"admin_socket_path"`
-	InsecureBootstrap             bool   `hcl:"insecure_bootstrap"`
-	JoinToken                     string `hcl:"join_token"`
-	LogFile                       string `hcl:"log_file"`
-	LogReopener                   log.ReopenableWriteCloser
+	DataDir                       string    `hcl:"data_dir"`
+	AdminSocketPath               string    `hcl:"admin_socket_path"`
+	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
+	JoinToken                     string    `hcl:"join_token"`
+	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
 	LogLevel                      string    `hcl:"log_level"`
 	SDS                           sdsConfig `hcl:"sds"`
@@ -193,7 +192,7 @@ func (cmd *Command) Run(args []string) int {
 	util.SignalListener(ctx, cancel)
 	if c.LogReopener != nil {
 		go func() {
-			c.Log.Info("spawning logfile reopener")
+			c.Log.Info("Spawning log file reopener")
 			log.ReopenOnSignal(ctx, c.LogReopener)
 		}()
 	}

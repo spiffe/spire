@@ -78,12 +78,11 @@ type serverConfig struct {
 	JWTIssuer       string             `hcl:"jwt_issuer"`
 	JWTKeyType      string             `hcl:"jwt_key_type"`
 	LogFile         string             `hcl:"log_file"`
-	LogReopener     log.ReopenableWriteCloser
-	LogLevel        string          `hcl:"log_level"`
-	LogFormat       string          `hcl:"log_format"`
-	RateLimit       rateLimitConfig `hcl:"ratelimit"`
-	SocketPath      string          `hcl:"socket_path"`
-	TrustDomain     string          `hcl:"trust_domain"`
+	LogLevel        string             `hcl:"log_level"`
+	LogFormat       string             `hcl:"log_format"`
+	RateLimit       rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath      string             `hcl:"socket_path"`
+	TrustDomain     string             `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -232,7 +231,7 @@ func (cmd *Command) Run(args []string) int {
 	util.SignalListener(ctx, cancel)
 	if c.LogReopener != nil {
 		go func() {
-			c.Log.Info("spawning logfile reopener")
+			c.Log.Info("Spawning log file reopener")
 			log.ReopenOnSignal(ctx, c.LogReopener)
 		}()
 	}
