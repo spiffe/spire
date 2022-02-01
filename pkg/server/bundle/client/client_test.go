@@ -96,7 +96,7 @@ func TestClient(t *testing.T) {
 			server.StartTLS()
 			defer server.Close()
 
-			client, err := NewClient(Config{
+			client, err := NewClient(ClientConfig{
 				TrustDomain: trustDomain,
 				EndpointURL: server.URL,
 				SPIFFEAuth: &SPIFFEAuthConfig{
