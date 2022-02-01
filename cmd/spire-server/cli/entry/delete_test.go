@@ -96,8 +96,7 @@ func TestDelete(t *testing.T) {
 			test.server.expBatchDeleteEntryReq = tt.expReq
 			test.server.batchDeleteEntryResp = tt.fakeResp
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expErr, test.stderr.String())

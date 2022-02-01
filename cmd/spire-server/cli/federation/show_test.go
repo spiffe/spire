@@ -102,8 +102,7 @@ Endpoint SPIFFE ID        : spiffe://endpoint.test/id
 			test.server.expectShowReq = tt.req
 			test.server.showResp = tt.resp
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
