@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -51,7 +52,7 @@ func run() error {
 }
 
 func agentEndpoints(ctx context.Context) error {
-	conn, err := grpc.Dial(*socketPathFlag, grpc.WithInsecure())
+	conn, err := grpc.Dial(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("failed to connect server: %w", err)
 	}

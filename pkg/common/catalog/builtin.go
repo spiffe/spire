@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type BuiltIn struct {
@@ -137,7 +138,7 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 	}()
 
 	// Dial the server
-	conn, err := grpc.Dial("IGNORED", grpc.WithBlock(), grpc.WithInsecure(), grpc.WithContextDialer(pipeNet.DialContext))
+	conn, err := grpc.Dial("IGNORED", grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(pipeNet.DialContext))
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
