@@ -15,7 +15,7 @@ require (
 	github.com/InVisionApp/go-logger v1.0.1
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.10
-	github.com/aws/aws-sdk-go v1.40.44
+	github.com/aws/aws-sdk-go v1.42.44
 	github.com/aws/aws-sdk-go-v2 v1.9.1
 	github.com/aws/aws-sdk-go-v2/config v1.8.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.4.1
@@ -60,7 +60,7 @@ require (
 	github.com/zeebo/errs v1.2.2
 	go.uber.org/atomic v1.9.0
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272
-	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
+	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
