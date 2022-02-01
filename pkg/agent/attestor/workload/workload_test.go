@@ -80,7 +80,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 	// both have selectors
 	selectors = s.attestor.Attest(ctx, 4)
 	util.SortSelectors(selectors)
-	combined := selectors1
+	combined := make([]*common.Selector, 0, len(selectors1)+len(selectors2))
+	combined = append(combined, selectors1...)
 	combined = append(combined, selectors2...)
 	util.SortSelectors(combined)
 	spiretest.AssertProtoListEqual(s.T(), combined, selectors)

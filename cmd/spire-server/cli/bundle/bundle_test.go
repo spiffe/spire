@@ -76,9 +76,7 @@ func TestShow(t *testing.T) {
 			},
 			}
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedError != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectedError, test.stderr.String())
@@ -342,21 +340,20 @@ func TestSet(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, newSetCommand)
-			args := test.args
-			args = append(args, tt.args...)
 			test.server.expectedSetBundle = tt.toSet
 			test.server.setResponse = tt.setResponse
 			test.server.err = tt.serverErr
 
 			test.stdin.WriteString(tt.stdin)
+			var extraArgs []string
 			if tt.fileData != "" {
 				tmpDir := spiretest.TempDir(t)
 				bundlePath := filepath.Join(tmpDir, "bundle_data")
 				require.NoError(t, os.WriteFile(bundlePath, []byte(tt.fileData), 0600))
-				args = append(args, "-path", bundlePath)
+				extraArgs = append(extraArgs, "-path", bundlePath)
 			}
 
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(append(tt.args, extraArgs...)...))
 
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)
@@ -446,9 +443,7 @@ func TestCount(t *testing.T) {
 			}
 
 			test.server.bundles = bundles[0:tt.count]
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, 1, rc)
@@ -562,9 +557,7 @@ func TestList(t *testing.T) {
 				},
 			}
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, 1, rc)
@@ -714,9 +707,7 @@ func TestDelete(t *testing.T) {
 			test.server.mode = tt.mode
 			test.server.toDelete = tt.toDelete
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())

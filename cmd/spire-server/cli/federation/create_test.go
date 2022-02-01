@@ -345,9 +345,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 			test.server.expectCreateReq = tt.expReq
 			test.server.createResp = tt.fakeResp
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expErr, test.stderr.String())

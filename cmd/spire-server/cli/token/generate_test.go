@@ -76,13 +76,11 @@ func TestCreateToken(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t)
-			args := test.args
-			args = append(args, tt.args...)
 			test.server.token = tt.token
 			test.server.expectReq = tt.expectedReq
 			test.server.err = tt.serverErr
 
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, 1, rc)
@@ -101,10 +99,14 @@ type tokenTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	args   []string
-	server *fakeAgentServer
+	socketPath string
+	server     *fakeAgentServer
 
 	client cli.Command
+}
+
+func (t *tokenTest) args(extra ...string) []string {
+	return append([]string{"-socketPath", t.socketPath}, extra...)
 }
 
 func setupTest(t *testing.T) *tokenTest {
@@ -125,12 +127,12 @@ func setupTest(t *testing.T) *tokenTest {
 	})
 
 	return &tokenTest{
-		stderr: stderr,
-		stdin:  stdin,
-		stdout: stdout,
-		args:   []string{"-socketPath", socketPath},
-		server: server,
-		client: client,
+		socketPath: socketPath,
+		stderr:     stderr,
+		stdin:      stdin,
+		stdout:     stdout,
+		server:     server,
+		client:     client,
 	}
 }
 

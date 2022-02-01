@@ -42,7 +42,8 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	e := createAuthorizedEntryTestData(t, ds)
 	expectedNodeAliasEntries := e.nodeAliasEntries
 	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
-	expectedEntries := expectedNodeAliasEntries
+	expectedEntries := make([]*types.Entry, 0, len(expectedNodeAliasEntries)+len(expectedWorkloadEntries))
+	expectedEntries = append(expectedEntries, expectedNodeAliasEntries...)
 	expectedEntries = append(expectedEntries, expectedWorkloadEntries...)
 
 	buildCache := func(context.Context) (entrycache.Cache, error) {

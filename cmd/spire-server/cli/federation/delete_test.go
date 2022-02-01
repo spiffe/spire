@@ -93,9 +93,7 @@ func TestDelete(t *testing.T) {
 			test.server.expectDeleteReq = tt.expectReq
 			test.server.deleteResp = tt.deleteResp
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectErr, test.stderr.String())

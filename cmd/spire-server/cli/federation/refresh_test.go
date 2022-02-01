@@ -73,9 +73,7 @@ func TestRefresh(t *testing.T) {
 			test.server.expectRefreshReq = tt.expectReq
 			test.server.refreshResp = tt.refreshResp
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectErr, test.stderr.String())

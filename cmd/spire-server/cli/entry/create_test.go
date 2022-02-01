@@ -336,9 +336,7 @@ Error: failed to create one or more entries
 			test.server.expBatchCreateEntryReq = tt.expReq
 			test.server.batchCreateEntryResp = tt.fakeResp
 
-			args := test.args
-			args = append(args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expErr, test.stderr.String())
