@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/spiffe/spire/pkg/agent/api/debug/v1"
-	"github.com/spiffe/spire/pkg/agent/api/delegatedidentity/v1"
+	debugv1 "github.com/spiffe/spire/pkg/agent/api/debug/v1"
+	delegatedidentityv1 "github.com/spiffe/spire/pkg/agent/api/delegatedidentity/v1"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -61,7 +61,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 func (e *Endpoints) registerDebugAPI(server *grpc.Server) {
 	clk := clock.New()
-	service := debug.New(debug.Config{
+	service := debugv1.New(debugv1.Config{
 		Clock:       clk,
 		Log:         e.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
 		Manager:     e.c.Manager,
@@ -69,18 +69,18 @@ func (e *Endpoints) registerDebugAPI(server *grpc.Server) {
 		TrustDomain: e.c.TrustDomain,
 	})
 
-	debug.RegisterService(server, service)
+	debugv1.RegisterService(server, service)
 }
 
 func (e *Endpoints) registerDelegatedIdentityAPI(server *grpc.Server) {
-	service := delegatedidentity.New(delegatedidentity.Config{
+	service := delegatedidentityv1.New(delegatedidentityv1.Config{
 		Manager:             e.c.Manager,
 		Attestor:            e.c.Attestor,
 		AuthorizedDelegates: e.c.AuthorizedDelegates,
 		Log:                 e.c.Log.WithField(telemetry.SubsystemName, telemetry.DelegatedIdentityAPI),
 	})
 
-	delegatedidentity.RegisterService(server, service)
+	delegatedidentityv1.RegisterService(server, service)
 }
 
 func (e *Endpoints) createUDSListener() (net.Listener, error) {
