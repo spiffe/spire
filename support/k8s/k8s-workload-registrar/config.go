@@ -19,6 +19,7 @@ import (
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -156,7 +157,7 @@ func (r *ServerAPIClients) dial(ctx context.Context, dialLog logger.Logger, serv
 
 	if strings.HasPrefix(serverAddress, "unix://") {
 		dialLog.Infof("Connecting to local registration server socket %s", serverAddress)
-		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithInsecure())
+		conn, err = grpc.DialContext(ctx, serverAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return err
 		}

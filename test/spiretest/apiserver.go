@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func NewAPIServerWithMiddleware(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
@@ -34,7 +35,7 @@ func newAPIServer(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Se
 		errCh <- server.Serve(listener)
 	}()
 
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		server.Stop()
 		require.NoError(t, err)

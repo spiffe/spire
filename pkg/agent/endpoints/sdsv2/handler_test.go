@@ -26,6 +26,7 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -168,7 +169,7 @@ func (s *HandlerSuite) SetupTest() {
 	listener, err := net.Listen("tcp", "localhost:0")
 	s.Require().NoError(err)
 
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	s.Require().NoError(err)
 	s.handler = sds_v2.NewSecretDiscoveryServiceClient(conn)
 

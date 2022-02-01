@@ -32,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -244,7 +245,7 @@ func TestEndpoints(t *testing.T) {
 			conn, err := grpc.DialContext(ctx, "unix:"+udsPath,
 				grpc.WithReturnConnectionError(),
 				grpc.WithConnectParams(connectParams),
-				grpc.WithInsecure())
+				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			require.NoError(t, err)
 			defer conn.Close()
 
