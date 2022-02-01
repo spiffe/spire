@@ -441,15 +441,17 @@ func (s *Suite) TestConfigure() {
 	s.writeCert("some-other-ca", s.kubeletCert)
 
 	type config struct {
-		Insecure             bool
-		VerifyKubelet        bool
-		HasNodeName          bool
-		Token                string
-		KubeletURL           string
-		MaxPollAttempts      int
-		PollRetryInterval    time.Duration
-		ReloadInterval       time.Duration
-		SkippedImageSubjects []string
+		Insecure                  bool
+		VerifyKubelet             bool
+		HasNodeName               bool
+		Token                     string
+		KubeletURL                string
+		MaxPollAttempts           int
+		PollRetryInterval         time.Duration
+		ReloadInterval            time.Duration
+		SkippedImageSubjects      []string
+		AllowedSubjectListEnabled bool
+		AllowedSubjects           []string
 	}
 
 	testCases := []struct {
@@ -668,6 +670,23 @@ func (s *Suite) TestConfigure() {
 				},
 			},
 		},
+		{
+			name: "secure defaults with allowed subjects for sigstore",
+			hcl: `
+				enable_allowed_subjects_list = true,
+				allowed_subjects_list = ["spirex@example.com","spirex1@example.com"]
+			`,
+			config: &config{
+				VerifyKubelet:             true,
+				Token:                     "default-token",
+				KubeletURL:                "https://127.0.0.1:10250",
+				MaxPollAttempts:           defaultMaxPollAttempts,
+				PollRetryInterval:         defaultPollRetryInterval,
+				ReloadInterval:            defaultReloadInterval,
+				AllowedSubjectListEnabled: true,
+				AllowedSubjects:           []string{"spirex@example.com", "spirex1@example.com"},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -715,6 +734,8 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
 			assert.Equal(t, testCase.config.SkippedImageSubjects, c.SkippedImageSubjects)
+			assert.Equal(t, testCase.config.AllowedSubjectListEnabled, c.AllowedSubjectListEnabled)
+			assert.Equal(t, testCase.config.AllowedSubjects, c.AllowedSubjects)
 		})
 	}
 }
@@ -778,6 +799,15 @@ func (s *SigstoreMock) ShouldSkipImage(image corev1.ContainerStatus) (bool, erro
 func (s *SigstoreMock) AddSkippedImage(string) {
 }
 func (s *SigstoreMock) ClearSkipList() {
+}
+
+func (s *SigstoreMock) AddAllowedSubject(subject string) {
+}
+
+func (s *SigstoreMock) ClearAllowedSubjects() {
+}
+
+func (s *SigstoreMock) EnableAllowSubjectList(flag bool) {
 }
 
 func (s *Suite) newPlugin() *Plugin {

@@ -31,12 +31,17 @@ type Sigstore interface {
 	ShouldSkipImage(status corev1.ContainerStatus) (bool, error)
 	AddSkippedImage(imageID string)
 	ClearSkipList()
+	AddAllowedSubject(subject string)
+	EnableAllowSubjectList(bool)
+	ClearAllowedSubjects()
 }
 
 type Sigstoreimpl struct {
 	verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
 	fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
 	skippedImages              map[string]bool
+	allowListEnabled           bool
+	subjectAllowList           map[string]bool
 }
 
 func New() Sigstore {
@@ -44,6 +49,8 @@ func New() Sigstore {
 		verifyFunction:             cosign.VerifyImageSignatures,
 		fetchImageManifestFunction: remote.Get,
 		skippedImages:              nil,
+		allowListEnabled:           false,
+		subjectAllowList:           nil,
 	}
 }
 
@@ -196,15 +203,33 @@ func getBundleSignatureContent(bundle *oci.Bundle) (string, error) {
 // returns a list of selectors.
 func (sigstore *Sigstoreimpl) SelectorValuesFromSignature(signature oci.Signature) []string {
 	subject := getSignatureSubject(signature)
+
 	if subject == "" {
 		return nil
 	}
-	bundle, _ := signature.Bundle()
-	sigContent, _ := getBundleSignatureContent(bundle)
-	return []string{
-		fmt.Sprintf("image-signature-subject:%s", subject),
-		fmt.Sprintf("image-signature-content:%s", sigContent),
+
+	suppress := false
+	if sigstore.allowListEnabled {
+		if _, ok := sigstore.subjectAllowList[subject]; !ok {
+			suppress = true
+		}
 	}
+
+	var selectors []string
+	if !suppress {
+		selectors = []string{
+			fmt.Sprintf("image-signature-subject:%s", subject),
+		}
+		bundle, _ := signature.Bundle()
+		sigContent, err := getBundleSignatureContent(bundle)
+		if err != nil {
+			log.Println("Error getting signature content: ", err.Error())
+		} else {
+			selectors = append(selectors, fmt.Sprintf("image-signature-content:%s", sigContent))
+		}
+	}
+
+	return selectors
 }
 
 func certSubject(c *x509.Certificate) string {
@@ -278,4 +303,22 @@ func validateRefDigest(ref name.Reference, digest string) (bool, error) {
 		return false, fmt.Errorf("Digest %s does not match %s", digest, dgst.DigestStr())
 	}
 	return false, fmt.Errorf("Reference %s is not a digest", ref.String())
+}
+
+func (sigstore *Sigstoreimpl) AddAllowedSubject(subject string) {
+	if sigstore.subjectAllowList == nil {
+		sigstore.subjectAllowList = make(map[string]bool)
+	}
+	sigstore.subjectAllowList[subject] = true
+}
+
+func (sigstore *Sigstoreimpl) ClearAllowedSubjects() {
+	for k := range sigstore.subjectAllowList {
+		delete(sigstore.subjectAllowList, k)
+	}
+	sigstore.subjectAllowList = nil
+}
+
+func (sigstore *Sigstoreimpl) EnableAllowSubjectList(flag bool) {
+	sigstore.allowListEnabled = flag
 }
