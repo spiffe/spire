@@ -174,7 +174,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		server.Stop()
+		server.GracefulStop()
 	}()
 
 	return &hcPlugin{

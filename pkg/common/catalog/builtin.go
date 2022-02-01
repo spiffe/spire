@@ -126,7 +126,7 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 	closers = append(closers, pipeNet)
 
 	var wg sync.WaitGroup
-	closers = append(closers, closerFunc(wg.Wait), closerFunc(server.Stop))
+	closers = append(closers, closerFunc(wg.Wait), closerFunc(server.GracefulStop))
 
 	wg.Add(1)
 	go func() {
