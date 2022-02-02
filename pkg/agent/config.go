@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"crypto/x509"
 	"net"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -44,7 +44,7 @@ type Config struct {
 	Log logrus.FieldLogger
 
 	// LogReopener facilitates handling a signal to rotate log file.
-	LogReopener log.ReopenableWriteCloser
+	LogReopener func(context.Context) error
 
 	// Address of SPIRE server
 	ServerAddress string

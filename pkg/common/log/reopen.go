@@ -83,24 +83,28 @@ func (r *ReopenableFile) Name() string {
 	return r.name
 }
 
-func ReopenOnSignal(ctx context.Context, rwc ReopenableWriteCloser) {
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, _reopenSignal)
-	reopenOnSignal(ctx, rwc, signalCh)
+// ReopenOnSignal returns a function compatible with RunTasks.
+func ReopenOnSignal(rwc ReopenableWriteCloser) func(context.Context) error {
+	return func(ctx context.Context) error {
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, _reopenSignal)
+		return reopenOnSignal(ctx, rwc, signalCh)
+	}
 }
 
 func reopenOnSignal(
 	ctx context.Context,
 	rwc ReopenableWriteCloser,
 	signalCh chan os.Signal,
-) {
+) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-signalCh:
-			// satisfy errcheck
-			_ = rwc.Reopen()
+			if err := rwc.Reopen(); err != nil {
+				return err
+			}
 		}
 	}
 }

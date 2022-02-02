@@ -190,12 +190,6 @@ func (cmd *Command) Run(args []string) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	util.SignalListener(ctx, cancel)
-	if c.LogReopener != nil {
-		go func() {
-			c.Log.Info("Spawning log file reopener")
-			log.ReopenOnSignal(ctx, c.LogReopener)
-		}()
-	}
 
 	err = a.Run(ctx)
 	if err != nil {
@@ -376,7 +370,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 			return nil, err
 		}
 		logOptions = append(logOptions, log.WithReopenableOutputFile(reopenableFile))
-		ac.LogReopener = reopenableFile
+		ac.LogReopener = log.ReopenOnSignal(reopenableFile)
 	}
 
 	logger, err := log.NewLogger(logOptions...)
