@@ -39,38 +39,24 @@ type windowsWatcher struct {
 	mtx        sync.Mutex
 	procHandle windows.Handle
 	pid        int32
-	uid        string
-	gid        string
-	startTime  int64 // Nanoseconds since Epoch (00:00:00 UTC, January 1, 1970)
 	log        logrus.FieldLogger
 }
 
 func newWindowsWatcher(info CallerInfo, log logrus.FieldLogger) (*windowsWatcher, error) {
 	// Having an open process handle prevents the process object from being destroyed,
 	// keeping the process ID valid, so this is the first thing that we do.
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(info.PID))
-	if err != nil {
-		return nil, err
-	}
-
-	startTime, err := getStartTime(h)
+	procHandle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(info.PID))
 	if err != nil {
 		return nil, err
 	}
 
 	log = log.WithFields(logrus.Fields{
-		telemetry.CallerGID: info.GID,
-		telemetry.PID:       info.PID,
-		telemetry.CallerUID: info.UID,
-		telemetry.StartTime: startTime,
+		telemetry.PID: info.PID,
 	})
 
 	return &windowsWatcher{
-		gid:        info.GID,
 		pid:        info.PID,
-		procHandle: h,
-		startTime:  startTime,
-		uid:        info.UID,
+		procHandle: procHandle,
 		log:        log,
 	}, nil
 }
@@ -108,46 +94,12 @@ func (l *windowsWatcher) IsAlive() error {
 		l.log.WithError(err).Warn("Caller exit suspected due to failure to open process")
 		return fmt.Errorf("caller exit suspected due to failure to open process: %w", err)
 	}
+	defer windows.CloseHandle(h)
 
-	currentStartTime, err := getStartTime(h)
+	err = compareObjectHandles(l.procHandle, h)
 	if err != nil {
-		l.log.WithError(err).Warn("Caller exit suspected due to failure to get start time")
-		return fmt.Errorf("caller exit suspected due to failure to get start time: %w", err)
-	}
-
-	// Compare the start time of the current process with the
-	// original process.
-	if l.startTime != currentStartTime {
-		l.log.WithFields(logrus.Fields{
-			telemetry.ExpectStartTime:   l.startTime,
-			telemetry.ReceivedStartTime: currentStartTime,
-		}).Warn("New process detected: process start time does not match original caller")
-		return fmt.Errorf("new process detected: process start time %d does not match original caller %d", currentStartTime, l.startTime)
-	}
-
-	// Finally, get the security identifiers to determine the owner. If we got
-	// beaten by a PID race when opening the proc handle originally, we can at
-	// least get to know that the race winner is running as the same user and
-	// group as the original caller by comparing it to the received CallerInfo.
-	uid, gid, err := getSIDsFromPID(int(l.pid))
-	if err != nil {
-		l.log.WithError(err).Warn("Caller exit suspected due to failure to get security identifiers")
-		return errors.New("caller exit suspected due to failure to get security identifiers")
-	}
-
-	if uid != l.uid {
-		l.log.WithFields(logrus.Fields{
-			telemetry.ExpectUID:   l.uid,
-			telemetry.ReceivedUID: uid,
-		}).Warn("New process detected: process uid does not match original caller")
-		return fmt.Errorf("new process detected: process uid %q does not match original caller %q", uid, l.uid)
-	}
-	if gid != l.gid {
-		l.log.WithFields(logrus.Fields{
-			telemetry.ExpectGID:   l.gid,
-			telemetry.ReceivedGID: gid,
-		}).Warn("New process detected: process gid does not match original caller")
-		return fmt.Errorf("new process detected: process gid %q does not match original caller %q", uid, l.gid)
+		l.log.WithError(err).Warn("Current process handle does not refer to the same original process. CompareObjectHandles failed")
+		return fmt.Errorf("current process handle does not refer to the same original process. CompareObjectHandles failed: %w", err)
 	}
 
 	return nil
@@ -155,13 +107,4 @@ func (l *windowsWatcher) IsAlive() error {
 
 func (l *windowsWatcher) PID() int32 {
 	return l.pid
-}
-
-func getStartTime(procHandle windows.Handle) (int64, error) {
-	var CPU windows.Rusage
-	if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
-		return 0, err
-	}
-
-	return CPU.CreationTime.Nanoseconds(), nil
 }
