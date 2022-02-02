@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -737,7 +738,7 @@ func createClient() (*client, *testClient) {
 
 	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 		// make a normal grpc dial but without any of the provided options that may cause it to fail
-		return grpc.DialContext(ctx, addr, grpc.WithInsecure())
+		return grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 	return client, tc
 }

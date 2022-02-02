@@ -20,6 +20,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -34,7 +35,7 @@ func Dial(socketPath string) (*grpc.ClientConn, error) {
 		socketPath = DefaultSocketPath
 	}
 	return grpc.Dial(socketPath,
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 		grpc.WithBlock(),
 		grpc.FailOnNonTempDialError(true),

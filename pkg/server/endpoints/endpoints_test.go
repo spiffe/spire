@@ -41,6 +41,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
@@ -256,7 +257,7 @@ func TestListenAndServe(t *testing.T) {
 		return conn
 	}
 
-	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithInsecure())
+	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer udsConn.Close()
 
