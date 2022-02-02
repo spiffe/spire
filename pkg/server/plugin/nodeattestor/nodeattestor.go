@@ -14,6 +14,7 @@ type NodeAttestor interface {
 }
 
 type AttestResult struct {
-	AgentID   string
-	Selectors []*common.Selector
+	AgentID     string
+	CanReattest bool
+	Selectors   []*common.Selector
 }

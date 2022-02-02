@@ -201,6 +201,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				CanReattest:    false,
 				SpiffeId:       agentID.String(),
 				SelectorValues: selectorValues,
 			},

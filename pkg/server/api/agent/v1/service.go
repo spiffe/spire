@@ -330,6 +330,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			SpiffeId:            agentID,
 			CertNotAfter:        svid[0].NotAfter.Unix(),
 			CertSerialNumber:    svid[0].SerialNumber.String(),
+			CanReattest:         attestResult.CanReattest,
 		}
 		if _, err := s.ds.CreateAttestedNode(ctx, node); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to create attested agent", err)
@@ -339,6 +340,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			SpiffeId:         agentID,
 			CertNotAfter:     svid[0].NotAfter.Unix(),
 			CertSerialNumber: svid[0].SerialNumber.String(),
+			CanReattest:      attestResult.CanReattest,
 		}
 		if _, err := s.ds.UpdateAttestedNode(ctx, node, nil); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to update attested agent", err)
