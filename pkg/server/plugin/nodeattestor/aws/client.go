@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -16,19 +14,9 @@ var (
 	defaultNewClientCallback = newClient
 )
 
-// IAMClient interface describing used aws iamclient functions, useful for mocking
-type IAMClient interface {
-	GetInstanceProfileWithContext(aws.Context, *iam.GetInstanceProfileInput, ...request.Option) (*iam.GetInstanceProfileOutput, error)
-}
-
-// EC2Client interface describing used aws ec2client functions, useful for mocking
-type EC2Client interface {
-	DescribeInstancesWithContext(ctx aws.Context, input *ec2.DescribeInstancesInput, opts ...request.Option) (*ec2.DescribeInstancesOutput, error)
-}
-
 type Client interface {
-	EC2Client
-	IAMClient
+	ec2.DescribeInstancesAPIClient
+	iam.GetInstanceProfileAPIClient
 }
 
 type clientsCache struct {
@@ -96,16 +84,12 @@ func (cc *clientsCache) getClient(region, accountID string) (Client, error) {
 }
 
 func newClient(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
-	sess, err := newAWSSession(config.AccessKeyID, config.SecretAccessKey, region, asssumeRoleARN)
-	if err != nil {
-		return nil, err
-	}
-
+	conf := newAWSConfig(config.AccessKeyID, config.SecretAccessKey, region, asssumeRoleARN)
 	return struct {
-		*iam.IAM
-		*ec2.EC2
+		iam.GetInstanceProfileAPIClient
+		ec2.DescribeInstancesAPIClient
 	}{
-		IAM: iam.New(sess),
-		EC2: ec2.New(sess),
+		GetInstanceProfileAPIClient: iam.NewFromConfig(conf),
+		DescribeInstancesAPIClient:  ec2.NewFromConfig(conf),
 	}, nil
 }

@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -102,7 +102,7 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.docBody = ""
 	err := s.p.Attest(context.Background(), streamBuilder.Build())
-	s.RequireErrorContains(err, "status code: 502")
+	s.RequireErrorContains(err, "StatusCode: 502")
 }
 
 func (s *Suite) TestSuccessfulIdentityProcessing() {
@@ -144,7 +144,7 @@ func (s *Suite) loadPlugin(opts ...plugintest.Option) nodeattestor.NodeAttestor 
 
 func (s *Suite) buildDefaultIIDDocAndSig() (docBytes []byte, sigBytes []byte) {
 	// doc body
-	doc := ec2metadata.EC2InstanceIdentityDocument{
+	doc := imds.InstanceIdentityDocument{
 		AccountID:  "test-account",
 		InstanceID: "test-instance",
 		Region:     "test-region",

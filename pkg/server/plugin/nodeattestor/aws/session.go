@@ -1,13 +1,10 @@
 package aws
 
 import (
-	"time"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -37,29 +34,23 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 	return nil
 }
 
-// newAWSSession create an AWS Session from the config and given region
-func newAWSSession(accessKeyID, secretAccessKey, region, assumeRoleArn string) (*session.Session, error) {
-	var awsConf *aws.Config
-	if secretAccessKey != "" && accessKeyID != "" {
-		creds := credentials.NewStaticCredentials(accessKeyID, secretAccessKey, "")
-		awsConf = &aws.Config{Credentials: creds, Region: &region}
-	} else {
-		awsConf = &aws.Config{Region: &region}
-	}
-
-	// Optional: Assuming role
-	if assumeRoleArn != "" {
-		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConf.Credentials})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create new session: %v", err)
+// newAWSSession create an AWS config from the credentials and given region
+func newAWSConfig(accessKeyID, secretAccessKey, region, assumeRoleArn string) aws.Config {
+	var credsProvider aws.CredentialsProvider
+	switch {
+	case assumeRoleArn != "":
+		stsConf := aws.Config{
+			Region: region,
 		}
 
-		awsConf.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
-			Client:   sts.New(staticsess),
-			RoleARN:  assumeRoleArn,
-			Duration: 15 * time.Minute,
-		})
+		stsClient := sts.NewFromConfig(stsConf)
+		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn)
+	case secretAccessKey != "" && accessKeyID != "":
+		credsProvider = aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, ""))
 	}
 
-	return session.NewSession(awsConf)
+	return aws.Config{
+		Credentials: credsProvider,
+		Region:      region,
+	}
 }

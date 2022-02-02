@@ -1,7 +1,7 @@
 package aws
 
 import (
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -22,7 +22,7 @@ type agentPathTemplateData struct {
 type instanceTags map[string]string
 
 // makeAgentID creates an agent ID from IID data
-func makeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, doc ec2metadata.EC2InstanceIdentityDocument, tags instanceTags) (spiffeid.ID, error) {
+func makeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, doc imds.InstanceIdentityDocument, tags instanceTags) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		InstanceID: doc.InstanceID,
 		AccountID:  doc.AccountID,

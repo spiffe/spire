@@ -3,11 +3,13 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"strings"
 	"sync"
+	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
@@ -19,8 +21,11 @@ import (
 )
 
 const (
-	docPath = "instance-identity/document"
-	sigPath = "instance-identity/signature"
+	docPath                 = "instance-identity/document"
+	sigPath                 = "instance-identity/signature"
+	loadConfigTimeout       = 30 * time.Second
+	fetchMetadataDocTimeout = 30 * time.Second
+	fetchMetadataSigTimeout = 30 * time.Second
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -82,23 +87,27 @@ func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 }
 
 func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
-	awsCfg := aws.NewConfig()
+	ctx, cancel := context.WithTimeout(context.Background(), loadConfigTimeout)
+	defer cancel()
+
+	var opts []func(*config.LoadOptions) error
 	if endpoint != "" {
-		awsCfg.WithEndpoint(endpoint)
+		opts = append(opts, config.WithEC2IMDSEndpoint(endpoint))
 	}
-	newSession, err := session.NewSession(awsCfg)
+
+	awsCfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	client := ec2metadata.New(newSession)
+	client := imds.NewFromConfig(awsCfg)
 
-	doc, err := client.GetDynamicData(docPath)
+	doc, err := getMetadataDoc(client)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := client.GetDynamicData(sigPath)
+	sig, err := getMetadataSig(client)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +116,54 @@ func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
 		Document:  doc,
 		Signature: sig,
 	}, nil
+}
+
+func getMetadataDoc(client *imds.Client) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), fetchMetadataDocTimeout)
+	defer cancel()
+	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
+		Path: docPath,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	doc, err := copyToString(res.Content)
+	if err != nil {
+		return "", err
+	}
+
+	return doc, nil
+}
+
+func getMetadataSig(client *imds.Client) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), fetchMetadataSigTimeout)
+	defer cancel()
+	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
+		Path: sigPath,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	sig, err := copyToString(res.Content)
+	if err != nil {
+		return "", err
+	}
+
+	return sig, nil
+}
+
+func copyToString(r io.ReadCloser) (res string, err error) {
+	defer r.Close()
+	var sb strings.Builder
+	if _, err := io.Copy(&sb, r); err == nil {
+		res = sb.String()
+	}
+
+	return
 }
 
 // Configure implements the Config interface method of the same name
