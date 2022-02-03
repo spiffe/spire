@@ -38,7 +38,7 @@ func getCallerInfoFromTCPConn(conn net.Conn) (CallerInfo, error) {
 	var pid C.int
 	r1 := C.getOwningPIDFromLocalConn(C.int(callerAddr.Port), C.int(agentAddr.Port), &pid)
 	if r1 != windows.NO_ERROR {
-		return CallerInfo{}, fmt.Errorf("failed to get owning PID: %s", syscall.Errno(r1).Error())
+		return CallerInfo{}, fmt.Errorf("failed to get owning PID: %w", syscall.Errno(r1))
 	}
 
 	return CallerInfo{

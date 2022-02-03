@@ -20,10 +20,13 @@ unsigned long getOwningPIDFromLocalConn(int localPort, int remotePort, int *pid)
 		if (retCode == NO_ERROR) {
 			break;
 		}
+
+		free(pTcpTable);
+
 		if (retCode != ERROR_INSUFFICIENT_BUFFER) {
-			free(pTcpTable);
 			return retCode;
 		}
+	
 	}
 
 	for (DWORD i = 0; i < pTcpTable->dwNumEntries; i++) {
@@ -33,20 +36,12 @@ unsigned long getOwningPIDFromLocalConn(int localPort, int remotePort, int *pid)
 			ntohs((u_short)pTcpTable->table[i].dwRemotePort) == remotePort &&
 			pTcpTable->table[i].dwState == MIB_TCP_STATE_ESTAB) {
 				*pid = pTcpTable->table[i].dwOwningPid;
-
-				if (pTcpTable != NULL) {
-					free(pTcpTable);
-					pTcpTable = NULL;
-				}
-
+				free(pTcpTable);
 				return NO_ERROR;
 		}
 	}
 
-	if (pTcpTable != NULL) {
-		free(pTcpTable);
-		pTcpTable = NULL;
-	}
+	free(pTcpTable);
 
 	return ERROR_NOT_FOUND;
 }
