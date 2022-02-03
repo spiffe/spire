@@ -24,19 +24,19 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 
 	logFileName := filepath.Join(dir, _testLogFileName)
 	rotatedLogFileName := logFileName + "." + _rotatedSuffix
-	rwc, err := NewReopenableFile(logFileName)
+	rf, err := NewReopenableFile(logFileName)
 	require.NoError(t, err)
 
-	fsInfo, err := rwc.f.Stat()
+	fsInfo, err := rf.f.Stat()
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), fsInfo.Size(), "%s should be empty", fsInfo.Name())
 
-	logger, err := NewLogger(WithReopenableOutputFile(rwc))
+	logger, err := NewLogger(WithReopenableOutputFile(rf))
 	require.NoError(t, err)
 
 	logger.Warning(_firstMsg)
 
-	fsInfo, err = rwc.f.Stat()
+	fsInfo, err = rf.f.Stat()
 	require.NoError(t, err)
 	initialLogSize := fsInfo.Size()
 	initialLogModTime := fsInfo.ModTime()
@@ -44,6 +44,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	crf := &cancelingReopenableFile{rf: rf, cancel: cancel}
 	signalCh := make(chan os.Signal, 1)
 
 	renamedCh := make(chan struct{})
@@ -52,14 +53,13 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 		err = os.Rename(logFileName, rotatedLogFileName)
 		require.NoError(t, err)
 		signalCh <- reopenSignal
-		// explicitly cancel so test continues
-		cancel()
 		close(renamedCh)
 	}()
-	err = reopenOnSignal(ctx, rwc, signalCh)
+	err = reopenOnSignal(ctx, crf, signalCh)
 	require.NoError(t, err, "reopen should succeed")
+
 	<-renamedCh
-	fsInfo, err = rwc.f.Stat()
+	fsInfo, err = rf.f.Stat()
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), fsInfo.Size(), "%s should be empty again", fsInfo.Name())
 
@@ -71,7 +71,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 	assert.Equal(t, initialLogModTime, fsInfo.ModTime(), "%s should have same mod time as before rename", fsInfo.Name())
 
 	logger.Warning(_secondMsg)
-	fsInfo, err = rwc.f.Stat()
+	fsInfo, err = rf.f.Stat()
 	require.NoError(t, err)
 	assert.NotEqual(t, int64(0), fsInfo.Size(), "%s should not be empty", fsInfo.Name())
 	assert.NotEqual(t, initialLogSize, fsInfo.Size(), "%s should not be same size as initial file", fsInfo.Name())
@@ -91,18 +91,4 @@ func TestReopenOnSignalError(t *testing.T) {
 	}()
 	err := reopenOnSignal(ctx, rwc, signalCh)
 	require.True(t, errors.As(err, &fakeErr), "expected %s, got %s", _msg, err.Error())
-}
-
-// test helpers
-var _ Reopener = (*fakeReopenerError)(nil)
-
-type fakeReopenerError struct {
-	err error
-}
-
-func (f *fakeReopenerError) Reopen() error {
-	if f.err != nil {
-		return f.err
-	}
-	return nil
 }
