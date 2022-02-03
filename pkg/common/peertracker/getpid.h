@@ -1,8 +1,6 @@
-#ifndef _GETPID_H
-#define _GETPID_H
+#ifndef GETPID_H_
+#define GETPID_H_
 
-#include <Windows.h>
-
-int getOwningPIDFromLocalConn(int localPort, int remotePort);
+unsigned long getOwningPIDFromLocalConn(int localPort, int remotePort, int *pid);
 
 #endif

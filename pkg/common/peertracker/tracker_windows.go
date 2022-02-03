@@ -85,8 +85,8 @@ func (l *windowsWatcher) IsAlive() error {
 		return err
 	}
 	if exitCode != STILL_ACTIVE {
-		l.log.WithError(err).Warnf("Caller is not running anymore. Exit code is: %d", exitCode)
-		return fmt.Errorf("caller is not running anymore. Exit code is: %d", exitCode)
+		l.log.WithError(err).Warnf("Caller is not running anymore: exit code: %d", exitCode)
+		return fmt.Errorf("caller is not running anymore: exit code: %d", exitCode)
 	}
 
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(l.pid))
@@ -98,8 +98,8 @@ func (l *windowsWatcher) IsAlive() error {
 
 	err = compareObjectHandles(l.procHandle, h)
 	if err != nil {
-		l.log.WithError(err).Warn("Current process handle does not refer to the same original process. CompareObjectHandles failed")
-		return fmt.Errorf("current process handle does not refer to the same original process. CompareObjectHandles failed: %w", err)
+		l.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
+		return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
 	}
 
 	return nil
