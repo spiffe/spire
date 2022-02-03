@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestReopenOnSignal(t *testing.T) {
+func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 	const (
 		_tempDir         = "spirelogrotatetest"
 		_testLogFileName = "test.log"
@@ -43,6 +43,7 @@ func TestReopenOnSignal(t *testing.T) {
 	assert.NotEqual(t, int64(0), fsInfo.Size(), "%s should not be empty", fsInfo.Name())
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	signalCh := make(chan os.Signal, 1)
 
 	renamedCh := make(chan struct{})
@@ -50,7 +51,7 @@ func TestReopenOnSignal(t *testing.T) {
 		// emulate logrotate
 		err = os.Rename(logFileName, rotatedLogFileName)
 		require.NoError(t, err)
-		signalCh <- _reopenSignal
+		signalCh <- reopenSignal
 		// explicitly cancel so test continues
 		cancel()
 		close(renamedCh)
@@ -79,37 +80,29 @@ func TestReopenOnSignal(t *testing.T) {
 func TestReopenOnSignalError(t *testing.T) {
 	const _msg = "filesystem broken"
 	fakeErr := errors.New(_msg)
-	rwc := &fakeReopenError{err: errors.New(_msg)}
+	rwc := &fakeReopenerError{err: errors.New(_msg)}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	signalCh := make(chan os.Signal, 1)
 
 	go func() {
 		// trigger reopen error
-		signalCh <- _reopenSignal
+		signalCh <- reopenSignal
 	}()
 	err := reopenOnSignal(ctx, rwc, signalCh)
 	require.True(t, errors.As(err, &fakeErr), "expected %s, got %s", _msg, err.Error())
 }
 
 // test helpers
-var _ ReopenableWriteCloser = (*fakeReopenError)(nil)
+var _ Reopener = (*fakeReopenerError)(nil)
 
-type fakeReopenError struct {
+type fakeReopenerError struct {
 	err error
 }
 
-func (f *fakeReopenError) Reopen() error {
+func (f *fakeReopenerError) Reopen() error {
 	if f.err != nil {
 		return f.err
 	}
-	return nil
-}
-
-func (f *fakeReopenError) Write(b []byte) (n int, err error) {
-	return 0, nil
-}
-
-func (f *fakeReopenError) Close() error {
 	return nil
 }
