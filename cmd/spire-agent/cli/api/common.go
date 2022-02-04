@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -26,7 +27,7 @@ func newWorkloadClient(ctx context.Context, socketPath string, timeout time.Dura
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}

@@ -107,17 +107,21 @@ type cmdTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	args   []string
-	server *fakeServer
+	socketPath string
+	server     *fakeServer
 
 	client cli.Command
 }
 
-func (e *cmdTest) afterTest(t *testing.T) {
+func (c *cmdTest) afterTest(t *testing.T) {
 	t.Logf("TEST:%s", t.Name())
-	t.Logf("STDOUT:\n%s", e.stdout.String())
-	t.Logf("STDIN:\n%s", e.stdin.String())
-	t.Logf("STDERR:\n%s", e.stderr.String())
+	t.Logf("STDOUT:\n%s", c.stdout.String())
+	t.Logf("STDIN:\n%s", c.stdin.String())
+	t.Logf("STDERR:\n%s", c.stderr.String())
+}
+
+func (c *cmdTest) args(extra ...string) []string {
+	return append([]string{"-socketPath", c.socketPath}, extra...)
 }
 
 type fakeServer struct {
@@ -215,12 +219,12 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTe
 	})
 
 	test := &cmdTest{
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		args:   []string{"-socketPath", socketPath},
-		server: server,
-		client: client,
+		socketPath: socketPath,
+		stdin:      stdin,
+		stdout:     stdout,
+		stderr:     stderr,
+		server:     server,
+		client:     client,
 	}
 
 	t.Cleanup(func() {

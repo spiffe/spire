@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2"
 )
@@ -47,7 +48,7 @@ func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) 
 		config.Clock = clock.New()
 	}
 
-	conn, err := grpc.Dial(config.Address, grpc.WithInsecure())
+	conn, err := grpc.Dial(config.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}

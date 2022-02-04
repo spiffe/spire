@@ -167,7 +167,7 @@ func Load(ctx context.Context, config Config, cat Catalog) (_ io.Closer, err err
 		// configured. If anything goes wrong (i.e. failure to configure,
 		// panic, etc.) we want the defer above to close the plugin. Failure to
 		// do so can orphan external plugin processes.
-		closers = append(closers, plugin)
+		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
 
 		configurer, err := plugin.bindRepos(pluginRepo, serviceRepos)
 		if err != nil {
@@ -251,4 +251,19 @@ func (info pluginInfo) Name() string {
 
 func (info pluginInfo) Type() string {
 	return info.typ
+}
+
+type pluginCloser struct {
+	plugin io.Closer
+	log    logrus.FieldLogger
+}
+
+func (c pluginCloser) Close() error {
+	c.log.Debug("Unloading plugin")
+	if err := c.plugin.Close(); err != nil {
+		c.log.WithError(err).Error("Failed to unload plugin")
+		return err
+	}
+	c.log.Info("Plugin unloaded")
+	return nil
 }

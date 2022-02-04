@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/agent/api/debug/v1"
+	debug "github.com/spiffe/spire/pkg/agent/api/debug/v1"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"

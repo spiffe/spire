@@ -134,8 +134,8 @@ type entryTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	args   []string
-	server *fakeEntryServer
+	socketPath string
+	server     *fakeEntryServer
 
 	client cli.Command
 }
@@ -145,6 +145,10 @@ func (e *entryTest) afterTest(t *testing.T) {
 	t.Logf("STDOUT:\n%s", e.stdout.String())
 	t.Logf("STDIN:\n%s", e.stdin.String())
 	t.Logf("STDERR:\n%s", e.stderr.String())
+}
+
+func (e *entryTest) args(extra ...string) []string {
+	return append([]string{"-socketPath", e.socketPath}, extra...)
 }
 
 type fakeEntryServer struct {
@@ -231,12 +235,12 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 	})
 
 	test := &entryTest{
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		args:   []string{"-socketPath", socketPath},
-		server: server,
-		client: client,
+		socketPath: socketPath,
+		stdin:      stdin,
+		stdout:     stdout,
+		stderr:     stderr,
+		server:     server,
+		client:     client,
 	}
 
 	t.Cleanup(func() {
