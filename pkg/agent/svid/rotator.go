@@ -88,7 +88,7 @@ func (r *rotator) runRotation(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case <-r.clk.After(r.backoff.NextBackOff()):
 		}
 	}
@@ -98,7 +98,7 @@ func (r *rotator) processBundleUpdates(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case <-r.c.BundleStream.Changes():
 			r.bsm.Lock()
 			r.c.BundleStream.Next()
