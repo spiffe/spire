@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -152,7 +153,7 @@ func (c *LocalServerClient) Release() {
 
 func NewLocalServerClient(ctx context.Context) *LocalServerClient {
 	flag.Parse()
-	conn, err := grpc.DialContext(ctx, *serverSocketPathFlag, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, *serverSocketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
 	}

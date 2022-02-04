@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.0] - 2022-01-28
+
+### Added
+- SPIRE Server can now be configured to mint agent SVIDs with a specific TTL (#2667)
+- A set of fixed admin SPIFFE IDs can now be configured in SPIRE Server (#2677)
+
+### Changed
+- Upstream signed CA chain is now validated to prevent misconfigurations (#2644)
+- Improved SVID signing logs to include more context (#2678)
+- The deprecated agent key file (`svid.key`) is no longer proactively removed by the agent (#2671)
+- Improved errors when agent path template execution fails due to missing key (#2683)
+- SPIRE now consumes the SVIDStore V1 interface published in the SPIRE Plugin SDK (#2688)
+
+### Deprecated
+- API support for paths without leading slashes in `spire.api.types.SPIFFEID` messages has been deprecated (#2686, #2692)
+- The SVIDStore V1 interface published in SPIRE repository has been renamed to `svidstore.V1Unofficial` and is now deprecated in favor of the interface published in the SPIRE Plugin SDK (#2688) 
+
+### Removed
+- The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
+- The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
+
+## [1.1.3] - 2022-01-07
+
+### Security
+- Fixed CVE-2021-44716
+
 ## [1.1.2] - 2021-12-15
 
 ### Added

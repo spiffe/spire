@@ -54,7 +54,7 @@ func TestList(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		arg  []string
+		args []string
 
 		expectListReq *trustdomainv1.ListFederationRelationshipsRequest
 		listResp      *trustdomainv1.ListFederationRelationshipsResponse
@@ -122,8 +122,7 @@ Endpoint SPIFFE ID        : spiffe://baz.test/id
 			test.server.expectListReq = tt.expectListReq
 			test.server.listResp = tt.listResp
 
-			args := append(test.args, tt.arg...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectErr, test.stderr.String())
