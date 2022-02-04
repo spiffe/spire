@@ -2,8 +2,10 @@ package catalog
 
 import (
 	"io"
+	"time"
 
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc"
 )
 
 type closerGroup []io.Closer
@@ -30,4 +32,24 @@ func closerFuncs(fns ...func()) closerGroup {
 func (fn closerFunc) Close() error {
 	fn()
 	return nil
+}
+
+func gracefulStopWithTimeout(s *grpc.Server) bool {
+	done := make(chan struct{})
+
+	go func() {
+		s.GracefulStop()
+		close(done)
+	}()
+
+	t := time.NewTimer(time.Minute)
+	defer t.Stop()
+
+	select {
+	case <-done:
+		return true
+	case <-t.C:
+		s.Stop()
+		return false
+	}
 }
