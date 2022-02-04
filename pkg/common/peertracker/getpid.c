@@ -22,6 +22,7 @@ unsigned long getOwningPIDFromLocalConn(int localPort, int remotePort, int *pid)
 		}
 
 		free(pTcpTable);
+		pTcpTable = NULL;
 
 		if (retCode != ERROR_INSUFFICIENT_BUFFER) {
 			return retCode;
