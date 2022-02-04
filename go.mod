@@ -3,7 +3,7 @@ module github.com/spiffe/spire
 go 1.17
 
 require (
-	cloud.google.com/go/secretmanager v1.0.0
+	cloud.google.com/go/secretmanager v1.1.0
 	cloud.google.com/go/security v1.1.1
 	cloud.google.com/go/storage v1.20.0
 	github.com/Azure/azure-sdk-for-go v61.4.0+incompatible
