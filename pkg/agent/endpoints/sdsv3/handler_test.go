@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -789,7 +790,7 @@ func setupTest(t *testing.T) *handlerTest {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	log, _ := test.NewNullLogger()
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.WithLogger(log))

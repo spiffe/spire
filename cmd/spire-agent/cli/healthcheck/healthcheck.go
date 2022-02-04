@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -81,7 +82,7 @@ func (c *healthCheckCommand) run() error {
 		// filepath.Abs on Windows  uses "\\" as separator, use "/" instead
 		socketPath = filepath.ToSlash(socketPath)
 	}
-	conn, err := grpc.DialContext(context.Background(), "unix:"+socketPath, grpc.WithInsecure())
+	conn, err := grpc.DialContext(context.Background(), "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
