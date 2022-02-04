@@ -46,7 +46,7 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.4
-	github.com/mattn/go-sqlite3 v1.14.8
+	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/mitchellh/cli v1.1.2
 	github.com/open-policy-agent/opa v0.37.1
 	github.com/prometheus/client_golang v1.12.1
