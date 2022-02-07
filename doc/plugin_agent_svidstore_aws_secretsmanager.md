@@ -27,6 +27,7 @@ secretsmanager:DescribeSecret
 secretsmanager:CreateSecret
 secretsmanager:RestoreSecret
 secretsmanager:PutSecretValue
+secretsmanager:TagResource
 secretsmanager:DeleteSecret
 kms:Encrypt
 ```
