@@ -228,7 +228,7 @@ jobs:
 
   cache-deps-windows:
     name: cache-deps (windows)
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -246,7 +246,7 @@ jobs:
 
   lint-windows:
     name: lint (windows)
-    runs-on: windows-2019
+    runs-on: windows-2022
     needs: cache-deps-windows
     defaults:
       run:
@@ -289,7 +289,7 @@ jobs:
 
   unit-test-windows:
     name: unit-test (windows)
-    runs-on: windows-2019
+    runs-on: windows-2022
     needs: cache-deps-windows
     defaults:
       run:
@@ -321,7 +321,7 @@ jobs:
           
   artifact-windows:
     name: artifact (windows)
-    runs-on: windows-2019
+    runs-on: windows-2022
     needs: cache-deps-windows
     defaults:
       run:
