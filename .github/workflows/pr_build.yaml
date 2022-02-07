@@ -6,6 +6,7 @@ env:
   GO_VERSION: 1.17.6
 jobs:
   cache-deps:
+    name: cache-deps (linux)
     runs-on: ubuntu-18.04
     steps:
       - name: Checkout
@@ -23,6 +24,7 @@ jobs:
         run: go mod download
 
   lint:
+    name: lint (linux)
     runs-on: ubuntu-18.04
     needs: cache-deps
     steps:
@@ -75,6 +77,7 @@ jobs:
         run: ./.github/workflows/scripts/run_unit_tests.sh
 
   artifacts:
+    name: artifacts (linux)
     runs-on: ubuntu-18.04
     needs: [cache-deps]
     steps:
