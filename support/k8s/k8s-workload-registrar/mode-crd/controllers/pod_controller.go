@@ -22,7 +22,7 @@ import (
 	"text/template"
 
 	"github.com/sirupsen/logrus"
-	idutil "github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	federation "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/federation"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -164,7 +164,7 @@ func validateTemplates(
 		}
 		testSpiffeIDPath := sb.String()
 		testSpiffeID := fmt.Sprintf("spiffe://testdomain/%s", testSpiffeIDPath)
-		if err := idutil.CheckIDStringNormalization(testSpiffeID); err != nil {
+		if _, err := spiffeid.FromString(testSpiffeID); err != nil {
 			// The format of the template is incorrect and it is resulting in invalid SPIFFE ID paths.
 			config.Log.WithError(err).WithFields(logrus.Fields{
 				"identity_template": config.IdentityTemplate,
