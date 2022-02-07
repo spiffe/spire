@@ -3,9 +3,9 @@ module github.com/spiffe/spire
 go 1.17
 
 require (
-	cloud.google.com/go/secretmanager v1.0.0
+	cloud.google.com/go/secretmanager v1.1.0
 	cloud.google.com/go/security v1.1.1
-	cloud.google.com/go/storage v1.19.0
+	cloud.google.com/go/storage v1.20.0
 	github.com/Azure/azure-sdk-for-go v61.4.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.21
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.8
@@ -24,7 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.14.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/cenkalti/backoff/v3 v3.2.2
-	github.com/docker/docker v20.10.8+incompatible
+	github.com/docker/docker v20.10.12+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.1
 	github.com/go-logr/logr v1.2.2
 	github.com/go-sql-driver/mysql v1.6.0
@@ -64,8 +64,8 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220128215802-99c3d69c2c27
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
-	google.golang.org/api v0.66.0
-	google.golang.org/genproto v0.0.0-20220118154757-00ab72f36ad5
+	google.golang.org/api v0.67.0
+	google.golang.org/genproto v0.0.0-20220201184016-50beb8ab5c44
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/square/go-jose.v2 v2.6.0
