@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -3863,6 +3864,9 @@ func (s *PluginSuite) TestMigration() {
 			require := require.New(t)
 			dbName := fmt.Sprintf("v%d.sqlite3", schemaVersion)
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "migration-"+dbName))
+			if runtime.GOOS == "windows" {
+				dbPath = "/" + dbPath
+			}
 			dbURI := fmt.Sprintf("file://%s", dbPath)
 
 			minimalDB := func() string {
