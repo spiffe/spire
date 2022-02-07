@@ -9,4 +9,7 @@ updates:
   ignore:
   - dependency-name: "github.com/spiffe/spire-api-sdk"
   - dependency-name: "github.com/spiffe/spire-plugin-sdk"
+  # go-sqlite3 v2 is not the latest release. See the repo for more information.
+  - dependency-name: "github.com/mattn/go-sqlite3"
+    versions: ["2.x"]
   open-pull-requests-limit: 5

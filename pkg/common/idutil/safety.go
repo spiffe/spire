@@ -1,31 +1,9 @@
 package idutil
 
 import (
-	"errors"
-	"net/url"
-
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
-
-// CheckIDProtoNormalization ensures the the provided ID is properly normalized.
-func CheckIDProtoNormalization(in *types.SPIFFEID) error {
-	_, err := IDProtoString(in)
-	return err
-}
-
-// CheckIDStringNormalization ensures the the provided ID is properly normalized.
-func CheckIDStringNormalization(id string) error {
-	_, err := spiffeid.FromString(id)
-	return err
-}
-
-// CheckIDURLNormalization returns if a URL is normalized or not. It relies on
-// behavior and fields populated by url.Parse(). DO NOT call it with a URL that
-// has not gone through url.Parse().
-func CheckIDURLNormalization(u *url.URL) error {
-	return CheckIDStringNormalization(u.String())
-}
 
 // IDProtoString constructs a SPIFFE ID string for the given ID protobuf.
 func IDProtoString(id *types.SPIFFEID) (string, error) {
@@ -47,23 +25,6 @@ func IDProtoFromString(s string) (*types.SPIFFEID, error) {
 		TrustDomain: id.TrustDomain().String(),
 		Path:        id.Path(),
 	}, nil
-}
-
-// CheckAgentIDStringNormalization ensures the provided agent ID string is
-// properly normalized. It also ensures it is not a server ID.
-func CheckAgentIDStringNormalization(agentID string) error {
-	id, err := spiffeid.FromString(agentID)
-	if err != nil {
-		return err
-	}
-
-	// We want to do more than this but backcompat compels us to not too. We'll
-	// get more aggressive in the future.
-	if id.Path() == ServerIDPath {
-		return errors.New("server ID is not allowed for agents")
-	}
-
-	return nil
 }
 
 // IDFromProto returns SPIFFE ID from the proto representation
