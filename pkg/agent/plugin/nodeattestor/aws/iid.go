@@ -6,7 +6,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -21,11 +20,8 @@ import (
 )
 
 const (
-	docPath                 = "instance-identity/document"
-	sigPath                 = "instance-identity/signature"
-	loadConfigTimeout       = 30 * time.Second
-	fetchMetadataDocTimeout = 30 * time.Second
-	fetchMetadataSigTimeout = 30 * time.Second
+	docPath = "instance-identity/document"
+	sigPath = "instance-identity/signature"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -69,7 +65,8 @@ func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 		return err
 	}
 
-	attestationData, err := fetchMetadata(c.EC2MetadataEndpoint)
+	ctx := stream.Context()
+	attestationData, err := fetchMetadata(ctx, c.EC2MetadataEndpoint)
 	if err != nil {
 		return err
 	}
@@ -86,10 +83,7 @@ func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	})
 }
 
-func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), loadConfigTimeout)
-	defer cancel()
-
+func fetchMetadata(ctx context.Context, endpoint string) (*caws.IIDAttestationData, error) {
 	var opts []func(*config.LoadOptions) error
 	if endpoint != "" {
 		opts = append(opts, config.WithEC2IMDSEndpoint(endpoint))
@@ -102,12 +96,12 @@ func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
 
 	client := imds.NewFromConfig(awsCfg)
 
-	doc, err := getMetadataDoc(client)
+	doc, err := getMetadataDoc(ctx, client)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := getMetadataSig(client)
+	sig, err := getMetadataSig(ctx, client)
 	if err != nil {
 		return nil, err
 	}
@@ -118,18 +112,15 @@ func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
 	}, nil
 }
 
-func getMetadataDoc(client *imds.Client) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), fetchMetadataDocTimeout)
-	defer cancel()
+func getMetadataDoc(ctx context.Context, client *imds.Client) (string, error) {
 	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
 		Path: docPath,
 	})
-
 	if err != nil {
 		return "", err
 	}
 
-	doc, err := copyToString(res.Content)
+	doc, err := readStringAndClose(res.Content)
 	if err != nil {
 		return "", err
 	}
@@ -137,18 +128,15 @@ func getMetadataDoc(client *imds.Client) (string, error) {
 	return doc, nil
 }
 
-func getMetadataSig(client *imds.Client) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), fetchMetadataSigTimeout)
-	defer cancel()
+func getMetadataSig(ctx context.Context, client *imds.Client) (string, error) {
 	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
 		Path: sigPath,
 	})
-
 	if err != nil {
 		return "", err
 	}
 
-	sig, err := copyToString(res.Content)
+	sig, err := readStringAndClose(res.Content)
 	if err != nil {
 		return "", err
 	}
@@ -156,7 +144,7 @@ func getMetadataSig(client *imds.Client) (string, error) {
 	return sig, nil
 }
 
-func copyToString(r io.ReadCloser) (res string, err error) {
+func readStringAndClose(r io.ReadCloser) (res string, err error) {
 	defer r.Close()
 	var sb strings.Builder
 	if _, err := io.Copy(&sb, r); err == nil {
