@@ -33,34 +33,6 @@ kms:Encrypt
 
 Please note that this plugin does not require permission to read secret payloads stored.
 
-Example AWS IAM Policy that allows the plugin to create secrets. `KMSEncrypt` statement is only needed if you are providing a `aws_secretsmanager:kmskeyid`.
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "PluginSecretsManagerAccess",
-      "Effect": "Allow",
-      "Action": [
-        "secretsmanager:DescribeSecret",
-        "secretsmanager:CreateSecret",
-        "secretsmanager:RestoreSecret",
-        "secretsmanager:PutSecretValue",
-        "secretsmanager:DeleteSecret"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "KMSEncrypt",
-      "Effect": "Allow",
-      "Action": "kms:Encrypt",
-      "Resource": "arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab"
-    }
-  ]
-}
-```
-
 ### Configuration
 
 When the SVIDs are updated, the plugin takes care of updating them in AWS Secrets Manager.
