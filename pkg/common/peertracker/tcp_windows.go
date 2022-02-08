@@ -49,10 +49,10 @@ func getCallerInfoFromTCPConn(conn net.Conn) (CallerInfo, error) {
 
 // compareObjectHandles compares two object handles to determine if they
 // refer to the same underlying kernel object
-func compareObjectHandles(firstHandle, secondHandle windows.Handle) (err error) {
+func compareObjectHandles(firstHandle, secondHandle windows.Handle) error {
 	r1, _, e1 := syscall.Syscall(procCompareObjectHandles.Addr(), 2, uintptr(firstHandle), uintptr(secondHandle), 0)
 	if r1 == 0 {
-		err = syscall.Errno(e1)
+		return e1
 	}
-	return err
+	return nil
 }

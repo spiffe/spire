@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -65,7 +64,9 @@ func (l *windowsWatcher) Close() {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	syscall.CloseHandle(syscall.Handle(l.procHandle))
+	if err := windows.CloseHandle(l.procHandle); err != nil {
+		l.log.WithError(err).Warn("Could not close process handle")
+	}
 	l.procHandle = windows.InvalidHandle
 }
 
@@ -78,13 +79,13 @@ func (l *windowsWatcher) IsAlive() error {
 		return errors.New("caller is no longer being watched")
 	}
 
-	const STILL_ACTIVE = 259 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess
+	const stillActive = 259 // https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess
 	var exitCode uint32
 	err := windows.GetExitCodeProcess(l.procHandle, &exitCode)
 	if err != nil {
 		return err
 	}
-	if exitCode != STILL_ACTIVE {
+	if exitCode != stillActive {
 		l.log.WithError(err).Warnf("Caller is not running anymore: exit code: %d", exitCode)
 		return fmt.Errorf("caller is not running anymore: exit code: %d", exitCode)
 	}
@@ -94,7 +95,11 @@ func (l *windowsWatcher) IsAlive() error {
 		l.log.WithError(err).Warn("Caller exit suspected due to failure to open process")
 		return fmt.Errorf("caller exit suspected due to failure to open process: %w", err)
 	}
-	defer windows.CloseHandle(h)
+	defer func() {
+		if err := windows.CloseHandle(h); err != nil {
+			l.log.WithError(err).Warn("Could not close process handle in liveness check")
+		}
+	}()
 
 	err = compareObjectHandles(l.procHandle, h)
 	if err != nil {
