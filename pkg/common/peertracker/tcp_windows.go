@@ -5,7 +5,7 @@ package peertracker
 
 /*
 #cgo LDFLAGS: -liphlpapi -lws2_32
-#include <getpid.h>
+#include <getpid_windows.h>
 */
 import "C"
 
