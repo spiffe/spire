@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 )
 
 var (
