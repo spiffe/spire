@@ -120,12 +120,7 @@ func getMetadataDoc(ctx context.Context, client *imds.Client) (string, error) {
 		return "", err
 	}
 
-	doc, err := readStringAndClose(res.Content)
-	if err != nil {
-		return "", err
-	}
-
-	return doc, nil
+	return readStringAndClose(res.Content)
 }
 
 func getMetadataSig(ctx context.Context, client *imds.Client) (string, error) {
@@ -136,22 +131,17 @@ func getMetadataSig(ctx context.Context, client *imds.Client) (string, error) {
 		return "", err
 	}
 
-	sig, err := readStringAndClose(res.Content)
-	if err != nil {
+	return readStringAndClose(res.Content)
+}
+
+func readStringAndClose(r io.ReadCloser) (string, error) {
+	defer r.Close()
+	var sb strings.Builder
+	if _, err := io.Copy(&sb, r); err != nil {
 		return "", err
 	}
 
-	return sig, nil
-}
-
-func readStringAndClose(r io.ReadCloser) (res string, err error) {
-	defer r.Close()
-	var sb strings.Builder
-	if _, err := io.Copy(&sb, r); err == nil {
-		res = sb.String()
-	}
-
-	return
+	return sb.String(), nil
 }
 
 // Configure implements the Config interface method of the same name
