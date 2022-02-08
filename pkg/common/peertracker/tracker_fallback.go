@@ -1,8 +1,4 @@
-// +build !linux
-// +build !darwin
-// +build !freebsd
-// +build !netbsd
-// +build !openbsd
+//go:build !linux && !darwin && !freebsd && !netbsd && !openbsd
 
 package peertracker
 

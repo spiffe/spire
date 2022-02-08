@@ -7,7 +7,6 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -80,7 +79,7 @@ func ProtoToRegistrationEntry(ctx context.Context, td spiffeid.TrustDomain, e *t
 // in the mask are false.
 // This allows the user to not specify these fields while updating using a mask.
 // All other fields are allowed to be empty (with or without a mask).
-func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDomain, e *types.Entry, mask *types.EntryMask) (*common.RegistrationEntry, error) {
+func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDomain, e *types.Entry, mask *types.EntryMask) (_ *common.RegistrationEntry, err error) {
 	if e == nil {
 		return nil, errors.New("missing entry")
 	}
@@ -89,27 +88,19 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		mask = protoutil.AllTrueEntryMask
 	}
 
-	var parentIDString string
+	var parentID spiffeid.ID
 	if mask.ParentId {
-		parentID, err := TrustDomainMemberIDFromProto(ctx, td, e.ParentId)
+		parentID, err = TrustDomainMemberIDFromProto(ctx, td, e.ParentId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid parent ID: %w", err)
 		}
-		parentIDString = parentID.String()
-		if err := idutil.CheckIDProtoNormalization(e.ParentId); err != nil {
-			return nil, fmt.Errorf("parent ID is malformed: %w", err)
-		}
 	}
 
-	var spiffeIDString string
+	var spiffeID spiffeid.ID
 	if mask.SpiffeId {
-		spiffeID, err := TrustDomainWorkloadIDFromProto(ctx, td, e.SpiffeId)
+		spiffeID, err = TrustDomainWorkloadIDFromProto(ctx, td, e.SpiffeId)
 		if err != nil {
 			return nil, fmt.Errorf("invalid spiffe ID: %w", err)
-		}
-		spiffeIDString = spiffeID.String()
-		if err := idutil.CheckIDProtoNormalization(e.SpiffeId); err != nil {
-			return nil, fmt.Errorf("spiffe ID is malformed: %w", err)
 		}
 	}
 
@@ -152,7 +143,6 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 	}
 
 	var selectors []*common.Selector
-	var err error
 	if mask.Selectors {
 		if len(e.Selectors) == 0 {
 			return nil, errors.New("selector list is empty")
@@ -180,8 +170,8 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 
 	return &common.RegistrationEntry{
 		EntryId:        e.Id,
-		ParentId:       parentIDString,
-		SpiffeId:       spiffeIDString,
+		ParentId:       parentID.String(),
+		SpiffeId:       spiffeID.String(),
 		Admin:          admin,
 		DnsNames:       dnsNames,
 		Downstream:     downstream,
