@@ -89,10 +89,8 @@ func (s *HealthCheckSuite) TestFailsOnUnavailableVerbose() {
 	s.Require().NoError(err)
 	expectSocketPath = filepath.ToSlash(expectSocketPath)
 
-	expectedErr := fmt.Sprintf(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix %s: connect: %s"
-Agent is unhealthy: unable to determine health
-`, expectSocketPath, spiretest.SocketFileNotFound())
-	s.Equal(expectedErr, s.stderr.String(), "stdout")
+	expectPrefix := fmt.Sprintf(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix %s: `, expectSocketPath)
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), expectPrefix)
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
