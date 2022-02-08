@@ -8,7 +8,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
+	"github.com/uber-go/tally/v4"
 )
 
 func TestNewM3Runner(t *testing.T) {
