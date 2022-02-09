@@ -106,7 +106,7 @@ func TestConfigure(t *testing.T) {
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "failed to create AWS client: MissingRegion: could not find region configuration",
+			expectMsgPrefix: "failed to create AWS client: an AWS region is required, but was not found",
 		},
 		{
 			test:            "cert not found",

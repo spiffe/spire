@@ -1,19 +1,19 @@
 package awssecret
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
 
 type fakeSecretsManagerClient struct {
 	storage map[string]string
 }
 
-func (sm *fakeSecretsManagerClient) GetSecretValueWithContext(ctx aws.Context, input *secretsmanager.GetSecretValueInput, opt ...request.Option) (*secretsmanager.GetSecretValueOutput, error) {
+func (sm *fakeSecretsManagerClient) GetSecretValue(ctx context.Context, input *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
 	if value, ok := sm.storage[*input.SecretId]; ok {
 		return &secretsmanager.GetSecretValueOutput{
 			ARN:          input.SecretId,
@@ -23,11 +23,11 @@ func (sm *fakeSecretsManagerClient) GetSecretValueWithContext(ctx aws.Context, i
 	return nil, fmt.Errorf("secret not found")
 }
 
-func newFakeSecretsManagerClient(config *Configuration, region string) (secretsManagerClient, error) {
+func newFakeSecretsManagerClient(ctx context.Context, config *Configuration, region string) (secretsManagerClient, error) {
 	sm := new(fakeSecretsManagerClient)
 
 	if region == "" {
-		return nil, aws.ErrMissingRegion
+		return nil, &aws.MissingRegionError{}
 	}
 
 	cert, err := os.ReadFile("testdata/keys/EC/cert.pem")
