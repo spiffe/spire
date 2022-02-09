@@ -18,6 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.13.0
 	github.com/aws/aws-sdk-go-v2/config v1.13.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.8.0
+	github.com/aws/aws-sdk-go-v2/service/acmpca v1.14.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.14.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.13.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.14.0
@@ -75,8 +76,6 @@ require (
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	sigs.k8s.io/controller-runtime v0.11.0
 )
-
-require github.com/aws/aws-sdk-go-v2/service/acmpca v1.14.0
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
