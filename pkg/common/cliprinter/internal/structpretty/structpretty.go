@@ -14,7 +14,7 @@ import (
 // level of depth. It will print arrays, slices, and maps if
 // their keys and elements are also easily printable types.
 func Print(msgs []interface{}, stdout, stderr io.Writer) error {
-	if msgs == nil || len(msgs) == 0 {
+	if len(msgs) == 0 {
 		return nil
 	}
 

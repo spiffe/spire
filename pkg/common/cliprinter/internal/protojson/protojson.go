@@ -34,11 +34,12 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 		jms = append(jms, jb)
 	}
 
+	var err error
 	if len(jms) == 1 {
-		json.NewEncoder(stdout).Encode(jms[0])
+		err = json.NewEncoder(stdout).Encode(jms[0])
 	} else {
-		json.NewEncoder(stdout).Encode(jms)
+		err = json.NewEncoder(stdout).Encode(jms)
 	}
 
-	return nil
+	return err
 }

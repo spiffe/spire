@@ -127,13 +127,13 @@ func TestPrint(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stdout := &bytes.Buffer{}
 			stderr := &bytes.Buffer{}
-			Print(c.s, stdout, stderr)
+			err := Print(c.s, stdout, stderr)
 
+			assert.Nil(t, err)
 			assert.Equal(t, c.stdout, stdout.String())
 			assert.Equal(t, c.stderr, stderr.String())
 		})
 	}
-
 }
 
 type friendlyBool struct{ Foo bool }
@@ -145,21 +145,15 @@ type friendlySlice struct{ Foo []string }
 type bigFriendly struct {
 	Foo string
 	Bar int
-
-	littleSecret bool
 }
 
 type angryChan struct{ Foo chan (string) }
 type angryStruct struct{ Foo struct{} }
 type angryFunc struct{ Foo func() }
-type angryInterface struct{ Foo interface{} }
-type angryPtr struct{ Foo *string }
 
 type bigAngry struct {
 	Friendly bool
 
 	AngryChan      chan (string)
 	AngryInterface interface{}
-
-	bigSecret func()
 }

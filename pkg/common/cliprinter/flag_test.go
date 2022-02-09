@@ -56,8 +56,8 @@ func TestAppendFlag(t *testing.T) {
 			AppendFlag(&p, fs)
 
 			err := fs.Parse(c.input)
-			switch err {
-			case nil:
+			switch {
+			case err == nil:
 				if c.expectError {
 					t.Fatal("expected an error but got none")
 				}
@@ -111,21 +111,33 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 	}
 
 	pp := p.(*printer)
-	pp.printError(nil)
+	err = pp.printError(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	select {
 	case <-invoked:
 	default:
 		t.Error("custom pretty func not correctly loaded for error printing")
 	}
 
-	pp.printProto(new(agentapi.CountAgentsResponse))
+	err = pp.printProto(new(agentapi.CountAgentsResponse))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	select {
 	case <-invoked:
 	default:
 		t.Error("custom pretty func not correctly loaded for proto printing")
 	}
 
-	pp.printStruct(struct{}{})
+	err = pp.printStruct(struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
 	select {
 	case <-invoked:
 	default:

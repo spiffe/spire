@@ -39,8 +39,9 @@ func TestPrint(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stdout := &bytes.Buffer{}
 			stderr := &bytes.Buffer{}
-			Print(c.err, stdout, stderr)
+			err := Print(c.err, stdout, stderr)
 
+			assert.Nil(t, err)
 			assert.Equal(t, c.stdout, stdout.String())
 			assert.Equal(t, c.stderr, stderr.String())
 		})

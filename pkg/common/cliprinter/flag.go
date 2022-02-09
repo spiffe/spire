@@ -49,7 +49,7 @@ func (f *FormatterFlag) Set(formatStr string) error {
 
 	format, err := strToFormatType(formatStr)
 	if err != nil {
-		return fmt.Errorf("bad formatter flag: %v", err)
+		return fmt.Errorf("bad formatter flag: %w", err)
 	}
 
 	np := newPrinter(format)

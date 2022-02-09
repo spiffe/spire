@@ -47,13 +47,13 @@ func TestPrint(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stdout := &bytes.Buffer{}
 			stderr := &bytes.Buffer{}
-			Print(c.protoFunc(t), stdout, stderr)
+			err := Print(c.protoFunc(t), stdout, stderr)
 
+			assert.Nil(t, err)
 			assert.True(t, c.stdoutRegexp.Match(stdout.Bytes()))
 			assert.True(t, c.stderrRegexp.Match(stderr.Bytes()))
 		})
 	}
-
 }
 
 func normalCountAgentsResponseMessage(_ *testing.T) []proto.Message {

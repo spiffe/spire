@@ -115,16 +115,21 @@ func (p *printer) printPrettyError(err error, stdout, stderr io.Writer) error {
 
 	return errorpretty.Print(err, stdout, stderr)
 }
-func (p *printer) printPrettyProto(msg []proto.Message, stdout, stderr io.Writer) error {
+func (p *printer) printPrettyProto(msgs []proto.Message, stdout, stderr io.Writer) error {
 	if p.cp != nil {
-		return p.cp(msg)
+		m := []interface{}{}
+		for _, msg := range msgs {
+			m = append(m, msg.(interface{}))
+		}
+
+		return p.cp(m...)
 	}
 
-	return protopretty.Print(msg, stdout, stderr)
+	return protopretty.Print(msgs, stdout, stderr)
 }
 func (p *printer) printPrettyStruct(msg []interface{}, stdout, stderr io.Writer) error {
 	if p.cp != nil {
-		return p.cp(msg)
+		return p.cp(msg...)
 	}
 
 	return structpretty.Print(msg, stdout, stderr)

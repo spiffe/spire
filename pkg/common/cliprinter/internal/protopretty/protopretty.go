@@ -9,7 +9,7 @@ import (
 )
 
 func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
-	if msgs == nil || len(msgs) == 0 {
+	if len(msgs) == 0 {
 		return nil
 	}
 

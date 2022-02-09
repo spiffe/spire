@@ -28,8 +28,8 @@ func TestStrFormatType(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ft, err := strToFormatType(c.input)
-			switch err {
-			case nil:
+			switch {
+			case err == nil:
 				if c.expectError {
 					t.Error("expected error but got none")
 				}

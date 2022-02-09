@@ -35,7 +35,10 @@ func TestPrintError(t *testing.T) {
 func TestPrintProto(t *testing.T) {
 	p, stdout, stderr := newTestPrinter()
 
-	p.printProto(new(agentapi.CountAgentsResponse))
+	err := p.printProto(new(agentapi.CountAgentsResponse))
+	if err != nil {
+		t.Errorf("failed to print proto: %v", err)
+	}
 	if stderr.Len() > 0 {
 		t.Errorf("error while printing protobuf: %q", stderr.String())
 	}
@@ -44,7 +47,7 @@ func TestPrintProto(t *testing.T) {
 	}
 
 	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
-	err := p.printProto(new(agentapi.CountAgentsResponse))
+	err = p.printProto(new(agentapi.CountAgentsResponse))
 	if err == nil {
 		t.Errorf("did not return error after bad write")
 	}
@@ -59,7 +62,10 @@ func TestPrintStruct(t *testing.T) {
 		Name: "boaty",
 	}
 
-	p.printStruct(msg)
+	err := p.printStruct(msg)
+	if err != nil {
+		t.Errorf("failed to print struct: %v", err)
+	}
 
 	if stderr.Len() > 0 {
 		t.Errorf("error while printing struct: %q", stderr.String())
@@ -70,7 +76,7 @@ func TestPrintStruct(t *testing.T) {
 	}
 
 	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
-	err := p.printStruct(msg)
+	err = p.printStruct(msg)
 	if err == nil {
 		t.Errorf("did not return error after bad write")
 	}
