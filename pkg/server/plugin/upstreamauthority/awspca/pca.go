@@ -37,7 +37,7 @@ const (
 )
 
 type newACMPCAClientFunc func(context.Context, *Configuration) (PCAClient, error)
-type newCertificateIssuedWaiterFunc func(acmpca.GetCertificateAPIClient, ...func(*acmpca.CertificateIssuedWaiterOptions)) certificateIssuedWaiter
+type certificateIssuedWaitRetryFunc func(context.Context, *acmpca.GetCertificateInput, *acmpca.GetCertificateOutput, error) (bool, error)
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -73,9 +73,9 @@ type PCAPlugin struct {
 	config    *configuration
 
 	hooks struct {
-		clock                      clock.Clock
-		newClient                  newACMPCAClientFunc
-		newCertificateIssuedWaiter newCertificateIssuedWaiterFunc
+		clock       clock.Clock
+		newClient   newACMPCAClientFunc
+		waitRetryFn certificateIssuedWaitRetryFunc
 	}
 }
 
@@ -88,14 +88,14 @@ type configuration struct {
 
 // New returns an instantiated plugin
 func New() *PCAPlugin {
-	return newPlugin(newPCAClient, newCertificateIssuedWaiter)
+	return newPlugin(newPCAClient, nil)
 }
 
-func newPlugin(newClient newACMPCAClientFunc, newWaiter newCertificateIssuedWaiterFunc) *PCAPlugin {
+func newPlugin(newClient newACMPCAClientFunc, waitRetryFn certificateIssuedWaitRetryFunc) *PCAPlugin {
 	p := &PCAPlugin{}
 	p.hooks.clock = clock.New()
 	p.hooks.newClient = newClient
-	p.hooks.newCertificateIssuedWaiter = newWaiter
+	p.hooks.waitRetryFn = waitRetryFn
 	return p
 }
 
@@ -217,7 +217,16 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 		CertificateAuthorityArn: aws.String(config.certificateAuthorityArn),
 		CertificateArn:          certificateArn,
 	}
-	waiter := p.hooks.newCertificateIssuedWaiter(p.pcaClient)
+
+	var certIssuedWaitOptFns []func(*acmpca.CertificateIssuedWaiterOptions)
+	if p.hooks.waitRetryFn != nil {
+		retryableOption := func(opts *acmpca.CertificateIssuedWaiterOptions) {
+			opts.Retryable = p.hooks.waitRetryFn
+		}
+		certIssuedWaitOptFns = append(certIssuedWaitOptFns, retryableOption)
+	}
+
+	waiter := acmpca.NewCertificateIssuedWaiter(p.pcaClient, certIssuedWaitOptFns...)
 	if err := waiter.Wait(ctx, getCertificateInput, maxCertIssuanceWaitDur); err != nil {
 		return status.Errorf(codes.Internal, "failed waiting for issuance: %v", err)
 	}

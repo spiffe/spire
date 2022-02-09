@@ -3,7 +3,6 @@ package awspca
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	"github.com/stretchr/testify/require"
@@ -47,22 +46,4 @@ func (f *pcaClientFake) GetCertificate(ctx context.Context, input *acmpca.GetCer
 		return nil, f.getCertificateErr
 	}
 	return f.getCertificateOutput, nil
-}
-
-type fakeCertificateIssuedWaiter struct {
-	t                             testing.TB
-	expectedGetCertificateInput   *acmpca.GetCertificateInput
-	waitUntilCertificateIssuedErr error
-	getCertificateOutput          *acmpca.GetCertificateOutput
-}
-
-func (f *fakeCertificateIssuedWaiter) Wait(ctx context.Context, input *acmpca.GetCertificateInput, maxWaitDur time.Duration, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) error {
-	require.Equal(f.t, f.expectedGetCertificateInput, input)
-
-	return f.waitUntilCertificateIssuedErr
-}
-
-func (f *fakeCertificateIssuedWaiter) WaitForOutput(ctx context.Context, input *acmpca.GetCertificateInput, maxWaitDur time.Duration, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) (*acmpca.GetCertificateOutput, error) {
-	require.Equal(f.t, f.expectedGetCertificateInput, input)
-	return f.getCertificateOutput, f.waitUntilCertificateIssuedErr
 }

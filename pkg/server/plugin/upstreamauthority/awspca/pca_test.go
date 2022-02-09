@@ -219,9 +219,7 @@ badjson
 				}
 				return client, nil
 			})
-			p.hooks.newCertificateIssuedWaiter = newCertificateIssuedWaiterFunc(func(client acmpca.GetCertificateAPIClient, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) certificateIssuedWaiter {
-				return &fakeCertificateIssuedWaiter{}
-			})
+			setupWaitUntilCertificateIssued(t, p, nil)
 
 			setupDescribeCertificateAuthority(client, tt.expectedDescribeStatus, tt.expectDescribeErr)
 
@@ -375,7 +373,6 @@ func TestMintX509CA(t *testing.T) {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			client := &pcaClientFake{t: t}
-			certIssuedWaiter := &fakeCertificateIssuedWaiter{t: t}
 			clk := clock.NewMock()
 
 			// Configure plugin
@@ -384,9 +381,6 @@ func TestMintX509CA(t *testing.T) {
 			p.hooks.newClient = func(ctx context.Context, config *Configuration) (PCAClient, error) {
 				return client, nil
 			}
-			p.hooks.newCertificateIssuedWaiter = newCertificateIssuedWaiterFunc(func(client acmpca.GetCertificateAPIClient, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) certificateIssuedWaiter {
-				return certIssuedWaiter
-			})
 			p.hooks.clock = clk
 
 			ua := new(upstreamauthority.V1)
@@ -401,7 +395,7 @@ func TestMintX509CA(t *testing.T) {
 
 			// Setup expected responses and verify parameters to AWS client
 			setupIssueCertificate(client, clk, expectPem, tt.issuedCertErr)
-			setupWaitUntilCertificateIssued(certIssuedWaiter, tt.waitCertErr)
+			setupWaitUntilCertificateIssued(t, p, tt.waitCertErr)
 			setupGetCertificate(client, tt.getCertificateCert, tt.getCertificateCertChain, tt.getCertificateErr)
 
 			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), tt.csr, tt.preferredTTL)
@@ -433,9 +427,7 @@ func TestPublishJWTKey(t *testing.T) {
 	p.hooks.newClient = func(ctx context.Context, config *Configuration) (PCAClient, error) {
 		return client, nil
 	}
-	p.hooks.newCertificateIssuedWaiter = newCertificateIssuedWaiterFunc(func(client acmpca.GetCertificateAPIClient, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) certificateIssuedWaiter {
-		return &fakeCertificateIssuedWaiter{}
-	})
+	setupWaitUntilCertificateIssued(t, p, nil)
 
 	ua := new(upstreamauthority.V1)
 	var err error
@@ -496,13 +488,16 @@ func setupIssueCertificate(client *pcaClientFake, clk clock.Clock, csr []byte, e
 	}
 }
 
-func setupWaitUntilCertificateIssued(client *fakeCertificateIssuedWaiter, err error) {
-	client.expectedGetCertificateInput = &acmpca.GetCertificateInput{
+func setupWaitUntilCertificateIssued(t testing.TB, p *PCAPlugin, err error) {
+	expectedGetCertificateInput := &acmpca.GetCertificateInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
 		CertificateArn:          aws.String("certificateArn"),
 	}
 
-	client.waitUntilCertificateIssuedErr = err
+	p.hooks.waitRetryFn = certificateIssuedWaitRetryFunc(func(ctx context.Context, input *acmpca.GetCertificateInput, output *acmpca.GetCertificateOutput, innerErr error) (bool, error) {
+		require.Equal(t, expectedGetCertificateInput, input)
+		return false, err
+	})
 }
 
 func setupGetCertificate(client *pcaClientFake, encodedCert string, encodedCertChain string, err error) {

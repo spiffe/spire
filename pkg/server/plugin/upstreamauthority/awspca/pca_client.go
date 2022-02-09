@@ -3,7 +3,6 @@ package awspca
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,11 +17,6 @@ type PCAClient interface {
 	DescribeCertificateAuthority(context.Context, *acmpca.DescribeCertificateAuthorityInput, ...func(*acmpca.Options)) (*acmpca.DescribeCertificateAuthorityOutput, error)
 	IssueCertificate(context.Context, *acmpca.IssueCertificateInput, ...func(*acmpca.Options)) (*acmpca.IssueCertificateOutput, error)
 	GetCertificate(context.Context, *acmpca.GetCertificateInput, ...func(*acmpca.Options)) (*acmpca.GetCertificateOutput, error)
-}
-
-type certificateIssuedWaiter interface {
-	Wait(context.Context, *acmpca.GetCertificateInput, time.Duration, ...func(*acmpca.CertificateIssuedWaiterOptions)) error
-	WaitForOutput(context.Context, *acmpca.GetCertificateInput, time.Duration, ...func(*acmpca.CertificateIssuedWaiterOptions)) (*acmpca.GetCertificateOutput, error)
 }
 
 func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
@@ -60,8 +54,4 @@ func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
 		EndpointResolverWithOptions: endpointResolver,
 		Credentials:                 credsProvider,
 	}), nil
-}
-
-func newCertificateIssuedWaiter(client acmpca.GetCertificateAPIClient, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) certificateIssuedWaiter {
-	return acmpca.NewCertificateIssuedWaiter(client, optFns...)
 }
