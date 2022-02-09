@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/InVisionApp/go-health"
+	"github.com/InVisionApp/go-health/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"

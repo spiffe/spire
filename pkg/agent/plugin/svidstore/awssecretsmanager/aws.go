@@ -7,9 +7,9 @@ import (
 	"os"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
@@ -137,7 +137,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 			if err != nil {
 				return nil, err
 			}
-			p.log.With("version_id", aws.StringValue(resp.VersionId)).With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).Debug("Secret created")
+			p.log.With("version_id", aws.ToString(resp.VersionId)).With("arn", aws.ToString(resp.ARN)).With("name", aws.ToString(resp.Name)).Debug("Secret created")
 
 			return &svidstorev1.PutX509SVIDResponse{}, nil
 		}
@@ -160,7 +160,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to restore secret %q: %v", secretID, err)
 		}
-		p.log.With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).Debug("Secret was scheduled for deletion and has been restored")
+		p.log.With("arn", aws.ToString(resp.ARN)).With("name", aws.ToString(resp.Name)).Debug("Secret was scheduled for deletion and has been restored")
 	}
 
 	putResp, err := p.smClient.PutSecretValue(ctx, &secretsmanager.PutSecretValueInput{
@@ -171,7 +171,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 		return nil, status.Errorf(codes.Internal, "failed to put secret value: %v", err)
 	}
 
-	p.log.With("version_id", aws.StringValue(putResp.VersionId)).With("arn", aws.StringValue(putResp.ARN)).With("name", aws.StringValue(putResp.Name)).Debug("Secret value updated")
+	p.log.With("version_id", aws.ToString(putResp.VersionId)).With("arn", aws.ToString(putResp.ARN)).With("name", aws.ToString(putResp.Name)).Debug("Secret value updated")
 	return &svidstorev1.PutX509SVIDResponse{}, nil
 }
 
@@ -213,7 +213,7 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 		return nil, status.Errorf(codes.Internal, "failed to delete secret %q: %v", secretID, err)
 	}
 
-	p.log.With("arn", aws.StringValue(resp.ARN)).With("name", aws.StringValue(resp.Name)).With("deletion_date", aws.TimeValue(resp.DeletionDate)).Debug("Secret deleted")
+	p.log.With("arn", aws.ToString(resp.ARN)).With("name", aws.ToString(resp.Name)).With("deletion_date", aws.ToTime(resp.DeletionDate)).Debug("Secret deleted")
 
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
 }
@@ -282,7 +282,7 @@ func createSecret(ctx context.Context, sm SecretsManagerClient, secretBinary []b
 // validateTag expects that "spire-svid" tag is provided
 func validateTag(tags []types.Tag) error {
 	for _, tag := range tags {
-		if aws.StringValue(tag.Key) == "spire-svid" && aws.StringValue(tag.Value) == "true" {
+		if aws.ToString(tag.Key) == "spire-svid" && aws.ToString(tag.Value) == "true" {
 			return nil
 		}
 	}
