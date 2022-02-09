@@ -3,6 +3,7 @@ package cliprinter
 import (
 	"bytes"
 	"errors"
+	"io"
 	"testing"
 
 	agentapi "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -24,7 +25,7 @@ func TestPrintError(t *testing.T) {
 		t.Errorf("error printed on stderr")
 	}
 
-	p.stdout = badWriter{}
+	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
 	err = p.printError(errors.New("red alert"))
 	if err == nil {
 		t.Errorf("did not return error after bad write")
@@ -42,7 +43,7 @@ func TestPrintProto(t *testing.T) {
 		t.Error("did not print protobuf")
 	}
 
-	p.stdout = badWriter{}
+	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
 	err := p.printProto(new(agentapi.CountAgentsResponse))
 	if err == nil {
 		t.Errorf("did not return error after bad write")
@@ -68,7 +69,7 @@ func TestPrintStruct(t *testing.T) {
 		t.Error("did not print struct")
 	}
 
-	p.stdout = badWriter{}
+	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
 	err := p.printStruct(msg)
 	if err == nil {
 		t.Errorf("did not return error after bad write")
@@ -78,11 +79,20 @@ func TestPrintStruct(t *testing.T) {
 func newTestPrinter() (p *printer, stdout, stderr *bytes.Buffer) {
 	stdout = new(bytes.Buffer)
 	stderr = new(bytes.Buffer)
-	p = newPrinter(pretty)
-	p.stdout = stdout
-	p.stderr = stderr
 
-	return p, stdout, stderr
+	return newTestPrinterWithWriter(stdout, stderr), stdout, stderr
+}
+
+func newTestPrinterWithWriter(stdout, stderr io.Writer) *printer {
+	if stdout == nil {
+		stdout = new(bytes.Buffer)
+	}
+
+	if stderr == nil {
+		stderr = new(bytes.Buffer)
+	}
+
+	return newPrinterWithWriters(defaultFormatType, stdout, stderr)
 }
 
 type badWriter struct{}

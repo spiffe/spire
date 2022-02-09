@@ -78,17 +78,19 @@ func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadC
 	return stream.Recv()
 }
 
-func printPrettyResult(results ...interface{}) {
+func printPrettyResult(results ...interface{}) error {
 	errMsg := "internal error: cli printer; please report this bug"
 
 	svidResp, ok := results[0].(*workload.JWTSVIDResponse)
 	if !ok {
 		fmt.Println(errMsg)
+		return errors.New(errMsg)
 	}
 
 	bundlesResp, ok := results[1].(*workload.JWTBundlesResponse)
 	if !ok {
 		fmt.Println(errMsg)
+		return errors.New(errMsg)
 	}
 
 	for _, svid := range svidResp.Svids {
@@ -98,4 +100,6 @@ func printPrettyResult(results ...interface{}) {
 	for trustDomainID, jwksJSON := range bundlesResp.Bundles {
 		fmt.Printf("bundle(%s):\n\t%s\n", trustDomainID, string(jwksJSON))
 	}
+
+	return nil
 }

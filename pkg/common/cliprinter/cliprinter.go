@@ -13,12 +13,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Printer is an interface for providing a printer implementation to
+// a CLI utility.
 type Printer interface {
 	MustPrintError(error)
 	MustPrintProto(...proto.Message)
 	MustPrintStruct(...interface{})
 }
 
+// CustomPrettyFunc is used to provide a custom function for pretty
+// printing messages. The intent is to provide a migration pathway
+// for pre-existing CLI code, such that this code can supply a
+// custom pretty printer that mirrors its current behavior, but
+// still be able to gain formatter functionality for other outputs.
 type CustomPrettyFunc func(...interface{}) error
 
 type printer struct {
@@ -31,10 +38,14 @@ type printer struct {
 }
 
 func newPrinter(f formatType) *printer {
+	return newPrinterWithWriters(f, os.Stdout, os.Stderr)
+}
+
+func newPrinterWithWriters(f formatType, stdout, stderr io.Writer) *printer {
 	return &printer{
 		format: f,
-		stdout: os.Stdout,
-		stderr: os.Stderr,
+		stdout: stdout,
+		stderr: stderr,
 	}
 }
 

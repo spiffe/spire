@@ -37,10 +37,9 @@ func printStruct(msg interface{}, stdout, stderr io.Writer) error {
 	msgValue := reflect.ValueOf(msg)
 
 	// We also want to accept pointers to structs
-	if reflect.TypeOf(msg).Kind() == reflect.Ptr {
-		if reflect.TypeOf(msg).Elem().Kind() != reflect.Struct {
-			typName := reflect.TypeOf(msg).Elem().Kind().String()
-			err := fmt.Errorf("cannot print unsupported type %q", typName)
+	if msgType.Kind() == reflect.Ptr {
+		if msgType.Elem().Kind() != reflect.Struct {
+			err := fmt.Errorf("cannot print unsupported type %q", msgType.Elem().Kind().String())
 			_ = errorpretty.Print(err, stdout, stderr)
 			return err
 		}
