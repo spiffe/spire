@@ -76,6 +76,8 @@ require (
 	sigs.k8s.io/controller-runtime v0.11.0
 )
 
+require github.com/aws/aws-sdk-go-v2/service/acmpca v1.14.0
+
 require (
 	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/compute v1.1.0 // indirect
