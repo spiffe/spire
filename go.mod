@@ -9,7 +9,6 @@ require (
 	github.com/Azure/azure-sdk-for-go v61.4.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.24
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
-	// version 1.14
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.28.1
 	github.com/InVisionApp/go-health/v2 v2.1.2
 	github.com/InVisionApp/go-logger v1.0.1
