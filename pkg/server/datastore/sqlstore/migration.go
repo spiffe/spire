@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
