@@ -38,7 +38,7 @@ type FormatterFlag struct {
 	p *Printer
 }
 
-func (f *FormatterFlag) String() string {
+func (f FormatterFlag) String() string {
 	return "pretty"
 }
 
