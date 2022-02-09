@@ -23,8 +23,6 @@ type pcaClientFake struct {
 	expectedGetCertificateInput *acmpca.GetCertificateInput
 	getCertificateOutput        *acmpca.GetCertificateOutput
 	getCertificateErr           error
-
-	waitUntilCertificateIssuedErr error
 }
 
 func (f *pcaClientFake) DescribeCertificateAuthority(ctx context.Context, input *acmpca.DescribeCertificateAuthorityInput, optFns ...func(*acmpca.Options)) (*acmpca.DescribeCertificateAuthorityOutput, error) {
@@ -67,5 +65,4 @@ func (f *fakeCertificateIssuedWaiter) Wait(ctx context.Context, input *acmpca.Ge
 func (f *fakeCertificateIssuedWaiter) WaitForOutput(ctx context.Context, input *acmpca.GetCertificateInput, maxWaitDur time.Duration, optFns ...func(*acmpca.CertificateIssuedWaiterOptions)) (*acmpca.GetCertificateOutput, error) {
 	require.Equal(f.t, f.expectedGetCertificateInput, input)
 	return f.getCertificateOutput, f.waitUntilCertificateIssuedErr
-
 }

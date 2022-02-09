@@ -486,7 +486,7 @@ func setupIssueCertificate(client *pcaClientFake, clk clock.Clock, csr []byte, e
 		Csr:                     csr,
 		TemplateArn:             aws.String(validCASigningTemplateARN),
 		Validity: &acmpcatypes.Validity{
-			Type:  acmpcatypes.ValidityPeriodType(acmpcatypes.ValidityPeriodTypeAbsolute),
+			Type:  acmpcatypes.ValidityPeriodTypeAbsolute,
 			Value: aws.Int64(clk.Now().Add(time.Second * testTTL).Unix()),
 		},
 	}
@@ -542,5 +542,5 @@ func svidFixture(t *testing.T) (*x509.Certificate, *bytes.Buffer) {
 }
 
 func awsErr(code, status string, err error) error {
-	return fmt.Errorf("%s: %s\ncaused by: %s", code, status, err)
+	return fmt.Errorf("%s: %s\ncaused by: %w", code, status, err)
 }
