@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spiffe/spire/pkg/common/cliprinter/errorpretty"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 )
 
-func Print(msgs []proto.Message, stdout, stderr io.Writer) bool {
+func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 	if msgs == nil || len(msgs) == 0 {
-		return true
+		return nil
 	}
 
 	tm := &prototext.MarshalOptions{
@@ -21,10 +20,9 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) bool {
 		s := tm.Format(msg)
 		_, err := fmt.Fprintf(stdout, "%s\n", s)
 		if err != nil {
-			errorpretty.Print(err, stdout, stderr)
-			return false
+			return err
 		}
 	}
 
-	return true
+	return nil
 }

@@ -96,8 +96,9 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 	p = nil
 	fs = flag.NewFlagSet("testy", flag.ContinueOnError)
 	invoked := make(chan struct{}, 1)
-	cp := func(_ ...interface{}) {
+	cp := func(_ ...interface{}) error {
 		invoked <- struct{}{}
+		return nil
 	}
 	AppendFlagWithCustomPretty(&p, fs, cp)
 	err = fs.Parse([]string{"-format", "pretty"})
@@ -109,21 +110,22 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 		t.Fatal("unexpected error: printer not loaded")
 	}
 
-	p.PrintError(nil)
+	pp := p.(*printer)
+	pp.printError(nil)
 	select {
 	case <-invoked:
 	default:
 		t.Error("custom pretty func not correctly loaded for error printing")
 	}
 
-	p.PrintProto(new(agentapi.CountAgentsResponse))
+	pp.printProto(new(agentapi.CountAgentsResponse))
 	select {
 	case <-invoked:
 	default:
 		t.Error("custom pretty func not correctly loaded for proto printing")
 	}
 
-	p.PrintStruct(struct{}{})
+	pp.printStruct(struct{}{})
 	select {
 	case <-invoked:
 	default:

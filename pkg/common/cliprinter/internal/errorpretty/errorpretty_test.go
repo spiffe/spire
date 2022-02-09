@@ -17,14 +17,14 @@ func TestPrint(t *testing.T) {
 		{
 			name:   "simple_error",
 			err:    errors.New("failed to error"),
-			stdout: "",
-			stderr: "failed to error\n",
+			stdout: "failed to error\n",
+			stderr: "",
 		},
 		{
 			name:   "error_without_string_is_still_an_error",
 			err:    errors.New(""),
-			stdout: "",
-			stderr: "An unknown error occurred\n",
+			stdout: "An unknown error occurred\n",
+			stderr: "",
 		},
 		{
 			name:   "nil_is_not_an_error",

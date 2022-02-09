@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/spiffe/spire/pkg/common/cliprinter/errorjson"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/errorjson"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
 // Print prints one or more protobuf messages formatted as JSON
-func Print(msgs []proto.Message, stdout, stderr io.Writer) bool {
+func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 	if len(msgs) == 0 {
-		return true
+		return nil
 	}
 
 	jms := []json.RawMessage{}
@@ -27,8 +27,8 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) bool {
 	for _, msg := range msgs {
 		jb, err := m.Marshal(msg)
 		if err != nil {
-			errorjson.Print(err, stdout, stderr)
-			return false
+			_ = errorjson.Print(err, stdout, stderr)
+			return err
 		}
 
 		jms = append(jms, jb)
@@ -40,5 +40,5 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) bool {
 		json.NewEncoder(stdout).Encode(jms)
 	}
 
-	return true
+	return nil
 }

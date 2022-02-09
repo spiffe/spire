@@ -5,15 +5,17 @@ import (
 	"io"
 	"reflect"
 	"strings"
+
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/errorpretty"
 )
 
 // Print prints a struct prettily.
 // It will print only easily printable types, and only to one
 // level of depth. It will print arrays, slices, and maps if
 // their keys and elements are also easily printable types.
-func Print(msgs []interface{}, stdout, stderr io.Writer) bool {
+func Print(msgs []interface{}, stdout, stderr io.Writer) error {
 	if msgs == nil || len(msgs) == 0 {
-		return true
+		return nil
 	}
 
 	for _, msg := range msgs {
@@ -21,20 +23,26 @@ func Print(msgs []interface{}, stdout, stderr io.Writer) bool {
 			continue
 		}
 
-		printStruct(msg, stdout, stderr)
+		err := printStruct(msg, stdout, stderr)
+		if err != nil {
+			return err
+		}
 	}
 
-	return true
+	return nil
 }
 
-func printStruct(msg interface{}, stdout, _ io.Writer) {
+func printStruct(msg interface{}, stdout, stderr io.Writer) error {
 	msgType := reflect.TypeOf(msg)
 	msgValue := reflect.ValueOf(msg)
 
 	// We also want to accept pointers to structs
 	if reflect.TypeOf(msg).Kind() == reflect.Ptr {
 		if reflect.TypeOf(msg).Elem().Kind() != reflect.Struct {
-			return
+			typName := reflect.TypeOf(msg).Elem().Kind().String()
+			err := fmt.Errorf("cannot print unsupported type %q", typName)
+			_ = errorpretty.Print(err, stdout, stderr)
+			return err
 		}
 
 		msgType = msgType.Elem()
@@ -42,7 +50,9 @@ func printStruct(msg interface{}, stdout, _ io.Writer) {
 	}
 
 	if msgType.Kind() != reflect.Struct {
-		return
+		err := fmt.Errorf("cannot print unsupported type %q", msgType.Kind().String())
+		_ = errorpretty.Print(err, stdout, stderr)
+		return err
 	}
 
 	builder := new(strings.Builder)
@@ -65,9 +75,18 @@ func printStruct(msg interface{}, stdout, _ io.Writer) {
 	}
 
 	if builder.Len() > 0 {
-		fmt.Fprint(stdout, builder.String())
-		fmt.Fprintf(stdout, "\n")
+		_, err := fmt.Fprint(stdout, builder.String())
+		if err != nil {
+			return err
+		}
+
+		_, err = fmt.Fprintf(stdout, "\n")
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func isFieldTypePrintable(t reflect.Type) bool {

@@ -4,12 +4,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/spiffe/spire/pkg/common/cliprinter/errorjson"
-	"github.com/spiffe/spire/pkg/common/cliprinter/errorpretty"
-	"github.com/spiffe/spire/pkg/common/cliprinter/protojson"
-	"github.com/spiffe/spire/pkg/common/cliprinter/protopretty"
-	"github.com/spiffe/spire/pkg/common/cliprinter/structjson"
-	"github.com/spiffe/spire/pkg/common/cliprinter/structpretty"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/errorjson"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/errorpretty"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/protojson"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/protopretty"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/structjson"
+	"github.com/spiffe/spire/pkg/common/cliprinter/internal/structpretty"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -17,13 +17,9 @@ type Printer interface {
 	MustPrintError(error)
 	MustPrintProto(...proto.Message)
 	MustPrintStruct(...interface{})
-
-	PrintError(error)
-	PrintProto(...proto.Message)
-	PrintStruct(...interface{})
 }
 
-type CustomPrettyFunc func(...interface{})
+type CustomPrettyFunc func(...interface{}) error
 
 type printer struct {
 	format formatType
@@ -42,25 +38,10 @@ func newPrinter(f formatType) *printer {
 	}
 }
 
-// PrintError prints an error and applies the configured formatting
-func (p *printer) PrintError(err error) {
-	p.printError(err)
-}
-
-// PrintProto prints a protobuf message and applies the configured formatting
-func (p *printer) PrintProto(msg ...proto.Message) {
-	p.printProto(msg...)
-}
-
-// PrintStruct prints a struct and applies the configured formatting
-func (p *printer) PrintStruct(msg ...interface{}) {
-	p.printStruct(msg...)
-}
-
 // MustPrintError prints an error and applies the configured formatting. If
 // an error is encountered while printing, MustPrintError will call os.Exit(2).
 func (p *printer) MustPrintError(err error) {
-	if ok := p.printError(err); !ok {
+	if err := p.printError(err); err != nil {
 		os.Exit(2)
 	}
 }
@@ -68,7 +49,7 @@ func (p *printer) MustPrintError(err error) {
 // PrintProto prints a protobuf message and applies the configured formatting. If
 // an error is encountered while printing, MustPrintProto will call os.Exit(2).
 func (p *printer) MustPrintProto(msg ...proto.Message) {
-	if ok := p.printProto(msg...); !ok {
+	if err := p.printProto(msg...); err != nil {
 		os.Exit(2)
 	}
 }
@@ -76,38 +57,35 @@ func (p *printer) MustPrintProto(msg ...proto.Message) {
 // PrintStruct prints a struct and applies the configured formatting. If
 // an error is encountered while printing, MustPrintStruct will call os.Exit(2).
 func (p *printer) MustPrintStruct(msg ...interface{}) {
-	if ok := p.printStruct(msg); !ok {
+	if err := p.printStruct(msg); err != nil {
 		os.Exit(2)
 	}
 }
 
-func (p *printer) printError(err error) bool {
+func (p *printer) printError(err error) error {
 	switch p.format {
 	case json:
 		return errorjson.Print(err, p.stdout, p.stderr)
 	default:
-		p.printPrettyError(err, p.stdout, p.stderr)
-		return true
+		return p.printPrettyError(err, p.stdout, p.stderr)
 	}
 }
 
-func (p *printer) printProto(msg ...proto.Message) bool {
+func (p *printer) printProto(msg ...proto.Message) error {
 	switch p.format {
 	case json:
 		return protojson.Print(msg, p.stdout, p.stderr)
 	default:
-		p.printPrettyProto(msg, p.stdout, p.stderr)
-		return true
+		return p.printPrettyProto(msg, p.stdout, p.stderr)
 	}
 }
 
-func (p *printer) printStruct(msg ...interface{}) bool {
+func (p *printer) printStruct(msg ...interface{}) error {
 	switch p.format {
 	case json:
 		return structjson.Print(msg, p.stdout, p.stderr)
 	default:
-		p.printPrettyStruct(msg, p.stdout, p.stderr)
-		return true
+		return p.printPrettyStruct(msg, p.stdout, p.stderr)
 	}
 }
 
@@ -119,30 +97,24 @@ func (p *printer) setCustomPrettyPrinter(cp CustomPrettyFunc) {
 	p.cp = cp
 }
 
-func (p *printer) printPrettyError(err error, stdout, stderr io.Writer) {
-	if !p.printCustomPretty([]interface{}{err}) {
-		errorpretty.Print(err, stdout, stderr)
-	}
-}
-func (p *printer) printPrettyProto(msg []proto.Message, stdout, stderr io.Writer) {
-	if !p.printCustomPretty([]interface{}{msg}) {
-		protopretty.Print(msg, stdout, stderr)
-	}
-}
-func (p *printer) printPrettyStruct(msg []interface{}, stdout, stderr io.Writer) {
-	if !p.printCustomPretty(msg) {
-		structpretty.Print(msg, stdout, stderr)
-	}
-}
-
-// printCustomPretty will print a message using the configured custom pretty
-// hook. If a custom pretty function is not set, this function will return
-// false.
-func (p *printer) printCustomPretty(msg []interface{}) bool {
+func (p *printer) printPrettyError(err error, stdout, stderr io.Writer) error {
 	if p.cp != nil {
-		p.cp(msg)
-		return true
+		return p.cp(err)
 	}
 
-	return false
+	return errorpretty.Print(err, stdout, stderr)
+}
+func (p *printer) printPrettyProto(msg []proto.Message, stdout, stderr io.Writer) error {
+	if p.cp != nil {
+		return p.cp(msg)
+	}
+
+	return protopretty.Print(msg, stdout, stderr)
+}
+func (p *printer) printPrettyStruct(msg []interface{}, stdout, stderr io.Writer) error {
+	if p.cp != nil {
+		return p.cp(msg)
+	}
+
+	return structpretty.Print(msg, stdout, stderr)
 }

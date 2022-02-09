@@ -32,7 +32,7 @@ func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, cp CustomPrettyFun
 }
 
 type FormatterFlag struct {
-	customPretty func(...interface{})
+	customPretty CustomPrettyFunc
 
 	// A pointer to our consumer's Printer interface
 	p *Printer

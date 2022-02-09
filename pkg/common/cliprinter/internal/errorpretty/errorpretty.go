@@ -6,19 +6,15 @@ import (
 	"io"
 )
 
-func Print(err error, _, stderr io.Writer) bool {
+func Print(err error, stdout, _ io.Writer) error {
 	if err == nil {
-		return true
+		return nil
 	}
 
 	if err.Error() == "" {
 		err = errors.New("An unknown error occurred")
 	}
 
-	_, e := fmt.Fprintln(stderr, err.Error())
-	if e != nil {
-		return false
-	}
-
-	return true
+	_, e := fmt.Fprintln(stdout, err.Error())
+	return e
 }
