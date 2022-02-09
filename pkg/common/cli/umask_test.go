@@ -3,8 +3,9 @@ package cli
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus/hooks/test"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestUmask(t *testing.T) {
@@ -44,7 +45,7 @@ func TestUmask(t *testing.T) {
 		SetUmask(log)
 		actualUmask := setUmask(0022)
 		assert.Equal(t, testCase.Expected, actualUmask, "umask")
-		assert.DeepEqual(t, testCase.Logs, gatherLogs(hook))
+		assert.Empty(t, cmp.Diff(testCase.Logs, gatherLogs(hook)))
 	}
 }
 
