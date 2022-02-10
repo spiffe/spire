@@ -16,6 +16,7 @@ var (
 		cluster = "CLUSTER"
 		server_socket_path = "SOCKETPATH"
 		mode = "crd"
+		check_signature_enabled = true
 	`
 
 	minimalWithTemplate = testMinimalCRDConfig + `
@@ -42,14 +43,14 @@ func TestLoadModeCRD(t *testing.T) {
 
 	require.Equal(&CRDMode{
 		CommonMode: CommonMode{
-			ServerSocketPath:   "SOCKETPATH",
-			ServerAddress:      "unix://SOCKETPATH",
-			TrustDomain:        "domain.test",
-			Cluster:            "CLUSTER",
-			LogLevel:           defaultLogLevel,
-			Mode:               "crd",
-			DisabledNamespaces: []string{"kube-system", "kube-public"},
-			trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+			ServerSocketPath:      "SOCKETPATH",
+			ServerAddress:         "unix://SOCKETPATH",
+			TrustDomain:           "TRUSTDOMAIN",
+			Cluster:               "CLUSTER",
+			LogLevel:              defaultLogLevel,
+			Mode:                  "crd",
+			DisabledNamespaces:    []string{"kube-system", "kube-public"},
+			CheckSignatureEnabled: true,
 		},
 		AddSvcDNSName:              true,
 		LeaderElectionResourceLock: defaultLeaderElectionResourceLock,
@@ -74,6 +75,7 @@ func TestLoadModeCRD(t *testing.T) {
 			in:   minimalWithTemplate,
 			out: &CRDMode{
 				CommonMode: CommonMode{
+<<<<<<< HEAD
 					LogLevel:           defaultLogLevel,
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
@@ -82,6 +84,16 @@ func TestLoadModeCRD(t *testing.T) {
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+=======
+					LogLevel:              defaultLogLevel,
+					ServerSocketPath:      "SOCKETPATH",
+					ServerAddress:         "unix://SOCKETPATH",
+					TrustDomain:           "TRUSTDOMAIN",
+					Cluster:               "CLUSTER",
+					Mode:                  "crd",
+					DisabledNamespaces:    []string{"kube-system", "kube-public"},
+					CheckSignatureEnabled: true,
+>>>>>>> 8375c297... SPIREX-126 Implement workload Registrar for Sigstore on CRD (#24)
 				},
 				AddSvcDNSName:              true,
 				LeaderElection:             false,
@@ -117,6 +129,7 @@ func TestLoadModeCRD(t *testing.T) {
 				webhook_enabled = false
 				mode = "crd"
 				identity_template = "IDENTITYTEMPLATE"
+<<<<<<< HEAD
 				dns_name_templates = ["DNSNAMETEMPLATE"]
 			`,
 			out: &CRDMode{
@@ -130,6 +143,21 @@ func TestLoadModeCRD(t *testing.T) {
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("override-domain.test"),
+=======
+				check_signature_enabled = false
+			`,
+			out: &CRDMode{
+				CommonMode: CommonMode{
+					LogLevel:              "LEVELOVERRIDE",
+					LogPath:               "PATHOVERRIDE",
+					ServerSocketPath:      "SOCKETPATHOVERRIDE",
+					ServerAddress:         "unix://SOCKETPATHOVERRIDE",
+					TrustDomain:           "TRUSTDOMAINOVERRIDE",
+					Cluster:               "CLUSTEROVERRIDE",
+					Mode:                  "crd",
+					DisabledNamespaces:    []string{"kube-system", "kube-public"},
+					CheckSignatureEnabled: false,
+>>>>>>> 8375c297... SPIREX-126 Implement workload Registrar for Sigstore on CRD (#24)
 				},
 				AddSvcDNSName:              false,
 				LeaderElection:             true,
@@ -156,6 +184,7 @@ func TestLoadModeCRD(t *testing.T) {
 			`,
 			out: &CRDMode{
 				CommonMode: CommonMode{
+<<<<<<< HEAD
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
@@ -164,6 +193,16 @@ func TestLoadModeCRD(t *testing.T) {
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+=======
+					LogLevel:              "info",
+					ServerSocketPath:      "SOCKETPATH",
+					ServerAddress:         "unix://SOCKETPATH",
+					TrustDomain:           "TRUSTDOMAIN",
+					Cluster:               "CLUSTER",
+					Mode:                  "crd",
+					DisabledNamespaces:    []string{"kube-system", "kube-public"},
+					CheckSignatureEnabled: true,
+>>>>>>> 8375c297... SPIREX-126 Implement workload Registrar for Sigstore on CRD (#24)
 				},
 				AddSvcDNSName:              true,
 				LeaderElectionResourceLock: defaultLeaderElectionResourceLock,
@@ -192,6 +231,7 @@ func TestLoadModeCRD(t *testing.T) {
 			`,
 			out: &CRDMode{
 				CommonMode: CommonMode{
+<<<<<<< HEAD
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
@@ -200,6 +240,16 @@ func TestLoadModeCRD(t *testing.T) {
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+=======
+					LogLevel:              "info",
+					ServerSocketPath:      "SOCKETPATH",
+					ServerAddress:         "unix://SOCKETPATH",
+					TrustDomain:           "TRUSTDOMAIN",
+					Cluster:               "CLUSTER",
+					Mode:                  "crd",
+					DisabledNamespaces:    []string{"kube-system", "kube-public"},
+					CheckSignatureEnabled: true,
+>>>>>>> 8375c297... SPIREX-126 Implement workload Registrar for Sigstore on CRD (#24)
 				},
 				AddSvcDNSName:              true,
 				LeaderElectionResourceLock: defaultLeaderElectionResourceLock,
@@ -222,6 +272,7 @@ func TestLoadModeCRD(t *testing.T) {
 			`,
 			out: &CRDMode{
 				CommonMode: CommonMode{
+<<<<<<< HEAD
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
@@ -230,6 +281,16 @@ func TestLoadModeCRD(t *testing.T) {
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+=======
+					LogLevel:              "info",
+					ServerSocketPath:      "SOCKETPATH",
+					ServerAddress:         "unix://SOCKETPATH",
+					TrustDomain:           "TRUSTDOMAIN",
+					Cluster:               "CLUSTER",
+					Mode:                  "crd",
+					DisabledNamespaces:    []string{"kube-system", "kube-public"},
+					CheckSignatureEnabled: true,
+>>>>>>> 8375c297... SPIREX-126 Implement workload Registrar for Sigstore on CRD (#24)
 				},
 				IdentityTemplate:           "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
 				AddSvcDNSName:              true,
@@ -279,6 +340,7 @@ func TestLoadModeCRD(t *testing.T) {
 				cluster = "CLUSTER"
 				mode = "crd"
 				identity_template = "region/{{ .Context.region}}"
+				check_signature_enabled = true
 			`,
 			err: "identity_template references non-existing context",
 		},
@@ -290,6 +352,7 @@ func TestLoadModeCRD(t *testing.T) {
 				cluster = "CLUSTER"
 				mode = "crd"
 				identity_template = "region/{{.Context.region}}"
+				check_signature_enabled = true
 			`,
 			err: "identity_template references non-existing context",
 		},

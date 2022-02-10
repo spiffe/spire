@@ -127,10 +127,12 @@ func (c *CRDMode) Run(ctx context.Context) error {
 
 	log.Info("Initializing SPIFFE ID CRD Mode")
 	err = controllers.NewSpiffeIDReconciler(controllers.SpiffeIDReconcilerConfig{
-		Client:  mgr.GetClient(),
-		Cluster: c.Cluster,
-		Log:     log,
-		E:       entryClient,
+		Client:                mgr.GetClient(),
+		Cluster:               c.Cluster,
+		Log:                   log,
+		E:                     entryClient,
+		TrustDomain:           c.TrustDomain,
+		CheckSignatureEnabled: c.CheckSignatureEnabled,
 	}).SetupWithManager(mgr)
 	if err != nil {
 		return err

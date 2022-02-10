@@ -36,10 +36,12 @@ import (
 
 // SpiffeIDReconcilerConfig holds the config passed in when creating the reconciler
 type SpiffeIDReconcilerConfig struct {
-	Client  client.Client
-	Cluster string
-	Log     logrus.FieldLogger
-	E       entryv1.EntryClient
+	Client                client.Client
+	Cluster               string
+	Log                   logrus.FieldLogger
+	E                     entryv1.EntryClient
+	TrustDomain           string
+	CheckSignatureEnabled bool
 }
 
 // SpiffeIDReconciler holds the runtime configuration and state of this controller
@@ -66,6 +68,18 @@ func (r *SpiffeIDReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Reconcile ensures the SPIRE Server entry matches the corresponding CRD
 func (r *SpiffeIDReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	spiffeID := spiffeidv1beta1.SpiffeID{}
+	// To verify CheckSignatureEnabled
+	if r.c.CheckSignatureEnabled {
+		SpiffeIDSignatureVerified := []string{"signature-verified:true"}
+		spiffeID = spiffeidv1beta1.SpiffeID{
+			Spec: spiffeidv1beta1.SpiffeIDSpec{
+				Selector: spiffeidv1beta1.Selector{
+					Arbitrary: SpiffeIDSignatureVerified,
+				},
+			},
+		}
+	}
+
 	if err := r.Get(ctx, req.NamespacedName, &spiffeID); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			r.c.Log.WithFields(logrus.Fields{

@@ -32,18 +32,20 @@ import (
 )
 
 const (
-	TrustDomain = "example.org"
-	Cluster     = "test-cluster"
+	TrustDomain           = "example.org"
+	Cluster               = "test-cluster"
+	CheckSignatureEnabled = true
 )
 
 type CommonControllerTestSuite struct {
-	cluster     string
-	k8sClient   client.Client
-	entryClient *fakeentryclient.Client
-	log         logrus.FieldLogger
-	r           *SpiffeIDReconciler
-	scheme      *runtime.Scheme
-	trustDomain string
+	cluster               string
+	k8sClient             client.Client
+	entryClient           *fakeentryclient.Client
+	log                   logrus.FieldLogger
+	r                     *SpiffeIDReconciler
+	scheme                *runtime.Scheme
+	trustDomain           string
+	checkSignatureEnabled bool
 }
 
 func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
@@ -52,19 +54,22 @@ func NewCommonControllerTestSuite(t *testing.T) CommonControllerTestSuite {
 
 	log, _ := test.NewNullLogger()
 	c := CommonControllerTestSuite{
-		cluster:     Cluster,
-		log:         log,
-		k8sClient:   fake.NewClientBuilder().WithScheme(scheme.Scheme).Build(),
-		entryClient: fakeentryclient.New(t, spiffeid.RequireTrustDomainFromString(TrustDomain), nil, nil),
-		scheme:      scheme.Scheme,
-		trustDomain: TrustDomain,
+		cluster:               Cluster,
+		log:                   log,
+		k8sClient:             fake.NewClientBuilder().WithScheme(scheme.Scheme).Build(),
+		entryClient:           fakeentryclient.New(t, spiffeid.RequireTrustDomainFromString(TrustDomain), nil, nil),
+		scheme:                scheme.Scheme,
+		trustDomain:           TrustDomain,
+		checkSignatureEnabled: CheckSignatureEnabled,
 	}
 
 	r := NewSpiffeIDReconciler(SpiffeIDReconcilerConfig{
-		Client:  c.k8sClient,
-		Cluster: Cluster,
-		Log:     log,
-		E:       c.entryClient,
+		Client:                c.k8sClient,
+		Cluster:               Cluster,
+		Log:                   log,
+		E:                     c.entryClient,
+		TrustDomain:           TrustDomain,
+		CheckSignatureEnabled: CheckSignatureEnabled,
 	})
 
 	c.r = r
