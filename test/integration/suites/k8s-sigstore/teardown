@@ -8,6 +8,7 @@ if [ -z "$SUCCESS" ]; then
    ${KUBEBIN} -nspire logs deployment/example-workload-signed --all-containers || true
    ${KUBEBIN} -nspire logs deployment/example-workload-unsigned --all-containers || true
    ${KUBEBIN} -nspire logs deployment/example-workload-signed-wrong-subject --all-containers || true
+   ${KUBEBIN} -nspire logs deployment/example-workload-signed-extra --all-containers || true
 fi
 
 export KUBECONFIG=

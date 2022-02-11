@@ -325,13 +325,15 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
 						bundle: &oci.Bundle{
 							Payload: oci.BundlePayload{
-								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								LogID:          "samplelogID",
+								IntegratedTime: 12345,
 							},
 						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
+			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
 		},
 		{
 			name: "extract selector from image signature array with multiple entries",
@@ -344,7 +346,9 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
 						bundle: &oci.Bundle{
 							Payload: oci.BundlePayload{
-								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								LogID:          "samplelogID1",
+								IntegratedTime: 12345,
 							},
 						},
 					},
@@ -352,13 +356,15 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex2@example.com","key2": "value 2","key3": "value 3"}}`),
 						bundle: &oci.Bundle{
 							Payload: oci.BundlePayload{
-								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUI9IgogICAgfQogIH0KfQo=",
+								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUI9IgogICAgfQogIH0KfQo=",
+								LogID:          "samplelogID2",
+								IntegratedTime: 12346,
 							},
 						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex1@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-subject:spirex2@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smB="},
+			want: []string{"image-signature-subject:spirex1@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID1", "image-signature-integrated-time:12345", "image-signature-subject:spirex2@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smB=", "image-signature-logid:samplelogID2", "image-signature-integrated-time:12346"},
 		},
 		{
 			name: "with invalid payload",
@@ -386,18 +392,20 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 						cert: &x509.Certificate{
 							EmailAddresses: []string{
 								"spirex@example.com",
-								"hpe@example.com",
+								"spirex2@example.com",
 							},
 						},
 						bundle: &oci.Bundle{
 							Payload: oci.BundlePayload{
-								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								LogID:          "samplelogID",
+								IntegratedTime: 12345,
 							},
 						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
+			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
 		},
 		{
 			name: "extract selector from image signature with URI certificate",
@@ -424,13 +432,15 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 						},
 						bundle: &oci.Bundle{
 							Payload: oci.BundlePayload{
-								Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								LogID:          "samplelogID",
+								IntegratedTime: 12345,
 							},
 						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:https://www.example.com/somepath1", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
+			want: []string{"image-signature-subject:https://www.example.com/somepath1", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
 		},
 		{
 			name: "extract selector from empty array",
@@ -565,6 +575,31 @@ func (noPayloadSignature) Bundle() (*oci.Bundle, error) {
 	return nil, nil
 }
 
+type noBundleSignature signature
+
+func (noBundleSignature) Annotations() (map[string]string, error) {
+	return nil, nil
+}
+
+func (s noBundleSignature) Payload() ([]byte, error) {
+	return s.payload, nil
+}
+
+func (noBundleSignature) Base64Signature() (string, error) {
+	return "", nil
+}
+
+func (s noBundleSignature) Cert() (*x509.Certificate, error) {
+	return s.cert, nil
+}
+
+func (noBundleSignature) Chain() ([]*x509.Certificate, error) {
+	return nil, nil
+}
+
+func (s noBundleSignature) Bundle() (*oci.Bundle, error) {
+	return nil, fmt.Errorf("no bundle test")
+}
 func Test_certSubject(t *testing.T) {
 	type args struct {
 		c *x509.Certificate
@@ -1223,12 +1258,14 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
 					bundle: &oci.Bundle{
 						Payload: oci.BundlePayload{
-							Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
+			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
 		},
 		{
 			name: "selector from signature, empty subject",
@@ -1241,7 +1278,9 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "","key2": "value 2","key3": "value 3"}}`),
 					bundle: &oci.Bundle{
 						Payload: oci.BundlePayload{
-							Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
 				},
@@ -1276,12 +1315,14 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
 					bundle: &oci.Bundle{
 						Payload: oci.BundlePayload{
-							Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA="},
+			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist, empty content",
@@ -1296,9 +1337,24 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
 					bundle: &oci.Bundle{
 						Payload: oci.BundlePayload{
-							Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiIgogICAgfQogIH0KfQ==",
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiIgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
+				},
+			},
+			want: []string{"image-signature-subject:spirex@example.com", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+		},
+		{
+			name: "selector from signature, no bundle",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: noBundleSignature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
 				},
 			},
 			want: []string{"image-signature-subject:spirex@example.com"},
@@ -1400,7 +1456,9 @@ func Test_getBundleSignatureContent(t *testing.T) {
 			args: args{
 				bundle: &oci.Bundle{
 					Payload: oci.BundlePayload{
-						Body: "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+						Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
 				},
 			},
@@ -1445,7 +1503,14 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error) {
 					return []oci.Signature{
 						signature{
-							payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
+							payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+							bundle: &oci.Bundle{
+								Payload: oci.BundlePayload{
+									Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+									LogID:          "samplelogID",
+									IntegratedTime: 12345,
+								},
+							},
 						},
 					}, true, nil
 				},
@@ -1459,7 +1524,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			},
 			want: []string{
-				"image-signature-subject:spirex@hpe.com", "signature-verified:true",
+				"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345", "signature-verified:true",
 			},
 			wantErr: false,
 		},
@@ -1467,11 +1532,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 			name: "Attest skipped image",
 			fields: fields{
 				verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error) {
-					return []oci.Signature{
-						signature{
-							payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
-						},
-					}, true, nil
+					return nil, true, nil
 				},
 				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
 					return &remote.Descriptor{

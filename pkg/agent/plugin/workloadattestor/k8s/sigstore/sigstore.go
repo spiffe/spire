@@ -220,15 +220,24 @@ func (sigstore *Sigstoreimpl) SelectorValuesFromSignature(signature oci.Signatur
 		selectors = []string{
 			fmt.Sprintf("image-signature-subject:%s", subject),
 		}
-		bundle, _ := signature.Bundle()
-		sigContent, err := getBundleSignatureContent(bundle)
+		bundle, err := signature.Bundle()
 		if err != nil {
-			log.Println("Error getting signature content: ", err.Error())
+			log.Println("Error getting signature bundle: ", err.Error())
 		} else {
-			selectors = append(selectors, fmt.Sprintf("image-signature-content:%s", sigContent))
+			sigContent, err := getBundleSignatureContent(bundle)
+			if err != nil {
+				log.Println("Error getting signature content: ", err.Error())
+			} else {
+				selectors = append(selectors, fmt.Sprintf("image-signature-content:%s", sigContent))
+			}
+			if bundle.Payload.LogID != "" {
+				selectors = append(selectors, fmt.Sprintf("image-signature-logid:%s", bundle.Payload.LogID))
+			}
+			if bundle.Payload.IntegratedTime != 0 {
+				selectors = append(selectors, fmt.Sprintf("image-signature-integrated-time:%d", bundle.Payload.IntegratedTime))
+			}
 		}
 	}
-
 	return selectors
 }
 
@@ -333,6 +342,7 @@ func (sigstore *Sigstoreimpl) AttestContainerSignatures(imageID string) ([]strin
 	if err != nil {
 		return nil, err
 	}
+
 	selectors := sigstore.ExtractSelectorsFromSignatures(signatures)
 	if len(selectors) > 0 {
 		selectors = append(selectors, signatureVerifiedSelector)
