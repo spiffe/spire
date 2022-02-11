@@ -14,7 +14,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
-	corev1 "k8s.io/api/core/v1"
+	rekor "github.com/sigstore/rekor/pkg/generated/client"
 )
 
 type signature struct {
@@ -59,6 +59,11 @@ func TestNew(t *testing.T) {
 			want: &Sigstoreimpl{
 				verifyFunction: cosign.VerifyImageSignatures, fetchImageManifestFunction: remote.Get,
 				skippedImages: nil,
+				rekorURL: url.URL{
+					Scheme: rekor.DefaultSchemes[0],
+					Host:   rekor.DefaultHost,
+					Path:   rekor.DefaultBasePath,
+				},
 			},
 		},
 	}
@@ -78,7 +83,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 	}
 	type args struct {
 		imageName string
-		rekorURL  string
 	}
 	tests := []struct {
 		name    string
@@ -105,7 +109,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "https://some.url/",
 			},
 			want: []oci.Signature{
 				signature{
@@ -135,7 +138,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "https://some.url/",
 			},
 			want: []oci.Signature{
 				signature{
@@ -146,57 +148,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 			},
 			wantErr: false,
-		},
-		{
-			name: "fetch image with invalid rekor url",
-			fields: fields{
-				verifyFunction: nil,
-				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
-					return &remote.Descriptor{
-						Manifest: []byte("sometext"),
-					}, nil
-				},
-			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "path-no-host", // URI parser uses this as path, not host
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "fetch image with invalid rekor host",
-			fields: fields{
-				verifyFunction: nil,
-				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
-					return &remote.Descriptor{
-						Manifest: []byte("sometext"),
-					}, nil
-				},
-			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "http://invalid.{{}))}.url.com", // invalid url
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "fetch image with invalid rekor scheme",
-			fields: fields{
-				verifyFunction: nil,
-				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
-					return &remote.Descriptor{
-						Manifest: []byte("sometext"),
-					}, nil
-				},
-			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "abc://invalid.url.com", // invalid scheme
-			},
-			want:    nil,
-			wantErr: true,
 		},
 		{
 			name: "fetch image with no signature",
@@ -212,7 +163,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "https://some.url/",
 			},
 			want:    nil,
 			wantErr: true,
@@ -231,7 +181,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "https://some.url/",
+				//
 			},
 			want:    nil,
 			wantErr: true,
@@ -254,7 +204,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2",
-				rekorURL:  "https://some.url/",
 			},
 			want:    nil,
 			wantErr: true,
@@ -275,7 +224,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "https://some.url/",
 			},
 			want:    nil,
 			wantErr: true,
@@ -288,7 +236,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "invali|].url.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "https://some.url/",
 			},
 			want:    nil,
 			wantErr: true,
@@ -311,7 +258,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "",
 			},
 			want: []oci.Signature{
 				signature{
@@ -332,7 +278,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:4fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				rekorURL:  "",
 			},
 			want:    nil,
 			wantErr: true,
@@ -344,7 +289,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				verifyFunction:             tt.fields.verifyFunction,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 			}
-			got, err := sigstore.FetchImageSignatures(tt.args.imageName, tt.args.rekorURL)
+			got, err := sigstore.FetchImageSignatures(tt.args.imageName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Sigstoreimpl.FetchImageSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -703,12 +648,10 @@ func Test_certSubject(t *testing.T) {
 
 func TestSigstoreimpl_SkipImage(t *testing.T) {
 	type fields struct {
-		verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
-		skippedImages              map[string](bool)
-		fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
+		skippedImages map[string](bool)
 	}
 	type args struct {
-		status corev1.ContainerStatus
+		imageID string
 	}
 	tests := []struct {
 		name    string
@@ -720,16 +663,12 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 		{
 			name: "skipping only image in list",
 			fields: fields{
-				verifyFunction: nil,
 				skippedImages: map[string]bool{
 					"sha256:sampleimagehash": true,
 				},
-				fetchImageManifestFunction: nil,
 			},
 			args: args{
-				status: corev1.ContainerStatus{
-					ImageID: "sha256:sampleimagehash",
-				},
+				imageID: "sha256:sampleimagehash",
 			},
 			want:    true,
 			wantErr: false,
@@ -737,7 +676,6 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 		{
 			name: "skipping image in list",
 			fields: fields{
-				verifyFunction: nil,
 				skippedImages: map[string]bool{
 					"sha256:sampleimagehash":  true,
 					"sha256:sampleimagehash2": true,
@@ -745,9 +683,7 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 				},
 			},
 			args: args{
-				status: corev1.ContainerStatus{
-					ImageID: "sha256:sampleimagehash2",
-				},
+				imageID: "sha256:sampleimagehash2",
 			},
 			want:    true,
 			wantErr: false,
@@ -755,16 +691,13 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 		{
 			name: "image not in list",
 			fields: fields{
-				verifyFunction: nil,
 				skippedImages: map[string]bool{
 					"sha256:sampleimagehash":  true,
 					"sha256:sampleimagehash3": true,
 				},
 			},
 			args: args{
-				status: corev1.ContainerStatus{
-					ImageID: "sha256:sampleimagehash2",
-				},
+				imageID: "sha256:sampleimagehash2",
 			},
 			want:    false,
 			wantErr: false,
@@ -772,21 +705,17 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 		{
 			name: "empty skip list",
 			fields: fields{
-				verifyFunction: nil,
-				skippedImages:  nil,
+				skippedImages: nil,
 			},
 			args: args{
-				status: corev1.ContainerStatus{
-					ImageID: "sha256:sampleimagehash",
-				},
+				imageID: "sha256:sampleimagehash",
 			},
 			want:    false,
 			wantErr: false,
 		},
 		{
-			name: "image has no imageID",
+			name: "empty imageID",
 			fields: fields{
-				verifyFunction: nil,
 				skippedImages: map[string]bool{
 					"sha256:sampleimagehash":  true,
 					"sha256:sampleimagehash2": true,
@@ -794,9 +723,7 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 				},
 			},
 			args: args{
-				status: corev1.ContainerStatus{
-					ImageID: "",
-				},
+				imageID: "",
 			},
 			want:    false,
 			wantErr: true,
@@ -805,10 +732,9 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := Sigstoreimpl{
-				verifyFunction: tt.fields.verifyFunction,
-				skippedImages:  tt.fields.skippedImages,
+				skippedImages: tt.fields.skippedImages,
 			}
-			got, err := sigstore.ShouldSkipImage(tt.args.status)
+			got, err := sigstore.ShouldSkipImage(tt.args.imageID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Sigstoreimpl.SkipImage() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1491,6 +1417,208 @@ func Test_getBundleSignatureContent(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("getBundleSignatureContent() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
+	type fields struct {
+		verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
+		fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
+		skippedImages              map[string]bool
+		rekorURL                   url.URL
+	}
+	type args struct {
+		imageID string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "Attest image with signature",
+			fields: fields{
+				verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+					return []oci.Signature{
+						signature{
+							payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
+						},
+					}, true, nil
+				},
+				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
+					return &remote.Descriptor{
+						Manifest: []byte("sometext"),
+					}, nil
+				},
+			},
+			args: args{
+				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+			},
+			want: []string{
+				"image-signature-subject:spirex@hpe.com", "signature-verified:true",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Attest skipped image",
+			fields: fields{
+				verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+					return []oci.Signature{
+						signature{
+							payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@hpe.com","key2": "value 2","key3": "value 3"}}`),
+						},
+					}, true, nil
+				},
+				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
+					return &remote.Descriptor{
+						Manifest: []byte("sometext"),
+					}, nil
+				},
+				skippedImages: map[string]bool{
+					"docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505": true,
+				},
+			},
+			args: args{
+				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+			},
+			want: []string{
+				"signature-verified:true",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Attest image with no signature",
+			fields: fields{
+				verifyFunction: func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+					return nil, true, fmt.Errorf("no signature found")
+				},
+				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
+					return &remote.Descriptor{
+						Manifest: []byte("sometext"),
+					}, nil
+				},
+				skippedImages: nil,
+			},
+			args: args{
+				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sigstore := &Sigstoreimpl{
+				verifyFunction:             tt.fields.verifyFunction,
+				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
+				skippedImages:              tt.fields.skippedImages,
+				rekorURL:                   tt.fields.rekorURL,
+			}
+			got, err := sigstore.AttestContainerSignatures(tt.args.imageID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Sigstoreimpl.AttestContainerSignatures() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Sigstoreimpl.AttestContainerSignatures() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSigstoreimpl_SetRekorURL(t *testing.T) {
+	type fields struct {
+		rekorURL url.URL
+	}
+	type args struct {
+		rekorURL string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    url.URL
+		wantErr bool
+	}{
+		{
+			name: "SetRekorURL",
+			fields: fields{
+				rekorURL: url.URL{},
+			},
+			args: args{
+				rekorURL: "https://rekor.com",
+			},
+			want: url.URL{
+				Scheme: "https",
+				Host:   "rekor.com",
+			},
+			wantErr: false,
+		},
+		{
+			name: "SetRekorURL with empty url",
+			fields: fields{
+				rekorURL: url.URL{
+					Scheme: "https",
+					Host:   "non.empty.url",
+				},
+			},
+			args: args{
+				rekorURL: "",
+			},
+			want: url.URL{
+				Scheme: "https",
+				Host:   "non.empty.url",
+			},
+			wantErr: true,
+		},
+		{
+			name: "SetRekorURL with invalid URL",
+			fields: fields{
+				rekorURL: url.URL{},
+			},
+			args: args{
+				rekorURL: "http://invalid.{{}))}.url.com", // invalid url
+			},
+			want:    url.URL{},
+			wantErr: true,
+		},
+		{
+			name: "SetRekorURL with empty host url",
+			fields: fields{
+				rekorURL: url.URL{},
+			},
+			args: args{
+				rekorURL: "path-no-host", // URI parser uses this as path, not host
+			},
+			want:    url.URL{},
+			wantErr: true,
+		},
+		{
+			name: "SetRekorURL with invalid URL scheme",
+			fields: fields{
+				rekorURL: url.URL{},
+			},
+			args: args{
+				rekorURL: "abc://invalid.url.com", // invalid scheme
+			},
+			want:    url.URL{},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sigstore := &Sigstoreimpl{
+				rekorURL: tt.fields.rekorURL,
+			}
+			if err := sigstore.SetRekorURL(tt.args.rekorURL); (err != nil) != tt.wantErr {
+				t.Errorf("Sigstoreimpl.SetRekorURL() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(sigstore.rekorURL, tt.want) {
+				t.Errorf("Sigstoreimpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
 			}
 		})
 	}

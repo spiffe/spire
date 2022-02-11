@@ -36,7 +36,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -241,7 +240,7 @@ func (s *Suite) TestAttestWithPidInPod() {
 
 func (s *Suite) TestAttestWithSigstoreSignatures() {
 	s.startInsecureKubelet()
-	s.setSigstoreSelectors([]string{"image-signature-subject:sigstore-subject"})
+	s.setSigstoreSelectors([]string{"image-signature-subject:sigstore-subject", "signature-verified:true"})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodandSignature(p)
 	s.setSigstoreSelectors(nil)
@@ -251,17 +250,17 @@ func (s *Suite) TestAttestWithSigstoreSkippedImage() {
 	s.startInsecureKubelet()
 	// Skip the image
 	s.setSigstoreSkipSigs(true)
-	s.setSigstoreSkippedSigs([]string{"image-signature-subject:sigstore-subject-skipped"})
+	s.setSigstoreSkippedSigSelectors([]string{"signature-verified:true"})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodandSkippedImage(p)
 	s.setSigstoreSkipSigs(false)
-	s.setSigstoreSkippedSigs(nil)
+	s.setSigstoreSkippedSigSelectors(nil)
 }
 
 func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
-	s.setSigstoreReturnError(errors.New("sigstore error"))
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
+	s.setSigstoreReturnError(errors.New("sigstore error"))
 	s.requireAttestSuccessWithPod(p)
 	s.setSigstoreReturnError(nil)
 }
@@ -449,17 +448,19 @@ func (s *Suite) TestConfigure() {
 		MaxPollAttempts           int
 		PollRetryInterval         time.Duration
 		ReloadInterval            time.Duration
-		SkippedImageSubjects      []string
+		SkippedImages             []string
 		AllowedSubjectListEnabled bool
 		AllowedSubjects           []string
+		RekorURL                  string
 	}
 
 	testCases := []struct {
-		name   string
-		raw    string
-		hcl    string
-		config *config
-		err    string
+		name          string
+		raw           string
+		hcl           string
+		config        *config
+		sigstoreError error
+		err           string
 	}{
 		{
 			name: "insecure defaults",
@@ -664,7 +665,7 @@ func (s *Suite) TestConfigure() {
 				MaxPollAttempts:   defaultMaxPollAttempts,
 				PollRetryInterval: defaultPollRetryInterval,
 				ReloadInterval:    defaultReloadInterval,
-				SkippedImageSubjects: []string{
+				SkippedImages: []string{
 					"sha:image1hash",
 					"sha:image2hash",
 				},
@@ -687,18 +688,46 @@ func (s *Suite) TestConfigure() {
 				AllowedSubjects:           []string{"spirex@example.com", "spirex1@example.com"},
 			},
 		},
+		{
+			name: "secure defaults with rekor URL",
+			hcl: `
+				rekor_url = "https://rekor.example.com"
+			`,
+			config: &config{
+				VerifyKubelet:     true,
+				Token:             "default-token",
+				KubeletURL:        "https://127.0.0.1:10250",
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
+				RekorURL:          "https://rekor.example.com",
+			},
+		},
+		{
+			name: "secure defaults with empty rekor URL",
+			hcl: `
+				rekor_url = "inva{{{lid}"
+			`,
+			sigstoreError: errors.New("Error parsing rekor URI"),
+			config:        nil,
+			err:           "Error parsing rekor URI",
+		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
-
+			if testCase.sigstoreError != nil {
+				p.sigstore.(*SigstoreMock).returnError = testCase.sigstoreError
+			}
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
 				plugintest.Configure(testCase.hcl),
 				plugintest.CaptureConfigureError(&err))
-
+			if testCase.sigstoreError != nil {
+				p.sigstore.(*SigstoreMock).returnError = nil
+			}
 			if testCase.err != "" {
 				s.AssertErrorContains(err, testCase.err)
 				return
@@ -733,9 +762,10 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
-			assert.Equal(t, testCase.config.SkippedImageSubjects, c.SkippedImageSubjects)
+			assert.Equal(t, testCase.config.SkippedImages, c.SkippedImages)
 			assert.Equal(t, testCase.config.AllowedSubjectListEnabled, c.AllowedSubjectListEnabled)
 			assert.Equal(t, testCase.config.AllowedSubjects, c.AllowedSubjects)
+			assert.Equal(t, testCase.config.RekorURL, c.RekorURL)
 		})
 	}
 }
@@ -778,9 +808,11 @@ type SigstoreMock struct {
 	skipSigs            bool
 	skippedSigSelectors []string
 	returnError         error
+
+	rekorURL string
 }
 
-func (s *SigstoreMock) FetchImageSignatures(imageName string, rekorURL string) ([]oci.Signature, error) {
+func (s *SigstoreMock) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
 	return s.sigs, s.returnError
 }
 
@@ -792,7 +824,7 @@ func (s *SigstoreMock) SelectorValuesFromSignature(signatures oci.Signature) []s
 	return s.selectors
 }
 
-func (s *SigstoreMock) ShouldSkipImage(image corev1.ContainerStatus) (bool, error) {
+func (s *SigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
 	return s.skipSigs, s.returnError
 }
 
@@ -808,6 +840,17 @@ func (s *SigstoreMock) ClearAllowedSubjects() {
 }
 
 func (s *SigstoreMock) EnableAllowSubjectList(flag bool) {
+}
+func (s *SigstoreMock) AttestContainerSignatures(imageID string) ([]string, error) {
+	if s.skipSigs {
+		return s.skippedSigSelectors, nil
+	}
+	return s.selectors, s.returnError
+}
+
+func (s *SigstoreMock) SetRekorURL(url string) error {
+	s.rekorURL = url
+	return s.returnError
 }
 
 func (s *Suite) newPlugin() *Plugin {
@@ -853,7 +896,7 @@ func (s *Suite) setSigstoreSkipSigs(skip bool) {
 	s.sigstoreSkipSigs = skip
 }
 
-func (s *Suite) setSigstoreSkippedSigs(selectors []string) {
+func (s *Suite) setSigstoreSkippedSigSelectors(selectors []string) {
 	s.sigstoreSkippedSigSelectors = selectors
 }
 

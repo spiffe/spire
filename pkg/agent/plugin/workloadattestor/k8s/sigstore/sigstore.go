@@ -21,19 +21,25 @@ import (
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
-	corev1 "k8s.io/api/core/v1"
+)
+
+const (
+	// Signature Verification Selector
+	signatureVerifiedSelector = "signature-verified:true"
 )
 
 type Sigstore interface {
-	FetchImageSignatures(imageName string, rekorURL string) ([]oci.Signature, error)
+	AttestContainerSignatures(imageID string) ([]string, error)
+	FetchImageSignatures(imageName string) ([]oci.Signature, error)
 	SelectorValuesFromSignature(oci.Signature) []string
 	ExtractSelectorsFromSignatures(signatures []oci.Signature) []string
-	ShouldSkipImage(status corev1.ContainerStatus) (bool, error)
+	ShouldSkipImage(imageID string) (bool, error)
 	AddSkippedImage(imageID string)
 	ClearSkipList()
 	AddAllowedSubject(subject string)
 	EnableAllowSubjectList(bool)
 	ClearAllowedSubjects()
+	SetRekorURL(rekorURL string) error
 }
 
 type Sigstoreimpl struct {
@@ -42,6 +48,7 @@ type Sigstoreimpl struct {
 	skippedImages              map[string]bool
 	allowListEnabled           bool
 	subjectAllowList           map[string]bool
+	rekorURL                   url.URL
 }
 
 func New() Sigstore {
@@ -51,12 +58,17 @@ func New() Sigstore {
 		skippedImages:              nil,
 		allowListEnabled:           false,
 		subjectAllowList:           nil,
+		rekorURL: url.URL{
+			Scheme: rekor.DefaultSchemes[0],
+			Host:   rekor.DefaultHost,
+			Path:   rekor.DefaultBasePath,
+		},
 	}
 }
 
 // FetchImageSignatures retrieves signatures for specified image via cosign, using the specified rekor server.
 // Returns a list of verified signatures, and an error if any.
-func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string, rekorURL string) ([]oci.Signature, error) {
+func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
 		message := fmt.Sprint("Error parsing image reference: ", err.Error())
@@ -70,22 +82,10 @@ func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string, rekorURL st
 	}
 
 	co := &cosign.CheckOpts{}
-	if rekorURL != "" {
-		rekorURI, err := url.Parse(rekorURL)
-		if err != nil {
-			message := fmt.Sprint("Error parsing rekor URI: ", err.Error())
-			return nil, errors.New(message)
-		}
-		if rekorURI.Scheme != "" && rekorURI.Scheme != "https" {
-			return nil, errors.New("Invalid rekor URL Scheme: " + rekorURI.Scheme)
-		}
-		if rekorURI.Host == "" {
-			return nil, errors.New("Invalid rekor URL Host: " + rekorURI.Host)
-		}
-		co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURI.Path).WithHost(rekorURI.Host))
-	} else {
-		co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig())
-	}
+
+	// Set the rekor client
+	co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(sigstore.rekorURL.Path).WithHost(sigstore.rekorURL.Host))
+
 	co.RootCerts = fulcio.GetRoots()
 
 	ctx := context.Background()
@@ -249,14 +249,14 @@ func certSubject(c *x509.Certificate) string {
 // ShouldSkipImage checks the skip list for the image ID in the container status.
 // If the image ID is found in the skip list, it returns true.
 // If the image ID is not found in the skip list, it returns false.
-func (sigstore *Sigstoreimpl) ShouldSkipImage(status corev1.ContainerStatus) (bool, error) {
+func (sigstore *Sigstoreimpl) ShouldSkipImage(imageID string) (bool, error) {
 	if sigstore.skippedImages == nil {
 		return false, nil
 	}
-	if status.ImageID == "" {
-		return false, errors.New("Container status does not contain an image ID")
+	if imageID == "" {
+		return false, errors.New("Image ID is empty")
 	}
-	if _, ok := sigstore.skippedImages[status.ImageID]; ok {
+	if _, ok := sigstore.skippedImages[imageID]; ok {
 		return true, nil
 	}
 	return false, nil
@@ -321,4 +321,41 @@ func (sigstore *Sigstoreimpl) ClearAllowedSubjects() {
 
 func (sigstore *Sigstoreimpl) EnableAllowSubjectList(flag bool) {
 	sigstore.allowListEnabled = flag
+}
+
+func (sigstore *Sigstoreimpl) AttestContainerSignatures(imageID string) ([]string, error) {
+	skip, _ := sigstore.ShouldSkipImage(imageID)
+	if skip {
+		return []string{signatureVerifiedSelector}, nil
+	}
+
+	signatures, err := sigstore.FetchImageSignatures(imageID)
+	if err != nil {
+		return nil, err
+	}
+	selectors := sigstore.ExtractSelectorsFromSignatures(signatures)
+	if len(selectors) > 0 {
+		selectors = append(selectors, signatureVerifiedSelector)
+	}
+
+	return selectors, nil
+}
+
+func (sigstore *Sigstoreimpl) SetRekorURL(rekorURL string) error {
+	if rekorURL == "" {
+		return errors.New("Rekor URL is empty")
+	}
+	rekorURI, err := url.Parse(rekorURL)
+	if err != nil {
+		message := fmt.Sprint("Error parsing rekor URI: ", err.Error())
+		return errors.New(message)
+	}
+	if rekorURI.Scheme != "" && rekorURI.Scheme != "https" {
+		return errors.New("Invalid rekor URL Scheme: " + rekorURI.Scheme)
+	}
+	if rekorURI.Host == "" {
+		return errors.New("Invalid rekor URL Host: " + rekorURI.Host)
+	}
+	sigstore.rekorURL = *rekorURI
+	return nil
 }
