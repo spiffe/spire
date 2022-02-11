@@ -210,6 +210,27 @@ func TestParseConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "with insecure addr and key algo",
+			in: `
+				domains = ["domain.test"]
+				insecure_addr = ":8080"
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+				set_key_algo = true
+			`,
+			out: &Config{
+				LogLevel:     defaultLogLevel,
+				Domains:      []string{"domain.test"},
+				InsecureAddr: ":8080",
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+				SetKeyAlgo: true,
+			},
+		},
+		{
 			name: "with listen_socket_path",
 			in: `
 				domains = ["domain.test"]

@@ -31,6 +31,9 @@ type Config struct {
 	// Set the 'use' field on all keys. Required for some non-conformant JWKS clients.
 	SetKeyUse bool `hcl:"set_key_use"`
 
+	// Set the 'alg' field on all keys. Required for some non-conformant JWKS clients.
+	SetKeyAlgo bool `hcl:"set_key_algo"`
+
 	// AllowInsecureScheme, if true, causes HTTP URLs to be rendered in the
 	// returned discovery document. This option should only be used for testing purposes as HTTP does
 	// not provide the security guarantees necessary for conveying trusted public key material. In general this

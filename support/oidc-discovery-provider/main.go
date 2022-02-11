@@ -49,7 +49,7 @@ func run(configPath string) error {
 		return err
 	}
 
-	var handler http.Handler = NewHandler(domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse)
+	var handler http.Handler = NewHandler(domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, config.SetKeyAlgo)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"encoding/json"
 	"net"
 	"net/http"
 	"net/url"
 
 	"github.com/gorilla/handlers"
+	"gopkg.in/square/go-jose.v2"
 )
 
 const (
@@ -19,16 +22,18 @@ type Handler struct {
 	domainPolicy        DomainPolicy
 	allowInsecureScheme bool
 	setKeyUse           bool
+	setKeyAlgo          bool
 
 	http.Handler
 }
 
-func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool) *Handler {
+func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, setKeyAlgo bool) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
 		setKeyUse:           setKeyUse,
+		setKeyAlgo:          setKeyAlgo,
 	}
 
 	mux := http.NewServeMux()
@@ -111,6 +116,32 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 	if h.setKeyUse {
 		for i := range jwks.Keys {
 			jwks.Keys[i].Use = keyUse
+		}
+	}
+
+	if h.setKeyAlgo {
+		for index, k := range jwks.Keys {
+			var alg jose.SignatureAlgorithm
+			switch publicKey := k.Key.(type) {
+			case *rsa.PublicKey:
+				// Prevent the use of keys smaller than 2048 bits
+				if publicKey.Size() >= 256 {
+					alg = jose.RS256
+				}
+			case *ecdsa.PublicKey:
+				params := publicKey.Params()
+				switch params.BitSize {
+				case 256:
+					alg = jose.ES256
+				case 384:
+					alg = jose.ES384
+				default:
+					// unable to determine signature algorithm for EC public key size
+				}
+			default:
+				// unable to determine signature algorithm for public key type
+			}
+			jwks.Keys[index].Algorithm = string(alg)
 		}
 	}
 
