@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -544,6 +545,12 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 	}
 
 	if len(entries.JwtKeys) > 0 {
+		// filter out local JwtKeys that do not exist in the database bundle
+		entries.JwtKeys, err = m.filterInvalidEntries(ctx, entries)
+		if err != nil {
+			return err
+		}
+
 		m.nextJWTKey, err = m.tryLoadJWTKeySlotFromEntry(ctx, entries.JwtKeys[len(entries.JwtKeys)-1])
 		if err != nil {
 			return err
@@ -809,6 +816,23 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 		return errs.New("one or more notifiers returned an error: %v", err)
 	}
 	return nil
+}
+
+func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, error) {
+	bundle, err := m.fetchRequiredBundle(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	filteredEntriesJwtKeys := []*JWTKeyEntry{}
+
+	for _, entry := range entries.GetJwtKeys() {
+		if containsKid(bundle.JwtSigningKeys, entry.Kid) {
+			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
+		}
+	}
+	return filteredEntriesJwtKeys, nil
 }
 
 func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, error) {
@@ -1125,4 +1149,14 @@ func keyIDFromBytes(choices []byte) string {
 
 func timeField(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
+}
+
+func containsKid(keys []*common.PublicKey, kid string) bool {
+	for _, key := range keys {
+		if key.Kid == kid {
+			return true
+		}
+	}
+
+	return false
 }
