@@ -31,7 +31,7 @@ secretsmanager:DeleteSecret
 kms:Encrypt
 ```
 
-Please note that this plugin does not require permission to read secret payloads stored.
+Please note that this plugin does not read secrets it has stored and therefore does not require read permissions.
 
 ### Configuration
 
