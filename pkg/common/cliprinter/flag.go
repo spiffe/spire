@@ -25,6 +25,7 @@ func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, cp CustomPrettyFun
 
 	f := &FormatterFlag{
 		p:            p,
+		f:            defaultFormatType,
 		customPretty: cp,
 	}
 
@@ -34,12 +35,18 @@ func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, cp CustomPrettyFun
 type FormatterFlag struct {
 	customPretty CustomPrettyFunc
 
-	// A pointer to our consumer's Printer interface
+	// A pointer to our consumer's Printer interface, along with
+	// its format type
 	p *Printer
+	f formatType
 }
 
-func (f FormatterFlag) String() string {
-	return "pretty"
+func (f *FormatterFlag) String() string {
+	if f == nil || f.f == 0 {
+		return formatTypeToStr(defaultFormatType)
+	}
+
+	return formatTypeToStr(f.f)
 }
 
 func (f *FormatterFlag) Set(formatStr string) error {
@@ -56,5 +63,6 @@ func (f *FormatterFlag) Set(formatStr string) error {
 	np.setCustomPrettyPrinter(f.customPretty)
 
 	*f.p = np
+	f.f = format
 	return nil
 }
