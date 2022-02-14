@@ -6,6 +6,7 @@ package peertracker
 import (
 	"net"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 
