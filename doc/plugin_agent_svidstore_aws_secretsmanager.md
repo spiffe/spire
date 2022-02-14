@@ -18,6 +18,22 @@ The format that is used to store in a secret the issued identity is the followin
 }
 ```
 
+### Required AWS IAM permissions
+
+This plugin requires the following IAM permissions in order to function:
+
+```
+secretsmanager:DescribeSecret
+secretsmanager:CreateSecret
+secretsmanager:RestoreSecret
+secretsmanager:PutSecretValue
+secretsmanager:TagResource
+secretsmanager:DeleteSecret
+kms:Encrypt
+```
+
+Please note that this plugin does not read secrets it has stored and therefore does not require read permissions.
+
 ### Configuration
 
 When the SVIDs are updated, the plugin takes care of updating them in AWS Secrets Manager.
