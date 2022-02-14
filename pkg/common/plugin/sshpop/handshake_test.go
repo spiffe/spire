@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"text/template"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -68,7 +69,7 @@ func TestHandshake(t *testing.T) {
 	s := &Server{
 		certChecker:       tt.CertChecker,
 		agentPathTemplate: DefaultAgentPathTemplate,
-		trustDomain:       "foo.local",
+		trustDomain:       spiffeid.RequireTrustDomainFromString("foo.local"),
 	}
 
 	client := c.NewHandshake()
@@ -89,37 +90,35 @@ func TestHandshake(t *testing.T) {
 	err = server.VerifyChallengeResponse(challengeRes)
 	require.NoError(t, err)
 
-	spiffeid, err := server.AgentID()
+	id, err := server.AgentID()
 	require.NoError(t, err)
-	require.Equal(t, fmt.Sprintf("spiffe://foo.local/spire/agent/sshpop/%s", tt.Fingerprint), spiffeid)
+	require.Equal(t, fmt.Sprintf("spiffe://foo.local/spire/agent/sshpop/%s", tt.Fingerprint), id.String())
 }
 
 func TestServerSpiffeID(t *testing.T) {
 	tt := newTest(t, principal("ec2abcdef-uswest1"))
-	agentPathTemplate, err := template.New("agent-path").Parse("static/{{ index .ValidPrincipals 0 }}")
-	require.NoError(t, err)
+	agentPathTemplate := agentpathtemplate.MustParse("/static/{{ index .ValidPrincipals 0 }}")
 
 	s := &ServerHandshake{
 		s: &Server{
-			trustDomain:       "foo.local",
+			trustDomain:       spiffeid.RequireTrustDomainFromString("foo.local"),
 			agentPathTemplate: agentPathTemplate,
 		},
 		cert: tt.Certificate,
 	}
-	spiffeid, err := s.AgentID()
+	agentID, err := s.AgentID()
 	require.NoError(t, err)
-	require.Equal(t, "spiffe://foo.local/spire/agent/static/ec2abcdef-uswest1", spiffeid)
+	require.Equal(t, "spiffe://foo.local/spire/agent/static/ec2abcdef-uswest1", agentID.String())
 }
 
 func newTestHandshake(t *testing.T) (*ClientHandshake, *ServerHandshake) {
 	tt := newTest(t, principal("ec2abcdef-uswest1.test.internal"))
-	trustDomain := "foo.local"
 	c := &Client{
 		signer: tt.Signer,
 		cert:   tt.Certificate,
 	}
 	s := &Server{
-		trustDomain:       trustDomain,
+		trustDomain:       spiffeid.RequireTrustDomainFromString("foo.local"),
 		agentPathTemplate: DefaultAgentPathTemplate,
 		certChecker:       tt.CertChecker,
 	}

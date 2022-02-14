@@ -158,7 +158,7 @@ func TestMintRun(t *testing.T) {
 			name:              "malformed spiffe ID",
 			code:              1,
 			spiffeID:          "malformed id",
-			stderr:            "Error: spiffeid: invalid scheme\n",
+			stderr:            "Error: scheme is missing or invalid\n",
 			noRequestExpected: true,
 		},
 		{

@@ -1,3 +1,7 @@
+//go:build !windows
+// +build !windows
+
+// TODO: attestor is not supported on Windows yet, skip tests until issues solved
 package k8s
 
 import (

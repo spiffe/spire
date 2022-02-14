@@ -18,12 +18,13 @@ import (
 
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/api/svid/v1"
+	svid "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -41,8 +42,8 @@ import (
 var (
 	testKey    = testkey.MustEC256()
 	td         = spiffeid.RequireTrustDomainFromString("example.org")
-	agentID    = td.NewID("agent")
-	workloadID = td.NewID("workload1")
+	agentID    = spiffeid.RequireFromPath(td, "/agent")
+	workloadID = spiffeid.RequireFromPath(td, "/workload1")
 )
 
 func TestServiceMintX509SVID(t *testing.T) {
@@ -340,7 +341,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			csrTemplate: &x509.CertificateRequest{
 				URIs: []*url.URL{
 					workloadID.URL(),
-					spiffeid.Must("example.org", "workload2").URL(),
+					{Scheme: "spiffe", Host: "example.org", Path: "/workload2"},
 				},
 			},
 			code: codes.InvalidArgument,
@@ -374,14 +375,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR URI SAN is not a valid SPIFFE ID: spiffeid: invalid scheme",
+			err:  "CSR URI SAN is invalid: scheme is missing or invalid",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Invalid argument: CSR URI SAN is not a valid SPIFFE ID",
+						Message: "Invalid argument: CSR URI SAN is invalid",
 						Data: logrus.Fields{
-							logrus.ErrorKey: "spiffeid: invalid scheme",
+							logrus.ErrorKey: "scheme is missing or invalid",
 						},
 					},
 					{
@@ -391,7 +392,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR URI SAN is not a valid SPIFFE ID: spiffeid: invalid scheme",
+							telemetry.StatusMessage: "CSR URI SAN is invalid: scheme is missing or invalid",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},
@@ -402,9 +403,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 		{
 			name: "different trust domain",
 			csrTemplate: &x509.CertificateRequest{
-				URIs: []*url.URL{
-					spiffeid.Must("another.org", "workload1").URL(),
-				},
+				URIs: []*url.URL{{Scheme: "spiffe", Host: "another.org", Path: "/workload1"}},
 			},
 			code: codes.InvalidArgument,
 			err:  `CSR URI SAN is invalid: "spiffe://another.org/workload1" is not a member of trust domain "example.org"`,
@@ -435,9 +434,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 		{
 			name: "SPIFFE ID is not for a workload in the trust domain",
 			csrTemplate: &x509.CertificateRequest{
-				URIs: []*url.URL{
-					spiffeid.Must("example.org").URL(),
-				},
+				URIs: []*url.URL{{Scheme: "spiffe", Host: "example.org"}},
 			},
 			code: codes.InvalidArgument,
 			err:  `CSR URI SAN is invalid: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
@@ -472,12 +469,12 @@ func TestServiceMintX509SVID(t *testing.T) {
 				DNSNames: []string{"abc-"},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR DNS name is not valid: label does not match regex: abc-",
+			err:  "CSR DNS name is invalid: label does not match regex: abc-",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Invalid argument: CSR DNS name is not valid",
+						Message: "Invalid argument: CSR DNS name is invalid",
 						Data: logrus.Fields{
 							logrus.ErrorKey: "label does not match regex: abc-",
 						},
@@ -489,7 +486,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR DNS name is not valid: label does not match regex: abc-",
+							telemetry.StatusMessage: "CSR DNS name is invalid: label does not match regex: abc-",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},
@@ -569,7 +566,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			require.NotEmpty(t, certChain)
 			svid := certChain[0]
 
-			id, err := api.TrustDomainWorkloadIDFromProto(td, resp.Svid.Id)
+			id, err := api.TrustDomainWorkloadIDFromProto(context.Background(), td, resp.Svid.Id)
 			require.NoError(t, err)
 
 			require.Equal(t, workloadID, id)
@@ -652,13 +649,13 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			id:       spiffeid.ID{},
-			err:      "invalid SPIFFE ID: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is missing",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid SPIFFE ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "trust domain is empty",
+						logrus.ErrorKey: "trust domain is missing",
 					},
 				},
 				{
@@ -668,7 +665,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid SPIFFE ID: trust domain is empty",
+						telemetry.StatusMessage: "invalid SPIFFE ID: trust domain is missing",
 						telemetry.Audience:      "AUDIENCE",
 						telemetry.TTL:           "0",
 					},
@@ -679,7 +676,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			name:     "invalid trust domain",
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
-			id:       spiffeid.Must("invalid.test", "workload1"),
+			id:       spiffeid.RequireFromString("spiffe://invalid.test/workload1"),
 			err:      `invalid SPIFFE ID: "spiffe://invalid.test/workload1" is not a member of trust domain "example.org"`,
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -707,14 +704,14 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			name:     "SPIFFE ID is not for a workload in the trust domain",
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
-			id:       spiffeid.Must("example.org"),
-			err:      `invalid SPIFFE ID: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+			id:       spiffeid.RequireFromString("spiffe://invalid.test"),
+			err:      `invalid SPIFFE ID: "spiffe://invalid.test" is not a member of trust domain "example.org"`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid SPIFFE ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: `"spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+						logrus.ErrorKey: `"spiffe://invalid.test" is not a member of trust domain "example.org"`,
 					},
 				},
 				{
@@ -724,7 +721,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: `invalid SPIFFE ID: "spiffe://example.org" is not a workload in trust domain "example.org"; path is empty`,
+						telemetry.StatusMessage: `invalid SPIFFE ID: "spiffe://invalid.test" is not a member of trust domain "example.org"`,
 						telemetry.Audience:      "AUDIENCE",
 						telemetry.TTL:           "0",
 					},
@@ -907,13 +904,13 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			code:     codes.InvalidArgument,
 			audience: []string{"AUDIENCE"},
 			entry:    invalidEntry,
-			err:      "invalid SPIFFE ID: trust domain is empty",
+			err:      "invalid SPIFFE ID: trust domain is missing",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid SPIFFE ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "trust domain is empty",
+						logrus.ErrorKey: "trust domain is missing",
 					},
 				},
 				{
@@ -923,7 +920,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
 						telemetry.StatusCode:     "InvalidArgument",
-						telemetry.StatusMessage:  "invalid SPIFFE ID: trust domain is empty",
+						telemetry.StatusMessage:  "invalid SPIFFE ID: trust domain is missing",
 						telemetry.Audience:       "AUDIENCE",
 						telemetry.RegistrationID: "invalid-entry",
 					},
@@ -1099,7 +1096,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 
 			// Verify response
 			verifyJWTSVIDResponse(t, resp.Svid,
-				spiffeid.Must(tt.entry.SpiffeId.TrustDomain, tt.entry.SpiffeId.Path),
+				idutil.RequireIDFromProto(tt.entry.SpiffeId),
 				tt.audience,
 				issuedAt,
 				tt.expiresAt,
@@ -1116,18 +1113,18 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 	workloadEntry := &types.Entry{
 		Id:       "workload",
 		ParentId: api.ProtoFromID(agentID),
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "workload1"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload1"},
 	}
 	dnsEntry := &types.Entry{
 		Id:       "dns",
 		ParentId: api.ProtoFromID(agentID),
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "dns"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/dns"},
 		DnsNames: []string{"entryDNS1", "entryDNS2"},
 	}
 	ttlEntry := &types.Entry{
 		Id:       "ttl",
 		ParentId: api.ProtoFromID(agentID),
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "ttl"},
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/ttl"},
 		Ttl:      10,
 	}
 	invalidEntry := &types.Entry{
@@ -1722,7 +1719,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				require.NotEmpty(t, certChain)
 				svid := certChain[0]
 
-				entryID := spiffeid.Must(entry.SpiffeId.TrustDomain, entry.SpiffeId.Path)
+				entryID := idutil.RequireIDFromProto(entry.SpiffeId)
 				require.Equal(t, []*url.URL{entryID.URL()}, svid.URIs)
 
 				// Use entry ttl when defined
@@ -2097,7 +2094,7 @@ func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID,
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	require.NoError(t, err)
 
-	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(td, jwtsvid.Id)
+	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(context.Background(), td, jwtsvid.Id)
 	require.NoError(t, err)
 	require.Equal(t, id, jwtsvidID)
 	require.Equal(t, id.String(), claims.Subject)

@@ -938,6 +938,33 @@ func TestNewServerConfig(t *testing.T) {
 				require.False(t, c.AuditLogEnabled)
 			},
 		},
+		{
+			msg: "admin IDs are set",
+			input: func(c *Config) {
+				c.Server.AdminIDs = []string{
+					"spiffe://example.org/my/admin1",
+					"spiffe://example.org/my/admin2",
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, []spiffeid.ID{
+					spiffeid.RequireFromString("spiffe://example.org/my/admin1"),
+					spiffeid.RequireFromString("spiffe://example.org/my/admin2"),
+				}, c.AdminIDs)
+			},
+		},
+		{
+			msg: "admin ID does not belong to the trust domain",
+			input: func(c *Config) {
+				c.Server.AdminIDs = []string{
+					"spiffe://otherdomain.test/my/admin",
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
 	}
 
 	for _, testCase := range cases {
@@ -1506,6 +1533,28 @@ func TestExpandEnv(t *testing.T) {
 		c, err := ParseFile("../../../../test/fixture/config/server_good_templated.conf", testCase.expandEnv)
 		require.NoError(t, err)
 		assert.Equal(t, testCase.expectedValue, c.Server.TrustDomain)
+	}
+}
+
+func TestAgentTTL(t *testing.T) {
+	for _, c := range []struct {
+		agentTTL         string
+		expectedDuration time.Duration
+	}{
+		{
+			agentTTL:         "168h",
+			expectedDuration: 168 * time.Hour,
+		},
+		{
+			agentTTL:         "",
+			expectedDuration: 0,
+		},
+	} {
+		config := defaultValidConfig()
+		config.Server.AgentTTL = c.agentTTL
+		sconfig, err := NewServerConfig(config, []log.Option{}, false)
+		assert.NoError(t, err)
+		assert.Equal(t, c.expectedDuration, sconfig.AgentTTL)
 	}
 }
 

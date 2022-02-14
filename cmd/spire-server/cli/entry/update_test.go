@@ -182,16 +182,6 @@ func TestUpdate(t *testing.T) {
 			expErr: "Error: a SPIFFE ID is required\n",
 		},
 		{
-			name:   "Wrong SPIFFE ID",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent", "-spiffeID", "invalid-id"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
-		},
-		{
-			name:   "Wrong parent SPIFFE ID",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix:uid:1", "-parentID", "invalid-id", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
-		},
-		{
 			name:   "Wrong selectors",
 			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
 			expErr: "Error: selector \"unix\" must be formatted as type:value\n",
@@ -200,11 +190,6 @@ func TestUpdate(t *testing.T) {
 			name:   "Negative TTL",
 			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
 			expErr: "Error: a positive TTL is required\n",
-		},
-		{
-			name:   "Wrong federated trust domain",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-federatesWith", "invalid-id"},
-			expErr: "Error: \"invalid-id\" is not a valid SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name: "Server error",
@@ -229,8 +214,8 @@ func TestUpdate(t *testing.T) {
 				"-selector", "zebra:zebra:2000",
 				"-selector", "alpha:alpha:2000",
 				"-ttl", "60",
-				"-federatesWith", "spiffe://domainA.test",
-				"-federatesWith", "spiffe://domainB.test",
+				"-federatesWith", "spiffe://domaina.test",
+				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
 				"-entryExpiry", "1552410266",
 				"-dns", "unu1000",
@@ -267,8 +252,8 @@ Admin            : true
 				"-selector", "type:key1:value",
 				"-selector", "type:key2:value",
 				"-ttl", "60",
-				"-federatesWith", "spiffe://domainA.test",
-				"-federatesWith", "spiffe://domainB.test",
+				"-federatesWith", "spiffe://domaina.test",
+				"-federatesWith", "spiffe://domainb.test",
 				"-entryExpiry", "1552410266",
 				"-dns", "unu1000",
 				"-dns", "ung1000",
@@ -370,8 +355,7 @@ Error: failed to update one or more entries
 			test.server.expBatchUpdateEntryReq = tt.expReq
 			test.server.batchUpdateEntryResp = tt.fakeResp
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expErr, test.stderr.String())

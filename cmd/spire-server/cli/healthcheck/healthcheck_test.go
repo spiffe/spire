@@ -74,16 +74,16 @@ func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
 	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: no such file or directory"
-`, s.stderr.String(), "stderr")
+	expectPrefix := `Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: `
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), expectPrefix)
 }
 
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
 	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock", "--verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: no such file or directory"
-`, s.stderr.String(), "stderr")
+	expectPrefix := `Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect:`
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), expectPrefix)
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {

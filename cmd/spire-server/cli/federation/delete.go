@@ -10,7 +10,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
 )
 
@@ -44,14 +43,9 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return errors.New("id is required")
 	}
 
-	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return err
-	}
-
 	trustDomainClient := serverClient.NewTrustDomainClient()
 	resp, err := trustDomainClient.BatchDeleteFederationRelationship(ctx, &trustdomain.BatchDeleteFederationRelationshipRequest{
-		TrustDomains: []string{id},
+		TrustDomains: []string{c.id},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete federation relationship: %w", err)

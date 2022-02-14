@@ -403,7 +403,7 @@ func (s *CATestSuite) createX509SVIDParams() X509SVIDParams {
 
 func (s *CATestSuite) createX509SVIDParamsInDomain(trustDomain spiffeid.TrustDomain) X509SVIDParams {
 	return X509SVIDParams{
-		SpiffeID:  trustDomain.NewID("workload"),
+		SpiffeID:  spiffeid.RequireFromPath(trustDomain, "/workload"),
 		PublicKey: testSigner.Public(),
 	}
 }
@@ -417,7 +417,7 @@ func (s *CATestSuite) createX509CASVIDParams(trustDomain spiffeid.TrustDomain) X
 
 func (s *CATestSuite) createJWTSVIDParams(trustDomain spiffeid.TrustDomain, ttl time.Duration) JWTSVIDParams {
 	return JWTSVIDParams{
-		SpiffeID: trustDomain.NewID("workload"),
+		SpiffeID: spiffeid.RequireFromPath(trustDomain, "/workload"),
 		Audience: []string{"AUDIENCE"},
 		TTL:      ttl,
 	}

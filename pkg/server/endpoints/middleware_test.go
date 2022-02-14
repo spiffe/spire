@@ -42,7 +42,9 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	e := createAuthorizedEntryTestData(t, ds)
 	expectedNodeAliasEntries := e.nodeAliasEntries
 	expectedWorkloadEntries := e.workloadEntries[:len(e.workloadEntries)-1]
-	expectedEntries := append(expectedNodeAliasEntries, expectedWorkloadEntries...)
+	expectedEntries := make([]*types.Entry, 0, len(expectedNodeAliasEntries)+len(expectedWorkloadEntries))
+	expectedEntries = append(expectedEntries, expectedNodeAliasEntries...)
+	expectedEntries = append(expectedEntries, expectedWorkloadEntries...)
 
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		entryMap := map[spiffeid.ID][]*types.Entry{
@@ -297,11 +299,11 @@ func createAttestedNode(t testing.TB, ds datastore.DataStore, node *common.Attes
 }
 
 func createAuthorizedEntryTestData(t testing.TB, ds datastore.DataStore) *testEntries {
-	serverID := testTD.NewID("/spire/server")
-	anotherAgentID := testTD.NewID("/spire/another-agent")
-	nodeAliasID := testTD.NewID("/node-alias")
-	workload1ID := testTD.NewID("/workload1")
-	workload2ID := testTD.NewID("/workload2")
+	serverID := spiffeid.RequireFromPath(testTD, "/spire/server")
+	anotherAgentID := spiffeid.RequireFromPath(testTD, "/spire/another-agent")
+	nodeAliasID := spiffeid.RequireFromPath(testTD, "/node-alias")
+	workload1ID := spiffeid.RequireFromPath(testTD, "/workload1")
+	workload2ID := spiffeid.RequireFromPath(testTD, "/workload2")
 
 	const testAttestationType = "test-nodeattestor"
 	nonMatchingNode := &common.AttestedNode{

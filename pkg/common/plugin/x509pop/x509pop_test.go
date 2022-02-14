@@ -9,8 +9,9 @@ import (
 	"encoding/pem"
 	"math/big"
 	"testing"
-	"text/template"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -128,27 +129,27 @@ func createBadCertificate(privateKey, publicKey interface{}) (*x509.Certificate,
 	return x509.ParseCertificate(certBytes)
 }
 
-func TestMakeSPIFFEID(t *testing.T) {
+func TestMakeAgentID(t *testing.T) {
 	tests := []struct {
-		desc         string
-		template     *template.Template
-		expectSPIFFE string
-		expectErr    string
+		desc      string
+		template  *agentpathtemplate.Template
+		expectID  string
+		expectErr string
 	}{
 		{
-			desc:         "default template with sha1",
-			template:     DefaultAgentPathTemplate,
-			expectSPIFFE: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+			desc:     "default template with sha1",
+			template: DefaultAgentPathTemplate,
+			expectID: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
 		},
 		{
-			desc:         "custom template with subject identifiers",
-			template:     template.Must(template.New("test").Parse("foo/{{ .Subject.CommonName }}")),
-			expectSPIFFE: "spiffe://example.org/spire/agent/foo/test-cert",
+			desc:     "custom template with subject identifiers",
+			template: agentpathtemplate.MustParse("/foo/{{ .Subject.CommonName }}"),
+			expectID: "spiffe://example.org/spire/agent/foo/test-cert",
 		},
 		{
 			desc:      "custom template with nonexistant fields",
-			template:  template.Must(template.New("test").Parse("{{ .Foo }}")),
-			expectErr: `template: test:1:3: executing "test" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
+			template:  agentpathtemplate.MustParse("/{{ .Foo }}"),
+			expectErr: `template: agent-path:1:4: executing "agent-path" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
 		},
 	}
 
@@ -160,14 +161,14 @@ func TestMakeSPIFFEID(t *testing.T) {
 					CommonName: "test-cert",
 				},
 			}
-			spiffeid, err := MakeSpiffeID("example.org", tt.template, cert)
+			id, err := MakeAgentID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.expectSPIFFE, spiffeid)
+			require.Equal(t, tt.expectID, id.String())
 		})
 	}
 }

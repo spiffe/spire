@@ -5,13 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	testMinimalCRDConfig = `
-		trust_domain = "TRUSTDOMAIN"
+		trust_domain = "domain.test"
 		cluster = "CLUSTER"
 		server_socket_path = "SOCKETPATH"
 		mode = "crd"
@@ -43,11 +44,12 @@ func TestLoadModeCRD(t *testing.T) {
 		CommonMode: CommonMode{
 			ServerSocketPath:   "SOCKETPATH",
 			ServerAddress:      "unix://SOCKETPATH",
-			TrustDomain:        "TRUSTDOMAIN",
+			TrustDomain:        "domain.test",
 			Cluster:            "CLUSTER",
 			LogLevel:           defaultLogLevel,
 			Mode:               "crd",
 			DisabledNamespaces: []string{"kube-system", "kube-public"},
+			trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 		},
 		AddSvcDNSName:      true,
 		MetricsBindAddr:    ":8080",
@@ -57,6 +59,7 @@ func TestLoadModeCRD(t *testing.T) {
 		WebhookPort:        defaultWebhookPort,
 		WebhookServiceName: defaultWebhookServiceName,
 		IdentityTemplate:   "IDENTITYTEMPLATE",
+		DNSNameTemplates:   &[]string{defaultDNSTemplate},
 	}, config)
 
 	testCases := []struct {
@@ -73,10 +76,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           defaultLogLevel,
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:      true,
 				LeaderElection:     false,
@@ -87,6 +91,7 @@ func TestLoadModeCRD(t *testing.T) {
 				WebhookPort:        defaultWebhookPort,
 				WebhookServiceName: defaultWebhookServiceName,
 				IdentityTemplate:   "IDENTITYTEMPLATE",
+				DNSNameTemplates:   &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -100,7 +105,7 @@ func TestLoadModeCRD(t *testing.T) {
 				cacert_path = "CACERTOVERRIDE"
 				insecure_skip_client_verification = true
 				server_socket_path = "SOCKETPATHOVERRIDE"
-				trust_domain = "TRUSTDOMAINOVERRIDE"
+				trust_domain = "override-domain.test"
 				cluster = "CLUSTEROVERRIDE"
 				add_svc_dns_name = false
 				leader_election = false
@@ -109,6 +114,7 @@ func TestLoadModeCRD(t *testing.T) {
 				webhook_enabled = false
 				mode = "crd"
 				identity_template = "IDENTITYTEMPLATE"
+				dns_name_templates = ["DNSNAMETEMPLATE"]
 			`,
 			out: &CRDMode{
 				CommonMode: CommonMode{
@@ -116,10 +122,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogPath:            "PATHOVERRIDE",
 					ServerSocketPath:   "SOCKETPATHOVERRIDE",
 					ServerAddress:      "unix://SOCKETPATHOVERRIDE",
-					TrustDomain:        "TRUSTDOMAINOVERRIDE",
+					TrustDomain:        "override-domain.test",
 					Cluster:            "CLUSTEROVERRIDE",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("override-domain.test"),
 				},
 				AddSvcDNSName:      false,
 				LeaderElection:     false,
@@ -130,6 +137,7 @@ func TestLoadModeCRD(t *testing.T) {
 				WebhookPort:        defaultWebhookPort,
 				WebhookServiceName: defaultWebhookServiceName,
 				IdentityTemplate:   "IDENTITYTEMPLATE",
+				DNSNameTemplates:   &[]string{"DNSNAMETEMPLATE"},
 			},
 		},
 		{
@@ -147,10 +155,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:         true,
 				MetricsBindAddr:       ":8080",
@@ -164,6 +173,7 @@ func TestLoadModeCRD(t *testing.T) {
 					"region":       "EU-DE",
 					"cluster_name": "CLUSTER",
 				},
+				DNSNameTemplates: &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -180,10 +190,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				AddSvcDNSName:      true,
 				MetricsBindAddr:    ":8080",
@@ -195,6 +206,7 @@ func TestLoadModeCRD(t *testing.T) {
 				Context: map[string]string{
 					"cluster_name": "CLUSTER",
 				},
+				DNSNameTemplates: &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -207,10 +219,11 @@ func TestLoadModeCRD(t *testing.T) {
 					LogLevel:           "info",
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
-					TrustDomain:        "TRUSTDOMAIN",
+					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
 					Mode:               "crd",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
 				IdentityTemplate:   "ns/{{.Pod.namespace}}/sa/{{.Pod.service_account}}",
 				AddSvcDNSName:      true,
@@ -219,6 +232,7 @@ func TestLoadModeCRD(t *testing.T) {
 				WebhookCertDir:     defaultWebhookCertDir,
 				WebhookPort:        defaultWebhookPort,
 				WebhookServiceName: defaultWebhookServiceName,
+				DNSNameTemplates:   &[]string{defaultDNSTemplate},
 			},
 		},
 		{
@@ -251,9 +265,9 @@ func TestLoadModeCRD(t *testing.T) {
 			err: "workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label",
 		},
 		{
-			name: "missing context 1",
+			name: "identity_template missing context (with space)",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 				cluster = "CLUSTER"
 				mode = "crd"
@@ -262,15 +276,87 @@ func TestLoadModeCRD(t *testing.T) {
 			err: "identity_template references non-existing context",
 		},
 		{
-			name: "missing context 2",
+			name: "identity_template missing context (without space)",
 			in: `
-				trust_domain = "TRUSTDOMAIN"
+				trust_domain = "domain.test"
 				server_socket_path = "SOCKETPATH"
 				cluster = "CLUSTER"
 				mode = "crd"
 				identity_template = "region/{{.Context.region}}"
 			`,
 			err: "identity_template references non-existing context",
+		},
+		{
+			name: "dns_name_templates",
+			in: testMinimalCRDConfig + `
+				dns_name_templates = ["{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Pod.Name}}.svc"]
+			`,
+			out: &CRDMode{
+				CommonMode: CommonMode{
+					LogLevel:           "info",
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "domain.test",
+					Cluster:            "CLUSTER",
+					Mode:               "crd",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+				},
+				AddSvcDNSName:      true,
+				MetricsBindAddr:    ":8080",
+				PodController:      true,
+				WebhookCertDir:     defaultWebhookCertDir,
+				WebhookPort:        defaultWebhookPort,
+				WebhookServiceName: defaultWebhookServiceName,
+				DNSNameTemplates:   &[]string{"{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Pod.Name}}.svc"},
+			},
+		},
+		{
+			name: "dns_name_templates empty",
+			in: testMinimalCRDConfig + `
+				dns_name_templates = []
+			`,
+			out: &CRDMode{
+				CommonMode: CommonMode{
+					LogLevel:           "info",
+					ServerSocketPath:   "SOCKETPATH",
+					ServerAddress:      "unix://SOCKETPATH",
+					TrustDomain:        "domain.test",
+					Cluster:            "CLUSTER",
+					Mode:               "crd",
+					DisabledNamespaces: []string{"kube-system", "kube-public"},
+					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
+				},
+				AddSvcDNSName:      true,
+				MetricsBindAddr:    ":8080",
+				PodController:      true,
+				WebhookCertDir:     defaultWebhookCertDir,
+				WebhookPort:        defaultWebhookPort,
+				WebhookServiceName: defaultWebhookServiceName,
+				DNSNameTemplates:   &[]string{},
+			},
+		},
+		{
+			name: "dns_name_templates missing context (with space)",
+			in: `
+				trust_domain = "domain.test"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				mode = "crd"
+				dns_name_templates = ["{{ .Context.namespace}}"]
+			`,
+			err: "dns_name_template references non-existing context",
+		},
+		{
+			name: "dns_name_templates missing context (without space)",
+			in: `
+				trust_domain = "domain.test"
+				server_socket_path = "SOCKETPATH"
+				cluster = "CLUSTER"
+				mode = "crd"
+				dns_name_templates = ["{{.Context.namespace}}"]
+			`,
+			err: "dns_name_template references non-existing context",
 		},
 	}
 

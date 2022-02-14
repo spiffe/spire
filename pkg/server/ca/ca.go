@@ -193,49 +193,14 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 	}
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
-	serialNumber, err := x509util.NewSerialNumber()
+
+	x509SVID, err := signX509SVID(ca.c.TrustDomain, x509CA, params, notBefore, notAfter)
 	if err != nil {
 		return nil, err
-	}
-
-	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain, notBefore, notAfter, serialNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	// In case subject is provided use it
-	if params.Subject.String() != "" {
-		template.Subject = params.Subject
-	}
-
-	// Explicitly set the AKI on the signed certificate, otherwise it won't be
-	// added if the subject and issuer match name match (however unlikely).
-	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
-
-	// for non-CA certificates, add DNS names to certificate. the first DNS
-	// name is also added as the common name.
-	if len(params.DNSList) > 0 {
-		template.Subject.CommonName = params.DNSList[0]
-		template.DNSNames = params.DNSList
-	}
-
-	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
-	if err != nil {
-		return nil, errs.New("unable to create X509 SVID: %v", err)
-	}
-
-	spiffeID := cert.URIs[0].String()
-
-	if !health.IsCheck(ctx) {
-		ca.c.Log.WithFields(logrus.Fields{
-			telemetry.SPIFFEID:   spiffeID,
-			telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
-		}).Debug("Signed X509 SVID")
 	}
 
 	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
-
-	return makeSVIDCertChain(x509CA, cert), nil
+	return x509SVID, nil
 }
 
 func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error) {
@@ -274,13 +239,6 @@ func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x
 		return nil, errs.New("unable to create X509 CA SVID: %v", err)
 	}
 
-	spiffeID := cert.URIs[0].String()
-
-	ca.c.Log.WithFields(logrus.Fields{
-		telemetry.SPIFFEID:   spiffeID,
-		telemetry.Expiration: cert.NotAfter.Format(time.RFC3339),
-	}).Debug("Signed X509 CA SVID")
-
 	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics)
 
 	return makeSVIDCertChain(x509CA, cert), nil
@@ -302,18 +260,12 @@ func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, er
 	}
 	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
 
-	token, err := ca.jwtSigner.SignToken(params.SpiffeID.String(), params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
+	token, err := ca.jwtSigner.SignToken(params.SpiffeID, params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
 	if err != nil {
 		return "", errs.New("unable to sign JWT SVID: %v", err)
 	}
 
 	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics)
-	ca.c.Log.WithFields(logrus.Fields{
-		telemetry.Audience:   params.Audience,
-		telemetry.Expiration: expiresAt.Format(time.RFC3339),
-		telemetry.SPIFFEID:   params.SpiffeID,
-	}).Debug("Server CA successfully signed JWT SVID")
-
 	return token, nil
 }
 
@@ -325,6 +277,45 @@ func (ca *CA) capLifetime(ttl time.Duration, expirationCap time.Time) (notBefore
 		notAfter = expirationCap
 	}
 	return notBefore, notAfter
+}
+
+func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
+	if x509CA == nil {
+		return nil, errs.New("X509 CA is not available for signing")
+	}
+
+	serialNumber, err := x509util.NewSerialNumber()
+	if err != nil {
+		return nil, err
+	}
+
+	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, td, notBefore, notAfter, serialNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// In case subject is provided use it
+	if params.Subject.String() != "" {
+		template.Subject = params.Subject
+	}
+
+	// Explicitly set the AKI on the signed certificate, otherwise it won't be
+	// added if the subject and issuer match name match (however unlikely).
+	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
+
+	// for non-CA certificates, add DNS names to certificate. the first DNS
+	// name is also added as the common name.
+	if len(params.DNSList) > 0 {
+		template.Subject.CommonName = params.DNSList[0]
+		template.DNSNames = params.DNSList
+	}
+
+	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
+	if err != nil {
+		return nil, errs.New("unable to create X509 SVID: %v", err)
+	}
+
+	return makeSVIDCertChain(x509CA, cert), nil
 }
 
 func makeSVIDCertChain(x509CA *X509CA, cert *x509.Certificate) []*x509.Certificate {

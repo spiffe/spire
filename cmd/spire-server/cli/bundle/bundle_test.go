@@ -3,6 +3,7 @@ package bundle
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -75,8 +76,7 @@ func TestShow(t *testing.T) {
 			},
 			}
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedError != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectedError, test.stderr.String())
@@ -132,11 +132,6 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:           "invalid trust domain ID",
-			expectedStderr: "Error: \"spiffe://otherdomain.test/spire/server\" is not a valid trust domain SPIFFE ID: path is not empty\n",
-			args:           []string{"-id", "spiffe://otherdomain.test/spire/server"},
-		},
-		{
-			name:           "invalid trust domain ID",
 			expectedStderr: "Error: unable to parse bundle data: no PEM blocks\n",
 			args:           []string{"-id", "spiffe://otherdomain.test"},
 		},
@@ -145,12 +140,6 @@ func TestSet(t *testing.T) {
 			stdin:          cert1PEM,
 			args:           []string{"-id", "spiffe://otherdomain.test", "-format", "invalidFormat"},
 			expectedStderr: "Error: invalid format: \"invalidformat\"\n",
-		},
-		{
-			name:           "invalid trustdomain",
-			stdin:          cert1PEM,
-			args:           []string{"-id", "otherdomain test"},
-			expectedStderr: "Error: \"otherdomain%20test\" is not a valid trust domain SPIFFE ID: invalid scheme\n",
 		},
 		{
 			name:           "invalid bundle (pem)",
@@ -269,7 +258,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			name:           "invalid file name",
-			expectedStderr: "Error: unable to load bundle data: open /not/a/real/path/to/a/bundle: no such file or directory\n",
+			expectedStderr: fmt.Sprintf("Error: unable to load bundle data: open /not/a/real/path/to/a/bundle: %s\n", spiretest.PathNotFound()),
 			args:           []string{"-id", "spiffe://otherdomain.test", "-path", "/not/a/real/path/to/a/bundle"},
 		},
 		{
@@ -351,20 +340,20 @@ func TestSet(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, newSetCommand)
-			args := append(test.args, tt.args...)
 			test.server.expectedSetBundle = tt.toSet
 			test.server.setResponse = tt.setResponse
 			test.server.err = tt.serverErr
 
 			test.stdin.WriteString(tt.stdin)
+			var extraArgs []string
 			if tt.fileData != "" {
 				tmpDir := spiretest.TempDir(t)
 				bundlePath := filepath.Join(tmpDir, "bundle_data")
 				require.NoError(t, os.WriteFile(bundlePath, []byte(tt.fileData), 0600))
-				args = append(args, "-path", bundlePath)
+				extraArgs = append(extraArgs, "-path", bundlePath)
 			}
 
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(append(tt.args, extraArgs...)...))
 
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)
@@ -454,8 +443,7 @@ func TestCount(t *testing.T) {
 			}
 
 			test.server.bundles = bundles[0:tt.count]
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, 1, rc)
@@ -526,11 +514,6 @@ func TestList(t *testing.T) {
 			expectedStdout: cert2PEM,
 		},
 		{
-			name:           "one bundle invalid id",
-			args:           []string{"-id", "spiffe://domain2.test/host"},
-			expectedStderr: "Error: \"spiffe://domain2.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
-		},
-		{
 			name:           "one bundle server fails",
 			args:           []string{"-id", "spiffe://domain2.test"},
 			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
@@ -574,8 +557,7 @@ func TestList(t *testing.T) {
 				},
 			}
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, 1, rc)
@@ -695,11 +677,6 @@ func TestDelete(t *testing.T) {
 			expectedStderr: "Error: unsupported mode \"invalid\"\n",
 		},
 		{
-			name:           "invalid id",
-			args:           []string{"-id", "spiffe://domain1.test/host"},
-			expectedStderr: "Error: \"spiffe://domain1.test/host\" is not a valid trust domain SPIFFE ID: path is not empty\n",
-		},
-		{
 			name:           "server fails",
 			args:           []string{"-id", "spiffe://domain1.test"},
 			expectedStderr: "Error: failed to delete federated bundle: rpc error: code = Internal desc = some error\n",
@@ -730,8 +707,7 @@ func TestDelete(t *testing.T) {
 			test.server.mode = tt.mode
 			test.server.toDelete = tt.toDelete
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expectedStderr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())

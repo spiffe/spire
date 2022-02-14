@@ -124,7 +124,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by parent ID using invalid ID",
 			args:   []string{"-parentID", "invalid-id"},
-			expErr: "Error: error parsing parent ID \"invalid-id\": spiffeid: invalid scheme\n",
+			expErr: "Error: error parsing parent ID \"invalid-id\": scheme is missing or invalid\n",
 		},
 		{
 			name: "List by SPIFFE ID",
@@ -143,7 +143,7 @@ func TestShow(t *testing.T) {
 		{
 			name:   "List by SPIFFE ID using invalid ID",
 			args:   []string{"-spiffeID", "invalid-id"},
-			expErr: "Error: error parsing SPIFFE ID \"invalid-id\": spiffeid: invalid scheme\n",
+			expErr: "Error: error parsing SPIFFE ID \"invalid-id\": scheme is missing or invalid\n",
 		},
 		{
 			name: "List by selectors: default matcher",
@@ -356,8 +356,7 @@ func TestShow(t *testing.T) {
 			test.server.expGetEntryReq = tt.expGetReq
 			test.server.getEntryResp = tt.fakeGetResp
 
-			args := append(test.args, tt.args...)
-			rc := test.client.Run(args)
+			rc := test.client.Run(test.args(tt.args...))
 			if tt.expErr != "" {
 				require.Equal(t, 1, rc)
 				require.Equal(t, tt.expErr, test.stderr.String())

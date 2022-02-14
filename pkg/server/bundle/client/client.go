@@ -23,7 +23,7 @@ type SPIFFEAuthConfig struct {
 	RootCAs []*x509.Certificate
 }
 
-type ClientConfig struct { //nolint: golint // name stutter is intentional
+type ClientConfig struct { //revive:disable-line:exported name stutter is intentional
 	// TrustDomain is the federated trust domain (i.e. domain.test)
 	TrustDomain spiffeid.TrustDomain
 

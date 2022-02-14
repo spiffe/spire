@@ -5,11 +5,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"sync"
-	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -33,9 +34,9 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type configuration struct {
-	trustDomain  string
+	trustDomain  spiffeid.TrustDomain
 	trustBundle  *x509.CertPool
-	pathTemplate *template.Template
+	pathTemplate *agentpathtemplate.Template
 }
 
 type Config struct {
@@ -139,7 +140,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeSpiffeID(config.trustDomain, config.pathTemplate, leaf)
+	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -147,7 +148,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:       spiffeid,
+				SpiffeId:       spiffeid.String(),
 				SelectorValues: buildSelectorValues(leaf, chains),
 			},
 		},
@@ -168,6 +169,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
 
+	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+	}
+
 	bundles, err := getBundles(hclConfig)
 	if err != nil {
 		return nil, err
@@ -175,7 +181,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	pathTemplate := x509pop.DefaultAgentPathTemplate
 	if len(hclConfig.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(hclConfig.AgentPathTemplate)
+		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
 		}
@@ -183,7 +189,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	p.setConfiguration(&configuration{
-		trustDomain:  req.CoreConfiguration.TrustDomain,
+		trustDomain:  trustDomain,
 		trustBundle:  util.NewCertPool(bundles...),
 		pathTemplate: pathTemplate,
 	})

@@ -211,7 +211,7 @@ func CreateX509SVID(tb testing.TB, parent *x509.Certificate, parentKey crypto.Si
 		WithSubject(pkix.Name{
 			CommonName: fmt.Sprintf("X509-SVID %x", serial),
 		}),
-		WithURIs(id.URL()))
+		WithID(id))
 
 	return CreateX509Certificate(tb, parent, parentKey, options...)
 }
@@ -269,9 +269,9 @@ func WithIPAddresses(ips ...net.IP) CertificateOption {
 	})
 }
 
-func WithURIs(uris ...*url.URL) CertificateOption {
+func WithID(id spiffeid.ID) CertificateOption {
 	return certificateOption(func(c *x509.Certificate) {
-		c.URIs = uris
+		c.URIs = []*url.URL{id.URL()}
 	})
 }
 

@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestDeleteX509SVID(t *testing.T) {
+func TestV1DeleteX509SVID(t *testing.T) {
 	svidValues := []string{"a:1", "b:2"}
 
 	expectRequest := &svidstorev1.DeleteX509SVIDRequest{
@@ -41,7 +41,7 @@ func TestDeleteX509SVID(t *testing.T) {
 	})
 }
 
-func TestPutX509SVID(t *testing.T) {
+func TestV1PutX509SVID(t *testing.T) {
 	expiresAt := time.Now().Add(time.Minute)
 	key := testkey.MustEC256()
 	keyData, err := x509.MarshalPKCS8PrivateKey(key)

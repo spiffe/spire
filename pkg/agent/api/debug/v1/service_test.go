@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/agent/api/debug/v1"
+	debug "github.com/spiffe/spire/pkg/agent/api/debug/v1"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
@@ -38,7 +38,7 @@ func TestGetInfo(t *testing.T) {
 	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
 	cachedBundle := bundleutil.BundleFromRootCA(trustDomain, cachedBundleCert)
 
-	x509SVID := ca.CreateX509SVID(td.NewID("/spire/agent/foo"))
+	x509SVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/spire/agent/foo"))
 
 	x509SVIDState := svid.State{
 		SVID: x509SVID.Certificates,
@@ -58,12 +58,12 @@ func TestGetInfo(t *testing.T) {
 
 	// Create intermediate with SPIFFE ID and subject
 	intermediateCANoAfter := now.Add(2 * time.Minute)
-	intermediateCA := ca.ChildCA(testca.WithURIs(td.ID().URL()),
+	intermediateCA := ca.ChildCA(testca.WithID(td.ID()),
 		testca.WithLifetime(now, intermediateCANoAfter),
 		testca.WithSubject(pkix.Name{CommonName: "UPSTREAM-1"}))
 
 	// Create SVID with intermediate
-	svidWithIntermediate := intermediateCA.CreateX509SVID(td.NewID("/spire/agent/bar"))
+	svidWithIntermediate := intermediateCA.CreateX509SVID(spiffeid.RequireFromPath(td, "/spire/agent/bar"))
 	stateWithIntermediate := svid.State{
 		SVID: svidWithIntermediate.Certificates,
 		Key:  svidWithIntermediate.PrivateKey.(*ecdsa.PrivateKey),

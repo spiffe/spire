@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -43,7 +44,7 @@ func TestNewClient(t *testing.T) {
 			desc: "success",
 			configString: `host_key_path = "./testdata/dummy_agent_ssh_key"
 						   host_cert_path = "./testdata/dummy_agent_ssh_key-cert.pub"
-						   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`,
+						   agent_path_template = "/{{ .PluginName}}/{{ .Fingerprint }}"`,
 			requireClient: func(t *testing.T, c *Client) {
 				require.NotNil(t, c)
 				require.Equal(t, c.signer.PublicKey(), c.cert.Key)
@@ -77,7 +78,7 @@ func TestNewServer(t *testing.T) {
 	}{
 		{
 			desc:      "missing trust domain",
-			expectErr: "trust_domain global configuration is required",
+			expectErr: "trust_domain global configuration is invalid",
 		},
 		{
 			desc:         "bad config",
@@ -106,11 +107,11 @@ func TestNewServer(t *testing.T) {
 			desc: "success",
 			configString: fmt.Sprintf(`cert_authorities = [%q]
 									   canonical_domain = "local"
-									   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
+									   agent_path_template = "/{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
 			trustDomain: "foo.test",
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
-				require.Equal(t, "foo.test", s.trustDomain)
+				require.Equal(t, "foo.test", s.trustDomain.String())
 				require.Equal(t, "local", s.canonicalDomain)
 				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(testCertAuthority))
@@ -122,11 +123,11 @@ func TestNewServer(t *testing.T) {
 			desc: "success merge config",
 			configString: fmt.Sprintf(`cert_authorities = [%q]
 									   cert_authorities_path = "./testdata/many_ssh_cert_authorities.pub"
-									   agent_path_template = "{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
+									   agent_path_template = "/{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
 			trustDomain: "foo.test",
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
-				require.Equal(t, "foo.test", s.trustDomain)
+				require.Equal(t, "foo.test", s.trustDomain.String())
 				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey := requireParsePubkey(t, testCertAuthority)
 				pubkey2 := requireParsePubkey(t, testCertAuthority2)
@@ -169,7 +170,7 @@ func TestPubkeysFromPath(t *testing.T) {
 		{
 			desc:       "nonexistent file",
 			pubkeyPath: "blahblahblah",
-			expectErr:  "open blahblahblah: no such file or directory",
+			expectErr:  fmt.Sprintf("open blahblahblah: %s", spiretest.FileNotFound()),
 		},
 		{
 			desc:       "empty file",

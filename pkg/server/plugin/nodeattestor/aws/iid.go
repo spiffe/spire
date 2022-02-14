@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,8 +23,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -93,8 +94,8 @@ type IIDAttestorConfig struct {
 	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate               string   `hcl:"agent_path_template"`
 	AssumeRole                      string   `hcl:"assume_role"`
-	pathTemplate                    *template.Template
-	trustDomain                     string
+	pathTemplate                    *agentpathtemplate.Template
+	trustDomain                     spiffeid.TrustDomain
 	awsCAPublicKey                  *rsa.PublicKey
 }
 
@@ -179,7 +180,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
-	agentID, err := makeSpiffeID(c.trustDomain, c.pathTemplate, attestationData, tags)
+	agentID, err := makeAgentID(c.trustDomain, c.pathTemplate, attestationData, tags)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create spiffe ID: %v", err)
 	}
@@ -230,14 +231,14 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	if req.CoreConfiguration == nil {
 		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
+	config.trustDomain, err = spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "core configuration has invalid trust domain: %v", err)
 	}
-	config.trustDomain = req.CoreConfiguration.TrustDomain
 
 	config.pathTemplate = defaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+		tmpl, err := agentpathtemplate.Parse(config.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}

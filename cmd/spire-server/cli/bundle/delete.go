@@ -10,7 +10,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
 )
 
@@ -55,11 +54,6 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return errors.New("id is required")
 	}
 
-	id, err := idutil.NormalizeSpiffeID(c.id, idutil.AllowAnyTrustDomain())
-	if err != nil {
-		return err
-	}
-
 	mode, err := deleteModeFromFlag(c.mode)
 	if err != nil {
 		return err
@@ -69,7 +63,7 @@ func (c *deleteCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 	resp, err := bundleClient.BatchDeleteFederatedBundle(ctx, &bundlev1.BatchDeleteFederatedBundleRequest{
 		Mode: mode,
 		TrustDomains: []string{
-			id,
+			c.id,
 		},
 	})
 	if err != nil {

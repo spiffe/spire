@@ -109,7 +109,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	// Create spire-server client
 	serverAddr := fmt.Sprintf("%s:%s", p.config.ServerAddr, p.config.ServerPort)
 	workloadAPISocket := fmt.Sprintf("unix://%s", p.config.WorkloadAPISocket)
-	p.serverClient = newServerClient(td.NewID(idutil.ServerIDPath), serverAddr, workloadAPISocket, p.log)
+
+	serverID, err := idutil.ServerID(td)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to build server ID: %v", err)
+	}
+
+	p.serverClient = newServerClient(serverID, serverAddr, workloadAPISocket, p.log)
 
 	return &configv1.ConfigureResponse{}, nil
 }

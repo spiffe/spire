@@ -25,7 +25,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -64,6 +63,8 @@ type Config struct {
 }
 
 type serverConfig struct {
+	AdminIDs        []string           `hcl:"admin_ids"`
+	AgentTTL        string             `hcl:"agent_ttl"`
 	AuditLogEnabled bool               `hcl:"audit_log_enabled"`
 	BindAddress     string             `hcl:"bind_address"`
 	BindPort        int                `hcl:"bind_port"`
@@ -91,9 +92,6 @@ type serverConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
-
-	// TODO: Remove for 1.1.0
-	AllowUnsafeIDs *bool `hcl:"allow_unsafe_ids"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -347,13 +345,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.Log = logger
 
-	// This is a terrible hack but is just a short-term band-aid.
-	// TODO: Deprecated and should be removed in 1.1
-	if c.Server.AllowUnsafeIDs != nil {
-		sc.Log.Warn("The insecure allow_unsafe_ids configurable is deprecated and will be removed in a future release.")
-		idutil.SetAllowUnsafeIDs(*c.Server.AllowUnsafeIDs)
-	}
-
 	ip := net.ParseIP(c.Server.BindAddress)
 	if ip == nil {
 		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
@@ -375,7 +366,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
 
-	td, err := idutil.TrustDomainFromString(c.Server.TrustDomain)
+	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse trust_domain %q: %w", c.Server.TrustDomain, err)
 	}
@@ -415,7 +406,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		federatesWith := map[spiffeid.TrustDomain]bundleClient.TrustDomainConfig{}
 
 		for trustDomain, config := range c.Server.Federation.FederatesWith {
-			td, err := idutil.TrustDomainFromString(trustDomain)
+			td, err := spiffeid.TrustDomainFromString(trustDomain)
 			if err != nil {
 				return nil, err
 			}
@@ -439,6 +430,25 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingPort = c.Server.ProfilingPort
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
+
+	for _, adminID := range c.Server.AdminIDs {
+		id, err := spiffeid.FromString(adminID)
+		switch {
+		case err != nil:
+			return nil, fmt.Errorf("could not parse admin ID %q: %w", adminID, err)
+		case !id.MemberOf(sc.TrustDomain):
+			return nil, fmt.Errorf("admin ID %q does not belong to trust domain %q", id, sc.TrustDomain)
+		}
+		sc.AdminIDs = append(sc.AdminIDs, id)
+	}
+
+	if c.Server.AgentTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.AgentTTL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse agent ttl %q: %w", c.Server.AgentTTL, err)
+		}
+		sc.AgentTTL = ttl
+	}
 
 	if c.Server.DefaultSVIDTTL != "" {
 		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)

@@ -160,3 +160,11 @@ func AssertErrorPrefix(tb testing.TB, err error, prefix string) bool {
 	}
 	return true
 }
+
+func AssertHasPrefix(tb testing.TB, msg string, prefix string) bool {
+	tb.Helper()
+	if !strings.HasPrefix(msg, prefix) {
+		return assert.Fail(tb, fmt.Sprintf("string %q does not have prefix %q", msg, prefix))
+	}
+	return true
+}

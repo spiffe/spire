@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/hashicorp/hcl"
 
 	hclog "github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -65,8 +66,8 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig is the config for IITAttestorPlugin.
 type IITAttestorConfig struct {
-	idPathTemplate      *template.Template
-	trustDomain         string
+	idPathTemplate      *agentpathtemplate.Template
+	trustDomain         spiffeid.TrustDomain
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
@@ -94,17 +95,17 @@ func (p *IITAttestorPlugin) SetLogger(log hclog.Logger) {
 
 // Attest implements the server side logic for the gcp iit node attestation plugin.
 func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
-	c, err := p.getConfig()
-	if err != nil {
-		return err
-	}
-
 	jwks, err := p.jwksRetriever.retrieveJWKS(stream.Context())
 	if err != nil {
 		return err
 	}
 
 	identityMetadata, err := validateAttestationAndExtractIdentityMetadata(stream, jwks)
+	if err != nil {
+		return err
+	}
+
+	c, err := p.getConfig()
 	if err != nil {
 		return err
 	}
@@ -120,9 +121,9 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
 	}
 
-	id, err := gcp.MakeSpiffeID(c.trustDomain, c.idPathTemplate, identityMetadata)
+	id, err := gcp.MakeAgentID(c.trustDomain, c.idPathTemplate, identityMetadata)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create spiffe ID: %v", err)
+		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
 
 	attested, err := p.IsAttested(stream.Context(), id.String())
@@ -178,7 +179,11 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	if req.CoreConfiguration.TrustDomain == "" {
 		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
 	}
-	hclConfig.trustDomain = req.CoreConfiguration.TrustDomain
+
+	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+	}
 
 	if len(hclConfig.ProjectIDAllowList) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "projectid_allow_list is required")
@@ -187,7 +192,7 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	tmpl := gcp.DefaultAgentPathTemplate
 	if len(hclConfig.AgentPathTemplate) > 0 {
 		var err error
-		tmpl, err = template.New("agent-path").Parse(hclConfig.AgentPathTemplate)
+		tmpl, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent path template: %q", hclConfig.AgentPathTemplate)
 		}
@@ -212,6 +217,7 @@ func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	}
 
 	hclConfig.idPathTemplate = tmpl
+	hclConfig.trustDomain = trustDomain
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()

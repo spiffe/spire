@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/template"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -25,7 +26,7 @@ const (
 
 var (
 	// DefaultAgentPathTemplate is the default text/template.
-	DefaultAgentPathTemplate = template.Must(template.New("agent-path").Parse("{{ .PluginName}}/{{ .Fingerprint }}"))
+	DefaultAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName}}/{{ .Fingerprint }}")
 )
 
 // agentPathTemplateData is used to hydrate the agent path template used in generating spiffe ids.
@@ -45,8 +46,8 @@ type Client struct {
 // Server is a factory for generating server handshake objects.
 type Server struct {
 	certChecker       *ssh.CertChecker
-	agentPathTemplate *template.Template
-	trustDomain       string
+	agentPathTemplate *agentpathtemplate.Template
+	trustDomain       spiffeid.TrustDomain
 	canonicalDomain   string
 }
 
@@ -115,8 +116,9 @@ func getCertAndSignerFromBytes(certBytes, keyBytes []byte) (*ssh.Certificate, ss
 }
 
 func NewServer(trustDomain, configString string) (*Server, error) {
-	if trustDomain == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain global configuration is required")
+	td, err := spiffeid.TrustDomainFromString(trustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "trust_domain global configuration is invalid: %v", err)
 	}
 	config := new(ServerConfig)
 	if err := hcl.Decode(config, configString); err != nil {
@@ -142,7 +144,7 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	}
 	agentPathTemplate := DefaultAgentPathTemplate
 	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := template.New("agent-path").Parse(config.AgentPathTemplate)
+		tmpl, err := agentpathtemplate.Parse(config.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}
@@ -151,7 +153,7 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 	return &Server{
 		certChecker:       certChecker,
 		agentPathTemplate: agentPathTemplate,
-		trustDomain:       trustDomain,
+		trustDomain:       td,
 		canonicalDomain:   config.CanonicalDomain,
 	}, nil
 }

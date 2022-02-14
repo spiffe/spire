@@ -85,6 +85,12 @@ func (n *NodeReconciler) updateorCreateNodeEntry(ctx context.Context, node *core
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	serverID, err := idutil.ServerID(trustDomain)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Set up new SPIFFE ID
 	spiffeID := &spiffeidv1beta1.SpiffeID{
 		ObjectMeta: metav1.ObjectMeta{
@@ -95,7 +101,7 @@ func (n *NodeReconciler) updateorCreateNodeEntry(ctx context.Context, node *core
 			},
 		},
 		Spec: spiffeidv1beta1.SpiffeIDSpec{
-			ParentId: idutil.ServerID(trustDomain).String(),
+			ParentId: serverID.String(),
 			SpiffeId: n.nodeID(node.ObjectMeta.Name),
 			Selector: spiffeidv1beta1.Selector{
 				Cluster:      n.c.Cluster,

@@ -17,10 +17,10 @@ import (
 )
 
 func TestWithCallerEntries(t *testing.T) {
-	adminID := spiffeid.Must("example.org", "admin")
+	adminID := spiffeid.RequireFromString("spiffe://example.org/admin")
 	adminEntries := []*types.Entry{{Id: "A"}}
 
-	failMeID := spiffeid.Must("example.org", "fail-me")
+	failMeID := spiffeid.RequireFromString("spiffe://example.org/fail-me")
 
 	entryFetcher := middleware.EntryFetcherFunc(
 		func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {

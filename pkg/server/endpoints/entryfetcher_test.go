@@ -3,7 +3,6 @@ package endpoints
 import (
 	"context"
 	"errors"
-	"strconv"
 	"testing"
 	"time"
 
@@ -70,7 +69,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
-	agentID := trustDomain.NewID("/root")
+	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	expected := setupExpectedEntriesData(t, agentID)
 
 	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
@@ -105,7 +104,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
-	agentID := trustDomain.NewID("/root")
+	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	var expectedEntries []*types.Entry
 
 	type buildCacheResult struct {
@@ -220,7 +219,7 @@ func setupExpectedEntriesData(t *testing.T, agentID spiffeid.ID) []*types.Entry 
 	const numEntries = 2
 	entryIDs := make([]spiffeid.ID, numEntries)
 	for i := 0; i < numEntries; i++ {
-		entryIDs[i] = trustDomain.NewID(strconv.Itoa(i))
+		entryIDs[i] = spiffeid.RequireFromPathf(trustDomain, "/%d", i)
 	}
 
 	irrelevantSelectors := []*common.Selector{

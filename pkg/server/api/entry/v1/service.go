@@ -9,7 +9,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -76,10 +75,10 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 	}
 
 	if req.Filter != nil {
-		rpccontext.AddRPCAuditFields(ctx, fieldsFromListEntryFilter(s.td, req.Filter))
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromListEntryFilter(ctx, s.td, req.Filter))
 
 		if req.Filter.ByParentId != nil {
-			parentID, err := api.TrustDomainMemberIDFromProto(s.td, req.Filter.ByParentId)
+			parentID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, req.Filter.ByParentId)
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
 			}
@@ -87,7 +86,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 		}
 
 		if req.Filter.BySpiffeId != nil {
-			spiffeID, err := api.TrustDomainWorkloadIDFromProto(s.td, req.Filter.BySpiffeId)
+			spiffeID, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.Filter.BySpiffeId)
 			if err != nil {
 				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
 			}
@@ -186,7 +185,7 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreate
 		r := s.createEntry(ctx, eachEntry, req.OutputMask)
 		results = append(results, r)
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
-			return fieldsFromEntryProto(eachEntry, nil)
+			return fieldsFromEntryProto(ctx, eachEntry, nil)
 		})
 	}
 
@@ -198,7 +197,7 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreate
 func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *types.EntryMask) *entryv1.BatchCreateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 
-	cEntry, err := api.ProtoToRegistrationEntry(s.td, e)
+	cEntry, err := api.ProtoToRegistrationEntry(ctx, s.td, e)
 	if err != nil {
 		return &entryv1.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
@@ -241,7 +240,7 @@ func (s *Service) BatchUpdateEntry(ctx context.Context, req *entryv1.BatchUpdate
 		e := s.updateEntry(ctx, eachEntry, req.InputMask, req.OutputMask)
 		results = append(results, e)
 		rpccontext.AuditRPCWithTypesStatus(ctx, e.Status, func() logrus.Fields {
-			return fieldsFromEntryProto(eachEntry, req.InputMask)
+			return fieldsFromEntryProto(ctx, eachEntry, req.InputMask)
 		})
 	}
 
@@ -388,7 +387,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	log := rpccontext.Logger(ctx)
 	log = log.WithField(telemetry.RegistrationID, e.Id)
 
-	convEntry, err := api.ProtoToRegistrationEntryWithMask(s.td, e, inputMask)
+	convEntry, err := api.ProtoToRegistrationEntryWithMask(ctx, s.td, e, inputMask)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
@@ -432,7 +431,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	}
 }
 
-func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {
+func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {
 	fields := logrus.Fields{}
 
 	if proto == nil {
@@ -444,14 +443,14 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 	}
 
 	if (inputMask == nil || inputMask.SpiffeId) && proto.SpiffeId != nil {
-		id, err := idutil.IDFromProto(proto.SpiffeId)
+		id, err := api.IDFromProto(ctx, proto.SpiffeId)
 		if err == nil {
 			fields[telemetry.SPIFFEID] = id.String()
 		}
 	}
 
 	if (inputMask == nil || inputMask.ParentId) && proto.ParentId != nil {
-		id, err := idutil.IDFromProto(proto.ParentId)
+		id, err := api.IDFromProto(ctx, proto.ParentId)
 		if err == nil {
 			fields[telemetry.ParentID] = id.String()
 		}
@@ -502,17 +501,17 @@ func fieldsFromEntryProto(proto *types.Entry, inputMask *types.EntryMask) logrus
 	return fields
 }
 
-func fieldsFromListEntryFilter(td spiffeid.TrustDomain, filter *entryv1.ListEntriesRequest_Filter) logrus.Fields {
+func fieldsFromListEntryFilter(ctx context.Context, td spiffeid.TrustDomain, filter *entryv1.ListEntriesRequest_Filter) logrus.Fields {
 	fields := logrus.Fields{}
 
 	if filter.ByParentId != nil {
-		if parentID, err := api.TrustDomainMemberIDFromProto(td, filter.ByParentId); err == nil {
+		if parentID, err := api.TrustDomainMemberIDFromProto(ctx, td, filter.ByParentId); err == nil {
 			fields[telemetry.ParentID] = parentID.String()
 		}
 	}
 
 	if filter.BySpiffeId != nil {
-		if id, err := api.TrustDomainWorkloadIDFromProto(td, filter.BySpiffeId); err == nil {
+		if id, err := api.TrustDomainWorkloadIDFromProto(ctx, td, filter.BySpiffeId); err == nil {
 			fields[telemetry.SPIFFEID] = id.String()
 		}
 	}

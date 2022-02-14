@@ -64,7 +64,7 @@ func TestProtoFromAttestedNode(t *testing.T) {
 			n: &common.AttestedNode{
 				SpiffeId: "http://example.org/node",
 			},
-			expectErr: "spiffeid: invalid scheme",
+			expectErr: "scheme is missing or invalid",
 		},
 	} {
 		tt := tt

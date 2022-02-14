@@ -179,7 +179,7 @@ func doBanStep(ctx context.Context) error {
 
 	agentClient := c.AgentClient()
 	// Now ban the agent using the local connection
-	_, err := agentClient.BanAgent(ctx, &agent.BanAgentRequest{Id: &types.SPIFFEID{TrustDomain: "domain.test", Path: "spire/agent/join_token/" + *tokenName}})
+	_, err := agentClient.BanAgent(ctx, &agent.BanAgentRequest{Id: &types.SPIFFEID{TrustDomain: "domain.test", Path: "/spire/agent/join_token/" + *tokenName}})
 	if err != nil {
 		return fmt.Errorf("failed to ban agent: %w", err)
 	}

@@ -454,14 +454,14 @@ func createCACertificate(t *testing.T) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		URIs:                  []*url.URL{idutil.TrustDomainURI(trustDomain.String())},
+		URIs:                  []*url.URL{trustDomain.ID().URL()},
 	}
 	return createCertificate(t, tmpl, tmpl, caKey, caKey)
 }
 
 func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certificate {
 	tmpl := &x509.Certificate{
-		URIs:     []*url.URL{idutil.ServerID(trustDomain).URL()},
+		URIs:     []*url.URL{idutil.RequireServerID(trustDomain).URL()},
 		DNSNames: []string{"localhost"},
 	}
 	return createCertificate(t, tmpl, caCert, serverKey, caKey)
@@ -469,7 +469,7 @@ func createServerCertificate(t *testing.T, caCert *x509.Certificate) *x509.Certi
 
 func createAgentCertificate(t *testing.T, caCert *x509.Certificate, agentKey crypto.Signer, path string) *x509.Certificate {
 	tmpl := &x509.Certificate{
-		URIs: []*url.URL{idutil.AgentURI(trustDomain.String(), path)},
+		URIs: []*url.URL{idutil.RequireAgentID(trustDomain, path).URL()},
 	}
 	return createCertificate(t, tmpl, caCert, agentKey, caKey)
 }
@@ -477,7 +477,7 @@ func createAgentCertificate(t *testing.T, caCert *x509.Certificate, agentKey cry
 func createExpiredCertificate(t *testing.T, caCert *x509.Certificate, agentKey crypto.Signer) *x509.Certificate {
 	tmpl := &x509.Certificate{
 		NotAfter: time.Now().Add(-1 * time.Hour),
-		URIs:     []*url.URL{idutil.AgentURI(trustDomain.String(), "/test/expired")},
+		URIs:     []*url.URL{idutil.RequireAgentID(trustDomain, "/test/expired").URL()},
 	}
 	return createCertificate(t, tmpl, caCert, agentKey, caKey)
 }

@@ -52,6 +52,9 @@ type Config struct {
 	// Array of profiles names that will be generated on each profiling tick.
 	ProfilingNames []string
 
+	// AgentTTL is time-to-live for agent SVIDs
+	AgentTTL time.Duration
+
 	// SVIDTTL is default time-to-live for SVIDs
 	SVIDTTL time.Duration
 
@@ -90,6 +93,10 @@ type Config struct {
 
 	// AuthPolicyEngineConfig determines the config for authz policy
 	AuthOpaPolicyEngineConfig *authpolicy.OpaEngineConfig
+
+	// AdminIDs are a list of fixed IDs that when presented by a caller in an
+	// X509-SVID, are granted admin rights.
+	AdminIDs []spiffeid.ID
 }
 
 type ExperimentalConfig struct {

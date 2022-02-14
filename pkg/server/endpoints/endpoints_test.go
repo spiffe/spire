@@ -41,16 +41,17 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
 
 var (
 	testTD       = spiffeid.RequireTrustDomainFromString("domain.test")
-	serverID     = testTD.NewID("/spire/server")
-	agentID      = testTD.NewID("/spire/agent/foo")
-	adminID      = testTD.NewID("/admin")
-	downstreamID = testTD.NewID("/downstream")
+	serverID     = spiffeid.RequireFromPath(testTD, "/spire/server")
+	agentID      = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
+	adminID      = spiffeid.RequireFromPath(testTD, "/admin")
+	downstreamID = spiffeid.RequireFromPath(testTD, "/downstream")
 	rateLimit    = RateLimitConfig{
 		Attestation: true,
 		Signing:     true,
@@ -256,7 +257,7 @@ func TestListenAndServe(t *testing.T) {
 		return conn
 	}
 
-	udsConn, err := grpc.DialContext(ctx, "unix://"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithInsecure())
+	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer udsConn.Close()
 

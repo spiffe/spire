@@ -27,8 +27,8 @@ import (
 )
 
 func TestWithAuthorizationPreprocess(t *testing.T) {
-	id := spiffeid.Must("example.org", "workload")
-	x509SVID := &x509.Certificate{URIs: []*url.URL{id.URL()}}
+	workloadID := spiffeid.RequireFromString("spiffe://example.org/workload")
+	x509SVID := &x509.Certificate{URIs: []*url.URL{workloadID.URL()}}
 
 	unixPeer := &peer.Peer{
 		Addr: &net.UnixAddr{
@@ -57,7 +57,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		},
 	}
 
-	adminx509SVID := &x509.Certificate{URIs: []*url.URL{adminID.URL()}}
+	adminX509SVID := &x509.Certificate{URIs: []*url.URL{adminID.URL()}}
 	adminPeer := &peer.Peer{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("2.2.2.2"),
@@ -66,12 +66,26 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		AuthInfo: credentials.TLSInfo{
 			State: tls.ConnectionState{
 				HandshakeComplete: true,
-				PeerCertificates:  []*x509.Certificate{adminx509SVID},
+				PeerCertificates:  []*x509.Certificate{adminX509SVID},
 			},
 		},
 	}
 
-	downstreamx509SVID := &x509.Certificate{URIs: []*url.URL{downstreamID.URL()}}
+	staticAdminX509SVID := &x509.Certificate{URIs: []*url.URL{staticAdminID.URL()}}
+	staticAdminPeer := &peer.Peer{
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("2.2.2.2"),
+			Port: 2,
+		},
+		AuthInfo: credentials.TLSInfo{
+			State: tls.ConnectionState{
+				HandshakeComplete: true,
+				PeerCertificates:  []*x509.Certificate{staticAdminX509SVID},
+			},
+		},
+	}
+
+	downstreamX509SVID := &x509.Certificate{URIs: []*url.URL{downstreamID.URL()}}
 	downstreamPeer := &peer.Peer{
 		Addr: &net.TCPAddr{
 			IP:   net.ParseIP("2.2.2.2"),
@@ -80,7 +94,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		AuthInfo: credentials.TLSInfo{
 			State: tls.ConnectionState{
 				HandshakeComplete: true,
-				PeerCertificates:  []*x509.Certificate{downstreamx509SVID},
+				PeerCertificates:  []*x509.Certificate{downstreamX509SVID},
 			},
 		},
 	}
@@ -92,6 +106,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		peer            *peer.Peer
 		rego            string
 		agentAuthorizer middleware.AgentAuthorizer
+		adminIDs        []spiffeid.ID
 		authorizerErr   error
 		expectCode      codes.Code
 		expectMsg       string
@@ -138,6 +153,16 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			name:       "allow_if_admin admin caller test",
 			fullMethod: fakeFullMethod,
 			peer:       adminPeer,
+			rego: simpleRego(map[string]bool{
+				"allow_if_admin": true,
+			}),
+			expectCode: codes.OK,
+		},
+		{
+			name:       "allow_if_admin static admin caller test",
+			fullMethod: fakeFullMethod,
+			peer:       staticAdminPeer,
+			adminIDs:   []spiffeid.ID{staticAdminID},
 			rego: simpleRego(map[string]bool{
 				"allow_if_admin": true,
 			}),
@@ -197,7 +222,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			name:       "check passing of caller id positive test",
 			fullMethod: fakeFullMethod,
 			peer:       mtlsPeer,
-			rego:       condCheckRego(fmt.Sprintf("input.caller == \"%s\"", id.String())),
+			rego:       condCheckRego(fmt.Sprintf("input.caller == \"%s\"", workloadID.String())),
 			expectCode: codes.OK,
 		},
 		{
@@ -265,7 +290,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			if tt.agentAuthorizer == nil {
 				tt.agentAuthorizer = noAgentAuthorizer
 			}
-			m := middleware.WithAuthorization(policyEngine, entryFetcher, tt.agentAuthorizer)
+			m := middleware.WithAuthorization(policyEngine, entryFetcher, tt.agentAuthorizer, tt.adminIDs)
 
 			// Set up the incoming context with a logger and optionally a peer.
 			log, _ := test.NewNullLogger()
@@ -292,31 +317,35 @@ func TestWithAuthorizationPostprocess(t *testing.T) {
 	ctx := context.Background()
 	policyEngine, err := authpolicy.DefaultAuthPolicy(ctx)
 	require.NoError(t, err, "failed to initialize policy engine")
-	m := middleware.WithAuthorization(policyEngine, entryFetcher, yesAgentAuthorizer)
+	m := middleware.WithAuthorization(policyEngine, entryFetcher, yesAgentAuthorizer, nil)
 
 	m.Postprocess(context.Background(), "", false, nil)
 	m.Postprocess(context.Background(), "", true, errors.New("ohno"))
 }
 
 var (
-	adminID      = spiffeid.Must("example.org", "admin")
+	td           = spiffeid.RequireTrustDomainFromString("example.org")
+	adminID      = spiffeid.RequireFromPath(td, "/admin")
 	adminEntries = []*types.Entry{
 		{Id: "1", Admin: true},
 		{Id: "2"},
 	}
 
-	nonAdminID      = spiffeid.Must("example.org", "non-admin")
+	staticAdminID = spiffeid.RequireFromPath(td, "/static-admin")
+
+	nonAdminID = spiffeid.RequireFromPath(td, "/non-admin")
+
 	nonAdminEntries = []*types.Entry{
 		{Id: "3"},
 	}
 
-	downstreamID      = spiffeid.Must("example.org", "downstream")
+	downstreamID      = spiffeid.RequireFromPath(td, "/downstream")
 	downstreamEntries = []*types.Entry{
 		{Id: "1", Downstream: true},
 		{Id: "2"},
 	}
 
-	nonDownstreamID      = spiffeid.Must("example.org", "non-downstream")
+	nonDownstreamID      = spiffeid.RequireFromPath(td, "/non-downstream")
 	nonDownstreamEntries = []*types.Entry{
 		{Id: "3"},
 	}

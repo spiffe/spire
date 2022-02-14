@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -70,6 +71,8 @@ type agentConfig struct {
 	TrustDomain                   string    `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
 	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
+
+	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -389,7 +392,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
 		}
 
-		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
+		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+string(os.PathSeparator)) {
 			return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
 		}
 
@@ -430,6 +433,14 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AllowUnauthenticatedVerifiers = c.Agent.AllowUnauthenticatedVerifiers
+
+	for _, authorizedDelegate := range c.Agent.AuthorizedDelegates {
+		if _, err := idutil.MemberFromString(ac.TrustDomain, authorizedDelegate); err != nil {
+			return nil, fmt.Errorf("error validating authorized delegate: %w", err)
+		}
+	}
+
+	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
 
 	return ac, nil
 }

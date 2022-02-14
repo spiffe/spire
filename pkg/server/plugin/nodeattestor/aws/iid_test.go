@@ -29,9 +29,9 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"gotest.tools/assert"
 )
 
 const (
@@ -215,7 +215,7 @@ func TestAttest(t *testing.T) {
 		},
 		{
 			name:     "success with agent_path_template",
-			config:   `agent_path_template = "{{ .PluginName }}/custom/{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}"`,
+			config:   `agent_path_template = "/{{ .PluginName }}/custom/{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}"`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/custom/test-account/test-region/test-instance",
 		},
 		{
@@ -228,14 +228,15 @@ func TestAttest(t *testing.T) {
 					},
 				}
 			},
-			config:          `agent_path_template = "{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
+			config:          `agent_path_template = "/{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
 			expectID:        "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
 			expectSelectors: []*common.Selector{{Type: "aws_iid", Value: "tag:Hostname:host1"}},
 		},
 		{
-			name:     "success with missing tags in template",
-			config:   `agent_path_template = "{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
-			expectID: "spiffe://example.org/spire/agent/aws_iid/zone1/%3Cno%20value%3E",
+			name:            "fails with missing tags in template",
+			config:          `agent_path_template = "/{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: `nodeattestor(aws_iid): failed to create spiffe ID: template: agent-path:1:33: executing "agent-path" at <.Tags.Hostname>: map has no entry for key "Hostname"`,
 		},
 		{
 			name: "success with all the selectors",
@@ -401,7 +402,7 @@ func TestConfigure(t *testing.T) {
 
 	t.Run("missing trust domain", func(t *testing.T) {
 		err := doConfig(t, catalog.CoreConfig{}, ``)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration has invalid trust domain: trust domain is missing")
 	})
 
 	t.Run("fails with access id but no secret", func(t *testing.T) {
@@ -420,7 +421,7 @@ func TestConfigure(t *testing.T) {
 
 	t.Run("bad agent template", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
-		agent_path_template = "{{ .InstanceID "
+		agent_path_template = "/{{ .InstanceID "
 		`)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent svid template")
 	})

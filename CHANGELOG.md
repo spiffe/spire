@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.2.0] - 2022-01-28
+
+### Added
+- SPIRE Server can now be configured to mint agent SVIDs with a specific TTL (#2667)
+- A set of fixed admin SPIFFE IDs can now be configured in SPIRE Server (#2677)
+
+### Changed
+- Upstream signed CA chain is now validated to prevent misconfigurations (#2644)
+- Improved SVID signing logs to include more context (#2678)
+- The deprecated agent key file (`svid.key`) is no longer proactively removed by the agent (#2671)
+- Improved errors when agent path template execution fails due to missing key (#2683)
+- SPIRE now consumes the SVIDStore V1 interface published in the SPIRE Plugin SDK (#2688)
+
+### Deprecated
+- API support for paths without leading slashes in `spire.api.types.SPIFFEID` messages has been deprecated (#2686, #2692)
+- The SVIDStore V1 interface published in SPIRE repository has been renamed to `svidstore.V1Unofficial` and is now deprecated in favor of the interface published in the SPIRE Plugin SDK (#2688) 
+
+### Removed
+- The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
+- The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
+
+## [1.1.3] - 2022-01-07
+
+### Security
+- Fixed CVE-2021-44716
+
+## [1.1.2] - 2021-12-15
+
+### Added
+- SPIRE Agent now supports the Delegated Identity API for delegating SVID management to trusted platform components (#2481)
+- The K8s Workload Registrar now supports configuring DNS name templates (#2643)
+- SPIRE Server now logs a message when expired registration entries are pruned (#2637)
+- OIDC Discovery Provider now supports setting the `use` property on the JWKs it serves (#2634)
+
+### Fixed
+- SPIRE Agent now provides reason for failure during certain kinds of attestation errors (#2628)
+
+## [1.1.1] - 2021-11-17
+
+### Added
+- SPIRE Agent can now store SVIDs with Google Cloud Secrets Manager (#2595)
+
+### Changed
+- SPIRE Server downloads federated bundles a little sooner when federated relationships are added or updated (#2585)
+
+### Fixed
+- Fixed a regression in Percona XTRA DB Cluster support introduced in 0.12.2 (#2605)
+- Kubernetes Workload Attestation fixed for Kubernetes 1.21+ (#2600)
+- SPIRE Agent now retries failed removals of SVIDs stored by SVIDStore plugins (#2620)
+
 ## [1.1.0] - 2021-10-10
 
 ### Added

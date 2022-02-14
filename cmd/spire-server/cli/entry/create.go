@@ -156,26 +156,6 @@ func (c *createCommand) validate() (err error) {
 		return errors.New("a positive TTL is required")
 	}
 
-	// make sure all SPIFFE ID's are well formed
-	c.spiffeID, err = idutil.NormalizeSpiffeID(c.spiffeID, idutil.AllowAny())
-	if err != nil {
-		return err
-	}
-
-	if c.parentID != "" {
-		c.parentID, err = idutil.NormalizeSpiffeID(c.parentID, idutil.AllowAny())
-		if err != nil {
-			return err
-		}
-	}
-
-	for i := range c.federatesWith {
-		c.federatesWith[i], err = idutil.NormalizeSpiffeID(c.federatesWith[i], idutil.AllowAny())
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 

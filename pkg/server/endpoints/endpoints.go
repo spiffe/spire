@@ -72,6 +72,7 @@ type Endpoints struct {
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
+	AdminIDs                     []spiffeid.ID
 }
 
 type APIServers struct {
@@ -132,6 +133,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
+		AdminIDs:                     c.AdminIDs,
 	}, nil
 }
 
@@ -349,5 +351,5 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
 }

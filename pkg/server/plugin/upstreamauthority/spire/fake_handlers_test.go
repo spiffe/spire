@@ -1,3 +1,7 @@
+//go:build !windows
+// +build !windows
+
+// TODO: plugin is not supported on windows until workload api works
 package spireplugin
 
 import (
@@ -78,7 +82,7 @@ func (w *whandler) startWAPITestServer(t *testing.T) {
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	svid := &w_pb.X509SVID{
-		SpiffeId:    trustDomain.NewID("workload").String(),
+		SpiffeId:    "spiffe://example.org/workload",
 		X509Svid:    w.svidCert,
 		X509SvidKey: w.svidKey,
 		Bundle:      w.cert[0].Raw,

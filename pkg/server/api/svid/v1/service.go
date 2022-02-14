@@ -10,7 +10,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -85,20 +84,16 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 
 	id, err := spiffeid.FromURI(csr.URIs[0])
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is not a valid SPIFFE ID", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
 	if err := api.VerifyTrustDomainWorkloadID(s.td, id); err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
-	if err := idutil.CheckIDURLNormalization(csr.URIs[0]); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is malformed", err)
-	}
-
 	for _, dnsName := range csr.DNSNames {
 		if err := x509util.ValidateDNS(dnsName); err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is not valid", err)
+			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is invalid", err)
 		}
 	}
 
@@ -112,12 +107,21 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
-	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
-		telemetry.SPIFFEID:  id.String(),
-		telemetry.DNSName:   strings.Join(csr.DNSNames, ","),
-		telemetry.Subject:   csr.Subject,
+
+	commonX509SVIDLogFields := logrus.Fields{
+		telemetry.SPIFFEID: id.String(),
+		telemetry.DNSName:  strings.Join(csr.DNSNames, ","),
+		telemetry.Subject:  csr.Subject,
+	}
+
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
 	})
+
+	rpccontext.AuditRPCWithFields(ctx, commonX509SVIDLogFields)
+	log.WithField(telemetry.Expiration, x509SVID[0].NotAfter.Format(time.RFC3339)).
+		WithFields(commonX509SVIDLogFields).
+		Debug("Signed X509 SVID")
 
 	return &svidv1.MintX509SVIDResponse{
 		Svid: &types.X509SVID{
@@ -129,7 +133,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 }
 
 func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(req.Id, req.Audience, req.Ttl))
+	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
 		return nil, err
@@ -237,7 +241,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		}
 	}
 
-	spiffeID, err := api.TrustDomainMemberIDFromProto(s.td, entry.SpiffeId)
+	spiffeID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, entry.SpiffeId)
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
 		return &svidv1.BatchNewX509SVIDResponse_Result{
@@ -258,6 +262,9 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		}
 	}
 
+	log.WithField(telemetry.Expiration, x509Svid[0].NotAfter.Format(time.RFC3339)).
+		Debug("Signed X509 SVID")
+
 	return &svidv1.BatchNewX509SVIDResponse_Result{
 		Svid: &types.X509SVID{
 			Id:        entry.SpiffeId,
@@ -271,13 +278,9 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) (*types.JWTSVID, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
+	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
-	}
-
-	if err := idutil.CheckIDProtoNormalization(protoID); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "spiffe ID is malformed", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
@@ -299,6 +302,11 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to get JWT-SVID expiry", err)
 	}
+
+	log.WithFields(logrus.Fields{
+		telemetry.Audience:   audience,
+		telemetry.Expiration: expiresAt.Format(time.RFC3339),
+	}).Debug("Server CA successfully signed JWT SVID")
 
 	return &types.JWTSVID{
 		Token:     token,
@@ -375,6 +383,11 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
 
+	log.WithFields(logrus.Fields{
+		telemetry.SPIFFEID:   x509CASvid[0].URIs[0].String(),
+		telemetry.Expiration: x509CASvid[0].NotAfter.Format(time.RFC3339),
+	}).Debug("Signed X509 CA SVID")
+
 	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
@@ -398,13 +411,13 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	}, nil
 }
 
-func (s Service) fieldsFromJWTSvidParams(protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
+func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
 	fields := logrus.Fields{
 		telemetry.TTL: ttl,
 	}
 	if protoID != nil {
 		// Dont care about parsing error
-		id, err := api.TrustDomainWorkloadIDFromProto(s.td, protoID)
+		id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 		if err == nil {
 			fields[telemetry.SPIFFEID] = id.String()
 		}

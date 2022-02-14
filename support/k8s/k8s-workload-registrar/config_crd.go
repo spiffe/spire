@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,12 +13,12 @@ import (
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/webhook"
 	"github.com/zeebo/errs"
-	"golang.org/x/sys/unix"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
 	defaultAddSvcDNSName      = true
+	defaultDNSTemplate        = "{{.Pod.Name}}"
 	defaultPodController      = true
 	defaultMetricsBindAddr    = ":8080"
 	defaultWebhookCertDir     = "/run/spire/serving-certs"
@@ -40,6 +39,7 @@ type CRDMode struct {
 	WebhookServiceName    string            `hcl:"webhook_service_name"`
 	IdentityTemplate      string            `hcl:"identity_template"`
 	IdentityTemplateLabel string            `hcl:"identity_template_label"`
+	DNSNameTemplates      *[]string         `hcl:"dns_name_templates"`
 	Context               map[string]string `hcl:"context"`
 }
 
@@ -70,9 +70,22 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 		return errs.New("workload registration configuration is incorrect, can only use one of identity_template, pod_annotation, or pod_label")
 	}
 
-	// Eliminate reference to the non-existing context (strip out the blank space first).
-	if c.Context == nil && c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ", ""), "{{.Context.") {
-		return errs.New("identity_template references non-existing context")
+	// Verify that if context is nil, it's not referenced in any templates
+	if c.Context == nil {
+		if c.IdentityTemplate != "" && strings.Contains(strings.ReplaceAll(c.IdentityTemplate, " ", ""), "{{.Context.") {
+			return errs.New("identity_template references non-existing context")
+		}
+		if c.DNSNameTemplates != nil && len(*c.DNSNameTemplates) > 0 {
+			for _, tmpl := range *c.DNSNameTemplates {
+				if strings.Contains(strings.ReplaceAll(tmpl, " ", ""), "{{.Context.") {
+					return errs.New("dns_name_template references non-existing context")
+				}
+			}
+		}
+	}
+
+	if c.DNSNameTemplates == nil {
+		c.DNSNameTemplates = &[]string{defaultDNSTemplate}
 	}
 
 	return nil
@@ -103,11 +116,10 @@ func (c *CRDMode) Run(ctx context.Context) error {
 
 	log.Info("Initializing SPIFFE ID CRD Mode")
 	err = controllers.NewSpiffeIDReconciler(controllers.SpiffeIDReconcilerConfig{
-		Client:      mgr.GetClient(),
-		Cluster:     c.Cluster,
-		Log:         log,
-		E:           entryClient,
-		TrustDomain: c.TrustDomain,
+		Client:  mgr.GetClient(),
+		Cluster: c.Cluster,
+		Log:     log,
+		E:       entryClient,
 	}).SetupWithManager(mgr)
 	if err != nil {
 		return err
@@ -115,7 +127,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 
 	if c.WebhookEnabled {
 		// Backwards compatibility check
-		exists, err := c.certDirExistsAndReadOnly()
+		exists, err := dirExistsAndReadOnly(c.WebhookCertDir)
 		if err != nil {
 			return fmt.Errorf("checking webhook certificate directory permissions: %w", err)
 		}
@@ -128,7 +140,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 				S:                  svidClient,
 				Log:                log,
 				Namespace:          myPodNamespace,
-				TrustDomain:        c.TrustDomain,
+				TrustDomain:        c.trustDomain,
 				WebhookCertDir:     c.WebhookCertDir,
 				WebhookServiceName: c.WebhookServiceName,
 			})
@@ -180,6 +192,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			IdentityTemplate:      c.IdentityTemplate,
 			Context:               c.Context,
 			IdentityTemplateLabel: c.IdentityTemplateLabel,
+			DNSNameTemplates:      *c.DNSNameTemplates,
 		})
 		if err != nil {
 			return err
@@ -204,18 +217,6 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 
 	return mgr.Start(ctrl.SetupSignalHandler())
-}
-
-func (c *CRDMode) certDirExistsAndReadOnly() (bool, error) {
-	err := unix.Access(c.WebhookCertDir, unix.W_OK)
-	switch {
-	case err == nil, errors.Is(err, unix.ENOENT):
-		return false, nil
-	case errors.Is(err, unix.EROFS):
-		return true, nil
-	default:
-		return false, err
-	}
 }
 
 func getMyPodNamespace() (string, error) {

@@ -90,8 +90,13 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	storeService := a.newSVIDStoreService(svidStoreCache, cat, metrics)
+	workloadAttestor := workload_attestor.New(&workload_attestor.Config{
+		Catalog: cat,
+		Log:     a.c.Log.WithField(telemetry.SubsystemName, telemetry.WorkloadAttestor),
+		Metrics: metrics,
+	})
 
-	endpoints := a.newEndpoints(cat, metrics, manager)
+	endpoints := a.newEndpoints(metrics, manager, workloadAttestor)
 
 	if err := healthChecker.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %w", err)
@@ -106,7 +111,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints := a.newAdminEndpoints(manager)
+		adminEndpoints := a.newAdminEndpoints(manager, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
@@ -234,14 +239,10 @@ func (a *Agent) newSVIDStoreService(cache *storecache.Cache, cat catalog.Catalog
 	return store.New(config)
 }
 
-func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr manager.Manager) endpoints.Server {
+func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, attestor workload_attestor.Attestor) endpoints.Server {
 	return endpoints.New(endpoints.Config{
-		BindAddr: a.c.BindAddress,
-		Attestor: workload_attestor.New(&workload_attestor.Config{
-			Catalog: cat,
-			Log:     a.c.Log.WithField(telemetry.SubsystemName, telemetry.WorkloadAttestor),
-			Metrics: metrics,
-		}),
+		BindAddr:                      a.c.BindAddress,
+		Attestor:                      attestor,
 		Manager:                       mgr,
 		Log:                           a.c.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:                       metrics,
@@ -254,13 +255,15 @@ func (a *Agent) newEndpoints(cat catalog.Catalog, metrics telemetry.Metrics, mgr
 	})
 }
 
-func (a *Agent) newAdminEndpoints(mgr manager.Manager) admin_api.Server {
+func (a *Agent) newAdminEndpoints(mgr manager.Manager, attestor workload_attestor.Attestor, authorizedDelegates []string) admin_api.Server {
 	config := &admin_api.Config{
-		BindAddr:    a.c.AdminBindAddress,
-		Manager:     mgr,
-		Log:         a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
-		TrustDomain: a.c.TrustDomain,
-		Uptime:      uptime.Uptime,
+		BindAddr:            a.c.AdminBindAddress,
+		Manager:             mgr,
+		Log:                 a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
+		TrustDomain:         a.c.TrustDomain,
+		Uptime:              uptime.Uptime,
+		Attestor:            attestor,
+		AuthorizedDelegates: authorizedDelegates,
 	}
 
 	return admin_api.New(config)
@@ -308,7 +311,7 @@ func (a *Agent) checkWorkloadAPI() error {
 		return err
 	}
 	_, err = workloadapi.FetchX509Bundles(context.TODO(),
-		workloadapi.WithAddr("unix://"+socketPath))
+		workloadapi.WithAddr("unix:"+socketPath))
 	if status.Code(err) == codes.Unavailable {
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")

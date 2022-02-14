@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 )
@@ -21,6 +22,10 @@ type Config struct {
 	TrustDomain spiffeid.TrustDomain
 
 	Uptime func() time.Duration
+
+	Attestor attestor.Attestor
+
+	AuthorizedDelegates []string
 }
 
 func New(c *Config) *Endpoints {

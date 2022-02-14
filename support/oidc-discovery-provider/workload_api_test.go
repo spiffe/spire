@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,10 @@ import (
 )
 
 func TestWorkloadAPISource(t *testing.T) {
+	// TODO: workload source is not supported on windows until we solve workload API
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
 	const pollInterval = time.Second
 
 	api := &fakeWorkloadAPIServer{}

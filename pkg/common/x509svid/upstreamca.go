@@ -7,7 +7,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 )
 
@@ -43,7 +42,7 @@ func NewUpstreamCA(keypair x509util.Keypair, trustDomain spiffeid.TrustDomain, o
 }
 
 func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL time.Duration) (*x509.Certificate, error) {
-	csr, err := ParseAndValidateCSR(csrDER, idutil.AllowTrustDomain(ca.trustDomain))
+	csr, err := ParseAndValidateCSR(csrDER, ca.trustDomain)
 	if err != nil {
 		return nil, err
 	}

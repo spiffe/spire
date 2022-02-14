@@ -22,11 +22,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(log, ds, clk)),
+		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(log, ds, clk), adminIDs),
 		middleware.WithRateLimits(RateLimits(rlConf), metrics),
 	}
 

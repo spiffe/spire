@@ -33,19 +33,22 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
 	td  = spiffeid.RequireTrustDomainFromString("domain.test")
 	td2 = spiffeid.RequireTrustDomainFromString("domain2.test")
+
+	workloadID = spiffeid.RequireFromPath(td, "/workload")
 )
 
 func TestFetchX509SVID(t *testing.T) {
 	ca := testca.New(t, td)
 
-	x509SVID1 := ca.CreateX509SVID(td.NewID("/one"))
-	x509SVID2 := ca.CreateX509SVID(td.NewID("/two"))
+	x509SVID1 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/one"))
+	x509SVID2 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/two"))
 	bundle := ca.Bundle()
 	federatedBundle := testca.New(t, td2).Bundle()
 
@@ -180,7 +183,7 @@ func TestFetchX509SVID(t *testing.T) {
 
 func TestFetchX509Bundles(t *testing.T) {
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
+	x509SVID := ca.CreateX509SVID(workloadID)
 
 	bundle := ca.Bundle()
 	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
@@ -321,8 +324,8 @@ func TestFetchX509Bundles(t *testing.T) {
 func TestFetchJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 
-	x509SVID1 := ca.CreateX509SVID(td.NewID("/one"))
-	x509SVID2 := ca.CreateX509SVID(td.NewID("/two"))
+	x509SVID1 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/one"))
+	x509SVID2 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/two"))
 
 	for _, tt := range []struct {
 		name           string
@@ -356,7 +359,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			audience:   []string{"AUDIENCE"},
 			spiffeID:   "foo",
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "invalid requested SPIFFE ID: spiffeid: invalid scheme",
+			expectMsg:  "invalid requested SPIFFE ID: scheme is missing or invalid",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -365,7 +368,7 @@ func TestFetchJWTSVID(t *testing.T) {
 						"service":       "WorkloadAPI",
 						"method":        "FetchJWTSVID",
 						"spiffe_id":     "foo",
-						logrus.ErrorKey: "spiffeid: invalid scheme",
+						logrus.ErrorKey: "scheme is missing or invalid",
 					},
 				},
 			},
@@ -393,7 +396,7 @@ func TestFetchJWTSVID(t *testing.T) {
 				identityFromX509SVID(x509SVID1),
 				identityFromX509SVID(x509SVID2),
 			},
-			spiffeID:   td.NewID("unexpected").String(),
+			spiffeID:   spiffeid.RequireFromPath(td, "/unexpected").String(),
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
@@ -509,7 +512,7 @@ func TestFetchJWTBundles(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
 
-	x509SVID := ca.CreateX509SVID(td.NewID("/workload"))
+	x509SVID := ca.CreateX509SVID(workloadID)
 
 	indent := func(in []byte) []byte {
 		buf := new(bytes.Buffer)
@@ -664,8 +667,8 @@ func TestValidateJWTSVID(t *testing.T) {
 	bundle := ca.Bundle()
 	federatedBundle := ca2.Bundle()
 
-	svid := ca.CreateJWTSVID(td.NewID("/workload"), []string{"AUDIENCE"})
-	federatedSVID := ca2.CreateJWTSVID(td2.NewID("/federated-workload"), []string{"AUDIENCE"})
+	svid := ca.CreateJWTSVID(workloadID, []string{"AUDIENCE"})
+	federatedSVID := ca2.CreateJWTSVID(spiffeid.RequireFromPath(td2, "/federated-workload"), []string{"AUDIENCE"})
 
 	updatesWithBundleOnly := []*cache.WorkloadUpdate{{
 		Bundle: utilBundleFromBundle(t, bundle),
@@ -898,7 +901,7 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       federatedSVID.Marshal(),
 			updates:    updatesWithBundleOnly,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `no keys found for trust domain "spiffe://domain2.test"`,
+			expectMsg:  `no keys found for trust domain "domain2.test"`,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -907,7 +910,7 @@ func TestValidateJWTSVID(t *testing.T) {
 						"audience":      "AUDIENCE",
 						"service":       "WorkloadAPI",
 						"method":        "ValidateJWTSVID",
-						logrus.ErrorKey: `no keys found for trust domain "spiffe://domain2.test"`,
+						logrus.ErrorKey: `no keys found for trust domain "domain2.test"`,
 					},
 				},
 			},
@@ -989,7 +992,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, "unix://"+socketPath, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 

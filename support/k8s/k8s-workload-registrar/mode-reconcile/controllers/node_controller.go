@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/go-logr/logr"
@@ -55,15 +55,19 @@ func (r *NodeReconciler) shouldProcess(_ ctrl.Request) bool {
 	return true
 }
 
-func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) *spiretypes.SPIFFEID {
+func (r *NodeReconciler) makeSpiffeID(obj ObjectWithMetadata) (*spiretypes.SPIFFEID, error) {
+	path, err := spiffeid.JoinPathSegments(obj.GetName())
+	if err != nil {
+		return nil, err
+	}
 	return &spiretypes.SPIFFEID{
 		TrustDomain: r.RootID.TrustDomain,
-		Path:        r.RootID.Path + idutil.JoinPathSegments(obj.GetName()),
-	}
+		Path:        r.RootID.Path + path,
+	}, nil
 }
 
-func (r *NodeReconciler) makeParentID(_ ObjectWithMetadata) *spiretypes.SPIFFEID {
-	return cloneSPIFFEID(r.ServerID)
+func (r *NodeReconciler) makeParentID(_ ObjectWithMetadata) (*spiretypes.SPIFFEID, error) {
+	return cloneSPIFFEID(r.ServerID), nil
 }
 
 func (r *NodeReconciler) getSelectors(namespacedName types.NamespacedName) []*spiretypes.Selector {

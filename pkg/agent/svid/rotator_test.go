@@ -47,7 +47,7 @@ func TestRotator(t *testing.T) {
 		{
 			name:         "expires after startup",
 			notAfter:     2 * time.Minute,
-			checkAfter:   2 * time.Minute,
+			checkAfter:   2*time.Minute + time.Second,
 			shouldRotate: true,
 		},
 	} {
@@ -55,7 +55,7 @@ func TestRotator(t *testing.T) {
 			svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
 			clk := clock.NewMock(t)
 			log, _ := test.NewNullLogger()
-			client := &fakeClient{clk: clk, caCert: caCert, caKey: caKey}
+			mockClient := &fakeClient{clk: clk, caCert: caCert, caKey: caKey}
 
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
@@ -73,7 +73,7 @@ func TestRotator(t *testing.T) {
 				SVID:           svid,
 				SVIDKey:        svidKey,
 			})
-			rotator.client = client
+			rotator.client = mockClient
 
 			// Hook the rotation loop so we can determine when the rotator
 			// has finished a rotation evaluation (does not imply anything
@@ -101,6 +101,7 @@ func TestRotator(t *testing.T) {
 			case <-time.After(time.Minute):
 				t.Fatal("timed out waiting for rotation check to finish")
 			case <-rotationDone:
+				clk.WaitForAfter(time.Minute, "timed out waiting for rotation loop to start waiting")
 			}
 
 			// Optionally advance the clock by the specified amount
@@ -112,6 +113,7 @@ func TestRotator(t *testing.T) {
 				case <-time.After(time.Minute):
 					t.Fatal("timed out waiting for rotation check to finish after clock adjustment")
 				case <-rotationDone:
+					clk.WaitForAfter(time.Minute, "timed out waiting for rotation loop to start waiting after clock adjustment")
 				}
 			}
 
@@ -140,11 +142,11 @@ func TestRotator(t *testing.T) {
 			if tt.shouldRotate {
 				assert.NotEqual(t, svid, state.SVID)
 				assert.NotEqual(t, svidKey, state.Key)
-				assert.Equal(t, 2, client.releaseCount, "client might not released after rotation")
+				assert.Equal(t, 2, mockClient.releaseCount, "client might not released after rotation")
 			} else {
 				assert.Equal(t, svid, state.SVID)
 				assert.Equal(t, svidKey, state.Key)
-				assert.Equal(t, 1, client.releaseCount)
+				assert.Equal(t, 1, mockClient.releaseCount)
 			}
 		})
 	}

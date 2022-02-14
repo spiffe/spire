@@ -1,6 +1,6 @@
 syntax = "proto3";
 package spire.agent.svidstore;
-option go_package = "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1;svidstorev1";
+option go_package = "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1unofficial;svidstorev1unofficial";
 
 service SVIDStore {
     // Puts an X509-SVID in a configured secrets store

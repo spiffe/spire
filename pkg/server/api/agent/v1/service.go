@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -38,6 +37,7 @@ type Config struct {
 	Clock       clock.Clock
 	DataStore   datastore.DataStore
 	ServerCA    ca.ServerCA
+	AgentTTL    time.Duration
 	TrustDomain spiffeid.TrustDomain
 }
 
@@ -45,21 +45,23 @@ type Config struct {
 type Service struct {
 	agentv1.UnsafeAgentServer
 
-	cat catalog.Catalog
-	clk clock.Clock
-	ds  datastore.DataStore
-	ca  ca.ServerCA
-	td  spiffeid.TrustDomain
+	cat      catalog.Catalog
+	clk      clock.Clock
+	ds       datastore.DataStore
+	ca       ca.ServerCA
+	td       spiffeid.TrustDomain
+	agentTTL time.Duration
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
-		cat: config.Catalog,
-		clk: config.Clock,
-		ds:  config.DataStore,
-		ca:  config.ServerCA,
-		td:  config.TrustDomain,
+		cat:      config.Catalog,
+		clk:      config.Clock,
+		ds:       config.DataStore,
+		ca:       config.ServerCA,
+		td:       config.TrustDomain,
+		agentTTL: config.AgentTTL,
 	}
 }
 
@@ -153,7 +155,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*types.Agent, error) {
 	log := rpccontext.Logger(ctx)
 
-	agentID, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
+	agentID, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
@@ -188,7 +190,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
+	id, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
@@ -213,7 +215,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
 	log := rpccontext.Logger(ctx)
 
-	id, err := api.TrustDomainAgentIDFromProto(s.td, req.Id)
+	id, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
@@ -281,21 +283,29 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		}
 	}
 
-	agentID := attestResult.AgentID
-	log = log.WithField(telemetry.AgentID, agentID)
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: attestResult.AgentID})
-
-	if err := idutil.CheckAgentIDStringNormalization(agentID); err != nil {
-		return api.MakeErr(log, codes.Internal, "agent ID is malformed", err)
+	agentID, err := spiffeid.FromString(attestResult.AgentID)
+	if err != nil {
+		return api.MakeErr(log, codes.Internal, "invalid agent ID", err)
 	}
 
-	agentSpiffeID, err := spiffeid.FromString(agentID)
-	if err != nil {
-		return api.MakeErr(log, codes.Internal, "invalid agent id", err)
+	log = log.WithField(telemetry.AgentID, agentID)
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: agentID})
+
+	// Ideally we'd do stronger validation that the ID is within the Node
+	// Attestors scoped area of the reserved agent namespace, but historically
+	// we haven't been strict here and there are deployments that are emitting
+	// such IDs.
+	// Deprecated: enforce that IDs produced by Node Attestors are in the
+	// reserved namespace for that Node Attestor starting in SPIRE 1.4.
+	if agentID.Path() == idutil.ServerIDPath {
+		return api.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
+	}
+	if err := api.VerifyTrustDomainAgentIDForNodeAttestor(s.td, agentID, params.Data.Type); err != nil {
+		log.WithError(err).Warn("The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor")
 	}
 
 	// fetch the agent/node to check if it was already attested or banned
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID)
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
@@ -305,7 +315,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// parse and sign CSR
-	svid, err := s.signSvid(ctx, agentSpiffeID, params.Params.Csr, log)
+	svid, err := s.signSvid(ctx, agentID, params.Params.Csr, log)
 	if err != nil {
 		return err
 	}
@@ -316,7 +326,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
-	err = s.ds.SetNodeSelectors(ctx, agentID, append(attestResult.Selectors, resolvedSelectors...))
+	err = s.ds.SetNodeSelectors(ctx, agentID.String(), append(attestResult.Selectors, resolvedSelectors...))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -325,7 +335,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	if attestedNode == nil {
 		node := &common.AttestedNode{
 			AttestationDataType: params.Data.Type,
-			SpiffeId:            agentID,
+			SpiffeId:            agentID.String(),
 			CertNotAfter:        svid[0].NotAfter.Unix(),
 			CertSerialNumber:    svid[0].SerialNumber.String(),
 		}
@@ -334,7 +344,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		}
 	} else {
 		node := &common.AttestedNode{
-			SpiffeId:         agentID,
+			SpiffeId:         agentID.String(),
 			CertNotAfter:     svid[0].NotAfter.Unix(),
 			CertSerialNumber: svid[0].SerialNumber.String(),
 		}
@@ -344,7 +354,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// build and send response
-	response := getAttestAgentResponse(agentSpiffeID, svid)
+	response := getAttestAgentResponse(agentID, svid)
 
 	if p, ok := peer.FromContext(ctx); ok {
 		log = log.WithField(telemetry.Address, p.Addr.String())
@@ -434,14 +444,11 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 	var agentID spiffeid.ID
 	var err error
 	if req.AgentId != nil {
-		agentID, err = api.TrustDomainWorkloadIDFromProto(s.td, req.AgentId)
+		agentID, err = api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.AgentId)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 		}
 		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
-		if err := idutil.CheckIDProtoNormalization(req.AgentId); err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "agent ID is malformed", err)
-		}
 		log.WithField(telemetry.SPIFFEID, agentID.String())
 	}
 
@@ -476,7 +483,10 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 }
 
 func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token string, agentID string) error {
-	parentID := s.td.NewID(path.Join("spire", "agent", "join_token", token))
+	parentID, err := joinTokenID(s.td, token)
+	if err != nil {
+		return fmt.Errorf("failed to create join token ID: %w", err)
+	}
 	entry := &common.RegistrationEntry{
 		ParentId: parentID.String(),
 		SpiffeId: agentID,
@@ -484,8 +494,7 @@ func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token st
 			{Type: "spiffe_id", Value: parentID.String()},
 		},
 	}
-	_, err := s.ds.CreateRegistrationEntry(ctx, entry)
-	if err != nil {
+	if _, err := s.ds.CreateRegistrationEntry(ctx, entry); err != nil {
 		return err
 	}
 	return nil
@@ -513,6 +522,10 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
 		SpiffeID:  agentID,
 		PublicKey: parsedCsr.PublicKey,
+
+		// If agent TTL is unset, CA will fall back to the default
+		// X509-SVID TTL which is the desired behavior
+		TTL: s.agentTTL,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509 SVID", err)
@@ -549,9 +562,13 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
-	tokenPath := path.Join("spire", "agent", "join_token", token)
+	agentID, err := joinTokenID(s.td, token)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to create join token ID", err)
+	}
+
 	return &nodeattestor.AttestResult{
-		AgentID: s.td.NewID(tokenPath).String(),
+		AgentID: agentID.String(),
 	}, nil
 }
 
@@ -588,9 +605,9 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	return result, nil
 }
 
-func (s *Service) resolveSelectors(ctx context.Context, agentID string, attestationType string) ([]*common.Selector, error) {
+func (s *Service) resolveSelectors(ctx context.Context, agentID spiffeid.ID, attestationType string) ([]*common.Selector, error) {
 	if nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType); ok {
-		return nodeResolver.Resolve(ctx, agentID)
+		return nodeResolver.Resolve(ctx, agentID.String())
 	}
 	return nil, nil
 }
@@ -672,4 +689,8 @@ func fieldsFromFilterRequest(filter *agentv1.ListAgentsRequest_Filter) logrus.Fi
 	}
 
 	return fields
+}
+
+func joinTokenID(td spiffeid.TrustDomain, token string) (spiffeid.ID, error) {
+	return spiffeid.FromSegments(td, "spire", "agent", "join_token", token)
 }

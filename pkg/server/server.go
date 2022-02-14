@@ -12,8 +12,10 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -60,8 +62,16 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
+	// Deprecated: remove in SPIRE 1.3
+	agentpathtemplate.SetEnsureLeadingSlashLog(s.config.Log)
+
+	// Log configuration values that are useful for debugging
+	s.config.Log.WithFields(logrus.Fields{
+		telemetry.AdminIDs: s.config.AdminIDs,
+		telemetry.DataDir:  s.config.DataDir,
+	}).Info("Configured")
+
 	// create the data directory if needed
-	s.config.Log.Infof("Data directory: %q", s.config.DataDir)
 	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
 		return err
 	}
@@ -250,7 +260,6 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 
 func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
-		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:       metrics,
 		X509SVIDTTL:   s.config.SVIDTTL,
 		JWTIssuer:     s.config.JWTIssuer,
@@ -311,6 +320,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		TrustDomain:         s.config.TrustDomain,
 		Catalog:             catalog,
 		ServerCA:            serverCA,
+		AgentTTL:            s.config.AgentTTL,
 		Log:                 s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:             metrics,
 		Manager:             caManager,
@@ -321,6 +331,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		AuditLogEnabled:     s.config.AuditLogEnabled,
 		AuthPolicyEngine:    authPolicyEngine,
 		BundleManager:       bundleManager,
+		AdminIDs:            s.config.AdminIDs,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -20,12 +21,15 @@ import (
 const (
 	Cluster            = "test-cluster"
 	Namespace          = "test"
-	TrustDomain        = "example.org"
 	WebhookServiceName = "k8s-workload-registrar"
 	keyRSA             = "testdata/key-pkcs8-rsa.pem"
 	certSingle         = "testdata/good-leaf-only.pem"
 	keyECDSA           = "testdata/key-pkcs8-ecdsa.pem"
 	certMultiple       = "testdata/good-leaf-and-intermediate.pem"
+)
+
+var (
+	TrustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
 func TestMintSVID(t *testing.T) {

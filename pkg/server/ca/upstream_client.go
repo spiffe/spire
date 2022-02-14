@@ -22,6 +22,10 @@ type BundleUpdater interface {
 	LogError(err error, msg string)
 }
 
+// ValidateX509CAFunc is used by the upstream client to validate an X509CA
+// newly minted by an upstream authority before it accepts it.
+type ValidateX509CAFunc = func(x509CA, x509Roots []*x509.Certificate) error
+
 // UpstreamClientConfig is the configuration for an UpstreamClient. Each field
 // is required.
 type UpstreamClientConfig struct {
@@ -69,13 +73,13 @@ func (u *UpstreamClient) Close() error {
 // open stream to the UpstreamAuthority plugin to receive and append X.509 root
 // updates to the bundle. The stream remains open until another call to
 // MintX509CA happens or the client is closed.
-func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Duration) (_ []*x509.Certificate, err error) {
+func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Duration, validateX509CA ValidateX509CAFunc) (_ []*x509.Certificate, err error) {
 	u.mintX509CAMtx.Lock()
 	defer u.mintX509CAMtx.Unlock()
 
 	firstResultCh := make(chan mintX509CAResult, 1)
 	u.mintX509CAStream.Start(func(streamCtx context.Context) {
-		u.runMintX509CAStream(streamCtx, csr, ttl, firstResultCh)
+		u.runMintX509CAStream(streamCtx, csr, ttl, validateX509CA, firstResultCh)
 	})
 	defer func() {
 		if err != nil {
@@ -127,13 +131,22 @@ func (u *UpstreamClient) WaitUntilPublishJWTKeyStreamDone(ctx context.Context) e
 	return u.publishJWTKeyStream.WaitUntilStopped(ctx)
 }
 
-func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, ttl time.Duration, firstResultCh chan<- mintX509CAResult) {
+func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, ttl time.Duration, validateX509CA ValidateX509CAFunc, firstResultCh chan<- mintX509CAResult) {
 	x509CA, x509Roots, x509RootsStream, err := u.c.UpstreamAuthority.MintX509CA(ctx, csr, ttl)
 	if err != nil {
 		firstResultCh <- mintX509CAResult{err: err}
 		return
 	}
 	defer x509RootsStream.Close()
+
+	// Before we append the roots and return the response, we must first
+	// validate that the minted intermediate can sign a valid, conformant
+	// X509-SVID chain of trust using the provided callback.
+	if err := validateX509CA(x509CA, x509Roots); err != nil {
+		err = status.Errorf(codes.InvalidArgument, "X509 CA minted by upstream authority is invalid: %v", err)
+		firstResultCh <- mintX509CAResult{err: err}
+		return
+	}
 
 	if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
 		firstResultCh <- mintX509CAResult{err: err}

@@ -11,10 +11,10 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	svidstorev1 "github.com/spiffe/spire/proto/spire/plugin/agent/svidstore/v1"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 	"google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"

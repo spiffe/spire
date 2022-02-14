@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	noderesolverv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/noderesolver/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -58,16 +59,34 @@ type TenantConfig struct {
 type MSIResolverConfig struct {
 	UseMSI  bool                    `hcl:"use_msi" json:"use_msi"`
 	Tenants map[string]TenantConfig `hcl:"tenants" json:"tenants"`
+
+	td            spiffeid.TrustDomain
+	msiClient     apiClient
+	tenantClients map[string]apiClient
+}
+
+func (c *MSIResolverConfig) getTenantClient(tenantID string) (apiClient, error) {
+	switch {
+	case c.msiClient != nil:
+		return c.msiClient, nil
+	case c.tenantClients != nil:
+		client, ok := c.tenantClients[tenantID]
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "not configured for tenant %q", tenantID)
+		}
+		return client, nil
+	default:
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
 }
 
 type MSIResolverPlugin struct {
 	noderesolverv1.UnsafeNodeResolverServer
 	configv1.UnsafeConfigServer
 
-	log           hclog.Logger
-	mu            sync.RWMutex
-	msiClient     apiClient
-	tenantClients map[string]apiClient
+	log    hclog.Logger
+	mu     sync.RWMutex
+	config *MSIResolverConfig
 
 	hooks struct {
 		newClient             func(string, autorest.Authorizer) apiClient
@@ -106,6 +125,11 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 	config := new(MSIResolverConfig)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	}
+
+	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
 	var msiClient apiClient
@@ -147,49 +171,48 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 		}
 	}
 
-	p.setClients(msiClient, tenantClients)
+	config.td = td
+	config.msiClient = msiClient
+	config.tenantClients = tenantClients
+
+	p.setConfig(config)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *MSIResolverPlugin) getClient(tenantID string) (apiClient, error) {
+func (p *MSIResolverPlugin) getConfig() (*MSIResolverConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-
-	switch {
-	case p.msiClient != nil:
-		return p.msiClient, nil
-	case p.tenantClients != nil:
-		client, ok := p.tenantClients[tenantID]
-		if !ok {
-			return nil, status.Errorf(codes.InvalidArgument, "not configured for tenant %q", tenantID)
-		}
-		return client, nil
-	default:
+	if p.config == nil {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
+	return p.config, nil
 }
 
-func (p *MSIResolverPlugin) setClients(msiClient apiClient, tenantClients map[string]apiClient) {
+func (p *MSIResolverPlugin) setConfig(config *MSIResolverConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.msiClient = msiClient
-	p.tenantClients = tenantClients
+	p.config = config
 }
 
 func (p *MSIResolverPlugin) resolve(ctx context.Context, agentID string) ([]string, error) {
+	config, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
+
 	// parse out the tenant ID and principal ID from the token
-	u, err := idutil.ParseSpiffeID(agentID, idutil.AllowAnyTrustDomainAgent())
+	u, err := idutil.MemberFromString(config.td, agentID)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid agent ID: %v", err)
 	}
 
-	tenantID, principalID, err := parseAgentIDPath(u.Path)
+	tenantID, principalID, err := parseAgentIDPath(u.Path())
 	if err != nil {
 		p.log.Warn("Unrecognized agent ID", telemetry.SPIFFEID, agentID)
 		return nil, nil
 	}
 
-	client, err := p.getClient(tenantID)
+	client, err := config.getTenantClient(tenantID)
 	if err != nil {
 		return nil, err
 	}
