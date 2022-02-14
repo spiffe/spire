@@ -86,8 +86,9 @@ func (l *windowsWatcher) IsAlive() error {
 		return err
 	}
 	if exitCode != stillActive {
-		l.log.WithError(err).Warnf("Caller is not running anymore: exit code: %d", exitCode)
-		return fmt.Errorf("caller is not running anymore: exit code: %d", exitCode)
+		err = fmt.Errorf("caller exit detected: exit code: %d", exitCode)
+		l.log.WithError(err).Warnf("Caller is not running anymore")
+		return err
 	}
 
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(l.pid))

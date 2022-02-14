@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package peertracker
 
 import (
@@ -8,7 +5,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -16,193 +13,203 @@ import (
 
 	"github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/test/spiretest"
-	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/require"
 )
 
-func TestPeerTrackerTestSuite(t *testing.T) {
-	suite.Run(t, new(PeerTrackerTestSuite))
-}
-
-type PeerTrackerTestSuite struct {
-	suite.Suite
-
+type peertrackerTest struct {
 	childPath string
-	ul        *Listener
-	unixAddr  *net.UnixAddr
+	listener  *Listener
+	addr      net.Addr
 	logHook   *logtest.Hook
 }
 
-func (p *PeerTrackerTestSuite) SetupTest() {
-	tempDir := spiretest.TempDir(p.T())
-
-	p.childPath = path.Join(tempDir, "child")
-	buildOutput, err := exec.Command("go", "build", "-o", p.childPath, "peertracker_test_child.go").CombinedOutput() //nolint: gosec // false positive
+func setupTest(t *testing.T) *peertrackerTest {
+	childPath := filepath.Join(t.TempDir(), "child.exe")
+	buildOutput, err := exec.Command("go", "build", "-o", childPath, childSource).CombinedOutput() //nolint: gosec // false positive
 	if err != nil {
-		p.T().Logf("build output:\n%v\n", string(buildOutput))
-		p.FailNow("failed to build test child")
+		t.Logf("build output:\n%v\n", string(buildOutput))
+		require.FailNow(t, "failed to build test child")
 	}
 
-	p.unixAddr = &net.UnixAddr{
-		Net:  "unix",
-		Name: path.Join(tempDir, "test.sock"),
-	}
+	addr := addr(t)
 
 	log, hook := logtest.NewNullLogger()
-	p.logHook = hook
+	logHook := hook
 
-	p.ul, err = (&ListenerFactory{Log: log}).ListenUnix(p.unixAddr.Network(), p.unixAddr)
-	p.NoError(err)
-}
+	listener := listener(t, log, addr)
 
-func (p *PeerTrackerTestSuite) TearDownTest() {
-	// only close the listener if we haven't already
-	if p.ul != nil {
-		err := p.ul.Close()
-		p.NoError(err)
+	return &peertrackerTest{
+		childPath: childPath,
+		listener:  listener,
+		addr:      addr,
+		logHook:   logHook,
 	}
 
-	err := os.Remove(p.childPath)
-	p.NoError(err)
 }
 
-func (p *PeerTrackerTestSuite) TestTrackerClose() {
-	p.ul.Tracker.Close()
-	_, err := p.ul.Tracker.NewWatcher(CallerInfo{})
-	p.Error(err)
+func (p *peertrackerTest) cleanup(t *testing.T) {
+	if p.listener != nil {
+		err := p.listener.Close()
+		require.NoError(t, err)
+	}
 }
 
-func (p *PeerTrackerTestSuite) TestUDSListener() {
+func TestTrackerClose(t *testing.T) {
+	test := setupTest(t)
+	defer test.cleanup(t)
+
+	test.listener.Tracker.Close()
+	_, err := test.listener.Tracker.NewWatcher(CallerInfo{})
+	require.Error(t, err)
+}
+
+func TestListener(t *testing.T) {
+	test := setupTest(t)
+	defer test.cleanup(t)
+
 	doneCh := make(chan error)
-	peer := newFakeUDSPeer(p.T())
+	peer := newFakePeer(t)
 
-	peer.connect(p.unixAddr, doneCh)
+	peer.connect(test.addr, doneCh)
 
-	rawConn, err := p.ul.Accept()
-	p.Require().NoError(err)
+	rawConn, err := test.listener.Accept()
+	require.NoError(t, err)
 
 	// Unblock connect goroutine
-	p.Require().NoError(<-doneCh)
+	require.NoError(t, <-doneCh)
 
 	conn, ok := rawConn.(*Conn)
-	p.Require().True(ok)
+	require.True(t, ok)
 
 	// Ensure we resolved the PID ok
-	p.Equal(int32(os.Getpid()), conn.Info.Caller.PID)
+	require.Equal(t, int32(os.Getpid()), conn.Info.Caller.PID)
 
 	// Ensure watcher is set up correctly
-	p.NotNil(conn.Info.Watcher)
-	p.Equal(int32(os.Getpid()), conn.Info.Watcher.PID())
+	require.NotNil(t, conn.Info.Watcher)
+	require.Equal(t, int32(os.Getpid()), conn.Info.Watcher.PID())
 
 	peer.disconnect()
 	conn.Close()
 }
 
-func (p *PeerTrackerTestSuite) TestExitDetection() {
+func TestExitDetection(t *testing.T) {
+	test := setupTest(t)
+	defer test.cleanup(t)
+
 	// First, just test against ourselves
 	doneCh := make(chan error)
-	peer := newFakeUDSPeer(p.T())
+	peer := newFakePeer(t)
 
-	peer.connect(p.unixAddr, doneCh)
+	peer.connect(test.addr, doneCh)
 
-	rawConn, err := p.ul.Accept()
-	p.Require().NoError(err)
+	rawConn, err := test.listener.Accept()
+	require.NoError(t, err)
 
 	// Unblock connect goroutine
-	p.Require().NoError(<-doneCh)
+	require.NoError(t, <-doneCh)
 
 	conn, ok := rawConn.(*Conn)
-	p.Require().True(ok)
+	require.True(t, ok)
 
 	// We're connected to ourselves - we should be alive!
-	p.NoError(conn.Info.Watcher.IsAlive())
+	require.NoError(t, conn.Info.Watcher.IsAlive())
 
 	// Should return an error once we're no longer tracking
 	peer.disconnect()
 	conn.Close()
-	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
+	require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 
 	// Start a forking child and allow it to exit while the grandchild holds the socket
-	peer.connectFromForkingChild(p.unixAddr, p.childPath, doneCh)
+	peer.connectFromForkingChild(t, test.addr, test.childPath, doneCh)
 
-	rawConn, err = p.ul.Accept()
+	rawConn, err = test.listener.Accept()
 
 	// Unblock child connect goroutine
-	p.Require().NoError(<-doneCh)
+	require.NoError(t, <-doneCh)
 
 	// Check for Accept() error only after unblocking
-	// the child so we can be sure that we that we can
+	// the child so we can be sure that we can
 	// clean up correctly
 	defer peer.killGrandchild()
-	p.Require().NoError(err)
+	require.NoError(t, err)
 
 	conn, ok = rawConn.(*Conn)
-	p.Require().True(ok)
+	require.True(t, ok)
 
 	// We know the child has exited because we read from doneCh
 	// Call to IsAlive should now return an error
 	switch runtime.GOOS {
 	case "darwin":
-		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit detected via kevent notification")
-		p.Require().Len(p.logHook.Entries, 2)
-		firstEntry := p.logHook.Entries[0]
-		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
-		p.Require().Equal("Caller is no longer being watched", firstEntry.Message)
-		secondEntry := p.logHook.Entries[1]
-		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
-		p.Require().Equal("Caller exit detected via kevent notification", secondEntry.Message)
+		require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller exit detected via kevent notification")
+		require.Len(t, test.logHook.Entries, 2)
+		firstEntry := test.logHook.Entries[0]
+		require.Equal(t, logrus.WarnLevel, firstEntry.Level)
+		require.Equal(t, "Caller is no longer being watched", firstEntry.Message)
+		secondEntry := test.logHook.Entries[1]
+		require.Equal(t, logrus.WarnLevel, secondEntry.Level)
+		require.Equal(t, "Caller exit detected via kevent notification", secondEntry.Message)
 	case "linux":
-		p.EqualError(conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
-		p.Require().Len(p.logHook.Entries, 2)
-		firstEntry := p.logHook.Entries[0]
-		p.Require().Equal(logrus.WarnLevel, firstEntry.Level)
-		p.Require().Equal("Caller is no longer being watched", firstEntry.Message)
-		secondEntry := p.logHook.Entries[1]
-		p.Require().Equal(logrus.WarnLevel, secondEntry.Level)
-		p.Require().Equal("Caller exit suspected due to failed readdirent", secondEntry.Message)
-		p.Require().Equal(syscall.ENOENT, secondEntry.Data["error"])
+		require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
+		require.Len(t, test.logHook.Entries, 2)
+		firstEntry := test.logHook.Entries[0]
+		require.Equal(t, logrus.WarnLevel, firstEntry.Level)
+		require.Equal(t, "Caller is no longer being watched", firstEntry.Message)
+		secondEntry := test.logHook.Entries[1]
+		require.Equal(t, logrus.WarnLevel, secondEntry.Level)
+		require.Equal(t, "Caller exit suspected due to failed readdirent", secondEntry.Message)
+		require.Equal(t, syscall.ENOENT, secondEntry.Data["error"])
+	case "windows":
+		require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller exit detected: exit code: 0")
+		require.Len(t, test.logHook.Entries, 2)
+		firstEntry := test.logHook.Entries[0]
+		require.Equal(t, logrus.WarnLevel, firstEntry.Level)
+		require.Equal(t, "Caller is no longer being watched", firstEntry.Message)
+		secondEntry := test.logHook.Entries[1]
+		require.Equal(t, logrus.WarnLevel, secondEntry.Level)
+		require.Equal(t, "Caller is not running anymore", secondEntry.Message)
+		require.Equal(t, "caller exit detected: exit code: 0", fmt.Sprintf("%v", secondEntry.Data["error"]))
 	default:
-		p.FailNow("missing case for OS specific failure")
+		require.FailNow(t, "missing case for OS specific failure")
 	}
 
 	// Read a bit of data from our grandchild just to be sure it's still there
 	theSign := make([]byte, 10)
 	expectedSign := []byte("i'm alive!")
 	_, err = conn.Read(theSign)
-	p.Require().NoError(err)
-	p.Equal(expectedSign, theSign)
+	require.NoError(t, err)
+	require.Equal(t, expectedSign, theSign)
 
 	conn.Close()
 
 	// Check that IsAlive doesn't freak out if called after
 	// the tracker has been closed
-	p.ul.Close()
-	p.ul = nil
-	p.EqualError(conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
+	test.listener.Close()
+	test.listener = nil
+	require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 }
 
-type fakeUDSPeer struct {
+type fakePeer struct {
 	grandchildPID int
 	conn          net.Conn
 	t             *testing.T
 }
 
-func newFakeUDSPeer(t *testing.T) *fakeUDSPeer {
-	return &fakeUDSPeer{
+func newFakePeer(t *testing.T) *fakePeer {
+	return &fakePeer{
 		t: t,
 	}
 }
 
-// connect to the uds listener
-func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan error) {
+// connect to the tcp listener
+func (f *fakePeer) connect(addr net.Addr, doneCh chan error) {
 	if f.conn != nil {
 		f.t.Fatal("fake peer already connected")
 	}
 
 	go func() {
-		conn, err := net.DialUnix("unix", nil, addr)
+		conn, err := net.Dial(addr.Network(), addr.String())
 		if err != nil {
-			doneCh <- fmt.Errorf("could not dial unix address: %w", err)
+			doneCh <- fmt.Errorf("could not dial tcp address: %w", err)
 			return
 		}
 
@@ -212,7 +219,7 @@ func (f *fakeUDSPeer) connect(addr *net.UnixAddr, doneCh chan error) {
 }
 
 // close a connection we opened previously
-func (f *fakeUDSPeer) disconnect() {
+func (f *fakePeer) disconnect() {
 	if f.conn == nil {
 		f.t.Fatal("fake peer not connected")
 	}
@@ -222,14 +229,14 @@ func (f *fakeUDSPeer) disconnect() {
 }
 
 // run child to connect and fork. allows us to test stale PID data
-func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath string, doneCh chan error) {
+func (f *fakePeer) connectFromForkingChild(t *testing.T, addr net.Addr, childPath string, doneCh chan error) {
 	if f.grandchildPID != 0 {
 		f.t.Fatalf("grandchild already running with PID %v", f.grandchildPID)
 	}
 
 	go func() {
 		// #nosec G204 test code
-		out, err := exec.Command(childPath, "-socketPath", addr.Name).Output()
+		out, err := childExecCommand(t, childPath, addr).Output()
 		if err != nil {
 			doneCh <- fmt.Errorf("child process failed: %w", err)
 			return
@@ -245,18 +252,4 @@ func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath stri
 		f.grandchildPID = int(grandchildPID)
 		doneCh <- nil
 	}()
-}
-
-// muahaha
-func (f *fakeUDSPeer) killGrandchild() {
-	if f.grandchildPID == 0 {
-		f.t.Fatal("no known grandchild")
-	}
-
-	err := syscall.Kill(f.grandchildPID, syscall.SIGKILL)
-	if err != nil {
-		f.t.Fatalf("unable to kill grandchild: %v", err)
-	}
-
-	f.grandchildPID = 0
 }
