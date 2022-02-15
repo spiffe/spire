@@ -37,7 +37,6 @@ The configuration file is **required** by the provider. It contains
 | `domains`               | strings | required       | One or more domains the provider is being served from.                       |          |
 | `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                                                 |          |
 | `set_key_use`           | bool    | optional       | If true, the `use` parameter on JWKs will be set to `sig`.                   | `false`  |
-| `set_key_algo`           | bool    | optional       | If true, the `algo` parameter on JWKs will be set to `Algorithm` for each key, \<RS256\|ES256\|ES384\>.                  | `false`  |
 | `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket.                            |          |
 | `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)                             | `""`     |
 | `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)                     | `"info"` |
