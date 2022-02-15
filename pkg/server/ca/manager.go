@@ -513,6 +513,12 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 		telemetry.JWTKeys: len(entries.JwtKeys),
 	}).Info("Journal loaded")
 
+	// filter out local JwtKeys and X509CAs that do not exist in the database bundle
+	entries.JwtKeys, entries.X509CAs, err = m.filterInvalidEntries(ctx, entries)
+	if err != nil {
+		return err
+	}
+
 	if len(entries.X509CAs) > 0 {
 		m.nextX509CA, err = m.tryLoadX509CASlotFromEntry(ctx, entries.X509CAs[len(entries.X509CAs)-1])
 		if err != nil {
@@ -545,12 +551,6 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 	}
 
 	if len(entries.JwtKeys) > 0 {
-		// filter out local JwtKeys that do not exist in the database bundle
-		entries.JwtKeys, err = m.filterInvalidEntries(ctx, entries)
-		if err != nil {
-			return err
-		}
-
 		m.nextJWTKey, err = m.tryLoadJWTKeySlotFromEntry(ctx, entries.JwtKeys[len(entries.JwtKeys)-1])
 		if err != nil {
 			return err
@@ -818,17 +818,30 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 	return nil
 }
 
-func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, error) {
+func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*JWTKeyEntry, []*X509CAEntry, error) {
 	bundle, err := m.fetchRequiredBundle(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	filteredEntriesJwtKeys := []*JWTKeyEntry{}
+	filteredEntriesX509CAs := []*X509CAEntry{}
 
+	// certificate append to the database whenever upstreamClient does not exist
+	if m.upstreamClient != nil {
+		filteredEntriesX509CAs = entries.X509CAs
+	} else {
+		for _, entry := range entries.GetX509CAs() {
+			if containsX509CA(bundle.RootCas, entry.Certificate) {
+				filteredEntriesX509CAs = append(filteredEntriesX509CAs, entry)
+			} else {
+				m.c.Log.Warn("Dropping X509 CA as it not found in bundle")
+			}
+		}
+	}
 	for _, entry := range entries.GetJwtKeys() {
-		if containsKid(bundle.JwtSigningKeys, entry.Kid) {
+		if containsJwtSigningKeyid(bundle.JwtSigningKeys, entry.Kid) {
 			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
 		} else {
 			m.c.Log.WithFields(logrus.Fields{
@@ -836,7 +849,7 @@ func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Ent
 			}).Warn("Dropping JWT key entry as it does not match any key in the bundle")
 		}
 	}
-	return filteredEntriesJwtKeys, nil
+	return filteredEntriesJwtKeys, filteredEntriesX509CAs, nil
 }
 
 func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, error) {
@@ -1155,12 +1168,21 @@ func timeField(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func containsKid(keys []*common.PublicKey, kid string) bool {
+func containsJwtSigningKeyid(keys []*common.PublicKey, kid string) bool {
 	for _, key := range keys {
 		if key.Kid == kid {
 			return true
 		}
 	}
 
+	return false
+}
+
+func containsX509CA(rootCAs []*common.Certificate, certificate []byte) bool {
+	for _, ca := range rootCAs {
+		if bytes.Equal(ca.DerBytes, certificate) {
+			return true
+		}
+	}
 	return false
 }
