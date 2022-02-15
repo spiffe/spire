@@ -830,6 +830,10 @@ func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Ent
 	for _, entry := range entries.GetJwtKeys() {
 		if containsKid(bundle.JwtSigningKeys, entry.Kid) {
 			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
+		} else {
+			m.c.Log.WithFields(logrus.Fields{
+				telemetry.Kid: entry.Kid,
+			}).Warn("Dropping JWT key entry as it does not match any key in the bundle")
 		}
 	}
 	return filteredEntriesJwtKeys, nil
