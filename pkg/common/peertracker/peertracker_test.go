@@ -25,7 +25,7 @@ type peertrackerTest struct {
 
 func setupTest(t *testing.T) *peertrackerTest {
 	childPath := filepath.Join(t.TempDir(), "child.exe")
-	buildOutput, err := exec.Command("go", "build", "-o", childPath, childSource).CombinedOutput() //nolint: gosec // false positive
+	buildOutput, err := exec.Command("go", "build", "-o", childPath, childSource).CombinedOutput()
 	if err != nil {
 		t.Logf("build output:\n%v\n", string(buildOutput))
 		require.FailNow(t, "failed to build test child")
@@ -44,7 +44,6 @@ func setupTest(t *testing.T) *peertrackerTest {
 		addr:      addr,
 		logHook:   logHook,
 	}
-
 }
 
 func (p *peertrackerTest) cleanup(t *testing.T) {
@@ -186,12 +185,6 @@ func TestExitDetection(t *testing.T) {
 	test.listener.Close()
 	test.listener = nil
 	require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
-}
-
-type fakePeer struct {
-	grandchildPID int
-	conn          net.Conn
-	t             *testing.T
 }
 
 func newFakePeer(t *testing.T) *fakePeer {

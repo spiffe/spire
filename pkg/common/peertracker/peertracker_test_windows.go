@@ -18,6 +18,12 @@ const (
 	childSource = "peertracker_test_child_windows.go"
 )
 
+type fakePeer struct {
+	grandchildPID int
+	conn          net.Conn
+	t             *testing.T
+}
+
 func (f *fakePeer) killGrandchild() {
 	if f.grandchildPID == 0 {
 		f.t.Fatal("no known grandchild")
@@ -49,5 +55,6 @@ func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
 }
 
 func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
+	// #nosec G204 test code
 	return exec.Command(childPath, "-tcpSocketPort", strconv.Itoa(addr.(*net.TCPAddr).Port))
 }
