@@ -7,22 +7,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2"
 )
 
 func TestHandlerHTTPS(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
 	testCases := []struct {
-		name       string
-		method     string
-		path       string
-		jwks       *jose.JSONWebKeySet
-		modTime    time.Time
-		code       int
-		body       string
-		setKeyUse  bool
-		setKeyAlgo bool
+		name      string
+		method    string
+		path      string
+		jwks      *jose.JSONWebKeySet
+		modTime   time.Time
+		code      int
+		body      string
+		setKeyUse bool
 	}{
 		{
 			name:   "GET well-known",
@@ -103,11 +106,10 @@ func TestHandlerHTTPS(t *testing.T) {
 			body:   "method not allowed\n",
 		},
 		{
-			name:       "GET keys with key use",
-			method:     "GET",
-			path:       "/keys",
-			setKeyUse:  true,
-			setKeyAlgo: false,
+			name:      "GET keys with key use",
+			method:    "GET",
+			path:      "/keys",
+			setKeyUse: true,
 			jwks: &jose.JSONWebKeySet{
 				Keys: []jose.JSONWebKey{
 					{
@@ -133,11 +135,10 @@ func TestHandlerHTTPS(t *testing.T) {
 }`,
 		},
 		{
-			name:       "GET keys with key algo",
-			method:     "GET",
-			path:       "/keys",
-			setKeyUse:  false,
-			setKeyAlgo: true,
+			name:      "GET keys with key algo",
+			method:    "GET",
+			path:      "/keys",
+			setKeyUse: false,
 			jwks: &jose.JSONWebKeySet{
 				Keys: []jose.JSONWebKey{
 					{
@@ -172,7 +173,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, testCase.setKeyAlgo)
+			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -183,6 +184,8 @@ func TestHandlerHTTPS(t *testing.T) {
 }
 
 func TestHandlerHTTPInsecure(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
 	testCases := []struct {
 		name    string
 		method  string
@@ -282,7 +285,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "localhost", "domain.test"), source, true, false, false)
+			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -293,6 +296,8 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 }
 
 func TestHandlerHTTP(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
 	testCases := []struct {
 		name         string
 		overrideHost string
@@ -449,7 +454,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, false)
+			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -460,6 +465,8 @@ func TestHandlerHTTP(t *testing.T) {
 }
 
 func TestHandlerProxied(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
 	testCases := []struct {
 		name    string
 		method  string
@@ -561,7 +568,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(domainAllowlist(t, "domain.test"), source, false, false, false)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
