@@ -819,7 +819,7 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 }
 
 func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*JWTKeyEntry, []*X509CAEntry, error) {
-	bundle, err := m.fetchRequiredBundle(ctx)
+	bundle, err := m.fetchOptionalBundle(ctx)
 
 	if err != nil {
 		return nil, nil, err
