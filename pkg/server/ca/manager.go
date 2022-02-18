@@ -818,6 +818,14 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 	return nil
 }
 
+// filterInvalidEntries takes in a set of journal entries, and removes entries that represent signing keys
+// that do not appear in the bundle from the datastore. This prevents SPIRE from entering strange
+// and inconsistent states as a result of key mismatch following things like database restore,
+// disk/journal manipulation, etc.
+//
+// If we find such a discrepancy, removing the entry from the journal prior to beginning signing
+// operations prevents us from using a signing key that consumers may not be able to validate.
+// Instead, we'll rotate into a new one.
 func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*JWTKeyEntry, []*X509CAEntry, error) {
 	bundle, err := m.fetchOptionalBundle(ctx)
 
@@ -825,30 +833,39 @@ func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Ent
 		return nil, nil, err
 	}
 
-	filteredEntriesJwtKeys := []*JWTKeyEntry{}
-	filteredEntriesX509CAs := []*X509CAEntry{}
-
-	// certificate append to the database whenever upstreamClient does not exist
-	if m.upstreamClient != nil {
-		filteredEntriesX509CAs = entries.X509CAs
-	} else {
-		for _, entry := range entries.GetX509CAs() {
-			if containsX509CA(bundle.RootCas, entry.Certificate) {
-				filteredEntriesX509CAs = append(filteredEntriesX509CAs, entry)
-			} else {
-				m.c.Log.Warn("Dropping X509 CA as it not found in bundle")
-			}
-		}
+	if bundle == nil {
+		return entries.JwtKeys, entries.X509CAs, nil
 	}
+
+	filteredEntriesJwtKeys := []*JWTKeyEntry{}
+
 	for _, entry := range entries.GetJwtKeys() {
 		if containsJwtSigningKeyid(bundle.JwtSigningKeys, entry.Kid) {
 			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
-		} else {
-			m.c.Log.WithFields(logrus.Fields{
-				telemetry.Kid: entry.Kid,
-			}).Warn("Dropping JWT key entry as it does not match any key in the bundle")
+			continue
 		}
+		m.c.Log.WithFields(logrus.Fields{
+			telemetry.Kid: entry.Kid,
+		}).Warn("JWT Key found in journal on disk but not present in bundle from datastore; SPIRE will now rotate to recover.")
+
 	}
+
+	// If we have an upstream authority then we're not recovering a root CA, so we do
+	// not expect to find our CA certificate in the bundle. Simply proceed.
+	if m.upstreamClient != nil {
+		return filteredEntriesJwtKeys, entries.X509CAs, nil
+	}
+
+	filteredEntriesX509CAs := []*X509CAEntry{}
+
+	for _, entry := range entries.GetX509CAs() {
+		if containsX509CA(bundle.RootCas, entry.Certificate) {
+			filteredEntriesX509CAs = append(filteredEntriesX509CAs, entry)
+			continue
+		}
+		m.c.Log.Warn("Root CA certificate found in journal on disk but not present in bundle from datastore; SPIRE will now rotate to recover.")
+	}
+
 	return filteredEntriesJwtKeys, filteredEntriesX509CAs, nil
 }
 
