@@ -58,7 +58,7 @@ func (s *Signer) SignToken(id spiffeid.ID, audience []string, expires time.Time,
 		IssuedAt: jwt.NewNumericDate(s.c.Clock.Now()),
 	}
 
-	alg, err := cryptoutil.GetPublicKeyAlgorithm(signer.Public())
+	alg, err := cryptoutil.JoseAlgFromPublicKey(signer.Public())
 	if err != nil {
 		return "", errs.Wrap(err)
 	}

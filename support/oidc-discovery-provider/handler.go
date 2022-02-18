@@ -150,7 +150,7 @@ func (h *Handler) enrichJwksKeys(jwkKeys []jose.JSONWebKey) []jose.JSONWebKey {
 		}
 	}
 	for i, k := range jwkKeys {
-		alg, err := cryptoutil.GetPublicKeyAlgorithm(k.Key)
+		alg, err := cryptoutil.JoseAlgFromPublicKey(k.Key)
 		if err != nil {
 			h.log.WithFields(logrus.Fields{
 				telemetry.Kid: k.KeyID,
