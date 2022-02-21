@@ -41,7 +41,7 @@ func setupTest(t *testing.T) *peertrackerTest {
 	return &peertrackerTest{
 		childPath: childPath,
 		listener:  listener,
-		addr:      addr,
+		addr:      listener.Addr(),
 		logHook:   logHook,
 	}
 }

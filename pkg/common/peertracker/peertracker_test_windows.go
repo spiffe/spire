@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -37,14 +38,16 @@ func (f *fakePeer) killGrandchild() {
 		f.t.Fatalf("unable to kill grandchild: %v", err)
 	}
 
+	// Wait for the process to exit, so we are sure that we can
+	// cleanup the directory containing the executable
+	if _, err := process.Wait(); err != nil {
+		f.t.Fatalf("wait failed: %v", err)
+	}
 	f.grandchildPID = 0
 }
 
 func addr(t *testing.T) net.Addr {
-	return &net.TCPAddr{
-		IP:   net.IPv4(127, 0, 0, 1),
-		Port: 8082,
-	}
+	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
 }
 
 func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
@@ -56,5 +59,9 @@ func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
 
 func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
 	// #nosec G204 test code
-	return exec.Command(childPath, "-tcpSocketPort", strconv.Itoa(addr.(*net.TCPAddr).Port))
+	return exec.Command(childPath,
+		"-tcpSocketPort",
+		strconv.Itoa(addr.(*net.TCPAddr).Port),
+		"-protocolInfoFile",
+		filepath.Join(filepath.Dir(childPath), "wsaprotocolinfo"))
 }
