@@ -31,12 +31,10 @@ func setupTest(t *testing.T) *peertrackerTest {
 		require.FailNow(t, "failed to build test child")
 	}
 
-	addr := addr(t)
-
 	log, hook := logtest.NewNullLogger()
 	logHook := hook
 
-	listener := listener(t, log, addr)
+	listener := listener(t, log, addr(t))
 
 	return &peertrackerTest{
 		childPath: childPath,
