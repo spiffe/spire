@@ -41,8 +41,6 @@ type Config struct {
 	Log      logrus.FieldLogger
 	Manager  manager.Manager
 	Attestor workload_attestor.Attestor
-
-	AllowUnauthenticatedVerifiers bool
 	AuthorizedDelegates           []string
 }
 
@@ -57,7 +55,6 @@ func New(config Config) *Service {
 		manager:                       config.Manager,
 		attestor:                      endpoints.PeerTrackerAttestor{Attestor: config.Attestor},
 		authorizedDelegates:           AuthorizedDelegates,
-		allowUnauthenticatedVerifiers: config.AllowUnauthenticatedVerifiers,
 	}
 }
 
@@ -68,7 +65,6 @@ type Service struct {
 	manager  manager.Manager
 	attestor attestor
 
-	allowUnauthenticatedVerifiers bool
 	// SPIFFE IDs of delegates that are authorized to use this API
 	authorizedDelegates map[string]bool
 }
