@@ -19,7 +19,7 @@ func CallerFromUDSConn(conn net.Conn) (CallerInfo, error) {
 	}
 
 	ctrlErr := rawconn.Control(func(fd uintptr) {
-		info, err = getCallerInfo(fd)
+		info, err = getCallerInfoFromFileDescriptor(fd)
 	})
 	if ctrlErr != nil {
 		return info, ctrlErr

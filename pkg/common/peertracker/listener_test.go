@@ -75,7 +75,7 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	defer cancel()
 
 	clientDone := make(chan error)
-	peer := newFakeUDSPeer(p.T())
+	peer := newFakePeer(p.T())
 
 	peer.connect(p.unixAddr, clientDone)
 
