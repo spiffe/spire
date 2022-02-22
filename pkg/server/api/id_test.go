@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -185,6 +186,43 @@ func TestIDFromProto(t *testing.T) {
 			},
 		})
 	})
+}
+
+func TestVerifyTrustDomainAgentIDForNodeAttestor(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		id        spiffeid.ID
+		expectErr string
+	}{
+		{
+			name:      "not in trust domain",
+			id:        spiffeid.RequireFromString("spiffe://otherdomain.test/spire/agent/foo/1234"),
+			expectErr: `"spiffe://otherdomain.test/spire/agent/foo/1234" is not a member of trust domain "example.org"`,
+		},
+		{
+			name:      "not in reserved namespace",
+			id:        spiffeid.RequireFromString("spiffe://example.org/foo/1234"),
+			expectErr: `"spiffe://example.org/foo/1234" is not in the agent namespace for attestor "foo"`,
+		},
+		{
+			name:      "not in namespace for node attestor",
+			id:        spiffeid.RequireFromString("spiffe://example.org/spire/agent/bar/1234"),
+			expectErr: `"spiffe://example.org/spire/agent/bar/1234" is not in the agent namespace for attestor "foo"`,
+		},
+		{
+			name: "success",
+			id:   spiffeid.RequireFromString("spiffe://example.org/spire/agent/foo/1234"),
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := api.VerifyTrustDomainAgentIDForNodeAttestor(td, testCase.id, "foo")
+			if testCase.expectErr != "" {
+				assert.EqualError(t, err, testCase.expectErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestAttestedNodeToProto(t *testing.T) {

@@ -24,7 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/api/svid/v1"
+	svid "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -375,12 +375,12 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR URI SAN is not a valid SPIFFE ID: scheme is missing or invalid",
+			err:  "CSR URI SAN is invalid: scheme is missing or invalid",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Invalid argument: CSR URI SAN is not a valid SPIFFE ID",
+						Message: "Invalid argument: CSR URI SAN is invalid",
 						Data: logrus.Fields{
 							logrus.ErrorKey: "scheme is missing or invalid",
 						},
@@ -392,7 +392,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR URI SAN is not a valid SPIFFE ID: scheme is missing or invalid",
+							telemetry.StatusMessage: "CSR URI SAN is invalid: scheme is missing or invalid",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},
@@ -469,12 +469,12 @@ func TestServiceMintX509SVID(t *testing.T) {
 				DNSNames: []string{"abc-"},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR DNS name is not valid: label does not match regex: abc-",
+			err:  "CSR DNS name is invalid: label does not match regex: abc-",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Invalid argument: CSR DNS name is not valid",
+						Message: "Invalid argument: CSR DNS name is invalid",
 						Data: logrus.Fields{
 							logrus.ErrorKey: "label does not match regex: abc-",
 						},
@@ -486,7 +486,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR DNS name is not valid: label does not match regex: abc-",
+							telemetry.StatusMessage: "CSR DNS name is invalid: label does not match regex: abc-",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},

@@ -228,6 +228,7 @@ func (f *fakeUDSPeer) connectFromForkingChild(addr *net.UnixAddr, childPath stri
 	}
 
 	go func() {
+		// #nosec G204 test code
 		out, err := exec.Command(childPath, "-socketPath", addr.Name).Output()
 		if err != nil {
 			doneCh <- fmt.Errorf("child process failed: %w", err)

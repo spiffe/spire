@@ -19,7 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/api/agent/v1"
+	agent "github.com/spiffe/spire/pkg/server/api/agent/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -32,13 +32,13 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"gotest.tools/assert"
 )
 
 const (
@@ -2865,7 +2865,6 @@ func TestAttestAgent(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			name:       "ds: fails to update attested agent",
 			request:    getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
@@ -2895,6 +2894,69 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.StatusCode:       "Internal",
 						telemetry.StatusMessage:    "failed to update attested agent: some error",
 						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_attested_before",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
+		},
+		{
+			name:       "nodeattestor returns server ID",
+			request:    getAttestAgentRequest("test_type", []byte("payload_return_server_id"), testCsr),
+			expectCode: codes.Internal,
+			expectMsg:  "agent ID cannot collide with the server ID",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Agent ID cannot collide with the server ID",
+					Data: logrus.Fields{
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/server").String(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "agent ID cannot collide with the server ID",
+						telemetry.AgentID:          "spiffe://example.org/spire/server",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
+		},
+		{
+			name:       "nodeattestor returns ID outside of its namespace",
+			request:    getAttestAgentRequest("test_type", []byte("payload_return_id_outside_namespace"), testCsr),
+			expectedID: spiffeid.RequireFromPath(td, "/id_outside_namespace"),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor",
+					Data: logrus.Fields{
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/id_outside_namespace").String(),
+						logrus.ErrorKey:            `"spiffe://example.org/id_outside_namespace" is not in the agent namespace for attestor "test_type"`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/id_outside_namespace",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/id_outside_namespace",
 						telemetry.NodeAttestorType: "test_type",
 					},
 				},
@@ -3043,21 +3105,25 @@ func setupServiceTest(t *testing.T, agentTTL time.Duration) *serviceTest {
 
 func (s *serviceTest) setupAttestor(t *testing.T) {
 	attestorConfig := fakeservernodeattestor.Config{
+		ReturnLiteral: true,
 		Payloads: map[string]string{
-			"payload_attested_before": "id_attested_before",
-			"payload_with_challenge":  "id_with_challenge",
-			"payload_with_result":     "id_with_result",
-			"payload_banned":          "id_banned",
+			"payload_attested_before":             "spiffe://example.org/spire/agent/test_type/id_attested_before",
+			"payload_with_challenge":              "spiffe://example.org/spire/agent/test_type/id_with_challenge",
+			"payload_with_result":                 "spiffe://example.org/spire/agent/test_type/id_with_result",
+			"payload_banned":                      "spiffe://example.org/spire/agent/test_type/id_banned",
+			"payload_return_server_id":            "spiffe://example.org/spire/server",
+			"payload_return_id_outside_namespace": "spiffe://example.org/id_outside_namespace",
 		},
 		Selectors: map[string][]string{
-			"id_with_result":     {"result"},
-			"id_attested_before": {"attested_before"},
-			"id_with_challenge":  {"challenge"},
-			"id_banned":          {"banned"},
+			"spiffe://example.org/spire/agent/test_type/id_with_result":     {"result"},
+			"spiffe://example.org/spire/agent/test_type/id_attested_before": {"attested_before"},
+			"spiffe://example.org/spire/agent/test_type/id_with_challenge":  {"challenge"},
+			"spiffe://example.org/spire/agent/test_type/id_banned":          {"banned"},
+		},
+		Challenges: map[string][]string{
+			"id_with_challenge": {"challenge_response"},
 		},
 	}
-
-	attestorConfig.Challenges = map[string][]string{"id_with_challenge": {"challenge_response"}}
 
 	fakeNodeAttestor := fakeservernodeattestor.New(t, "test_type", attestorConfig)
 	s.cat.SetNodeAttestor(fakeNodeAttestor)

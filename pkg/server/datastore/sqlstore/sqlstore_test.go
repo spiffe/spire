@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -1175,7 +1176,9 @@ func (s *PluginSuite) TestListNodeSelectors() {
 		}
 	}
 
-	allAttNodesToCreate := append(nonExpiredAttNodes, expiredAttNodes...)
+	allAttNodesToCreate := make([]*common.AttestedNode, 0, len(nonExpiredAttNodes)+len(expiredAttNodes))
+	allAttNodesToCreate = append(allAttNodesToCreate, nonExpiredAttNodes...)
+	allAttNodesToCreate = append(allAttNodesToCreate, expiredAttNodes...)
 	selectorMap := make(map[string][]*common.Selector)
 	for i, n := range allAttNodesToCreate {
 		_, err := s.ds.CreateAttestedNode(ctx, n)
@@ -3861,6 +3864,9 @@ func (s *PluginSuite) TestMigration() {
 			require := require.New(t)
 			dbName := fmt.Sprintf("v%d.sqlite3", schemaVersion)
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "migration-"+dbName))
+			if runtime.GOOS == "windows" {
+				dbPath = "/" + dbPath
+			}
 			dbURI := fmt.Sprintf("file://%s", dbPath)
 
 			minimalDB := func() string {

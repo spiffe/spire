@@ -198,15 +198,15 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 	})
 
 	test := &bundleTest{
-		cert1:    cert1,
-		cert2:    cert2,
-		key1Pkix: key1Pkix,
-		stdin:    stdin,
-		stdout:   stdout,
-		stderr:   stderr,
-		args:     []string{"-socketPath", socketPath},
-		server:   server,
-		client:   client,
+		cert1:      cert1,
+		cert2:      cert2,
+		key1Pkix:   key1Pkix,
+		socketPath: socketPath,
+		stdin:      stdin,
+		stdout:     stdout,
+		stderr:     stderr,
+		server:     server,
+		client:     client,
 	}
 
 	t.Cleanup(func() {
@@ -225,8 +225,8 @@ type bundleTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	args   []string
-	server *fakeBundleServer
+	socketPath string
+	server     *fakeBundleServer
 
 	client cli.Command
 }
@@ -236,6 +236,10 @@ func (s *bundleTest) afterTest(t *testing.T) {
 	t.Logf("STDOUT:\n%s", s.stdout.String())
 	t.Logf("STDIN:\n%s", s.stdin.String())
 	t.Logf("STDERR:\n%s", s.stderr.String())
+}
+
+func (s *bundleTest) args(extra ...string) []string {
+	return append([]string{"-socketPath", s.socketPath}, extra...)
 }
 
 type fakeBundleServer struct {

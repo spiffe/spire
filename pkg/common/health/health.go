@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/InVisionApp/go-health"
+	"github.com/InVisionApp/go-health/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -155,7 +156,7 @@ func WaitForTestDial(ctx context.Context, addr *net.UnixAddr) {
 
 	conn, err := grpc.DialContext(ctx,
 		addr.String(),
-		grpc.WithInsecure(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
 			return net.DialUnix("unix", nil, &net.UnixAddr{
 				Net:  "unix",

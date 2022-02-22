@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	serverTelemetry "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -33,7 +33,7 @@ func scanForBadEntries(log logrus.FieldLogger, metrics telemetry.Metrics, ds dat
 			}
 
 			for _, entry := range resp.Entries {
-				if err := idutil.CheckIDStringNormalization(entry.ParentId); err != nil {
+				if _, err := spiffeid.FromString(entry.ParentId); err != nil {
 					log.WithFields(logrus.Fields{
 						telemetry.ParentID:       entry.ParentId,
 						telemetry.SPIFFEID:       entry.SpiffeId,
@@ -43,7 +43,7 @@ func scanForBadEntries(log logrus.FieldLogger, metrics telemetry.Metrics, ds dat
 					ignored++
 					continue
 				}
-				if err := idutil.CheckIDStringNormalization(entry.SpiffeId); err != nil {
+				if _, err := spiffeid.FromString(entry.SpiffeId); err != nil {
 					log.WithFields(logrus.Fields{
 						telemetry.ParentID:       entry.ParentId,
 						telemetry.SPIFFEID:       entry.SpiffeId,

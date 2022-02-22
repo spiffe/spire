@@ -30,6 +30,12 @@ func IsAgentPath(path string) bool {
 	return strings.HasPrefix(path, "/spire/agent/")
 }
 
+// IsAgentPathForNodeAttestor returns if the path lives under the agent
+// namesepace for the given node attestor
+func IsAgentPathForNodeAttestor(path string, nodeAttestor string) bool {
+	return strings.HasPrefix(path, "/spire/agent/"+nodeAttestor+"/")
+}
+
 func IsReservedPath(path string) bool {
 	return path == "/spire" || strings.HasPrefix(path, "/spire/")
 }

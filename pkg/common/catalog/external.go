@@ -174,7 +174,9 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		server.Stop()
+		if !gracefulStopWithTimeout(server) {
+			p.config.Log.Warn("Forced timed-out host service server to stop")
+		}
 	}()
 
 	return &hcPlugin{

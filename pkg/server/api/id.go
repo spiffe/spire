@@ -63,6 +63,16 @@ func VerifyTrustDomainAgentID(td spiffeid.TrustDomain, id spiffeid.ID) error {
 	return nil
 }
 
+func VerifyTrustDomainAgentIDForNodeAttestor(td spiffeid.TrustDomain, id spiffeid.ID, nodeAttestorName string) error {
+	if !id.MemberOf(td) {
+		return fmt.Errorf("%q is not a member of trust domain %q", id, td)
+	}
+	if !idutil.IsAgentPathForNodeAttestor(id.Path(), nodeAttestorName) {
+		return fmt.Errorf("%q is not in the agent namespace for attestor %q", id, nodeAttestorName)
+	}
+	return nil
+}
+
 func TrustDomainWorkloadIDFromProto(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	id, err := IDFromProto(ctx, protoID)
 	if err != nil {
