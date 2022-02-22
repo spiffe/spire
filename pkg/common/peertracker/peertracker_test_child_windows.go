@@ -78,12 +78,6 @@ func main() {
 		os.Exit(5)
 	}
 
-	socket, err := getFd(conn)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get file descriptor from connection: %v", err)
-		os.Exit(6)
-	}
-
 	procattr := &syscall.ProcAttr{
 		Env:   os.Environ(),
 		Files: []uintptr{0, 0, 0}, // Do not block on stdin / stdout / stderr
@@ -95,7 +89,7 @@ func main() {
 		os.Exit(7)
 	}
 
-	if err := duplicateSocket(windows.Handle(socket), pid, protocolInfoFile); err != nil {
+	if err := duplicateSocket(conn, pid, protocolInfoFile); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to duplicate socket: %v", err)
 		os.Exit(8)
 	}
@@ -136,28 +130,6 @@ func getProtocolInfo(protocolInfoFile string) (piBytes []byte, err error) {
 	}
 }
 
-// getFd gets the file descriptor from a TCP connection
-func getFd(conn *net.TCPConn) (fd uintptr, err error) {
-	if conn == nil {
-		return uintptr(windows.InvalidHandle), errors.New("no connection")
-	}
-	rawConn, err := conn.SyscallConn()
-	if err != nil {
-		return uintptr(windows.InvalidHandle), fmt.Errorf("failed to get raw network connection: %v", err)
-	}
-
-	fdCh := make(chan uintptr, 1)
-	err = rawConn.Control(func(fd uintptr) {
-		fdCh <- fd
-	})
-	if err != nil {
-		return uintptr(windows.InvalidHandle), fmt.Errorf("failed to get socket descriptor: %v", err)
-	}
-	fd = <-fdCh
-
-	return fd, nil
-}
-
 // send sends data on a connected socket
 func send(socket windows.Handle, data string) (err error) {
 	var (
@@ -176,17 +148,30 @@ func send(socket windows.Handle, data string) (err error) {
 	return windows.WSASend(socket, &bufs, 1, &bufcnt, 0, &overlapped, nil)
 }
 
-// duplicateSocket calls the WSADuplicateSocket function and stores
-// the WSAPROTOCOL_INFO structure in protocolInfoFile.
-// Calling WSADuplicateSocket is needed to to enable socket
-// sharing across processes.
+// duplicateSocket calls the WSADuplicateSocket function for the specified
+// connection and process ID, storing the resulting WSAPROTOCOL_INFO
+// structure in protocolInfoFile. Calling WSADuplicateSocket is needed
+// to enable socket sharing across processes.
 // https://docs.microsoft.com/en-us/windows/win32/winsock/shared-sockets-2
-func duplicateSocket(socket windows.Handle, pid int, protocolInfoFile string) error {
-	b := make([]byte, int(unsafe.Sizeof(windows.WSAProtocolInfo{})))
-	if err := wsaDuplicateSocket(socket, uint32(pid), (*windows.WSAProtocolInfo)(unsafe.Pointer(&b[0]))); err != nil {
-		return fmt.Errorf("error in WSADuplicateSocket: %v", err)
+func duplicateSocket(conn *net.TCPConn, pid int, protocolInfoFile string) error {
+	if conn == nil {
+		return errors.New("no connection")
+	}
+	rawConn, err := conn.SyscallConn()
+	if err != nil {
+		return fmt.Errorf("failed to get raw network connection: %v", err)
 	}
 
+	b := make([]byte, int(unsafe.Sizeof(windows.WSAProtocolInfo{})))
+	ctrlErr := rawConn.Control(func(fd uintptr) {
+		err = wsaDuplicateSocket(windows.Handle(fd), uint32(pid), (*windows.WSAProtocolInfo)(unsafe.Pointer(&b[0])))
+	})
+	if ctrlErr != nil {
+		return ctrlErr
+	}
+	if err != nil {
+		return fmt.Errorf("error in WSADuplicateSocket: %v", err)
+	}
 	if err := os.WriteFile(protocolInfoFile, b, 0644); err != nil {
 		return fmt.Errorf("writing wsaprotocolinfo file failed: %v", err)
 	}

@@ -31,29 +31,26 @@ func setupTest(t *testing.T) *peertrackerTest {
 		require.FailNow(t, "failed to build test child")
 	}
 
-	log, hook := logtest.NewNullLogger()
-	logHook := hook
+	log, logHook := logtest.NewNullLogger()
 
 	listener := listener(t, log, addr(t))
-
-	return &peertrackerTest{
+	p := &peertrackerTest{
 		childPath: childPath,
 		listener:  listener,
 		addr:      listener.Addr(),
 		logHook:   logHook,
 	}
-}
+	t.Cleanup(func() {
+		if p.listener != nil {
+			require.NoError(t, p.listener.Close())
+		}
+	})
 
-func (p *peertrackerTest) cleanup(t *testing.T) {
-	if p.listener != nil {
-		err := p.listener.Close()
-		require.NoError(t, err)
-	}
+	return p
 }
 
 func TestTrackerClose(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup(t)
 
 	test.listener.Tracker.Close()
 	_, err := test.listener.Tracker.NewWatcher(CallerInfo{})
@@ -62,7 +59,6 @@ func TestTrackerClose(t *testing.T) {
 
 func TestListener(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup(t)
 
 	doneCh := make(chan error)
 	peer := newFakePeer(t)
@@ -91,7 +87,6 @@ func TestListener(t *testing.T) {
 
 func TestExitDetection(t *testing.T) {
 	test := setupTest(t)
-	defer test.cleanup(t)
 
 	// First, just test against ourselves
 	doneCh := make(chan error)
@@ -200,7 +195,7 @@ func (f *fakePeer) connect(addr net.Addr, doneCh chan error) {
 	go func() {
 		conn, err := net.Dial(addr.Network(), addr.String())
 		if err != nil {
-			doneCh <- fmt.Errorf("could not dial tcp address: %w", err)
+			doneCh <- fmt.Errorf("could not dial address %s: %w", addr, err)
 			return
 		}
 
