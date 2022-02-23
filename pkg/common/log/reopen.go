@@ -1,19 +1,15 @@
 package log
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 )
 
 const (
-	fileFlags    = os.O_APPEND | os.O_CREATE | os.O_WRONLY
-	fileMode     = 0640
-	reopenSignal = syscall.SIGUSR2
+	fileFlags = os.O_APPEND | os.O_CREATE | os.O_WRONLY
+	fileMode  = 0640
 )
 
 var _ ReopenableWriteCloser = (*ReopenableFile)(nil)
@@ -92,30 +88,4 @@ func (r *ReopenableFile) Close() error {
 // underlying file.
 func (r *ReopenableFile) Name() string {
 	return r.name
-}
-
-// ReopenOnSignal returns a function compatible with RunTasks.
-func ReopenOnSignal(reopener Reopener) func(context.Context) error {
-	return func(ctx context.Context) error {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, reopenSignal)
-		return reopenOnSignal(ctx, reopener, signalCh)
-	}
-}
-
-func reopenOnSignal(
-	ctx context.Context,
-	reopener Reopener,
-	signalCh chan os.Signal,
-) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-signalCh:
-			if err := reopener.Reopen(); err != nil {
-				return err
-			}
-		}
-	}
 }
