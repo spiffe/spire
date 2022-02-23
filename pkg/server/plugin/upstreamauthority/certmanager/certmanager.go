@@ -46,6 +46,9 @@ type Config struct {
 
 	// File path to the kubeconfig used to build the generic Kubernetes client.
 	KubeConfigFilePath string `hcl:"kube_config_file" json:"kube_config_file"`
+
+	// Optional additional Certificate Authorities to add to the bundle
+	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
 }
 
 // Event hooks used by unit tests to coordinate goroutines
@@ -193,6 +196,15 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	if err != nil {
 		log.Error("Failed to parse signed certificate", "error", err.Error())
 		return status.Errorf(codes.Internal, "failed to parse certificate: %v", err)
+	}
+
+	//Check for additional certificates to add to bundle
+	if p.config.BundleFilePath != "" {
+		bundleCerts, err := pemutil.LoadCertificates(p.config.BundleFilePath)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "unable to load upstream CA bundle: %v", err)
+		}
+		caChain = append(caChain, bundleCerts...)
 	}
 
 	// If the configured issuer did not populate the CA on the request we cannot
