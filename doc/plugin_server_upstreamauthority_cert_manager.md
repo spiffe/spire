@@ -35,6 +35,7 @@ This plugin requests certificates from the configured
 | issuer_name               | The name of the issuer to reference in CertificateRequests.       |
 | issuer_kind               | (Optional) The kind of the issuer to reference in CertificateRequests. Defaults to "Issuer" if empty. |
 | issuer_group              | (Optional) The group of the issuer to reference in CertificateRequests. Defaults to "cert-manager.io" if empty. |
+| bundle_file_path          | (Optional) A bundle of additional certificate authorities to trust. This has security implications. |
 
 
 ```hcl
@@ -48,3 +49,11 @@ UpstreamAuthority "cert-manager" {
     }
 }
 ```
+
+Adding additonal certificate authorities to the trust bundle that Spire provides allows those authorities
+to be able to mint their own SPIFFE Identities. This means that an SVID could be generated without going
+through SPIRE's attestion process if a certificate is able to be requested with it's URI SAN set from
+the added certificate authorities. 
+
+Care should be taken when using this configuration value, and the added certificate authorities should
+be tightly controlled to avoid this. 
