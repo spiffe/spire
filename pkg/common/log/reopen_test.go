@@ -16,16 +16,15 @@ import (
 
 func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 	const (
-		_tempDir         = "spirelogrotatetest"
-		_testLogFileName = "test.log"
-		_rotatedSuffix   = "rotated"
-		_firstMsg        = "a message"
-		_secondMsg       = "another message"
+		testLogFileName = "test.log"
+		rotatedSuffix   = "rotated"
+		firstMsg        = "a message"
+		secondMsg       = "another message"
 	)
 	dir := spiretest.TempDir(t)
 
-	logFileName := filepath.Join(dir, _testLogFileName)
-	rotatedLogFileName := logFileName + "." + _rotatedSuffix
+	logFileName := filepath.Join(dir, testLogFileName)
+	rotatedLogFileName := logFileName + "." + rotatedSuffix
 	rf, err := NewReopenableFile(logFileName)
 	require.NoError(t, err)
 
@@ -36,7 +35,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 	logger, err := NewLogger(WithReopenableOutputFile(rf))
 	require.NoError(t, err)
 
-	logger.Warning(_firstMsg)
+	logger.Warning(firstMsg)
 
 	fsInfo, err = rf.f.Stat()
 	require.NoError(t, err)
@@ -72,7 +71,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 	assert.Equal(t, initialLogSize, fsInfo.Size(), "%s should be same size as before rename", fsInfo.Name())
 	assert.Equal(t, initialLogModTime, fsInfo.ModTime(), "%s should have same mod time as before rename", fsInfo.Name())
 
-	logger.Warning(_secondMsg)
+	logger.Warning(secondMsg)
 	fsInfo, err = rf.f.Stat()
 	require.NoError(t, err)
 	assert.NotEqual(t, int64(0), fsInfo.Size(), "%s should not be empty", fsInfo.Name())
