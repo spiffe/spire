@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -222,7 +221,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 func getMyPodNamespace() (string, error) {
 	namespace, ok := os.LookupEnv("MY_POD_NAMESPACE")
 	if !ok {
-		content, err := ioutil.ReadFile(namespaceFile)
+		content, err := os.ReadFile(namespaceFile)
 		if err != nil {
 			return "", fmt.Errorf("unable to get MY_POD_NAMESPACE; ensure downward API is configured for this pod: %w", err)
 		}
