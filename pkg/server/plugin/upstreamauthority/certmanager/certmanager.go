@@ -198,15 +198,6 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 		return status.Errorf(codes.Internal, "failed to parse certificate: %v", err)
 	}
 
-	//Check for additional certificates to add to bundle
-	if p.config.BundleFilePath != "" {
-		bundleCerts, err := pemutil.LoadCertificates(p.config.BundleFilePath)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "unable to load upstream CA bundle: %v", err)
-		}
-		caChain = append(caChain, bundleCerts...)
-	}
-
 	// If the configured issuer did not populate the CA on the request we cannot
 	// build the upstream roots. We can only error here.
 	if len(cr.Status.CA) == 0 {
@@ -218,6 +209,14 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	if err != nil {
 		log.Error("Failed to parse CA certificate returned from request", "error", err.Error())
 		return status.Errorf(codes.Internal, "failed to parse CA certificate: %v", err)
+	}
+	// Check for additional certificates to add to trust bundle
+	if p.config.BundleFilePath != "" {
+		bundleCerts, err := pemutil.LoadCertificates(p.config.BundleFilePath)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "unable to load upstream CA bundle: %v", err)
+		}
+		upstreamRoot = append(upstreamRoot, bundleCerts...)
 	}
 
 	x509CAChain, err := x509certificate.ToPluginProtos(caChain)

@@ -40,11 +40,12 @@ func testingCAPEM(t *testing.T) (*x509.Certificate, []byte) {
 
 func Test_MintX509CA(t *testing.T) {
 	var (
-		trustDomain = spiffeid.RequireTrustDomainFromString("example.com")
-		issuerName  = "test-issuer"
-		issuerKind  = "Issuer"
-		issuerGroup = "example.cert-manager.io"
-		namespace   = "spire"
+		trustDomain    = spiffeid.RequireTrustDomainFromString("example.com")
+		issuerName     = "test-issuer"
+		issuerKind     = "Issuer"
+		issuerGroup    = "example.cert-manager.io"
+		namespace      = "spire"
+		bundleFilePath = ""
 	)
 
 	csr, _, err := util.NewCSRTemplate(trustDomain.IDString())
@@ -145,10 +146,11 @@ func Test_MintX509CA(t *testing.T) {
 				},
 			}
 			config := &Config{
-				IssuerName:  issuerName,
-				IssuerKind:  issuerKind,
-				IssuerGroup: issuerGroup,
-				Namespace:   namespace,
+				IssuerName:     issuerName,
+				IssuerKind:     issuerKind,
+				IssuerGroup:    issuerGroup,
+				Namespace:      namespace,
+				BundleFilePath: bundleFilePath,
 			}
 			ua := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), ua,
@@ -246,6 +248,7 @@ func Test_Configure(t *testing.T) {
 		issuer_group = "my-group"
 		namespace = "my-namespace"
 		kube_config_file = "/path/to/config"
+		bundle_file_path = "/path/to/bundle"
 		`,
 			expectConfig: &Config{
 				IssuerName:         "my-issuer",
@@ -253,6 +256,7 @@ func Test_Configure(t *testing.T) {
 				IssuerGroup:        "my-group",
 				Namespace:          "my-namespace",
 				KubeConfigFilePath: "/path/to/config",
+				BundleFilePath:     "/path/to/bundle",
 			},
 			expectConfigFile: "/path/to/config",
 		},
@@ -268,6 +272,7 @@ func Test_Configure(t *testing.T) {
 				IssuerGroup:        "cert-manager.io",
 				Namespace:          "my-namespace",
 				KubeConfigFilePath: "/path/to/config",
+				BundleFilePath:     "",
 			},
 			expectConfigFile: "/path/to/config",
 		},
