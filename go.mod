@@ -4,9 +4,9 @@ go 1.17
 
 require (
 	cloud.google.com/go/secretmanager v1.2.0
-	cloud.google.com/go/security v1.2.0
-	cloud.google.com/go/storage v1.20.0
-	github.com/Azure/azure-sdk-for-go v61.5.0+incompatible
+	cloud.google.com/go/security v1.2.1
+	cloud.google.com/go/storage v1.21.0
+	github.com/Azure/azure-sdk-for-go v61.6.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.24
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.28.1
@@ -15,11 +15,11 @@ require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.10
 	github.com/aws/aws-sdk-go v1.43.0
-	github.com/aws/aws-sdk-go-v2 v1.13.0
+	github.com/aws/aws-sdk-go-v2 v1.14.0
 	github.com/aws/aws-sdk-go-v2/config v1.13.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.8.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.14.0
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.13.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.14.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.14.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
@@ -63,14 +63,14 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220209214540-3681064d5158
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11
-	google.golang.org/api v0.69.0
-	google.golang.org/genproto v0.0.0-20220211171837-173942840c17
+	google.golang.org/api v0.70.0
+	google.golang.org/genproto v0.0.0-20220222154240-daf995802d7b
 	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.23.3
-	k8s.io/apimachinery v0.23.3
-	k8s.io/client-go v0.23.3
+	k8s.io/api v0.23.4
+	k8s.io/apimachinery v0.23.4
+	k8s.io/client-go v0.23.4
 	k8s.io/kube-aggregator v0.23.3
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed
 	sigs.k8s.io/controller-runtime v0.11.1
@@ -78,7 +78,7 @@ require (
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
-	cloud.google.com/go/compute v1.2.0 // indirect
+	cloud.google.com/go/compute v1.3.0 // indirect
 	cloud.google.com/go/iam v0.1.1 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.18 // indirect
@@ -96,12 +96,12 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.10.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.2.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.3.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.7.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.9.0 // indirect
-	github.com/aws/smithy-go v1.10.0 // indirect
+	github.com/aws/smithy-go v1.11.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect

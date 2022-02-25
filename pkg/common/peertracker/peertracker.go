@@ -1,8 +1,8 @@
 // Package peertracker handles attestation security for the SPIFFE Workload
 // API. It does so in part by implementing the `net.Listener` interface and
 // the gRPC credential interface, the functions of which are dependent on the
-// underlying platform. Currently, only UNIX domain sockets on Linux, Darwin,
-// and the BSDs are supported.
+// underlying platform. Currently, UNIX domain sockets are supported on Linux,
+// Darwin and the BSDs. TCP is supported on Windows.
 //
 // To accomplish the attestation security required by SPIFFE and SPIRE, this
 // package provides process tracking - namely, exit detection. By using the

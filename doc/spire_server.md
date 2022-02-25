@@ -412,7 +412,7 @@ Lists all the dynamic federation relationships.
 | `-id` | SPIFFE ID of the trust domain of the relationship | |
 | `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
 
-### `spire-server refresh`
+### `spire-server federation refresh`
 
 Refreshes the bundle from the specified federated trust domain.
 
@@ -421,7 +421,7 @@ Refreshes the bundle from the specified federated trust domain.
 | `-id` | SPIFFE ID of the trust domain of the relationship | |
 | `-socketPath` | Path to the SPIRE Server API socket. | /tmp/spire-server/private/api.sock |
 
-### `spire-server show`
+### `spire-server federation show`
 
 Shows a dynamic federation relationship.
 
