@@ -39,13 +39,13 @@ require (
 	github.com/hashicorp/go-plugin v1.4.3
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
-	github.com/hashicorp/vault/api v1.3.1
-	github.com/hashicorp/vault/sdk v0.3.0
+	github.com/hashicorp/vault/api v1.4.1
+	github.com/hashicorp/vault/sdk v0.4.1
 	github.com/imdario/mergo v0.3.12
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.4
-	github.com/mattn/go-sqlite3 v1.14.11
+	github.com/mattn/go-sqlite3 v1.14.12
 	github.com/mitchellh/cli v1.1.2
 	github.com/open-policy-agent/opa v0.37.2
 	github.com/prometheus/client_golang v1.12.1
