@@ -6,7 +6,7 @@ import (
 	"syscall"
 )
 
-func getCallerInfo(fd uintptr) (CallerInfo, error) {
+func getCallerInfoFromFileDescriptor(fd uintptr) (CallerInfo, error) {
 	ucred, err := syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
 	if err != nil {
 		return CallerInfo{}, err

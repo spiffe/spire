@@ -15,12 +15,12 @@ require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.10
 	github.com/aws/aws-sdk-go v1.43.0
-	github.com/aws/aws-sdk-go-v2 v1.13.0
-	github.com/aws/aws-sdk-go-v2/config v1.13.1
-	github.com/aws/aws-sdk-go-v2/credentials v1.8.0
-	github.com/aws/aws-sdk-go-v2/service/kms v1.14.0
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.13.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.14.0
+	github.com/aws/aws-sdk-go-v2 v1.14.0
+	github.com/aws/aws-sdk-go-v2/config v1.14.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.9.0
+	github.com/aws/aws-sdk-go-v2/service/kms v1.15.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.14.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.15.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v20.10.12+incompatible
@@ -31,21 +31,21 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.7
-	github.com/google/go-tpm v0.3.2
-	github.com/google/go-tpm-tools v0.3.2
+	github.com/google/go-tpm v0.3.3
+	github.com/google/go-tpm-tools v0.3.3
 	github.com/googleapis/gax-go/v2 v2.1.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.1.0
 	github.com/hashicorp/go-plugin v1.4.3
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
-	github.com/hashicorp/vault/api v1.3.1
-	github.com/hashicorp/vault/sdk v0.3.0
+	github.com/hashicorp/vault/api v1.4.1
+	github.com/hashicorp/vault/sdk v0.4.1
 	github.com/imdario/mergo v0.3.12
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.4
-	github.com/mattn/go-sqlite3 v1.14.11
+	github.com/mattn/go-sqlite3 v1.14.12
 	github.com/mitchellh/cli v1.1.2
 	github.com/open-policy-agent/opa v0.37.2
 	github.com/prometheus/client_golang v1.12.1
@@ -95,13 +95,13 @@ require (
 	github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.10.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.2.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.7.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.9.0 // indirect
-	github.com/aws/smithy-go v1.10.0 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.11.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.3.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.8.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.10.0 // indirect
+	github.com/aws/smithy-go v1.11.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect

@@ -3,7 +3,6 @@ package webhook
 import (
 	"context"
 	"errors"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +32,7 @@ var (
 )
 
 func TestMintSVID(t *testing.T) {
-	dir, err := ioutil.TempDir("", "svid-mint-test")
+	dir, err := os.MkdirTemp("", "svid-mint-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
@@ -105,7 +104,7 @@ func TestMintSVID(t *testing.T) {
 }
 
 func TestMintSVIDRetryLimit(t *testing.T) {
-	dir, err := ioutil.TempDir("", "svid-retry-limit-test")
+	dir, err := os.MkdirTemp("", "svid-retry-limit-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
@@ -130,7 +129,7 @@ func TestMintSVIDRetryLimit(t *testing.T) {
 }
 
 func TestMintSVIDEmptyCertChain(t *testing.T) {
-	dir, err := ioutil.TempDir("", "svid-empty-cert-chain-test")
+	dir, err := os.MkdirTemp("", "svid-empty-cert-chain-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
