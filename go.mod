@@ -51,7 +51,7 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/shirou/gopsutil/v3 v3.22.1
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.11
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.12
 	github.com/spiffe/spire-api-sdk v1.2.0
 	github.com/spiffe/spire-plugin-sdk v1.2.0
 	github.com/stretchr/testify v1.7.0
