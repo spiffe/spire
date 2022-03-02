@@ -63,8 +63,8 @@ cloud.google.com/go/pubsub v1.3.1/go.mod h1:i+ucay31+CNRpDW4Lu78I4xXG+O1r/MAHgjp
 cloud.google.com/go/pubsub v1.5.0/go.mod h1:ZEwJccE3z93Z2HWvstpri00jOg7oO4UZDtKhwDwqF0w=
 cloud.google.com/go/secretmanager v1.3.0 h1:43rHc04zmpiQeqtNKpO5la4bwF5aDhHACZqxQk6D/4c=
 cloud.google.com/go/secretmanager v1.3.0/go.mod h1:+oLTkouyiYiabAQNugCeTS3PAArGiMJuBqvJnJsyH+U=
-cloud.google.com/go/security v1.2.1 h1:U6O4Wq11cfvIZVqW+jXI/NK29VUi2AML596wiczmUNk=
-cloud.google.com/go/security v1.2.1/go.mod h1:y8I0sLxXSsmLIErzgr4243mVfjUItH9RZJT2Q/eP9qs=
+cloud.google.com/go/security v1.3.0 h1:BhCl33x+KQI4qiZnFrfr2gAGhb2aZ0ZvKB3Y4QlEfgo=
+cloud.google.com/go/security v1.3.0/go.mod h1:pQsnLAXfMzuWVJdctBs8BV3tGd3Jr0SMYu6KK3QXYAs=
 cloud.google.com/go/spanner v1.7.0/go.mod h1:sd3K2gZ9Fd0vMPLXzeCrF6fq4i63Q7aTLW/lBIfBkIk=
 cloud.google.com/go/spanner v1.17.0/go.mod h1:+17t2ixFwRG4lWRwE+5kipDR9Ef07Jkmc8z0IbMDKUs=
 cloud.google.com/go/spanner v1.18.0/go.mod h1:LvAjUXPeJRGNuGpikMULjhLj/t9cRvdc+fxRoLiugXA=
@@ -1929,7 +1929,6 @@ google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00/go.mod h1:5CzLGKJ6
 google.golang.org/genproto v0.0.0-20220211171837-173942840c17/go.mod h1:kGP+zUP2Ddo0ayMi4YuN7C3WZyJvGLZRh8Z5wnAqvEI=
 google.golang.org/genproto v0.0.0-20220216160803-4663080d8bc8/go.mod h1:kGP+zUP2Ddo0ayMi4YuN7C3WZyJvGLZRh8Z5wnAqvEI=
 google.golang.org/genproto v0.0.0-20220218161850-94dd64e39d7c/go.mod h1:kGP+zUP2Ddo0ayMi4YuN7C3WZyJvGLZRh8Z5wnAqvEI=
-google.golang.org/genproto v0.0.0-20220222154240-daf995802d7b/go.mod h1:kGP+zUP2Ddo0ayMi4YuN7C3WZyJvGLZRh8Z5wnAqvEI=
 google.golang.org/genproto v0.0.0-20220222213610-43724f9ea8cf h1:SVYXkUz2yZS9FWb2Gm8ivSlbNQzL2Z/NpPKE3RG2jWk=
 google.golang.org/genproto v0.0.0-20220222213610-43724f9ea8cf/go.mod h1:kGP+zUP2Ddo0ayMi4YuN7C3WZyJvGLZRh8Z5wnAqvEI=
 google.golang.org/grpc v1.8.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
