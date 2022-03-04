@@ -844,10 +844,6 @@ func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Ent
 			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
 			continue
 		}
-		m.c.Log.WithFields(logrus.Fields{
-			telemetry.Kid: entry.Kid,
-		}).Warn("JWT Key found in journal on disk but not present in bundle from datastore; SPIRE will now rotate to recover.")
-
 	}
 
 	// If we have an upstream authority then we're not recovering a root CA, so we do
@@ -863,7 +859,6 @@ func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Ent
 			filteredEntriesX509CAs = append(filteredEntriesX509CAs, entry)
 			continue
 		}
-		m.c.Log.Warn("Root CA certificate found in journal on disk but not present in bundle from datastore; SPIRE will now rotate to recover.")
 	}
 
 	return filteredEntriesJwtKeys, filteredEntriesX509CAs, nil
