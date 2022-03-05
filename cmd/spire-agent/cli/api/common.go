@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 	"flag"
-	"path/filepath"
+	"net"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -19,15 +19,15 @@ type workloadClient struct {
 	timeout time.Duration
 }
 
-type workloadClientMaker func(ctx context.Context, socketPath string, timeout time.Duration) (*workloadClient, error)
+type workloadClientMaker func(ctx context.Context, addr net.Addr, timeout time.Duration) (*workloadClient, error)
 
 // newClients is the default client maker
-func newWorkloadClient(ctx context.Context, socketPath string, timeout time.Duration) (*workloadClient, error) {
-	socketPath, err := filepath.Abs(socketPath)
+func newWorkloadClient(ctx context.Context, addr net.Addr, timeout time.Duration) (*workloadClient, error) {
+	target, err := util.GetTargetName(addr)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +60,10 @@ type adapter struct {
 	clientsMaker workloadClientMaker
 	cmd          command
 
-	socketPath string
-	timeout    cli.DurationFlag
-	flags      *flag.FlagSet
+	timeout cli.DurationFlag
+	flags   *flag.FlagSet
+
+	adapterOS
 }
 
 // adaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
@@ -76,8 +77,9 @@ func adaptCommand(env *cli.Env, clientsMaker workloadClientMaker, cmd command) *
 
 	fs := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
 	fs.SetOutput(env.Stderr)
-	fs.StringVar(&a.socketPath, "socketPath", common.DefaultSocketPath, "Path to the SPIRE Agent API socket")
 	fs.Var(&a.timeout, "timeout", "Time to wait for a response")
+
+	a.addPlatformFlags(fs)
 	a.cmd.appendFlags(fs)
 	a.flags = fs
 
@@ -92,7 +94,12 @@ func (a *adapter) Run(args []string) int {
 		return 1
 	}
 
-	clients, err := a.clientsMaker(ctx, a.socketPath, time.Duration(a.timeout))
+	addr, err := a.getAddr()
+	if err != nil {
+		_ = a.env.ErrPrintln(err)
+		return 1
+	}
+	clients, err := a.clientsMaker(ctx, addr, time.Duration(a.timeout))
 	if err != nil {
 		_ = a.env.ErrPrintln(err)
 		return 1

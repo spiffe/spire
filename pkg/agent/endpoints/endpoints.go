@@ -27,13 +27,18 @@ type Server interface {
 }
 
 type Endpoints struct {
-	addr              *net.UnixAddr
+	addr              net.Addr
 	log               logrus.FieldLogger
 	metrics           telemetry.Metrics
 	workloadAPIServer workload_pb.SpiffeWorkloadAPIServer
 	sdsv2Server       discovery_v2.SecretDiscoveryServiceServer
 	sdsv3Server       secret_v3.SecretDiscoveryServiceServer
 	healthServer      grpc_health_v1.HealthServer
+
+	hooks struct {
+		// test hook used to indicate that is listening
+		listening chan struct{}
+	}
 }
 
 func New(c Config) *Endpoints {
@@ -89,7 +94,7 @@ func New(c Config) *Endpoints {
 	})
 
 	healthServer := c.newHealthServer(healthv1.Config{
-		SocketPath: c.BindAddr.String(),
+		Addr: c.BindAddr,
 	})
 
 	return &Endpoints{
@@ -119,13 +124,32 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	secret_v3.RegisterSecretDiscoveryServiceServer(server, e.sdsv3Server)
 	grpc_health_v1.RegisterHealthServer(server, e.healthServer)
 
-	l, err := e.createUDSListener()
+	var l net.Listener
+	var err error
+	switch e.addr.Network() {
+	case "unix":
+		l, err = e.createUDSListener()
+	case "tcp":
+		l, err = e.createTCPListener()
+	default:
+		return net.UnknownNetworkError(e.addr.Network())
+	}
+
 	if err != nil {
 		return err
 	}
 	defer l.Close()
 
-	e.log.Info("Starting Workload and SDS APIs")
+	// Update the listening address with the actual address.
+	// If a TCP address was specified with port 0, this will
+	// update the address with the actual port that is used
+	// to listen.
+	e.addr = l.Addr()
+	e.log.WithFields(logrus.Fields{
+		telemetry.Network: e.addr.Network(),
+		telemetry.Address: e.addr,
+	}).Info("Starting Workload and SDS APIs")
+	e.triggerListeningHook()
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -150,7 +174,7 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 		Log: e.log,
 	}
 
-	l, err := unixListener.ListenUnix(e.addr.Network(), e.addr)
+	l, err := unixListener.ListenUnix(e.addr.Network(), e.addr.(*net.UnixAddr))
 	if err != nil {
 		return nil, fmt.Errorf("create UDS listener: %w", err)
 	}
@@ -159,4 +183,22 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 		return nil, fmt.Errorf("unable to change UDS permissions: %w", err)
 	}
 	return l, nil
+}
+
+func (e *Endpoints) createTCPListener() (net.Listener, error) {
+	tcpListener := &peertracker.ListenerFactory{
+		Log: e.log,
+	}
+
+	l, err := tcpListener.ListenTCP(e.addr.Network(), e.addr.(*net.TCPAddr))
+	if err != nil {
+		return nil, fmt.Errorf("create TCP listener: %w", err)
+	}
+	return l, nil
+}
+
+func (e *Endpoints) triggerListeningHook() {
+	if e.hooks.listening != nil {
+		e.hooks.listening <- struct{}{}
+	}
 }

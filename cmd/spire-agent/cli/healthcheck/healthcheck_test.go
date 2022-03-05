@@ -3,25 +3,15 @@ package healthcheck
 import (
 	"bytes"
 	"context"
-	"fmt"
-	"path/filepath"
 	"testing"
 
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
-	"github.com/spiffe/spire/test/spiretest"
-	"github.com/stretchr/testify/suite"
-	"google.golang.org/grpc"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-func TestHealthCheck(t *testing.T) {
-	suite.Run(t, new(HealthCheckSuite))
-}
-
-type HealthCheckSuite struct {
-	suite.Suite
-
+type healthCheckTest struct {
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -29,101 +19,26 @@ type HealthCheckSuite struct {
 	cmd cli.Command
 }
 
-func (s *HealthCheckSuite) SetupTest() {
-	s.stdin = new(bytes.Buffer)
-	s.stdout = new(bytes.Buffer)
-	s.stderr = new(bytes.Buffer)
+func setupTest() *healthCheckTest {
+	stdin := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
 
-	s.cmd = newHealthCheckCommand(&common_cli.Env{
-		Stdin:  s.stdin,
-		Stdout: s.stdout,
-		Stderr: s.stderr,
-	})
+	return &healthCheckTest{
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		cmd: newHealthCheckCommand(&common_cli.Env{
+			Stdin:  stdin,
+			Stdout: stdout,
+			Stderr: stderr,
+		}),
+	}
 }
 
-func (s *HealthCheckSuite) TestSynopsis() {
-	s.Equal("Determines agent health status", s.cmd.Synopsis())
-}
-
-func (s *HealthCheckSuite) TestHelp() {
-	s.Equal("", s.cmd.Help())
-	s.Equal(`Usage of health:
-  -shallow
-    	Perform a less stringent health check
-  -socketPath string
-    	Path to the SPIRE Agent API socket (default "/tmp/spire-agent/public/api.sock")
-  -verbose
-    	Print verbose information
-`, s.stderr.String(), "stderr")
-}
-
-func (s *HealthCheckSuite) TestBadFlags() {
-	code := s.cmd.Run([]string{"-badflag"})
-	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`flag provided but not defined: -badflag
-Usage of health:
-  -shallow
-    	Perform a less stringent health check
-  -socketPath string
-    	Path to the SPIRE Agent API socket (default "/tmp/spire-agent/public/api.sock")
-  -verbose
-    	Print verbose information
-`, s.stderr.String(), "stderr")
-}
-
-func (s *HealthCheckSuite) TestFailsOnUnavailable() {
-	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock"})
-	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal("Agent is unhealthy: unable to determine health\n", s.stderr.String(), "stderr")
-}
-
-func (s *HealthCheckSuite) TestFailsOnUnavailableVerbose() {
-	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock", "--verbose"})
-	s.NotEqual(0, code, "exit code")
-	s.Equal(`Checking agent health...
-`, s.stdout.String(), "stdout")
-
-	expectSocketPath, err := filepath.Abs("/tmp/doesnotexist.sock")
-	s.Require().NoError(err)
-	expectSocketPath = filepath.ToSlash(expectSocketPath)
-
-	expectPrefix := fmt.Sprintf(`Failed to check health: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial unix %s: `, expectSocketPath)
-	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), expectPrefix)
-}
-
-func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
-		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
-	})
-	code := s.cmd.Run([]string{"--socketPath", socketPath})
-	s.Equal(0, code, "exit code")
-	s.Equal("Agent is healthy.\n", s.stdout.String(), "stdout")
-	s.Equal("", s.stderr.String(), "stderr")
-}
-
-func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
-		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
-	})
-	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})
-	s.Equal(0, code, "exit code")
-	s.Equal(`Checking agent health...
-Agent is healthy.
-`, s.stdout.String(), "stdout")
-	s.Equal("", s.stderr.String(), "stderr")
-}
-
-func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
-		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
-	})
-	code := s.cmd.Run([]string{"--socketPath", socketPath})
-	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
-	s.Equal(`Agent is unhealthy: agent returned status "NOT_SERVING"
-`, s.stderr.String(), "stderr")
+func TestSynopsis(t *testing.T) {
+	test := setupTest()
+	require.Equal(t, "Determines agent health status", test.cmd.Synopsis())
 }
 
 func withStatus(status grpc_health_v1.HealthCheckResponse_ServingStatus) healthServer {

@@ -5,12 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"path/filepath"
-	"runtime"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -29,9 +27,10 @@ func newHealthCheckCommand(env *common_cli.Env) *healthCheckCommand {
 type healthCheckCommand struct {
 	env *common_cli.Env
 
-	socketPath string
-	shallow    bool
-	verbose    bool
+	shallow bool
+	verbose bool
+
+	healthCheckCommandOS
 }
 
 func (c *healthCheckCommand) Help() string {
@@ -63,9 +62,9 @@ func (c *healthCheckCommand) Run(args []string) int {
 func (c *healthCheckCommand) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("health", flag.ContinueOnError)
 	fs.SetOutput(c.env.Stderr)
-	fs.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to the SPIRE Agent API socket")
 	fs.BoolVar(&c.shallow, "shallow", false, "Perform a less stringent health check")
 	fs.BoolVar(&c.verbose, "verbose", false, "Print verbose information")
+	c.addPlatformFlags(fs)
 	return fs.Parse(args)
 }
 
@@ -74,15 +73,15 @@ func (c *healthCheckCommand) run() error {
 		c.env.Printf("Checking agent health...\n")
 	}
 
-	socketPath, err := filepath.Abs(c.socketPath)
+	addr, err := c.getAddr()
 	if err != nil {
 		return err
 	}
-	if runtime.GOOS == "windows" {
-		// filepath.Abs on Windows  uses "\\" as separator, use "/" instead
-		socketPath = filepath.ToSlash(socketPath)
+	target, err := util.GetTargetName(addr)
+	if err != nil {
+		return err
 	}
-	conn, err := grpc.DialContext(context.Background(), "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(context.Background(), target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}

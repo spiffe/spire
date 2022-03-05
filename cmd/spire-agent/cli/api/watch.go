@@ -7,19 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
-type WatchConfig struct {
-	socketPath string
-}
-
 type WatchCLI struct {
-	config *WatchConfig
+	config *watchConfig
 }
 
 func (WatchCLI) Synopsis() string {
@@ -38,7 +33,13 @@ func (w *WatchCLI) Run(args []string) int {
 		return 1
 	}
 
-	socketPath, err := filepath.Abs(w.config.socketPath)
+	addr, err := w.config.getAddr()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+
+	target, err := util.GetTargetName(addr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -47,7 +48,7 @@ func (w *WatchCLI) Run(args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := workloadapi.WatchX509Context(ctx, newWatcher(), workloadapi.WithAddr("unix:"+socketPath)); err != nil {
+	if err := workloadapi.WatchX509Context(ctx, newWatcher(), workloadapi.WithAddr(target)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
@@ -57,8 +58,8 @@ func (w *WatchCLI) Run(args []string) int {
 
 func (w *WatchCLI) parseConfig(args []string) error {
 	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
-	c := &WatchConfig{}
-	fs.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to the Workload API socket")
+	c := &watchConfig{}
+	c.addPlatformFlags(fs)
 
 	w.config = c
 	return fs.Parse(args)

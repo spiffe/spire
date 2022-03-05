@@ -87,7 +87,7 @@ func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
 	code := s.cmd.Run([]string{"--socketPath", socketPath})
@@ -97,7 +97,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
 	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})
@@ -109,7 +109,7 @@ Server is healthy.
 }
 
 func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(s.T(), func(srv *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
 	})
 	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})

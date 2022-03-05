@@ -14,7 +14,7 @@ import (
 
 type Config struct {
 	// Address to bind the workload api to
-	BindAddress *net.UnixAddr
+	BindAddress net.Addr
 
 	// Directory to store runtime data
 	DataDir string

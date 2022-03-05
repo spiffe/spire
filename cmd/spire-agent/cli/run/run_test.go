@@ -1,7 +1,6 @@
 package run
 
 import (
-	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
@@ -84,77 +82,6 @@ func TestDownloadTrustBundle(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestParseConfigGood(t *testing.T) {
-	c, err := ParseFile("../../../../test/fixture/config/agent_good.conf", false)
-	require.NoError(t, err)
-	assert.Equal(t, c.Agent.DataDir, ".")
-	assert.Equal(t, c.Agent.LogLevel, "INFO")
-	assert.Equal(t, c.Agent.ServerAddress, "127.0.0.1")
-	assert.Equal(t, c.Agent.ServerPort, 8081)
-	assert.Equal(t, c.Agent.SocketPath, "/tmp/spire-agent/public/api.sock")
-	assert.Equal(t, c.Agent.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
-	assert.Equal(t, c.Agent.TrustDomain, "example.org")
-	assert.Equal(t, c.Agent.AllowUnauthenticatedVerifiers, true)
-	assert.Equal(t, []string{"c1", "c2", "c3"}, c.Agent.AllowedForeignJWTClaims)
-
-	// Check for plugins configurations
-	pluginConfigs := *c.Plugins
-	expectedData := "join_token = \"PLUGIN-AGENT-NOT-A-SECRET\""
-	var data bytes.Buffer
-	err = printer.DefaultConfig.Fprint(&data, pluginConfigs["plugin_type_agent"]["plugin_name_agent"].PluginData)
-	assert.NoError(t, err)
-
-	assert.Len(t, pluginConfigs, 1)
-	assert.Len(t, pluginConfigs["plugin_type_agent"], 3)
-
-	pluginConfig := pluginConfigs["plugin_type_agent"]["plugin_name_agent"]
-	assert.Nil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), true)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
-	assert.Equal(t, expectedData, data.String())
-
-	// Disabled plugin
-	pluginConfig = pluginConfigs["plugin_type_agent"]["plugin_disabled"]
-	assert.NotNil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), false)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
-	assert.Equal(t, expectedData, data.String())
-
-	// Enabled plugin
-	pluginConfig = pluginConfigs["plugin_type_agent"]["plugin_enabled"]
-	assert.NotNil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), true)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
-	assert.Equal(t, expectedData, data.String())
-}
-
-func TestParseFlagsGood(t *testing.T) {
-	c, err := parseFlags("run", []string{
-		"-dataDir=.",
-		"-logLevel=INFO",
-		"-serverAddress=127.0.0.1",
-		"-serverPort=8081",
-		"-socketPath=/tmp/spire-agent/public/api.sock",
-		"-trustBundle=conf/agent/dummy_root_ca.crt",
-		"-trustBundleUrl=https://test.url",
-		"-trustDomain=example.org",
-		"-allowUnauthenticatedVerifiers",
-	}, os.Stderr)
-	require.NoError(t, err)
-	assert.Equal(t, c.DataDir, ".")
-	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.ServerAddress, "127.0.0.1")
-	assert.Equal(t, c.ServerPort, 8081)
-	assert.Equal(t, c.SocketPath, "/tmp/spire-agent/public/api.sock")
-	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
-	assert.Equal(t, c.TrustBundleURL, "https://test.url")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.AllowUnauthenticatedVerifiers, true)
 }
 
 func TestMergeInput(t *testing.T) {
@@ -483,46 +410,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "socket_path should default to /tmp/spire-agent/public/api.sock if not set",
-			fileInput: func(c *Config) {},
-			cliInput:  func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/spire-agent/public/api.sock", c.Agent.SocketPath)
-			},
-		},
-		{
-			msg: "socket_path should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Agent.SocketPath = "foo"
-			},
-			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Agent.SocketPath)
-			},
-		},
-		{
-			msg:       "socket_path should be configuable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliInput: func(c *agentConfig) {
-				c.SocketPath = "foo"
-			},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Agent.SocketPath)
-			},
-		},
-		{
-			msg: "socket_path specified by CLI flag should take precedence over file",
-			fileInput: func(c *Config) {
-				c.Agent.SocketPath = "foo"
-			},
-			cliInput: func(c *agentConfig) {
-				c.SocketPath = "bar"
-			},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "bar", c.Agent.SocketPath)
-			},
-		},
-		{
 			msg: "trust_bundle_path should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.TrustBundlePath = "foo"
@@ -616,6 +503,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 	}
+	cases = append(cases, testMergeInputCases...)
 
 	for _, testCase := range cases {
 		testCase := testCase
@@ -670,16 +558,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "socket_path should be correctly configured",
-			input: func(c *Config) {
-				c.Agent.SocketPath = "foo"
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "foo", c.BindAddress.Name)
-				require.Equal(t, "unix", c.BindAddress.Net)
 			},
 		},
 		{
@@ -810,34 +688,14 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "admin_socket_path should be correctly configured",
 			input: func(c *Config) {
-				c.Agent.AdminSocketPath = "foo"
+				expectAdminSocketPath, err := filepath.Abs("foo")
+				require.NoError(t, err)
+				c.Agent.AdminSocketPath = expectAdminSocketPath
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "foo", c.AdminBindAddress.Name)
-				require.Equal(t, "unix", c.AdminBindAddress.Net)
-			},
-		},
-		{
-			msg: "admin_socket_path configured with similar folther that socket_path",
-			input: func(c *Config) {
-				c.Agent.SocketPath = "/tmp/workload/workload.sock"
-				c.Agent.AdminSocketPath = "/tmp/workload-admin/admin.sock"
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "/tmp/workload-admin/admin.sock", c.AdminBindAddress.Name)
-				require.Equal(t, "unix", c.AdminBindAddress.Net)
-			},
-		},
-		{
-			msg: "admin_socket_path should be correctly configured in different folder",
-			input: func(c *Config) {
-				c.Agent.SocketPath = "/tmp/workload/workload.sock"
-				c.Agent.AdminSocketPath = "/tmp/admin.sock"
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "/tmp/workload/workload.sock", c.BindAddress.Name)
-				require.Equal(t, "unix", c.BindAddress.Net)
-				require.Equal(t, "/tmp/admin.sock", c.AdminBindAddress.Name)
+				expectAdminSocketPath, err := filepath.Abs("foo")
+				require.NoError(t, err)
+				require.Equal(t, expectAdminSocketPath, c.AdminBindAddress.Name)
 				require.Equal(t, "unix", c.AdminBindAddress.Net)
 			},
 		},
@@ -865,39 +723,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Empty(t, c.AllowedForeignJWTClaims)
-			},
-		},
-		{
-			msg:         "admin_socket_path same folder as socket_path",
-			expectError: true,
-			input: func(c *Config) {
-				c.Agent.SocketPath = "/tmp/workload.sock"
-				c.Agent.AdminSocketPath = "/tmp/admin.sock"
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Nil(t, c)
-			},
-		},
-		{
-			msg:         "admin_socket_path configured with subfolder socket_path",
-			expectError: true,
-			input: func(c *Config) {
-				c.Agent.SocketPath = "/tmp/workload.sock"
-				c.Agent.AdminSocketPath = "/tmp/admin/admin.sock"
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Nil(t, c)
-			},
-		},
-		{
-			msg:         "admin_socket_path relative folder",
-			expectError: true,
-			input: func(c *Config) {
-				c.Agent.SocketPath = "./sock/workload.sock"
-				c.Agent.AdminSocketPath = "./sock/admin.sock"
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Nil(t, c)
 			},
 		},
 		{
@@ -929,7 +754,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 	}
-
+	cases = append(cases, testNewAgentConfigCases...)
 	for _, testCase := range cases {
 		testCase := testCase
 

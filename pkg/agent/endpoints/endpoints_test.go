@@ -3,10 +3,7 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -25,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -39,11 +37,6 @@ import (
 )
 
 func TestEndpoints(t *testing.T) {
-	// TODO: Endpoint uses peertracker that is not compatible with Windows.
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -163,16 +156,11 @@ func TestEndpoints(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			udsPath := filepath.Join(spiretest.TempDir(t), "agent.sock")
-
 			log, hook := test.NewNullLogger()
 			metrics := fakemetrics.New()
-
+			addr := getTestAddr(t)
 			endpoints := New(Config{
-				BindAddr: &net.UnixAddr{
-					Net:  "unix",
-					Name: udsPath,
-				},
+				BindAddr:                addr,
 				Log:                     log,
 				Metrics:                 metrics,
 				Attestor:                FakeAttestor{},
@@ -218,10 +206,11 @@ func TestEndpoints(t *testing.T) {
 
 				// Assert the provided config and return a fake health server
 				newHealthServer: func(c healthv1.Config) grpc_health_v1.HealthServer {
-					assert.Equal(t, udsPath, c.SocketPath)
+					assert.Equal(t, addr.String(), c.Addr.String())
 					return FakeHealthServer{}
 				},
 			})
+			endpoints.hooks.listening = make(chan struct{})
 
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
@@ -234,7 +223,7 @@ func TestEndpoints(t *testing.T) {
 				cancel()
 				assert.NoError(t, <-errCh)
 			}()
-
+			waiForListening(t, endpoints)
 			// Dial the endpoints server with custom connect params that reduce the
 			// base backoff delay. Otherwise, if the dial happens before the endpoint
 			// is being served, the test can wait for a second before retrying.
@@ -242,7 +231,9 @@ func TestEndpoints(t *testing.T) {
 				Backoff: backoff.DefaultConfig,
 			}
 			connectParams.Backoff.BaseDelay = 5 * time.Millisecond
-			conn, err := grpc.DialContext(ctx, "unix:"+udsPath,
+			target, err := util.GetTargetName(endpoints.addr)
+			require.NoError(t, err)
+			conn, err := grpc.DialContext(ctx, target,
 				grpc.WithReturnConnectionError(),
 				grpc.WithConnectParams(connectParams),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -252,7 +243,14 @@ func TestEndpoints(t *testing.T) {
 			tt.do(t, conn)
 
 			spiretest.AssertLogs(t, hook.AllEntries(), append([]spiretest.LogEntry{
-				{Level: logrus.InfoLevel, Message: "Starting Workload and SDS APIs"},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Starting Workload and SDS APIs",
+					Data: logrus.Fields{
+						"address": endpoints.addr.String(),
+						"network": addr.Network(),
+					},
+				},
 			}, tt.expectedLogs...))
 			assert.Equal(t, tt.expectedMetrics, metrics.AllMetrics())
 		})
@@ -331,4 +329,14 @@ func logEntryWithPID(level logrus.Level, msg string, keyvalues ...interface{}) s
 		data[key.(string)] = value
 	}
 	return spiretest.LogEntry{Level: level, Message: msg, Data: data}
+}
+
+func waiForListening(t *testing.T, e *Endpoints) {
+	timer := time.NewTimer(time.Second)
+	defer timer.Stop()
+	select {
+	case <-e.hooks.listening:
+	case <-timer.C:
+		assert.Fail(t, "timed out waiting for listener")
+	}
 }
