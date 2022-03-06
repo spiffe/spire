@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -512,6 +513,12 @@ func (m *Manager) loadJournal(ctx context.Context) error {
 		telemetry.JWTKeys: len(entries.JwtKeys),
 	}).Info("Journal loaded")
 
+	// filter out local JwtKeys and X509CAs that do not exist in the database bundle
+	entries.JwtKeys, entries.X509CAs, err = m.filterInvalidEntries(ctx, entries)
+	if err != nil {
+		return err
+	}
+
 	if len(entries.X509CAs) > 0 {
 		m.nextX509CA, err = m.tryLoadX509CASlotFromEntry(ctx, entries.X509CAs[len(entries.X509CAs)-1])
 		if err != nil {
@@ -809,6 +816,52 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 		return errs.New("one or more notifiers returned an error: %v", err)
 	}
 	return nil
+}
+
+// filterInvalidEntries takes in a set of journal entries, and removes entries that represent signing keys
+// that do not appear in the bundle from the datastore. This prevents SPIRE from entering strange
+// and inconsistent states as a result of key mismatch following things like database restore,
+// disk/journal manipulation, etc.
+//
+// If we find such a discrepancy, removing the entry from the journal prior to beginning signing
+// operations prevents us from using a signing key that consumers may not be able to validate.
+// Instead, we'll rotate into a new one.
+func (m *Manager) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*JWTKeyEntry, []*X509CAEntry, error) {
+	bundle, err := m.fetchOptionalBundle(ctx)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if bundle == nil {
+		return entries.JwtKeys, entries.X509CAs, nil
+	}
+
+	filteredEntriesJwtKeys := []*JWTKeyEntry{}
+
+	for _, entry := range entries.GetJwtKeys() {
+		if containsJwtSigningKeyid(bundle.JwtSigningKeys, entry.Kid) {
+			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
+			continue
+		}
+	}
+
+	// If we have an upstream authority then we're not recovering a root CA, so we do
+	// not expect to find our CA certificate in the bundle. Simply proceed.
+	if m.upstreamClient != nil {
+		return filteredEntriesJwtKeys, entries.X509CAs, nil
+	}
+
+	filteredEntriesX509CAs := []*X509CAEntry{}
+
+	for _, entry := range entries.GetX509CAs() {
+		if containsX509CA(bundle.RootCas, entry.Certificate) {
+			filteredEntriesX509CAs = append(filteredEntriesX509CAs, entry)
+			continue
+		}
+	}
+
+	return filteredEntriesJwtKeys, filteredEntriesX509CAs, nil
 }
 
 func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, error) {
@@ -1125,4 +1178,23 @@ func keyIDFromBytes(choices []byte) string {
 
 func timeField(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
+}
+
+func containsJwtSigningKeyid(keys []*common.PublicKey, kid string) bool {
+	for _, key := range keys {
+		if key.Kid == kid {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsX509CA(rootCAs []*common.Certificate, certificate []byte) bool {
+	for _, ca := range rootCAs {
+		if bytes.Equal(ca.DerBytes, certificate) {
+			return true
+		}
+	}
+	return false
 }
