@@ -444,5 +444,7 @@ func instanceProfileNameFromArn(profileArn string) (string, error) {
 		return "", status.Errorf(codes.Internal, "arn is not for an instance profile")
 	}
 
-	return m[1], nil
+	name := strings.Split(m[1], "/")
+	// only the last element is the profile name
+	return name[len(name)-1], nil
 }
