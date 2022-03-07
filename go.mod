@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/secretmanager v1.3.0
 	cloud.google.com/go/security v1.3.0
 	cloud.google.com/go/storage v1.21.0
-	github.com/Azure/azure-sdk-for-go v62.0.0+incompatible
+	github.com/Azure/azure-sdk-for-go v62.1.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.24
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.29.0
