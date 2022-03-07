@@ -21,6 +21,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mergeInputCase struct {
+	msg       string
+	fileInput func(*Config)
+	cliInput  func(*agentConfig)
+	test      func(*testing.T, *Config)
+}
+
+type newAgentConfigCase struct {
+	msg         string
+	expectError bool
+	input       func(*Config)
+	logOptions  func(t *testing.T) []log.Option
+	test        func(*testing.T, *agent.Config)
+}
+
 func TestDownloadTrustBundle(t *testing.T) {
 	testTB, _ := os.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
 	cases := []struct {
@@ -85,12 +100,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 }
 
 func TestMergeInput(t *testing.T) {
-	cases := []struct {
-		msg       string
-		fileInput func(*Config)
-		cliInput  func(*agentConfig)
-		test      func(*testing.T, *Config)
-	}{
+	cases := []mergeInputCase{
 		{
 			msg: "data_dir should be configurable by file",
 			fileInput: func(c *Config) {
@@ -503,7 +513,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, testMergeInputCases...)
+	cases = append(cases, mergeInputCasesOS()...)
 
 	for _, testCase := range cases {
 		testCase := testCase
@@ -524,13 +534,7 @@ func TestMergeInput(t *testing.T) {
 }
 
 func TestNewAgentConfig(t *testing.T) {
-	cases := []struct {
-		msg         string
-		expectError bool
-		input       func(*Config)
-		logOptions  func(t *testing.T) []log.Option
-		test        func(*testing.T, *agent.Config)
-	}{
+	cases := []newAgentConfigCase{
 		{
 			msg: "server_address and server_port should be correctly parsed",
 			input: func(c *Config) {
@@ -754,7 +758,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, testNewAgentConfigCases...)
+	cases = append(cases, newAgentConfigCasesOS()...)
 	for _, testCase := range cases {
 		testCase := testCase
 

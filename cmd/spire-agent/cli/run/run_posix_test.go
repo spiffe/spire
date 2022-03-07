@@ -11,134 +11,9 @@ import (
 
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
-	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-var testMergeInputCases = []struct {
-	msg       string
-	fileInput func(*Config)
-	cliInput  func(*agentConfig)
-	test      func(*testing.T, *Config)
-}{
-	{
-		msg:       "socket_path should default to /tmp/spire-agent/public/api.sock if not set",
-		fileInput: func(c *Config) {},
-		cliInput:  func(c *agentConfig) {},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, "/tmp/spire-agent/public/api.sock", c.Agent.SocketPath)
-		},
-	},
-	{
-		msg: "socket_path should be configurable by file",
-		fileInput: func(c *Config) {
-			c.Agent.SocketPath = "foo"
-		},
-		cliInput: func(c *agentConfig) {},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, "foo", c.Agent.SocketPath)
-		},
-	},
-	{
-		msg:       "socket_path should be configuable by CLI flag",
-		fileInput: func(c *Config) {},
-		cliInput: func(c *agentConfig) {
-			c.SocketPath = "foo"
-		},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, "foo", c.Agent.SocketPath)
-		},
-	},
-	{
-		msg: "socket_path specified by CLI flag should take precedence over file",
-		fileInput: func(c *Config) {
-			c.Agent.SocketPath = "foo"
-		},
-		cliInput: func(c *agentConfig) {
-			c.SocketPath = "bar"
-		},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, "bar", c.Agent.SocketPath)
-		},
-	},
-}
-
-var testNewAgentConfigCases = []struct {
-	msg         string
-	expectError bool
-	input       func(*Config)
-	logOptions  func(t *testing.T) []log.Option
-	test        func(*testing.T, *agent.Config)
-}{
-	{
-		msg: "socket_path should be correctly configured",
-		input: func(c *Config) {
-			c.Agent.SocketPath = "/foo"
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Equal(t, "/foo", c.BindAddress.(*net.UnixAddr).Name)
-			require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
-		},
-	},
-	{
-		msg: "admin_socket_path configured with similar folther that socket_path",
-		input: func(c *Config) {
-			c.Agent.SocketPath = "/tmp/workload/workload.sock"
-			c.Agent.AdminSocketPath = "/tmp/workload-admin/admin.sock"
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Equal(t, "/tmp/workload-admin/admin.sock", c.AdminBindAddress.Name)
-			require.Equal(t, "unix", c.AdminBindAddress.Net)
-		},
-	},
-	{
-		msg: "admin_socket_path should be correctly configured in different folder",
-		input: func(c *Config) {
-			c.Agent.SocketPath = "/tmp/workload/workload.sock"
-			c.Agent.AdminSocketPath = "/tmp/admin.sock"
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Equal(t, "/tmp/workload/workload.sock", c.BindAddress.(*net.UnixAddr).Name)
-			require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
-			require.Equal(t, "/tmp/admin.sock", c.AdminBindAddress.Name)
-			require.Equal(t, "unix", c.AdminBindAddress.Net)
-		},
-	},
-	{
-		msg:         "admin_socket_path same folder as socket_path",
-		expectError: true,
-		input: func(c *Config) {
-			c.Agent.SocketPath = "/tmp/workload.sock"
-			c.Agent.AdminSocketPath = "/tmp/admin.sock"
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Nil(t, c)
-		},
-	},
-	{
-		msg:         "admin_socket_path configured with subfolder socket_path",
-		expectError: true,
-		input: func(c *Config) {
-			c.Agent.SocketPath = "/tmp/workload.sock"
-			c.Agent.AdminSocketPath = "/tmp/admin/admin.sock"
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Nil(t, c)
-		},
-	},
-	{
-		msg:         "admin_socket_path relative folder",
-		expectError: true,
-		input: func(c *Config) {
-			c.Agent.SocketPath = "./sock/workload.sock"
-			c.Agent.AdminSocketPath = "./sock/admin.sock"
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Nil(t, c)
-		},
-	},
-}
 
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
@@ -209,4 +84,121 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
 	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
 	assert.Equal(t, expectedData, data.String())
+}
+
+func mergeInputCasesOS() []mergeInputCase {
+	return []mergeInputCase{
+		{
+			msg:       "socket_path should default to /tmp/spire-agent/public/api.sock if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "/tmp/spire-agent/public/api.sock", c.Agent.SocketPath)
+			},
+		},
+		{
+			msg: "socket_path should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.SocketPath = "foo"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.SocketPath)
+			},
+		},
+		{
+			msg:       "socket_path should be configuable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.SocketPath = "foo"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.SocketPath)
+			},
+		},
+		{
+			msg: "socket_path specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Agent.SocketPath = "foo"
+			},
+			cliInput: func(c *agentConfig) {
+				c.SocketPath = "bar"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "bar", c.Agent.SocketPath)
+			},
+		},
+	}
+}
+
+func newAgentConfigCasesOS() []newAgentConfigCase {
+	return []newAgentConfigCase{
+		{
+			msg: "socket_path should be correctly configured",
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/foo"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "/foo", c.BindAddress.(*net.UnixAddr).Name)
+				require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
+			},
+		},
+		{
+			msg: "admin_socket_path configured with similar folther that socket_path",
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload/workload.sock"
+				c.Agent.AdminSocketPath = "/tmp/workload-admin/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "/tmp/workload-admin/admin.sock", c.AdminBindAddress.Name)
+				require.Equal(t, "unix", c.AdminBindAddress.Net)
+			},
+		},
+		{
+			msg: "admin_socket_path should be correctly configured in different folder",
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload/workload.sock"
+				c.Agent.AdminSocketPath = "/tmp/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "/tmp/workload/workload.sock", c.BindAddress.(*net.UnixAddr).Name)
+				require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
+				require.Equal(t, "/tmp/admin.sock", c.AdminBindAddress.Name)
+				require.Equal(t, "unix", c.AdminBindAddress.Net)
+			},
+		},
+		{
+			msg:         "admin_socket_path same folder as socket_path",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload.sock"
+				c.Agent.AdminSocketPath = "/tmp/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "admin_socket_path configured with subfolder socket_path",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload.sock"
+				c.Agent.AdminSocketPath = "/tmp/admin/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "admin_socket_path relative folder",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.SocketPath = "./sock/workload.sock"
+				c.Agent.AdminSocketPath = "./sock/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+	}
 }

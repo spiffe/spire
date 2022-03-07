@@ -10,7 +10,8 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 )
 
-// adapterOS has os specific members for the adapter struct
+// adapterOS has os specific implementation that
+// complements adapter
 type adapterOS struct {
 	socketPath string
 }

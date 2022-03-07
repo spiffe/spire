@@ -11,78 +11,9 @@ import (
 
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
-	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-var testMergeInputCases = []struct {
-	msg       string
-	fileInput func(*Config)
-	cliInput  func(*agentConfig)
-	test      func(*testing.T, *Config)
-}{
-	{
-		msg:       "tcp_socket_port should default to 8082 if not set",
-		fileInput: func(c *Config) {},
-		cliInput:  func(c *agentConfig) {},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, 8082, c.Agent.Experimental.TCPSocketPort)
-		},
-	},
-	{
-		msg: "tcp_socket_port should be configurable by file",
-		fileInput: func(c *Config) {
-			c.Agent.Experimental.TCPSocketPort = 1000
-		},
-		cliInput: func(c *agentConfig) {},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, 1000, c.Agent.Experimental.TCPSocketPort)
-		},
-	},
-	{
-		msg:       "tcp_socket_port should be configuable by CLI flag",
-		fileInput: func(c *Config) {},
-		cliInput: func(c *agentConfig) {
-			c.Experimental.TCPSocketPort = 1000
-		},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, 1000, c.Agent.Experimental.TCPSocketPort)
-		},
-	},
-	{
-		msg: "tcp_socket_port specified by CLI flag should take precedence over file",
-		fileInput: func(c *Config) {
-			c.Agent.Experimental.TCPSocketPort = 1000
-		},
-		cliInput: func(c *agentConfig) {
-			c.Experimental.TCPSocketPort = 2000
-		},
-		test: func(t *testing.T, c *Config) {
-			require.Equal(t, 2000, c.Agent.Experimental.TCPSocketPort)
-		},
-	},
-}
-
-var testNewAgentConfigCases = []struct {
-	msg         string
-	expectError bool
-	input       func(*Config)
-	logOptions  func(t *testing.T) []log.Option
-	test        func(*testing.T, *agent.Config)
-}{
-	{
-		msg: "tcp_socket_port should be correctly configured",
-		input: func(c *Config) {
-			c.Agent.Experimental.TCPSocketPort = 1000
-		},
-		test: func(t *testing.T, c *agent.Config) {
-			require.Equal(t, net.IPv4(127, 0, 0, 1), c.BindAddress.(*net.TCPAddr).IP)
-			require.Equal(t, 1000, c.BindAddress.(*net.TCPAddr).Port)
-			require.Equal(t, "tcp", c.BindAddress.(*net.TCPAddr).Network())
-		},
-	},
-}
 
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
@@ -153,4 +84,65 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
 	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
 	assert.Equal(t, expectedData, data.String())
+}
+
+func mergeInputCasesOS() []mergeInputCase {
+	return []mergeInputCase{
+		{
+			msg:       "tcp_socket_port should default to 8082 if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, 8082, c.Agent.Experimental.TCPSocketPort)
+			},
+		},
+		{
+			msg: "tcp_socket_port should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.Experimental.TCPSocketPort = 1000
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, 1000, c.Agent.Experimental.TCPSocketPort)
+			},
+		},
+		{
+			msg:       "tcp_socket_port should be configuable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.Experimental.TCPSocketPort = 1000
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, 1000, c.Agent.Experimental.TCPSocketPort)
+			},
+		},
+		{
+			msg: "tcp_socket_port specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Agent.Experimental.TCPSocketPort = 1000
+			},
+			cliInput: func(c *agentConfig) {
+				c.Experimental.TCPSocketPort = 2000
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, 2000, c.Agent.Experimental.TCPSocketPort)
+			},
+		},
+	}
+}
+
+func newAgentConfigCasesOS() []newAgentConfigCase {
+	return []newAgentConfigCase{
+		{
+			msg: "tcp_socket_port should be correctly configured",
+			input: func(c *Config) {
+				c.Agent.Experimental.TCPSocketPort = 1000
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, net.IPv4(127, 0, 0, 1), c.BindAddress.(*net.TCPAddr).IP)
+				require.Equal(t, 1000, c.BindAddress.(*net.TCPAddr).Port)
+				require.Equal(t, "tcp", c.BindAddress.(*net.TCPAddr).Network())
+			},
+		},
+	}
 }
