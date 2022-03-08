@@ -2,7 +2,7 @@ package tpmutil
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"path"
 	"regexp"
 )
@@ -13,7 +13,7 @@ var validTPMNames = []*regexp.Regexp{
 }
 
 func AutoDetectTPMPath(baseTPMDir string) (string, error) {
-	files, err := ioutil.ReadDir(baseTPMDir)
+	files, err := os.ReadDir(baseTPMDir)
 	if err != nil {
 		return "", err
 	}

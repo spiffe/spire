@@ -8,6 +8,10 @@ import (
 	"net/url"
 
 	"github.com/gorilla/handlers"
+	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"gopkg.in/square/go-jose.v2"
 )
 
 const (
@@ -19,16 +23,18 @@ type Handler struct {
 	domainPolicy        DomainPolicy
 	allowInsecureScheme bool
 	setKeyUse           bool
+	log                 logrus.FieldLogger
 
 	http.Handler
 }
 
-func NewHandler(domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool) *Handler {
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
 		setKeyUse:           setKeyUse,
+		log:                 log,
 	}
 
 	mux := http.NewServeMux()
@@ -108,11 +114,7 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.setKeyUse {
-		for i := range jwks.Keys {
-			jwks.Keys[i].Use = keyUse
-		}
-	}
+	jwks.Keys = h.enrichJwksKeys(jwks.Keys)
 
 	jwksBytes, err := json.MarshalIndent(jwks, "", "  ")
 	if err != nil {
@@ -139,4 +141,22 @@ func (h *Handler) verifyHost(host string) error {
 		domain = host
 	}
 	return h.domainPolicy(domain)
+}
+
+func (h *Handler) enrichJwksKeys(jwkKeys []jose.JSONWebKey) []jose.JSONWebKey {
+	if h.setKeyUse {
+		for i := range jwkKeys {
+			jwkKeys[i].Use = keyUse
+		}
+	}
+	for i, k := range jwkKeys {
+		alg, err := cryptoutil.JoseAlgFromPublicKey(k.Key)
+		if err != nil {
+			h.log.WithFields(logrus.Fields{
+				telemetry.Kid: k.KeyID,
+			}).WithError(err).Errorf("Failed to get public key algorithm")
+		}
+		jwkKeys[i].Algorithm = string(alg)
+	}
+	return jwkKeys
 }
