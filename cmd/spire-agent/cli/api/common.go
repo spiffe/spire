@@ -56,14 +56,14 @@ type command interface {
 }
 
 type adapter struct {
+	adapterOS // os specific
+
 	env          *cli.Env
 	clientsMaker workloadClientMaker
 	cmd          command
 
 	timeout cli.DurationFlag
 	flags   *flag.FlagSet
-
-	adapterOS
 }
 
 // adaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
