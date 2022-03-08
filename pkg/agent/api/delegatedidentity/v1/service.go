@@ -38,10 +38,10 @@ type attestor interface {
 }
 
 type Config struct {
-	Log      logrus.FieldLogger
-	Manager  manager.Manager
-	Attestor workload_attestor.Attestor
-	AuthorizedDelegates           []string
+	Log                 logrus.FieldLogger
+	Manager             manager.Manager
+	Attestor            workload_attestor.Attestor
+	AuthorizedDelegates []string
 }
 
 func New(config Config) *Service {
@@ -52,9 +52,9 @@ func New(config Config) *Service {
 	}
 
 	return &Service{
-		manager:                       config.Manager,
-		attestor:                      endpoints.PeerTrackerAttestor{Attestor: config.Attestor},
-		authorizedDelegates:           AuthorizedDelegates,
+		manager:             config.Manager,
+		attestor:            endpoints.PeerTrackerAttestor{Attestor: config.Attestor},
+		authorizedDelegates: AuthorizedDelegates,
 	}
 }
 
@@ -251,7 +251,6 @@ func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX50
 }
 
 func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.FetchJWTSVIDsRequest) (resp *delegatedidentityv1.FetchJWTSVIDsResponse, err error) {
-
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
 		log.Error("Missing required audience parameter")
@@ -273,7 +272,6 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 
 	identities := s.manager.MatchingIdentities(selectors)
 	for _, identity := range identities {
-
 		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
 		if err != nil {
 			log.WithField(telemetry.SPIFFEID, identity.Entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
