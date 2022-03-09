@@ -10,13 +10,13 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 )
 
-// healthCheckCommandOS has os specific implementation that
-// complements healthCheckCommand
+// healthCheckCommandOS has posix specific implementation
+// that complements healthCheckCommand
 type healthCheckCommandOS struct {
 	socketPath string
 }
 
-func (c *healthCheckCommandOS) addPlatformFlags(flags *flag.FlagSet) {
+func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to the SPIRE Agent API socket")
 }
 

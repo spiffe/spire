@@ -10,13 +10,13 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 )
 
-// healthCheckCommandOS has os specific members
-// that complement healthCheckCommand
+// healthCheckCommandOS has windows specific implementation
+// that complements healthCheckCommand
 type healthCheckCommandOS struct {
 	tcpSocketPort int
 }
 
-func (c *healthCheckCommandOS) addPlatformFlags(flags *flag.FlagSet) {
+func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 	flags.IntVar(&c.tcpSocketPort, "tcpSocketPort", common.DefaultTCPSocketPort, "TCP port number of the SPIRE Agent API socket")
 }
 

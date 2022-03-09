@@ -51,7 +51,7 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 
 	target, err := util.GetTargetName(s.addr)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "could not get target", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "could not parse target", err)
 	}
 	_, err = workloadapi.FetchX509Context(ctx, workloadapi.WithAddr(target))
 

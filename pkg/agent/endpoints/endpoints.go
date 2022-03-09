@@ -174,7 +174,11 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 		Log: e.log,
 	}
 
-	l, err := unixListener.ListenUnix(e.addr.Network(), e.addr.(*net.UnixAddr))
+	unixAddr, ok := e.addr.(*net.UnixAddr)
+	if !ok {
+		return nil, fmt.Errorf("create UDS listener: address is type %T, not net.UnixAddr", e.addr)
+	}
+	l, err := unixListener.ListenUnix(e.addr.Network(), unixAddr)
 	if err != nil {
 		return nil, fmt.Errorf("create UDS listener: %w", err)
 	}

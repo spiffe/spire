@@ -305,7 +305,7 @@ const (
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 
-	// Network tags some network name (for example, "tcp", "udp")
+	// Network tags some network name ("tcp", "udp")
 	Network = "network"
 
 	// NewSerialNumber tags a certificate new serial number

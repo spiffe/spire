@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -39,6 +40,93 @@ func setupTest() *healthCheckTest {
 func TestSynopsis(t *testing.T) {
 	test := setupTest()
 	require.Equal(t, "Determines agent health status", test.cmd.Synopsis())
+}
+
+func TestHelp(t *testing.T) {
+	test := setupTest()
+
+	require.Empty(t, test.cmd.Help())
+	require.Equal(t, `Usage of health:
+  -shallow
+    	Perform a less stringent health check`+
+		socketAddrUsage+`
+  -verbose
+    	Print verbose information
+`, test.stderr.String(), "stderr")
+}
+
+func TestBadFlags(t *testing.T) {
+	test := setupTest()
+
+	code := test.cmd.Run([]string{"-badflag"})
+	require.NotEqual(t, 0, code, "exit code")
+	require.Empty(t, test.stdout.String(), "stdout")
+	require.Equal(t, `flag provided but not defined: -badflag
+Usage of health:
+  -shallow
+    	Perform a less stringent health check`+
+		socketAddrUsage+`
+  -verbose
+    	Print verbose information
+`, test.stderr.String(), "stderr")
+}
+
+func TestFailsOnUnavailable(t *testing.T) {
+	test := setupTest()
+
+	code := test.cmd.Run([]string{socketAddrArg, socketAddrUnavailable})
+	require.NotEqual(t, 0, code, "exit code")
+	require.Empty(t, test.stdout.String(), "stdout")
+	require.Equal(t, "Agent is unhealthy: unable to determine health\n", test.stderr.String(), "stderr")
+}
+
+func TestFailsOnUnavailableVerbose(t *testing.T) {
+	test := setupTest()
+
+	code := test.cmd.Run([]string{socketAddrArg, socketAddrUnavailable, "-verbose"})
+	require.NotEqual(t, 0, code, "exit code")
+	require.Equal(t, `Checking agent health...
+`, test.stdout.String(), "stdout")
+	require.Equal(t, unavailableErr, test.stderr.String())
+}
+
+func TestSucceedsIfServingStatusServing(t *testing.T) {
+	test := setupTest()
+
+	socketAddr := startGRPCSocketServer(t, func(srv *grpc.Server) {
+		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
+	})
+	code := test.cmd.Run([]string{socketAddrArg, socketAddr})
+	require.Equal(t, 0, code, "exit code")
+	require.Equal(t, "Agent is healthy.\n", test.stdout.String(), "stdout")
+	require.Empty(t, test.stderr.String(), "stderr")
+}
+
+func TestSucceedsIfServingStatusServingVerbose(t *testing.T) {
+	test := setupTest()
+
+	socketAddr := startGRPCSocketServer(t, func(srv *grpc.Server) {
+		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
+	})
+	code := test.cmd.Run([]string{socketAddrArg, socketAddr, "-verbose"})
+	require.Equal(t, 0, code, "exit code")
+	require.Equal(t, `Checking agent health...
+Agent is healthy.
+`, test.stdout.String(), "stdout")
+	require.Empty(t, test.stderr.String(), "stderr")
+}
+
+func TestFailsIfServiceStatusOther(t *testing.T) {
+	test := setupTest()
+
+	socketAddr := startGRPCSocketServer(t, func(srv *grpc.Server) {
+		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
+	})
+	code := test.cmd.Run([]string{socketAddrArg, socketAddr})
+	require.NotEqual(t, 0, code, "exit code")
+	require.Empty(t, test.stdout.String(), "stdout")
+	require.Equal(t, `Agent is unhealthy: agent returned status "NOT_SERVING"
+`, test.stderr.String(), "stderr")
 }
 
 func withStatus(status grpc_health_v1.HealthCheckResponse_ServingStatus) healthServer {

@@ -8,14 +8,13 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 )
 
-func (c *agentConfig) addPlatformFlags(flags *flag.FlagSet) {
+func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
 }
 
@@ -37,7 +36,7 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 		return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
 	}
 
-	if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+string(os.PathSeparator)) {
+	if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
 		return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
 	}
 
@@ -47,10 +46,10 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 	}, nil
 }
 
-// validateOS performs os specific validations of the agent config
+// validateOS performs posix specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.Experimental.TCPSocketPort != 0 {
-		return errors.New("ivalid configuration: tcp_socket_port is not supported in this platform; please use socket_path instead")
+		return errors.New("invalid configuration: tcp_socket_port is not supported in this platform; please use socket_path instead")
 	}
 	return nil
 }

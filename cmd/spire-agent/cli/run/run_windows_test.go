@@ -32,7 +32,7 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, "INFO", c.LogLevel)
 	assert.Equal(t, "127.0.0.1", c.ServerAddress)
 	assert.Equal(t, 8081, c.ServerPort)
-	assert.Equal(t, c.Experimental.TCPSocketPort, 8082)
+	assert.Equal(t, 8082, c.Experimental.TCPSocketPort)
 	assert.Equal(t, "conf/agent/dummy_root_ca.crt", c.TrustBundlePath)
 	assert.Equal(t, "https://test.url", c.TrustBundleURL)
 	assert.Equal(t, "example.org", c.TrustDomain)
@@ -74,7 +74,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.NotNil(t, pluginConfig.Enabled)
 	assert.Equal(t, pluginConfig.IsEnabled(), false)
 	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
+	assert.Equal(t, pluginConfig.PluginCmd, ".\\pluginAgentCmd")
 	assert.Equal(t, expectedData, data.String())
 
 	// Enabled plugin
@@ -82,7 +82,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.NotNil(t, pluginConfig.Enabled)
 	assert.Equal(t, pluginConfig.IsEnabled(), true)
 	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
+	assert.Equal(t, pluginConfig.PluginCmd, "c:/temp/pluginAgentCmd")
 	assert.Equal(t, expectedData, data.String())
 }
 

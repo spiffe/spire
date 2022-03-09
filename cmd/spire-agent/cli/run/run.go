@@ -226,7 +226,6 @@ func (c *agentConfig) validate() error {
 	// If trust_bundle_path is set, parse the trust bundle file on disk
 	// Both cannot be set
 	// The trust bundle URL must start with HTTPS
-
 	if c.TrustBundlePath == "" && c.TrustBundleURL == "" && !c.InsecureBootstrap {
 		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
 	}
@@ -304,7 +303,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
-	c.addPlatformFlags(flags)
+	c.addOSFlags(flags)
 
 	err := flags.Parse(args)
 	if err != nil {

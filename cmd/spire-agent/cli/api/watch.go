@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type WatchCLI struct {
-	config *watchConfig
+	config *common.ConfigOS
 }
 
 func (WatchCLI) Synopsis() string {
@@ -33,7 +34,7 @@ func (w *WatchCLI) Run(args []string) int {
 		return 1
 	}
 
-	addr, err := w.config.getAddr()
+	addr, err := w.config.GetAddr()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -58,8 +59,8 @@ func (w *WatchCLI) Run(args []string) int {
 
 func (w *WatchCLI) parseConfig(args []string) error {
 	fs := flag.NewFlagSet("watch", flag.ContinueOnError)
-	c := &watchConfig{}
-	c.addPlatformFlags(fs)
+	c := &common.ConfigOS{}
+	c.AddOSFlags(fs)
 
 	w.config = c
 	return fs.Parse(args)

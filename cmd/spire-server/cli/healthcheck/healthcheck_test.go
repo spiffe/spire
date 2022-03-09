@@ -71,7 +71,7 @@ Usage of healthcheck:
 }
 
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
-	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock"})
+	code := s.cmd.Run([]string{"-socketPath", "/tmp/doesnotexist.sock"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	expectPrefix := `Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: `
@@ -79,7 +79,7 @@ func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
 }
 
 func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
-	code := s.cmd.Run([]string{"--socketPath", "/tmp/doesnotexist.sock", "--verbose"})
+	code := s.cmd.Run([]string{"-socketPath", "/tmp/doesnotexist.sock", "-verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	expectPrefix := `Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect:`
@@ -90,7 +90,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
 	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{"--socketPath", socketPath})
+	code := s.cmd.Run([]string{"-socketPath", socketPath})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
 	s.Equal("", s.stderr.String(), "stderr")
@@ -100,7 +100,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
 	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})
+	code := s.cmd.Run([]string{"-socketPath", socketPath, "-verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Checking server health...
 Server is healthy.
@@ -112,7 +112,7 @@ func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {
 	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
 	})
-	code := s.cmd.Run([]string{"--socketPath", socketPath, "--verbose"})
+	code := s.cmd.Run([]string{"-socketPath", socketPath, "-verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Checking server health...
 `, s.stdout.String(), "stdout")

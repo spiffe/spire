@@ -223,7 +223,7 @@ func TestEndpoints(t *testing.T) {
 				cancel()
 				assert.NoError(t, <-errCh)
 			}()
-			waiForListening(t, endpoints)
+			waitForListening(t, endpoints, errCh)
 			// Dial the endpoints server with custom connect params that reduce the
 			// base backoff delay. Otherwise, if the dial happens before the endpoint
 			// is being served, the test can wait for a second before retrying.
@@ -331,12 +331,10 @@ func logEntryWithPID(level logrus.Level, msg string, keyvalues ...interface{}) s
 	return spiretest.LogEntry{Level: level, Message: msg, Data: data}
 }
 
-func waiForListening(t *testing.T, e *Endpoints) {
-	timer := time.NewTimer(time.Second)
-	defer timer.Stop()
+func waitForListening(t *testing.T, e *Endpoints, errCh chan error) {
 	select {
 	case <-e.hooks.listening:
-	case <-timer.C:
-		assert.Fail(t, "timed out waiting for listener")
+	case err := <-errCh:
+		assert.Fail(t, err.Error())
 	}
 }

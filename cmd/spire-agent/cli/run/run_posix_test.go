@@ -64,26 +64,26 @@ func TestParseConfigGood(t *testing.T) {
 
 	pluginConfig := pluginConfigs["plugin_type_agent"]["plugin_name_agent"]
 	assert.Nil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), true)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
-	assert.Equal(t, expectedData, data.String())
+	assert.Equal(t, true, pluginConfig.IsEnabled())
+	assert.Equal(t, "pluginAgentChecksum", pluginConfig.PluginChecksum)
+	assert.Equal(t, "./pluginAgentCmd", pluginConfig.PluginCmd)
+	assert.Equal(t, data.String(), expectedData)
 
 	// Disabled plugin
 	pluginConfig = pluginConfigs["plugin_type_agent"]["plugin_disabled"]
 	assert.NotNil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), false)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
-	assert.Equal(t, expectedData, data.String())
+	assert.Equal(t, false, pluginConfig.IsEnabled())
+	assert.Equal(t, "pluginAgentChecksum", pluginConfig.PluginChecksum)
+	assert.Equal(t, "./pluginAgentCmd", pluginConfig.PluginCmd)
+	assert.Equal(t, data.String(), expectedData)
 
 	// Enabled plugin
 	pluginConfig = pluginConfigs["plugin_type_agent"]["plugin_enabled"]
 	assert.NotNil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), true)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginAgentChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginAgentCmd")
-	assert.Equal(t, expectedData, data.String())
+	assert.Equal(t, true, pluginConfig.IsEnabled())
+	assert.Equal(t, "pluginAgentChecksum", pluginConfig.PluginChecksum)
+	assert.Equal(t, "./pluginAgentCmd", pluginConfig.PluginCmd)
+	assert.Equal(t, data.String(), expectedData)
 }
 
 func mergeInputCasesOS() []mergeInputCase {
@@ -141,6 +141,16 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "/foo", c.BindAddress.(*net.UnixAddr).Name)
 				require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
+			},
+		},
+		{
+			msg: "admin_socket_path should be correctly configured",
+			input: func(c *Config) {
+				c.Agent.AdminSocketPath = "/foo"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "/foo", c.AdminBindAddress.Name)
+				require.Equal(t, "unix", c.AdminBindAddress.Net)
 			},
 		},
 		{

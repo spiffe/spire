@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc"
@@ -56,7 +57,7 @@ type command interface {
 }
 
 type adapter struct {
-	adapterOS // os specific
+	common.ConfigOS // os specific
 
 	env          *cli.Env
 	clientsMaker workloadClientMaker
@@ -79,7 +80,7 @@ func adaptCommand(env *cli.Env, clientsMaker workloadClientMaker, cmd command) *
 	fs.SetOutput(env.Stderr)
 	fs.Var(&a.timeout, "timeout", "Time to wait for a response")
 
-	a.addPlatformFlags(fs)
+	a.AddOSFlags(fs)
 	a.cmd.appendFlags(fs)
 	a.flags = fs
 
@@ -94,7 +95,7 @@ func (a *adapter) Run(args []string) int {
 		return 1
 	}
 
-	addr, err := a.getAddr()
+	addr, err := a.GetAddr()
 	if err != nil {
 		_ = a.env.ErrPrintln(err)
 		return 1

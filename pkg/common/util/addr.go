@@ -7,7 +7,8 @@ import (
 )
 
 // GetUnixAddr returns a unix address with the designated
-// path. Path is con
+// path. Path is converted to an absolute path when constructing
+// the returned unix domain socket address.
 func GetUnixAddrWithAbsPath(path string) (*net.UnixAddr, error) {
 	pathAbs, err := filepath.Abs(path)
 	if err != nil {
@@ -30,6 +31,6 @@ func GetTargetName(addr net.Addr) (string, error) {
 	case "tcp":
 		return addr.String(), nil
 	default:
-		return "", nil
+		return "", fmt.Errorf("unsupported network %q", addr.Network())
 	}
 }

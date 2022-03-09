@@ -25,12 +25,12 @@ func newHealthCheckCommand(env *common_cli.Env) *healthCheckCommand {
 }
 
 type healthCheckCommand struct {
+	healthCheckCommandOS // os specific
+
 	env *common_cli.Env
 
 	shallow bool
 	verbose bool
-
-	healthCheckCommandOS
 }
 
 func (c *healthCheckCommand) Help() string {
@@ -64,7 +64,7 @@ func (c *healthCheckCommand) parseFlags(args []string) error {
 	fs.SetOutput(c.env.Stderr)
 	fs.BoolVar(&c.shallow, "shallow", false, "Perform a less stringent health check")
 	fs.BoolVar(&c.verbose, "verbose", false, "Print verbose information")
-	c.addPlatformFlags(fs)
+	c.addOSFlags(fs)
 	return fs.Parse(args)
 }
 

@@ -690,20 +690,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "admin_socket_path should be correctly configured",
-			input: func(c *Config) {
-				expectAdminSocketPath, err := filepath.Abs("foo")
-				require.NoError(t, err)
-				c.Agent.AdminSocketPath = expectAdminSocketPath
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				expectAdminSocketPath, err := filepath.Abs("foo")
-				require.NoError(t, err)
-				require.Equal(t, expectAdminSocketPath, c.AdminBindAddress.Name)
-				require.Equal(t, "unix", c.AdminBindAddress.Net)
-			},
-		},
-		{
 			msg: "admin_socket_path not provided",
 			input: func(c *Config) {
 				c.Agent.AdminSocketPath = ""
