@@ -47,15 +47,29 @@ func (r *ReopenableFile) Reopen() error {
 
 	newFile, err := os.OpenFile(r.name, fileFlags, fileMode)
 	if err != nil {
-		r.f = nil
-		return err
+		reopenErr := fmt.Errorf("unable to reopen %s: %w", r.name, err)
+		// best effort to log error to old file descriptor
+		if _, err := r.f.WriteString(reopenErr.Error()); err != nil {
+			return fmt.Errorf("unable to log %q: %w", reopenErr.Error(), err)
+		}
+		return reopenErr
 	}
 
-	if r.f != nil {
-		if err := r.f.Close(); err != nil {
-			return err
+	if err := r.f.Close(); err != nil {
+		closeErr := fmt.Errorf("unable to close old %s: %w", r.name, err)
+		// attempt to close newFile to prevent file descriptor leak
+		if err := newFile.Close(); err != nil {
+			leakErr := fmt.Errorf(
+				"file descriptor leak closing new %s: %v: %w",
+				r.name, err.Error(), closeErr,
+			)
+			closeErr = leakErr
 		}
-		r.f = nil
+		// best effort to log error to old file descriptor
+		if _, err := r.f.WriteString(closeErr.Error()); err != nil {
+			return fmt.Errorf("unable to log %q: %w", closeErr.Error(), err)
+		}
+		return closeErr
 	}
 
 	r.f = newFile
@@ -66,20 +80,12 @@ func (r *ReopenableFile) Write(b []byte) (n int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.f == nil {
-		return 0, fmt.Errorf("%s is nil", r.name)
-	}
-
 	return r.f.Write(b)
 }
 
 func (r *ReopenableFile) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	if r.f == nil {
-		return fmt.Errorf("%s is nil", r.name)
-	}
 
 	return r.f.Close()
 }
