@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/secretmanager v1.3.0
 	cloud.google.com/go/security v1.3.0
 	cloud.google.com/go/storage v1.21.0
-	github.com/Azure/azure-sdk-for-go v62.0.0+incompatible
+	github.com/Azure/azure-sdk-for-go v62.1.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.24
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.29.0
@@ -32,7 +32,7 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/google/go-cmp v0.5.7
 	github.com/google/go-tpm v0.3.3
-	github.com/google/go-tpm-tools v0.3.3
+	github.com/google/go-tpm-tools v0.3.4
 	github.com/googleapis/gax-go/v2 v2.1.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.1.0

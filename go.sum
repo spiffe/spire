@@ -91,8 +91,8 @@ github.com/Azure/azure-amqp-common-go/v2 v2.1.0/go.mod h1:R8rea+gJRuJR6QxTir/XuE
 github.com/Azure/azure-pipeline-go v0.2.1/go.mod h1:UGSo8XybXnIGZ3epmeBw7Jdz+HiUVpqIlpz/HKHylF4=
 github.com/Azure/azure-sdk-for-go v29.0.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go v30.1.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
-github.com/Azure/azure-sdk-for-go v62.0.0+incompatible h1:8N2k27SYtc12qj5nTsuFMFJPZn5CGmgMWqTy4y9I7Jw=
-github.com/Azure/azure-sdk-for-go v62.0.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
+github.com/Azure/azure-sdk-for-go v62.1.0+incompatible h1:FKtAafvCGabH4hzycX4uGq/mSTKN+zaeRTUdnJB5Yag=
+github.com/Azure/azure-sdk-for-go v62.1.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0/go.mod h1:h6H6c8enJmmocHUbLiiGY6sx7f9i+X3m1CHdd5c6Rdw=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0/go.mod h1:HcM1YX14R7CJcghJGOYCgdezslRSVzqwLf/q+4Y2r/0=
 github.com/Azure/azure-sdk-for-go/sdk/internal v0.7.0/go.mod h1:yqy467j36fJxcRV2TzfVZ1pCb5vxm4BtZPUdYWe/Xo8=
@@ -587,8 +587,8 @@ github.com/google/go-tpm-tools v0.0.0-20190906225433-1614c142f845/go.mod h1:AVfH
 github.com/google/go-tpm-tools v0.2.0/go.mod h1:npUd03rQ60lxN7tzeBJreG38RvWwme2N1reF/eeiBk4=
 github.com/google/go-tpm-tools v0.2.1/go.mod h1:npUd03rQ60lxN7tzeBJreG38RvWwme2N1reF/eeiBk4=
 github.com/google/go-tpm-tools v0.3.1/go.mod h1:PSg+r5hSZI5tP3X7LBQx2sW1VSZUqZHBSrKyDqrB21U=
-github.com/google/go-tpm-tools v0.3.3 h1:EkMRDnvDt+hCux/gZTgk+tYmKhp5Crt2AEDjGCyKoXE=
-github.com/google/go-tpm-tools v0.3.3/go.mod h1:Rza3u92JvrtM96CYhZ8pt0jk6ygNXUcFx8oXZmIlIAY=
+github.com/google/go-tpm-tools v0.3.4 h1:a6+K5BMLQeDUl17mNrob6fG5fBjX2CO94Ss/xXJV7K8=
+github.com/google/go-tpm-tools v0.3.4/go.mod h1:Rza3u92JvrtM96CYhZ8pt0jk6ygNXUcFx8oXZmIlIAY=
 github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad h1:LnpS22S8V1HqbxjveESGAazHhi6BX9SwI2Rij7qZcXQ=
 github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad/go.mod h1:xfMGI3G0PhxCdNVcYr1C4C+EizojDg/TXuX5by8CiHI=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
