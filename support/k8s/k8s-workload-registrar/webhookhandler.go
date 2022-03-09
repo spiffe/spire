@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/sirupsen/logrus"
@@ -121,7 +121,7 @@ func (h *WebhookHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var body []byte
-	if data, err := ioutil.ReadAll(req.Body); err == nil {
+	if data, err := io.ReadAll(req.Body); err == nil {
 		body = data
 	}
 

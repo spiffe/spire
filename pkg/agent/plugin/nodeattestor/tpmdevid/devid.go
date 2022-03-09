@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"runtime"
 	"sync"
 
@@ -254,12 +254,12 @@ func (p *Plugin) loadDevIDFiles(c *Config) error {
 		p.c.devIDCert = append(p.c.devIDCert, cert.Raw)
 	}
 
-	p.c.devIDPriv, err = ioutil.ReadFile(c.DevIDPrivPath)
+	p.c.devIDPriv, err = os.ReadFile(c.DevIDPrivPath)
 	if err != nil {
 		return fmt.Errorf("cannot load private key: %w", err)
 	}
 
-	p.c.devIDPub, err = ioutil.ReadFile(c.DevIDPubPath)
+	p.c.devIDPub, err = os.ReadFile(c.DevIDPubPath)
 	if err != nil {
 		return fmt.Errorf("cannot load public key: %w", err)
 	}
