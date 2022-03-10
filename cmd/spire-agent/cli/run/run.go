@@ -364,13 +364,13 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		log.WithLevel(c.Agent.LogLevel),
 		log.WithFormat(c.Agent.LogFormat),
 	)
+	var reopenableFile *log.ReopenableFile
 	if c.Agent.LogFile != "" {
 		reopenableFile, err := log.NewReopenableFile(c.Agent.LogFile)
 		if err != nil {
 			return nil, err
 		}
 		logOptions = append(logOptions, log.WithReopenableOutputFile(reopenableFile))
-		ac.LogReopener = log.ReopenOnSignal(reopenableFile)
 	}
 
 	logger, err := log.NewLogger(logOptions...)
@@ -378,6 +378,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	ac.Log = logger
+	if reopenableFile != nil {
+		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
+	}
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {

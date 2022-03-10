@@ -14,21 +14,27 @@ const (
 
 var _ ReopenableWriteCloser = (*ReopenableFile)(nil)
 
-// Reopener inspired by https://github.com/client9/reopen
-type Reopener interface {
-	Reopen() error
-}
+type (
+	// Reopener inspired by https://github.com/client9/reopen
+	Reopener interface {
+		Reopen(*Logger) error
+	}
+	ReopenableWriteCloser interface {
+		Reopener
+		io.WriteCloser
+	}
+)
 
-type ReopenableWriteCloser interface {
-	Reopener
-	io.WriteCloser
-}
-
-type ReopenableFile struct {
-	name string
-	f    *os.File
-	mu   sync.Mutex
-}
+type (
+	ReopenableFile struct {
+		name        string
+		f           *os.File
+		unsafeClose unsafeClose
+		mu          sync.Mutex
+	}
+	// unsafeClose must be called while holding the lock
+	unsafeClose func() error
+)
 
 func NewReopenableFile(name string) (*ReopenableFile, error) {
 	file, err := os.OpenFile(name, fileFlags, fileMode)
@@ -36,12 +42,13 @@ func NewReopenableFile(name string) (*ReopenableFile, error) {
 		return nil, err
 	}
 	return &ReopenableFile{
-		name: name,
-		f:    file,
+		name:        name,
+		f:           file,
+		unsafeClose: file.Close,
 	}, nil
 }
 
-func (r *ReopenableFile) Reopen() error {
+func (r *ReopenableFile) Reopen(logger *Logger) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -49,28 +56,13 @@ func (r *ReopenableFile) Reopen() error {
 	if err != nil {
 		reopenErr := fmt.Errorf("unable to reopen %s: %w", r.name, err)
 		// best effort to log error to old file descriptor
-		if _, err := r.f.WriteString(reopenErr.Error()); err != nil {
-			return fmt.Errorf("unable to log %q: %w", reopenErr.Error(), err)
-		}
+		go logger.Error(reopenErr)
 		return reopenErr
 	}
 
-	if err := r.f.Close(); err != nil {
-		closeErr := fmt.Errorf("unable to close old %s: %w", r.name, err)
-		// attempt to close newFile to prevent file descriptor leak
-		if err := newFile.Close(); err != nil {
-			leakErr := fmt.Errorf(
-				"file descriptor leak closing new %s: %v: %w",
-				r.name, err.Error(), closeErr,
-			)
-			closeErr = leakErr
-		}
-		// best effort to log error to old file descriptor
-		if _, err := r.f.WriteString(closeErr.Error()); err != nil {
-			return fmt.Errorf("unable to log %q: %w", closeErr.Error(), err)
-		}
-		return closeErr
-	}
+	// Ignore errors closing old file descriptor since logger would be using
+	// file descriptor we fail to close. This could leak file descriptors.
+	_ = r.unsafeClose()
 
 	r.f = newFile
 	return nil

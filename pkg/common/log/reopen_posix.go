@@ -14,16 +14,17 @@ const (
 )
 
 // ReopenOnSignal returns a function compatible with RunTasks.
-func ReopenOnSignal(reopener Reopener) func(context.Context) error {
+func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) error {
 	return func(ctx context.Context) error {
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, reopenSignal)
-		return reopenOnSignal(ctx, reopener, signalCh)
+		return reopenOnSignal(ctx, logger, reopener, signalCh)
 	}
 }
 
 func reopenOnSignal(
 	ctx context.Context,
+	logger *Logger,
 	reopener Reopener,
 	signalCh chan os.Signal,
 ) error {
@@ -32,7 +33,7 @@ func reopenOnSignal(
 		case <-ctx.Done():
 			return nil
 		case <-signalCh:
-			if err := reopener.Reopen(); err != nil {
+			if err := reopener.Reopen(logger); err != nil {
 				return err
 			}
 		}
