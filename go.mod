@@ -35,7 +35,7 @@ require (
 	github.com/google/go-tpm-tools v0.3.4
 	github.com/googleapis/gax-go/v2 v2.1.1
 	github.com/gorilla/handlers v1.5.1
-	github.com/hashicorp/go-hclog v1.1.0
+	github.com/hashicorp/go-hclog v1.2.0
 	github.com/hashicorp/go-plugin v1.4.3
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
