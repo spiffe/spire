@@ -8,7 +8,7 @@ if [ -n "${COVERALLS_TOKEN}" ]; then
     go get github.com/mattn/goveralls@v0.0.7
 fi
 
-COVERPROFILE="${COVERPROFILE}" make test
+COVERPROFILE="${COVERPROFILE}" GOVERBOSE=1 make race-test
 
 if [ -n "${COVERALLS_TOKEN}" ]; then
     "$(go env GOPATH)"/bin/goveralls -coverprofile="${COVERPROFILE}" \
