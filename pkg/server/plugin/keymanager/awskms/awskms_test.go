@@ -25,7 +25,6 @@ import (
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -344,11 +343,6 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestGenerateKey(t *testing.T) {
-	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
-		t,
-		"https://github.com/spiffe/spire/issues/2714",
-	)
-
 	for _, tt := range []struct {
 		name                   string
 		err                    string

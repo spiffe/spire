@@ -21,17 +21,11 @@ import (
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
 	"github.com/spiffe/spire/test/testca"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRotator(t *testing.T) {
-	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
-		t,
-		"https://github.com/spiffe/spire/issues/2713",
-	)
-
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
 
 	for _, tt := range []struct {

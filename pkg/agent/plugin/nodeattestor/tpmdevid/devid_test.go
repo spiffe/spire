@@ -22,7 +22,6 @@ import (
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/tpmsimulator"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -347,11 +346,6 @@ func TestConfigureWindows(t *testing.T) {
 }
 
 func TestAidAttestationFailures(t *testing.T) {
-	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
-		t,
-		"https://github.com/spiffe/spire/issues/2711",
-	)
-
 	tests := []struct {
 		name                              string
 		openTPMFail                       bool
