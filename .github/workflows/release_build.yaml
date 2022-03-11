@@ -76,7 +76,7 @@ jobs:
         run: ./.github/workflows/scripts/run_unit_tests.sh
 
   unit-test-race-detector:
-    name: Run unit tests with race detector (linux)
+    name: unit-test (linux with race detection)
     runs-on: ubuntu-18.04
     needs: cache-deps
     steps:
