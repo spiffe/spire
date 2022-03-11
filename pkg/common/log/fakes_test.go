@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
@@ -10,19 +11,20 @@ var (
 )
 
 type fakeReopenableFile struct {
-	rf        *ReopenableFile
 	t         *testing.T
+	rf        *ReopenableFile
 	reopenErr error
 	closeErr  error
 	cancel    context.CancelFunc
 }
 
-func (f *fakeReopenableFile) Reopen(logger *Logger) error {
+func (f *fakeReopenableFile) Reopen() error {
+	f.t.Helper()
 	f.t.Log("entering Reopen")
 	var err error
 	if f.rf != nil {
 		f.t.Log("calling f.rf.Reopen")
-		err = f.rf.Reopen(logger)
+		err = f.rf.Reopen()
 	}
 	if f.reopenErr != nil {
 		err = f.reopenErr
@@ -30,11 +32,12 @@ func (f *fakeReopenableFile) Reopen(logger *Logger) error {
 	if f.cancel != nil {
 		f.cancel()
 	}
-	f.t.Log(err)
+	f.t.Logf("error in Reopen: %v", err)
 	return err
 }
 
 func (f *fakeReopenableFile) Write(b []byte) (n int, err error) {
+	f.t.Helper()
 	if f.rf != nil {
 		return f.rf.Write(b)
 	}
@@ -42,18 +45,15 @@ func (f *fakeReopenableFile) Write(b []byte) (n int, err error) {
 }
 
 func (f *fakeReopenableFile) Close() error {
+	f.t.Helper()
 	if f.rf != nil {
 		return f.rf.Close()
 	}
 	return nil
 }
 
-func (f *fakeReopenableFile) unsafeClose() error {
-	f.t.Log("entering unsafeClose()")
-	var err error
-	if f.closeErr != nil {
-		err = f.closeErr
-	}
-	f.t.Log(err)
-	return err
+func (f *fakeReopenableFile) fakeCloseError(fake *os.File) error {
+	f.t.Helper()
+	f.t.Log("entering closeFake()")
+	return f.closeErr
 }

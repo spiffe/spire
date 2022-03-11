@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	reopenSignal = syscall.SIGUSR2
+	reopenSignal      = syscall.SIGUSR2
+	failedToReopenMsg = "failed to rotate log after signal"
 )
 
 // ReopenOnSignal returns a function compatible with RunTasks.
@@ -33,8 +34,9 @@ func reopenOnSignal(
 		case <-ctx.Done():
 			return nil
 		case <-signalCh:
-			if err := reopener.Reopen(logger); err != nil {
-				return err
+			if err := reopener.Reopen(); err != nil {
+				// never fail; best effort to log to old file descriptor
+				logger.WithError(err).Error(failedToReopenMsg)
 			}
 		}
 	}

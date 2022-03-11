@@ -17,7 +17,7 @@ var _ ReopenableWriteCloser = (*ReopenableFile)(nil)
 type (
 	// Reopener inspired by https://github.com/client9/reopen
 	Reopener interface {
-		Reopen(*Logger) error
+		Reopen() error
 	}
 	ReopenableWriteCloser interface {
 		Reopener
@@ -27,13 +27,14 @@ type (
 
 type (
 	ReopenableFile struct {
-		name        string
-		f           *os.File
-		unsafeClose unsafeClose
-		mu          sync.Mutex
+		name      string
+		f         *os.File
+		closeFunc closeFunc
+		mu        sync.Mutex
 	}
-	// unsafeClose must be called while holding the lock
-	unsafeClose func() error
+	// closeFunc must be called while holding the lock. It is intended for
+	// injecting errors under test.
+	closeFunc func(*os.File) error
 )
 
 func NewReopenableFile(name string) (*ReopenableFile, error) {
@@ -41,28 +42,28 @@ func NewReopenableFile(name string) (*ReopenableFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	closeFile := func(f *os.File) error {
+		return f.Close()
+	}
 	return &ReopenableFile{
-		name:        name,
-		f:           file,
-		unsafeClose: file.Close,
+		name:      name,
+		f:         file,
+		closeFunc: closeFile,
 	}, nil
 }
 
-func (r *ReopenableFile) Reopen(logger *Logger) error {
+func (r *ReopenableFile) Reopen() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	newFile, err := os.OpenFile(r.name, fileFlags, fileMode)
 	if err != nil {
-		reopenErr := fmt.Errorf("unable to reopen %s: %w", r.name, err)
-		// best effort to log error to old file descriptor
-		go logger.Error(reopenErr)
-		return reopenErr
+		return fmt.Errorf("unable to reopen %s: %w", r.name, err)
 	}
 
 	// Ignore errors closing old file descriptor since logger would be using
 	// file descriptor we fail to close. This could leak file descriptors.
-	_ = r.unsafeClose()
+	_ = r.closeFunc(r.f)
 
 	r.f = newFile
 	return nil

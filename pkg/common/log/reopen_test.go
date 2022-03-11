@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,58 +82,70 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 }
 
 func TestReopenOnSignalError(t *testing.T) {
-	t.Run("failure to reopen", func(t *testing.T) {
-		const msg = "return error opening new file descriptor"
-		fakeErr := errors.New(msg)
+	const (
+		testLogFileName  = "test.log"
+		fakeReopenErrMsg = "error opening new file descriptor logged"
+		fakeCloseErrMsg  = "error closing old file descriptor ignored"
+	)
+	dir := spiretest.TempDir(t)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	logFileName := filepath.Join(dir, testLogFileName)
+	rf, err := NewReopenableFile(logFileName)
+	require.NoError(t, err)
 
-		frf := &fakeReopenableFile{t: t, reopenErr: errors.New(msg)}
+	logrusLogger, logHook := test.NewNullLogger()
+	logger := &Logger{Logger: logrusLogger}
 
-		logger, err := NewLogger(WithReopenableOutputFile(&ReopenableFile{}))
-		require.NoError(t, err)
+	tests := []struct {
+		desc           string
+		reopenErr      error
+		closeErr       error
+		wantLogEntries []spiretest.LogEntry
+	}{
+		{
+			desc:      "failure to reopen",
+			reopenErr: errors.New(fakeReopenErrMsg),
+			wantLogEntries: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: failedToReopenMsg,
+					Data: logrus.Fields{
+						logrus.ErrorKey: fakeReopenErrMsg,
+					},
+				},
+			},
+		},
+		{
+			desc:           "ignore failure to close",
+			closeErr:       errors.New(fakeCloseErrMsg),
+			wantLogEntries: []spiretest.LogEntry(nil),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-		signalCh := make(chan os.Signal, 1)
-		go func() {
-			// trigger reopen error
-			signalCh <- reopenSignal
-		}()
-		err = reopenOnSignal(ctx, logger, frf, signalCh)
-		require.True(t, errors.As(err, &fakeErr), "expected %s, got %s", msg, err.Error())
-	})
+			frf := &fakeReopenableFile{
+				rf:        rf,
+				t:         t,
+				reopenErr: tt.reopenErr,
+				closeErr:  tt.closeErr,
+				cancel:    cancel,
+			}
+			if tt.closeErr != nil {
+				frf.rf.closeFunc = frf.fakeCloseError
+			}
 
-	t.Run("ignore failure to close", func(t *testing.T) {
-		const (
-			testLogFileName = "test.log"
-			msg             = "ignore error closing old file descriptor"
-		)
-		dir := spiretest.TempDir(t)
-
-		logFileName := filepath.Join(dir, testLogFileName)
-		rf, err := NewReopenableFile(logFileName)
-		require.NoError(t, err)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		frf := &fakeReopenableFile{
-			rf:       rf,
-			t:        t,
-			closeErr: errors.New(msg),
-			cancel:   cancel,
-		}
-		frf.rf.unsafeClose = frf.unsafeClose
-
-		logger, err := NewLogger(WithReopenableOutputFile(rf))
-		require.NoError(t, err)
-
-		signalCh := make(chan os.Signal, 1)
-		go func() {
-			// trigger close error
-			signalCh <- reopenSignal
-		}()
-		err = reopenOnSignal(ctx, logger, frf, signalCh)
-		require.NoError(t, err, "error closing old file descriptor should be ignored")
-	})
+			signalCh := make(chan os.Signal, 1)
+			go func() {
+				// trigger close error
+				signalCh <- reopenSignal
+			}()
+			err = reopenOnSignal(ctx, logger, frf, signalCh)
+			require.NoError(t, err, "reopenOnSignal should never fail")
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.wantLogEntries)
+			logHook.Reset()
+		})
+	}
 }
