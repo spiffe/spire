@@ -27,8 +27,10 @@ import (
 )
 
 func TestRotator(t *testing.T) {
-	// Flaky under -race: https://github.com/spiffe/spire/issues/2713
-	util.SkipFlakyTestUnderRaceDetector(t)
+	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
+		t,
+		"https://github.com/spiffe/spire/issues/2713",
+	)
 
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
 

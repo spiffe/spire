@@ -347,8 +347,10 @@ func TestConfigureWindows(t *testing.T) {
 }
 
 func TestAidAttestationFailures(t *testing.T) {
-	// Data race in subtest: https://github.com/spiffe/spire/issues/2711
-	util.SkipFlakyTestUnderRaceDetector(t)
+	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
+		t,
+		"https://github.com/spiffe/spire/issues/2711",
+	)
 
 	tests := []struct {
 		name                              string
