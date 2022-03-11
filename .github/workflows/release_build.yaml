@@ -76,10 +76,8 @@ jobs:
         run: ./.github/workflows/scripts/run_unit_tests.sh
 
   unit-test-race-detector:
-    strategy:
-      matrix:
-        OS: [ubuntu-18.04]
-    runs-on: ${{ matrix.OS }}
+    name: Run unit tests with race detector (linux)
+    runs-on: ubuntu-18.04
     needs: cache-deps
     steps:
       - name: Checkout
