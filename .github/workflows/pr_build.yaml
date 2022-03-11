@@ -79,7 +79,7 @@ jobs:
   unit-test-race-detector:
     strategy:
       matrix:
-        OS: [ubuntu-18.04, macos-latest]
+        OS: [ubuntu-18.04]
     runs-on: ${{ matrix.OS }}
     needs: cache-deps
     steps:
