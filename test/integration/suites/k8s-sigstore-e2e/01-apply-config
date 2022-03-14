@@ -1,0 +1,40 @@
+#!/bin/bash
+
+source init-kubectl
+
+wait-for-rollout() {
+    ns=$1
+    obj=$2
+    MAXROLLOUTCHECKS=12
+    ROLLOUTCHECKINTERVAL=15s
+    for ((i=0; i<${MAXROLLOUTCHECKS}; i++)); do
+        log-info "checking rollout status for ${ns} ${obj}..."
+        if ${KUBEBIN} "-n${ns}" rollout status "$obj" --timeout="${ROLLOUTCHECKINTERVAL}"; then
+            return
+        fi
+        log-warn "describing ${ns} ${obj}..."
+        ${KUBEBIN} "-n${ns}" describe "$obj" || true
+        log-warn "logs for ${ns} ${obj}..."
+        ${KUBEBIN} "-n${ns}" logs --all-containers "$obj" || true
+    done
+    fail-now "Failed waiting for ${obj} to roll out."
+}
+
+${KUBEBIN} create namespace spire
+${KUBEBIN} apply -k ./conf/server
+wait-for-rollout spire deployment/spire-server
+${KUBEBIN} apply -k ./conf/webhook
+${KUBEBIN} apply -k ./conf/agent
+wait-for-rollout spire daemonset/spire-agent
+
+# Apply this separately after all of the spire infrastructure has been rolled
+# out, otherwise the k8s-workload-registrar might miss its chance to create
+# an entry for it
+${KUBEBIN} apply -f ./conf/workload-signed.yaml
+wait-for-rollout spire deployment/example-workload-signed
+${KUBEBIN} apply -f ./conf/workload-signed-wrong-subject.yaml
+wait-for-rollout spire deployment/example-workload-signed-wrong-subject
+${KUBEBIN} apply -f ./conf/workload-unsigned.yaml
+wait-for-rollout spire deployment/example-workload-unsigned
+${KUBEBIN} apply -f ./conf/workload-unsigned-skipped.yaml
+wait-for-rollout spire deployment/example-workload-unsigned-skipped
