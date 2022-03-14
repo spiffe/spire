@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/secretmanager v1.3.0
 	cloud.google.com/go/security v1.3.0
 	cloud.google.com/go/storage v1.21.0
-	github.com/Azure/azure-sdk-for-go v62.1.0+incompatible
+	github.com/Azure/azure-sdk-for-go v62.2.0+incompatible
 	github.com/Azure/go-autorest/autorest v0.11.24
 	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.29.0
@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
-	github.com/docker/docker v20.10.12+incompatible
+	github.com/docker/docker v20.10.13+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.1
 	github.com/go-logr/logr v1.2.2
 	github.com/go-sql-driver/mysql v1.6.0
@@ -47,7 +47,7 @@ require (
 	github.com/lib/pq v1.10.4
 	github.com/mattn/go-sqlite3 v1.14.12
 	github.com/mitchellh/cli v1.1.2
-	github.com/open-policy-agent/opa v0.38.0
+	github.com/open-policy-agent/opa v0.38.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/shirou/gopsutil/v3 v3.22.2
 	github.com/sirupsen/logrus v1.8.1
