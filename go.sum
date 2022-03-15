@@ -558,8 +558,8 @@ github.com/google/certificate-transparency-go v1.1.2/go.mod h1:3OL+HKDqHPUfdKrHV
 github.com/google/flatbuffers v1.12.1 h1:MVlul7pQNoDzWRLTw5imwYsl+usrS1TXG2H4jg6ImGw=
 github.com/google/flatbuffers v1.12.1/go.mod h1:1AeVuKshWv4vARoZatz6mlQ0JxURH0Kv5+zNeJKJCa8=
 github.com/google/go-attestation v0.3.2/go.mod h1:N0ADdnY0cr7eLJyZ75o8kofGGTUF2XrZTJuTPo5acwk=
-github.com/google/go-attestation v0.4.3-0.20220215003148-83d71b1c538e h1:NmZguGblibzcgDdkL42ZeH5iJmXgVZmNMhW71i7w7bk=
-github.com/google/go-attestation v0.4.3-0.20220215003148-83d71b1c538e/go.mod h1:7L6MpeaeEmJVJHpr/5cCrOE0SjNA2aFLfJF1Og0AJS8=
+github.com/google/go-attestation v0.4.3 h1:hHhPfym1TZm88L7sWmdc/moikHt80ls6mEiU+QvhRvk=
+github.com/google/go-attestation v0.4.3/go.mod h1:7L6MpeaeEmJVJHpr/5cCrOE0SjNA2aFLfJF1Og0AJS8=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/google/go-cmp v0.3.0/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/go-cmp v0.3.1/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
@@ -588,8 +588,8 @@ github.com/google/go-tpm-tools v0.0.0-20190906225433-1614c142f845/go.mod h1:AVfH
 github.com/google/go-tpm-tools v0.2.0/go.mod h1:npUd03rQ60lxN7tzeBJreG38RvWwme2N1reF/eeiBk4=
 github.com/google/go-tpm-tools v0.2.1/go.mod h1:npUd03rQ60lxN7tzeBJreG38RvWwme2N1reF/eeiBk4=
 github.com/google/go-tpm-tools v0.3.1/go.mod h1:PSg+r5hSZI5tP3X7LBQx2sW1VSZUqZHBSrKyDqrB21U=
-github.com/google/go-tpm-tools v0.3.4 h1:a6+K5BMLQeDUl17mNrob6fG5fBjX2CO94Ss/xXJV7K8=
-github.com/google/go-tpm-tools v0.3.4/go.mod h1:Rza3u92JvrtM96CYhZ8pt0jk6ygNXUcFx8oXZmIlIAY=
+github.com/google/go-tpm-tools v0.3.5 h1:gcjAoa/iK98ybY41Icn2zkGlJLhVg44nOmI6fFju5IY=
+github.com/google/go-tpm-tools v0.3.5/go.mod h1:qfHzQi877eMFmaOWngbcJPz5IOASSHmgeMWvT00aYyA=
 github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad h1:LnpS22S8V1HqbxjveESGAazHhi6BX9SwI2Rij7qZcXQ=
 github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad/go.mod h1:xfMGI3G0PhxCdNVcYr1C4C+EizojDg/TXuX5by8CiHI=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
