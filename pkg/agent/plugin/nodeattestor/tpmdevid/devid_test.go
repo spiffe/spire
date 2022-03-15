@@ -345,7 +345,7 @@ func TestConfigureWindows(t *testing.T) {
 	}
 }
 
-func TestAidAttestationFailiures(t *testing.T) {
+func TestAidAttestationFailures(t *testing.T) {
 	tests := []struct {
 		name                              string
 		openTPMFail                       bool
