@@ -7,6 +7,7 @@
 
 ### Changed
 - OIDC Discovery Provider now includes the `alg` parameter in JWKs to increase compatibility  (#2771)
+- SPIRE Server now gracefully stops plugin servers, allowing outstanding RPCs a chance to complete (#2722)
 - SPIRE Server logs additional authorization information with RPC requests (#2776)
 - Small documentation improvements (#2746, #2792)
 
@@ -14,7 +15,6 @@
 - SPIRE Server now properly rotates signing keys when prepared or activated keys are lost from the database (#2770)
 - The AWS IID node attestor now works with instance profiles which have paths (#2825)
 - Fixed a crash in SPIRE Agent caused by a race on the agent cache (#2699)
-- SPIRE Server waits for plugin requests to finish during graceful shutdown (#2722)
 
 ## [1.2.0] - 2022-01-28
 
