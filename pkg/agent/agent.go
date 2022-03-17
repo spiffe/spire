@@ -115,6 +115,10 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
+	if a.c.LogReopener != nil {
+		tasks = append(tasks, a.c.LogReopener)
+	}
+
 	err = util.RunTasks(ctx, tasks...)
 	if errors.Is(err, context.Canceled) {
 		err = nil

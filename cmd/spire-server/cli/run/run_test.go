@@ -1339,10 +1339,12 @@ func TestLogOptions(t *testing.T) {
 	require.NoError(t, fd.Close())
 	defer os.Remove(fd.Name())
 
+	logFile, err := log.NewReopenableFile(fd.Name())
+	require.NoError(t, err)
 	logOptions := []log.Option{
 		log.WithLevel("DEBUG"),
 		log.WithFormat(log.JSONFormat),
-		log.WithOutputFile(fd.Name()),
+		log.WithReopenableOutputFile(logFile),
 	}
 
 	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions, false)
@@ -1355,7 +1357,7 @@ func TestLogOptions(t *testing.T) {
 
 	// JSON Formatter and output file should be set from above
 	require.IsType(t, &logrus.JSONFormatter{}, logger.Formatter)
-	require.Equal(t, fd.Name(), logger.Out.(*os.File).Name())
+	require.Equal(t, fd.Name(), logger.Out.(*log.ReopenableFile).Name())
 }
 
 func TestHasCompatibleTTLs(t *testing.T) {
