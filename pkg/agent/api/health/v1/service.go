@@ -2,10 +2,12 @@ package health
 
 import (
 	"context"
+	"net"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc"
@@ -21,14 +23,14 @@ func RegisterService(s *grpc.Server, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	// SocketPath is the Workload API socket path
-	SocketPath string
+	// Addr is the Workload API socket address
+	Addr net.Addr
 }
 
 // New creates a new Health service
 func New(config Config) *Service {
 	return &Service{
-		socketPath: config.SocketPath,
+		addr: config.Addr,
 	}
 }
 
@@ -36,7 +38,7 @@ func New(config Config) *Service {
 type Service struct {
 	grpc_health_v1.UnimplementedHealthServer
 
-	socketPath string
+	addr net.Addr
 }
 
 func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
@@ -47,7 +49,11 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
 	}
 
-	_, err := workloadapi.FetchX509Context(ctx, workloadapi.WithAddr("unix:"+s.socketPath))
+	target, err := util.GetTargetName(s.addr)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "could not parse target", err)
+	}
+	_, err = workloadapi.FetchX509Context(ctx, workloadapi.WithAddr(target))
 
 	healthStatus := grpc_health_v1.HealthCheckResponse_SERVING
 	switch status.Code(err) {

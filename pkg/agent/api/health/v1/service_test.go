@@ -99,10 +99,8 @@ func TestServiceCheck(t *testing.T) {
 				bundle:   bundle,
 			}
 
-			socketPath := spiretest.StartWorkloadAPIOnTempSocket(t, wlAPI)
-
 			service := health.New(health.Config{
-				SocketPath: socketPath,
+				Addr: spiretest.StartWorkloadAPIOnTempUDSSocket(t, wlAPI),
 			})
 
 			conn, done := spiretest.NewAPIServer(t,

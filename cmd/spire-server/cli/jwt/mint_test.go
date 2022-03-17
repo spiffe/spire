@@ -75,7 +75,7 @@ func TestMintRun(t *testing.T) {
 
 	socketPath := filepath.Join(dir, "socket")
 
-	spiretest.StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
+	spiretest.StartGRPCUDSSocketServer(t, socketPath, func(s *grpc.Server) {
 		svidv1.RegisterSVIDServer(s, server)
 	})
 

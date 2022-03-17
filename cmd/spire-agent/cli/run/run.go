@@ -20,7 +20,6 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
@@ -94,7 +93,8 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval string `hcl:"sync_interval"`
+	SyncInterval  string `hcl:"sync_interval"`
+	TCPSocketPort int    `hcl:"tcp_socket_port"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -205,6 +205,48 @@ func (*Command) Synopsis() string {
 	return "Runs the agent"
 }
 
+func (c *agentConfig) validate() error {
+	if c == nil {
+		return errors.New("agent section must be configured")
+	}
+
+	if c.ServerAddress == "" {
+		return errors.New("server_address must be configured")
+	}
+
+	if c.ServerPort == 0 {
+		return errors.New("server_port must be configured")
+	}
+
+	if c.TrustDomain == "" {
+		return errors.New("trust_domain must be configured")
+	}
+
+	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
+	// If trust_bundle_path is set, parse the trust bundle file on disk
+	// Both cannot be set
+	// The trust bundle URL must start with HTTPS
+	if c.TrustBundlePath == "" && c.TrustBundleURL == "" && !c.InsecureBootstrap {
+		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
+	}
+
+	if c.TrustBundleURL != "" && c.TrustBundlePath != "" {
+		return errors.New("only one of trust_bundle_url or trust_bundle_path can be specified, not both")
+	}
+
+	if c.TrustBundleURL != "" {
+		u, err := url.Parse(c.TrustBundleURL)
+		if err != nil {
+			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
+		}
+		if u.Scheme != "https" {
+			return errors.New("trust bundle URL must start with https://")
+		}
+	}
+
+	return c.validateOS()
+}
+
 func ParseFile(path string, expandEnv bool) (*Config, error) {
 	c := &Config{}
 
@@ -254,13 +296,14 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
-	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 	flags.StringVar(&c.TrustBundleURL, "trustBundleUrl", "", "URL to download the SPIRE server CA bundle")
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
+
+	c.addOSFlags(flags)
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -388,29 +431,18 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.TrustDomain = td
 
-	ac.BindAddress = &net.UnixAddr{
-		Name: c.Agent.SocketPath,
-		Net:  "unix",
+	addr, err := c.Agent.getAddr()
+	if err != nil {
+		return nil, err
 	}
+	ac.BindAddress = addr
 
 	if c.Agent.AdminSocketPath != "" {
-		socketPathAbs, err := filepath.Abs(c.Agent.SocketPath)
+		adminAddr, err := c.Agent.getAdminAddr()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
+			return nil, err
 		}
-		adminSocketPathAbs, err := filepath.Abs(c.Agent.AdminSocketPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
-		}
-
-		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+string(os.PathSeparator)) {
-			return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
-		}
-
-		ac.AdminBindAddress = &net.UnixAddr{
-			Name: c.Agent.AdminSocketPath,
-			Net:  "unix",
-		}
+		ac.AdminBindAddress = adminAddr
 	}
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
@@ -457,46 +489,12 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 }
 
 func validateConfig(c *Config) error {
-	if c.Agent == nil {
-		return errors.New("agent section must be configured")
-	}
-
-	if c.Agent.ServerAddress == "" {
-		return errors.New("server_address must be configured")
-	}
-
-	if c.Agent.ServerPort == 0 {
-		return errors.New("server_port must be configured")
-	}
-
-	if c.Agent.TrustDomain == "" {
-		return errors.New("trust_domain must be configured")
-	}
-
-	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
-	// If trust_bundle_path is set, parse the trust bundle file on disk
-	// Both cannot be set
-	// The trust bundle URL must start with HTTPS
-
-	if c.Agent.TrustBundlePath == "" && c.Agent.TrustBundleURL == "" && !c.Agent.InsecureBootstrap {
-		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
-	}
-
-	if c.Agent.TrustBundleURL != "" && c.Agent.TrustBundlePath != "" {
-		return errors.New("only one of trust_bundle_url or trust_bundle_path can be specified, not both")
-	}
-
-	if c.Agent.TrustBundleURL != "" {
-		u, err := url.Parse(c.Agent.TrustBundleURL)
-		if err != nil {
-			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
-		}
-		if u.Scheme != "https" {
-			return errors.New("trust bundle URL must start with https://")
-		}
-	}
 	if c.Plugins == nil {
 		return errors.New("plugins section must be configured")
+	}
+
+	if err := c.Agent.validate(); err != nil {
+		return err
 	}
 
 	return nil
@@ -560,12 +558,11 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 }
 
 func defaultConfig() *Config {
-	return &Config{
+	c := &Config{
 		Agent: &agentConfig{
-			DataDir:    defaultDataDir,
-			LogLevel:   defaultLogLevel,
-			LogFormat:  log.DefaultFormat,
-			SocketPath: common.DefaultSocketPath,
+			DataDir:   defaultDataDir,
+			LogLevel:  defaultLogLevel,
+			LogFormat: log.DefaultFormat,
 			SDS: sdsConfig{
 				DefaultBundleName:     defaultDefaultBundleName,
 				DefaultSVIDName:       defaultDefaultSVIDName,
@@ -573,6 +570,9 @@ func defaultConfig() *Config {
 			},
 		},
 	}
+	c.Agent.setPlatformDefaults()
+
+	return c
 }
 
 func parseTrustBundle(path string) ([]*x509.Certificate, error) {
