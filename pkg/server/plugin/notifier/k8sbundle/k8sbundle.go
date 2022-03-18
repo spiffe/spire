@@ -86,7 +86,7 @@ type Plugin struct {
 
 func New() *Plugin {
 	p := &Plugin{}
-	p.hooks.newKubeClients = p.newKubeClients
+	p.hooks.newKubeClients = newKubeClients
 	return p
 }
 
@@ -201,7 +201,7 @@ func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) {
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		informerSynced := []cache.InformerSynced{}
 		for _, client := range clients {
-			informer := client.Informer()
+			informer := client.Informer(p.informerEvent)
 			if informer != nil {
 				go informer.Run(stopCh)
 				informerSynced = append(informerSynced, informer.HasSynced)
@@ -294,13 +294,14 @@ func (p *Plugin) updateBundle(ctx context.Context, client kubeClient, namespace,
 }
 
 // informerEvent triggers the read-modify-write for a newly created object
-func (p *Plugin) informerEvent(client kubeClient, obj runtime.Object) error {
+func (p *Plugin) informerEvent(client kubeClient, obj runtime.Object) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	objectMeta, err := meta.Accessor(obj)
 	if err != nil {
-		return err
+		p.log.Error("Unable to access meta for Objct", "error", err)
+		return
 	}
 
 	err = p.updateBundle(ctx, client, objectMeta.GetNamespace(), objectMeta.GetName())
@@ -315,17 +316,15 @@ func (p *Plugin) informerEvent(client kubeClient, obj runtime.Object) error {
 		// Updating the bundle from an ADD event triggers a subsequent MODIFIED event. updateBundle will
 		// return AlreadyExists since nothing needs to be updated.
 	default:
-		return err
+		p.log.Error("Unable to set bundle for object", "name", objectMeta.GetName(), "error", err)
 	}
-
-	return nil
 }
 
-func (p *Plugin) newKubeClients(c *pluginConfig) ([]kubeClient, error) {
+func newKubeClients(c *pluginConfig) ([]kubeClient, error) {
 	clients := []kubeClient{}
 
 	if hasRootCluster(&c.cluster) {
-		clusterClients, err := p.newClientsForCluster(c.cluster)
+		clusterClients, err := newClientsForCluster(c.cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +332,7 @@ func (p *Plugin) newKubeClients(c *pluginConfig) ([]kubeClient, error) {
 	}
 
 	for _, cluster := range c.Clusters {
-		clusterClients, err := p.newClientsForCluster(cluster)
+		clusterClients, err := newClientsForCluster(cluster)
 		if err != nil {
 			return nil, err
 		}
@@ -343,7 +342,7 @@ func (p *Plugin) newKubeClients(c *pluginConfig) ([]kubeClient, error) {
 	return clients, nil
 }
 
-func (p *Plugin) newClientsForCluster(c cluster) ([]kubeClient, error) {
+func newClientsForCluster(c cluster) ([]kubeClient, error) {
 	clientset, err := newKubeClientset(c.KubeConfigFilePath)
 	if err != nil {
 		return nil, err
@@ -369,16 +368,14 @@ func (p *Plugin) newClientsForCluster(c cluster) ([]kubeClient, error) {
 		)
 		clients = append(clients,
 			mutatingWebhookClient{
-				Clientset:    clientset,
+				Interface:    clientset,
 				webhookLabel: c.WebhookLabel,
 				factory:      factory,
-				p:            p,
 			},
 			validatingWebhookClient{
 				Clientset:    clientset,
 				webhookLabel: c.WebhookLabel,
 				factory:      factory,
-				p:            p,
 			},
 		)
 	}
@@ -395,7 +392,6 @@ func (p *Plugin) newClientsForCluster(c cluster) ([]kubeClient, error) {
 				Clientset:       aggregatorClientset,
 				apiServiceLabel: c.APIServiceLabel,
 				factory:         factory,
-				p:               p,
 			},
 		)
 	}
@@ -437,12 +433,13 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 }
 
 // kubeClient encapsulates the Kubenetes API for config maps, validating webhooks, and mutating webhooks
+type informerCallback func(kubeClient, runtime.Object)
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context) (runtime.Object, error)
 	CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
-	Informer() cache.SharedIndexInformer
+	Informer(callback informerCallback) cache.SharedIndexInformer
 }
 
 // configMapClient encapsulates the Kubenetes API for updating the CA Bundle in a config map
@@ -488,7 +485,7 @@ func (c configMapClient) Patch(ctx context.Context, namespace, name string, patc
 	return err
 }
 
-func (c configMapClient) Informer() cache.SharedIndexInformer {
+func (c configMapClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	return nil
 }
 
@@ -497,7 +494,7 @@ type apiServiceClient struct {
 	*aggregator.Clientset
 	apiServiceLabel string
 	factory         aggregatorinformers.SharedInformerFactory
-	p               *Plugin
+	callback        informerCallback
 }
 
 func (c apiServiceClient) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
@@ -540,8 +537,9 @@ func (c apiServiceClient) Patch(ctx context.Context, namespace, name string, pat
 	return err
 }
 
-func (c apiServiceClient) Informer() cache.SharedIndexInformer {
+func (c apiServiceClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	informer := c.factory.Apiregistration().V1().APIServices().Informer()
+	c.callback = callback
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.onAdd,
 		UpdateFunc: c.onUpdate,
@@ -550,23 +548,19 @@ func (c apiServiceClient) Informer() cache.SharedIndexInformer {
 }
 
 func (c apiServiceClient) onAdd(obj interface{}) {
-	if err := c.p.informerEvent(c, obj.(runtime.Object)); err != nil {
-		c.p.log.Error("Unable to add bundle to APIService", "error", err)
-	}
+	c.callback(c, obj.(runtime.Object))
 }
 
 func (c apiServiceClient) onUpdate(oldObj, newObj interface{}) {
-	if err := c.p.informerEvent(c, newObj.(runtime.Object)); err != nil {
-		c.p.log.Error("Unable to update bundle in APIService", "error", err)
-	}
+	c.callback(c, newObj.(runtime.Object))
 }
 
 // mutatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a mutating webhook
 type mutatingWebhookClient struct {
-	*kubernetes.Clientset
+	kubernetes.Interface
 	webhookLabel string
 	factory      informers.SharedInformerFactory
-	p            *Plugin
+	callback     informerCallback
 }
 
 func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebhook string) (runtime.Object, error) {
@@ -620,8 +614,9 @@ func (c mutatingWebhookClient) Patch(ctx context.Context, namespace, name string
 	return err
 }
 
-func (c mutatingWebhookClient) Informer() cache.SharedIndexInformer {
+func (c mutatingWebhookClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	informer := c.factory.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+	c.callback = callback
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.onAdd,
 		UpdateFunc: c.onUpdate,
@@ -630,15 +625,11 @@ func (c mutatingWebhookClient) Informer() cache.SharedIndexInformer {
 }
 
 func (c mutatingWebhookClient) onAdd(obj interface{}) {
-	if err := c.p.informerEvent(c, obj.(runtime.Object)); err != nil {
-		c.p.log.Error("Unable to add bundle to MutatingWebhookConfiguration", "error", err)
-	}
+	c.callback(c, obj.(runtime.Object))
 }
 
 func (c mutatingWebhookClient) onUpdate(oldObj, newObj interface{}) {
-	if err := c.p.informerEvent(c, newObj.(runtime.Object)); err != nil {
-		c.p.log.Error("Unable to update bundle in MutatingWebhookConfiguration", "error", err)
-	}
+	c.callback(c, newObj.(runtime.Object))
 }
 
 // validatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a validating webhook
@@ -646,7 +637,7 @@ type validatingWebhookClient struct {
 	*kubernetes.Clientset
 	webhookLabel string
 	factory      informers.SharedInformerFactory
-	p            *Plugin
+	callback     informerCallback
 }
 
 func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingWebhook string) (runtime.Object, error) {
@@ -700,8 +691,9 @@ func (c validatingWebhookClient) Patch(ctx context.Context, namespace, name stri
 	return err
 }
 
-func (c validatingWebhookClient) Informer() cache.SharedIndexInformer {
+func (c validatingWebhookClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	informer := c.factory.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
+	c.callback = callback
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.onAdd,
 		UpdateFunc: c.onUpdate,
@@ -710,15 +702,11 @@ func (c validatingWebhookClient) Informer() cache.SharedIndexInformer {
 }
 
 func (c validatingWebhookClient) onAdd(obj interface{}) {
-	if err := c.p.informerEvent(c, obj.(runtime.Object)); err != nil {
-		c.p.log.Error("Unable to add bundle to ValidatingWebhookConfiguration", "error", err)
-	}
+	c.callback(c, obj.(runtime.Object))
 }
 
 func (c validatingWebhookClient) onUpdate(oldObj, newObj interface{}) {
-	if err := c.p.informerEvent(c, newObj.(runtime.Object)); err != nil {
-		c.p.log.Error("Unable to update bundle in ValidatingWebhookConfiguration", "error", err)
-	}
+	c.callback(c, newObj.(runtime.Object))
 }
 
 // bundleData formats the bundle data for inclusion in the config map
