@@ -109,8 +109,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v0.3.0 
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v0.3.0/go.mod h1:C9UIK7mWQzvhsl8+mz2C+0t+ozbd2HHYkiHSPBV+q98=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v0.3.1 h1:CyGPbnjITjA63agVN1nNznge7Tip0g7OiAvFPiT0btU=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v0.3.1/go.mod h1:FfdF+9+Gnv8lCHCuS38lg8+9aiiy92NzDVc/t5FzpIQ=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.3.0 h1:DRENE8RdmJnG9MmQKG4f7DbQwEGGjOpjCx2w3CsdkQw=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.3.0/go.mod h1:DMd3AeDGmMdpxqey6nSwWcKp3kwO9QMT/VY+XpsVHbE=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.3.1 h1:EXTDtCSTfPauGawsG+Ae/W46B1PkrgzuKNrcFqy4ljM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.3.1/go.mod h1:PoA99xQAlN13MyUjzgIPWMZEr0etHpYSuT25LmhR3zQ=
 github.com/Azure/azure-service-bus-go v0.9.1/go.mod h1:yzBx6/BUGfjfeqbRZny9AQIbIe3AcV9WZbAdpkoXOa0=
 github.com/Azure/azure-storage-blob-go v0.8.0/go.mod h1:lPI3aLPpuLTeUwh1sViKXFxwl2B6teiRqI0deQUvsw0=
 github.com/Azure/go-ansiterm v0.0.0-20210608223527-2377c96fe795/go.mod h1:LmzpDX56iTiv29bbRTIsUNlaFfuhWRQBWjQdVyAevI8=
