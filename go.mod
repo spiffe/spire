@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/secretmanager v1.3.0
 	cloud.google.com/go/security v1.3.0
 	cloud.google.com/go/storage v1.21.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.21.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.22.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.13.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v0.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v0.3.1
