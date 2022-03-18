@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -21,14 +22,21 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 var (
@@ -58,6 +66,7 @@ const (
 	// PEM encoding of the root CAs in testBundle
 	testBundleData  = "-----BEGIN CERTIFICATE-----\nRk9P\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n"
 	testBundle2Data = "-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFa\n-----END CERTIFICATE-----\n"
+	testTimeout     = time.Minute
 )
 
 func TestNotifyFailsIfNotConfigured(t *testing.T) {
@@ -80,12 +89,6 @@ func TestNotifyAndAdviseFailsIfNotConfigured(t *testing.T) {
 
 	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
 	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "notifier(k8sbundle): not configured")
-}
-
-func TestBundleLoadedWhenCannotCreateClient(t *testing.T) {
-	test := setupTest(t, withKubeClientError())
-	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube clients: kube client not configured")
 }
 
 func TestBundleLoadedConfigMapGetFailure(t *testing.T) {
@@ -217,10 +220,35 @@ clusters  = [
 	}, test.kubeClient.getConfigMap("NAMESPACE2", "CONFIGMAP2"))
 }
 
-func TestBundleUpdatedWhenCannotCreateClient(t *testing.T) {
-	test := setupTest(t, withKubeClientError())
-	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube clients: kube client not configured")
+func TestBundleInformerAddWebhookEvent(t *testing.T) {
+	plainConfig := `
+webhook_label = "WEBHOOK_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+
+	test := setupTest(t, withPlainConfig(plainConfig))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	waitForWatchers(test)
+	webhook := test.webhookClient.newWebhook()
+	test.webhookClient.setWebhook(webhook)
+
+	require.Eventually(t, func() bool {
+		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            webhook.Name,
+				ResourceVersion: "2",
+			},
+			Webhooks: []admissionv1.MutatingWebhook{
+				{
+					ClientConfig: admissionv1.WebhookClientConfig{
+						CABundle: []byte(testBundleData),
+					},
+				},
+			},
+		}, test.webhookClient.getWebhook(webhook.Name))
+	}, testTimeout, time.Second)
 }
 
 func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
@@ -615,8 +643,8 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 	return nil
 }
 
-func (c *fakeKubeClient) Watch(ctx context.Context) (watch.Interface, error) {
-	return nil, nil
+func (c *fakeKubeClient) Informer() cache.SharedIndexInformer {
+	return nil
 }
 
 func (c *fakeKubeClient) getConfigMap(namespace, configMap string) *corev1.ConfigMap {
@@ -661,6 +689,279 @@ func newConfigMap() *corev1.ConfigMap {
 	}
 }
 
+type fakeWebhook struct {
+	*fake.Clientset
+	mu           sync.RWMutex
+	fakeWatch    *watch.FakeWatcher
+	webhooks     map[string]*admissionv1.MutatingWebhookConfiguration
+	webhookLabel string
+	factory      informers.SharedInformerFactory
+	p            *Plugin
+	t            *testing.T
+}
+
+func newFakeWebhook(t *testing.T, config *pluginConfig, client *fake.Clientset, p *Plugin) *fakeWebhook {
+	w := &fakeWebhook{
+		fakeWatch:    watch.NewFake(),
+		webhooks:     make(map[string]*admissionv1.MutatingWebhookConfiguration),
+		webhookLabel: config.WebhookLabel,
+		Clientset:    client,
+		p:            p,
+		t:            t,
+	}
+	w.factory = informers.NewSharedInformerFactory(client, 0)
+	return w
+}
+
+func (w *fakeWebhook) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
+	entry := w.getWebhook(name)
+	if entry == nil {
+		return nil, errors.New("not found")
+	}
+	return entry, nil
+}
+
+func (w *fakeWebhook) GetList(ctx context.Context) (runtime.Object, error) {
+	list := w.getWebhookList()
+	if list.Items == nil {
+		return nil, errors.New("not found")
+	}
+	return list, nil
+}
+
+func (w *fakeWebhook) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+	webhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
+	if !ok {
+		return nil, status.Error(codes.Internal, "wrong type, expecting mutating webhook")
+	}
+	return &admissionv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: webhook.ResourceVersion,
+		},
+		Webhooks: []admissionv1.MutatingWebhook{
+			{
+				ClientConfig: admissionv1.WebhookClientConfig{
+					CABundle: []byte(bundleData(resp.Bundle)),
+				},
+			},
+		},
+	}, nil
+}
+
+func (w *fakeWebhook) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	entry, ok := w.webhooks[name]
+	if !ok {
+		return errors.New("not found")
+	}
+
+	patchedWebhook := new(admissionv1.MutatingWebhookConfiguration)
+	if err := json.Unmarshal(patchBytes, patchedWebhook); err != nil {
+		return err
+	}
+	resourceVersion, err := strconv.Atoi(patchedWebhook.ResourceVersion)
+	if err != nil {
+		return errors.New("patch does not have resource version")
+	}
+	entry.ResourceVersion = fmt.Sprint(resourceVersion + 1)
+	for i := range entry.Webhooks {
+		entry.Webhooks[i].ClientConfig.CABundle = patchedWebhook.Webhooks[i].ClientConfig.CABundle
+	}
+	return nil
+}
+
+func (w *fakeWebhook) Watch(ctx context.Context) (watch.Interface, error) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.fakeWatch, nil
+}
+
+func (w *fakeWebhook) Informer() cache.SharedIndexInformer {
+	informer := w.factory.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    w.onAdd,
+		UpdateFunc: w.onUpdate,
+	})
+	return informer
+}
+
+func (w *fakeWebhook) onAdd(obj interface{}) {
+	err := w.p.informerEvent(w, obj.(runtime.Object))
+	require.NoError(w.t, err)
+}
+
+func (w *fakeWebhook) onUpdate(oldObj, newObj interface{}) {
+	err := w.p.informerEvent(w, newObj.(runtime.Object))
+	require.NoError(w.t, err)
+}
+
+func (w *fakeWebhook) getWebhook(name string) *admissionv1.MutatingWebhookConfiguration {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.webhooks[name]
+}
+
+func (w *fakeWebhook) getWebhookList() *admissionv1.MutatingWebhookConfigurationList {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	webhookList := &admissionv1.MutatingWebhookConfigurationList{}
+	for _, webhook := range w.webhooks {
+		webhookList.Items = append(webhookList.Items, *webhook)
+	}
+	return webhookList
+}
+
+func (w *fakeWebhook) setWebhook(webhook *admissionv1.MutatingWebhookConfiguration) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.webhooks[webhook.Name] = webhook
+}
+
+func (w *fakeWebhook) getWatchLabel() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.webhookLabel
+}
+
+func (w *fakeWebhook) newWebhook() *admissionv1.MutatingWebhookConfiguration {
+	webhook := &admissionv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "spire-webhook",
+			ResourceVersion: "1",
+		},
+		Webhooks: []admissionv1.MutatingWebhook{
+			{
+				ClientConfig: admissionv1.WebhookClientConfig{},
+			},
+		},
+	}
+	_, err := w.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.TODO(), webhook, metav1.CreateOptions{})
+	require.NoError(w.t, err)
+	return webhook
+}
+
+type fakeAPIService struct {
+	mu              sync.RWMutex
+	fakeWatch       *watch.FakeWatcher
+	apiServices     map[string]*apiregistrationv1.APIService
+	apiServiceLabel string
+}
+
+func newFakeAPIService(config *pluginConfig) *fakeAPIService {
+	return &fakeAPIService{
+		fakeWatch:       watch.NewFake(),
+		apiServices:     make(map[string]*apiregistrationv1.APIService),
+		apiServiceLabel: config.APIServiceLabel,
+	}
+}
+
+func (a *fakeAPIService) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
+	entry := a.getAPIService(name)
+	if entry == nil {
+		return nil, errors.New("not found")
+	}
+	return entry, nil
+}
+
+func (a *fakeAPIService) GetList(ctx context.Context) (runtime.Object, error) {
+	list := a.getAPIServiceList()
+	if list.Items == nil {
+		return nil, errors.New("not found")
+	}
+	return list, nil
+}
+
+func (a *fakeAPIService) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+	webhook, ok := obj.(*apiregistrationv1.APIService)
+	if !ok {
+		return nil, status.Error(codes.Internal, "wrong type, expecting API service")
+	}
+	return &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: webhook.ResourceVersion,
+		},
+		Spec: apiregistrationv1.APIServiceSpec{
+			CABundle: []byte(bundleData(resp.Bundle)),
+		},
+	}, nil
+}
+
+func (a *fakeAPIService) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	entry, ok := a.apiServices[name]
+	if !ok {
+		return errors.New("not found")
+	}
+
+	patchedAPIService := new(apiregistrationv1.APIService)
+	if err := json.Unmarshal(patchBytes, patchedAPIService); err != nil {
+		return err
+	}
+	resourceVersion, err := strconv.Atoi(patchedAPIService.ResourceVersion)
+	if err != nil {
+		return errors.New("patch does not have resource version")
+	}
+	entry.ResourceVersion = fmt.Sprint(resourceVersion + 1)
+	entry.Spec.CABundle = patchedAPIService.Spec.CABundle
+	return nil
+}
+
+func (a *fakeAPIService) Watch(ctx context.Context) (watch.Interface, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.fakeWatch, nil
+}
+
+func (a *fakeAPIService) Informer() cache.SharedIndexInformer {
+	return nil
+}
+
+func (a *fakeAPIService) getAPIService(name string) *apiregistrationv1.APIService {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.apiServices[name]
+}
+
+func (a *fakeAPIService) getAPIServiceList() *apiregistrationv1.APIServiceList {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	apiServiceList := &apiregistrationv1.APIServiceList{}
+	for _, apiService := range a.apiServices {
+		apiServiceList.Items = append(apiServiceList.Items, *apiService)
+	}
+	return apiServiceList
+}
+
+func (a *fakeAPIService) setAPIService(apiService *apiregistrationv1.APIService) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.apiServices[apiService.Name] = apiService
+}
+
+func (a *fakeAPIService) addWatchEvent(obj runtime.Object) {
+	a.fakeWatch.Add(obj)
+}
+
+func (a *fakeAPIService) getWatchLabel() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.apiServiceLabel
+}
+
+func newAPIService() *apiregistrationv1.APIService {
+	return &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "spire-api-service",
+			ResourceVersion: "1",
+		},
+		Spec: apiregistrationv1.APIServiceSpec{},
+	}
+}
+
 type test struct {
 	identityProvider *fakeidentityprovider.IdentityProvider
 	rawPlugin        *Plugin
@@ -669,6 +970,7 @@ type test struct {
 	kubeClient       *fakeKubeClient
 	webhookClient    *fakeWebhook
 	apiServiceClient *fakeAPIService
+	watcherStarted   chan struct{}
 }
 
 type testOptions struct {
@@ -723,8 +1025,20 @@ func setupTest(t *testing.T, options ...testOption) *test {
 		identityProvider: identityProvider,
 		rawPlugin:        raw,
 		notifier:         notifier,
+		watcherStarted:   make(chan struct{}),
 	}
 
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		watch, err := fakeClient.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(test.watcherStarted)
+		return true, watch, nil
+	})
 	test.kubeClient = newFakeKubeClient(config)
 	raw.hooks.newKubeClients = func(c *pluginConfig) ([]kubeClient, error) {
 		if args.kubeClientError {
@@ -734,7 +1048,7 @@ func setupTest(t *testing.T, options ...testOption) *test {
 		test.clients = append([]kubeClient{}, test.kubeClient)
 
 		if c.WebhookLabel != "" {
-			test.webhookClient = newFakeWebhook(c)
+			test.webhookClient = newFakeWebhook(t, c, fakeClient, raw)
 			test.clients = append(test.clients, test.webhookClient)
 		}
 		if c.APIServiceLabel != "" {
@@ -763,4 +1077,8 @@ func setupTest(t *testing.T, options ...testOption) *test {
 	}
 
 	return test
+}
+
+func waitForWatchers(test *test) {
+	<-test.watcherStarted
 }

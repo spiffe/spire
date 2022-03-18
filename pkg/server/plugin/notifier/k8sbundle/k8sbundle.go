@@ -199,12 +199,15 @@ func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) {
 
 	stopCh := make(chan struct{})
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
+		informerSynced := []cache.InformerSynced{}
 		for _, client := range clients {
 			informer := client.Informer()
 			if informer != nil {
 				go informer.Run(stopCh)
+				informerSynced = append(informerSynced, informer.HasSynced)
 			}
 		}
+		cache.WaitForCacheSync(stopCh, informerSynced...)
 	}
 	if p.stopCh != nil {
 		close(p.stopCh)
