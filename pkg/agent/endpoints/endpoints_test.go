@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -224,18 +223,10 @@ func TestEndpoints(t *testing.T) {
 				assert.NoError(t, <-errCh)
 			}()
 			waitForListening(t, endpoints, errCh)
-			// Dial the endpoints server with custom connect params that reduce the
-			// base backoff delay. Otherwise, if the dial happens before the endpoint
-			// is being served, the test can wait for a second before retrying.
-			connectParams := grpc.ConnectParams{
-				Backoff: backoff.DefaultConfig,
-			}
-			connectParams.Backoff.BaseDelay = 5 * time.Millisecond
 			target, err := util.GetTargetName(endpoints.addr)
 			require.NoError(t, err)
 			conn, err := grpc.DialContext(ctx, target,
 				grpc.WithReturnConnectionError(),
-				grpc.WithConnectParams(connectParams),
 				grpc.WithTransportCredentials(insecure.NewCredentials()))
 			require.NoError(t, err)
 			defer conn.Close()
