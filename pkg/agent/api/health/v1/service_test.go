@@ -3,7 +3,6 @@ package health_test
 import (
 	"context"
 	"crypto/x509"
-	"runtime"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -31,11 +30,6 @@ var (
 )
 
 func TestServiceCheck(t *testing.T) {
-	// TODO: helth check is no supported on Windows until we make WorkloadAPI compatible
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
-
 	ca := testca.New(t, td)
 	x509SVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/workload"))
 	bundle := ca.X509Bundle()
@@ -100,7 +94,7 @@ func TestServiceCheck(t *testing.T) {
 			}
 
 			service := health.New(health.Config{
-				Addr: spiretest.StartWorkloadAPIOnTempUDSSocket(t, wlAPI),
+				Addr: startWorkloadAPI(t, wlAPI),
 			})
 
 			conn, done := spiretest.NewAPIServer(t,
