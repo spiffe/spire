@@ -137,50 +137,23 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		}
 		setDefaultValues(&config.Clusters[i])
 	}
-	p.setConfig(config)
 
 	clients, err := p.hooks.newKubeClients(config)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create new kubeClients: %v", err)
 	}
-	p.setClients(clients)
 
-	if err = p.startInformers(ctx, config, clients); err != nil {
+	stopCh := make(chan struct{})
+	if err = p.startInformers(ctx, config, clients, stopCh); err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to start informers: %v", err)
 	}
 
+	p.setConfig(config, clients, stopCh)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) setConfig(config *pluginConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.config = config
-}
-
-func (p *Plugin) getClients() ([]kubeClient, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.clients == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
-	}
-	return p.clients, nil
-}
-
-func (p *Plugin) setClients(clients []kubeClient) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.clients = clients
-}
-
 // startInformers creates informers to set CA Bundle in objects created after server has started
-func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clients []kubeClient) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	stopCh := make(chan struct{})
+func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clients []kubeClient, stopCh chan struct{}) error {
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		informerSynced := []cache.InformerSynced{}
 		for _, client := range clients {
@@ -194,6 +167,17 @@ func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clien
 			return status.Errorf(codes.Internal, "timed out waiting for informer cache to sync")
 		}
 	}
+
+	return nil
+}
+
+func (p *Plugin) setConfig(config *pluginConfig, clients []kubeClient, stopCh chan struct{}) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.config = config
+	p.clients = clients
+
 	if p.stopCh != nil {
 		close(p.stopCh)
 		p.stopCh = nil
@@ -201,9 +185,17 @@ func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clien
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		p.stopCh = stopCh
 	}
-
-	return nil
 }
+
+func (p *Plugin) getClients() ([]kubeClient, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.clients == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	return p.clients, nil
+}
+
 
 // updateBundles iterates through all the objects that need an updated CA bundle
 // If an error is an encountered updating the bundle for an object, we record the
@@ -282,7 +274,7 @@ func (p *Plugin) updateBundle(ctx context.Context, client kubeClient, namespace,
 
 // informerEvent triggers the read-modify-write for a newly created object
 func (p *Plugin) informerEvent(client kubeClient, obj runtime.Object) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	objectMeta, err := meta.Accessor(obj)
