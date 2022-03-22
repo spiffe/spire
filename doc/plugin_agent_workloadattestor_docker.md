@@ -1,14 +1,15 @@
 # Agent plugin: WorkloadAttestor "docker"
 
 The `docker` plugin generates selectors based on docker labels for workloads calling the agent.
-It does so by retrieving the workload's container ID from its cgroup membership, then querying
-the docker daemon for the container's labels.
+It does so by retrieving the workload's container ID from its cgroup membership on linux or Object Jobs names on windows, 
+then querying the docker daemon for the container's labels.
 
-| Configuration | Description |
-| ------------- | ----------- |
-| docker_socket_path | The location of the docker daemon socket (default: "unix:///var/run/docker.sock" on unix). |
-| docker_version | The API version of the docker daemon. If not specified, the version is negotiated by the client.           |
-| container_id_cgroup_matchers | A list of patterns used to discover container IDs from cgroup entries. |
+| Configuration | Description | Default      |
+| ------------- | ----------- | ------------ |
+| docker_socket_path | The location of the docker daemon socket (Unix) | "unix:///var/run/docker.sock" |
+| docker_version | The API version of the docker daemon. If not specified | |
+| container_id_cgroup_matchers | A list of patterns used to discover container IDs from cgroup entries (Unix) |
+| docker_host | The location of the host URI used to connect Docker API (Windows) | "npipe:////./pipe/docker_engine" | 
 
 A sample configuration:
 
