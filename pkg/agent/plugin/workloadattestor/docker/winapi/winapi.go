@@ -1,0 +1,180 @@
+//go:build windows
+// +build windows
+
+package winapi
+
+import (
+	"reflect"
+	"syscall"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
+)
+
+var (
+	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	modntdll    = windows.NewLazySystemDLL("ntdll.dll")
+
+	procIsProcessInJob = modkernel32.NewProc("IsProcessInJob")
+
+	procNtQueryObject            = modntdll.NewProc("NtQueryObject")
+	procNtQuerySystemInformation = modntdll.NewProc("NtQuerySystemInformation")
+)
+
+const (
+	// ObjectInformationClass values used to call NtQueryObject (https://docs.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryobject)
+	ObjectNameInformationClass = 0x1
+	ObjectTypeInformationClass = 0x2
+
+	// Includes all processes in the system in the snapshot. (https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot)
+	Th32csSnapProcess = 0x00000002
+)
+
+type API interface {
+	// IsProcessInJob determines whether the process is running in the specified job.
+	IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle, result *bool) error
+
+	// NtQueryObject retrieves various kinds of object information.
+	NtQueryObject(handle windows.Handle, objectInformationClass uint32, objectInformation *byte, objectInformationLength uint32, returnLength *uint32) (ntStatus windows.NTStatus)
+
+	// NtQuerySystemInformation retrieves the specified system information.
+	NtQuerySystemInformation(sysInfoClass int32, sysInfo unsafe.Pointer, sysInfoLen uint32, retLen *uint32) (ntstatus windows.NTStatus)
+
+	// CurrentProcess returns the handle for the current process.
+	// It is a pseudo handle that does not need to be closed.
+	CurrentProcess() windows.Handle
+
+	// CloseHandle closes an open object handle.
+	CloseHandle(h windows.Handle) error
+
+	// OpenProcess returns an open handle
+	OpenProcess(desiredAccess uint32, inheritHandle bool, pID uint32) (windows.Handle, error)
+
+	// DuplicateHandle duplicates an object handle.
+	DuplicateHandle(hSourceProcessHandle windows.Handle, hSourceHandle windows.Handle, hTargetProcessHandle windows.Handle, lpTargetHandle *windows.Handle, dwDesiredAccess uint32, bInheritHandle bool, dwOptions uint32) error
+
+	// CreateToolhelp32Snapshot takes a snapshot of the specified processes, as well as the heaps, modules, and threads used by these processes.
+	CreateToolhelp32Snapshot(flags uint32, pID uint32) (windows.Handle, error)
+
+	// Process32First retrieves information about the first process encountered in a system snapshot.
+	Process32First(snapshot windows.Handle, procEntry *windows.ProcessEntry32) error
+
+	// Process32Next retrieves information about the next process recorded in a system snapshot.
+	Process32Next(snapshot windows.Handle, procEntry *windows.ProcessEntry32) error
+}
+
+// CreateAPI creates a window api instance
+func CreateAPI() API {
+	return &api{}
+}
+
+type api struct {
+}
+
+func (a *api) IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle, result *bool) error {
+	r1, _, e1 := syscall.Syscall(procIsProcessInJob.Addr(), 3, uintptr(procHandle), uintptr(jobHandle), uintptr(unsafe.Pointer(result)))
+	if r1 == 0 {
+		if e1 != 0 {
+			return e1
+		}
+		return syscall.EINVAL
+	}
+	return nil
+}
+
+func (a *api) NtQueryObject(handle windows.Handle, objectInformationClass uint32, objectInformation *byte, objectInformationLength uint32, returnLength *uint32) (ntStatus windows.NTStatus) {
+	r0, _, _ := syscall.Syscall6(procNtQueryObject.Addr(), 5, uintptr(handle), uintptr(objectInformationClass), uintptr(unsafe.Pointer(objectInformation)), uintptr(objectInformationLength), uintptr(unsafe.Pointer(returnLength)), 0)
+	if r0 != 0 {
+		ntStatus = windows.NTStatus(r0)
+	}
+	return
+}
+
+func (a *api) NtQuerySystemInformation(sysInfoClass int32, sysInfo unsafe.Pointer, sysInfoLen uint32, retLen *uint32) (ntstatus windows.NTStatus) {
+	r0, _, _ := syscall.Syscall6(procNtQuerySystemInformation.Addr(), 4, uintptr(sysInfoClass), uintptr(sysInfo), uintptr(sysInfoLen), uintptr(unsafe.Pointer(retLen)), 0, 0)
+	if r0 != 0 {
+		ntstatus = windows.NTStatus(r0)
+	}
+	return
+}
+
+func (a *api) OpenProcess(desiredAccess uint32, inheritHandle bool, pID uint32) (windows.Handle, error) {
+	return windows.OpenProcess(desiredAccess, inheritHandle, pID)
+}
+
+func (a *api) CloseHandle(h windows.Handle) error {
+	return windows.CloseHandle(h)
+}
+
+// CurrentProcess returns the handle for the current process.
+// It is a pseudo handle that does not need to be closed.
+func (a *api) CurrentProcess() windows.Handle {
+	return windows.CurrentProcess()
+}
+
+func (a *api) DuplicateHandle(hSourceProcessHandle windows.Handle, hSourceHandle windows.Handle, hTargetProcessHandle windows.Handle, lpTargetHandle *windows.Handle, dwDesiredAccess uint32, bInheritHandle bool, dwOptions uint32) error {
+	return windows.DuplicateHandle(hSourceProcessHandle, hSourceHandle, hTargetProcessHandle, lpTargetHandle, dwDesiredAccess, bInheritHandle, dwOptions)
+}
+
+func (a *api) CreateToolhelp32Snapshot(flags uint32, pID uint32) (windows.Handle, error) {
+	return windows.CreateToolhelp32Snapshot(flags, pID)
+}
+
+func (a *api) Process32First(snapshot windows.Handle, procEntry *windows.ProcessEntry32) error {
+	return windows.Process32First(snapshot, procEntry)
+}
+
+func (a *api) Process32Next(snapshot windows.Handle, procEntry *windows.ProcessEntry32) error {
+	return windows.Process32Next(snapshot, procEntry)
+}
+
+// System handle extended information item, returned by NtQuerySystemInformation (https://docs.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation)
+type SystemHandleInformationExItem struct {
+	Object                uintptr
+	UniqueProcessID       uintptr
+	HandleValue           uintptr
+	GrantedAccess         uint32
+	CreatorBackTraceIndex uint16
+	ObjectTypeIndex       uint16
+	HandleAttributes      uint32
+	Reserved              uint32
+}
+
+// System extended handle information summary, returned by NtQuerySystemInformation (https://docs.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation)
+type SystemExtendedHandleInformation struct {
+	NumberOfHandles uintptr
+	Reserved        uintptr
+	Handles         [1]SystemHandleInformationExItem
+}
+
+// Object type returned by calling NtQueryObject function
+type ObjectTypeInformation struct {
+	TypeName               UnicodeString
+	TotalNumberOfObjects   uint32
+	TotalNumberOfHandles   uint32
+	TotalPagedPoolUsage    uint32
+	TotalNonPagedPoolUsage uint32
+}
+
+// Unicode string returned by NtQueryObject calls (https://docs.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string)
+type UnicodeString struct {
+	Length        uint16
+	AllocatedSize uint16
+	WString       *byte
+}
+
+func (u UnicodeString) String() string {
+	defer func() {
+		// TODO: may we recover?
+		_ = recover()
+	}()
+
+	var data []uint16
+
+	sh := (*reflect.SliceHeader)(unsafe.Pointer(&data))
+	sh.Data = uintptr(unsafe.Pointer(u.WString))
+	sh.Len = int(u.Length * 2)
+	sh.Cap = int(u.Length * 2)
+
+	return windows.UTF16ToString(data)
+}

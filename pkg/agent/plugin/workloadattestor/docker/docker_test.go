@@ -279,7 +279,7 @@ container_id_cgroup_matchers = [
 		require.NotNil(t, p.docker)
 		require.Equal(t, "unix:///socket_path", p.docker.(*dockerclient.Client).DaemonHost())
 		require.Equal(t, "1.20", p.docker.(*dockerclient.Client).ClientVersion())
-		require.Equal(t, expectFinder, p.containerIDFinder)
+		require.Equal(t, expectFinder, p.c.containerIDFinder)
 	})
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
@@ -309,7 +309,7 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.41", p.docker.(*dockerclient.Client).ClientVersion())
-	require.Equal(t, &defaultContainerIDFinder{}, p.containerIDFinder)
+	require.Equal(t, &defaultContainerIDFinder{}, p.c.containerIDFinder)
 }
 
 func doAttest(t *testing.T, p *Plugin) ([]string, error) {
@@ -350,7 +350,7 @@ func withDocker(docker Docker) testPluginOpt {
 
 func withFileSystem(m cgroups.FileSystem) testPluginOpt {
 	return func(p *Plugin) {
-		p.fs = m
+		p.c.fs = m
 	}
 }
 
