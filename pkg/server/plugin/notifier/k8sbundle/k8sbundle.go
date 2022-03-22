@@ -102,14 +102,9 @@ func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 }
 
 func (p *Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
-	config, err := p.getConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	if _, ok := req.Event.(*notifierv1.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundle for details on why.
-		if err := p.updateBundles(ctx, config); err != nil {
+		if err := p.updateBundles(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -117,14 +112,9 @@ func (p *Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*no
 }
 
 func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
-	config, err := p.getConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	if _, ok := req.Event.(*notifierv1.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundle for details on why.
-		if err := p.updateBundles(ctx, config); err != nil {
+		if err := p.updateBundles(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -155,18 +145,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.setClients(clients)
 
-	p.startInformers(config, clients)
+	if err = p.startInformers(config, clients); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to start informers: %v", err)
+	}
 
 	return &configv1.ConfigureResponse{}, nil
-}
-
-func (p *Plugin) getConfig() (*pluginConfig, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
-	}
-	return p.config, nil
 }
 
 func (p *Plugin) setConfig(config *pluginConfig) {
@@ -193,7 +176,7 @@ func (p *Plugin) setClients(clients []kubeClient) {
 }
 
 // startInformers creates informers to set CA Bundle in objects created after server has started
-func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) {
+func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -207,7 +190,9 @@ func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) {
 				informerSynced = append(informerSynced, informer.HasSynced)
 			}
 		}
-		cache.WaitForCacheSync(stopCh, informerSynced...)
+		if !cache.WaitForCacheSync(stopCh, informerSynced...) {
+			return status.Errorf(codes.Internal, "timed out waiting for informer cache to sync")
+		}
 	}
 	if p.stopCh != nil {
 		close(p.stopCh)
@@ -216,12 +201,14 @@ func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) {
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		p.stopCh = stopCh
 	}
+
+	return nil
 }
 
 // updateBundles iterates through all the objects that need an updated CA bundle
 // If an error is an encountered updating the bundle for an object, we record the
 // error and continue on to the next object
-func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error) {
+func (p *Plugin) updateBundles(ctx context.Context) (err error) {
 	clients, err := p.getClients()
 	if err != nil {
 		return err
@@ -373,7 +360,7 @@ func newClientsForCluster(c cluster) ([]kubeClient, error) {
 				factory:      factory,
 			},
 			validatingWebhookClient{
-				Clientset:    clientset,
+				Interface:    clientset,
 				webhookLabel: c.WebhookLabel,
 				factory:      factory,
 			},
@@ -389,7 +376,7 @@ func newClientsForCluster(c cluster) ([]kubeClient, error) {
 		)
 		clients = append(clients,
 			apiServiceClient{
-				Clientset:       aggregatorClientset,
+				Interface:       aggregatorClientset,
 				apiServiceLabel: c.APIServiceLabel,
 				factory:         factory,
 			},
@@ -491,7 +478,7 @@ func (c configMapClient) Informer(callback informerCallback) cache.SharedIndexIn
 
 // apiServiceClient encapsulates the Kubenetes API for updating the CA Bundle in an API Service
 type apiServiceClient struct {
-	*aggregator.Clientset
+	aggregator.Interface
 	apiServiceLabel string
 	factory         aggregatorinformers.SharedInformerFactory
 	callback        informerCallback
@@ -634,7 +621,7 @@ func (c mutatingWebhookClient) onUpdate(oldObj, newObj interface{}) {
 
 // validatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a validating webhook
 type validatingWebhookClient struct {
-	*kubernetes.Clientset
+	kubernetes.Interface
 	webhookLabel string
 	factory      informers.SharedInformerFactory
 	callback     informerCallback
