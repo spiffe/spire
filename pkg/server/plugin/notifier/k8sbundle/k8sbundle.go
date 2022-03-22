@@ -196,7 +196,6 @@ func (p *Plugin) getClients() ([]kubeClient, error) {
 	return p.clients, nil
 }
 
-
 // updateBundles iterates through all the objects that need an updated CA bundle
 // If an error is an encountered updating the bundle for an object, we record the
 // error and continue on to the next object
