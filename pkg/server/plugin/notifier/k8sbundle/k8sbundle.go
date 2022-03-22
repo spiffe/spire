@@ -145,7 +145,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.setClients(clients)
 
-	if err = p.startInformers(config, clients); err != nil {
+	if err = p.startInformers(ctx, config, clients); err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to start informers: %v", err)
 	}
 
@@ -176,7 +176,7 @@ func (p *Plugin) setClients(clients []kubeClient) {
 }
 
 // startInformers creates informers to set CA Bundle in objects created after server has started
-func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) error {
+func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clients []kubeClient) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -190,7 +190,7 @@ func (p *Plugin) startInformers(config *pluginConfig, clients []kubeClient) erro
 				informerSynced = append(informerSynced, informer.HasSynced)
 			}
 		}
-		if !cache.WaitForCacheSync(stopCh, informerSynced...) {
+		if !cache.WaitForCacheSync(ctx.Done(), informerSynced...) {
 			return status.Errorf(codes.Internal, "timed out waiting for informer cache to sync")
 		}
 	}
@@ -348,7 +348,7 @@ func newClientsForCluster(c cluster) ([]kubeClient, error) {
 	if c.WebhookLabel != "" {
 		factory := informers.NewSharedInformerFactoryWithOptions(
 			clientset,
-			time.Minute,
+			time.Hour,
 			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
 				options.LabelSelector = fmt.Sprintf("%s=true", c.WebhookLabel)
 			}),
@@ -369,7 +369,7 @@ func newClientsForCluster(c cluster) ([]kubeClient, error) {
 	if c.APIServiceLabel != "" {
 		factory := aggregatorinformers.NewSharedInformerFactoryWithOptions(
 			aggregatorClientset,
-			time.Minute,
+			time.Hour,
 			aggregatorinformers.WithTweakListOptions(func(options *metav1.ListOptions) {
 				options.LabelSelector = fmt.Sprintf("%s=true", c.APIServiceLabel)
 			}),
