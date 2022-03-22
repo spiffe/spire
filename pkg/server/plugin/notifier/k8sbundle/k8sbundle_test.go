@@ -243,7 +243,7 @@ kube_config_file_path = "/some/file/path"
 	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook")
 
 	require.Eventually(t, func() bool {
-		actualWebhook, err := test.webhookClient.Get(context.TODO(), webhook.Namespace, webhook.Name)
+		actualWebhook, err := test.webhookClient.Get(context.Background(), webhook.Namespace, webhook.Name)
 		require.NoError(t, err)
 		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
@@ -280,7 +280,7 @@ kube_config_file_path = "/some/file/path"
 	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice")
 
 	require.Eventually(t, func() bool {
-		actualAPIService, err := test.apiServiceClient.Get(context.TODO(), apiService.Namespace, apiService.Name)
+		actualAPIService, err := test.apiServiceClient.Get(context.Background(), apiService.Namespace, apiService.Name)
 		require.NoError(t, err)
 		return assert.Equal(t, &apiregistrationv1.APIService{
 			ObjectMeta: metav1.ObjectMeta{
@@ -810,7 +810,7 @@ func newAPIService(t *testing.T, client aggregator.Interface, name string) *apir
 		},
 		Spec: apiregistrationv1.APIServiceSpec{},
 	}
-	_, err := client.ApiregistrationV1().APIServices().Create(context.TODO(), apiService, metav1.CreateOptions{})
+	_, err := client.ApiregistrationV1().APIServices().Create(context.Background(), apiService, metav1.CreateOptions{})
 	require.NoError(t, err)
 	return apiService
 }
@@ -925,7 +925,7 @@ func newMutatingWebhook(t *testing.T, client kubernetes.Interface, name string) 
 			},
 		},
 	}
-	_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.TODO(), webhook, metav1.CreateOptions{})
+	_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), webhook, metav1.CreateOptions{})
 	require.NoError(t, err)
 	return webhook
 }
