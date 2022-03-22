@@ -527,10 +527,13 @@ func (c apiServiceClient) Patch(ctx context.Context, namespace, name string, pat
 
 func (c apiServiceClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	informer := c.factory.Apiregistration().V1().APIServices().Informer()
-	c.callback = callback
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.onAdd,
-		UpdateFunc: c.onUpdate,
+		AddFunc: func(obj interface{}) {
+			callback(c, obj.(runtime.Object))
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			callback(c, newObj.(runtime.Object))
+		},	
 	})
 	return informer
 }
