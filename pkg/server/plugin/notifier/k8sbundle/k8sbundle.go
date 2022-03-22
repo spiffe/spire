@@ -287,7 +287,7 @@ func (p *Plugin) informerEvent(client kubeClient, obj runtime.Object) {
 
 	objectMeta, err := meta.Accessor(obj)
 	if err != nil {
-		p.log.Error("Unable to access meta for Objct", "error", err)
+		p.log.Error("Unable to access meta for object", "error", err)
 		return
 	}
 
