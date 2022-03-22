@@ -421,6 +421,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 
 // kubeClient encapsulates the Kubenetes API for config maps, validating webhooks, and mutating webhooks
 type informerCallback func(kubeClient, runtime.Object)
+
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context) (runtime.Object, error)
