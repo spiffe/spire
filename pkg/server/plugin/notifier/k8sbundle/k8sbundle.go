@@ -482,7 +482,6 @@ type apiServiceClient struct {
 	aggregator.Interface
 	apiServiceLabel string
 	factory         aggregatorinformers.SharedInformerFactory
-	callback        informerCallback
 }
 
 func (c apiServiceClient) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
@@ -533,17 +532,9 @@ func (c apiServiceClient) Informer(callback informerCallback) cache.SharedIndexI
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			callback(c, newObj.(runtime.Object))
-		},	
+		},
 	})
 	return informer
-}
-
-func (c apiServiceClient) onAdd(obj interface{}) {
-	c.callback(c, obj.(runtime.Object))
-}
-
-func (c apiServiceClient) onUpdate(oldObj, newObj interface{}) {
-	c.callback(c, newObj.(runtime.Object))
 }
 
 // mutatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a mutating webhook
@@ -551,7 +542,6 @@ type mutatingWebhookClient struct {
 	kubernetes.Interface
 	webhookLabel string
 	factory      informers.SharedInformerFactory
-	callback     informerCallback
 }
 
 func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebhook string) (runtime.Object, error) {
@@ -607,20 +597,15 @@ func (c mutatingWebhookClient) Patch(ctx context.Context, namespace, name string
 
 func (c mutatingWebhookClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	informer := c.factory.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
-	c.callback = callback
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.onAdd,
-		UpdateFunc: c.onUpdate,
+		AddFunc: func(obj interface{}) {
+			callback(c, obj.(runtime.Object))
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			callback(c, newObj.(runtime.Object))
+		},
 	})
 	return informer
-}
-
-func (c mutatingWebhookClient) onAdd(obj interface{}) {
-	c.callback(c, obj.(runtime.Object))
-}
-
-func (c mutatingWebhookClient) onUpdate(oldObj, newObj interface{}) {
-	c.callback(c, newObj.(runtime.Object))
 }
 
 // validatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a validating webhook
@@ -628,7 +613,6 @@ type validatingWebhookClient struct {
 	kubernetes.Interface
 	webhookLabel string
 	factory      informers.SharedInformerFactory
-	callback     informerCallback
 }
 
 func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingWebhook string) (runtime.Object, error) {
@@ -684,20 +668,15 @@ func (c validatingWebhookClient) Patch(ctx context.Context, namespace, name stri
 
 func (c validatingWebhookClient) Informer(callback informerCallback) cache.SharedIndexInformer {
 	informer := c.factory.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
-	c.callback = callback
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.onAdd,
-		UpdateFunc: c.onUpdate,
+		AddFunc: func(obj interface{}) {
+			callback(c, obj.(runtime.Object))
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			callback(c, newObj.(runtime.Object))
+		},
 	})
 	return informer
-}
-
-func (c validatingWebhookClient) onAdd(obj interface{}) {
-	c.callback(c, obj.(runtime.Object))
-}
-
-func (c validatingWebhookClient) onUpdate(oldObj, newObj interface{}) {
-	c.callback(c, newObj.(runtime.Object))
 }
 
 // bundleData formats the bundle data for inclusion in the config map
