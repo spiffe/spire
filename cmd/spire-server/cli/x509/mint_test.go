@@ -108,7 +108,7 @@ func TestMintRun(t *testing.T) {
 	}))
 
 	server := new(fakeSVIDServer)
-	spiretest.StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
+	spiretest.StartGRPCUDSSocketServer(t, socketPath, func(s *grpc.Server) {
 		svidv1.RegisterSVIDServer(s, server)
 		bundlev1.RegisterBundleServer(s, server)
 	})

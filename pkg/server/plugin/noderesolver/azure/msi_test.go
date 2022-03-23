@@ -6,9 +6,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
-	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -44,6 +45,12 @@ var (
 		"virtual-network-subnet:NETRESOURCEGROUP:VIRTUALNETWORK:SUBNET",
 	}
 )
+
+type fakeAzureCredential struct{}
+
+func (f *fakeAzureCredential) GetToken(context.Context, policy.TokenRequestOptions) (*azcore.AccessToken, error) {
+	return &azcore.AccessToken{}, nil
+}
 
 func TestMSIResolver(t *testing.T) {
 	spiretest.Run(t, new(MSIResolverSuite))
@@ -112,8 +119,8 @@ func (s *MSIResolverSuite) TestResolveWithNoVirtualMachineInfo() {
 func (s *MSIResolverSuite) TestResolveVirtualMachine() {
 	nr := s.loadPluginWithTenant()
 
-	vm := &compute.VirtualMachine{
-		VirtualMachineProperties: &compute.VirtualMachineProperties{},
+	vm := &armcompute.VirtualMachine{
+		Properties: &armcompute.VirtualMachineProperties{},
 	}
 	s.setVirtualMachine(vm)
 
@@ -121,54 +128,58 @@ func (s *MSIResolverSuite) TestResolveVirtualMachine() {
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network profile with no interfaces
-	vm.NetworkProfile = &compute.NetworkProfile{}
+	vm.Properties.NetworkProfile = &armcompute.NetworkProfile{}
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network profile with empty interface
-	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{}}
+	vm.Properties.NetworkProfile.NetworkInterfaces = []*armcompute.NetworkInterfaceReference{{}}
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network profile with interface with malformed ID
-	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{ID: &malformedResourceID}}
+	vm.Properties.NetworkProfile.NetworkInterfaces = []*armcompute.NetworkInterfaceReference{{ID: &malformedResourceID}}
 	s.assertResolveFailure(nr, azureAgentID,
 		codes.Internal,
 		`noderesolver(azure_msi): malformed network interface ID "MALFORMEDRESOURCEID"`)
 
 	// network profile with interface with no interface info
-	vm.NetworkProfile.NetworkInterfaces = &[]compute.NetworkInterfaceReference{{ID: &niResourceID}}
+	vm.Properties.NetworkProfile.NetworkInterfaces = []*armcompute.NetworkInterfaceReference{
+		{
+			ID: &niResourceID,
+		},
+	}
 	s.assertResolveFailure(nr, azureAgentID,
 		codes.Internal,
 		`noderesolver(azure_msi): unable to get network interface "RESOURCEGROUP:NETWORKINTERFACE"`)
 
 	// network interface with no security group or ip config
-	ni := &network.Interface{
-		InterfacePropertiesFormat: &network.InterfacePropertiesFormat{},
+	ni := &armnetwork.Interface{
+		Properties: &armnetwork.InterfacePropertiesFormat{},
 	}
 	s.setNetworkInterface(ni)
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network interface with malformed security group
-	ni.NetworkSecurityGroup = &network.SecurityGroup{ID: &malformedResourceID}
+	ni.Properties.NetworkSecurityGroup = &armnetwork.SecurityGroup{ID: &malformedResourceID}
 	s.assertResolveFailure(nr, azureAgentID,
 		codes.Internal,
 		`noderesolver(azure_msi): malformed network security group ID "MALFORMEDRESOURCEID"`)
-	ni.NetworkSecurityGroup = nil
+	ni.Properties.NetworkSecurityGroup = nil
 
 	// network interface with no ip configuration
-	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{}
+	ni.Properties.IPConfigurations = []*armnetwork.InterfaceIPConfiguration{}
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network interface with empty ip configuration
-	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{{}}
+	ni.Properties.IPConfigurations = []*armnetwork.InterfaceIPConfiguration{{}}
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network interface with empty ip configuration properties
-	props := new(network.InterfaceIPConfigurationPropertiesFormat)
-	ni.IPConfigurations = &[]network.InterfaceIPConfiguration{{InterfaceIPConfigurationPropertiesFormat: props}}
+	props := new(armnetwork.InterfaceIPConfigurationPropertiesFormat)
+	ni.Properties.IPConfigurations = []*armnetwork.InterfaceIPConfiguration{{Properties: props}}
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network interface with subnet with no ID
-	props.Subnet = &network.Subnet{}
+	props.Subnet = &armnetwork.Subnet{}
 	s.assertResolveSuccess(nr, vmSelectors)
 
 	// network interface with subnet with malformed ID
@@ -178,7 +189,7 @@ func (s *MSIResolverSuite) TestResolveVirtualMachine() {
 		`noderesolver(azure_msi): malformed virtual network subnet ID "MALFORMEDRESOURCEID"`)
 
 	// network interface with good subnet and security group
-	ni.NetworkSecurityGroup = &network.SecurityGroup{ID: &nsgResourceID}
+	ni.Properties.NetworkSecurityGroup = &armnetwork.SecurityGroup{ID: &nsgResourceID}
 	props.Subnet.ID = &subnetResourceID
 	s.assertResolveSuccess(nr, vmSelectors, niSelectors)
 }
@@ -281,7 +292,7 @@ func (s *MSIResolverSuite) loadPluginWithTenant() noderesolver.NodeResolver {
 
 func (s *MSIResolverSuite) loadPlugin(options ...plugintest.Option) noderesolver.NodeResolver {
 	resolver := New()
-	resolver.hooks.newClient = func(string, autorest.Authorizer) apiClient {
+	resolver.hooks.newClient = func(string, azcore.TokenCredential) apiClient {
 		return s.api
 	}
 	resolver.hooks.fetchInstanceMetadata = func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error) {
@@ -292,8 +303,8 @@ func (s *MSIResolverSuite) loadPlugin(options ...plugintest.Option) noderesolver
 		}, nil
 	}
 
-	resolver.hooks.msiAuthorizer = func() (autorest.Authorizer, error) {
-		return autorest.NullAuthorizer{}, nil
+	resolver.hooks.msiCredential = func() (azcore.TokenCredential, error) {
+		return &fakeAzureCredential{}, nil
 	}
 
 	nr := new(noderesolver.V1)
@@ -327,12 +338,12 @@ func (s *MSIResolverSuite) assertResolveFailure(nr noderesolver.NodeResolver, ag
 	s.Require().Empty(selectors)
 }
 
-func (s *MSIResolverSuite) setVirtualMachine(vm *compute.VirtualMachine) {
+func (s *MSIResolverSuite) setVirtualMachine(vm *armcompute.VirtualMachine) {
 	s.api.SetVirtualMachineResourceID("PRINCIPAL", vmResourceID)
 	s.api.SetVirtualMachine("RESOURCEGROUP", "VIRTUALMACHINE", vm)
 }
 
-func (s *MSIResolverSuite) setNetworkInterface(ni *network.Interface) {
+func (s *MSIResolverSuite) setNetworkInterface(ni *armnetwork.Interface) {
 	s.api.SetNetworkInterface("RESOURCEGROUP", "NETWORKINTERFACE", ni)
 }
 
@@ -340,16 +351,16 @@ type fakeAPIClient struct {
 	t testing.TB
 
 	vmResourceIDs     map[string]string
-	virtualMachines   map[string]*compute.VirtualMachine
-	networkInterfaces map[string]*network.Interface
+	virtualMachines   map[string]*armcompute.VirtualMachine
+	networkInterfaces map[string]*armnetwork.Interface
 }
 
 func newFakeAPIClient(t testing.TB) *fakeAPIClient {
 	return &fakeAPIClient{
 		t:                 t,
 		vmResourceIDs:     make(map[string]string),
-		virtualMachines:   make(map[string]*compute.VirtualMachine),
-		networkInterfaces: make(map[string]*network.Interface),
+		virtualMachines:   make(map[string]*armcompute.VirtualMachine),
+		networkInterfaces: make(map[string]*armnetwork.Interface),
 	}
 }
 
@@ -369,11 +380,11 @@ func (c *fakeAPIClient) GetVirtualMachineResourceID(ctx context.Context, princip
 	return id, nil
 }
 
-func (c *fakeAPIClient) SetVirtualMachine(resourceGroup string, name string, vm *compute.VirtualMachine) {
+func (c *fakeAPIClient) SetVirtualMachine(resourceGroup string, name string, vm *armcompute.VirtualMachine) {
 	c.virtualMachines[resourceGroupName(resourceGroup, name)] = vm
 }
 
-func (c *fakeAPIClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*compute.VirtualMachine, error) {
+func (c *fakeAPIClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*armcompute.VirtualMachine, error) {
 	vm := c.virtualMachines[resourceGroupName(resourceGroup, name)]
 	if vm == nil {
 		return nil, errors.New("not found")
@@ -381,11 +392,11 @@ func (c *fakeAPIClient) GetVirtualMachine(ctx context.Context, resourceGroup str
 	return vm, nil
 }
 
-func (c *fakeAPIClient) SetNetworkInterface(resourceGroup string, name string, ni *network.Interface) {
+func (c *fakeAPIClient) SetNetworkInterface(resourceGroup string, name string, ni *armnetwork.Interface) {
 	c.networkInterfaces[resourceGroupName(resourceGroup, name)] = ni
 }
 
-func (c *fakeAPIClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*network.Interface, error) {
+func (c *fakeAPIClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*armnetwork.Interface, error) {
 	ni := c.networkInterfaces[resourceGroupName(resourceGroup, name)]
 	if ni == nil {
 		return nil, errors.New("not found")

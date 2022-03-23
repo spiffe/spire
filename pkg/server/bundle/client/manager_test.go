@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
@@ -84,6 +85,10 @@ func TestManagerPeriodicBundleRefresh(t *testing.T) {
 }
 
 func TestManagerOnDemandBundleRefresh(t *testing.T) {
+	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
+		t,
+		"https://github.com/spiffe/spire/issues/2840",
+	)
 	trustDomainConfigs := make(TrustDomainConfigMap)
 
 	test := newManagerTest(t, trustDomainConfigs, nil, nil)

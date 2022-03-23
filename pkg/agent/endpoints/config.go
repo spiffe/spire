@@ -19,7 +19,7 @@ import (
 )
 
 type Config struct {
-	BindAddr *net.UnixAddr
+	BindAddr net.Addr
 
 	Attestor attestor.Attestor
 
