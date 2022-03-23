@@ -294,6 +294,45 @@ kube_config_file_path = "/some/file/path"
 	}, testTimeout, time.Second)
 }
 
+func TestBundleInformerUpdateConfig(t *testing.T) {
+	initialConfig := `
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+config_map_key = "CONFIGMAPKEY"
+webhook_label = "WEBHOOK_LABEL"
+api_service_label = "API_SERVICE_LABEL"
+`
+	test := setupTest(t, withPlainConfig(initialConfig))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	require.Eventually(t, func() bool {
+		return test.webhookClient.webhookLabel == "WEBHOOK_LABEL"
+	}, testTimeout, time.Second)
+	require.Eventually(t, func() bool {
+		return test.apiServiceClient.apiServiceLabel == "API_SERVICE_LABEL"
+	}, testTimeout, time.Second)
+
+	finalConfig := `
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+config_map_key = "CONFIGMAPKEY"
+webhook_label = "WEBHOOK_LABEL2"
+api_service_label = "API_SERVICE_LABEL2"
+kube_config_file_path = "/some/file/path"
+`
+	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{},
+		HclConfiguration:  finalConfig,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, test.rawPlugin.stopCh)
+	require.Eventually(t, func() bool {
+		return test.webhookClient.webhookLabel == "WEBHOOK_LABEL2"
+	}, testTimeout, time.Second)
+	require.Eventually(t, func() bool {
+		return test.apiServiceClient.apiServiceLabel == "API_SERVICE_LABEL2"
+	}, testTimeout, time.Second)
+}
+
 func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
 	test := setupTest(t)
 
