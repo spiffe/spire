@@ -9,10 +9,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"google.golang.org/grpc/codes"
@@ -89,9 +89,9 @@ type MSIResolverPlugin struct {
 	config *MSIResolverConfig
 
 	hooks struct {
-		newClient             func(string, autorest.Authorizer) apiClient
+		newClient             func(string, azcore.TokenCredential) apiClient
 		fetchInstanceMetadata func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error)
-		msiAuthorizer         func() (autorest.Authorizer, error)
+		msiCredential         func() (azcore.TokenCredential, error)
 	}
 }
 
@@ -99,8 +99,8 @@ func New() *MSIResolverPlugin {
 	p := &MSIResolverPlugin{}
 	p.hooks.newClient = newAzureClient
 	p.hooks.fetchInstanceMetadata = azure.FetchInstanceMetadata
-	p.hooks.msiAuthorizer = func() (autorest.Authorizer, error) {
-		return auth.NewMSIConfig().Authorizer()
+	p.hooks.msiCredential = func() (azcore.TokenCredential, error) {
+		return azidentity.NewManagedIdentityCredential(nil)
 	}
 
 	return p
@@ -143,11 +143,11 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 		if err != nil {
 			return nil, err
 		}
-		authorizer, err := p.hooks.msiAuthorizer()
+		cred, err := p.hooks.msiCredential()
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to get MSI authorizer: %v", err)
+			return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
 		}
-		msiClient = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, authorizer)
+		msiClient = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
 	} else {
 		if len(config.Tenants) == 0 {
 			return nil, status.Error(codes.InvalidArgument, "configuration must have at least one tenant when not using MSI")
@@ -163,11 +163,12 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 			if tenant.AppSecret == "" {
 				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing app secret", tenantID)
 			}
-			authorizer, err := auth.NewClientCredentialsConfig(tenant.AppID, tenant.AppSecret, tenantID).Authorizer()
+
+			cred, err := azidentity.NewClientSecretCredential(tenantID, tenant.AppID, tenant.AppSecret, nil)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to get tenant authorizer: %v", err)
+				return nil, status.Errorf(codes.Internal, "unable to get tenant client credential: %v", err)
 			}
-			tenantClients[tenantID] = p.hooks.newClient(tenant.SubscriptionID, authorizer)
+			tenantClients[tenantID] = p.hooks.newClient(tenant.SubscriptionID, cred)
 		}
 	}
 
@@ -246,8 +247,8 @@ func (p *MSIResolverPlugin) resolve(ctx context.Context, agentID string) ([]stri
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to get virtual machine %q: %v", resourceGroupName(vmResourceGroup, vmName), err)
 	}
-	if vm.NetworkProfile != nil {
-		networkProfileSelectors, err := getNetworkProfileSelectors(ctx, client, vm.NetworkProfile)
+	if vm.Properties.NetworkProfile != nil {
+		networkProfileSelectors, err := getNetworkProfileSelectors(ctx, client, vm.Properties.NetworkProfile)
 		if err != nil {
 			return nil, err
 		}
@@ -264,13 +265,13 @@ func (p *MSIResolverPlugin) resolve(ctx context.Context, agentID string) ([]stri
 	return selectorValues, nil
 }
 
-func getNetworkProfileSelectors(ctx context.Context, client apiClient, networkProfile *compute.NetworkProfile) ([]string, error) {
+func getNetworkProfileSelectors(ctx context.Context, client apiClient, networkProfile *armcompute.NetworkProfile) ([]string, error) {
 	if networkProfile.NetworkInterfaces == nil {
 		return nil, nil
 	}
 
 	var selectors []string
-	for _, interfaceRef := range *networkProfile.NetworkInterfaces {
+	for _, interfaceRef := range networkProfile.NetworkInterfaces {
 		if interfaceRef.ID == nil {
 			continue
 		}
@@ -294,9 +295,9 @@ func getNetworkProfileSelectors(ctx context.Context, client apiClient, networkPr
 	return selectors, nil
 }
 
-func getNetworkInterfaceSelectors(networkInterface *network.Interface) ([]string, error) {
+func getNetworkInterfaceSelectors(networkInterface *armnetwork.Interface) ([]string, error) {
 	var selectors []string
-	if nsg := networkInterface.NetworkSecurityGroup; nsg != nil && nsg.ID != nil {
+	if nsg := networkInterface.Properties.NetworkSecurityGroup; nsg != nil && nsg.ID != nil {
 		nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*nsg.ID)
 		if err != nil {
 			return nil, err
@@ -304,9 +305,9 @@ func getNetworkInterfaceSelectors(networkInterface *network.Interface) ([]string
 		selectors = append(selectors, selectorValue("network-security-group", nsgResourceGroup, nsgName))
 	}
 
-	if ipcs := networkInterface.IPConfigurations; ipcs != nil {
-		for _, ipc := range *ipcs {
-			if props := ipc.InterfaceIPConfigurationPropertiesFormat; props != nil {
+	if ipcs := networkInterface.Properties.IPConfigurations; ipcs != nil {
+		for _, ipc := range ipcs {
+			if props := ipc.Properties; props != nil {
 				if subnet := props.Subnet; subnet != nil && subnet.ID != nil {
 					subResourceGroup, subVirtualNetwork, subName, err := parseVirtualNetworkSubnetID(*subnet.ID)
 					if err != nil {

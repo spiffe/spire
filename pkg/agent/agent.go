@@ -8,7 +8,6 @@ import (
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -113,6 +112,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.c.AdminBindAddress != nil {
 		adminEndpoints := a.newAdminEndpoints(manager, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
+	}
+
+	if a.c.LogReopener != nil {
+		tasks = append(tasks, a.c.LogReopener)
 	}
 
 	err = util.RunTasks(ctx, tasks...)
@@ -305,13 +308,13 @@ func (a *Agent) CheckHealth() health.State {
 }
 
 func (a *Agent) checkWorkloadAPI() error {
-	socketPath, err := filepath.Abs(a.c.BindAddress.String())
+	addr, err := util.GetURIAddress(a.c.BindAddress)
 	if err != nil {
-		a.c.Log.WithError(err).Error("Failed to resolve absolute socket path for health check")
+		a.c.Log.WithError(err).Error("Failed to parse endpoint address for health check")
 		return err
 	}
 	_, err = workloadapi.FetchX509Bundles(context.TODO(),
-		workloadapi.WithAddr("unix:"+socketPath))
+		workloadapi.WithAddr(addr))
 	if status.Code(err) == codes.Unavailable {
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")

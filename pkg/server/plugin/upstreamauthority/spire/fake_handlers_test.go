@@ -77,7 +77,7 @@ func (h *testHandler) startTestServers(t *testing.T, ca *testca.CA, serverCert [
 }
 
 func (w *whandler) startWAPITestServer(t *testing.T) {
-	w.socketPath = spiretest.StartWorkloadAPIOnTempSocket(t, w)
+	w.socketPath = spiretest.StartWorkloadAPIOnTempUDSSocket(t, w).String()
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
