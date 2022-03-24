@@ -408,7 +408,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			expectMsg:  "could not fetch JWT-SVID: ohno",
 		},
 		{
-			testName:     "success with one identities",
+			testName:     "success with one identity",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
