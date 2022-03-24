@@ -147,6 +147,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	stopCh := make(chan struct{})
 	if err = p.startInformers(ctx, config, clients, stopCh); err != nil {
+		close(stopCh)
 		return nil, status.Errorf(codes.Internal, "unable to start informers: %v", err)
 	}
 
