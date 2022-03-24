@@ -29,6 +29,7 @@ import (
 	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
@@ -240,7 +241,7 @@ kube_config_file_path = "/some/file/path"
 		require.FailNow(t, "timed out waiting for watcher to start")
 	}
 
-	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook")
+	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", "")
 
 	require.Eventually(t, func() bool {
 		actualWebhook, err := test.webhookClient.Get(context.Background(), webhook.Namespace, webhook.Name)
@@ -277,7 +278,7 @@ kube_config_file_path = "/some/file/path"
 		require.FailNow(t, "timed out waiting for watcher to start")
 	}
 
-	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice")
+	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", "")
 
 	require.Eventually(t, func() bool {
 		actualAPIService, err := test.apiServiceClient.Get(context.Background(), apiService.Namespace, apiService.Name)
@@ -292,6 +293,72 @@ kube_config_file_path = "/some/file/path"
 			},
 		}, actualAPIService)
 	}, testTimeout, time.Second)
+}
+
+func TestBundleInformerWebhookAlreadyUpToDate(t *testing.T) {
+	plainConfig := `
+webhook_label = "WEBHOOK_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+	var test *test
+	updateDone := make(chan struct{})
+	test = setupTest(t, withPlainConfig(plainConfig), withInformerCallback(func(client kubeClient, obj runtime.Object) {
+		objectMeta, err := meta.Accessor(obj)
+		require.NoError(t, err)
+
+		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
+		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		updateDone <- struct{}{}
+	}))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	select {
+	case <-test.webhookClient.watcherStarted:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for watcher to start")
+	}
+
+	newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", testBundleData)
+
+	select {
+	case <-updateDone:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for bundle update")
+	}
+}
+
+func TestBundleInformerAPIServiceAlreadyUpToDate(t *testing.T) {
+	plainConfig := `
+api_service_label = "API_SERVICE_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+	var test *test
+	updateDone := make(chan struct{})
+	test = setupTest(t, withPlainConfig(plainConfig), withInformerCallback(func(client kubeClient, obj runtime.Object) {
+		objectMeta, err := meta.Accessor(obj)
+		require.NoError(t, err)
+
+		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
+		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		updateDone <- struct{}{}
+	}))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	select {
+	case <-test.apiServiceClient.watcherStarted:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for watcher to start")
+	}
+
+	newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", testBundleData)
+
+	select {
+	case <-updateDone:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for bundle update")
+	}
 }
 
 func TestBundleInformerUpdateConfig(t *testing.T) {
@@ -806,6 +873,25 @@ func newFakeWebhookClient(config *pluginConfig) *fakeWebhookClient {
 	return w
 }
 
+func newMutatingWebhook(t *testing.T, client kubernetes.Interface, name, bundle string) *admissionv1.MutatingWebhookConfiguration {
+	webhook := &admissionv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			ResourceVersion: "1",
+		},
+		Webhooks: []admissionv1.MutatingWebhook{
+			{
+				ClientConfig: admissionv1.WebhookClientConfig{
+					CABundle: []byte(bundle),
+				},
+			},
+		},
+	}
+	_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), webhook, metav1.CreateOptions{})
+	require.NoError(t, err)
+	return webhook
+}
+
 type fakeAPIServiceClient struct {
 	apiServiceClient
 	watcherStarted chan struct{}
@@ -841,13 +927,15 @@ func newFakeAPIServiceClient(config *pluginConfig) *fakeAPIServiceClient {
 	return a
 }
 
-func newAPIService(t *testing.T, client aggregator.Interface, name string) *apiregistrationv1.APIService {
+func newAPIService(t *testing.T, client aggregator.Interface, name, bundle string) *apiregistrationv1.APIService {
 	apiService := &apiregistrationv1.APIService{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
 			ResourceVersion: "1",
 		},
-		Spec: apiregistrationv1.APIServiceSpec{},
+		Spec: apiregistrationv1.APIServiceSpec{
+			CABundle: []byte(bundle),
+		},
 	}
 	_, err := client.ApiregistrationV1().APIServices().Create(context.Background(), apiService, metav1.CreateOptions{})
 	require.NoError(t, err)
@@ -865,9 +953,10 @@ type test struct {
 }
 
 type testOptions struct {
-	plainConfig     string
-	kubeClientError bool
-	doConfigure     bool
+	plainConfig      string
+	kubeClientError  bool
+	doConfigure      bool
+	informerCallback informerCallback
 }
 
 type testOption func(*testOptions)
@@ -881,6 +970,12 @@ func withPlainConfig(plainConfig string) testOption {
 func withNoConfigure() testOption {
 	return func(args *testOptions) {
 		args.doConfigure = false
+	}
+}
+
+func withInformerCallback(callback informerCallback) testOption {
+	return func(args *testOptions) {
+		args.informerCallback = callback
 	}
 }
 
@@ -932,6 +1027,10 @@ func setupTest(t *testing.T, options ...testOption) *test {
 		return test.clients, nil
 	}
 
+	if args.informerCallback != nil {
+		raw.hooks.informerCallback = args.informerCallback
+	}
+
 	if args.doConfigure {
 		plugintest.Load(
 			t,
@@ -950,21 +1049,4 @@ func setupTest(t *testing.T, options ...testOption) *test {
 	}
 
 	return test
-}
-
-func newMutatingWebhook(t *testing.T, client kubernetes.Interface, name string) *admissionv1.MutatingWebhookConfiguration {
-	webhook := &admissionv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			ResourceVersion: "1",
-		},
-		Webhooks: []admissionv1.MutatingWebhook{
-			{
-				ClientConfig: admissionv1.WebhookClientConfig{},
-			},
-		},
-	}
-	_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), webhook, metav1.CreateOptions{})
-	require.NoError(t, err)
-	return webhook
 }

@@ -80,13 +80,15 @@ type Plugin struct {
 	stopCh           chan struct{}
 
 	hooks struct {
-		newKubeClients func(c *pluginConfig) ([]kubeClient, error)
+		newKubeClients   func(c *pluginConfig) ([]kubeClient, error)
+		informerCallback informerCallback
 	}
 }
 
 func New() *Plugin {
 	p := &Plugin{}
 	p.hooks.newKubeClients = newKubeClients
+	p.hooks.informerCallback = p.informerCallback
 	return p
 }
 
@@ -157,7 +159,7 @@ func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clien
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		informerSynced := []cache.InformerSynced{}
 		for _, client := range clients {
-			informer := client.Informer(p.informerEvent)
+			informer := client.Informer(p.hooks.informerCallback)
 			if informer != nil {
 				go informer.Run(stopCh)
 				informerSynced = append(informerSynced, informer.HasSynced)
@@ -271,8 +273,8 @@ func (p *Plugin) updateBundle(ctx context.Context, client kubeClient, namespace,
 	})
 }
 
-// informerEvent triggers the read-modify-write for a newly created object
-func (p *Plugin) informerEvent(client kubeClient, obj runtime.Object) {
+// informerCallback triggers the read-modify-write for a newly created object
+func (p *Plugin) informerCallback(client kubeClient, obj runtime.Object) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
