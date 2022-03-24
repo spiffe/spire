@@ -15,32 +15,14 @@ type LogEntry struct {
 }
 
 func AssertLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
-	for _, entry := range entries {
-		for key, field := range entry.Data {
-			entry.Data[key] = fmt.Sprint(field)
-		}
-	}
-
 	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
 func AssertLogsAnyOrder(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
-	for _, entry := range entries {
-		for key, field := range entry.Data {
-			entry.Data[key] = fmt.Sprint(field)
-		}
-	}
-
 	assert.ElementsMatch(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
 func AssertLastLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
-	for _, entry := range entries {
-		for key, field := range entry.Data {
-			entry.Data[key] = fmt.Sprint(field)
-		}
-	}
-
 	removeLen := len(entries) - len(expected)
 	if removeLen > 0 {
 		assert.Equal(t, expected, convertLogEntries(entries[removeLen:]), "unexpected logs")
@@ -65,15 +47,18 @@ func convertLogEntries(entries []*logrus.Entry) (out []LogEntry) {
 		out = append(out, LogEntry{
 			Level:   entry.Level,
 			Message: entry.Message,
-			Data:    fieldsOrNil(entry.Data),
+			Data:    normalizeData(entry.Data),
 		})
 	}
 	return out
 }
 
-func fieldsOrNil(data logrus.Fields) logrus.Fields {
-	if len(data) > 0 {
-		return data
+func normalizeData(data logrus.Fields) logrus.Fields {
+	if len(data) == 0 {
+		return nil
 	}
-	return nil
+	for key, field := range data {
+		data[key] = fmt.Sprint(field)
+	}
+	return data
 }

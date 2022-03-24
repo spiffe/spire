@@ -492,7 +492,7 @@ func TestShow(t *testing.T) {
 func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agentTest {
 	server := &fakeAgentServer{}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
 		agentv1.RegisterAgentServer(s, server)
 	})
 

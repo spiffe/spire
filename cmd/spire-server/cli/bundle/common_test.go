@@ -183,7 +183,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 
 	server := &fakeBundleServer{t: t}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
 		bundlev1.RegisterBundleServer(s, server)
 	})
 
