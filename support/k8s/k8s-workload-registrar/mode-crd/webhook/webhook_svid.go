@@ -22,6 +22,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -91,7 +92,13 @@ func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
 
 	// Mint new SVID
 	var resp *svidv1.MintX509SVIDResponse
-	err = retry.OnError(retry.DefaultBackoff, e.mintSVIDRetry, func() (err error) {
+	backoff := wait.Backoff{
+		Steps:    11,
+		Duration: 15 * time.Millisecond,
+		Factor:   2.0,
+		Jitter:   0.1,
+	}
+	err = retry.OnError(backoff, e.mintSVIDRetry, func() (err error) {
 		resp, err = e.c.S.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 			Csr: csr,
 		})
