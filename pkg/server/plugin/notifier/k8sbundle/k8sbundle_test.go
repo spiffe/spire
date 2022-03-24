@@ -69,9 +69,10 @@ var (
 
 const (
 	// PEM encoding of the root CAs in testBundle
-	testBundleData  = "-----BEGIN CERTIFICATE-----\nRk9P\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n"
-	testBundle2Data = "-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFa\n-----END CERTIFICATE-----\n"
-	testTimeout     = time.Minute
+	testBundleData   = "-----BEGIN CERTIFICATE-----\nRk9P\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n"
+	testBundle2Data  = "-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFa\n-----END CERTIFICATE-----\n"
+	testTimeout      = time.Minute
+	testPollInterval = 50 * time.Millisecond
 )
 
 func TestNotifyFailsIfNotConfigured(t *testing.T) {
@@ -235,12 +236,7 @@ kube_config_file_path = "/some/file/path"
 	require.NotNil(t, test.rawPlugin.stopCh)
 	test.identityProvider.AppendBundle(testBundle)
 
-	select {
-	case <-test.webhookClient.watcherStarted:
-	case <-time.After(testTimeout):
-		require.FailNow(t, "timed out waiting for watcher to start")
-	}
-
+	waitForInformerWatcher(t, test.webhookClient.watcherStarted)
 	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", "")
 
 	require.Eventually(t, func() bool {
@@ -259,7 +255,7 @@ kube_config_file_path = "/some/file/path"
 				},
 			},
 		}, actualWebhook)
-	}, testTimeout, time.Second)
+	}, testTimeout, testPollInterval)
 }
 
 func TestBundleInformerAddAPIServiceEvent(t *testing.T) {
@@ -272,12 +268,7 @@ kube_config_file_path = "/some/file/path"
 	require.NotNil(t, test.rawPlugin.stopCh)
 	test.identityProvider.AppendBundle(testBundle)
 
-	select {
-	case <-test.apiServiceClient.watcherStarted:
-	case <-time.After(testTimeout):
-		require.FailNow(t, "timed out waiting for watcher to start")
-	}
-
+	waitForInformerWatcher(t, test.apiServiceClient.watcherStarted)
 	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", "")
 
 	require.Eventually(t, func() bool {
@@ -292,7 +283,7 @@ kube_config_file_path = "/some/file/path"
 				CABundle: []byte(testBundleData),
 			},
 		}, actualAPIService)
-	}, testTimeout, time.Second)
+	}, testTimeout, testPollInterval)
 }
 
 func TestBundleInformerWebhookAlreadyUpToDate(t *testing.T) {
@@ -313,12 +304,7 @@ kube_config_file_path = "/some/file/path"
 	require.NotNil(t, test.rawPlugin.stopCh)
 	test.identityProvider.AppendBundle(testBundle)
 
-	select {
-	case <-test.webhookClient.watcherStarted:
-	case <-time.After(testTimeout):
-		require.FailNow(t, "timed out waiting for watcher to start")
-	}
-
+	waitForInformerWatcher(t, test.webhookClient.watcherStarted)
 	newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", testBundleData)
 
 	select {
@@ -346,12 +332,7 @@ kube_config_file_path = "/some/file/path"
 	require.NotNil(t, test.rawPlugin.stopCh)
 	test.identityProvider.AppendBundle(testBundle)
 
-	select {
-	case <-test.apiServiceClient.watcherStarted:
-	case <-time.After(testTimeout):
-		require.FailNow(t, "timed out waiting for watcher to start")
-	}
-
+	waitForInformerWatcher(t, test.apiServiceClient.watcherStarted)
 	newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", testBundleData)
 
 	select {
@@ -373,10 +354,10 @@ api_service_label = "API_SERVICE_LABEL"
 	require.NotNil(t, test.rawPlugin.stopCh)
 	require.Eventually(t, func() bool {
 		return test.webhookClient.webhookLabel == "WEBHOOK_LABEL"
-	}, testTimeout, time.Second)
+	}, testTimeout, testPollInterval)
 	require.Eventually(t, func() bool {
 		return test.apiServiceClient.apiServiceLabel == "API_SERVICE_LABEL"
-	}, testTimeout, time.Second)
+	}, testTimeout, testPollInterval)
 
 	finalConfig := `
 namespace = "NAMESPACE"
@@ -394,10 +375,10 @@ kube_config_file_path = "/some/file/path"
 	require.NotNil(t, test.rawPlugin.stopCh)
 	require.Eventually(t, func() bool {
 		return test.webhookClient.webhookLabel == "WEBHOOK_LABEL2"
-	}, testTimeout, time.Second)
+	}, testTimeout, testPollInterval)
 	require.Eventually(t, func() bool {
 		return test.apiServiceClient.apiServiceLabel == "API_SERVICE_LABEL2"
-	}, testTimeout, time.Second)
+	}, testTimeout, testPollInterval)
 }
 
 func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
@@ -860,6 +841,8 @@ func newFakeWebhookClient(config *pluginConfig) *fakeWebhookClient {
 		watcherStarted: make(chan struct{}),
 	}
 
+	// A catch-all watch reactor that allows us to inject the watcherStarted channel. We will later wait on this channel before
+	// using the fake client. See waitForInformerWatcher().
 	client.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
 		gvr := action.GetResource()
 		ns := action.GetNamespace()
@@ -914,6 +897,8 @@ func newFakeAPIServiceClient(config *pluginConfig) *fakeAPIServiceClient {
 		watcherStarted: make(chan struct{}),
 	}
 
+	// A catch-all watch reactor that allows us to inject the watcherStarted channel. We will later wait on this channel before
+	// using the fake client. See waitForInformerWatcher().
 	client.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
 		gvr := action.GetResource()
 		ns := action.GetNamespace()
@@ -1049,4 +1034,15 @@ func setupTest(t *testing.T, options ...testOption) *test {
 	}
 
 	return test
+}
+
+// waitForInformerWatcher wait until the watcher embedded in the informer starts up. The fake client doesn't support
+// resource versions, so any writes to the fake client after the informer's initial LIST and before the informer
+// establishing the watcher will be missed by the informer.
+func waitForInformerWatcher(t *testing.T, watcher chan struct{}) {
+	select {
+	case <-watcher:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for watcher to start")
+	}
 }
