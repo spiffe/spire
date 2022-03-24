@@ -68,10 +68,7 @@ func New(t *testing.T, results ...Result) *WorkloadAPI {
 		}
 	}
 
-	w.addr = &net.UnixAddr{
-		Net:  "unix",
-		Name: spiretest.StartWorkloadAPIOnTempSocket(t, w),
-	}
+	w.addr = spiretest.StartWorkloadAPIOnTempUDSSocket(t, w)
 
 	return w
 }

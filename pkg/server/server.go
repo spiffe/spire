@@ -173,7 +173,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
 
-	err = util.RunTasks(ctx,
+	tasks := []func(context.Context) error{
 		caManager.Run,
 		svidRotator.Run,
 		endpointsServer.ListenAndServe,
@@ -182,7 +182,13 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
-	)
+	}
+
+	if s.config.LogReopener != nil {
+		tasks = append(tasks, s.config.LogReopener)
+	}
+
+	err = util.RunTasks(ctx, tasks...)
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}

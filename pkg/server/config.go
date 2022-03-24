@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/x509/pkix"
 	"net"
 	"time"
@@ -22,6 +23,9 @@ type Config struct {
 	PluginConfigs common.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
+
+	// LogReopener facilitates handling a signal to rotate log file.
+	LogReopener func(context.Context) error
 
 	// If true enables audit logs
 	AuditLogEnabled bool

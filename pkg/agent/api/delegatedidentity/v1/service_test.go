@@ -596,7 +596,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	)
 
 	delegatedidentityv1.RegisterDelegatedIdentityServer(server, service)
-	socketPath := spiretest.ServeGRPCServerOnTempSocket(t, server)
+	socketPath := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 

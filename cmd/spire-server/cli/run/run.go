@@ -337,13 +337,24 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	logOptions = append(logOptions,
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
-		log.WithOutputFile(c.Server.LogFile))
+	)
+	var reopenableFile *log.ReopenableFile
+	if c.Server.LogFile != "" {
+		reopenableFile, err := log.NewReopenableFile(c.Server.LogFile)
+		if err != nil {
+			return nil, err
+		}
+		logOptions = append(logOptions, log.WithReopenableOutputFile(reopenableFile))
+	}
 
 	logger, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
+	if reopenableFile != nil {
+		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
+	}
 
 	ip := net.ParseIP(c.Server.BindAddress)
 	if ip == nil {
