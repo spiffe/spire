@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -26,13 +26,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aggregator "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+	aggregatorinformers "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 )
 
 const (
@@ -74,16 +76,19 @@ type Plugin struct {
 	log              hclog.Logger
 	config           *pluginConfig
 	identityProvider identityproviderv1.IdentityProviderServiceClient
-	cancelWatcher    func()
+	clients          []kubeClient
+	stopCh           chan struct{}
 
 	hooks struct {
-		newKubeClients func(c *pluginConfig) ([]kubeClient, error)
+		newKubeClients   func(c *pluginConfig) ([]kubeClient, error)
+		informerCallback informerCallback
 	}
 }
 
 func New() *Plugin {
 	p := &Plugin{}
 	p.hooks.newKubeClients = newKubeClients
+	p.hooks.informerCallback = p.informerCallback
 	return p
 }
 
@@ -99,14 +104,9 @@ func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 }
 
 func (p *Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
-	config, err := p.getConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	if _, ok := req.Event.(*notifierv1.NotifyRequest_BundleUpdated); ok {
 		// ignore the bundle presented in the request. see updateBundle for details on why.
-		if err := p.updateBundles(ctx, config); err != nil {
+		if err := p.updateBundles(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -114,14 +114,9 @@ func (p *Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*no
 }
 
 func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
-	config, err := p.getConfig()
-	if err != nil {
-		return nil, err
-	}
-
 	if _, ok := req.Event.(*notifierv1.NotifyAndAdviseRequest_BundleLoaded); ok {
 		// ignore the bundle presented in the request. see updateBundle for details on why.
-		if err := p.updateBundles(ctx, config); err != nil {
+		if err := p.updateBundles(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -145,67 +140,72 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		setDefaultValues(&config.Clusters[i])
 	}
 
-	if err = p.setConfig(config); err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to set configuration: %v", err)
+	clients, err := p.hooks.newKubeClients(config)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create new kubeClients: %v", err)
 	}
 
+	stopCh := make(chan struct{})
+	if err = p.startInformers(ctx, config, clients, stopCh); err != nil {
+		close(stopCh)
+		return nil, status.Errorf(codes.Internal, "unable to start informers: %v", err)
+	}
+
+	p.setConfig(config, clients, stopCh)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) getConfig() (*pluginConfig, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
+// startInformers creates informers to set CA Bundle in objects created after server has started
+func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clients []kubeClient, stopCh chan struct{}) error {
+	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
+		informerSynced := []cache.InformerSynced{}
+		for _, client := range clients {
+			informer := client.Informer(p.hooks.informerCallback)
+			if informer != nil {
+				go informer.Run(stopCh)
+				informerSynced = append(informerSynced, informer.HasSynced)
+			}
+		}
+		if !cache.WaitForCacheSync(ctx.Done(), informerSynced...) {
+			return status.Errorf(codes.Internal, "timed out waiting for informer cache to sync")
+		}
 	}
-	return p.config, nil
+
+	return nil
 }
 
-func (p *Plugin) setConfig(config *pluginConfig) error {
+func (p *Plugin) setConfig(config *pluginConfig, clients []kubeClient, stopCh chan struct{}) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Start watcher to set CA Bundle in objects created after server has started
-	var cancelWatcher func()
-	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
-		ctx, cancel := context.WithCancel(context.Background())
-		watcher, err := newBundleWatcher(ctx, p, config)
-		if err != nil {
-			cancel()
-			return err
-		}
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := watcher.Watch(ctx); err != nil && !errors.Is(err, context.Canceled) {
-				p.log.Error("Unable to watch", "error", err)
-			}
-		}()
-		cancelWatcher = func() {
-			cancel()
-			wg.Wait()
-		}
-	}
-	if p.cancelWatcher != nil {
-		p.cancelWatcher()
-		p.cancelWatcher = nil
-	}
-	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
-		p.cancelWatcher = cancelWatcher
-	}
-
 	p.config = config
-	return nil
+	p.clients = clients
+
+	if p.stopCh != nil {
+		close(p.stopCh)
+		p.stopCh = nil
+	}
+	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
+		p.stopCh = stopCh
+	}
+}
+
+func (p *Plugin) getClients() ([]kubeClient, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.clients == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	return p.clients, nil
 }
 
 // updateBundles iterates through all the objects that need an updated CA bundle
 // If an error is an encountered updating the bundle for an object, we record the
 // error and continue on to the next object
-func (p *Plugin) updateBundles(ctx context.Context, c *pluginConfig) (err error) {
-	clients, err := p.hooks.newKubeClients(c)
+func (p *Plugin) updateBundles(ctx context.Context) (err error) {
+	clients, err := p.getClients()
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to create kube clients: %v", err)
+		return err
 	}
 
 	var updateErrs string
@@ -274,6 +274,33 @@ func (p *Plugin) updateBundle(ctx context.Context, client kubeClient, namespace,
 	})
 }
 
+// informerCallback triggers the read-modify-write for a newly created object
+func (p *Plugin) informerCallback(client kubeClient, obj runtime.Object) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	objectMeta, err := meta.Accessor(obj)
+	if err != nil {
+		p.log.Error("Unable to access meta for object", "error", err)
+		return
+	}
+
+	err = p.updateBundle(ctx, client, objectMeta.GetNamespace(), objectMeta.GetName())
+	switch {
+	case err == nil:
+		p.log.Debug("Set bundle for object", "name", objectMeta.GetName())
+	case status.Code(err) == codes.FailedPrecondition:
+		// Ignore FailPrecondition errors for when SPIRE is booting and we receive an event prior to
+		// IdentityProvider being initialized. In this case the BundleLoaded event will come
+		// to populate the caBundle, so its safe to ignore this error.
+	case status.Code(err) == codes.AlreadyExists:
+		// Updating the bundle from an ADD event triggers a subsequent MODIFIED event. updateBundle will
+		// return AlreadyExists since nothing needs to be updated.
+	default:
+		p.log.Error("Unable to set bundle for object", "name", objectMeta.GetName(), "error", err)
+	}
+}
+
 func newKubeClients(c *pluginConfig) ([]kubeClient, error) {
 	clients := []kubeClient{}
 
@@ -313,22 +340,39 @@ func newClientsForCluster(c cluster) ([]kubeClient, error) {
 		configMapKey: c.ConfigMapKey,
 	}}
 	if c.WebhookLabel != "" {
+		factory := informers.NewSharedInformerFactoryWithOptions(
+			clientset,
+			time.Hour,
+			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = fmt.Sprintf("%s=true", c.WebhookLabel)
+			}),
+		)
 		clients = append(clients,
 			mutatingWebhookClient{
-				Clientset:    clientset,
+				Interface:    clientset,
 				webhookLabel: c.WebhookLabel,
+				factory:      factory,
 			},
 			validatingWebhookClient{
-				Clientset:    clientset,
+				Interface:    clientset,
 				webhookLabel: c.WebhookLabel,
+				factory:      factory,
 			},
 		)
 	}
 	if c.APIServiceLabel != "" {
+		factory := aggregatorinformers.NewSharedInformerFactoryWithOptions(
+			aggregatorClientset,
+			time.Hour,
+			aggregatorinformers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = fmt.Sprintf("%s=true", c.APIServiceLabel)
+			}),
+		)
 		clients = append(clients,
 			apiServiceClient{
-				Clientset:       aggregatorClientset,
+				Interface:       aggregatorClientset,
 				apiServiceLabel: c.APIServiceLabel,
+				factory:         factory,
 			},
 		)
 	}
@@ -370,12 +414,14 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 }
 
 // kubeClient encapsulates the Kubenetes API for config maps, validating webhooks, and mutating webhooks
+type informerCallback func(kubeClient, runtime.Object)
+
 type kubeClient interface {
 	Get(ctx context.Context, namespace, name string) (runtime.Object, error)
 	GetList(ctx context.Context) (runtime.Object, error)
 	CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error)
 	Patch(ctx context.Context, namespace, name string, patchBytes []byte) error
-	Watch(ctx context.Context) (watch.Interface, error)
+	Informer(callback informerCallback) cache.SharedIndexInformer
 }
 
 // configMapClient encapsulates the Kubenetes API for updating the CA Bundle in a config map
@@ -421,14 +467,15 @@ func (c configMapClient) Patch(ctx context.Context, namespace, name string, patc
 	return err
 }
 
-func (c configMapClient) Watch(ctx context.Context) (watch.Interface, error) {
-	return nil, nil
+func (c configMapClient) Informer(callback informerCallback) cache.SharedIndexInformer {
+	return nil
 }
 
 // apiServiceClient encapsulates the Kubenetes API for updating the CA Bundle in an API Service
 type apiServiceClient struct {
-	*aggregator.Clientset
+	aggregator.Interface
 	apiServiceLabel string
+	factory         aggregatorinformers.SharedInformerFactory
 }
 
 func (c apiServiceClient) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
@@ -471,16 +518,24 @@ func (c apiServiceClient) Patch(ctx context.Context, namespace, name string, pat
 	return err
 }
 
-func (c apiServiceClient) Watch(ctx context.Context) (watch.Interface, error) {
-	return c.ApiregistrationV1().APIServices().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", c.apiServiceLabel),
+func (c apiServiceClient) Informer(callback informerCallback) cache.SharedIndexInformer {
+	informer := c.factory.Apiregistration().V1().APIServices().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			callback(c, obj.(runtime.Object))
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			callback(c, newObj.(runtime.Object))
+		},
 	})
+	return informer
 }
 
 // mutatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a mutating webhook
 type mutatingWebhookClient struct {
-	*kubernetes.Clientset
+	kubernetes.Interface
 	webhookLabel string
+	factory      informers.SharedInformerFactory
 }
 
 func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebhook string) (runtime.Object, error) {
@@ -534,16 +589,24 @@ func (c mutatingWebhookClient) Patch(ctx context.Context, namespace, name string
 	return err
 }
 
-func (c mutatingWebhookClient) Watch(ctx context.Context) (watch.Interface, error) {
-	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", c.webhookLabel),
+func (c mutatingWebhookClient) Informer(callback informerCallback) cache.SharedIndexInformer {
+	informer := c.factory.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			callback(c, obj.(runtime.Object))
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			callback(c, newObj.(runtime.Object))
+		},
 	})
+	return informer
 }
 
 // validatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a validating webhook
 type validatingWebhookClient struct {
-	*kubernetes.Clientset
+	kubernetes.Interface
 	webhookLabel string
+	factory      informers.SharedInformerFactory
 }
 
 func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingWebhook string) (runtime.Object, error) {
@@ -597,10 +660,17 @@ func (c validatingWebhookClient) Patch(ctx context.Context, namespace, name stri
 	return err
 }
 
-func (c validatingWebhookClient) Watch(ctx context.Context) (watch.Interface, error) {
-	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Watch(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("%s=true", c.webhookLabel),
+func (c validatingWebhookClient) Informer(callback informerCallback) cache.SharedIndexInformer {
+	informer := c.factory.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			callback(c, obj.(runtime.Object))
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			callback(c, newObj.(runtime.Object))
+		},
 	})
+	return informer
 }
 
 // bundleData formats the bundle data for inclusion in the config map
