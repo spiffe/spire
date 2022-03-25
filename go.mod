@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.1
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
-	github.com/docker/docker v20.10.13+incompatible
+	github.com/docker/docker v20.10.14+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.1
 	github.com/go-logr/logr v1.2.3
 	github.com/go-sql-driver/mysql v1.6.0
