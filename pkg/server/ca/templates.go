@@ -31,8 +31,7 @@ func CreateServerCATemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, tr
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 		SubjectKeyId: keyID,
-		KeyUsage: x509.KeyUsageDigitalSignature |
-			x509.KeyUsageCertSign |
+		KeyUsage: x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
