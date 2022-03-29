@@ -22,6 +22,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/afflag"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/fflag"
@@ -153,7 +154,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
-	err = fflag.Load(fflag.RawConfig(input.Flags))
+	err = fflag.Load(fflag.RawConfig(input.Flags), afflag.AgentFlagMap)
 	if err != nil {
 		return nil, err
 	}
