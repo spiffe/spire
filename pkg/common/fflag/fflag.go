@@ -51,12 +51,12 @@ var (
 func Load(rc RawConfig) error {
 	flagConfig, err := parseRawConfig(rc)
 	if err != nil {
-		return fmt.Errorf("could not parse feature flag configuration: %v", err)
+		return fmt.Errorf("could not parse feature flag configuration: %w", err)
 	}
 
 	err = validateFlags(flagConfig)
 	if err != nil {
-		return fmt.Errorf("bad feature flag configuration: %v", err)
+		return fmt.Errorf("bad feature flag configuration: %w", err)
 	}
 
 	ok := false
@@ -85,7 +85,7 @@ func load(flagConfig map[string]bool) {
 	singleton.mtx.Lock()
 	defer singleton.mtx.Unlock()
 
-	for flag, _ := range singleton.flags {
+	for flag := range singleton.flags {
 		if value, ok := flagConfig[string(flag)]; ok {
 			singleton.flags[flag] = value
 		}
@@ -94,12 +94,12 @@ func load(flagConfig map[string]bool) {
 
 func validateFlags(flagConfig map[string]bool) error {
 	badFlags := make(map[string]bool)
-	for name, _ := range flagConfig {
+	for name := range flagConfig {
 		badFlags[name] = true
 	}
 
 	singleton.mtx.RLock()
-	for flag, _ := range singleton.flags {
+	for flag := range singleton.flags {
 		if _, ok := badFlags[string(flag)]; ok {
 			badFlags[string(flag)] = false
 		}
