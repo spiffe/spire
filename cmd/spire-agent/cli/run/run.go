@@ -17,12 +17,14 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -47,6 +49,7 @@ const (
 // Config contains all available configurables, arranged by section
 type Config struct {
 	Agent        *agentConfig                `hcl:"agent"`
+	Flags        ast.Node                    `hcl:"feature_flags"`
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
@@ -146,6 +149,11 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 	}
 
 	input, err := mergeInput(fileInput, cliInput)
+	if err != nil {
+		return nil, err
+	}
+
+	err = fflag.Load(fflag.RawConfig(input.Flags))
 	if err != nil {
 		return nil, err
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -56,6 +57,7 @@ var (
 // Config contains all available configurables, arranged by section
 type Config struct {
 	Server       *serverConfig               `hcl:"server"`
+	Flags        ast.Node                    `hcl:"feature_flags"`
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
@@ -206,6 +208,11 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 	}
 
 	input, err := mergeInput(fileInput, cliInput)
+	if err != nil {
+		return nil, err
+	}
+
+	err = fflag.Load(fflag.RawConfig(input.Flags))
 	if err != nil {
 		return nil, err
 	}
