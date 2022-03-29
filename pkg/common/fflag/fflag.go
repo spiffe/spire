@@ -16,7 +16,7 @@ type Flag string
 // To add a feature flag, decleare it here along with its config name.
 // Then, add it to the `flags` package-level singleton map below, setting the
 // appropriate default value. Flags should always be opt-in and default to
-// false, with the only exception being flags that are in the process off being
+// false, with the only exception being flags that are in the process of being
 // deprecated.
 const (
 	// FlagForcedRotation controls whether or not the new APIs and
@@ -51,12 +51,12 @@ var (
 func Load(rc RawConfig) error {
 	flagConfig, err := parseRawConfig(rc)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not parse feature flag configuration: %v", err)
 	}
 
 	err = validateFlags(flagConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("bad feature flag configuration: %v", err)
 	}
 
 	ok := false
