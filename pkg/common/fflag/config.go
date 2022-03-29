@@ -12,6 +12,9 @@ type RawConfig ast.Node
 
 func parseRawConfig(rc RawConfig) (map[string]bool, error) {
 	resp := make(map[string]bool)
+	if rc == nil {
+		return resp, nil
+	}
 
 	str, err := rawConfigToStr(rc)
 	if err != nil {
