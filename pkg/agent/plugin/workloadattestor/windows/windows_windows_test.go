@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	ctx         = context.Background()
-	sidUser, _  = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1001")
-	sidGroup, _ = windows.StringToSid("S-1-5-32-544")
+	ctx          = context.Background()
+	sidUser, _   = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1001")
+	sidGroup1, _ = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1004")
+	sidGroup2, _ = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1005")
 )
 
 type windowsTest struct {
@@ -56,7 +57,7 @@ func TestAttest(t *testing.T) {
 				handle:      windows.InvalidHandle,
 				token:       &token,
 				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
-				tokenGroups: &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup}}},
+				tokenGroups: &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup1}}},
 				account:     "user1",
 				domain:      "domain1",
 			},
@@ -66,15 +67,50 @@ func TestAttest(t *testing.T) {
 		{
 			name: "successful with groups",
 			pq: &fakeProcessQuery{
-				handle:           windows.InvalidHandle,
-				token:            &token,
-				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
-				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup}}},
-				account:          "user1",
-				domain:           "domain1",
-				sidAndAttributes: []windows.SIDAndAttributes{{Sid: sidGroup}},
+				handle:      windows.InvalidHandle,
+				token:       &token,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup1, Attributes: windows.SE_GROUP_ENABLED}}},
+				account:     "user1",
+				domain:      "domain1",
+				sidAndAttributes: []windows.SIDAndAttributes{
+					{
+						Sid: sidGroup1, Attributes: windows.SE_GROUP_ENABLED,
+					},
+					{
+						Sid: sidGroup2, Attributes: windows.SE_GROUP_ENABLED,
+					},
+				},
 			},
-			selectorValues: []string{"user:domain1\\user1", "user_sid:" + sidUser.String(), "group_sid:" + sidGroup.String(), "group:domain1\\group1"},
+			selectorValues: []string{
+				"user:domain1\\user1",
+				"user_sid:" + sidUser.String(),
+				"enabled_group_sid:" + sidGroup1.String(),
+				"enabled_group_sid:" + sidGroup2.String(),
+				"enabled_group:domain1\\group1",
+				"enabled_group:domain2\\group2",
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name: "successful with not enabled group",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				token:       &token,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup1, Attributes: windows.SE_GROUP_ENABLED}}},
+				account:     "user1",
+				domain:      "domain1",
+				sidAndAttributes: []windows.SIDAndAttributes{
+					{
+						Sid: sidGroup1, Attributes: windows.SE_GROUP_ENABLED,
+					},
+					{
+						Sid: sidGroup2, Attributes: windows.SE_GROUP_USE_FOR_DENY_ONLY,
+					},
+				},
+			},
+			selectorValues: []string{"user:domain1\\user1", "user_sid:" + sidUser.String(), "enabled_group_sid:" + sidGroup1.String(), "enabled_group:domain1\\group1"},
 			expectCode:     codes.OK,
 		},
 		{
@@ -119,10 +155,10 @@ func TestAttest(t *testing.T) {
 				lookupAccountErr: errors.New("lookup error"),
 				handle:           windows.InvalidHandle,
 				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
-				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup}}},
-				sidAndAttributes: []windows.SIDAndAttributes{{Sid: sidGroup}},
+				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{{Sid: sidGroup1}}},
+				sidAndAttributes: []windows.SIDAndAttributes{{Sid: sidGroup1, Attributes: windows.SE_GROUP_ENABLED}},
 			},
-			selectorValues: []string{"user_sid:" + sidUser.String(), "group_sid:" + sidGroup.String()},
+			selectorValues: []string{"user_sid:" + sidUser.String(), "enabled_group_sid:" + sidGroup1.String()},
 			expectCode:     codes.OK,
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -137,7 +173,7 @@ func TestAttest(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "failed to lookup account from group SID",
 					Data: logrus.Fields{
-						"sid":           sidGroup.String(),
+						"sid":           sidGroup1.String(),
 						logrus.ErrorKey: "lookup error",
 					},
 				},
@@ -218,8 +254,10 @@ func (q *fakeProcessQuery) LookupAccount(sid *windows.SID) (account, domain stri
 	switch sid {
 	case sidUser:
 		return "user1", "domain1", nil
-	case sidGroup:
+	case sidGroup1:
 		return "group1", "domain1", nil
+	case sidGroup2:
+		return "group2", "domain2", nil
 	}
 
 	return "", "", fmt.Errorf("sid not expected: %s", sid.String())
