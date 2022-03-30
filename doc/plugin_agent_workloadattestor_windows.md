@@ -22,7 +22,10 @@ It does so by opening an access token associated with the workload process. The 
 This plugin does not require any configuration setting. It can be added in the following way in the agent configuration file:
 
 ```
-	WorkloadAttestor "windows" {}
+	WorkloadAttestor "windows" {
+		plugin_data {
+		}
+	}
 ```
 
 ### Platform support
