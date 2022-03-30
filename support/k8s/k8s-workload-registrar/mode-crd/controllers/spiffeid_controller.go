@@ -282,6 +282,7 @@ func entryFromCRD(crd *spiffeidv1beta1.SpiffeID) (*types.Entry, error) {
 		Selectors:     crd.TypesSelector(),
 		DnsNames:      crd.Spec.DnsNames,
 		FederatesWith: crd.Spec.FederatesWith,
+		Downstream:    crd.Spec.Downstream,
 	}, nil
 }
 
@@ -301,7 +302,8 @@ func entryEqual(existing, current *types.Entry) bool {
 	return equalStringSlice(existing.DnsNames, current.DnsNames) &&
 		selectorSetsEqual(existing.Selectors, current.Selectors) &&
 		spiffeIDEqual(existing.SpiffeId, current.SpiffeId) &&
-		spiffeIDEqual(existing.ParentId, current.ParentId)
+		spiffeIDEqual(existing.ParentId, current.ParentId) &&
+		existing.Downstream == current.Downstream
 }
 
 func spiffeIDEqual(existing, current *types.SPIFFEID) bool {

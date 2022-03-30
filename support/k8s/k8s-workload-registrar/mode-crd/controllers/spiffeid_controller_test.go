@@ -78,6 +78,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 			Selector: spiffeidv1beta1.Selector{
 				Namespace: SpiffeIDNamespace,
 			},
+			Downstream: true,
 		},
 	}
 	err = s.k8sClient.Create(ctx, spiffeID)
@@ -99,12 +100,14 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	})
 	s.Require().NoError(err)
 	s.Require().NotNil(entry)
+	s.Require().True(entry.Downstream)
 	s.Require().Equal(makeID(s.trustDomain, "%s", SpiffeIDName), stringFromID(entry.SpiffeId))
 
 	// Update SPIFFE ID
 	createdSpiffeID.Spec.SpiffeId = makeID(s.trustDomain, "%s/%s", SpiffeIDName, "new")
 	createdSpiffeID.Spec.ParentId = makeID(s.trustDomain, "%s/%s/%s", "spire", "server", "new")
 	createdSpiffeID.Spec.Selector.PodName = "test"
+	createdSpiffeID.Spec.Downstream = false
 	err = s.k8sClient.Update(ctx, createdSpiffeID)
 	s.Require().NoError(err)
 	_, err = s.r.Reconcile(ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
@@ -118,6 +121,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().NotNil(entry)
 	s.Require().Equal(createdSpiffeID.Spec.SpiffeId, stringFromID(entry.SpiffeId))
 	s.Require().Equal(createdSpiffeID.Spec.ParentId, stringFromID(entry.ParentId))
+	s.Require().False(createdSpiffeID.Spec.Downstream)
 	s.Require().Equal(createdSpiffeID.Spec.Selector.PodName, "test")
 }
 
