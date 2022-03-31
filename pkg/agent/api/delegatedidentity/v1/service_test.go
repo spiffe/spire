@@ -368,6 +368,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		identities     []cache.Identity
 		authSpiffeID   []string
 		audience       []string
+		selectors      []*types.Selector
 		expectCode     codes.Code
 		expectMsg      string
 		attestErr      error
@@ -399,6 +400,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		{
 			testName:     "fetch error",
 			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
 				identityFromX509SVID(x509SVID1),
@@ -408,8 +410,42 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			expectMsg:  "could not fetch JWT-SVID: ohno",
 		},
 		{
+			testName:     "selectors missing type",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "", Value: "foo"}},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse provided selectors",
+		},
+		{
+			testName:     "selectors missing value",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: ""}},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse provided selectors",
+		},
+		{
+			testName:     "selectors type contains ':'",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa:bar", Value: "boo"}},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse provided selectors",
+		},
+		{
 			testName:     "success with one identity",
 			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
 				identityFromX509SVID(x509SVID1),
@@ -419,6 +455,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		{
 			testName:     "success with two identities",
 			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
 				identityFromX509SVID(x509SVID1),
@@ -438,10 +475,9 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			}
 			runTest(t, params,
 				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
-					selectors := []*types.Selector{{Type: "sa", Value: "foo"}}
 					resp, err := client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{
 						Audience:  tt.audience,
-						Selectors: selectors,
+						Selectors: tt.selectors,
 					})
 
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
@@ -647,10 +683,10 @@ func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.S
 }
 
 func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
-	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	if m.err != nil {
 		return nil, m.err
 	}
+	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	return &client.JWTSVID{
 		Token: svid.Marshal(),
 	}, nil

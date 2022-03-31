@@ -268,8 +268,6 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 	}
 	var spiffeIDs []spiffeid.ID
 
-	log = log.WithField(telemetry.Registered, true)
-
 	identities := s.manager.MatchingIdentities(selectors)
 	for _, identity := range identities {
 		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
@@ -282,7 +280,7 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 	}
 
 	if len(spiffeIDs) == 0 {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		log.Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
