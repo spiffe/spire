@@ -1,6 +1,7 @@
 package tpmdevid
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
@@ -449,7 +450,7 @@ func VerifyDevIDCertification(pubAK, pubDevID *tpm2.Public, attestData, attestSi
 	return nil
 }
 
-func checkSignature(pub *tpm2.Public, data, sig []byte) error {
+func checkSignature(pub *tpm2.Public, data, sigRaw []byte) error {
 	key, err := pub.Key()
 	if err != nil {
 		return err
@@ -471,14 +472,18 @@ func checkSignature(pub *tpm2.Public, data, sig []byte) error {
 	}
 
 	h := hash.New()
-	_, err = h.Write(data)
-	if err != nil {
+	if _, err = h.Write(data); err != nil {
 		return err
 	}
 
 	hashed := h.Sum(nil)
 
-	return rsa.VerifyPKCS1v15(rsaKey, hash, hashed, sig)
+	sig, err := tpm2.DecodeSignature(bytes.NewBuffer(sigRaw))
+	if err != nil {
+		return err
+	}
+
+	return rsa.VerifyPKCS1v15(rsaKey, hash, hashed, sig.RSA.Signature)
 }
 
 func getSignatureScheme(pub tpm2.Public) (*tpm2.SigScheme, error) {

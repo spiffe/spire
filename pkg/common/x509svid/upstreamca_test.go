@@ -82,8 +82,7 @@ func (s *UpstreamCASuite) TestSignCSRSuccess() {
 	s.Require().True(cert.IsCA)
 	s.Require().Equal("COMMONNAME", cert.Subject.CommonName)
 	s.Require().NotEmpty(cert.SubjectKeyId)
-	s.Require().Equal(x509.KeyUsageDigitalSignature|
-		x509.KeyUsageCertSign|
+	s.Require().Equal(x509.KeyUsageCertSign|
 		x509.KeyUsageCRLSign, cert.KeyUsage)
 }
 

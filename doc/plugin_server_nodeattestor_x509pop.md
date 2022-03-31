@@ -41,3 +41,17 @@ A sample configuration:
 | ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
 | Common Name         | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)             |
 | SHA1 Fingerprint    | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.  |
+
+## Agent Path Template
+The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
+The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
+
+Some useful values are:
+
+| Value                 | Description                                                  |
+| ----------------------| ------------------------------------------------------------ |
+| .PluginName           | The name of the plugin                                       |
+| .Fingerprint          | The SHA1 fingerprint of the agent's x509 certificate         |
+| .TrustDomain          | The configured trust domain                                  |
+| .Subject.CommonName   | The common name field of the agent's x509 certificate        |
+| .Subject.SerialNumber | The serial number field of the agent's x509 certificate      |

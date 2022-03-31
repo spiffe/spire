@@ -5,6 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"fmt"
+
+	"github.com/zeebo/errs"
+	"gopkg.in/square/go-jose.v2"
 )
 
 func RSAPublicKeyEqual(a, b *rsa.PublicKey) bool {
@@ -47,4 +50,29 @@ func KeyMatches(privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (bool,
 	default:
 		return false, fmt.Errorf("unsupported private key type %T", privateKey)
 	}
+}
+
+func JoseAlgFromPublicKey(publicKey interface{}) (jose.SignatureAlgorithm, error) {
+	var alg jose.SignatureAlgorithm
+	switch publicKey := publicKey.(type) {
+	case *rsa.PublicKey:
+		// Prevent the use of keys smaller than 2048 bits
+		if publicKey.Size() < 256 {
+			return "", errs.New("unsupported RSA key size: %d", publicKey.Size())
+		}
+		alg = jose.RS256
+	case *ecdsa.PublicKey:
+		params := publicKey.Params()
+		switch params.BitSize {
+		case 256:
+			alg = jose.ES256
+		case 384:
+			alg = jose.ES384
+		default:
+			return "", errs.New("unable to determine signature algorithm for EC public key size %d", params.BitSize)
+		}
+	default:
+		return "", errs.New("unable to determine signature algorithm for public key type %T", publicKey)
+	}
+	return alg, nil
 }

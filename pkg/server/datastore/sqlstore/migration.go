@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -114,6 +114,8 @@ import (
 // | v1.1.3  |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.2.0  | 18     | Added hint column to entries and can_reattest column to attested nodes    |
+// |---------|        |                                                                           |
+// | v1.2.1  |        |                                                                           |
 // ================================================================================================
 
 const (
