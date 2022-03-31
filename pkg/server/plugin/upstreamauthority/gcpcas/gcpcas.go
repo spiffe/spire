@@ -297,9 +297,8 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 						KeyUsage: &privatecapb.KeyUsage{
 							// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#KeyUsage_KeyUsageOptions
 							BaseKeyUsage: &privatecapb.KeyUsage_KeyUsageOptions{
-								DigitalSignature: true,
-								CertSign:         true,
-								CrlSign:          true,
+								CertSign: true,
+								CrlSign:  true,
 							},
 						},
 					},

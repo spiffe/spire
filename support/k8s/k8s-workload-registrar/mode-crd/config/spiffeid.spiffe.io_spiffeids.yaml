@@ -49,6 +49,8 @@ spec:
                 type: array
               parentId:
                 type: string
+              downstream:
+                type: boolean
               selector:
                 properties:
                   arbitrary:
