@@ -107,7 +107,7 @@ ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
 	exe=".exe"
-else 
+else
 	go_bin_dir = $(go_dir)/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
 	exe=
@@ -131,7 +131,7 @@ endif
 protoc_dir = $(build_dir)/protoc/$(protoc_version)
 protoc_bin = $(protoc_dir)/bin/protoc
 
-protoc_gen_go_version := $(shell grep google.golang.org/protobuf go.mod | awk '{print $$2}')
+protoc_gen_go_version := v1.28.0
 protoc_gen_go_base_dir := $(build_dir)/protoc-gen-go
 protoc_gen_go_dir := $(protoc_gen_go_base_dir)/$(protoc_gen_go_version)-go$(go_version)
 protoc_gen_go_bin := $(protoc_gen_go_dir)/protoc-gen-go
@@ -141,7 +141,7 @@ protoc_gen_go_grpc_base_dir := $(build_dir)/protoc-gen-go-grpc
 protoc_gen_go_grpc_dir := $(protoc_gen_go_grpc_base_dir)/$(protoc_gen_go_grpc_version)-go$(go_version)
 protoc_gen_go_grpc_bin := $(protoc_gen_go_grpc_dir)/protoc-gen-go-grpc
 
-protoc_gen_go_spire_version := $(shell grep github.com/spiffe/spire-plugin-sdk go.mod | awk '{print $$2}')
+protoc_gen_go_spire_version := v1.2.1
 protoc_gen_go_spire_base_dir := $(build_dir)/protoc-gen-go-spire
 protoc_gen_go_spire_dir := $(protoc_gen_go_spire_base_dir)/$(protoc_gen_go_spire_version)-go$(go_version)
 protoc_gen_go_spire_bin := $(protoc_gen_go_spire_dir)/protoc-gen-go-spire
@@ -297,7 +297,7 @@ endif
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
-else 
+else
 	$(E)./test/integration/test.sh $(SUITES)
 endif
 
@@ -475,9 +475,9 @@ else ifeq ($(os1),windows)
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
-	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url) 
+	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url)
 	$(E)unzip -qq $(go_dir)\go.zip -d $(go_dir)
-else 
+else
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
