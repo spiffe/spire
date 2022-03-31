@@ -146,6 +146,7 @@ func (s *ManagerSuite) TestSelfSigning() {
 	}
 	s.Empty(x509CA.UpstreamChain)
 	s.Require().Equal(1, x509CA.Certificate.SerialNumber.Cmp(big.NewInt(0)))
+	s.Require().Equal(x509.KeyUsageCertSign|x509.KeyUsageCRLSign, x509CA.Certificate.KeyUsage)
 
 	// Assert that the self-signed X.509 CA produces a valid certificate chain
 	validateSelfSignedX509CA(s.T(), x509CA.Certificate, x509CA.Signer)

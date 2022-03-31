@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"crypto/x509"
 	"net"
 	"time"
@@ -14,7 +15,7 @@ import (
 
 type Config struct {
 	// Address to bind the workload api to
-	BindAddress *net.UnixAddr
+	BindAddress net.Addr
 
 	// Directory to store runtime data
 	DataDir string
@@ -41,6 +42,9 @@ type Config struct {
 	PluginConfigs catalog.HCLPluginConfigMap
 
 	Log logrus.FieldLogger
+
+	// LogReopener facilitates handling a signal to rotate log file.
+	LogReopener func(context.Context) error
 
 	// Address of SPIRE server
 	ServerAddress string

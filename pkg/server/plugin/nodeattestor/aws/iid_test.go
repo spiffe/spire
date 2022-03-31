@@ -33,13 +33,15 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 const (
-	testInstanceProfileArn  = "arn:aws:iam::123412341234:instance-profile/nodes.test.k8s.local"
-	testInstanceProfileName = "nodes.test.k8s.local"
+	testInstanceProfileArn         = "arn:aws:iam::123412341234:instance-profile/nodes.test.k8s.local"
+	testInstanceProfileWithPathArn = "arn:aws:iam::123412341234:instance-profile/some/path/nodes.test.k8s.local"
+	testInstanceProfileName        = "nodes.test.k8s.local"
 )
 
 var (
@@ -457,6 +459,11 @@ func TestInstanceProfileArnParsing(t *testing.T) {
 
 	// success
 	name, err := instanceProfileNameFromArn(testInstanceProfileArn)
+	require.NoError(t, err)
+	require.Equal(t, testInstanceProfileName, name)
+
+	// check profiles with paths succeed (last part of arn is the profile name, path is ignored)
+	name, err = instanceProfileNameFromArn(testInstanceProfileWithPathArn)
 	require.NoError(t, err)
 	require.Equal(t, testInstanceProfileName, name)
 }

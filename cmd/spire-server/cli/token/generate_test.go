@@ -112,7 +112,7 @@ func (t *tokenTest) args(extra ...string) []string {
 func setupTest(t *testing.T) *tokenTest {
 	server := &fakeAgentServer{t: t}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
 		agentv1.RegisterAgentServer(s, server)
 	})
 

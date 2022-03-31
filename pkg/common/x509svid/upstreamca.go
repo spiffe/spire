@@ -82,8 +82,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL t
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
 		SubjectKeyId: keyID,
-		KeyUsage: x509.KeyUsageDigitalSignature |
-			x509.KeyUsageCertSign |
+		KeyUsage: x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,

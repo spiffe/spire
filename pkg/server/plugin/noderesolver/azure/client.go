@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/compute/mgmt/compute"
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/network/mgmt/network"
-	"github.com/Azure/azure-sdk-for-go/profiles/latest/resources/mgmt/resources"
-	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -17,33 +17,24 @@ import (
 type apiClient interface {
 	SubscriptionID() string
 	GetVirtualMachineResourceID(ctx context.Context, principalID string) (string, error)
-	GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*compute.VirtualMachine, error)
-	GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*network.Interface, error)
+	GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*armcompute.VirtualMachine, error)
+	GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*armnetwork.Interface, error)
 }
 
 // azureClient implements apiClient using Azure SDK client implementations
 type azureClient struct {
 	subscriptionID string
-	r              resources.Client
-	v              compute.VirtualMachinesClient
-	n              network.InterfacesClient
+	r              *armresources.Client
+	v              *armcompute.VirtualMachinesClient
+	n              *armnetwork.InterfacesClient
 }
 
-func newAzureClient(subscriptionID string, authorizer autorest.Authorizer) apiClient {
-	r := resources.NewClient(subscriptionID)
-	r.Authorizer = authorizer
-
-	v := compute.NewVirtualMachinesClient(subscriptionID)
-	v.Authorizer = authorizer
-
-	n := network.NewInterfacesClient(subscriptionID)
-	n.Authorizer = authorizer
-
+func newAzureClient(subscriptionID string, cred azcore.TokenCredential) apiClient {
 	return &azureClient{
 		subscriptionID: subscriptionID,
-		r:              r,
-		v:              v,
-		n:              n,
+		r:              armresources.NewClient(subscriptionID, cred, nil),
+		v:              armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil),
+		n:              armnetwork.NewInterfacesClient(subscriptionID, cred, nil),
 	}
 }
 
@@ -53,12 +44,19 @@ func (c *azureClient) SubscriptionID() string {
 
 func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principalID string) (string, error) {
 	filter := fmt.Sprintf("resourceType eq 'Microsoft.Compute/virtualMachines' and identity/principalId eq '%s'", principalID)
-	result, err := c.r.List(ctx, filter, "", nil)
-	if err != nil {
-		return "", status.Errorf(codes.Internal, "unable to list virtual machine by principal: %v", err)
+	listPager := c.r.List(&armresources.ClientListOptions{
+		Filter: &filter,
+	})
+
+	var values []*armresources.GenericResourceExpanded
+	for listPager.NextPage(ctx) {
+		values = append(values, listPager.PageResponse().ClientListResult.ResourceListResult.Value...)
 	}
 
-	values := result.Values()
+	if listPager.Err() != nil {
+		return "", status.Errorf(codes.Internal, "unable to list virtual machine by principal: %v", listPager.Err())
+	}
+
 	if len(values) == 0 {
 		return "", status.Errorf(codes.Internal, "principal %q not found", principalID)
 	}
@@ -72,18 +70,18 @@ func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principal
 	return *values[0].ID, nil
 }
 
-func (c *azureClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*compute.VirtualMachine, error) {
-	vm, err := c.v.Get(ctx, resourceGroup, name, "")
+func (c *azureClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*armcompute.VirtualMachine, error) {
+	resp, err := c.v.Get(ctx, resourceGroup, name, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to get virtual machine: %v", err)
 	}
-	return &vm, nil
+	return &resp.VirtualMachinesClientGetResult.VirtualMachine, nil
 }
 
-func (c *azureClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*network.Interface, error) {
-	ni, err := c.n.Get(ctx, resourceGroup, name, "")
+func (c *azureClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*armnetwork.Interface, error) {
+	resp, err := c.n.Get(ctx, resourceGroup, name, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to get network interface: %v", err)
 	}
-	return &ni, nil
+	return &resp.InterfacesClientGetResult.Interface, nil
 }

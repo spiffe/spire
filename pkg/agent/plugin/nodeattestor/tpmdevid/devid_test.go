@@ -48,6 +48,7 @@ var (
 )
 
 // openSimulatedTPM works in the same way than tpmutil.OpenTPM() but it ignores
+// the path argument and opens a connection to a simulated TPM.
 func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
 	// Create a new TPM simulator
 	sim, err := tpmsimulator.New(tpmPasswords.EndorsementHierarchy, tpmPasswords.OwnerHierarchy)
@@ -344,7 +345,7 @@ func TestConfigureWindows(t *testing.T) {
 	}
 }
 
-func TestAidAttestationFailiures(t *testing.T) {
+func TestAidAttestationFailures(t *testing.T) {
 	tests := []struct {
 		name                              string
 		openTPMFail                       bool

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/InVisionApp/go-health"
+	"github.com/InVisionApp/go-health/v2"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
@@ -150,7 +150,7 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 // with a blocking dial and a timeout specified in testDialTimeout.
 // Nothing is done with the connection, which is just closed in case it
 // is created.
-func WaitForTestDial(ctx context.Context, addr *net.UnixAddr) {
+func WaitForTestDial(ctx context.Context, addr net.Addr) {
 	ctx, cancel := context.WithTimeout(ctx, testDialTimeout)
 	defer cancel()
 

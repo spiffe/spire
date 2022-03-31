@@ -87,6 +87,8 @@ ifeq ($(arch1),x86_64)
 arch2=amd64
 else ifeq ($(arch1),aarch64)
 arch2=arm64
+else ifeq ($(arch1),arm64)
+arch2=arm64
 else
 $(error unsupported ARCH: $(arch1))
 endif
@@ -283,6 +285,13 @@ ifneq ($(COVERPROFILE),)
 	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
 	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
+endif
+
+ci-race-test: | go-check
+ifneq ($(COVERPROFILE),)
+	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 -coverprofile="$(COVERPROFILE)" ./...
+else
+	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 ./...
 endif
 
 integration:
