@@ -1,49 +1,57 @@
 package awspca
 
 import (
-	"time"
+	"context"
+	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/acmpca"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/acmpca"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 // PCAClient provides an interface which can be mocked to test
 // the functionality of the plugin.
 type PCAClient interface {
-	DescribeCertificateAuthorityWithContext(aws.Context, *acmpca.DescribeCertificateAuthorityInput, ...request.Option) (*acmpca.DescribeCertificateAuthorityOutput, error)
-	IssueCertificateWithContext(aws.Context, *acmpca.IssueCertificateInput, ...request.Option) (*acmpca.IssueCertificateOutput, error)
-	WaitUntilCertificateIssuedWithContext(aws.Context, *acmpca.GetCertificateInput, ...request.WaiterOption) error
-	GetCertificateWithContext(aws.Context, *acmpca.GetCertificateInput, ...request.Option) (*acmpca.GetCertificateOutput, error)
+	DescribeCertificateAuthority(context.Context, *acmpca.DescribeCertificateAuthorityInput, ...func(*acmpca.Options)) (*acmpca.DescribeCertificateAuthorityOutput, error)
+	IssueCertificate(context.Context, *acmpca.IssueCertificateInput, ...func(*acmpca.Options)) (*acmpca.IssueCertificateOutput, error)
+	GetCertificate(context.Context, *acmpca.GetCertificateInput, ...func(*acmpca.Options)) (*acmpca.GetCertificateOutput, error)
 }
 
-func newPCAClient(config *Configuration) (PCAClient, error) {
-	awsConfig := &aws.Config{
-		Region:   aws.String(config.Region),
-		Endpoint: aws.String(config.Endpoint),
-	}
+func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
+	var endpointResolver aws.EndpointResolverWithOptions
+	if cfg.Endpoint != "" {
+		endpointResolver = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			if service == acmpca.ServiceID && region == cfg.Region {
+				return aws.Endpoint{
+					PartitionID:   "aws",
+					URL:           cfg.Endpoint,
+					SigningRegion: region,
+				}, nil
+			}
 
-	// Optional: Assuming role
-	if config.AssumeRoleARN != "" {
-		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConfig.Credentials})
-		if err != nil {
-			return nil, err
-		}
-		awsConfig.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
-			Client:   sts.New(staticsess),
-			RoleARN:  config.AssumeRoleARN,
-			Duration: 15 * time.Minute,
+			return aws.Endpoint{}, fmt.Errorf("unknown endpoint requested")
 		})
 	}
 
-	awsSession, err := session.NewSession(awsConfig)
-	if err != nil {
-		return nil, err
+	var credsProvider aws.CredentialsProvider
+	switch {
+	case cfg.AssumeRoleARN != "":
+		stsClient := sts.NewFromConfig(aws.Config{})
+		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, cfg.AssumeRoleARN)
+	default:
+		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.Region), config.WithEndpointResolverWithOptions(endpointResolver))
+		if err != nil {
+			return nil, err
+		}
+
+		credsProvider = awsCfg.Credentials
 	}
 
-	return acmpca.New(awsSession), nil
+	return acmpca.NewFromConfig(aws.Config{
+		Region:                      cfg.Region,
+		EndpointResolverWithOptions: endpointResolver,
+		Credentials:                 credsProvider,
+	}), nil
 }
