@@ -455,6 +455,7 @@ spec:
     podName: my-pod-name
   spiffeId: spiffe://example.org/my-spiffe-id
   parentId: spiffe://example.org/spire/server
+  downstream: false
 ```
 
 The supported selectors are:
@@ -470,6 +471,7 @@ The supported selectors are:
 
 Notes: 
 * Specifying DNS Names is optional
+* Specifying downstream is optional
 * The metadata.namespace and selector.namespace must match
 
 ## CRD Security Considerations

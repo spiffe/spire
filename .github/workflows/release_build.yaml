@@ -4,7 +4,7 @@ on:
     tags:
       - 'v[0-9].[0-9]+.[0-9]+'
 env:
-  GO_VERSION: 1.17.6
+  GO_VERSION: 1.17.7
 jobs:
   cache-deps:
     runs-on: ubuntu-18.04
@@ -74,6 +74,25 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Run unit tests
         run: ./.github/workflows/scripts/run_unit_tests.sh
+
+  unit-test-race-detector:
+    name: unit-test (linux with race detection)
+    runs-on: ubuntu-18.04
+    needs: cache-deps
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Run unit tests
+        run: ./.github/workflows/scripts/run_unit_tests_under_race_detector.sh
 
   artifacts:
     runs-on: ubuntu-18.04
@@ -237,7 +256,7 @@ jobs:
 
   publish-artifacts:
     runs-on: ubuntu-18.04
-    needs: [lint, unit-test, artifacts, integration]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v2

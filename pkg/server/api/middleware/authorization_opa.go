@@ -91,9 +91,9 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 
 	if res.AllowIfAgent && !rpccontext.CallerIsLocal(ctx) {
 		if ctx, ok, err := isAgent(ctx, m.agentAuthorizer); err != nil {
-			ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
 			return ctx, false, err
 		} else if ok {
+			ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
 			return ctx, true, nil
 		}
 	}

@@ -26,7 +26,7 @@ func TestWorkloadAPISource(t *testing.T) {
 
 	api := &fakeWorkloadAPIServer{}
 
-	socketPath := spiretest.StartWorkloadAPIOnTempSocket(t, api)
+	socketPath := spiretest.StartWorkloadAPIOnTempUDSSocket(t, api).Name
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)

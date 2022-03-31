@@ -2,13 +2,12 @@ package jwtsvid
 
 import (
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"errors"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/cryptosigner"
@@ -59,26 +58,9 @@ func (s *Signer) SignToken(id spiffeid.ID, audience []string, expires time.Time,
 		IssuedAt: jwt.NewNumericDate(s.c.Clock.Now()),
 	}
 
-	var alg jose.SignatureAlgorithm
-	switch publicKey := signer.Public().(type) {
-	case *rsa.PublicKey:
-		// Prevent the use of keys smaller than 2048 bits
-		if publicKey.Size() < 256 {
-			return "", errs.New("unsupported RSA key size: %d", publicKey.Size())
-		}
-		alg = jose.RS256
-	case *ecdsa.PublicKey:
-		params := publicKey.Params()
-		switch params.BitSize {
-		case 256:
-			alg = jose.ES256
-		case 384:
-			alg = jose.ES384
-		default:
-			return "", errs.New("unable to determine signature algorithm for EC public key size %d", params.BitSize)
-		}
-	default:
-		return "", errs.New("unable to determine signature algorithm for public key type %T", publicKey)
+	alg, err := cryptoutil.JoseAlgFromPublicKey(signer.Public())
+	if err != nil {
+		return "", errs.Wrap(err)
 	}
 
 	jwtSigner, err := jose.NewSigner(

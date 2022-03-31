@@ -214,7 +214,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTe
 	})
 
 	server := &fakeServer{t: t}
-	socketPath := spiretest.StartGRPCSocketServerOnTempSocket(t, func(s *grpc.Server) {
+	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
 		trustdomainv1.RegisterTrustDomainServer(s, server)
 	})
 

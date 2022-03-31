@@ -50,6 +50,7 @@ type SpiffeIDSpec struct {
 	ParentId      string   `json:"parentId"`
 	SpiffeId      string   `json:"spiffeId"`
 	Selector      Selector `json:"selector"`
+	Downstream    bool     `json:"downstream,omitempty"`
 	DnsNames      []string `json:"dnsNames,omitempty"`
 	FederatesWith []string `json:"federatesWith,omitempty"`
 }

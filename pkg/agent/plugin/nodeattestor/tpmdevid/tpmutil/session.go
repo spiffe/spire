@@ -371,7 +371,7 @@ func (c *Session) createPolicySessionForEK() (tpmutil.Handle, error) {
 
 	// A detailed description of this command and its parameters can be found in TCG spec:
 	// https://www.trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-3-Commands-01.38.pdf#page=228
-	_, err = tpm2.PolicySecret(
+	_, _, err = tpm2.PolicySecret(
 		c.rwc,                  // 	rw:		TPM channel.
 		tpm2.HandleEndorsement, // 	entityHandle:	handle for an entity providing the authorization.
 		tpm2.AuthCommand{ // 		entityAuth:	entity authorization.

@@ -2,6 +2,7 @@ package spiretest
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,49 +13,80 @@ import (
 	"google.golang.org/grpc"
 )
 
-func StartWorkloadAPIOnTempSocket(t *testing.T, server workload.SpiffeWorkloadAPIServer) string {
+func StartWorkloadAPIOnTempUDSSocket(t *testing.T, server workload.SpiffeWorkloadAPIServer) *net.UnixAddr {
 	dir := TempDir(t)
 	socketPath := filepath.Join(dir, "workload.sock")
 
-	StartWorkloadAPIOnSocket(t, socketPath, server)
-
-	return socketPath
+	return StartWorkloadAPIOnUDSSocket(t, socketPath, server)
 }
 
-func StartWorkloadAPIOnSocket(t *testing.T, socketPath string, server workload.SpiffeWorkloadAPIServer) {
-	StartGRPCSocketServer(t, socketPath, func(s *grpc.Server) {
+func StartWorkloadAPIOnFreeTCPSocket(t *testing.T, server workload.SpiffeWorkloadAPIServer) *net.TCPAddr {
+	return StartWorkloadAPIOnTCPSocket(t, 0, server)
+}
+
+func StartWorkloadAPIOnUDSSocket(t *testing.T, socketPath string, server workload.SpiffeWorkloadAPIServer) *net.UnixAddr {
+	return StartGRPCUDSSocketServer(t, socketPath, func(s *grpc.Server) {
 		workload.RegisterSpiffeWorkloadAPIServer(s, server)
 	})
 }
 
-func StartGRPCSocketServerOnTempSocket(t *testing.T, registerFn func(s *grpc.Server)) string {
+func StartWorkloadAPIOnTCPSocket(t *testing.T, tcpSocketPort int, server workload.SpiffeWorkloadAPIServer) *net.TCPAddr {
+	return StartGRPCTCPSocketServer(t, 0, func(s *grpc.Server) {
+		workload.RegisterSpiffeWorkloadAPIServer(s, server)
+	})
+}
+
+func StartGRPCSocketServerOnTempUDSSocket(t *testing.T, registerFn func(s *grpc.Server)) string {
 	dir := TempDir(t)
 	socketPath := filepath.Join(dir, "server.sock")
-	StartGRPCSocketServer(t, socketPath, registerFn)
+	StartGRPCUDSSocketServer(t, socketPath, registerFn)
 	return socketPath
 }
 
-func StartGRPCSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) {
+func StartGRPCSocketServerOnFreeTCPSocket(t *testing.T, registerFn func(s *grpc.Server)) *net.TCPAddr {
+	return StartGRPCTCPSocketServer(t, 0, registerFn)
+}
+
+func StartGRPCUDSSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) *net.UnixAddr {
 	server := grpc.NewServer()
 	registerFn(server)
 
-	ServeGRPCServerOnSocket(t, server, socketPath)
+	return ServeGRPCServerOnUDSSocket(t, server, socketPath)
 }
 
-func ServeGRPCServerOnTempSocket(t *testing.T, server *grpc.Server) string {
+func StartGRPCTCPSocketServer(t *testing.T, tcpSocketPort int, registerFn func(s *grpc.Server)) *net.TCPAddr {
+	server := grpc.NewServer()
+	registerFn(server)
+
+	return ServeGRPCServerOnTCPSocket(t, server, tcpSocketPort)
+}
+
+func ServeGRPCServerOnTempUDSSocket(t *testing.T, server *grpc.Server) string {
 	dir := TempDir(t)
 	socketPath := filepath.Join(dir, "server.sock")
-	ServeGRPCServerOnSocket(t, server, socketPath)
+	ServeGRPCServerOnUDSSocket(t, server, socketPath)
 	return socketPath
 }
 
-func ServeGRPCServerOnSocket(t *testing.T, server *grpc.Server, socketPath string) {
+func ServeGRPCServerOnFreeTCPSocket(t *testing.T, server *grpc.Server) *net.TCPAddr {
+	return ServeGRPCServerOnTCPSocket(t, server, 0)
+}
+
+func ServeGRPCServerOnUDSSocket(t *testing.T, server *grpc.Server, socketPath string) *net.UnixAddr {
 	// ensure the directory holding the socket exists
 	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
 
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 	ServeGRPCServerOnListener(t, server, listener)
+	return listener.Addr().(*net.UnixAddr)
+}
+
+func ServeGRPCServerOnTCPSocket(t *testing.T, server *grpc.Server, tcpSocketPort int) *net.TCPAddr {
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", tcpSocketPort))
+	require.NoError(t, err)
+	ServeGRPCServerOnListener(t, server, listener)
+	return listener.Addr().(*net.TCPAddr)
 }
 
 func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.Listener) {
