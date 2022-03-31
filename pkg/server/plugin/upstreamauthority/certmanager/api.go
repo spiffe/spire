@@ -58,9 +58,8 @@ func (p *Plugin) buildCertificateRequest(request *upstreamauthorityv1.MintX509CA
 			Request: csrBuf.Bytes(),
 			IsCA:    true,
 			Usages: []cmapi.KeyUsage{
-				cmapi.UsageDigitalSignature,
 				cmapi.UsageCertSign,
-				cmapi.UsageCertSign,
+				cmapi.UsageCRLSign,
 			},
 		},
 	}, nil

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -21,14 +22,26 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	admissionv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	aggregator "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+	fakeaggregator "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+	aggregatorinformers "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 )
 
 var (
@@ -56,8 +69,10 @@ var (
 
 const (
 	// PEM encoding of the root CAs in testBundle
-	testBundleData  = "-----BEGIN CERTIFICATE-----\nRk9P\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n"
-	testBundle2Data = "-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFa\n-----END CERTIFICATE-----\n"
+	testBundleData   = "-----BEGIN CERTIFICATE-----\nRk9P\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n"
+	testBundle2Data  = "-----BEGIN CERTIFICATE-----\nQkFS\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\nQkFa\n-----END CERTIFICATE-----\n"
+	testTimeout      = time.Minute
+	testPollInterval = 50 * time.Millisecond
 )
 
 func TestNotifyFailsIfNotConfigured(t *testing.T) {
@@ -80,12 +95,6 @@ func TestNotifyAndAdviseFailsIfNotConfigured(t *testing.T) {
 
 	err := notifier.NotifyAndAdviseBundleLoaded(context.Background(), &common.Bundle{TrustDomainId: "spiffe://example.org"})
 	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "notifier(k8sbundle): not configured")
-}
-
-func TestBundleLoadedWhenCannotCreateClient(t *testing.T) {
-	test := setupTest(t, withKubeClientError())
-	err := test.notifier.NotifyAndAdviseBundleLoaded(context.Background(), commonBundle)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube clients: kube client not configured")
 }
 
 func TestBundleLoadedConfigMapGetFailure(t *testing.T) {
@@ -217,10 +226,159 @@ clusters  = [
 	}, test.kubeClient.getConfigMap("NAMESPACE2", "CONFIGMAP2"))
 }
 
-func TestBundleUpdatedWhenCannotCreateClient(t *testing.T) {
-	test := setupTest(t, withKubeClientError())
-	err := test.notifier.NotifyBundleUpdated(context.Background(), commonBundle)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "notifier(k8sbundle): failed to create kube clients: kube client not configured")
+func TestBundleInformerAddWebhookEvent(t *testing.T) {
+	plainConfig := `
+webhook_label = "WEBHOOK_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+
+	test := setupTest(t, withPlainConfig(plainConfig))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	waitForInformerWatcher(t, test.webhookClient.watcherStarted)
+	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", "")
+
+	require.Eventually(t, func() bool {
+		actualWebhook, err := test.webhookClient.Get(context.Background(), webhook.Namespace, webhook.Name)
+		require.NoError(t, err)
+		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            webhook.Name,
+				ResourceVersion: "1",
+			},
+			Webhooks: []admissionv1.MutatingWebhook{
+				{
+					ClientConfig: admissionv1.WebhookClientConfig{
+						CABundle: []byte(testBundleData),
+					},
+				},
+			},
+		}, actualWebhook)
+	}, testTimeout, testPollInterval)
+}
+
+func TestBundleInformerAddAPIServiceEvent(t *testing.T) {
+	plainConfig := `
+api_service_label = "API_SERVICE_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+
+	test := setupTest(t, withPlainConfig(plainConfig))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	waitForInformerWatcher(t, test.apiServiceClient.watcherStarted)
+	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", "")
+
+	require.Eventually(t, func() bool {
+		actualAPIService, err := test.apiServiceClient.Get(context.Background(), apiService.Namespace, apiService.Name)
+		require.NoError(t, err)
+		return assert.Equal(t, &apiregistrationv1.APIService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            apiService.Name,
+				ResourceVersion: "1",
+			},
+			Spec: apiregistrationv1.APIServiceSpec{
+				CABundle: []byte(testBundleData),
+			},
+		}, actualAPIService)
+	}, testTimeout, testPollInterval)
+}
+
+func TestBundleInformerWebhookAlreadyUpToDate(t *testing.T) {
+	plainConfig := `
+webhook_label = "WEBHOOK_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+	var test *test
+	updateDone := make(chan struct{})
+	test = setupTest(t, withPlainConfig(plainConfig), withInformerCallback(func(client kubeClient, obj runtime.Object) {
+		objectMeta, err := meta.Accessor(obj)
+		require.NoError(t, err)
+
+		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
+		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		updateDone <- struct{}{}
+	}))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	waitForInformerWatcher(t, test.webhookClient.watcherStarted)
+	newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", testBundleData)
+
+	select {
+	case <-updateDone:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for bundle update")
+	}
+}
+
+func TestBundleInformerAPIServiceAlreadyUpToDate(t *testing.T) {
+	plainConfig := `
+api_service_label = "API_SERVICE_LABEL"
+kube_config_file_path = "/some/file/path"
+`
+	var test *test
+	updateDone := make(chan struct{})
+	test = setupTest(t, withPlainConfig(plainConfig), withInformerCallback(func(client kubeClient, obj runtime.Object) {
+		objectMeta, err := meta.Accessor(obj)
+		require.NoError(t, err)
+
+		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
+		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		updateDone <- struct{}{}
+	}))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	test.identityProvider.AppendBundle(testBundle)
+
+	waitForInformerWatcher(t, test.apiServiceClient.watcherStarted)
+	newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", testBundleData)
+
+	select {
+	case <-updateDone:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for bundle update")
+	}
+}
+
+func TestBundleInformerUpdateConfig(t *testing.T) {
+	initialConfig := `
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+config_map_key = "CONFIGMAPKEY"
+webhook_label = "WEBHOOK_LABEL"
+api_service_label = "API_SERVICE_LABEL"
+`
+	test := setupTest(t, withPlainConfig(initialConfig))
+	require.NotNil(t, test.rawPlugin.stopCh)
+	require.Eventually(t, func() bool {
+		return test.webhookClient.webhookLabel == "WEBHOOK_LABEL"
+	}, testTimeout, testPollInterval)
+	require.Eventually(t, func() bool {
+		return test.apiServiceClient.apiServiceLabel == "API_SERVICE_LABEL"
+	}, testTimeout, testPollInterval)
+
+	finalConfig := `
+namespace = "NAMESPACE"
+config_map = "CONFIGMAP"
+config_map_key = "CONFIGMAPKEY"
+webhook_label = "WEBHOOK_LABEL2"
+api_service_label = "API_SERVICE_LABEL2"
+kube_config_file_path = "/some/file/path"
+`
+	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{},
+		HclConfiguration:  finalConfig,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, test.rawPlugin.stopCh)
+	require.Eventually(t, func() bool {
+		return test.webhookClient.webhookLabel == "WEBHOOK_LABEL2"
+	}, testTimeout, testPollInterval)
+	require.Eventually(t, func() bool {
+		return test.apiServiceClient.apiServiceLabel == "API_SERVICE_LABEL2"
+	}, testTimeout, testPollInterval)
 }
 
 func TestBundleUpdatedConfigMapGetFailure(t *testing.T) {
@@ -615,8 +773,8 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 	return nil
 }
 
-func (c *fakeKubeClient) Watch(ctx context.Context) (watch.Interface, error) {
-	return nil, nil
+func (c *fakeKubeClient) Informer(callback informerCallback) cache.SharedIndexInformer {
+	return nil
 }
 
 func (c *fakeKubeClient) getConfigMap(namespace, configMap string) *corev1.ConfigMap {
@@ -661,20 +819,129 @@ func newConfigMap() *corev1.ConfigMap {
 	}
 }
 
+type fakeWebhookClient struct {
+	mutatingWebhookClient
+	watcherStarted chan struct{}
+}
+
+func newFakeWebhookClient(config *pluginConfig) *fakeWebhookClient {
+	client := fake.NewSimpleClientset()
+	w := &fakeWebhookClient{
+		mutatingWebhookClient: mutatingWebhookClient{
+			Interface:    client,
+			webhookLabel: config.WebhookLabel,
+			factory: informers.NewSharedInformerFactoryWithOptions(
+				client,
+				0,
+				informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+					options.LabelSelector = fmt.Sprintf("%s=true", config.WebhookLabel)
+				}),
+			),
+		},
+		watcherStarted: make(chan struct{}),
+	}
+
+	// A catch-all watch reactor that allows us to inject the watcherStarted channel. We will later wait on this channel before
+	// using the fake client. See waitForInformerWatcher().
+	client.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		watch, err := client.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(w.watcherStarted)
+		return true, watch, nil
+	})
+	return w
+}
+
+func newMutatingWebhook(t *testing.T, client kubernetes.Interface, name, bundle string) *admissionv1.MutatingWebhookConfiguration {
+	webhook := &admissionv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			ResourceVersion: "1",
+		},
+		Webhooks: []admissionv1.MutatingWebhook{
+			{
+				ClientConfig: admissionv1.WebhookClientConfig{
+					CABundle: []byte(bundle),
+				},
+			},
+		},
+	}
+	_, err := client.AdmissionregistrationV1().MutatingWebhookConfigurations().Create(context.Background(), webhook, metav1.CreateOptions{})
+	require.NoError(t, err)
+	return webhook
+}
+
+type fakeAPIServiceClient struct {
+	apiServiceClient
+	watcherStarted chan struct{}
+}
+
+func newFakeAPIServiceClient(config *pluginConfig) *fakeAPIServiceClient {
+	client := fakeaggregator.NewSimpleClientset()
+	a := &fakeAPIServiceClient{
+		apiServiceClient: apiServiceClient{
+			Interface:       client,
+			apiServiceLabel: config.APIServiceLabel,
+			factory: aggregatorinformers.NewSharedInformerFactoryWithOptions(
+				client,
+				0,
+				aggregatorinformers.WithTweakListOptions(func(options *metav1.ListOptions) {
+					options.LabelSelector = fmt.Sprintf("%s=true", config.APIServiceLabel)
+				}),
+			),
+		},
+		watcherStarted: make(chan struct{}),
+	}
+
+	// A catch-all watch reactor that allows us to inject the watcherStarted channel. We will later wait on this channel before
+	// using the fake client. See waitForInformerWatcher().
+	client.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		watch, err := client.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(a.watcherStarted)
+		return true, watch, nil
+	})
+	return a
+}
+
+func newAPIService(t *testing.T, client aggregator.Interface, name, bundle string) *apiregistrationv1.APIService {
+	apiService := &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			ResourceVersion: "1",
+		},
+		Spec: apiregistrationv1.APIServiceSpec{
+			CABundle: []byte(bundle),
+		},
+	}
+	_, err := client.ApiregistrationV1().APIServices().Create(context.Background(), apiService, metav1.CreateOptions{})
+	require.NoError(t, err)
+	return apiService
+}
+
 type test struct {
 	identityProvider *fakeidentityprovider.IdentityProvider
 	rawPlugin        *Plugin
 	notifier         *notifier.V1
 	clients          []kubeClient
 	kubeClient       *fakeKubeClient
-	webhookClient    *fakeWebhook
-	apiServiceClient *fakeAPIService
+	webhookClient    *fakeWebhookClient
+	apiServiceClient *fakeAPIServiceClient
 }
 
 type testOptions struct {
-	plainConfig     string
-	kubeClientError bool
-	doConfigure     bool
+	plainConfig      string
+	kubeClientError  bool
+	doConfigure      bool
+	informerCallback informerCallback
 }
 
 type testOption func(*testOptions)
@@ -685,15 +952,15 @@ func withPlainConfig(plainConfig string) testOption {
 	}
 }
 
-func withKubeClientError() testOption {
-	return func(args *testOptions) {
-		args.kubeClientError = true
-	}
-}
-
 func withNoConfigure() testOption {
 	return func(args *testOptions) {
 		args.doConfigure = false
+	}
+}
+
+func withInformerCallback(callback informerCallback) testOption {
+	return func(args *testOptions) {
+		args.informerCallback = callback
 	}
 }
 
@@ -734,15 +1001,19 @@ func setupTest(t *testing.T, options ...testOption) *test {
 		test.clients = append([]kubeClient{}, test.kubeClient)
 
 		if c.WebhookLabel != "" {
-			test.webhookClient = newFakeWebhook(c)
+			test.webhookClient = newFakeWebhookClient(c)
 			test.clients = append(test.clients, test.webhookClient)
 		}
 		if c.APIServiceLabel != "" {
-			test.apiServiceClient = newFakeAPIService(c)
+			test.apiServiceClient = newFakeAPIServiceClient(c)
 			test.clients = append(test.clients, test.apiServiceClient)
 		}
 
 		return test.clients, nil
+	}
+
+	if args.informerCallback != nil {
+		raw.hooks.informerCallback = args.informerCallback
 	}
 
 	if args.doConfigure {
@@ -763,4 +1034,15 @@ func setupTest(t *testing.T, options ...testOption) *test {
 	}
 
 	return test
+}
+
+// waitForInformerWatcher wait until the watcher embedded in the informer starts up. The fake client doesn't support
+// resource versions, so any writes to the fake client after the informer's initial LIST and before the informer
+// establishing the watcher will be missed by the informer.
+func waitForInformerWatcher(t *testing.T, watcher chan struct{}) {
+	select {
+	case <-watcher:
+	case <-time.After(testTimeout):
+		require.FailNow(t, "timed out waiting for watcher to start")
+	}
 }

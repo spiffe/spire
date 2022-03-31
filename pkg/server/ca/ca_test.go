@@ -323,7 +323,7 @@ func (s *CATestSuite) TestSignX509CASVID() {
 	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
 	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
 	s.NotEmpty(svid.AuthorityKeyId, "AuthorityKeyId is not set")
-	s.Equal(x509.KeyUsageDigitalSignature|x509.KeyUsageCertSign|x509.KeyUsageCRLSign, svid.KeyUsage, "key usage does not match")
+	s.Equal(x509.KeyUsageCertSign|x509.KeyUsageCRLSign, svid.KeyUsage, "key usage does not match")
 	s.True(svid.IsCA, "CA bit is not set")
 	s.True(svid.BasicConstraintsValid, "Basic constraints are not valid")
 
