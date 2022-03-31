@@ -2,20 +2,17 @@ package util
 
 import (
 	"context"
-	"os"
 	"os/signal"
 	"syscall"
 )
 
-func SignalListener(ctx context.Context, cancel func()) {
+func SignalListener(parent context.Context, cancel func()) {
 	go func() {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+		ctx, cancel := signal.NotifyContext(parent, syscall.SIGINT, syscall.SIGTERM)
 
 		select {
+		case <-parent.Done():
 		case <-ctx.Done():
-			return
-		case <-signalCh:
 			cancel()
 		}
 	}()

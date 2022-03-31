@@ -4,7 +4,6 @@ package log
 
 import (
 	"context"
-	"os"
 	"os/signal"
 	"syscall"
 )
@@ -16,24 +15,25 @@ const (
 
 // ReopenOnSignal returns a function compatible with RunTasks.
 func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) error {
-	return func(ctx context.Context) error {
-		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, reopenSignal)
-		return reopenOnSignal(ctx, logger, reopener, signalCh)
+	return func(parent context.Context) error {
+		ctx, cancel := signal.NotifyContext(parent, reopenSignal)
+		return reopenOnSignal(parent, ctx, cancel, logger, reopener)
 	}
 }
 
 func reopenOnSignal(
+	parent context.Context,
 	ctx context.Context,
+	cancel context.CancelFunc,
 	logger *Logger,
 	reopener Reopener,
-	signalCh chan os.Signal,
 ) error {
 	for {
 		select {
-		case <-ctx.Done():
+		case <-parent.Done():
+			cancel()
 			return nil
-		case <-signalCh:
+		case <-ctx.Done():
 			if err := reopener.Reopen(); err != nil {
 				// never fail; best effort to log to old file descriptor
 				logger.WithError(err).Error(failedToReopenMsg)
