@@ -108,8 +108,8 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509SVIDsRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
-	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 
+	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 	if err != nil {
 		return err
 	}
@@ -203,8 +203,8 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX509BundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509BundlesServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
-	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 
+	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 	if err != nil {
 		return err
 	}
@@ -314,8 +314,8 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 func (s *Service) SubscribeToJWTBundles(req *delegatedidentityv1.SubscribeToJWTBundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToJWTBundlesServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
-	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 
+	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 	if err != nil {
 		return err
 	}
