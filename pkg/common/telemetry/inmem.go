@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"io"
+	"os"
 	"os/signal"
 	"sync"
 	"time"
@@ -77,20 +78,20 @@ func (i *inmemRunner) run(ctx context.Context) error {
 	return nil
 }
 
-func (i *inmemRunner) startConfigWarning(parent context.Context, wg *sync.WaitGroup) {
+func (i *inmemRunner) startConfigWarning(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
-	ctx, cancel := signal.NotifyContext(parent, metrics.DefaultSignal)
-
+	sigChannel := make(chan os.Signal, 1)
+	signal.Notify(sigChannel, metrics.DefaultSignal)
 	go func() {
 		defer wg.Done()
 		for {
 			select {
-			case <-parent.Done():
-				cancel()
-				return
-			case <-ctx.Done():
+			case <-sigChannel:
 				i.log.Warn("The in-memory telemetry sink will be disabled by default in a future release." +
 					" If you wish to continue using it, please enable it in the telemetry configuration")
+			case <-ctx.Done():
+				signal.Stop(sigChannel)
+				return
 			}
 		}
 	}()
