@@ -6,7 +6,6 @@ package windows
 import (
 	"context"
 	"fmt"
-	"strings"
 	"syscall"
 
 	"github.com/hashicorp/go-hclog"
@@ -34,7 +33,7 @@ type Plugin struct {
 	q   processQueryer
 }
 
-type process struct {
+type processInfo struct {
 	pid        int32
 	user       string
 	userSID    string
@@ -43,18 +42,18 @@ type process struct {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	process, err := p.newProcess(req.Pid, p.q)
+	process, err := p.newProcessInfo(req.Pid, p.q)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get process information: %v", err)
 	}
 	var selectorValues []string
-	selectorValues = addSelectorValueIfNotEmpty(selectorValues, "user", process.user)
+	selectorValues = addSelectorValueIfNotEmpty(selectorValues, "user_name", process.user)
 	selectorValues = addSelectorValueIfNotEmpty(selectorValues, "user_sid", process.userSID)
 	for _, groupSID := range process.groupsSIDs {
-		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "enabled_group_sid", groupSID)
+		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "group_sid", groupSID)
 	}
 	for _, group := range process.groups {
-		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "enabled_group", group)
+		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "group_name", group)
 	}
 
 	return &workloadattestorv1.AttestResponse{
@@ -66,7 +65,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) newProcess(pid int32, q processQueryer) (*process, error) {
+func (p *Plugin) newProcessInfo(pid int32, q processQueryer) (*processInfo, error) {
 	h, err := q.OpenProcess(pid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open process: %w", err)
@@ -92,13 +91,13 @@ func (p *Plugin) newProcess(pid int32, q processQueryer) (*process, error) {
 		return nil, fmt.Errorf("failed to retrieve user account information from access token: %w", err)
 	}
 
-	process := &process{pid: pid}
-	process.userSID = tokenUser.User.Sid.String()
+	processInfo := &processInfo{pid: pid}
+	processInfo.userSID = tokenUser.User.Sid.String()
 	userAccount, userDomain, err := q.LookupAccount(tokenUser.User.Sid)
 	if err != nil {
 		p.log.Warn("failed to lookup account from user SID", "sid", tokenUser.User.Sid, "error", err)
 	} else {
-		process.user = parseAccount(userAccount, userDomain)
+		processInfo.user = parseAccount(userAccount, userDomain)
 	}
 
 	// Get groups information
@@ -111,22 +110,20 @@ func (p *Plugin) newProcess(pid int32, q processQueryer) (*process, error) {
 	for _, group := range groups {
 		// Each group has a set of attributes that control how
 		// the system uses the SID in an access check.
-		// We are collecting only the groups with the SE_GROUP_ENABLED
-		// attribute, which means that the SID is enabled for access checks.
-		if group.Attributes&windows.SE_GROUP_ENABLED == 0 {
-			continue
-		}
-		process.groupsSIDs = append(process.groupsSIDs, group.Sid.String())
+		// We are interested in the SE_GROUP_ENABLED attribute.
+		// https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token
+		enabledSelector := getGroupEnabledSelector(group.Attributes)
+		processInfo.groupsSIDs = append(processInfo.groupsSIDs, enabledSelector+":"+group.Sid.String())
 		groupAccount, groupDomain, err := q.LookupAccount(group.Sid)
 		if err != nil {
 			p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
 			continue
 		}
-
-		process.groups = append(process.groups, parseAccount(groupAccount, groupDomain))
+		// If the LookupAccount call succeeded, we know that groupAccount is not empty
+		processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 	}
 
-	return process, nil
+	return processInfo, nil
 }
 
 type processQueryer interface {
@@ -189,5 +186,15 @@ func addSelectorValueIfNotEmpty(selectorValues []string, kind, value string) []s
 }
 
 func parseAccount(account, domain string) string {
-	return strings.Trim(domain+"\\"+account, "\\")
+	if domain == "" {
+		return account
+	}
+	return domain + "\\" + account
+}
+
+func getGroupEnabledSelector(attributes uint32) string {
+	if attributes&windows.SE_GROUP_ENABLED != 0 {
+		return "se_group_enabled:true"
+	}
+	return "se_group_enabled:false"
 }
