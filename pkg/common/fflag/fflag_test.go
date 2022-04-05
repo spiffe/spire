@@ -8,38 +8,28 @@ import (
 	"github.com/hashicorp/hcl/hcl/ast"
 )
 
-const (
-	flagTestFlag Flag = "i_am_a_test_flag"
-)
-
-var (
-	supplementalTestFlag = map[Flag]bool{
-		flagTestFlag: false,
-	}
-)
-
 func TestLoadOnce(t *testing.T) {
 	// Ensure loader is reset
 	singleton.loaded = new(sync.Once)
-	singleton.flags[flagTestFlag] = false
+	singleton.flags[FlagTestFlag] = false
 
 	config := strToConfig(t, "{i_am_a_test_flag = true}")
-	err := Load(config, supplementalTestFlag)
+	err := Load(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !IsSet(flagTestFlag) {
+	if !IsSet(FlagTestFlag) {
 		t.Fatal("expected test flag to be set after loading it but it was not")
 	}
 
 	config = strToConfig(t, "{i_am_a_test_flag = false}")
-	err = Load(config, supplementalTestFlag)
+	err = Load(config)
 	if err == nil {
 		t.Fatal("expected an error when loading for the second time but got none")
 	}
 
-	if !IsSet(flagTestFlag) {
+	if !IsSet(FlagTestFlag) {
 		t.Fatalf("expected test flag to be undisturbed after error but it was not")
 	}
 }
@@ -62,9 +52,9 @@ func TestLoad(t *testing.T) {
 		{
 			name:        "loads with the test flag set",
 			config:      "{i_am_a_test_flag = true}",
-			preUnset:    []Flag{flagTestFlag},
+			preUnset:    []Flag{FlagTestFlag},
 			expectError: false,
-			expectSet:   []Flag{flagTestFlag},
+			expectSet:   []Flag{FlagTestFlag},
 		},
 		{
 			name:        "does not load when bad flags are set",
@@ -74,9 +64,9 @@ func TestLoad(t *testing.T) {
 		{
 			name:        "does not load when bad flags are set alongside good ones",
 			config:      "{i_am_a_test_flag = true \n non_existent_flag = true}",
-			preUnset:    []Flag{flagTestFlag},
+			preUnset:    []Flag{FlagTestFlag},
 			expectError: true,
-			expectUnset: []Flag{flagTestFlag},
+			expectUnset: []Flag{FlagTestFlag},
 		},
 		{
 			name:        "does not load when the syntax is wrong for a real flag",
@@ -86,23 +76,23 @@ func TestLoad(t *testing.T) {
 		{
 			name:        "does not change the default value when enabled",
 			config:      "{}",
-			preSet:      []Flag{flagTestFlag},
+			preSet:      []Flag{FlagTestFlag},
 			expectError: false,
-			expectSet:   []Flag{flagTestFlag},
+			expectSet:   []Flag{FlagTestFlag},
 		},
 		{
 			name:        "does not change the default value when disabled",
 			config:      "{}",
-			preUnset:    []Flag{flagTestFlag},
+			preUnset:    []Flag{FlagTestFlag},
 			expectError: false,
-			expectUnset: []Flag{flagTestFlag},
+			expectUnset: []Flag{FlagTestFlag},
 		},
 		{
 			name:        "can be used to disable features",
 			config:      "{i_am_a_test_flag = false}",
-			preSet:      []Flag{flagTestFlag},
+			preSet:      []Flag{FlagTestFlag},
 			expectError: false,
-			expectUnset: []Flag{flagTestFlag},
+			expectUnset: []Flag{FlagTestFlag},
 		},
 	}
 
@@ -119,7 +109,7 @@ func TestLoad(t *testing.T) {
 				singleton.flags[unset] = false
 			}
 
-			err := Load(strToConfig(t, c.config), supplementalTestFlag)
+			err := Load(strToConfig(t, c.config))
 			if err != nil && !c.expectError {
 				t.Errorf("unexpected error: %v", err)
 			}

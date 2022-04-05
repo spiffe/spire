@@ -13,21 +13,31 @@ import (
 // Flag represents a feature flag and its configuration name
 type Flag string
 
-// To add a feature flag, declare it in `common.go`, `agent.go`, or
-// `server.go` depending on where it should be considered valid. Then,
-// add it to the relevant package-level map, setting the appropriate
-// default value. Common feature flags are added to the map in `common.go`,
-// while agent or server specific flags are added to the map in the `afflag` or
-// `sfflag` package, located in the agent or server codebase, respectively.
-// Flags should always be opt-in, and default to false, with the only exception
-// being flags that are in the process of being deprecated.
+// To add a feature flag, decleare it here along with its config name.
+// Then, add it to the `flags` package-level singleton map below, setting the
+// appropriate default value. Flags should always be opt-in and default to
+// false, with the only exception being flags that are in the process of being
+// deprecated.
+const (
+	// FlagForcedRotation controls whether or not the new APIs and
+	// extensions related to forced rotation and revocation are
+	// enabled or not. See #1934 for more information.
+	FlagForcedRotation Flag = "forced_rotation"
+
+	// FlagTestFlag is defined purely for testing purposes.
+	FlagTestFlag Flag = "i_am_a_test_flag"
+)
+
 var (
 	singleton = struct {
 		flags  map[Flag]bool
 		loaded *sync.Once
 		mtx    *sync.RWMutex
 	}{
-		flags:  commonFlagMap,
+		flags: map[Flag]bool{
+			FlagForcedRotation: false,
+			FlagTestFlag:       false,
+		},
 		loaded: new(sync.Once),
 		mtx:    new(sync.RWMutex),
 	}
@@ -38,13 +48,13 @@ var (
 // Write-Once-Read-Many, and as such, Load can be called only once. Load will
 // return an error if it is called more than once, if the configuration input
 // cannot be parsed, or if an unrecognized flag is set.
-func Load(rc RawConfig, supplementalFlags map[Flag]bool) error {
+func Load(rc RawConfig) error {
 	flagConfig, err := parseRawConfig(rc)
 	if err != nil {
 		return fmt.Errorf("could not parse feature flag configuration: %w", err)
 	}
 
-	err = validateFlags(flagConfig, supplementalFlags)
+	err = validateFlags(flagConfig)
 	if err != nil {
 		return fmt.Errorf("bad feature flag configuration: %w", err)
 	}
@@ -52,7 +62,7 @@ func Load(rc RawConfig, supplementalFlags map[Flag]bool) error {
 	ok := false
 	singleton.loaded.Do(func() {
 		ok = true
-		load(flagConfig, supplementalFlags)
+		load(flagConfig)
 	})
 
 	if !ok {
@@ -71,18 +81,9 @@ func IsSet(f Flag) bool {
 	return singleton.flags[f]
 }
 
-func load(flagConfig map[string]bool, supplementalFlags map[Flag]bool) {
+func load(flagConfig map[string]bool) {
 	singleton.mtx.Lock()
 	defer singleton.mtx.Unlock()
-
-	for f, v := range supplementalFlags {
-		// Common flags should take precedent
-		if _, ok := singleton.flags[f]; ok {
-			continue
-		}
-
-		singleton.flags[f] = v
-	}
 
 	for flag := range singleton.flags {
 		if value, ok := flagConfig[string(flag)]; ok {
@@ -91,16 +92,10 @@ func load(flagConfig map[string]bool, supplementalFlags map[Flag]bool) {
 	}
 }
 
-func validateFlags(flagConfig map[string]bool, supplementalFlags map[Flag]bool) error {
+func validateFlags(flagConfig map[string]bool) error {
 	badFlags := make(map[string]bool)
 	for name := range flagConfig {
 		badFlags[name] = true
-	}
-
-	for flag := range supplementalFlags {
-		if _, ok := badFlags[string(flag)]; ok {
-			badFlags[string(flag)] = false
-		}
 	}
 
 	singleton.mtx.RLock()

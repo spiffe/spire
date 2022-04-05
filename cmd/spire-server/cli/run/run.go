@@ -35,7 +35,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/server/sfflag"
 )
 
 const (
@@ -213,7 +212,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
-	err = fflag.Load(fflag.RawConfig(input.Flags), sfflag.ServerFlagMap)
+	err = fflag.Load(fflag.RawConfig(input.Flags))
 	if err != nil {
 		return nil, err
 	}
