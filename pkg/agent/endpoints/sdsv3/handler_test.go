@@ -406,7 +406,7 @@ func TestStreamSecrets(t *testing.T) {
 				},
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "unable to retrieve all requested identities, missing map[spiffe://domain.test/WHATEVER:true]",
+			expectMsg:  `workload is not authorized for the requested identities ["spiffe://domain.test/WHATEVER"]`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -740,7 +740,7 @@ func TestFetchSecrets(t *testing.T) {
 				},
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `unable to retrieve all requested identities, missing map[spiffe://domain.test/other:true]`,
+			expectMsg:  `workload is not authorized for the requested identities ["spiffe://domain.test/other"]`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
