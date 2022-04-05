@@ -41,8 +41,12 @@ type processInfo struct {
 	groupsSIDs []string
 }
 
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
+}
+
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	process, err := p.newProcessInfo(req.Pid, p.q)
+	process, err := p.newProcessInfo(req.Pid)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get process information: %v", err)
 	}
@@ -61,17 +65,15 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
-func (p *Plugin) SetLogger(log hclog.Logger) {
-	p.log = log
-}
+func (p *Plugin) newProcessInfo(pid int32) (*processInfo, error) {
+	p.log = p.log.With(telemetry.PID, pid)
 
-func (p *Plugin) newProcessInfo(pid int32, q processQueryer) (*processInfo, error) {
-	h, err := q.OpenProcess(pid)
+	h, err := p.q.OpenProcess(pid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open process: %w", err)
 	}
 	defer func() {
-		if err := windows.CloseHandle(h); err != nil {
+		if err := p.q.CloseHandle(h); err != nil {
 			p.log.Warn("Could not close process handle", telemetry.Error, err)
 		}
 	}()
@@ -79,21 +81,25 @@ func (p *Plugin) newProcessInfo(pid int32, q processQueryer) (*processInfo, erro
 	// Retrieve an access token to describe the security context of
 	// the process from which we obtained the handle.
 	var token windows.Token
-	err = q.OpenProcessToken(h, &token)
+	err = p.q.OpenProcessToken(h, &token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the access token associated with the process: %w", err)
 	}
-	defer token.Close()
+	defer func() {
+		if err := p.q.CloseProcessToken(token); err != nil {
+			p.log.Warn("Could not close access token", telemetry.Error, err)
+		}
+	}()
 
 	// Get user information
-	tokenUser, err := q.GetTokenUser(&token)
+	tokenUser, err := p.q.GetTokenUser(&token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve user account information from access token: %w", err)
 	}
 
 	processInfo := &processInfo{pid: pid}
 	processInfo.userSID = tokenUser.User.Sid.String()
-	userAccount, userDomain, err := q.LookupAccount(tokenUser.User.Sid)
+	userAccount, userDomain, err := p.q.LookupAccount(tokenUser.User.Sid)
 	if err != nil {
 		p.log.Warn("failed to lookup account from user SID", "sid", tokenUser.User.Sid, "error", err)
 	} else {
@@ -101,11 +107,11 @@ func (p *Plugin) newProcessInfo(pid int32, q processQueryer) (*processInfo, erro
 	}
 
 	// Get groups information
-	tokenGroups, err := q.GetTokenGroups(&token)
+	tokenGroups, err := p.q.GetTokenGroups(&token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve group accounts information from access token: %w", err)
 	}
-	groups := q.AllGroups(tokenGroups)
+	groups := p.q.AllGroups(tokenGroups)
 
 	for _, group := range groups {
 		// Each group has a set of attributes that control how
@@ -114,7 +120,7 @@ func (p *Plugin) newProcessInfo(pid int32, q processQueryer) (*processInfo, erro
 		// https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token
 		enabledSelector := getGroupEnabledSelector(group.Attributes)
 		processInfo.groupsSIDs = append(processInfo.groupsSIDs, enabledSelector+":"+group.Sid.String())
-		groupAccount, groupDomain, err := q.LookupAccount(group.Sid)
+		groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
 		if err != nil {
 			p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
 			continue
@@ -148,6 +154,12 @@ type processQueryer interface {
 	// AllGroups returns a slice that can be used to iterate over
 	// the specified Tokengroups.
 	AllGroups(*windows.Tokengroups) []windows.SIDAndAttributes
+
+	// CloseHandle closes an open object handle.
+	CloseHandle(windows.Handle) error
+
+	// CloseProcessToken releases access to the specified access token.
+	CloseProcessToken(windows.Token) error
 }
 
 type processQuery struct {
@@ -176,6 +188,14 @@ func (q *processQuery) GetTokenGroups(t *windows.Token) (*windows.Tokengroups, e
 
 func (q *processQuery) AllGroups(t *windows.Tokengroups) []windows.SIDAndAttributes {
 	return t.AllGroups()
+}
+
+func (q *processQuery) CloseHandle(h windows.Handle) error {
+	return windows.CloseHandle(h)
+}
+
+func (q *processQuery) CloseProcessToken(t windows.Token) error {
+	return t.Close()
 }
 
 func addSelectorValueIfNotEmpty(selectorValues []string, kind, value string) []string {

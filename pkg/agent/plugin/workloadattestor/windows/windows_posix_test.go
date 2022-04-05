@@ -14,9 +14,8 @@ import (
 
 func TestConfigure(t *testing.T) {
 	var err error
-	loadPlugin(t, plugintest.CaptureConfigureError(&err),
-		plugintest.Configure(""))
-	spiretest.RequireGRPCStatusContains(t, err, codes.Unimplemented, "plugin not supported in this platform")
+	loadPlugin(t, plugintest.CaptureConfigureError(&err), plugintest.Configure(""))
+	spiretest.RequireGRPCStatusContains(t, err, codes.FailedPrecondition, "plugin does not support a configuration interface")
 }
 
 func loadPlugin(t *testing.T, options ...plugintest.Option) workloadattestor.WorkloadAttestor {

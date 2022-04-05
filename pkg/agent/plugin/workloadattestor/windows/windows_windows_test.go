@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -21,6 +22,7 @@ import (
 
 var (
 	ctx              = context.Background()
+	testPID          = 123
 	sidUser, _       = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1001")
 	sidGroup1, _     = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1004")
 	sidGroup2, _     = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1005")
@@ -41,13 +43,13 @@ var (
 
 func TestAttest(t *testing.T) {
 	testCases := []struct {
-		name           string
-		selectorValues []string
-		config         string
-		pq             *fakeProcessQuery
-		expectCode     codes.Code
-		expectMsg      string
-		expectLogs     []spiretest.LogEntry
+		name            string
+		expectSelectors []string
+		config          string
+		pq              *fakeProcessQuery
+		expectCode      codes.Code
+		expectMsg       string
+		expectLogs      []spiretest.LogEntry
 	}{
 		{
 			name: "successful no groups",
@@ -58,7 +60,7 @@ func TestAttest(t *testing.T) {
 				account:     "user1",
 				domain:      "domain1",
 			},
-			selectorValues: []string{
+			expectSelectors: []string{
 				"windows:user_name:domain1\\user1",
 				"windows:user_sid:" + sidUser.String(),
 			},
@@ -74,7 +76,7 @@ func TestAttest(t *testing.T) {
 				domain:           "domain1",
 				sidAndAttributes: []windows.SIDAndAttributes{sidAndAttrGroup1, sidAndAttrGroup3},
 			},
-			selectorValues: []string{
+			expectSelectors: []string{
 				"windows:user_name:domain1\\user1",
 				"windows:user_sid:" + sidUser.String(),
 				"windows:group_sid:se_group_enabled:true:" + sidGroup1.String(),
@@ -94,7 +96,7 @@ func TestAttest(t *testing.T) {
 				domain:           "domain",
 				sidAndAttributes: []windows.SIDAndAttributes{sidAndAttrGroup2},
 			},
-			selectorValues: []string{
+			expectSelectors: []string{
 				"windows:user_name:domain1\\user1",
 				"windows:user_sid:" + sidUser.String(),
 				"windows:group_sid:se_group_enabled:false:" + sidGroup2.String(),
@@ -147,7 +149,7 @@ func TestAttest(t *testing.T) {
 				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{sidAndAttrGroup1}},
 				sidAndAttributes: []windows.SIDAndAttributes{sidAndAttrGroup1},
 			},
-			selectorValues: []string{
+			expectSelectors: []string{
 				"windows:user_sid:" + sidUser.String(),
 				"windows:group_sid:se_group_enabled:true:" + sidGroup1.String(),
 			},
@@ -159,6 +161,7 @@ func TestAttest(t *testing.T) {
 					Data: logrus.Fields{
 						"sid":           sidUser.String(),
 						logrus.ErrorKey: "lookup error",
+						telemetry.PID:   fmt.Sprint(testPID),
 					},
 				},
 				{
@@ -167,6 +170,59 @@ func TestAttest(t *testing.T) {
 					Data: logrus.Fields{
 						"sid":           sidGroup1.String(),
 						logrus.ErrorKey: "lookup error",
+						telemetry.PID:   fmt.Sprint(testPID),
+					},
+				},
+			},
+		},
+		{
+			name: "close handle error",
+			pq: &fakeProcessQuery{
+				handle:         windows.InvalidHandle,
+				tokenUser:      &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups:    &windows.Tokengroups{},
+				account:        "user1",
+				domain:         "domain1",
+				closeHandleErr: errors.New("close handle error"),
+			},
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+			},
+			expectCode: codes.OK,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not close process handle",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "close handle error",
+						telemetry.PID:   fmt.Sprint(testPID),
+					},
+				},
+			},
+		},
+		{
+			name: "close process token error",
+			pq: &fakeProcessQuery{
+				handle:               windows.InvalidHandle,
+				tokenUser:            &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups:          &windows.Tokengroups{},
+				account:              "user1",
+				domain:               "domain1",
+				closeProcessTokenErr: errors.New("close process token error"),
+			},
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+			},
+			expectCode: codes.OK,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Could not close access token",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "close process token error",
+						telemetry.PID:   fmt.Sprint(testPID),
 					},
 				},
 			},
@@ -178,7 +234,7 @@ func TestAttest(t *testing.T) {
 			test := setupTest()
 			p := test.loadPlugin(t, testCase.pq)
 
-			selectors, err := p.Attest(ctx, 123)
+			selectors, err := p.Attest(ctx, testPID)
 			spiretest.RequireGRPCStatus(t, err, testCase.expectCode, testCase.expectMsg)
 			if testCase.expectCode != codes.OK {
 				require.Nil(t, selectors)
@@ -191,7 +247,7 @@ func TestAttest(t *testing.T) {
 			for _, selector := range selectors {
 				selectorValues = append(selectorValues, selector.Type+":"+selector.Value)
 			}
-			require.Equal(t, testCase.selectorValues, selectorValues)
+			require.Equal(t, testCase.expectSelectors, selectorValues)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), testCase.expectLogs)
 		})
 	}
@@ -218,11 +274,13 @@ type fakeProcessQuery struct {
 	account, domain  string
 	sidAndAttributes []windows.SIDAndAttributes
 
-	openProcessErr      error
-	openProcessTokenErr error
-	lookupAccountErr    error
-	getTokenUserErr     error
-	getTokenGroupsErr   error
+	openProcessErr       error
+	openProcessTokenErr  error
+	lookupAccountErr     error
+	getTokenUserErr      error
+	getTokenGroupsErr    error
+	closeHandleErr       error
+	closeProcessTokenErr error
 }
 
 func (q *fakeProcessQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
@@ -262,6 +320,14 @@ func (q *fakeProcessQuery) GetTokenGroups(t *windows.Token) (*windows.Tokengroup
 
 func (q *fakeProcessQuery) AllGroups(t *windows.Tokengroups) []windows.SIDAndAttributes {
 	return q.sidAndAttributes
+}
+
+func (q *fakeProcessQuery) CloseHandle(h windows.Handle) error {
+	return q.closeHandleErr
+}
+
+func (q *fakeProcessQuery) CloseProcessToken(t windows.Token) error {
+	return q.closeProcessTokenErr
 }
 
 func setupTest() *windowsTest {

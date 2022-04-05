@@ -1,7 +1,7 @@
 # Agent plugin: WorkloadAttestor "windows"
 
 The `windows` plugin generates Windows-based selectors for workloads calling the agent.
-It does so by opening an access token associated with the workload process. The system is then interrogated to retrieve user and group accounts information from that access token.
+It does so by opening an access token associated with the workload process. The system is then interrogated to retrieve user and group account information from that access token.
 
 ### Workload Selectors
 
@@ -17,7 +17,7 @@ It does so by opening an access token associated with the workload process. The 
 #### Notes
 - An enabled group in a token is a group that has the [SE_GROUP_ENABLED](https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token) attribute.
 
-- User and group account names are expressend using the [down-level logon name format](https://docs.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name).
+- User and group account names are expressed using the [down-level logon name format](https://docs.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name).
 
 ### Configuration
 
