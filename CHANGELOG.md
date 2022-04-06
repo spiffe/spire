@@ -3,8 +3,6 @@
 ## [1.2.2] - 2022-04-07
 ### Added
 - SPIRE Server and Agent log files can be rotated by sending the `SIGUSR2` signal to the process (#2703)
-- SPIRE Agent now exposes a TCP Workload API endpoint on Windows (#2819)
-- The SPIRE Agent health check on Windows supports the TCP Workload API endpoint (#2868)
 - Entries created by k8s-workload-registrar in CRD mode set the `downstream` field when the corresponding field is set in the SpiffeID CRD object (#2885)
 - Small documentation improvements (#2851)
 ### Fixed
