@@ -21,8 +21,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
