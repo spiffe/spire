@@ -107,7 +107,7 @@ ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
 	exe=".exe"
-else 
+else
 	go_bin_dir = $(go_dir)/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
 	exe=
@@ -297,7 +297,7 @@ endif
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
-else 
+else
 	$(E)./test/integration/test.sh $(SUITES)
 endif
 
@@ -475,9 +475,9 @@ else ifeq ($(os1),windows)
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
-	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url) 
+	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url)
 	$(E)unzip -qq $(go_dir)\go.zip -d $(go_dir)
-else 
+else
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
