@@ -7,6 +7,6 @@ import (
 	"net"
 )
 
-func getCallerInfoFromTCPConn(conn net.Conn) (CallerInfo, error) {
+func getCallerInfoFromPipeConn(conn net.Conn) (CallerInfo, error) {
 	return CallerInfo{}, ErrUnsupportedPlatform
 }

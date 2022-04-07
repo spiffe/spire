@@ -94,7 +94,7 @@ type sdsConfig struct {
 
 type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
-	TCPSocketPort int    `hcl:"tcp_socket_port"`
+	NamedPipePath string `hcl:"named_pipe_path"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }

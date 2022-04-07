@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
@@ -23,7 +24,7 @@ func (c *agentConfig) setPlatformDefaults() {
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
-	return common.GetAddr(c.SocketPath)
+	return util.GetUnixAddrWithAbsPath(c.SocketPath)
 }
 
 func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
@@ -48,8 +49,8 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 
 // validateOS performs posix specific validations of the agent config
 func (c *agentConfig) validateOS() error {
-	if c.Experimental.TCPSocketPort != 0 {
-		return errors.New("invalid configuration: tcp_socket_port is not supported in this platform; please use socket_path instead")
+	if c.Experimental.NamedPipePath != "" {
+		return errors.New("invalid configuration: named_pipe_path is not supported in this platform; please use socket_path instead")
 	}
 	return nil
 }

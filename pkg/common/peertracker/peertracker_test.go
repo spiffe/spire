@@ -86,6 +86,7 @@ func TestListener(t *testing.T) {
 }
 
 func TestExitDetection(t *testing.T) {
+	fmt.Println("test 32")
 	test := setupTest(t)
 
 	// First, just test against ourselves
@@ -193,7 +194,7 @@ func (f *fakePeer) connect(addr net.Addr, doneCh chan error) {
 	}
 
 	go func() {
-		conn, err := net.Dial(addr.Network(), addr.String())
+		conn, err := dial(addr)
 		if err != nil {
 			doneCh <- fmt.Errorf("could not dial address %s: %w", addr, err)
 			return
