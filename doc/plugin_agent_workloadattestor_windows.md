@@ -8,7 +8,7 @@ It does so by opening an access token associated with the workload process. The 
 | Selector | Value |
 | -------- | ----- |
 | `windows:user_sid` | The security identifier (SID) that identifies the user running the workload (e.g. `windows:user_sid:S-1-5-21-759542327-988462579-1707944338-1003`) |
-| `windows:user_name` | The user name of the user running the workload (e.g. `windows:user:computer-or-domain\myuser`) |
+| `windows:user_name` | The user name of the user running the workload (e.g. `windows:user_name:computer-or-domain\myuser`) |
 | `windows:group_sid:se_group_enabled:true` | The security identifier (SID) that identifies an enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:true:S-1-5-21-759542327-988462579-1707944338-1004`) |
 | `windows:group_sid:se_group_enabled:false` | The security identifier (SID) that identifies a not enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:false:S-1-5-32-544`) |
 | `windows:group_name:se_group_enabled:true` | The group name of an enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:true:computer-or-domain\mygroup`) |
