@@ -29,6 +29,8 @@ func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
 		plugin_data = "DATA3"
 		enabled = false
 	}
+	TYPE4 "NAME4" {
+	}
 `)
 	require.NoError(t, err)
 
@@ -55,6 +57,10 @@ func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
 			Type:     "TYPE3",
 			Data:     `"DATA3"`,
 			Disabled: true,
+		},
+		{
+			Name: "NAME4",
+			Type: "TYPE4",
 		},
 	}, config)
 }
