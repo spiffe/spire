@@ -25,8 +25,6 @@ This plugin does not require any configuration setting. It can be added in the f
 
 ```
 	WorkloadAttestor "windows" {
-		plugin_data {
-		}
 	}
 ```
 
