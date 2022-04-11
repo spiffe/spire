@@ -15,6 +15,7 @@ import (
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type signature struct {
@@ -309,10 +310,11 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		signatures []oci.Signature
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []string
+		name        string
+		fields      fields
+		args        args
+		containerID string
+		want        []string
 	}{
 		{
 			name: "extract selector from single image signature array",
@@ -333,7 +335,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+			containerID: "000000",
+			want:        []string{"000000:image-signature-subject:spirex@example.com", "000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "000000:image-signature-logid:samplelogID", "000000:image-signature-integrated-time:12345"},
 		},
 		{
 			name: "extract selector from image signature array with multiple entries",
@@ -364,7 +367,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex1@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID1", "image-signature-integrated-time:12345", "image-signature-subject:spirex2@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smB=", "image-signature-logid:samplelogID2", "image-signature-integrated-time:12346"},
+			containerID: "111111",
+			want:        []string{"111111:image-signature-subject:spirex1@example.com", "111111:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "111111:image-signature-logid:samplelogID1", "111111:image-signature-integrated-time:12345", "111111:image-signature-subject:spirex2@example.com", "111111:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smB=", "111111:image-signature-logid:samplelogID2", "111111:image-signature-integrated-time:12346"},
 		},
 		{
 			name: "with invalid payload",
@@ -378,7 +382,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			containerID: "222222",
+			want:        nil,
 		},
 		{
 			name: "extract selector from image signature with subject certificate",
@@ -405,7 +410,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+			containerID: "333333",
+			want:        []string{"333333:image-signature-subject:spirex@example.com", "333333:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "333333:image-signature-logid:samplelogID", "333333:image-signature-integrated-time:12345"},
 		},
 		{
 			name: "extract selector from image signature with URI certificate",
@@ -440,7 +446,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:https://www.example.com/somepath1", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+			containerID: "444444",
+			want:        []string{"444444:image-signature-subject:https://www.example.com/somepath1", "444444:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "444444:image-signature-logid:samplelogID", "444444:image-signature-integrated-time:12345"},
 		},
 		{
 			name: "extract selector from empty array",
@@ -450,7 +457,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			args: args{
 				signatures: []oci.Signature{},
 			},
-			want: nil,
+			containerID: "555555",
+			want:        nil,
 		},
 		{
 			name: "extract selector from nil array",
@@ -460,7 +468,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			args: args{
 				signatures: nil,
 			},
-			want: nil,
+			containerID: "666666",
+			want:        nil,
 		},
 	}
 	for _, tt := range tests {
@@ -468,7 +477,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			s := Sigstoreimpl{
 				verifyFunction: tt.fields.verifyFunction,
 			}
-			if got := s.ExtractSelectorsFromSignatures(tt.args.signatures); !reflect.DeepEqual(got, tt.want) {
+			if got := s.ExtractSelectorsFromSignatures(tt.args.signatures, tt.containerID); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Sigstoreimpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1242,10 +1251,11 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		signature oci.Signature
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []string
+		name        string
+		fields      fields
+		args        args
+		containerID string
+		want        []string
 	}{
 		{
 			name: "selector from signature",
@@ -1265,7 +1275,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+			containerID: "000000",
+			want:        []string{"000000:image-signature-subject:spirex@example.com", "000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "000000:image-signature-logid:samplelogID", "000000:image-signature-integrated-time:12345"},
 		},
 		{
 			name: "selector from signature, empty subject",
@@ -1285,7 +1296,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					},
 				},
 			},
-			want: nil,
+			containerID: "111111",
+			want:        nil,
 		},
 		{
 			name: "selector from signature, not in allowlist",
@@ -1300,7 +1312,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
 				},
 			},
-			want: nil,
+			containerID: "222222",
+			want:        nil,
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist",
@@ -1322,7 +1335,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+			containerID: "333333",
+			want:        []string{"333333:image-signature-subject:spirex@example.com", "333333:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "333333:image-signature-logid:samplelogID", "333333:image-signature-integrated-time:12345"},
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist, empty content",
@@ -1344,7 +1358,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					},
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345"},
+			containerID: "444444",
+			want:        []string{"444444:image-signature-subject:spirex@example.com", "444444:image-signature-logid:samplelogID", "444444:image-signature-integrated-time:12345"},
 		},
 		{
 			name: "selector from signature, no bundle",
@@ -1357,7 +1372,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
 				},
 			},
-			want: []string{"image-signature-subject:spirex@example.com"},
+			containerID: "555555",
+			want:        []string{"555555:image-signature-subject:spirex@example.com"},
 		},
 	}
 	for _, tt := range tests {
@@ -1366,7 +1382,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				allowListEnabled: tt.fields.allowListEnabled,
 				subjectAllowList: tt.fields.subjectAllowList,
 			}
-			if got := sigstore.SelectorValuesFromSignature(tt.args.signature); !reflect.DeepEqual(got, tt.want) {
+			if got := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Sigstoreimpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1487,13 +1503,11 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 		skippedImages              map[string]bool
 		rekorURL                   url.URL
 	}
-	type args struct {
-		imageID string
-	}
+
 	tests := []struct {
 		name    string
 		fields  fields
-		args    args
+		status  corev1.ContainerStatus
 		want    []string
 		wantErr bool
 	}{
@@ -1520,11 +1534,13 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 					}, nil
 				},
 			},
-			args: args{
-				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+			status: corev1.ContainerStatus{
+				Image:       "spire-agent-sigstore-1",
+				ImageID:     "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+				ContainerID: "000000",
 			},
 			want: []string{
-				"image-signature-subject:spirex@example.com", "image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "image-signature-logid:samplelogID", "image-signature-integrated-time:12345", "signature-verified:true",
+				"000000:image-signature-subject:spirex@example.com", "000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "000000:image-signature-logid:samplelogID", "000000:image-signature-integrated-time:12345", "000000:signature-verified:true",
 			},
 			wantErr: false,
 		},
@@ -1543,8 +1559,10 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 					"docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505": true,
 				},
 			},
-			args: args{
-				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+			status: corev1.ContainerStatus{
+				Image:       "spire-agent-sigstore-2",
+				ImageID:     "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+				ContainerID: "111111",
 			},
 			want: []string{
 				"signature-verified:true",
@@ -1564,8 +1582,10 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				},
 				skippedImages: nil,
 			},
-			args: args{
-				imageID: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+			status: corev1.ContainerStatus{
+				Image:       "spire-agent-sigstore-3",
+				ImageID:     "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
+				ContainerID: "222222",
 			},
 			want:    nil,
 			wantErr: true,
@@ -1579,7 +1599,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				skippedImages:              tt.fields.skippedImages,
 				rekorURL:                   tt.fields.rekorURL,
 			}
-			got, err := sigstore.AttestContainerSignatures(tt.args.imageID)
+			got, err := sigstore.AttestContainerSignatures(&tt.status)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Sigstoreimpl.AttestContainerSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return

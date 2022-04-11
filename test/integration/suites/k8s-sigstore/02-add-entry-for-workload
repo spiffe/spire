@@ -12,10 +12,11 @@ add_entry_for_workload() {
     SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
     CLUSTERNODESPIFFEID="spiffe://example.org/k8s-workload-registrar/example-cluster/node"
     WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+    CONTAINER_ID=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{"\tname: "}{.containerID}{" image: "}{.image}{" pod: "}{..name}{"\n"}{end}' | awk '{print $2}')
     if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
     -spiffeID ${workload_spiffe_id} \
     -parentID ${CLUSTERNODESPIFFEID} \
-    -selector k8s:image-signature-subject:hpespirex@gmail.com \
+    -selector k8s:${CONTAINER_ID}:image-signature-subject:hpespirex@gmail.com \
     -selector k8s:ns:${ns} \
     -selector k8s:pod-name:${WORKLOAD_POD} ;then
         return
@@ -37,13 +38,14 @@ add_entry_for_workload_with_extra_selectors() {
     SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
     CLUSTERNODESPIFFEID="spiffe://example.org/k8s-workload-registrar/example-cluster/node"
     WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+    CONTAINER_ID=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{"\tname: "}{.containerID}{" image: "}{.image}{" pod: "}{..name}{"\n"}{end}' | awk '{print $2}')
     if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
     -spiffeID ${workload_spiffe_id} \
     -parentID ${CLUSTERNODESPIFFEID} \
-    -selector k8s:image-signature-subject:hpespirex@gmail.com \
-    -selector k8s:image-signature-content:${signature_content} \
-    -selector k8s:image-signature-logid:${logid} \
-    -selector k8s:image-signature-integrated-time:${integrated_time} \
+    -selector k8s:${CONTAINER_ID}:image-signature-subject:hpespirex@gmail.com \
+    -selector k8s:${CONTAINER_ID}:image-signature-content:${signature_content} \
+    -selector k8s:${CONTAINER_ID}:image-signature-logid:${logid} \
+    -selector k8s:${CONTAINER_ID}:image-signature-integrated-time:${integrated_time} \
     -selector k8s:ns:${ns} \
     -selector k8s:pod-name:${WORKLOAD_POD} ;then
         return
