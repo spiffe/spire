@@ -493,8 +493,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
 
-	if len(c.Agent.Experimental.Flags) > 0 {
-		logger.Warnf("Developer feature flags have been enabled: %v", c.Agent.Experimental.Flags)
+	for _, f := range c.Agent.Experimental.Flags {
+		logger.Warnf("Developer feature flag %q has been enabled", f)
 	}
 
 	return ac, nil

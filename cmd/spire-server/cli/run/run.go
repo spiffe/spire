@@ -582,8 +582,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
 
-	if len(c.Server.Experimental.Flags) > 0 {
-		sc.Log.Warnf("Developer feature flags have been enabled: %v", c.Server.Experimental.Flags)
+	for _, f := range c.Server.Experimental.Flags {
+		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
 	}
 
 	return sc, nil
