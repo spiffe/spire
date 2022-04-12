@@ -16,11 +16,11 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
-	rekor "github.com/sigstore/rekor/pkg/generated/client"
-
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
+	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstorecache"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -50,9 +50,11 @@ type Sigstoreimpl struct {
 	allowListEnabled           bool
 	subjectAllowList           map[string]bool
 	rekorURL                   url.URL
+
+	sigstorecache sigstorecache.Cache
 }
 
-func New() Sigstore {
+func New(cache sigstorecache.Cache) Sigstore {
 	return &Sigstoreimpl{
 		verifyFunction:             cosign.VerifyImageSignatures,
 		fetchImageManifestFunction: remote.Get,
@@ -64,6 +66,7 @@ func New() Sigstore {
 			Host:   rekor.DefaultHost,
 			Path:   rekor.DefaultBasePath,
 		},
+		sigstorecache: cache,
 	}
 }
 
@@ -74,6 +77,11 @@ func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string) ([]oci.Sign
 	if err != nil {
 		message := fmt.Sprint("Error parsing image reference: ", err.Error())
 		return nil, errors.New(message)
+	}
+
+	cachedValue := sigstore.sigstorecache.GetSignature(imageName)
+	if cachedValue != nil {
+		return cachedValue.Value, nil
 	}
 
 	_, err = sigstore.ValidateImage(ref)
@@ -100,6 +108,12 @@ func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string) ([]oci.Sign
 		return nil, errors.New(message)
 	}
 
+	cachedSignature := sigstorecache.Item{
+		Key:   imageName,
+		Value: sigs,
+	}
+
+	sigstore.sigstorecache.PutSignature(cachedSignature)
 	return sigs, nil
 }
 

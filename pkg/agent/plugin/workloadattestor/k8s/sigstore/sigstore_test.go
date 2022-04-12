@@ -15,7 +15,12 @@ import (
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstorecache"
 	corev1 "k8s.io/api/core/v1"
+)
+
+const (
+	maximumAmountCache = 10
 )
 
 type signature struct {
@@ -51,6 +56,8 @@ func (s signature) Bundle() (*oci.Bundle, error) {
 }
 
 func TestNew(t *testing.T) {
+	newcache := sigstorecache.NewCache(maximumAmountCache)
+
 	tests := []struct {
 		name string
 		want Sigstore
@@ -58,19 +65,19 @@ func TestNew(t *testing.T) {
 		{
 			name: "New",
 			want: &Sigstoreimpl{
-				verifyFunction: cosign.VerifyImageSignatures, fetchImageManifestFunction: remote.Get,
-				skippedImages: nil,
-				rekorURL: url.URL{
-					Scheme: rekor.DefaultSchemes[0],
-					Host:   rekor.DefaultHost,
-					Path:   rekor.DefaultBasePath,
-				},
+				verifyFunction:             cosign.VerifyImageSignatures,
+				fetchImageManifestFunction: remote.Get,
+				skippedImages:              nil,
+				allowListEnabled:           false,
+				subjectAllowList:           map[string]bool{},
+				rekorURL:                   url.URL{Scheme: rekor.DefaultSchemes[0], Host: rekor.DefaultHost, Path: rekor.DefaultBasePath},
+				sigstorecache:              newcache,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := New(); fmt.Sprintf("%v", got) != fmt.Sprintf("%v", tt.want) {
+			if got := New(newcache); fmt.Sprintf("%v", got) != fmt.Sprintf("%v", tt.want) {
 				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
 		})
@@ -289,6 +296,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			sigstore := Sigstoreimpl{
 				verifyFunction:             tt.fields.verifyFunction,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
+				sigstorecache:              sigstorecache.NewCache(maximumAmountCache),
 			}
 			got, err := sigstore.FetchImageSignatures(tt.args.imageName)
 			if (err != nil) != tt.wantErr {
@@ -1598,6 +1606,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 				skippedImages:              tt.fields.skippedImages,
 				rekorURL:                   tt.fields.rekorURL,
+				sigstorecache:              sigstorecache.NewCache(maximumAmountCache),
 			}
 			got, err := sigstore.AttestContainerSignatures(&tt.status)
 			if (err != nil) != tt.wantErr {
