@@ -57,7 +57,6 @@ var (
 // Config contains all available configurables, arranged by section
 type Config struct {
 	Server       *serverConfig               `hcl:"server"`
-	Flags        ast.Node                    `hcl:"feature_flags"`
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
@@ -99,11 +98,12 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	CacheReloadInterval string `hcl:"cache_reload_interval"`
+	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval string                      `hcl:"cache_reload_interval"`
+
+	Flags fflag.RawConfig `hcl:"feature_flags"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
-
-	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 }
 
 type caSubjectConfig struct {
@@ -212,9 +212,9 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
-	err = fflag.Load(fflag.RawConfig(input.Flags))
+	err = fflag.Load(input.Server.Experimental.Flags)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
 	return NewServerConfig(input, logOptions, allowUnknownConfig)
@@ -581,6 +581,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
+
+	if len(c.Server.Experimental.Flags) > 0 {
+		sc.Log.Warnf("Developer feature flags have been enabled: %v", c.Server.Experimental.Flags)
+	}
 
 	return sc, nil
 }

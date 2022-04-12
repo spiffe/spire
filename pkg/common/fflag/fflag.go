@@ -7,11 +7,16 @@ package fflag
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 )
 
 // Flag represents a feature flag and its configuration name
 type Flag string
+
+// RawConfig is a list of feature flags that should be flipped on, in their string
+// representations. It is loaded directly from the config file.
+type RawConfig []string
 
 // To add a feature flag, decleare it here along with its config name.
 // Then, add it to the `flags` package-level singleton map below, setting the
@@ -31,14 +36,14 @@ const (
 var (
 	singleton = struct {
 		flags  map[Flag]bool
-		loaded *sync.Once
+		loaded bool
 		mtx    *sync.RWMutex
 	}{
 		flags: map[Flag]bool{
 			FlagForcedRotation: false,
 			FlagTestFlag:       false,
 		},
-		loaded: new(sync.Once),
+		loaded: false,
 		mtx:    new(sync.RWMutex),
 	}
 )
@@ -49,26 +54,34 @@ var (
 // return an error if it is called more than once, if the configuration input
 // cannot be parsed, or if an unrecognized flag is set.
 func Load(rc RawConfig) error {
-	flagConfig, err := parseRawConfig(rc)
-	if err != nil {
-		return fmt.Errorf("could not parse feature flag configuration: %w", err)
-	}
+	singleton.mtx.Lock()
+	defer singleton.mtx.Unlock()
 
-	err = validateFlags(flagConfig)
-	if err != nil {
-		return fmt.Errorf("bad feature flag configuration: %w", err)
-	}
-
-	ok := false
-	singleton.loaded.Do(func() {
-		ok = true
-		load(flagConfig)
-	})
-
-	if !ok {
+	if singleton.loaded {
 		return errors.New("feature flags have already been loaded")
 	}
 
+	badFlags := []string{}
+	goodFlags := []Flag{}
+	for _, rawFlag := range rc {
+		if _, ok := singleton.flags[Flag(rawFlag)]; !ok {
+			badFlags = append(badFlags, rawFlag)
+			continue
+		}
+
+		goodFlags = append(goodFlags, Flag(rawFlag))
+	}
+
+	if len(badFlags) > 0 {
+		sort.Strings(badFlags)
+		return fmt.Errorf("unknown feature flag(s): %v", badFlags)
+	}
+
+	for _, f := range goodFlags {
+		singleton.flags[f] = true
+	}
+
+	singleton.loaded = true
 	return nil
 }
 
@@ -79,43 +92,4 @@ func IsSet(f Flag) bool {
 	defer singleton.mtx.RUnlock()
 
 	return singleton.flags[f]
-}
-
-func load(flagConfig map[string]bool) {
-	singleton.mtx.Lock()
-	defer singleton.mtx.Unlock()
-
-	for flag := range singleton.flags {
-		if value, ok := flagConfig[string(flag)]; ok {
-			singleton.flags[flag] = value
-		}
-	}
-}
-
-func validateFlags(flagConfig map[string]bool) error {
-	badFlags := make(map[string]bool)
-	for name := range flagConfig {
-		badFlags[name] = true
-	}
-
-	singleton.mtx.RLock()
-	for flag := range singleton.flags {
-		if _, ok := badFlags[string(flag)]; ok {
-			badFlags[string(flag)] = false
-		}
-	}
-	singleton.mtx.RUnlock()
-
-	badNames := []string{}
-	for name, bad := range badFlags {
-		if bad {
-			badNames = append(badNames, name)
-		}
-	}
-
-	if len(badNames) > 0 {
-		return fmt.Errorf("unknown feature flag(s): %v", badNames)
-	}
-
-	return nil
 }

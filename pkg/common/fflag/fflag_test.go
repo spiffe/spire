@@ -1,115 +1,74 @@
 package fflag
 
 import (
-	"sync"
 	"testing"
-
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 )
 
 func TestLoadOnce(t *testing.T) {
-	// Ensure loader is reset
-	singleton.loaded = new(sync.Once)
-	singleton.flags[FlagTestFlag] = false
+	reset()
 
-	config := strToConfig(t, "{i_am_a_test_flag = true}")
+	config := []string{}
 	err := Load(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !IsSet(FlagTestFlag) {
-		t.Fatal("expected test flag to be set after loading it but it was not")
-	}
-
-	config = strToConfig(t, "{i_am_a_test_flag = false}")
+	config = append(config, "i_am_a_test_flag")
 	err = Load(config)
 	if err == nil {
 		t.Fatal("expected an error when loading for the second time but got none")
 	}
 
-	if !IsSet(FlagTestFlag) {
+	if IsSet(FlagTestFlag) {
 		t.Fatalf("expected test flag to be undisturbed after error but it was not")
 	}
+
+	reset()
 }
 
 func TestLoad(t *testing.T) {
 	cases := []struct {
 		name        string
-		config      string
-		preSet      []Flag
-		preUnset    []Flag
+		config      []string
 		expectError bool
 		expectSet   []Flag
 		expectUnset []Flag
 	}{
 		{
 			name:        "loads with no flags set",
-			config:      "{}",
+			config:      []string{},
 			expectError: false,
 		},
 		{
 			name:        "loads with the test flag set",
-			config:      "{i_am_a_test_flag = true}",
-			preUnset:    []Flag{FlagTestFlag},
+			config:      []string{"i_am_a_test_flag"},
 			expectError: false,
 			expectSet:   []Flag{FlagTestFlag},
 		},
 		{
 			name:        "does not load when bad flags are set",
-			config:      "{non_existent_flag = true}",
+			config:      []string{"non_existent_flag"},
 			expectError: true,
 		},
 		{
 			name:        "does not load when bad flags are set alongside good ones",
-			config:      "{i_am_a_test_flag = true \n non_existent_flag = true}",
-			preUnset:    []Flag{FlagTestFlag},
+			config:      []string{"i_am_a_test_flag", "non_existent_flag"},
 			expectError: true,
 			expectUnset: []Flag{FlagTestFlag},
 		},
 		{
-			name:        "does not load when the syntax is wrong for a real flag",
-			config:      "{i_am_a_test_flag = { foo = \"bar\" } }",
-			expectError: true,
-		},
-		{
-			name:        "does not change the default value when enabled",
-			config:      "{}",
-			preSet:      []Flag{FlagTestFlag},
-			expectError: false,
-			expectSet:   []Flag{FlagTestFlag},
-		},
-		{
-			name:        "does not change the default value when disabled",
-			config:      "{}",
-			preUnset:    []Flag{FlagTestFlag},
-			expectError: false,
-			expectUnset: []Flag{FlagTestFlag},
-		},
-		{
-			name:        "can be used to disable features",
-			config:      "{i_am_a_test_flag = false}",
-			preSet:      []Flag{FlagTestFlag},
+			name:        "does not change the default value",
+			config:      []string{},
 			expectError: false,
 			expectUnset: []Flag{FlagTestFlag},
 		},
 	}
 
 	for _, c := range cases {
-		// Reset loader
-		singleton.loaded = new(sync.Once)
+		reset()
 
 		t.Run(c.name, func(t *testing.T) {
-			for _, set := range c.preSet {
-				singleton.flags[set] = true
-			}
-
-			for _, unset := range c.preUnset {
-				singleton.flags[unset] = false
-			}
-
-			err := Load(strToConfig(t, c.config))
+			err := Load(c.config)
 			if err != nil && !c.expectError {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -131,17 +90,17 @@ func TestLoad(t *testing.T) {
 			}
 		})
 	}
+
+	reset()
 }
 
-func strToConfig(t *testing.T, str string) RawConfig {
-	raw := &struct {
-		Config ast.Node `hcl:"feature_flags"`
-	}{}
+func reset() {
+	singleton.mtx.Lock()
+	defer singleton.mtx.Unlock()
 
-	err := hcl.Decode(raw, "feature_flags "+str)
-	if err != nil {
-		t.Fatalf("could not decode test case config string: %v", err)
+	for k := range singleton.flags {
+		singleton.flags[k] = false
 	}
 
-	return RawConfig(raw.Config)
+	singleton.loaded = false
 }

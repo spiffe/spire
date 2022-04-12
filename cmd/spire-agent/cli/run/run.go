@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
@@ -49,7 +48,6 @@ const (
 // Config contains all available configurables, arranged by section
 type Config struct {
 	Agent        *agentConfig                `hcl:"agent"`
-	Flags        ast.Node                    `hcl:"feature_flags"`
 	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
 	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
 	HealthChecks health.Config               `hcl:"health_checks"`
@@ -98,6 +96,8 @@ type sdsConfig struct {
 type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
 	TCPSocketPort int    `hcl:"tcp_socket_port"`
+
+	Flags fflag.RawConfig `hcl:"feature_flags"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -153,9 +153,9 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
-	err = fflag.Load(fflag.RawConfig(input.Flags))
+	err = fflag.Load(input.Agent.Experimental.Flags)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
 	return NewAgentConfig(input, logOptions, allowUnknownConfig)
@@ -492,6 +492,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if len(c.Agent.Experimental.Flags) > 0 {
+		logger.Warnf("Developer feature flags have been enabled: %v", c.Agent.Experimental.Flags)
+	}
 
 	return ac, nil
 }
