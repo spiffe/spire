@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.3] - 2022-04-12
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536.
+
 ## [1.2.2] - 2022-04-07
 
 ### Added
