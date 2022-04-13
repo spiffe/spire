@@ -279,7 +279,7 @@ jobs:
 
   publish-images:
     runs-on: ubuntu-18.04
-    needs: [lint, unit-test, artifacts, integration]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
