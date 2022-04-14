@@ -12,5 +12,5 @@ import (
 )
 
 func startWorkloadAPI(t *testing.T, server workload.SpiffeWorkloadAPIServer) net.Addr {
-	return spiretest.StartWorkloadAPIOnTempUDSSocket(t, server)
+	return spiretest.StartWorkloadAPI(t, server)
 }

@@ -79,7 +79,7 @@ func (c *healthCheckCommand) run() error {
 	if err != nil {
 		return err
 	}
-	conn, err := dial(target)
+	conn, err := util.GRPCDialContext(context.Background(), target)
 	if err != nil {
 		return err
 	}

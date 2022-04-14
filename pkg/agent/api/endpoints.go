@@ -37,6 +37,9 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.registerDelegatedIdentityAPI(server)
 
 	l, err := e.createListener()
+	if err != nil {
+		return err
+	}
 	defer l.Close()
 
 	errChan := make(chan error)

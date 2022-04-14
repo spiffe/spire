@@ -6,8 +6,10 @@ package endpoints
 import (
 	"net"
 	"testing"
+
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 func getTestAddr(t *testing.T) net.Addr {
-	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)}
+	return spiretest.GetRandNamedPipeAddr()
 }

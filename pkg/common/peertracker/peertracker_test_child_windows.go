@@ -17,20 +17,20 @@ import (
 
 func main() {
 	var (
-		namedPipePath string
+		namedPipeName string
 	)
 
-	flag.StringVar(&namedPipePath, "namedPipePath", "", "path to peertracker named pipe")
+	flag.StringVar(&namedPipeName, "namedPipeName", "", "pipe name to peertracker named pipe")
 	flag.Parse()
 
 	// We are a grandchild - send a sign then sleep forever
-	if namedPipePath == "" {
+	if namedPipeName == "" {
 		fmt.Fprintf(os.Stdout, "i'm alive!")
 
 		select {}
 	}
 
-	conn, err := winio.DialPipe(namedPipePath, nil)
+	conn, err := winio.DialPipe(namedPipeName, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "DialPipe failed: %v", err)
 		os.Exit(5)

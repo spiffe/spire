@@ -4,6 +4,6 @@
 package common
 
 const (
-	// DefaultNamedPipePath is the SPIRE agent's default named pipe path
-	DefaultNamedPipePath = "\\\\.\\pipe\\spire-agent\\public\\api.sock"
+	// DefaultNamedPipeName is the SPIRE agent's default named pipe name
+	DefaultNamedPipeName = "\\spire-agent\\public\\api"
 )

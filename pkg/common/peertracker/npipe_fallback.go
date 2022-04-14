@@ -7,6 +7,6 @@ import (
 	"net"
 )
 
-func getCallerInfoFromPipeConn(conn net.Conn) (CallerInfo, error) {
+func getCallerInfoFromNamedPipeConn(conn net.Conn) (CallerInfo, error) {
 	return CallerInfo{}, ErrUnsupportedPlatform
 }

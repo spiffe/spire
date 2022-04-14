@@ -154,8 +154,8 @@ github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0
 github.com/Masterminds/sprig v2.15.0+incompatible/go.mod h1:y6hNFY5UBTIWBxnzTeuNhlNS5hqE0NB0E6fgfo2Br3o=
 github.com/Masterminds/sprig v2.22.0+incompatible h1:z4yfnGrZ7netVz+0EDJ0Wi+5VZCSYp4Z0m2dk6cEM60=
 github.com/Masterminds/sprig v2.22.0+incompatible/go.mod h1:y6hNFY5UBTIWBxnzTeuNhlNS5hqE0NB0E6fgfo2Br3o=
-github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5 h1:ygIc8M6trr62pF5DucadTWGdEB4mEyvzi0e2nbcmcyA=
-github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5/go.mod h1:tTuCMEN+UleMWgg9dVx4Hu52b1bJo+59jBh3ajtinzw=
+github.com/Microsoft/go-winio v0.5.2 h1:a9IhgEQBCUEk6QCdml9CiJGhAws+YwffDHEMp1VMrpA=
+github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
@@ -1204,8 +1204,8 @@ github.com/spf13/viper v1.3.2/go.mod h1:ZiWeW+zYFKm7srdB9IoDzzZXaJaI5eL9QjNiN/DM
 github.com/spf13/viper v1.4.0/go.mod h1:PTJ7Z/lr49W6bUbkmS1V3by4uWynFiR9p7+dSq/yZzE=
 github.com/spf13/viper v1.7.0/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5qpdg=
 github.com/spf13/viper v1.8.1/go.mod h1:o0Pch8wJ9BVSWGQMbra6iw0oQ5oktSIBaujf1rJH9Ns=
-github.com/spiffe/go-spiffe/v2 v2.0.0 h1:y6N7BZAxgaFZYELyrIdxSMm2e2tWpzgQewUts9h1hfM=
-github.com/spiffe/go-spiffe/v2 v2.0.0/go.mod h1:TEfgrEcyFhuSuvqohJt6IxENUNeHfndWCCV1EX7UaVk=
+github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3 h1:FpqM5PfWHs4Ze36HwzMpRefrv8kkmxFgtG9Qc6hL7Dc=
+github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3/go.mod h1:ifsAYiK9MOyuGYFUHUQ3K47dj+k/gd4IcWhlCyDJZEU=
 github.com/spiffe/spire-api-sdk v1.2.2-0.20220317172821-e2705b35aa09 h1:2oavALIvyKv+M9Q2CWoz3UlJn4DT+oAhVO1qIgaq0GA=
 github.com/spiffe/spire-api-sdk v1.2.2-0.20220317172821-e2705b35aa09/go.mod h1:73BC0cOGkqRQrqoB1Djk7etxN+bE1ypmzZMkhCQs6kY=
 github.com/spiffe/spire-plugin-sdk v1.2.1 h1:w8uJ1P6AUQOJBDsNF34BJsL0ly6wtVMHnDJGqk1Y7yM=

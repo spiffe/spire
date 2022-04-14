@@ -11,13 +11,13 @@ import (
 )
 
 type ConfigOS struct {
-	namedPipePath string
+	namedPipeName string
 }
 
 func (c *ConfigOS) AddOSFlags(flags *flag.FlagSet) {
-	flags.StringVar(&c.namedPipePath, "namedPipePath", DefaultNamedPipePath, "Path to the SPIRE Agent API Named Pipe socket")
+	flags.StringVar(&c.namedPipeName, "namedPipeName", DefaultNamedPipeName, "Pipe name of the SPIRE Agent API named pipe")
 }
 
 func (c *ConfigOS) GetAddr() (net.Addr, error) {
-	return util.GetNamedPipeAddr(c.namedPipePath)
+	return util.GetNamedPipeAddr(c.namedPipeName), nil
 }

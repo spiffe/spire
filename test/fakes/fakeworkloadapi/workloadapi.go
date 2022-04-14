@@ -50,7 +50,7 @@ func FetchX509SVIDResponses(responses ...*workload.X509SVIDResponse) Result {
 
 type WorkloadAPI struct {
 	workload.UnimplementedSpiffeWorkloadAPIServer
-	addr *net.UnixAddr
+	addr net.Addr
 
 	mu                   sync.Mutex
 	fetchX509SVIDResults []fetchX509SVIDResult
@@ -68,12 +68,12 @@ func New(t *testing.T, results ...Result) *WorkloadAPI {
 		}
 	}
 
-	w.addr = spiretest.StartWorkloadAPIOnTempUDSSocket(t, w)
+	w.addr = spiretest.StartWorkloadAPI(t, w)
 
 	return w
 }
 
-func (w *WorkloadAPI) Addr() *net.UnixAddr {
+func (w *WorkloadAPI) Addr() net.Addr {
 	return w.addr
 }
 

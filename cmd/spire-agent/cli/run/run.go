@@ -95,7 +95,7 @@ type sdsConfig struct {
 
 type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
-	NamedPipePath string `hcl:"named_pipe_path"`
+	NamedPipeName string `hcl:"named_pipe_name"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }

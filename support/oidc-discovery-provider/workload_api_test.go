@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net"
 	"runtime"
 	"sync"
 	"testing"
@@ -26,7 +27,7 @@ func TestWorkloadAPISource(t *testing.T) {
 
 	api := &fakeWorkloadAPIServer{}
 
-	socketPath := spiretest.StartWorkloadAPIOnTempUDSSocket(t, api).Name
+	socketPath := spiretest.StartWorkloadAPI(t, api).(*net.UnixAddr).Name
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)

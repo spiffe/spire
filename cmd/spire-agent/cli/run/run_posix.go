@@ -49,8 +49,8 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 
 // validateOS performs posix specific validations of the agent config
 func (c *agentConfig) validateOS() error {
-	if c.Experimental.NamedPipePath != "" {
-		return errors.New("invalid configuration: named_pipe_path is not supported in this platform; please use socket_path instead")
+	if c.Experimental.NamedPipeName != "" {
+		return errors.New("invalid configuration: named_pipe_name is not supported in this platform; please use socket_path instead")
 	}
 	return nil
 }

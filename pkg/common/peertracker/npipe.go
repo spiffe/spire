@@ -5,5 +5,5 @@ import (
 )
 
 func CallerFromPipeConn(conn net.Conn) (CallerInfo, error) {
-	return getCallerInfoFromPipeConn(conn)
+	return getCallerInfoFromNamedPipeConn(conn)
 }

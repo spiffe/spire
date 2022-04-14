@@ -13,15 +13,15 @@ import (
 )
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
-	flags.StringVar(&c.Experimental.NamedPipePath, "namedPipePath", "", "Path to bind the SPIRE Agent API named pipe")
+	flags.StringVar(&c.Experimental.NamedPipeName, "namedPipeName", "", "Pipe name to bind the SPIRE Agent API named pipe")
 }
 
 func (c *agentConfig) setPlatformDefaults() {
-	c.Experimental.NamedPipePath = common.DefaultNamedPipePath
+	c.Experimental.NamedPipeName = common.DefaultNamedPipeName
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
-	return util.GetNamedPipeAddr(c.Experimental.NamedPipePath)
+	return util.GetNamedPipeAddr(c.Experimental.NamedPipeName), nil
 }
 
 func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {

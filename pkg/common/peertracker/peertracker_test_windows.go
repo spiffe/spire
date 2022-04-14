@@ -11,7 +11,7 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,9 +47,7 @@ func (f *fakePeer) killGrandchild() {
 }
 
 func addr(t *testing.T) net.Addr {
-	addr, err := util.GetNamedPipeAddr("\\\\.\\pipe\\test")
-	require.NoError(t, err)
-	return addr
+	return spiretest.GetRandNamedPipeAddr()
 }
 
 func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
@@ -61,7 +59,7 @@ func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
 
 func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
 	// #nosec G204 test code
-	return exec.Command(childPath, "-namedPipePath", addr.String())
+	return exec.Command(childPath, "-namedPipeName", addr.String())
 }
 
 func dial(addr net.Addr) (net.Conn, error) {
