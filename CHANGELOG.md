@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.3] - 2022-04-12
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536.
+
 ## [1.2.2] - 2022-04-07
 
 ### Added
@@ -50,6 +55,11 @@
 ### Removed
 - The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
 - The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
+
+## [1.1.4] - 2022-04-13
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536.
 
 ## [1.1.3] - 2022-01-07
 
