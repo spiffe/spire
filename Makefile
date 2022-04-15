@@ -384,7 +384,7 @@ endif
 
 lint: lint-code
 
-lint-code: $(golangci_lint_bin) | go-check
+lint-code: $(golangci_lint_bin)
 	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
 
@@ -499,7 +499,7 @@ $(protoc_bin):
 
 install-golangci-lint: $(golangci_lint_bin)
 
-$(golangci_lint_bin):
+$(golangci_lint_bin): | go-check
 	@echo "Installing golangci-lint $(golangci_lint_version)..."
 	$(E)rm -rf $(dir $(golangci_lint_dir))
 	$(E)mkdir -p $(golangci_lint_dir)
