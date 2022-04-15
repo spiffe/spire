@@ -500,7 +500,7 @@ func TestConfigureTLSWithCertAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 }
 
 func TestConfigureTLSWithTokenAuth(t *testing.T) {
@@ -521,7 +521,7 @@ func TestConfigureTLSWithTokenAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 }
 
 func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
@@ -543,7 +543,7 @@ func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 }
 
 func TestConfigureTLSInvalidCACert(t *testing.T) {
