@@ -598,7 +598,7 @@ func (s *Suite) TestConfigure() {
 				t.Logf("CONFIG: %#v", c.Client.Transport.TLSClientConfig)
 				if testCase.config.HasNodeName {
 					if assert.NotNil(t, c.Client.Transport.TLSClientConfig.RootCAs) {
-						assert.Len(t, c.Client.Transport.TLSClientConfig.RootCAs.Subjects(), 1)
+						assert.Len(t, c.Client.Transport.TLSClientConfig.RootCAs.Subjects(), 1) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 					}
 				} else {
 					assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)

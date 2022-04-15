@@ -115,7 +115,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.44.0
+golangci_lint_version = v1.45.2
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
@@ -504,7 +504,7 @@ $(golangci_lint_bin):
 	$(E)rm -rf $(dir $(golangci_lint_dir))
 	$(E)mkdir -p $(golangci_lint_dir)
 	$(E)mkdir -p $(golangci_lint_cache)
-	$(E)curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
+	$(E)GOBIN=$(golangci_lint_dir) $(go_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)
 
