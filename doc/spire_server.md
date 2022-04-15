@@ -189,7 +189,7 @@ This optional section contains the configurables used by SPIRE Server to expose 
 
 | Configuration   | Description                                                                                                               | Default                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| directory_url   | Directory endpoint URL                                                                                                    | "https://acme-v02.api.letsencrypt.org/directory" |
+| directory_url   | Directory endpoint URL                                                                                                    | https://acme-v02.api.letsencrypt.org/directory |
 | domain_name     | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                  |
 | email           | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                  |
 | tos_accepted    | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                            |
