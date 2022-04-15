@@ -44,8 +44,10 @@ func getCallerInfoFromNamedPipeConn(conn net.Conn) (CallerInfo, error) {
 	}, nil
 }
 
+// getNamedPipeClientProcessID retrieves the client process identifier
+// for the specified handle representing a named pipe.
 func getNamedPipeClientProcessID(pipe windows.Handle, clientProcessID *int32) (err error) {
-	r1, _, e1 := syscall.Syscall(procGetNamedPipeClientProcessID.Addr(), 2, uintptr(pipe), uintptr(unsafe.Pointer(clientProcessID)), 0)
+	r1, _, e1 := syscall.SyscallN(procGetNamedPipeClientProcessID.Addr(), 2, uintptr(pipe), uintptr(unsafe.Pointer(clientProcessID)), 0)
 	if r1 == 0 {
 		return e1
 	}
