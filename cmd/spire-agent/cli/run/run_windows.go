@@ -31,7 +31,7 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 // validateOS performs windows specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.SocketPath != "" {
-		return errors.New("invalid configuration: socket_path is not supported in this platform; please use named_pipe_socket_path instead")
+		return errors.New("invalid configuration: socket_path is not supported in this platform; please use named_pipe_name instead")
 	}
 	return nil
 }
