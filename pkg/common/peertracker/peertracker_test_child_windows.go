@@ -103,7 +103,7 @@ func main() {
 // a WSAPROTOCOL_INFO structure that can be used to create a new socket
 // descriptor for a shared socket
 func wsaDuplicateSocket(socket windows.Handle, processID uint32, protocolInfo *windows.WSAProtocolInfo) (err error) {
-	r1, _, e1 := syscall.Syscall(procWSADuplicateSocketA.Addr(), 3, uintptr(socket), uintptr(processID), uintptr(unsafe.Pointer(protocolInfo)))
+	r1, _, e1 := syscall.SyscallN(procWSADuplicateSocketA.Addr(), uintptr(socket), uintptr(processID), uintptr(unsafe.Pointer(protocolInfo)))
 	if r1 == 0xffffffff {
 		return e1
 	}
