@@ -3,7 +3,7 @@
 ## [1.2.3] - 2022-04-12
 
 ### Security
-- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536.
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
 
 ## [1.2.2] - 2022-04-07
 
@@ -59,7 +59,7 @@
 ## [1.1.4] - 2022-04-13
 
 ### Security
-- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536.
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
 
 ## [1.1.3] - 2022-01-07
 
