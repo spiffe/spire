@@ -193,7 +193,7 @@ func (f *fakePeer) connect(addr net.Addr, doneCh chan error) {
 	}
 
 	go func() {
-		conn, err := net.Dial(addr.Network(), addr.String())
+		conn, err := dial(addr)
 		if err != nil {
 			doneCh <- fmt.Errorf("could not dial address %s: %w", addr, err)
 			return

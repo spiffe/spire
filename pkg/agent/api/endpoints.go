@@ -2,9 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"net"
-	"os"
 
 	"github.com/andres-erbsen/clock"
 	debugv1 "github.com/spiffe/spire/pkg/agent/api/debug/v1"
@@ -39,7 +36,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.registerDebugAPI(server)
 	e.registerDelegatedIdentityAPI(server)
 
-	l, err := e.createUDSListener()
+	l, err := e.createListener()
 	if err != nil {
 		return err
 	}
@@ -81,18 +78,4 @@ func (e *Endpoints) registerDelegatedIdentityAPI(server *grpc.Server) {
 	})
 
 	delegatedidentityv1.RegisterService(server, service)
-}
-
-func (e *Endpoints) createUDSListener() (net.Listener, error) {
-	// Remove uds if already exists
-	os.Remove(e.c.BindAddr.String())
-
-	l, err := e.unixListener.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
-	if err != nil {
-		return nil, fmt.Errorf("create UDS listener: %w", err)
-	}
-	if err := os.Chmod(e.c.BindAddr.String(), 0770); err != nil {
-		return nil, fmt.Errorf("unable to change UDS permissions: %w", err)
-	}
-	return l, nil
 }

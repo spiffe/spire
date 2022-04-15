@@ -7,11 +7,11 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strconv"
 	"testing"
 
+	"github.com/Microsoft/go-winio"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,11 +47,11 @@ func (f *fakePeer) killGrandchild() {
 }
 
 func addr(t *testing.T) net.Addr {
-	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
+	return spiretest.GetRandNamedPipeAddr()
 }
 
 func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
-	listener, err := (&ListenerFactory{Log: log}).ListenTCP(addr.Network(), addr.(*net.TCPAddr))
+	listener, err := (&ListenerFactory{Log: log}).ListenPipe(addr.String(), nil)
 	require.NoError(t, err)
 
 	return listener
@@ -59,9 +59,9 @@ func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
 
 func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
 	// #nosec G204 test code
-	return exec.Command(childPath,
-		"-tcpSocketPort",
-		strconv.Itoa(addr.(*net.TCPAddr).Port),
-		"-protocolInfoFile",
-		filepath.Join(filepath.Dir(childPath), "wsaprotocolinfo"))
+	return exec.Command(childPath, "-namedPipeName", addr.String())
+}
+
+func dial(addr net.Addr) (net.Conn, error) {
+	return winio.DialPipe(addr.String(), nil)
 }

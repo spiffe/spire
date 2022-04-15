@@ -8,18 +8,19 @@ import (
 	"net"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 // healthCheckCommandOS has windows specific implementation
 // that complements healthCheckCommand
 type healthCheckCommandOS struct {
-	tcpSocketPort int
+	namedPipeName string
 }
 
 func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
-	flags.IntVar(&c.tcpSocketPort, "tcpSocketPort", common.DefaultTCPSocketPort, "TCP port number of the SPIRE Agent API socket")
+	flags.StringVar(&c.namedPipeName, "namedPipeName", common.DefaultNamedPipeName, "Pipe name of the SPIRE Agent API named pipe")
 }
 
 func (c *healthCheckCommandOS) getAddr() (net.Addr, error) {
-	return common.GetAddr(c.tcpSocketPort)
+	return util.GetNamedPipeAddr(c.namedPipeName), nil
 }

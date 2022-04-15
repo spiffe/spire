@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 // healthCheckCommandOS has posix specific implementation
@@ -21,5 +22,5 @@ func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *healthCheckCommandOS) getAddr() (net.Addr, error) {
-	return common.GetAddr(c.socketPath)
+	return util.GetUnixAddrWithAbsPath(c.socketPath)
 }

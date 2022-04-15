@@ -4,6 +4,6 @@
 package common
 
 const (
-	// DefaultTCPSocketPort is the SPIRE agent's default TCP socket port
-	DefaultTCPSocketPort = 8082
+	// DefaultNamedPipeName is the SPIRE agent's default named pipe name
+	DefaultNamedPipeName = "\\spire-agent\\public\\api"
 )
