@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Microsoft/go-winio"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 )
 
@@ -15,9 +14,7 @@ func (e *Endpoints) createPipeListener() (net.Listener, error) {
 	pipeListener := &peertracker.ListenerFactory{
 		Log: e.log,
 	}
-	l, err := pipeListener.ListenPipe(e.addr.String(), &winio.PipeConfig{
-		SecurityDescriptor: "D:P(A;;GA;;;AU)", // Allow all users access to the pipe
-	})
+	l, err := pipeListener.ListenPipe(e.addr.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create named pipe listener: %w", err)
 	}
