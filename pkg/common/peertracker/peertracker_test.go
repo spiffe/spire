@@ -86,7 +86,6 @@ func TestListener(t *testing.T) {
 }
 
 func TestExitDetection(t *testing.T) {
-	fmt.Println("test 32")
 	test := setupTest(t)
 
 	// First, just test against ourselves
