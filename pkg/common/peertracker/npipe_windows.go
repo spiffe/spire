@@ -47,7 +47,7 @@ func getCallerInfoFromNamedPipeConn(conn net.Conn) (CallerInfo, error) {
 // getNamedPipeClientProcessID retrieves the client process identifier
 // for the specified handle representing a named pipe.
 func getNamedPipeClientProcessID(pipe windows.Handle, clientProcessID *int32) (err error) {
-	r1, _, e1 := syscall.SyscallN(procGetNamedPipeClientProcessID.Addr(), 2, uintptr(pipe), uintptr(unsafe.Pointer(clientProcessID)), 0)
+	r1, _, e1 := syscall.SyscallN(procGetNamedPipeClientProcessID.Addr(), uintptr(pipe), uintptr(unsafe.Pointer(clientProcessID)))
 	if r1 == 0 {
 		return e1
 	}
@@ -57,7 +57,7 @@ func getNamedPipeClientProcessID(pipe windows.Handle, clientProcessID *int32) (e
 // compareObjectHandles compares two object handles to determine if they
 // refer to the same underlying kernel object
 func compareObjectHandles(firstHandle, secondHandle windows.Handle) error {
-	r1, _, e1 := syscall.Syscall(procCompareObjectHandles.Addr(), 2, uintptr(firstHandle), uintptr(secondHandle), 0)
+	r1, _, e1 := syscall.SyscallN(procCompareObjectHandles.Addr(), 2, uintptr(firstHandle), uintptr(secondHandle), 0)
 	if r1 == 0 {
 		return e1
 	}
