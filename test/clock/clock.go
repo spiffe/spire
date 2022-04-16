@@ -48,6 +48,10 @@ func (m *Mock) TimerCh() <-chan time.Duration {
 	return m.timerC
 }
 
+func (m *Mock) WaitForAfterCh() <-chan time.Duration {
+	return m.afterC
+}
+
 // WaitForTimer waits up to the specified timeout for Timer to be called on the clock.
 func (m *Mock) WaitForTimer(timeout time.Duration, format string, args ...interface{}) {
 	select {

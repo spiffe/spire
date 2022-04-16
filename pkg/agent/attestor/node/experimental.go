@@ -16,18 +16,18 @@ import (
 	"google.golang.org/grpc"
 )
 
-func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byte, attestor nodeattestor.NodeAttestor) ([]*x509.Certificate, error) {
+func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byte, attestor nodeattestor.NodeAttestor) ([]*x509.Certificate, bool, error) {
 	// make sure all of the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	stream := &serverStream{client: agentv1.NewAgentClient(conn), csr: csr}
+	stream := &ServerStream{Client: agentv1.NewAgentClient(conn), Csr: csr, Log: a.c.Log}
 
 	if err := attestor.Attest(ctx, stream); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return stream.svid, nil
+	return stream.SVID, stream.Reattestable, nil
 }
 
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*bundleutil.Bundle, error) {
@@ -66,15 +66,16 @@ func getSVIDFromAttestAgentResponse(r *agentv1.AttestAgentResponse) ([]*x509.Cer
 	return svid, nil
 }
 
-type serverStream struct {
-	log    logrus.FieldLogger
-	client agentv1.AgentClient
-	csr    []byte
-	stream agentv1.Agent_AttestAgentClient
-	svid   []*x509.Certificate
+type ServerStream struct {
+	Client       agentv1.AgentClient
+	Csr          []byte
+	Log          logrus.FieldLogger
+	SVID         []*x509.Certificate
+	Reattestable bool
+	stream       agentv1.Agent_AttestAgentClient
 }
 
-func (ss *serverStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
+func (ss *ServerStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
 	return ss.sendRequest(ctx, &agentv1.AttestAgentRequest{
 		Step: &agentv1.AttestAgentRequest_Params_{
 			Params: &agentv1.AttestAgentRequest_Params{
@@ -83,14 +84,14 @@ func (ss *serverStream) SendAttestationData(ctx context.Context, attestationData
 					Payload: attestationData.Payload,
 				},
 				Params: &agentv1.AgentX509SVIDParams{
-					Csr: ss.csr,
+					Csr: ss.Csr,
 				},
 			},
 		},
 	})
 }
 
-func (ss *serverStream) SendChallengeResponse(ctx context.Context, response []byte) ([]byte, error) {
+func (ss *ServerStream) SendChallengeResponse(ctx context.Context, response []byte) ([]byte, error) {
 	return ss.sendRequest(ctx, &agentv1.AttestAgentRequest{
 		Step: &agentv1.AttestAgentRequest_ChallengeResponse{
 			ChallengeResponse: response,
@@ -98,9 +99,9 @@ func (ss *serverStream) SendChallengeResponse(ctx context.Context, response []by
 	})
 }
 
-func (ss *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgentRequest) ([]byte, error) {
+func (ss *ServerStream) sendRequest(ctx context.Context, req *agentv1.AttestAgentRequest) ([]byte, error) {
 	if ss.stream == nil {
-		stream, err := ss.client.AttestAgent(ctx)
+		stream, err := ss.Client.AttestAgent(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("could not open attestation stream to SPIRE server: %w", err)
 		}
@@ -126,9 +127,10 @@ func (ss *serverStream) sendRequest(ctx context.Context, req *agentv1.AttestAgen
 	}
 
 	if err := ss.stream.CloseSend(); err != nil {
-		ss.log.WithError(err).Warn("failed to close stream send side")
+		ss.Log.WithError(err).Warn("failed to close stream send side")
 	}
 
-	ss.svid = svid
+	ss.Reattestable = resp.GetResult().Reattestable
+	ss.SVID = svid
 	return nil, nil
 }

@@ -4,79 +4,180 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/imkira/go-observer"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
+	"github.com/spiffe/spire/test/fakes/fakeagentnodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
+var (
+	trustDomain    = spiffeid.RequireTrustDomainFromString("example.org")
+	badTrustDomain = spiffeid.RequireTrustDomainFromString("badexample.org")
+	reattestError  = "reattestation failed by test"
+	renewError     = "renewing SVID failed by test"
+	bundleError    = "bundle not found"
+	testTimeout    = time.Minute
+)
+
+func init() {
+	err := fflag.Load(fflag.RawConfig{"reattest_to_renew"})
+	if err != nil {
+		panic(err)
+	}
+}
+
 func TestRotator(t *testing.T) {
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+	serverCert, serverKey := testca.CreateX509Certificate(t, caCert, caKey, testca.WithID(idutil.RequireServerID(trustDomain)))
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{serverCert.Raw},
+				PrivateKey:  serverKey,
+			},
+		},
+		MinVersion: tls.VersionTLS12,
+	}
 
 	for _, tt := range []struct {
-		name         string
-		notAfter     time.Duration
-		checkAfter   time.Duration
-		shouldRotate bool
+		name              string
+		notAfter          time.Duration
+		shouldRotate      bool
+		reattest          bool
+		failReattest      bool
+		bundleTrustDomain spiffeid.TrustDomain
+		err               string
 	}{
 		{
-			name:         "not expired at startup",
-			notAfter:     time.Minute,
-			shouldRotate: false,
+			name:              "not expired at startup",
+			notAfter:          time.Minute,
+			shouldRotate:      false,
+			bundleTrustDomain: trustDomain,
 		},
 		{
-			name:         "expired at startup",
-			notAfter:     0,
-			shouldRotate: true,
+			name:              "renew expired at startup",
+			notAfter:          0,
+			shouldRotate:      true,
+			bundleTrustDomain: trustDomain,
 		},
 		{
-			name:         "expires after startup",
-			notAfter:     2 * time.Minute,
-			checkAfter:   2*time.Minute + time.Second,
-			shouldRotate: true,
+			name:              "renew expires after startup",
+			notAfter:          2 * time.Minute,
+			shouldRotate:      true,
+			bundleTrustDomain: trustDomain,
+		},
+		{
+			name:              "reattest expired at startup",
+			notAfter:          0,
+			shouldRotate:      true,
+			reattest:          true,
+			bundleTrustDomain: trustDomain,
+		},
+		{
+			name:              "reattest expires after startup",
+			notAfter:          2 * time.Minute,
+			shouldRotate:      true,
+			reattest:          true,
+			bundleTrustDomain: trustDomain,
+		},
+		{
+			name:              "reattest failure",
+			reattest:          true,
+			shouldRotate:      true,
+			bundleTrustDomain: trustDomain,
+			failReattest:      true,
+			err:               reattestError,
+		},
+		{
+			name:              "reattest bad bundle",
+			reattest:          true,
+			shouldRotate:      true,
+			bundleTrustDomain: badTrustDomain,
+			failReattest:      true,
+			err:               bundleError,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
 			clk := clock.NewMock(t)
-			log, _ := test.NewNullLogger()
+			log, hook := test.NewNullLogger()
 			mockClient := &fakeClient{clk: clk, caCert: caCert, caKey: caKey}
 
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
-			svid := createTestSVID(t, svidKey, caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
+			svidBytes, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
+			require.NoError(t, err)
+			svidParsed, err := x509.ParseCertificate(svidBytes)
+			require.NoError(t, err)
+			svid := []*x509.Certificate{svidParsed}
+
+			// Advance the clock by one second so SVID will always be expired
+			// at startup for the "expired at startup" tests
+			clk.Add(time.Second)
+
+			// Create the bundle
+			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
+			bundle[tt.bundleTrustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
+
+			// Create the attestor
+			attestor := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{})
+
+			// Create the server
+			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+			agentService := &fakeAgentService{clk: clk, svidKM: svidKM, svidKey: svidKey, caCert: caCert, caKey: caKey, failReattest: tt.failReattest}
+			agentv1.RegisterAgentServer(server, agentService)
+
+			listener, err := net.Listen("tcp", "localhost:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+
+			spiretest.ServeGRPCServerOnListener(t, server, listener)
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
 				SVIDKeyManager: svidKM,
 				Log:            log,
 				Metrics:        telemetry.Blackhole{},
-				TrustDomain:    spiffeid.RequireTrustDomainFromString("example.org"),
-				BundleStream:   cache.NewBundleStream(observer.NewProperty([]*x509.Certificate(nil)).Observe()),
+				TrustDomain:    trustDomain,
+				BundleStream:   cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
 				Clk:            clk,
 				SVID:           svid,
 				SVIDKey:        svidKey,
+				Reattestable:   tt.reattest,
+				NodeAttestor:   attestor,
+				ServerAddr:     listener.Addr().String(),
 			})
 			rotator.client = mockClient
 
@@ -94,41 +195,64 @@ func TestRotator(t *testing.T) {
 
 			// Subscribe to SVID changes and run the rotator
 			stream := rotator.Subscribe()
-
 			ctx, cancel := context.WithCancel(context.Background())
 			errCh := make(chan error, 1)
 			go func() {
 				errCh <- rotator.Run(ctx)
 			}()
 
-			// Wait for the initial rotation check to finish
+			// All tests should get through one rotation loop or error
 			select {
-			case <-time.After(time.Minute):
-				t.Fatal("timed out waiting for rotation check to finish")
-			case <-rotationDone:
-				clk.WaitForAfter(time.Minute, "timed out waiting for rotation loop to start waiting")
+			case <-clk.WaitForAfterCh():
+			case err = <-errCh:
+				if tt.failReattest {
+					cancel()
+					spiretest.RequireErrorContains(t, err, tt.err)
+					return
+				}
+
+				t.Fatalf("unexpected error during first rotation loop: %v", err)
+			case <-time.After(testTimeout):
+				if hook.LastEntry() != nil && hook.LastEntry().Level == logrus.ErrorLevel {
+					t.Fatalf("timed out waiting for first rotation loop to finish: %s", hook.LastEntry().Message)
+				}
+				t.Fatal("timed out waiting for first rotation loop to finish")
 			}
 
-			// Optionally advance the clock by the specified amount
-			// and wait for another rotation check to finish.
-			if tt.checkAfter != 0 {
-				require.Greater(t, tt.checkAfter, DefaultRotatorInterval, "checkAfter should be larger than the default rotator interval")
-				clk.Add(tt.checkAfter)
+			// Wait for the rotation check to finish
+			if tt.shouldRotate {
+				// Optionally advance the clock by the specified amount
+				// before waiting for the rotation check to finish.
+				if tt.notAfter != 0 {
+					require.Greaterf(t, tt.notAfter, DefaultRotatorInterval, "notAfter must be larger than %v", DefaultRotatorInterval)
+					clk.Add(tt.notAfter)
+				}
+
 				select {
-				case <-time.After(time.Minute):
-					t.Fatal("timed out waiting for rotation check to finish after clock adjustment")
 				case <-rotationDone:
-					clk.WaitForAfter(time.Minute, "timed out waiting for rotation loop to start waiting after clock adjustment")
+				case err = <-errCh:
+					if tt.failReattest {
+						cancel()
+						spiretest.RequireErrorContains(t, err, tt.err)
+						return
+					}
+
+					t.Fatalf("unexpected error during rotation: %v", err)
+				case <-time.After(testTimeout):
+					if hook.LastEntry() != nil && hook.LastEntry().Level == logrus.ErrorLevel {
+						t.Fatalf("timed out waiting for rotation check to finish: %s", hook.LastEntry().Message)
+					}
+					t.Fatal("timed out waiting for rotation check to finish")
 				}
 			}
 
 			// Shut down the rotator
 			cancel()
 			select {
-			case <-time.After(time.Minute):
-				t.Fatal("timed out waiting for the rotator to shut down")
 			case err = <-errCh:
 				require.True(t, errors.Is(err, context.Canceled), "expected %v, not %v", context.Canceled, err)
+			case <-time.After(testTimeout):
+				t.Fatal("timed out waiting for the rotator to shut down")
 			}
 
 			// If rotation was supposed to happen, wait for the SVID changes
@@ -153,6 +277,8 @@ func TestRotator(t *testing.T) {
 				assert.Equal(t, svidKey, state.Key)
 				assert.Equal(t, 1, mockClient.releaseCount)
 			}
+
+			assert.Equal(t, tt.reattest, agentService.attested)
 		})
 	}
 }
@@ -182,7 +308,7 @@ func TestRotationFails(t *testing.T) {
 			name:       "svid is expired",
 			expiration: -time.Second,
 			err:        errors.New("oh no"),
-			expectErr:  "current SVID has already expired and rotation failed: oh no",
+			expectErr:  "current SVID has already expired and rotate agent SVID failed: oh no",
 		},
 		{
 			name:      "expired agent",
@@ -209,7 +335,11 @@ func TestRotationFails(t *testing.T) {
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
-			svid := createTestSVID(t, svidKey, caCert, caKey, clk.Now(), clk.Now().Add(tt.expiration))
+			svidBytes, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.expiration))
+			require.NoError(t, err)
+			svidParsed, err := x509.ParseCertificate(svidBytes)
+			require.NoError(t, err)
+			svid := []*x509.Certificate{svidParsed}
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
@@ -244,6 +374,7 @@ func (c *fakeClient) RenewSVID(ctx context.Context, csrBytes []byte) (*client.X5
 	if c.renewErr != nil {
 		return nil, c.renewErr
 	}
+
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
 		return nil, err
@@ -253,20 +384,15 @@ func (c *fakeClient) RenewSVID(ctx context.Context, csrBytes []byte) (*client.X5
 		return nil, err
 	}
 
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		NotBefore:    c.clk.Now(),
-		NotAfter:     c.clk.Now().Add(time.Hour),
-	}
-
-	svid, err := x509.CreateCertificate(rand.Reader, tmpl, c.caCert, csr.PublicKey, c.caKey)
+	notAfter := c.clk.Now().Add(time.Hour)
+	svid, err := createTestSVID(csr.PublicKey, c.caCert, c.caKey, c.clk.Now(), notAfter)
 	if err != nil {
 		return nil, err
 	}
 
 	return &client.X509SVID{
 		CertChain: svid,
-		ExpiresAt: tmpl.NotAfter.Unix(),
+		ExpiresAt: notAfter.Unix(),
 	}, nil
 }
 
@@ -274,16 +400,56 @@ func (c *fakeClient) Release() {
 	c.releaseCount++
 }
 
-func createTestSVID(t *testing.T, svidKey crypto.Signer, ca *x509.Certificate, caKey crypto.Signer, notBefore time.Time, notAfter time.Time) []*x509.Certificate {
+type fakeAgentService struct {
+	agentv1.AgentServer
+
+	clk          clock.Clock
+	attested     bool
+	svidKM       keymanager.SVIDKeyManager
+	svidKey      keymanager.Key
+	caCert       *x509.Certificate
+	caKey        crypto.Signer
+	failReattest bool
+}
+
+func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
+	_, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	if n.failReattest {
+		return errors.New(reattestError)
+	}
+
+	key, err := n.svidKM.GenerateKey(context.Background(), n.svidKey)
+	if err != nil {
+		return err
+	}
+
+	svid, err := createTestSVID(key.Public(), n.caCert, n.caKey, n.clk.Now(), n.clk.Now().Add(time.Hour))
+	if err != nil {
+		return err
+	}
+
+	n.attested = true
+	return stream.Send(&agentv1.AttestAgentResponse{
+		Step: &agentv1.AttestAgentResponse_Result_{
+			Result: &agentv1.AttestAgentResponse_Result{
+				Svid: &types.X509SVID{
+					CertChain: [][]byte{svid},
+				},
+			},
+		},
+	})
+}
+
+func createTestSVID(svidKey crypto.PublicKey, ca *x509.Certificate, caKey crypto.Signer, notBefore, notAfter time.Time) ([]byte, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
-		URIs:         []*url.URL{{Scheme: "spiffe", Host: "example.org", Path: "/spire/agent/test"}},
+		URIs:         []*url.URL{{Scheme: "spiffe", Host: trustDomain.String(), Path: "/spire/agent/test"}},
 	}
-	svidBytes, err := x509.CreateCertificate(rand.Reader, tmpl, ca, svidKey.Public(), caKey)
-	require.NoError(t, err)
-	svid, err := x509.ParseCertificate(svidBytes)
-	require.NoError(t, err)
-	return []*x509.Certificate{svid}
+	return x509.CreateCertificate(rand.Reader, tmpl, ca, svidKey, caKey)
 }

@@ -363,6 +363,9 @@ const (
 	// Reason is the reason for something
 	Reason = "reason"
 
+	// Reattestable declares if the agent should reattest when its SVID expires
+	Reattestable = "rettestable"
+
 	// Received tags a received value, as opposed to the one that is expected. Message should clarify
 	// what kind of value was received, and a different field should show the expected value.
 	Received = "received"

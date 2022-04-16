@@ -130,32 +130,35 @@ func TestSVID(t *testing.T) {
 		dir := spiretest.TempDir(t)
 
 		sto := openStorage(t, dir)
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
+		require.False(t, reattestable)
 	})
 
 	t.Run("load from same storage instance", func(t *testing.T) {
 		dir := spiretest.TempDir(t)
 
 		sto := openStorage(t, dir)
-		require.NoError(t, sto.StoreSVID(certsA))
+		require.NoError(t, sto.StoreSVID(certsA, true))
 
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.NoError(t, err)
 		require.Equal(t, certsA, actual)
+		require.True(t, reattestable)
 	})
 
 	t.Run("load from new storage instance", func(t *testing.T) {
 		dir := spiretest.TempDir(t)
 
 		sto := openStorage(t, dir)
-		require.NoError(t, sto.StoreSVID(certsA))
+		require.NoError(t, sto.StoreSVID(certsA, true))
 
 		sto = openStorage(t, dir)
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.NoError(t, err)
 		require.Equal(t, certsA, actual)
+		require.True(t, reattestable)
 	})
 
 	t.Run("populate from legacy after upgrade", func(t *testing.T) {
@@ -167,9 +170,10 @@ func TestSVID(t *testing.T) {
 		sto := openStorage(t, dir)
 
 		// Ensure the legacy SVID exists
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.NoError(t, err)
 		require.Equal(t, certsA, actual)
+		require.False(t, reattestable)
 	})
 
 	t.Run("restore from legacy after downgrade", func(t *testing.T) {
@@ -177,7 +181,7 @@ func TestSVID(t *testing.T) {
 
 		// Open storage and store the SVID
 		sto := openStorage(t, dir)
-		require.NoError(t, sto.StoreSVID(certsA))
+		require.NoError(t, sto.StoreSVID(certsA, false))
 
 		// Assert the legacy SVID has been stored
 		actual, _, err := loadLegacySVID(dir)
@@ -194,9 +198,10 @@ func TestSVID(t *testing.T) {
 		// Open storage to simulate state after upgrade and assert legacy data
 		// is observed.
 		sto := openStorage(t, dir)
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.NoError(t, err)
 		require.Equal(t, certsA, actual)
+		require.False(t, reattestable)
 
 		// Write values to legacy storage simulating change after downgrade
 		require.NoError(t, storeLegacySVID(dir, certsB))
@@ -209,9 +214,10 @@ func TestSVID(t *testing.T) {
 		// Reload the sto storage (simulating the upgrade after
 		// downgrade) and assert new cert is observed.
 		sto = openStorage(t, dir)
-		actual, err = sto.LoadSVID()
+		actual, reattestable, err = sto.LoadSVID()
 		require.NoError(t, err)
 		require.Equal(t, certsB, actual)
+		require.False(t, reattestable)
 	})
 
 	t.Run("delete from empty storage", func(t *testing.T) {
@@ -220,36 +226,39 @@ func TestSVID(t *testing.T) {
 		sto := openStorage(t, dir)
 		require.NoError(t, sto.DeleteSVID())
 
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
+		require.False(t, reattestable)
 	})
 
 	t.Run("delete from populated storage", func(t *testing.T) {
 		dir := spiretest.TempDir(t)
 
 		sto := openStorage(t, dir)
-		require.NoError(t, sto.StoreSVID(certsA))
+		require.NoError(t, sto.StoreSVID(certsA, true))
 		require.NoError(t, sto.DeleteSVID())
 
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
+		require.False(t, reattestable)
 	})
 
 	t.Run("delete from populated storage with new instances", func(t *testing.T) {
 		dir := spiretest.TempDir(t)
 
 		sto := openStorage(t, dir)
-		require.NoError(t, sto.StoreSVID(certsA))
+		require.NoError(t, sto.StoreSVID(certsA, true))
 
 		sto = openStorage(t, dir)
 		require.NoError(t, sto.DeleteSVID())
 
 		sto = openStorage(t, dir)
-		actual, err := sto.LoadSVID()
+		actual, reattestable, err := sto.LoadSVID()
 		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
+		require.False(t, reattestable)
 	})
 }
 

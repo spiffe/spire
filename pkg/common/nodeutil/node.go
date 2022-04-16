@@ -11,9 +11,10 @@ import (
 
 var (
 	shouldReattest = map[types.PermissionDeniedDetails_Reason]struct{}{
-		types.PermissionDeniedDetails_AGENT_EXPIRED:      {},
-		types.PermissionDeniedDetails_AGENT_NOT_ACTIVE:   {},
-		types.PermissionDeniedDetails_AGENT_NOT_ATTESTED: {},
+		types.PermissionDeniedDetails_AGENT_EXPIRED:       {},
+		types.PermissionDeniedDetails_AGENT_NOT_ACTIVE:    {},
+		types.PermissionDeniedDetails_AGENT_NOT_ATTESTED:  {},
+		types.PermissionDeniedDetails_AGENT_MUST_REATTEST: {},
 	}
 	shouldShutDown = map[types.PermissionDeniedDetails_Reason]struct{}{
 		types.PermissionDeniedDetails_AGENT_BANNED: {},
