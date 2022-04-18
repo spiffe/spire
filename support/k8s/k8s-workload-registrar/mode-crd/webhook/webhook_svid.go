@@ -41,6 +41,7 @@ type SVIDConfig struct {
 	TrustDomain        spiffeid.TrustDomain
 	WebhookCertDir     string
 	WebhookServiceName string
+	WebhookSVIDRetries int
 }
 
 type SVID struct {
@@ -70,7 +71,7 @@ func NewSVID(ctx context.Context, config SVIDConfig) (*SVID, error) {
 
 // MintSVID requests the SPIRE Server to mint a new SVID for the webhook
 func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
-	e.c.Log.Debug("Minting new SVID for webhook")
+	e.c.Log.Info("Minting new SVID for webhook")
 	// Generate key if not passed in
 	if key == nil {
 		key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -93,8 +94,8 @@ func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
 	// Mint new SVID
 	var resp *svidv1.MintX509SVIDResponse
 	backoff := wait.Backoff{
-		Steps:    11,
-		Duration: 15 * time.Millisecond,
+		Steps:    e.c.WebhookSVIDRetries,
+		Duration: 10 * time.Millisecond,
 		Factor:   2.0,
 		Jitter:   0.1,
 	}
@@ -116,6 +117,7 @@ func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
 	if err != nil {
 		return err
 	}
+	e.c.Log.Info("Successfully minted new SVID for webhook")
 
 	// Parse leaf certificate and calculate half life
 	leafCert, err := x509.ParseCertificate(resp.Svid.CertChain[0])
@@ -151,6 +153,7 @@ func (e *SVID) mintSVIDRetry(err error) bool {
 		return false
 	}
 
+	e.c.Log.Debug("Unable to contact SPIRE Server to mint webhook SVID, retrying...")
 	return true
 }
 

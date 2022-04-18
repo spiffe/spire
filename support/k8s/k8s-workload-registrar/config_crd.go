@@ -23,6 +23,7 @@ const (
 	defaultWebhookCertDir     = "/run/spire/serving-certs"
 	defaultWebhookPort        = 9443
 	defaultWebhookServiceName = "k8s-workload-registrar"
+	defaultWebhookSVIDRetries = 8
 	namespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
@@ -36,6 +37,7 @@ type CRDMode struct {
 	WebhookEnabled        bool              `hcl:"webhook_enabled"`
 	WebhookPort           int               `hcl:"webhook_port"`
 	WebhookServiceName    string            `hcl:"webhook_service_name"`
+	WebhookSVIDRetries    int               `hcl:"webhook_svid_retries"`
 	IdentityTemplate      string            `hcl:"identity_template"`
 	IdentityTemplateLabel string            `hcl:"identity_template_label"`
 	DNSNameTemplates      *[]string         `hcl:"dns_name_templates"`
@@ -63,6 +65,10 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 
 	if c.WebhookServiceName == "" {
 		c.WebhookServiceName = defaultWebhookServiceName
+	}
+
+	if c.WebhookSVIDRetries == 0 {
+		c.WebhookSVIDRetries = defaultWebhookSVIDRetries
 	}
 
 	if c.IdentityTemplate != "" && (c.PodAnnotation != "" || c.PodLabel != "") {
@@ -142,6 +148,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 				TrustDomain:        c.trustDomain,
 				WebhookCertDir:     c.WebhookCertDir,
 				WebhookServiceName: c.WebhookServiceName,
+				WebhookSVIDRetries: c.WebhookSVIDRetries,
 			})
 			if err != nil {
 				return err
