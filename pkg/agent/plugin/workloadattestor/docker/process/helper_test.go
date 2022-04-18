@@ -97,7 +97,7 @@ func TestGetContainerIDByProcess(t *testing.T) {
 				return fAPI
 			},
 			expectDebugLogs: []string{
-				"Unable to get job name: failed to open unique process: The system cannot find the file specified.",
+				"Unable to get job name: [error failed to open unique process: The system cannot find the file specified.]",
 			},
 			containerID: "",
 		},
@@ -116,7 +116,23 @@ func TestGetContainerIDByProcess(t *testing.T) {
 				return fAPI
 			},
 			expectDebugLogs: []string{
-				"Unable to get job name: failed to duplicate handle: The system cannot find the file specified.",
+				"Unable to get job name: [error failed to duplicate handle: The system cannot find the file specified.]",
+			},
+			containerID: "",
+		},
+		{
+			name: "failed to duplicate process with invalid request",
+			api: func(t *testing.T) *fakeWinAPI {
+				fAPI := createDefaultFakeWinAPI(t)
+				fAPI.queryHandleInformation = []SystemHandleInformationExItem{
+					{
+						UniqueProcessID: 3,
+						HandleValue:     uintptr(456),
+					},
+				}
+				fAPI.duplicateHandleErr = windows.ERROR_NOT_SUPPORTED
+
+				return fAPI
 			},
 			containerID: "",
 		},
@@ -131,7 +147,7 @@ func TestGetContainerIDByProcess(t *testing.T) {
 				return fAPI
 			},
 			expectDebugLogs: []string{
-				"Unable to get job name: failed to get Object type: The system cannot find the file specified.",
+				"Unable to get job name: [error failed to get Object type: The system cannot find the file specified.]",
 			},
 			containerID: "",
 		},
@@ -143,7 +159,7 @@ func TestGetContainerIDByProcess(t *testing.T) {
 				return fAPI
 			},
 			expectDebugLogs: []string{
-				"Unable to get job name: failed to call IsProcessInJob: oh no",
+				"Unable to get job name: [error failed to call IsProcessInJob: oh no]",
 			},
 			containerID: "",
 		},
@@ -155,7 +171,7 @@ func TestGetContainerIDByProcess(t *testing.T) {
 				return fAPI
 			},
 			expectDebugLogs: []string{
-				"Unable to get job name: failed to get object name: The system cannot find the file specified.",
+				"Unable to get job name: [error failed to get object name: The system cannot find the file specified.]",
 			},
 			containerID: "",
 		},
@@ -437,5 +453,5 @@ type fakeLogger struct {
 }
 
 func (l *fakeLogger) Debug(msg string, args ...interface{}) {
-	l.debugMsj = append(l.debugMsj, fmt.Sprintf(msg, args...))
+	l.debugMsj = append(l.debugMsj, fmt.Sprintf("%s: %v", msg, args))
 }

@@ -78,7 +78,7 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 
 		jobName, err := h.getJobName(handle, currentProcess, childProcessHandle, log)
 		if err != nil {
-			log.Debug("Unable to get job name: %v", err)
+			log.Debug("Unable to get job name", telemetry.Error, err)
 			continue
 		}
 		if jobName != "" {
@@ -150,6 +150,11 @@ func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess
 	var dupHandle windows.Handle
 	if err := h.wapi.DuplicateHandle(hProcess, windows.Handle(handle.HandleValue), currentProcess, &dupHandle,
 		0, true, windows.DUPLICATE_SAME_ACCESS); err != nil {
+		if errors.Is(err, windows.ERROR_NOT_SUPPORTED) {
+			// This is expected when trying to duplicate a process that
+			// is not managed by docker
+			return "", nil
+		}
 		return "", fmt.Errorf("failed to duplicate handle: %w", err)
 	}
 	defer func() {

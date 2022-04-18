@@ -73,7 +73,7 @@ type api struct {
 }
 
 func (a *api) IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle, result *bool) error {
-	r1, _, e1 := syscall.Syscall(procIsProcessInJob.Addr(), 3, uintptr(procHandle), uintptr(jobHandle), uintptr(unsafe.Pointer(result)))
+	r1, _, e1 := syscall.SyscallN(procIsProcessInJob.Addr(), uintptr(procHandle), uintptr(jobHandle), uintptr(unsafe.Pointer(result)))
 	if r1 == 0 {
 		if e1 != 0 {
 			return e1
@@ -235,7 +235,7 @@ func (u UnicodeString) String() string {
 }
 
 func ntQueryObject(handle windows.Handle, objectInformationClass uint32, objectInformation *byte, objectInformationLength uint32, returnLength *uint32) (ntStatus windows.NTStatus) {
-	r0, _, _ := syscall.Syscall6(procNtQueryObject.Addr(), 5, uintptr(handle), uintptr(objectInformationClass), uintptr(unsafe.Pointer(objectInformation)), uintptr(objectInformationLength), uintptr(unsafe.Pointer(returnLength)), 0)
+	r0, _, _ := syscall.SyscallN(procNtQueryObject.Addr(), uintptr(handle), uintptr(objectInformationClass), uintptr(unsafe.Pointer(objectInformation)), uintptr(objectInformationLength), uintptr(unsafe.Pointer(returnLength)), 0)
 	if r0 != 0 {
 		ntStatus = windows.NTStatus(r0)
 	}
@@ -243,7 +243,7 @@ func ntQueryObject(handle windows.Handle, objectInformationClass uint32, objectI
 }
 
 func ntQuerySystemInformation(sysInfoClass int32, sysInfo unsafe.Pointer, sysInfoLen uint32, retLen *uint32) (ntstatus windows.NTStatus) {
-	r0, _, _ := syscall.Syscall6(procNtQuerySystemInformation.Addr(), 4, uintptr(sysInfoClass), uintptr(sysInfo), uintptr(sysInfoLen), uintptr(unsafe.Pointer(retLen)), 0, 0)
+	r0, _, _ := syscall.SyscallN(procNtQuerySystemInformation.Addr(), uintptr(sysInfoClass), uintptr(sysInfo), uintptr(sysInfoLen), uintptr(unsafe.Pointer(retLen)), 0, 0)
 	if r0 != 0 {
 		ntstatus = windows.NTStatus(r0)
 	}
