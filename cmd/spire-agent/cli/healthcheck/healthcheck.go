@@ -9,8 +9,6 @@ import (
 	"github.com/mitchellh/cli"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -81,7 +79,7 @@ func (c *healthCheckCommand) run() error {
 	if err != nil {
 		return err
 	}
-	conn, err := grpc.DialContext(context.Background(), target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := util.GRPCDialContext(context.Background(), target)
 	if err != nil {
 		return err
 	}

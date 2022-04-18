@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -225,9 +224,7 @@ func TestEndpoints(t *testing.T) {
 			waitForListening(t, endpoints, errCh)
 			target, err := util.GetTargetName(endpoints.addr)
 			require.NoError(t, err)
-			conn, err := grpc.DialContext(ctx, target,
-				grpc.WithReturnConnectionError(),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := util.GRPCDialContext(ctx, target)
 			require.NoError(t, err)
 			defer conn.Close()
 

@@ -10,10 +10,9 @@ import (
 var _ net.Listener = &Listener{}
 
 type ListenerFactory struct {
-	Log             logrus.FieldLogger
-	NewTracker      func(log logrus.FieldLogger) (PeerTracker, error)
-	NewUnixListener func(network string, laddr *net.UnixAddr) (*net.UnixListener, error)
-	NewTCPListener  func(network string, laddr *net.TCPAddr) (*net.TCPListener, error)
+	Log               logrus.FieldLogger
+	NewTracker        func(log logrus.FieldLogger) (PeerTracker, error)
+	ListenerFactoryOS // OS specific
 }
 
 type Listener struct {
@@ -22,74 +21,10 @@ type Listener struct {
 	Tracker PeerTracker
 }
 
-func (lf *ListenerFactory) ListenUnix(network string, laddr *net.UnixAddr) (*Listener, error) {
-	if lf.NewUnixListener == nil {
-		lf.NewUnixListener = net.ListenUnix
-	}
-	if lf.NewTracker == nil {
-		lf.NewTracker = NewTracker
-	}
-	if lf.Log == nil {
-		lf.Log = newNoopLogger()
-	}
-	return lf.listenUnix(network, laddr)
-}
-
-func (lf *ListenerFactory) ListenTCP(network string, laddr *net.TCPAddr) (*Listener, error) {
-	if lf.NewTCPListener == nil {
-		lf.NewTCPListener = net.ListenTCP
-	}
-	if lf.NewTracker == nil {
-		lf.NewTracker = NewTracker
-	}
-	if lf.Log == nil {
-		lf.Log = newNoopLogger()
-	}
-	return lf.listenTCP(network, laddr)
-}
-
 func newNoopLogger() *logrus.Logger {
 	logger := logrus.New()
 	logger.Out = io.Discard
 	return logger
-}
-
-func (lf *ListenerFactory) listenUnix(network string, laddr *net.UnixAddr) (*Listener, error) {
-	l, err := lf.NewUnixListener(network, laddr)
-	if err != nil {
-		return nil, err
-	}
-
-	tracker, err := lf.NewTracker(lf.Log)
-	if err != nil {
-		l.Close()
-		return nil, err
-	}
-
-	return &Listener{
-		l:       l,
-		Tracker: tracker,
-		log:     lf.Log,
-	}, nil
-}
-
-func (lf *ListenerFactory) listenTCP(network string, laddr *net.TCPAddr) (*Listener, error) {
-	l, err := lf.NewTCPListener(network, laddr)
-	if err != nil {
-		return nil, err
-	}
-
-	tracker, err := lf.NewTracker(lf.Log)
-	if err != nil {
-		l.Close()
-		return nil, err
-	}
-
-	return &Listener{
-		l:       l,
-		Tracker: tracker,
-		log:     lf.Log,
-	}, nil
 }
 
 func (l *Listener) Accept() (net.Conn, error) {
@@ -106,8 +41,8 @@ func (l *Listener) Accept() (net.Conn, error) {
 		switch conn.RemoteAddr().Network() {
 		case "unix":
 			caller, err = CallerFromUDSConn(conn)
-		case "tcp":
-			caller, err = CallerFromTCPConn(conn)
+		case "pipe":
+			caller, err = CallerFromNamedPipeConn(conn)
 		default:
 			err = ErrUnsupportedTransport
 		}

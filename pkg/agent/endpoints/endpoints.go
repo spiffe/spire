@@ -3,9 +3,7 @@ package endpoints
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
-	"os"
 
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
@@ -124,17 +122,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	secret_v3.RegisterSecretDiscoveryServiceServer(server, e.sdsv3Server)
 	grpc_health_v1.RegisterHealthServer(server, e.healthServer)
 
-	var l net.Listener
-	var err error
-	switch e.addr.Network() {
-	case "unix":
-		l, err = e.createUDSListener()
-	case "tcp":
-		l, err = e.createTCPListener()
-	default:
-		return net.UnknownNetworkError(e.addr.Network())
-	}
-
+	l, err := e.createListener()
 	if err != nil {
 		return err
 	}
@@ -164,41 +152,6 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		}
 	}
 	return err
-}
-
-func (e *Endpoints) createUDSListener() (net.Listener, error) {
-	// Remove uds if already exists
-	os.Remove(e.addr.String())
-
-	unixListener := &peertracker.ListenerFactory{
-		Log: e.log,
-	}
-
-	unixAddr, ok := e.addr.(*net.UnixAddr)
-	if !ok {
-		return nil, fmt.Errorf("create UDS listener: address is type %T, not net.UnixAddr", e.addr)
-	}
-	l, err := unixListener.ListenUnix(e.addr.Network(), unixAddr)
-	if err != nil {
-		return nil, fmt.Errorf("create UDS listener: %w", err)
-	}
-
-	if err := os.Chmod(e.addr.String(), os.ModePerm); err != nil {
-		return nil, fmt.Errorf("unable to change UDS permissions: %w", err)
-	}
-	return l, nil
-}
-
-func (e *Endpoints) createTCPListener() (net.Listener, error) {
-	tcpListener := &peertracker.ListenerFactory{
-		Log: e.log,
-	}
-
-	l, err := tcpListener.ListenTCP(e.addr.Network(), e.addr.(*net.TCPAddr))
-	if err != nil {
-		return nil, fmt.Errorf("create TCP listener: %w", err)
-	}
-	return l, nil
 }
 
 func (e *Endpoints) triggerListeningHook() {

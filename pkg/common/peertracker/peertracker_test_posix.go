@@ -55,3 +55,7 @@ func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
 	// #nosec G204 test code
 	return exec.Command(childPath, "-socketPath", addr.(*net.UnixAddr).Name)
 }
+
+func dial(addr net.Addr) (net.Conn, error) {
+	return net.Dial(addr.Network(), addr.String())
+}

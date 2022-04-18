@@ -14,6 +14,7 @@ require (
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.30.0
 	github.com/InVisionApp/go-health/v2 v2.1.2
 	github.com/InVisionApp/go-logger v1.0.1
+	github.com/Microsoft/go-winio v0.5.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.10
 	github.com/aws/aws-sdk-go v1.43.0
@@ -53,7 +54,7 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/shirou/gopsutil/v3 v3.22.3
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spiffe/go-spiffe/v2 v2.0.0
+	github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3
 	github.com/spiffe/spire-api-sdk v1.2.2-0.20220317172821-e2705b35aa09
 	github.com/spiffe/spire-plugin-sdk v1.2.1
 	github.com/stretchr/testify v1.7.1
@@ -94,7 +95,6 @@ require (
 	github.com/Masterminds/goutils v1.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
-	github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.3 // indirect

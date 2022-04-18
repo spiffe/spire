@@ -46,13 +46,7 @@ func TestHelp(t *testing.T) {
 	test := setupTest()
 
 	require.Empty(t, test.cmd.Help())
-	require.Equal(t, `Usage of health:
-  -shallow
-    	Perform a less stringent health check`+
-		socketAddrUsage+`
-  -verbose
-    	Print verbose information
-`, test.stderr.String(), "stderr")
+	require.Equal(t, usage, test.stderr.String(), "stderr")
 }
 
 func TestBadFlags(t *testing.T) {
@@ -61,14 +55,7 @@ func TestBadFlags(t *testing.T) {
 	code := test.cmd.Run([]string{"-badflag"})
 	require.NotEqual(t, 0, code, "exit code")
 	require.Empty(t, test.stdout.String(), "stdout")
-	require.Equal(t, `flag provided but not defined: -badflag
-Usage of health:
-  -shallow
-    	Perform a less stringent health check`+
-		socketAddrUsage+`
-  -verbose
-    	Print verbose information
-`, test.stderr.String(), "stderr")
+	require.Equal(t, "flag provided but not defined: -badflag\n"+usage, test.stderr.String(), "stderr")
 }
 
 func TestFailsOnUnavailable(t *testing.T) {
