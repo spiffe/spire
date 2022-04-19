@@ -322,7 +322,7 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 	}
 
 	if len(names) > 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to retrieve all requested identities, missing %v", names)
+		return nil, status.Errorf(codes.InvalidArgument, "workload is not authorized for the requested identities %q", sortedNames(names))
 	}
 
 	return resp, nil
@@ -538,4 +538,13 @@ func nextNonce() (string, error) {
 		return "", errs.Wrap(err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func sortedNames(names map[string]bool) []string {
+	out := make([]string, 0, len(names))
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }

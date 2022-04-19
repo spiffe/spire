@@ -10,9 +10,11 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -28,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -233,9 +234,8 @@ func (cmd *Command) Run(args []string) int {
 
 	s := server.New(*c)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	util.SignalListener(ctx, cancel)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	err = s.Run(ctx)
 	if err != nil {

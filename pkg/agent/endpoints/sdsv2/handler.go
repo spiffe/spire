@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"sort"
 	"strconv"
 
 	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
@@ -297,7 +298,7 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 	}
 
 	if len(names) > 0 {
-		return nil, errs.New("unable to retrieve all requested identities, missing %v", names)
+		return nil, errs.New("workload is not authorized for the requested identities %q", sortedNames(names))
 	}
 
 	return resp, nil
@@ -368,4 +369,13 @@ func nextNonce() (string, error) {
 		return "", errs.Wrap(err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func sortedNames(names map[string]bool) []string {
+	out := make([]string, 0, len(names))
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -178,8 +178,7 @@ func createCACert(caKey crypto.Signer) *x509.Certificate {
 		Subject: pkix.Name{
 			CommonName: "K8S WORKLOAD REGISTRAR CA",
 		},
-		KeyUsage: x509.KeyUsageDigitalSignature |
-			x509.KeyUsageCertSign |
+		KeyUsage: x509.KeyUsageCertSign |
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,

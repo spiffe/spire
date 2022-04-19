@@ -19,15 +19,15 @@ import (
 )
 
 const (
-	testRootCert          = "testdata/keys/EC/root_cert.pem"
-	testInvalidRootCert   = "testdata/keys/EC/invalid_root_cert.pem"
-	testServerCert        = "testdata/keys/EC/server_cert.pem"
-	testServerKey         = "testdata/keys/EC/server_key.pem"
-	testClientCert        = "testdata/keys/EC/client_cert.pem"
-	testClientKey         = "testdata/keys/EC/client_key.pem"
-	testInvalidClientCert = "testdata/keys/EC/invalid_client_cert.pem"
-	testInvalidClientKey  = "testdata/keys/EC/invalid_client_key.pem"
-	testReqCSR            = "testdata/keys/EC/intermediate_csr.pem"
+	testRootCert          = "testdata/root-cert.pem"
+	testInvalidRootCert   = "testdata/invalid-root-cert.pem"
+	testServerCert        = "testdata/server-cert.pem"
+	testServerKey         = "testdata/server-key.pem"
+	testClientCert        = "testdata/client-cert.pem"
+	testClientKey         = "testdata/client-key.pem"
+	testInvalidClientCert = "testdata/invalid-client-cert.pem"
+	testInvalidClientKey  = "testdata/invalid-client-key.pem"
+	testReqCSR            = "testdata/intermediate-csr.pem"
 )
 
 func TestNewClientConfigWithDefaultValues(t *testing.T) {
@@ -500,7 +500,7 @@ func TestConfigureTLSWithCertAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 }
 
 func TestConfigureTLSWithTokenAuth(t *testing.T) {
@@ -521,7 +521,7 @@ func TestConfigureTLSWithTokenAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 }
 
 func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
@@ -543,7 +543,7 @@ func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) // nolint // these pools are not system pools so the use of Subjects() is ok for now
 }
 
 func TestConfigureTLSInvalidCACert(t *testing.T) {
@@ -588,7 +588,7 @@ func TestConfigureTLSInvalidClientCert(t *testing.T) {
 
 	vc := vapi.DefaultConfig()
 	err = cc.configureTLS(vc)
-	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, fmt.Sprintf("failed to parse client cert and private-key: open testdata/keys/EC/invalid_client_cert.pem: %s", spiretest.FileNotFound()))
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to parse client cert and private-key: tls: failed to find any PEM data in certificate input")
 }
 
 func TestConfigureTLSRequireClientCertAndKey(t *testing.T) {
@@ -682,8 +682,6 @@ func TestSignIntermediateErrorFromEndpoint(t *testing.T) {
 
 func newFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer := NewFakeVaultServerConfig()
-	fakeVaultServer.ServerCertificatePemPath = testServerCert
-	fakeVaultServer.ServerKeyPemPath = testServerKey
 	fakeVaultServer.RenewResponseCode = 200
 	fakeVaultServer.RenewResponse = []byte(testRenewResponse)
 	return fakeVaultServer

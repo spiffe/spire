@@ -54,7 +54,7 @@ type SessionConfig struct {
 	Log        hclog.Logger
 }
 
-var OpenTPM func(...string) (io.ReadWriteCloser, error) = openTPM
+var OpenTPM = openTPM
 
 // NewSession opens a connection to a TPM and configures it to be used for
 // node attestation.
