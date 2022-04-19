@@ -73,6 +73,13 @@ func LoadRSAPrivateKey(path string) (*rsa.PrivateKey, error) {
 	return rsaPrivateKeyFromObject(block.Object)
 }
 
+func EncodeRSAPrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	}), nil
+}
+
 func rsaPrivateKeyFromObject(object interface{}) (*rsa.PrivateKey, error) {
 	key, ok := object.(*rsa.PrivateKey)
 	if !ok {
@@ -95,6 +102,18 @@ func LoadECPrivateKey(path string) (*ecdsa.PrivateKey, error) {
 		return nil, err
 	}
 	return ecdsaPrivateKeyFromObject(block.Object)
+}
+
+func EncodeECPrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
+	keyBytes, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyBytes,
+	}), nil
 }
 
 func EncodePKCS8PrivateKey(privateKey interface{}) ([]byte, error) {
