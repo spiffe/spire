@@ -41,7 +41,6 @@ type SVIDConfig struct {
 	TrustDomain        spiffeid.TrustDomain
 	WebhookCertDir     string
 	WebhookServiceName string
-	WebhookSVIDRetries int
 }
 
 type SVID struct {
@@ -94,7 +93,7 @@ func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
 	// Mint new SVID
 	var resp *svidv1.MintX509SVIDResponse
 	backoff := wait.Backoff{
-		Steps:    e.c.WebhookSVIDRetries,
+		Steps:    8,
 		Duration: 10 * time.Millisecond,
 		Factor:   2.0,
 		Jitter:   0.1,

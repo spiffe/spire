@@ -21,7 +21,6 @@ const (
 	Cluster            = "test-cluster"
 	Namespace          = "test"
 	WebhookServiceName = "k8s-workload-registrar"
-	WebhookSVIDRetries = 8
 	keyRSA             = "testdata/key-pkcs8-rsa.pem"
 	certSingle         = "testdata/good-leaf-only.pem"
 	keyECDSA           = "testdata/key-pkcs8-ecdsa.pem"
@@ -49,7 +48,6 @@ func TestMintSVID(t *testing.T) {
 		TrustDomain:        TrustDomain,
 		WebhookCertDir:     dir,
 		WebhookServiceName: WebhookServiceName,
-		WebhookSVIDRetries: WebhookSVIDRetries,
 	})
 	require.NoError(t, err)
 
@@ -122,11 +120,10 @@ func TestMintSVIDRetryLimit(t *testing.T) {
 		TrustDomain:        TrustDomain,
 		WebhookCertDir:     dir,
 		WebhookServiceName: WebhookServiceName,
-		WebhookSVIDRetries: 1,
 	})
 	require.NoError(t, err)
 
-	svidClient.setErrorCount(1)
+	svidClient.setErrorCount(11)
 	err = webhookSVID.MintSVID(ctx, nil)
 	require.Equal(t, err.Error(), "unable to make Mint SVID Request: test error")
 }
@@ -148,7 +145,6 @@ func TestMintSVIDEmptyCertChain(t *testing.T) {
 		TrustDomain:        TrustDomain,
 		WebhookCertDir:     dir,
 		WebhookServiceName: WebhookServiceName,
-		WebhookSVIDRetries: WebhookSVIDRetries,
 	})
 	require.NoError(t, err)
 
