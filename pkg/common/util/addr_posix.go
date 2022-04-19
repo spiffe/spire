@@ -17,7 +17,7 @@ func GRPCDialContext(ctx context.Context, target string) (*grpc.ClientConn, erro
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 }
 
-func GetWorkloadAPIClientOptions(addr net.Addr) ([]workloadapi.ClientOption, error) {
+func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {
 	if _, ok := addr.(*net.UnixAddr); !ok {
 		return nil, errors.New("address does not represent a Unix domain socket endpoint")
 	}
@@ -25,5 +25,5 @@ func GetWorkloadAPIClientOptions(addr net.Addr) ([]workloadapi.ClientOption, err
 	if err != nil {
 		return nil, err
 	}
-	return []workloadapi.ClientOption{workloadapi.WithAddr(target)}, nil
+	return workloadapi.WithAddr(target), nil
 }

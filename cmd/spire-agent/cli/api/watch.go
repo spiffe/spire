@@ -40,7 +40,7 @@ func (w *WatchCLI) Run(args []string) int {
 		return 1
 	}
 
-	clientOptions, err := util.GetWorkloadAPIClientOptions(addr)
+	clientOption, err := util.GetWorkloadAPIClientOption(addr)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -49,7 +49,7 @@ func (w *WatchCLI) Run(args []string) int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
-	if err := workloadapi.WatchX509Context(ctx, newWatcher(), clientOptions...); err != nil {
+	if err := workloadapi.WatchX509Context(ctx, newWatcher(), clientOption); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
