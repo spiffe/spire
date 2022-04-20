@@ -249,7 +249,7 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	if e.AuditLogEnabled {
 		l, err = e.listenWithAuditLog()
 	} else {
-		l, err = net.ListenUnix(e.LocalAddr.Network(), e.LocalAddr.(*net.UnixAddr))
+		l, err = net.Listen(e.LocalAddr.Network(), e.LocalAddr.String())
 	}
 
 	if err != nil {

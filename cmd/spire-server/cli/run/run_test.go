@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/x509/pkix"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -496,8 +495,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.SocketPath = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, "foo", c.BindLocalAddress.(*net.UnixAddr).Name)
-				require.Equal(t, "unix", c.BindLocalAddress.(*net.UnixAddr).Net)
+				require.Equal(t, "foo", c.BindLocalAddress.String())
+				require.Equal(t, "unix", c.BindLocalAddress.Network())
 			},
 		},
 		{
