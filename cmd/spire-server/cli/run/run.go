@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -98,11 +99,12 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	CacheReloadInterval string `hcl:"cache_reload_interval"`
+	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval string                      `hcl:"cache_reload_interval"`
+
+	Flags fflag.RawConfig `hcl:"feature_flags"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
-
-	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 }
 
 type caSubjectConfig struct {
@@ -209,6 +211,11 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 	input, err := mergeInput(fileInput, cliInput)
 	if err != nil {
 		return nil, err
+	}
+
+	err = fflag.Load(input.Server.Experimental.Flags)
+	if err != nil {
+		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
 	return NewServerConfig(input, logOptions, allowUnknownConfig)
@@ -574,6 +581,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
+
+	for _, f := range c.Server.Experimental.Flags {
+		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
+	}
 
 	return sc, nil
 }

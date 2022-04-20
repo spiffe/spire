@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -97,6 +98,8 @@ type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
 	NamedPipeName string `hcl:"named_pipe_name"`
 
+	Flags fflag.RawConfig `hcl:"feature_flags"`
+
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
@@ -149,6 +152,11 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 	input, err := mergeInput(fileInput, cliInput)
 	if err != nil {
 		return nil, err
+	}
+
+	err = fflag.Load(input.Agent.Experimental.Flags)
+	if err != nil {
+		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
 	return NewAgentConfig(input, logOptions, allowUnknownConfig)
@@ -484,6 +492,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	for _, f := range c.Agent.Experimental.Flags {
+		logger.Warnf("Developer feature flag %q has been enabled", f)
+	}
 
 	return ac, nil
 }
