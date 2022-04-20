@@ -546,6 +546,9 @@ const (
 	// Datastore functionality related to datastore plugin
 	Datastore = "datastore"
 
+	// Deleted tags something as deleted
+	Deleted = "deleted"
+
 	// Endpoints functionality related to agent/server endpoints
 	Endpoints = "endpoints"
 
@@ -564,9 +567,6 @@ const (
 	// FederatedBundle functionality related to a federated bundle; should be used
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
-
-	// Ignored tags something as ignored
-	Ignored = "ignored"
 
 	// JoinToken functionality related to a join token; should be used
 	// with other tags to add clarity

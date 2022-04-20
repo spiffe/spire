@@ -19,11 +19,11 @@ func (c *ConfigOS) AddOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *ConfigOS) GetAddr() (net.Addr, error) {
-	return GetAddr(c.socketPath)
+	return util.GetUnixAddrWithAbsPath(c.socketPath)
 }
 
 func (c *ConfigOS) GetTargetName() (string, error) {
-	addr, err := GetAddr(c.socketPath)
+	addr, err := util.GetUnixAddrWithAbsPath(c.socketPath)
 	if err != nil {
 		return "", err
 	}

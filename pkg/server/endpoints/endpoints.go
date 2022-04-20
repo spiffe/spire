@@ -247,10 +247,7 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	var l net.Listener
 	var err error
 	if e.AuditLogEnabled {
-		unixListener := &peertracker.ListenerFactory{
-			Log: e.Log,
-		}
-		l, err = unixListener.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+		l, err = e.listenWithAuditLog()
 	} else {
 		l, err = net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
 	}

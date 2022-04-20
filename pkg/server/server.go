@@ -15,7 +15,6 @@ import (
 	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
-	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -62,9 +61,6 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
-	// Deprecated: remove in SPIRE 1.3
-	agentpathtemplate.SetEnsureLeadingSlashLog(s.config.Log)
-
 	// Log configuration values that are useful for debugging
 	s.config.Log.WithFields(logrus.Fields{
 		telemetry.AdminIDs: s.config.AdminIDs,

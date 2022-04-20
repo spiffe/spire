@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -23,12 +25,12 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/util"
 )
 
 const (
@@ -94,7 +96,9 @@ type sdsConfig struct {
 
 type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
-	TCPSocketPort int    `hcl:"tcp_socket_port"`
+	NamedPipeName string `hcl:"named_pipe_name"`
+
+	Flags fflag.RawConfig `hcl:"feature_flags"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -150,6 +154,11 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, err
 	}
 
+	err = fflag.Load(input.Agent.Experimental.Flags)
+	if err != nil {
+		return nil, fmt.Errorf("error loading feature flags: %w", err)
+	}
+
 	return NewAgentConfig(input, logOptions, allowUnknownConfig)
 }
 
@@ -187,9 +196,8 @@ func (cmd *Command) Run(args []string) int {
 
 	a := agent.New(c)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	util.SignalListener(ctx, cancel)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	err = a.Run(ctx)
 	if err != nil {
@@ -484,6 +492,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	for _, f := range c.Agent.Experimental.Flags {
+		logger.Warnf("Developer feature flag %q has been enabled", f)
+	}
 
 	return ac, nil
 }

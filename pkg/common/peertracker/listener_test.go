@@ -136,9 +136,10 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 
 func (p *ListenerTestSuite) TestAcceptFailsWhenUnderlyingAcceptFails() {
 	lf := ListenerFactory{
-		NewUnixListener: newFailingMockListenUnix,
-		NewTracker:      newFailingMockTracker,
+		NewTracker: newFailingMockTracker,
 	}
+	lf.ListenerFactoryOS.NewUnixListener = newFailingMockListenUnix
+
 	ul, err := lf.ListenUnix(p.unixAddr.Network(), p.unixAddr)
 	p.Require().NoError(err)
 

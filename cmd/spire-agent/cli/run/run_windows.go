@@ -9,18 +9,19 @@ import (
 	"net"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
-	flags.IntVar(&c.Experimental.TCPSocketPort, "tcpSocketPort", 0, "TCP port number of the local address to bind the SPIRE Agent API socket to")
+	flags.StringVar(&c.Experimental.NamedPipeName, "namedPipeName", "", "Pipe name to bind the SPIRE Agent API named pipe")
 }
 
 func (c *agentConfig) setPlatformDefaults() {
-	c.Experimental.TCPSocketPort = common.DefaultTCPSocketPort
+	c.Experimental.NamedPipeName = common.DefaultNamedPipeName
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
-	return common.GetAddr(c.Experimental.TCPSocketPort)
+	return util.GetNamedPipeAddr(c.Experimental.NamedPipeName), nil
 }
 
 func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
@@ -30,7 +31,7 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 // validateOS performs windows specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.SocketPath != "" {
-		return errors.New("invalid configuration: socket_path is not supported in this platform; please use tcp_socket_port instead")
+		return errors.New("invalid configuration: socket_path is not supported in this platform; please use named_pipe_name instead")
 	}
 	return nil
 }

@@ -79,20 +79,20 @@ func TestConfigure(t *testing.T) {
 			configTmpl:               testCertAuthConfigTpl,
 			wantAuth:                 CERT,
 			expectCertAuthMountPoint: "test-cert-auth",
-			expectClientCertPath:     "testdata/keys/EC/client_cert.pem",
-			expectClientKeyPath:      "testdata/keys/EC/client_key.pem",
+			expectClientCertPath:     "testdata/client-cert.pem",
+			expectClientKeyPath:      "testdata/client-key.pem",
 		},
 		{
 			name:       "Configure plugin with Client Certificate authentication params given as environment variables",
 			configTmpl: testCertAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				envVaultClientCert: "testdata/keys/EC/client_cert.pem",
-				envVaultClientKey:  "testdata/keys/EC/client_key.pem",
+				envVaultClientCert: "testdata/client-cert.pem",
+				envVaultClientKey:  testClientKey,
 			},
 			wantAuth:                 CERT,
 			expectCertAuthMountPoint: "test-cert-auth",
-			expectClientCertPath:     "testdata/keys/EC/client_cert.pem",
-			expectClientKeyPath:      "testdata/keys/EC/client_key.pem",
+			expectClientCertPath:     testClientCert,
+			expectClientKeyPath:      testClientKey,
 		},
 		{
 			name:                  "Configure plugin with AppRole authenticate params given in config file",
@@ -229,7 +229,7 @@ func TestMintX509CA(t *testing.T) {
 	require.NoError(t, err)
 	successfulConfig := &Configuration{
 		PKIMountPoint: "test-pki",
-		CACertPath:    "testdata/keys/EC/root_cert.pem",
+		CACertPath:    "testdata/root-cert.pem",
 		TokenAuth: &TokenAuthConfig{
 			Token: "test-token",
 		},
@@ -253,7 +253,7 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				TokenAuth: &TokenAuthConfig{
 					Token: "test-token",
 				},
@@ -277,7 +277,7 @@ func TestMintX509CA(t *testing.T) {
 			ttl:  time.Minute,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				TokenAuth: &TokenAuthConfig{
 					Token: "test-token",
 				},
@@ -300,7 +300,7 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				TokenAuth: &TokenAuthConfig{
 					Token: "test-token",
 				},
@@ -323,7 +323,7 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				TokenAuth: &TokenAuthConfig{
 					Token: "test-token",
 				},
@@ -345,13 +345,13 @@ func TestMintX509CA(t *testing.T) {
 			name: "Mint X509CA SVID with TLS cert authentication",
 			csr:  csr.Raw,
 			config: &Configuration{
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				PKIMountPoint: "test-pki",
 				CertAuth: &CertAuthConfig{
 					CertAuthMountPoint: "test-cert-auth",
 					CertAuthRoleName:   "test",
-					ClientCertPath:     "testdata/keys/EC/client_cert.pem",
-					ClientKeyPath:      "testdata/keys/EC/client_key.pem",
+					ClientCertPath:     testClientCert,
+					ClientKeyPath:      testClientKey,
 				},
 			},
 			authMethod:              CERT,
@@ -371,7 +371,7 @@ func TestMintX509CA(t *testing.T) {
 			name: "Mint X509CA SVID with AppRole authentication",
 			csr:  csr.Raw,
 			config: &Configuration{
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				PKIMountPoint: "test-pki",
 				AppRoleAuth: &AppRoleAuthConfig{
 					AppRoleMountPoint: "test-approle-auth",
@@ -396,7 +396,7 @@ func TestMintX509CA(t *testing.T) {
 			name: "Mint X509CA SVID with Kubernetes authentication",
 			csr:  csr.Raw,
 			config: &Configuration{
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				PKIMountPoint: "test-pki",
 				K8sAuth: &K8sAuthConfig{
 					K8sAuthMountPoint: "test-k8s-auth",
@@ -420,13 +420,13 @@ func TestMintX509CA(t *testing.T) {
 			name: "Mint X509CA SVID with TLS cert authentication / Token is not renewable",
 			csr:  csr.Raw,
 			config: &Configuration{
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				PKIMountPoint: "test-pki",
 				CertAuth: &CertAuthConfig{
 					CertAuthMountPoint: "test-cert-auth",
 					CertAuthRoleName:   "test",
-					ClientCertPath:     "testdata/keys/EC/client_cert.pem",
-					ClientKeyPath:      "testdata/keys/EC/client_key.pem",
+					ClientCertPath:     testClientCert,
+					ClientKeyPath:      testClientKey,
 				},
 			},
 			authMethod:              CERT,
@@ -446,7 +446,7 @@ func TestMintX509CA(t *testing.T) {
 			name: "Mint X509CA SVID with AppRole authentication / Token is not renewable",
 			csr:  csr.Raw,
 			config: &Configuration{
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				PKIMountPoint: "test-pki",
 				AppRoleAuth: &AppRoleAuthConfig{
 					AppRoleMountPoint: "test-approle-auth",
@@ -471,7 +471,7 @@ func TestMintX509CA(t *testing.T) {
 			name: "Mint X509CA SVID with Kubernetes authentication / Token is not renewable",
 			csr:  csr.Raw,
 			config: &Configuration{
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				PKIMountPoint: "test-pki",
 				K8sAuth: &K8sAuthConfig{
 					K8sAuthMountPoint: "test-k8s-auth",
@@ -497,7 +497,7 @@ func TestMintX509CA(t *testing.T) {
 			config: &Configuration{
 				Namespace:     "test-ns",
 				PKIMountPoint: "test-pki",
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				TokenAuth: &TokenAuthConfig{
 					Token: "test-token",
 				},
@@ -520,7 +520,7 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				CACertPath:    "testdata/keys/EC/root_cert.pem",
+				CACertPath:    "testdata/root-cert.pem",
 				TokenAuth: &TokenAuthConfig{
 					Token: "test-token",
 				},

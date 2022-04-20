@@ -5,16 +5,21 @@ import (
 	"crypto/x509"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -103,8 +108,8 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509SVIDsRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
-	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 
+	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 	if err != nil {
 		return err
 	}
@@ -198,8 +203,8 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX509BundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509BundlesServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
-	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 
+	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 	if err != nil {
 		return err
 	}
@@ -239,6 +244,122 @@ func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX50
 				return err
 			}
 
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.FetchJWTSVIDsRequest) (resp *delegatedidentityv1.FetchJWTSVIDsResponse, err error) {
+	log := rpccontext.Logger(ctx)
+	if len(req.Audience) == 0 {
+		log.Error("Missing required audience parameter")
+		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
+	}
+
+	if _, err = s.isCallerAuthorized(ctx, log, nil); err != nil {
+		return nil, err
+	}
+
+	selectors, err := api.SelectorsFromProto(req.Selectors)
+	if err != nil {
+		log.WithError(err).Error("Invalid argument; could not parse provided selectors")
+		return nil, status.Error(codes.InvalidArgument, "could not parse provided selectors")
+	}
+	var spiffeIDs []spiffeid.ID
+
+	identities := s.manager.MatchingIdentities(selectors)
+	for _, identity := range identities {
+		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
+		if err != nil {
+			log.WithField(telemetry.SPIFFEID, identity.Entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+
+		spiffeIDs = append(spiffeIDs, spiffeID)
+	}
+
+	if len(spiffeIDs) == 0 {
+		log.Error("No identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
+	}
+
+	resp = new(delegatedidentityv1.FetchJWTSVIDsResponse)
+	for _, id := range spiffeIDs {
+		loopLog := log.WithField(telemetry.SPIFFEID, id.String())
+
+		var svid *client.JWTSVID
+		svid, err = s.manager.FetchJWTSVID(ctx, id, req.Audience)
+		if err != nil {
+			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
+			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
+		}
+		resp.Svids = append(resp.Svids, &types.JWTSVID{
+			Token: svid.Token,
+			Id: &types.SPIFFEID{
+				TrustDomain: id.TrustDomain().String(),
+				Path:        id.Path(),
+			},
+			ExpiresAt: svid.ExpiresAt.Unix(),
+			IssuedAt:  svid.IssuedAt.Unix(),
+		})
+
+		ttl := time.Until(svid.ExpiresAt)
+		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
+	}
+
+	return resp, nil
+}
+
+func (s *Service) SubscribeToJWTBundles(req *delegatedidentityv1.SubscribeToJWTBundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToJWTBundlesServer) error {
+	ctx := stream.Context()
+	log := rpccontext.Logger(ctx)
+
+	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
+	if err != nil {
+		return err
+	}
+
+	subscriber := s.manager.SubscribeToBundleChanges()
+
+	// send initial update....
+	jwtbundles := make(map[string][]byte)
+	for td, bundle := range subscriber.Value() {
+		jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+		if err != nil {
+			return err
+		}
+		jwtbundles[td.IDString()] = jwksBytes
+	}
+
+	resp := &delegatedidentityv1.SubscribeToJWTBundlesResponse{
+		Bundles: jwtbundles,
+	}
+
+	if err := stream.Send(resp); err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-subscriber.Changes():
+			if _, err := s.isCallerAuthorized(ctx, log, cachedSelectors); err != nil {
+				return err
+			}
+			for td, bundle := range subscriber.Next() {
+				jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+				if err != nil {
+					return err
+				}
+				jwtbundles[td.IDString()] = jwksBytes
+			}
+
+			resp := &delegatedidentityv1.SubscribeToJWTBundlesResponse{
+				Bundles: jwtbundles,
+			}
+
+			if err := stream.Send(resp); err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			return nil
 		}
