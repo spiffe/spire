@@ -51,6 +51,9 @@ func (c *WebhookMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
+	// TODO: Remove webhook mode in SPIRE 1.4 (see #2919)
+	log.Warn("The webhook mode is deprecated and will be removed in a future release.")
+
 	entryClient, err := c.EntryClient(ctx, log)
 	if err != nil {
 		return errs.New("failed to dial server: %v", err)
