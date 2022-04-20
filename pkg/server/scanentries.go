@@ -22,7 +22,7 @@ var (
 func scanForBadEntries(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
 		pagination := &datastore.Pagination{PageSize: entryScanPageSize}
-		ignored := 0
+		deleted := 0
 		for {
 			resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 				Pagination: pagination,
@@ -39,8 +39,11 @@ func scanForBadEntries(log logrus.FieldLogger, metrics telemetry.Metrics, ds dat
 						telemetry.SPIFFEID:       entry.SpiffeId,
 						telemetry.RegistrationID: entry.EntryId,
 						logrus.ErrorKey:          err,
-					}).Error("Ignoring entry with invalid parentID; this entry will be automatically deleted by a future release")
-					ignored++
+					}).Error("Deleting entry with invalid parentID")
+					deleted++
+					if _, err := ds.DeleteRegistrationEntry(ctx, entry.EntryId); err != nil {
+						log.WithError(err).Error("Failed to delete entry with an invalid parentID")
+					}
 					continue
 				}
 				if _, err := spiffeid.FromString(entry.SpiffeId); err != nil {
@@ -49,15 +52,18 @@ func scanForBadEntries(log logrus.FieldLogger, metrics telemetry.Metrics, ds dat
 						telemetry.SPIFFEID:       entry.SpiffeId,
 						telemetry.RegistrationID: entry.EntryId,
 						logrus.ErrorKey:          err,
-					}).Error("Ignoring entry with invalid spiffeID; this entry will be automatically deleted by a future release")
-					ignored++
+					}).Error("Deleting entry with invalid spiffeID")
+					deleted++
+					if _, err := ds.DeleteRegistrationEntry(ctx, entry.EntryId); err != nil {
+						log.WithError(err).Error("Failed to delete entry with an invalid spiffeID")
+					}
 					continue
 				}
 			}
 
 			switch {
 			case resp.Pagination == nil, resp.Pagination.Token == "":
-				serverTelemetry.SetEntryIgnoredGauge(metrics, ignored)
+				serverTelemetry.SetEntryDeletedGauge(metrics, deleted)
 				return nil
 			}
 			pagination.Token = resp.Pagination.Token
