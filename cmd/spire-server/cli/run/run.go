@@ -376,7 +376,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.SocketPath != "" {
 		socketPath = c.Server.SocketPath
 	}
-	sc.BindUDSAddress = &net.UnixAddr{
+	sc.BindLocalAddress = &net.UnixAddr{
 		Name: socketPath,
 		Net:  "unix",
 	}

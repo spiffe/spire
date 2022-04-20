@@ -495,8 +495,8 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.SocketPath = "foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, "foo", c.BindUDSAddress.Name)
-				require.Equal(t, "unix", c.BindUDSAddress.Net)
+				require.Equal(t, "foo", c.BindLocalAddress.String())
+				require.Equal(t, "unix", c.BindLocalAddress.Network())
 			},
 		},
 		{
