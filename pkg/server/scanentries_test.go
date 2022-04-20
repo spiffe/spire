@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
@@ -50,16 +52,18 @@ func TestScanForBadEntries(t *testing.T) {
 		name          string
 		entries       []*common.RegistrationEntry
 		expectLogs    []spiretest.LogEntry
-		expectIgnored int
+		expectEntries []*common.RegistrationEntry
+		expectDeleted int
 	}{
 		{
 			name:          "no entries",
-			expectIgnored: 0,
+			expectDeleted: 0,
 		},
 		{
 			name:          "no bad entries",
 			entries:       []*common.RegistrationEntry{good1, good2, good3},
-			expectIgnored: 0,
+			expectEntries: []*common.RegistrationEntry{good1, good2, good3},
+			expectDeleted: 0,
 		},
 		{
 			name:    "bad spiffe id",
@@ -67,7 +71,7 @@ func TestScanForBadEntries(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Ignoring entry with invalid spiffeID; this entry will be automatically deleted by a future release",
+					Message: "Deleting entry with invalid spiffeID",
 					Data: logrus.Fields{
 						"entry_id":  "SOME-ID",
 						"error":     "path cannot contain empty segments",
@@ -76,7 +80,8 @@ func TestScanForBadEntries(t *testing.T) {
 					},
 				},
 			},
-			expectIgnored: 1,
+			expectEntries: []*common.RegistrationEntry{good1, good2, good3},
+			expectDeleted: 1,
 		},
 		{
 			name:    "bad parent id",
@@ -84,7 +89,7 @@ func TestScanForBadEntries(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Ignoring entry with invalid parentID; this entry will be automatically deleted by a future release",
+					Message: "Deleting entry with invalid parentID",
 					Data: logrus.Fields{
 						"entry_id":  "SOME-ID",
 						"error":     "path cannot contain empty segments",
@@ -93,7 +98,8 @@ func TestScanForBadEntries(t *testing.T) {
 					},
 				},
 			},
-			expectIgnored: 1,
+			expectEntries: []*common.RegistrationEntry{good1, good2, good3},
+			expectDeleted: 1,
 		},
 	} {
 		tt := tt
@@ -102,12 +108,20 @@ func TestScanForBadEntries(t *testing.T) {
 			metrics := fakemetrics.New()
 			ds := fakedatastore.New(t)
 
-			for _, entry := range tt.entries {
-				_, err := ds.CreateRegistrationEntry(context.Background(), entry)
+			for i, entry := range tt.entries {
+				entry, err := ds.CreateRegistrationEntry(context.Background(), entry)
 				require.NoError(t, err)
+				tt.entries[i].EntryId = entry.EntryId
 			}
 
 			require.NoError(t, scanForBadEntries(log, metrics, ds)(context.Background()))
+
+			resp, err := ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
+			require.NoError(t, err)
+
+			sortEntries(tt.expectEntries)
+			sortEntries(resp.Entries)
+			spiretest.AssertProtoListEqual(t, tt.expectEntries, resp.Entries)
 
 			// Assert the logs are as expected. The Entry IDs need to be
 			// patched up in the log entries since they are non-deterministic.
@@ -122,10 +136,16 @@ func TestScanForBadEntries(t *testing.T) {
 			assert.Equal(t, []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.SetGaugeType,
-					Key:  []string{"entry", "ignored"},
-					Val:  float32(tt.expectIgnored),
+					Key:  []string{"entry", "deleted"},
+					Val:  float32(tt.expectDeleted),
 				},
 			}, metrics.AllMetrics())
 		})
 	}
+}
+
+func sortEntries(es []*common.RegistrationEntry) {
+	sort.Slice(es, func(a, b int) bool {
+		return es[a].EntryId < es[b].EntryId
+	})
 }

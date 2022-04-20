@@ -6,16 +6,18 @@ package common
 import (
 	"flag"
 	"net"
+
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type ConfigOS struct {
-	tcpSocketPort int
+	namedPipeName string
 }
 
 func (c *ConfigOS) AddOSFlags(flags *flag.FlagSet) {
-	flags.IntVar(&c.tcpSocketPort, "tcpSocketPort", DefaultTCPSocketPort, "Localhost port of the SPIRE Agent API TCP socket")
+	flags.StringVar(&c.namedPipeName, "namedPipeName", DefaultNamedPipeName, "Pipe name of the SPIRE Agent API named pipe")
 }
 
 func (c *ConfigOS) GetAddr() (net.Addr, error) {
-	return GetAddr(c.tcpSocketPort)
+	return util.GetNamedPipeAddr(c.namedPipeName), nil
 }
