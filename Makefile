@@ -107,7 +107,7 @@ ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
 	exe=".exe"
-else 
+else
 	go_bin_dir = $(go_dir)/bin
 	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
 	exe=
@@ -115,7 +115,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.44.0
+golangci_lint_version = v1.45.2
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
@@ -297,7 +297,7 @@ endif
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
-else 
+else
 	$(E)./test/integration/test.sh $(SUITES)
 endif
 
@@ -384,7 +384,7 @@ endif
 
 lint: lint-code
 
-lint-code: $(golangci_lint_bin) | go-check
+lint-code: $(golangci_lint_bin)
 	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
 
@@ -475,9 +475,9 @@ else ifeq ($(os1),windows)
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
-	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url) 
+	$(E)curl -o $(go_dir)\go.zip -sSfL $(go_url)
 	$(E)unzip -qq $(go_dir)\go.zip -d $(go_dir)
-else 
+else
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))
 	$(E)mkdir -p $(go_dir)
@@ -499,12 +499,12 @@ $(protoc_bin):
 
 install-golangci-lint: $(golangci_lint_bin)
 
-$(golangci_lint_bin):
+$(golangci_lint_bin): | go-check
 	@echo "Installing golangci-lint $(golangci_lint_version)..."
 	$(E)rm -rf $(dir $(golangci_lint_dir))
 	$(E)mkdir -p $(golangci_lint_dir)
 	$(E)mkdir -p $(golangci_lint_cache)
-	$(E)curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
+	$(E)GOBIN=$(golangci_lint_dir) $(go_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)
 

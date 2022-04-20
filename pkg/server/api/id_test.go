@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -47,8 +46,6 @@ func TestIDFromProto(t *testing.T) {
 			expectErr: `"spiffe://otherdomain.test/workload" is not a member of trust domain "domain.test"`,
 		},
 	}
-
-	api.RemoveEnsureLeadingSlashLogLimit()
 
 	// runTests exercises all of the test cases against the given function
 	runTests := func(t *testing.T, fn func(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error), testCases []testCase) {
@@ -93,18 +90,9 @@ func TestIDFromProto(t *testing.T) {
 				expectErr: `"spiffe://domain.test" is not a member of trust domain "domain.test"; path is empty`,
 			},
 			{
-				name:     "path without leading slash",
-				spiffeID: &types.SPIFFEID{TrustDomain: "domain.test", Path: "workload"},
-				expectID: workload,
-				expectLogs: []spiretest.LogEntry{
-					{
-						Level:   logrus.WarnLevel,
-						Message: "API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release",
-						Data: logrus.Fields{
-							"path": "workload",
-						},
-					},
-				},
+				name:      "path without leading slash",
+				spiffeID:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "workload"},
+				expectErr: `path must have a leading slash`,
 			},
 		})
 	})
@@ -132,18 +120,9 @@ func TestIDFromProto(t *testing.T) {
 				expectErr: `"spiffe://domain.test" is not an agent in trust domain "domain.test"; path is empty`,
 			},
 			{
-				name:     "path without leading slash",
-				spiffeID: &types.SPIFFEID{TrustDomain: "domain.test", Path: "spire/agent/foo"},
-				expectID: agent,
-				expectLogs: []spiretest.LogEntry{
-					{
-						Level:   logrus.WarnLevel,
-						Message: "API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release",
-						Data: logrus.Fields{
-							"path": "spire/agent/foo",
-						},
-					},
-				},
+				name:      "path without leading slash",
+				spiffeID:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "spire/agent/foo"},
+				expectErr: `path must have a leading slash`,
 			},
 		})
 	})
@@ -171,18 +150,9 @@ func TestIDFromProto(t *testing.T) {
 				expectErr: `"spiffe://domain.test" is not a workload in trust domain "domain.test"; path is empty`,
 			},
 			{
-				name:     "path without leading slash",
-				spiffeID: &types.SPIFFEID{TrustDomain: "domain.test", Path: "workload"},
-				expectID: workload,
-				expectLogs: []spiretest.LogEntry{
-					{
-						Level:   logrus.WarnLevel,
-						Message: "API support for paths without leading slashes in SPIFFEID messages is deprecated and will be removed in a future release",
-						Data: logrus.Fields{
-							"path": "workload",
-						},
-					},
-				},
+				name:      "path without leading slash",
+				spiffeID:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "workload"},
+				expectErr: `path must have a leading slash`,
 			},
 		})
 	})

@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.3] - 2022-04-12
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
+
+## [1.2.2] - 2022-04-07
+
+### Added
+- SPIRE Server and Agent log files can be rotated by sending the `SIGUSR2` signal to the process (#2703)
+- K8s Workload Registrar CRD mode now supports registering "downstream" workloads (#2885)
+- SPIRE can now be compiled on macOS machines with an Apple Silicon CPU (#2876)
+- Small documentation improvements (#2851)
+
+### Changed
+- SPIRE Server no longer sets the `DigitalSignature` KeyUsage bit in its CA certificate (#2896)
+
+### Fixed
+- The `k8sbundle` Notifier plugin in SPIRE Server no longer consumes excessive CPU cycles (#2857)
+
 ## [1.2.1] - 2022-03-16
 
 ### Added
@@ -36,6 +55,11 @@
 ### Removed
 - The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
 - The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
+
+## [1.1.4] - 2022-04-13
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
 
 ## [1.1.3] - 2022-01-07
 
