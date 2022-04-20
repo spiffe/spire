@@ -94,7 +94,7 @@ func TestNew(t *testing.T) {
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
-		UDSAddr:          udsAddr,
+		LocalAddr:        udsAddr,
 		SVIDObserver:     svidObserver,
 		TrustDomain:      testTD,
 		Catalog:          cat,
@@ -109,7 +109,7 @@ func TestNew(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
-	assert.Equal(t, udsAddr, endpoints.UDSAddr)
+	assert.Equal(t, udsAddr, endpoints.LocalAddr)
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
 	assert.NotNil(t, endpoints.APIServers.AgentServer)
@@ -127,7 +127,7 @@ func TestNew(t *testing.T) {
 func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	ctx := context.Background()
 	tcpAddr := &net.TCPAddr{}
-	udsAddr := &net.UnixAddr{}
+	localAddr := &net.UnixAddr{}
 
 	svidObserver := newSVIDObserver(nil)
 
@@ -159,7 +159,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
-		UDSAddr:          udsAddr,
+		LocalAddr:        localAddr,
 		SVIDObserver:     svidObserver,
 		TrustDomain:      testTD,
 		Catalog:          cat,
@@ -211,7 +211,7 @@ func TestListenAndServe(t *testing.T) {
 
 	endpoints := Endpoints{
 		TCPAddr:      listener.Addr().(*net.TCPAddr),
-		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
+		LocalAddr:    &net.UnixAddr{Name: udsPath, Net: "unix"},
 		SVIDObserver: newSVIDObserver(serverSVID),
 		TrustDomain:  testTD,
 		DataStore:    ds,
@@ -257,7 +257,7 @@ func TestListenAndServe(t *testing.T) {
 		return conn
 	}
 
-	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.LocalAddr.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	defer udsConn.Close()
 

@@ -60,7 +60,7 @@ type Server interface {
 
 type Endpoints struct {
 	TCPAddr                      *net.TCPAddr
-	UDSAddr                      *net.UnixAddr
+	LocalAddr                    net.Addr
 	SVIDObserver                 svid.Observer
 	TrustDomain                  spiffeid.TrustDomain
 	DataStore                    datastore.DataStore
@@ -96,7 +96,7 @@ type RateLimitConfig struct {
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
-	if err := os.MkdirAll(filepath.Dir(c.UDSAddr.String()), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(c.LocalAddr.String()), 0750); err != nil {
 		return nil, fmt.Errorf("unable to create socket directory: %w", err)
 	}
 
@@ -121,7 +121,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	return &Endpoints{
 		TCPAddr:                      c.TCPAddr,
-		UDSAddr:                      c.UDSAddr,
+		LocalAddr:                    c.LocalAddr,
 		SVIDObserver:                 c.SVIDObserver,
 		TrustDomain:                  c.TrustDomain,
 		DataStore:                    c.Catalog.GetDataStore(),
@@ -243,13 +243,13 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 
 // runUDSServer  will start the server and block until it exits or we are dying.
 func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
-	os.Remove(e.UDSAddr.String())
+	os.Remove(e.LocalAddr.String())
 	var l net.Listener
 	var err error
 	if e.AuditLogEnabled {
 		l, err = e.listenWithAuditLog()
 	} else {
-		l, err = net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+		l, err = net.ListenUnix(e.LocalAddr.Network(), e.LocalAddr.(*net.UnixAddr))
 	}
 
 	if err != nil {
@@ -259,7 +259,7 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 
 	// Restrict access to the UDS to processes running as the same user or
 	// group as the server.
-	if err := os.Chmod(e.UDSAddr.String(), 0770); err != nil {
+	if err := os.Chmod(e.LocalAddr.String(), 0770); err != nil {
 		return err
 	}
 

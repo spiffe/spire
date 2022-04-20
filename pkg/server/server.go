@@ -321,7 +321,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, caManager *ca.Manager, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:             s.config.BindAddress,
-		UDSAddr:             s.config.BindUDSAddress,
+		LocalAddr:           s.config.BindLocalAddress,
 		SVIDObserver:        svidObserver,
 		TrustDomain:         s.config.TrustDomain,
 		Catalog:             catalog,
@@ -413,7 +413,7 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 // SPIRE Server API socket. This function always returns nil, even if
 // health.WaitForTestDial exited due to a timeout.
 func (s *Server) waitForTestDial(ctx context.Context) error {
-	health.WaitForTestDial(ctx, s.config.BindUDSAddress)
+	health.WaitForTestDial(ctx, s.config.BindLocalAddress)
 	return nil
 }
 
@@ -438,7 +438,7 @@ func (s *Server) CheckHealth() health.State {
 }
 
 func (s *Server) tryGetBundle() error {
-	client, err := server_util.NewServerClient(s.config.BindUDSAddress.Name)
+	client, err := server_util.NewServerClient(s.config.BindLocalAddress.String())
 	if err != nil {
 		return errors.New("cannot create registration client")
 	}
