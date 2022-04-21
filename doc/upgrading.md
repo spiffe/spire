@@ -58,3 +58,9 @@ For example, if downgrading from version 1.2.3 to 1.1.1:
 * Downgrade SPIRE Server instances from 1.2.3 to 1.1.1 one at a time
 
 Note that while a rolling downgrade is highly recommended, it is not strictly required. SPIRE Server supports zero-downtime downgrades so long as there is more than one SPIRE Server in the cluster.
+
+## Experimental Features
+
+Certain SPIRE features are considered experimental. These features are enabled through the experimental section of the configuration. A feature may be introduced as experimental for a variety of reasons such as a lack of testing, inexperience with underlying dependencies or platforms, concerns around usability or security, etc. While an experimental feature matures it may undergo many changes in behavior, configuration shape, and performance. It may even be removed. In other words, these features are not considered stable.
+
+Considering the potential instability of experimental features, the above upgrade and compatibility guarantees do not apply.
