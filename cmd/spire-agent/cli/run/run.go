@@ -495,7 +495,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
-		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatability considerations for experimental features.")
+		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
 	}
 
 	for _, f := range c.Agent.Experimental.Flags {

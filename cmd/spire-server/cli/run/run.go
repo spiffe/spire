@@ -574,7 +574,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if cmp.Diff(experimentalConfig{}, c.Server.Experimental) != "" {
-		sc.Log.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatability considerations for experimental features.")
+		sc.Log.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
 	}
 
 	if c.Server.Experimental.CacheReloadInterval != "" {
