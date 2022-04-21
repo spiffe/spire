@@ -726,7 +726,7 @@ func TestNewAgentConfig(t *testing.T) {
 						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
-							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
 								{
 									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
 									Level: logrus.WarnLevel,
@@ -928,7 +928,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 					},
 				})
 			}
-			spiretest.AssertLogsAnyOrder(t, hook.AllEntries(), logEntries)
+			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), logEntries)
 		})
 	}
 }
