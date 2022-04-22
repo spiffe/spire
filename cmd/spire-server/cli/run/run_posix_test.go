@@ -79,5 +79,5 @@ func newServerConfigCasesOS() []newServerConfigCase {
 }
 
 func testParseConfigGoodOS(t *testing.T, c *Config) {
-	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api.sock")
+	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api-test.sock")
 }

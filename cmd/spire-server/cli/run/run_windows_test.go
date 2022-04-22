@@ -80,5 +80,5 @@ func newServerConfigCasesOS() []newServerConfigCase {
 }
 
 func testParseConfigGoodOS(t *testing.T, c *Config) {
-	assert.Equal(t, c.Server.Experimental.NamedPipeName, "\\spire-server\\private\\api")
+	assert.Equal(t, c.Server.Experimental.NamedPipeName, "\\spire-server\\private\\api-test")
 }
