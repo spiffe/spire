@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,10 +14,7 @@ func TestCountHelp(t *testing.T) {
 	test := setupTest(t, NewCountCommandWithEnv)
 	test.client.Help()
 
-	require.Equal(t, `Usage of entry count:
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+	require.Equal(t, `Usage of entry count:`+common.AddrUsage, test.stderr.String())
 }
 
 func TestCountSynopsis(t *testing.T) {

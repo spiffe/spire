@@ -3,7 +3,6 @@ package agent_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -13,6 +12,7 @@ import (
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -64,10 +64,8 @@ func TestBanHelp(t *testing.T) {
 	test := setupTest(t, agent.NewBanCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent ban:
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
+	require.Equal(t, `Usage of agent ban:`+common.AddrUsage+
+		`  -spiffeID string
     	The SPIFFE ID of the agent to ban (agent identity)
 `, test.stderr.String())
 }
@@ -94,9 +92,9 @@ func TestBan(t *testing.T) {
 		},
 		{
 			name:             "wrong UDS path",
-			args:             []string{"-socketPath", "does-not-exist.sock"},
+			args:             []string{common.AddrArg, common.AddrValue},
 			expectReturnCode: 1,
-			expectStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
+			expectStderr:     common.AddrError,
 		},
 		{
 			name:             "server error",
@@ -123,10 +121,8 @@ func TestEvictHelp(t *testing.T) {
 	test := setupTest(t, agent.NewEvictCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent evict:
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
+	require.Equal(t, `Usage of agent evict:`+common.AddrUsage+
+		`  -spiffeID string
     	The SPIFFE ID of the agent to evict (agent identity)
 `, test.stderr.String())
 }
@@ -153,9 +149,9 @@ func TestEvict(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-socketPath", "does-not-exist.sock"},
+			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
-			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
+			expectedStderr:     common.AddrError,
 		},
 		{
 			name:               "server error",
@@ -182,10 +178,7 @@ func TestCountHelp(t *testing.T) {
 	test := setupTest(t, agent.NewCountCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent count:
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+	require.Equal(t, `Usage of agent count:`+common.AddrUsage, test.stderr.String())
 }
 
 func TestCount(t *testing.T) {
@@ -217,9 +210,9 @@ func TestCount(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-socketPath", "does-not-exist.sock"},
+			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
-			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
+			expectedStderr:     common.AddrError,
 		},
 	} {
 		tt := tt
@@ -239,14 +232,7 @@ func TestListHelp(t *testing.T) {
 	test := setupTest(t, agent.NewListCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent list:
-  -matchSelectorsOn string
-    	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
-  -selector value
-    	A colon-delimited type:value selector. Can be used more than once
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+	require.Equal(t, listUsage, test.stderr.String())
 }
 
 func TestList(t *testing.T) {
@@ -392,9 +378,9 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-socketPath", "does-not-exist.sock"},
+			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
-			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
+			expectedStderr:     common.AddrError,
 		},
 	} {
 		tt := tt
@@ -416,10 +402,8 @@ func TestShowHelp(t *testing.T) {
 	test := setupTest(t, agent.NewShowCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent show:
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
+	require.Equal(t, `Usage of agent show:`+common.AddrUsage+
+		`  -spiffeID string
     	The SPIFFE ID of the agent to show (agent identity)
 `, test.stderr.String())
 }
@@ -456,9 +440,9 @@ func TestShow(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{"-socketPath", "does-not-exist.sock"},
+			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
-			expectedStderr:     fmt.Sprintf("Error: connection error: desc = \"transport: error while dialing: dial unix does-not-exist.sock: connect: %s\"\n", spiretest.SocketFileNotFound()),
+			expectedStderr:     common.AddrError,
 		},
 		{
 			name:               "show selectors",
@@ -492,7 +476,7 @@ func TestShow(t *testing.T) {
 func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agentTest {
 	server := &fakeAgentServer{}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		agentv1.RegisterAgentServer(s, server)
 	})
 
@@ -510,7 +494,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,
-		args:   []string{"-socketPath", socketPath},
+		args:   []string{common.AddrArg, common.GetAddr(addr)},
 		server: server,
 		client: client,
 	}

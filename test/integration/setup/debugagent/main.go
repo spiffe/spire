@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	socketPathFlag = flag.String("debugSocketPath", "unix:///opt/debug.sock", "agent socket path")
+	socketPathFlag = flag.String("debugSocketPath", "127.0.0.1:8090", "agent socket path")
 
 	testCaseFlag = flag.String("testCase", "agentEndpoints", "running test case")
 )

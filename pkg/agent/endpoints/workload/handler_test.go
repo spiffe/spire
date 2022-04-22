@@ -983,7 +983,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		grpc.StreamInterceptor(streamInterceptor),
 	)
 	workloadPB.RegisterSpiffeWorkloadAPIServer(server, handler)
-	socketPath := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
+	addr := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
 	t.Cleanup(func() { server.Stop() })
 
 	// Provide a cancelable context to ensure the stream is always
@@ -992,7 +992,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(ctx, "unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 

@@ -5,6 +5,7 @@ import (
 
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,10 +17,7 @@ func TestDeleteHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of federation delete:
   -id string
-    	SPIFFE ID of the trust domain
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+    	SPIFFE ID of the trust domain`+common.AddrUsage, test.stderr.String())
 }
 
 func TestDeleteSynopsis(t *testing.T) {
