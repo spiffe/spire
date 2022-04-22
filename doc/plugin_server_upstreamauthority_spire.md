@@ -13,6 +13,12 @@ The plugin accepts the following configuration options:
 | server_address               | IP address or DNS name of the upstream SPIRE server in the same trust domain |
 | server_port                  | Port number of the upstream SPIRE server in the same trust domain            |
 | workload_api_socket          | Path to the Workload API socket (Unix only; e.g. the SPIRE Agent API socket) |
+| experimental                 | The experimental options that are subject to change or removal               |
+
+These are the current experimental configurations:
+
+| experimental                 | Description                    | Default        |
+| -----------------------------|--------------------------------|----------------|     
 | workload_api_named_pipe_name | Pipe name of the Workload API named pipe (Windows only; e.g. pipe name of the SPIRE Agent API named pipe) |
 
 Sample configuration (Unix):
@@ -34,7 +40,9 @@ Sample configuration (Windows):
         plugin_data {
             server_address = "upstream-spire-server",
             server_port = "8081",
-            workload_api_named_pipe_name = "\spire-agent\public\api"
+            experimental {
+                workload_api_named_pipe_name = "\\spire-agent\\public\\api"
+            }
         }
     }
 ```

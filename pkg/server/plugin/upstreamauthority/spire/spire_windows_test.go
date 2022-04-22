@@ -54,5 +54,5 @@ func mintX509CACasesOS(t *testing.T) []mintX509CACase {
 }
 
 func setWorkloadAPIAddr(c *Configuration, workloadAPIAddr net.Addr) {
-	c.WorkloadAPINamedPipeName = addr_util.GetPipeName(workloadAPIAddr.String())
+	c.Experimental.WorkloadAPINamedPipeName = addr_util.GetPipeName(workloadAPIAddr.String())
 }

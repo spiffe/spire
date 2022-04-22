@@ -98,10 +98,12 @@ func TestConfigure(t *testing.T) {
 				options = append(options, plugintest.Configure(tt.overrideConfig))
 			} else {
 				options = append(options, plugintest.ConfigureJSON(Configuration{
-					ServerAddr:               tt.serverAddr,
-					ServerPort:               tt.serverPort,
-					WorkloadAPISocket:        tt.workloadAPISocket,
-					WorkloadAPINamedPipeName: tt.workloadAPINamedPipeName,
+					ServerAddr:        tt.serverAddr,
+					ServerPort:        tt.serverPort,
+					WorkloadAPISocket: tt.workloadAPISocket,
+					Experimental: experimentalConfig{
+						WorkloadAPINamedPipeName: tt.workloadAPINamedPipeName,
+					},
 				}))
 			}
 

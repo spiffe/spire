@@ -33,9 +33,13 @@ const (
 var clk clock.Clock = clock.New()
 
 type Configuration struct {
-	ServerAddr               string `hcl:"server_address" json:"server_address"`
-	ServerPort               string `hcl:"server_port" json:"server_port"`
-	WorkloadAPISocket        string `hcl:"workload_api_socket" json:"workload_api_socket"`
+	ServerAddr        string             `hcl:"server_address" json:"server_address"`
+	ServerPort        string             `hcl:"server_port" json:"server_port"`
+	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket"`
+	Experimental      experimentalConfig `hcl:"experimental"`
+}
+
+type experimentalConfig struct {
 	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name"`
 }
 
