@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
@@ -45,14 +46,7 @@ func (s *HealthCheckSuite) TestSynopsis() {
 
 func (s *HealthCheckSuite) TestHelp() {
 	s.Equal("flag: help requested", s.cmd.Help())
-	s.Equal(`Usage of healthcheck:
-  -shallow
-    	Perform a less stringent health check
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -verbose
-    	Print verbose information
-`, s.stderr.String(), "stderr")
+	s.Equal(healthcheckUsage, s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestBadFlags() {
@@ -60,47 +54,38 @@ func (s *HealthCheckSuite) TestBadFlags() {
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Equal(`flag provided but not defined: -badflag
-Usage of healthcheck:
-  -shallow
-    	Perform a less stringent health check
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -verbose
-    	Print verbose information
-`, s.stderr.String(), "stderr")
+`+healthcheckUsage, s.stderr.String(), "stderr")
 }
 
-func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExist() {
-	code := s.cmd.Run([]string{"-socketPath", "/tmp/doesnotexist.sock"})
+func (s *HealthCheckSuite) TestFailsIfEndpointDoesNotExist() {
+	code := s.cmd.Run([]string{common.AddrArg, common.AddrValue})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	expectPrefix := `Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect: `
-	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), expectPrefix)
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), common.AddrError)
 }
 
-func (s *HealthCheckSuite) TestFailsIfSocketDoesNotExistVerbose() {
-	code := s.cmd.Run([]string{"-socketPath", "/tmp/doesnotexist.sock", "-verbose"})
+func (s *HealthCheckSuite) TestFailsIfEndpointDoesNotExistVerbose() {
+	code := s.cmd.Run([]string{common.AddrArg, common.AddrValue, "-verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	expectPrefix := `Error: connection error: desc = "transport: error while dialing: dial unix /tmp/doesnotexist.sock: connect:`
-	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), expectPrefix)
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), common.AddrError)
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
+	addr := spiretest.StartGRPCServer(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{"-socketPath", socketPath})
+	code := s.cmd.Run([]string{common.AddrArg, common.GetAddr(addr)})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
 	s.Equal("", s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
+	addr := spiretest.StartGRPCServer(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{"-socketPath", socketPath, "-verbose"})
+	code := s.cmd.Run([]string{common.AddrArg, common.GetAddr(addr), "-verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Checking server health...
 Server is healthy.
@@ -109,10 +94,10 @@ Server is healthy.
 }
 
 func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(s.T(), func(srv *grpc.Server) {
+	addr := spiretest.StartGRPCServer(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
 	})
-	code := s.cmd.Run([]string{"-socketPath", socketPath, "-verbose"})
+	code := s.cmd.Run([]string{common.AddrArg, common.GetAddr(addr), "-verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Checking server health...
 `, s.stdout.String(), "stdout")

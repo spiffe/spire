@@ -10,6 +10,7 @@ import (
 
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
@@ -24,10 +25,7 @@ func TestShowHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of bundle show:
   -format string
-    	The format to show the bundle. Either "pem" or "spiffe". (default "pem")
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+    	The format to show the bundle. Either "pem" or "spiffe". (default "pem")`+common.AddrUsage, test.stderr.String())
 }
 
 func TestShowSynopsis(t *testing.T) {
@@ -92,16 +90,7 @@ func TestShow(t *testing.T) {
 func TestSetHelp(t *testing.T) {
 	test := setupTest(t, newSetCommand)
 	test.client.Help()
-	require.Equal(t, `Usage of bundle set:
-  -format string
-    	The format of the bundle data. Either "pem" or "spiffe". (default "pem")
-  -id string
-    	SPIFFE ID of the trust domain
-  -path string
-    	Path to the bundle data
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+	require.Equal(t, setUsage, test.stderr.String())
 }
 
 func TestSetSynopsis(t *testing.T) {
@@ -372,10 +361,7 @@ func TestCountHelp(t *testing.T) {
 	test := setupTest(t, NewCountCommandWithEnv)
 	test.client.Help()
 
-	require.Equal(t, `Usage of bundle count:
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+	require.Equal(t, `Usage of bundle count:`+common.AddrUsage, test.stderr.String())
 }
 
 func TestCountSynopsis(t *testing.T) {
@@ -465,10 +451,7 @@ func TestListHelp(t *testing.T) {
   -format string
     	The format to list federated bundles. Either "pem" or "spiffe". (default "pem")
   -id string
-    	SPIFFE ID of the trust domain
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+    	SPIFFE ID of the trust domain`+common.AddrUsage, test.stderr.String())
 }
 
 func TestListSynopsis(t *testing.T) {
@@ -578,10 +561,7 @@ func TestDeleteHelp(t *testing.T) {
   -id string
     	SPIFFE ID of the trust domain
   -mode string
-    	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+    	Deletion mode: one of restrict, delete, or dissociate (default "restrict")`+common.AddrUsage, test.stderr.String())
 }
 
 func TestDeleteSynopsis(t *testing.T) {

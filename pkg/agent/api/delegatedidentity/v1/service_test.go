@@ -632,11 +632,11 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	)
 
 	delegatedidentityv1.RegisterDelegatedIdentityServer(server, service)
-	socketPath := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
+	addr := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, _ := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, _ := grpc.DialContext(ctx, "unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	t.Cleanup(func() { conn.Close() })
 
 	fn(ctx, delegatedidentityv1.NewDelegatedIdentityClient(conn))

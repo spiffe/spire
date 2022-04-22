@@ -7,6 +7,7 @@ import (
 	"github.com/mitchellh/cli"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -99,20 +100,20 @@ type tokenTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	socketPath string
-	server     *fakeAgentServer
+	addr   string
+	server *fakeAgentServer
 
 	client cli.Command
 }
 
 func (t *tokenTest) args(extra ...string) []string {
-	return append([]string{"-socketPath", t.socketPath}, extra...)
+	return append([]string{common.AddrArg, t.addr}, extra...)
 }
 
 func setupTest(t *testing.T) *tokenTest {
 	server := &fakeAgentServer{t: t}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		agentv1.RegisterAgentServer(s, server)
 	})
 
@@ -127,12 +128,12 @@ func setupTest(t *testing.T) *tokenTest {
 	})
 
 	return &tokenTest{
-		socketPath: socketPath,
-		stderr:     stderr,
-		stdin:      stdin,
-		stdout:     stdout,
-		server:     server,
-		client:     client,
+		addr:   common.GetAddr(addr),
+		stderr: stderr,
+		stdin:  stdin,
+		stdout: stdout,
+		server: server,
+		client: client,
 	}
 }
 
