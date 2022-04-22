@@ -4,6 +4,7 @@
 package run
 
 import (
+	"errors"
 	"flag"
 	"net"
 
@@ -26,4 +27,12 @@ func (c *serverConfig) setDefaultsIfNeeded() {
 	if c.SocketPath == "" {
 		c.SocketPath = defaultSocketPath
 	}
+}
+
+// validateOS performs OS specific validations of the server config
+func (c *Config) validateOS() error {
+	if c.Server.Experimental.NamedPipeName != "" {
+		return errors.New("invalid configuration: named_pipe_name is not supported in this platform; please use socket_path instead")
+	}
+	return nil
 }

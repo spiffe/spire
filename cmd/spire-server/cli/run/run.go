@@ -675,7 +675,7 @@ func validateConfig(c *Config) error {
 		}
 	}
 
-	return nil
+	return c.validateOS()
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
