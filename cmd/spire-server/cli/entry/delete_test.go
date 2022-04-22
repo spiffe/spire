@@ -6,6 +6,7 @@ import (
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -16,10 +17,7 @@ func TestDeleteHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of entry delete:
   -entryID string
-    	The Registration Entry ID of the record to delete
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`, test.stderr.String())
+    	The Registration Entry ID of the record to delete`+common.AddrUsage, test.stderr.String())
 }
 
 func TestDeleteSynopsis(t *testing.T) {

@@ -17,6 +17,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	// SDDLSecureListener describes a security descriptor using the
+	// security descriptor definition language (SDDL) that is meant
+	// to be used to define the access control to named pipes
+	// listeners that only need to be accessed locally by the owner
+	// of the service, granting read, write and execute permissions
+	// to the creator owner only.
+	SDDLSecureListener = "D:P(A;;GRGWGX;;;OW)"
+)
+
 type NamedPipeAddr struct {
 	serverName string
 	pipeName   string

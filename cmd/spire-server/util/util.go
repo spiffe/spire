@@ -25,25 +25,19 @@ import (
 )
 
 const (
-	DefaultSocketPath = "/tmp/spire-server/private/api.sock"
-	FormatPEM         = "pem"
-	FormatSPIFFE      = "spiffe"
+	DefaultSocketPath    = "/tmp/spire-server/private/api.sock"
+	DefaultNamedPipeName = "\\spire-server\\private\\api"
+	FormatPEM            = "pem"
+	FormatSPIFFE         = "spiffe"
 )
 
-func Dial(socketPath string) (*grpc.ClientConn, error) {
-	if socketPath == "" {
-		socketPath = DefaultSocketPath
-	}
-	return grpc.Dial(socketPath,
+func Dial(addr net.Addr) (*grpc.ClientConn, error) {
+	return grpc.Dial(addr.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
 		grpc.WithBlock(),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithReturnConnectionError())
-}
-
-func dialer(ctx context.Context, addr string) (net.Conn, error) {
-	return (&net.Dialer{}).DialContext(ctx, "unix", addr)
 }
 
 type ServerClient interface {
@@ -56,8 +50,8 @@ type ServerClient interface {
 	NewHealthClient() grpc_health_v1.HealthClient
 }
 
-func NewServerClient(socketPath string) (ServerClient, error) {
-	conn, err := Dial(socketPath)
+func NewServerClient(addr net.Addr) (ServerClient, error) {
+	conn, err := Dial(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +117,9 @@ type Adapter struct {
 	env *common_cli.Env
 	cmd Command
 
-	flags      *flag.FlagSet
-	socketPath string
+	flags *flag.FlagSet
+
+	adapterOS // OS specific
 }
 
 // AdaptCommand converts a command into one conforming to the Command interface from github.com/mitchellh/cli
@@ -136,7 +131,7 @@ func AdaptCommand(env *common_cli.Env, cmd Command) *Adapter {
 
 	f := flag.NewFlagSet(cmd.Name(), flag.ContinueOnError)
 	f.SetOutput(env.Stderr)
-	f.StringVar(&a.socketPath, "socketPath", DefaultSocketPath, "Path to the SPIRE Server API socket")
+	a.addOSFlags(f)
 	a.cmd.AppendFlags(f)
 	a.flags = f
 
@@ -150,7 +145,13 @@ func (a *Adapter) Run(args []string) int {
 		return 1
 	}
 
-	client, err := NewServerClient(a.socketPath)
+	addr, err := a.getAddr()
+	if err != nil {
+		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
+		return 1
+	}
+
+	client, err := NewServerClient(addr)
 	if err != nil {
 		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
 		return 1

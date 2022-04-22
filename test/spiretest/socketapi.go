@@ -12,41 +12,33 @@ import (
 	"google.golang.org/grpc"
 )
 
-func StartWorkloadAPIOnUDSSocket(t *testing.T, socketPath string, server workload.SpiffeWorkloadAPIServer) *net.UnixAddr {
+func StartWorkloadAPIOnUDSSocket(t *testing.T, socketPath string, server workload.SpiffeWorkloadAPIServer) net.Addr {
 	return StartGRPCUDSSocketServer(t, socketPath, func(s *grpc.Server) {
 		workload.RegisterSpiffeWorkloadAPIServer(s, server)
 	})
 }
 
-func StartGRPCSocketServerOnTempUDSSocket(t *testing.T, registerFn func(s *grpc.Server)) string {
-	dir := TempDir(t)
-	socketPath := filepath.Join(dir, "server.sock")
-	StartGRPCUDSSocketServer(t, socketPath, registerFn)
-	return socketPath
-}
-
-func StartGRPCUDSSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) *net.UnixAddr {
+func StartGRPCUDSSocketServer(t *testing.T, socketPath string, registerFn func(s *grpc.Server)) net.Addr {
 	server := grpc.NewServer()
 	registerFn(server)
 
 	return ServeGRPCServerOnUDSSocket(t, server, socketPath)
 }
 
-func ServeGRPCServerOnTempUDSSocket(t *testing.T, server *grpc.Server) string {
+func ServeGRPCServerOnTempUDSSocket(t *testing.T, server *grpc.Server) net.Addr {
 	dir := TempDir(t)
 	socketPath := filepath.Join(dir, "server.sock")
-	ServeGRPCServerOnUDSSocket(t, server, socketPath)
-	return socketPath
+	return ServeGRPCServerOnUDSSocket(t, server, socketPath)
 }
 
-func ServeGRPCServerOnUDSSocket(t *testing.T, server *grpc.Server, socketPath string) *net.UnixAddr {
+func ServeGRPCServerOnUDSSocket(t *testing.T, server *grpc.Server, socketPath string) net.Addr {
 	// ensure the directory holding the socket exists
 	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
 
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 	ServeGRPCServerOnListener(t, server, listener)
-	return listener.Addr().(*net.UnixAddr)
+	return listener.Addr()
 }
 
 func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.Listener) {

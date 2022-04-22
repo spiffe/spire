@@ -26,5 +26,5 @@ var (
 )
 
 func startGRPCSocketServer(t *testing.T, registerFn func(srv *grpc.Server)) string {
-	return util.GetPipeName(spiretest.StartGRPCSocketServerOnRandNamedPipe(t, registerFn).String())
+	return util.GetPipeName(spiretest.StartGRPCServer(t, registerFn).String())
 }
