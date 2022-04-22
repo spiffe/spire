@@ -222,24 +222,24 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		return err
 	}
 	defer l.Close()
-
-	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.Log = e.Log.WithFields(logrus.Fields{
+	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),
 		telemetry.Address: l.Addr().String()})
-	e.Log.Info("Starting Server APIs")
+
+	// Skip use of tomb here so we don't pollute a clean shutdown with errors
+	log.Info("Starting Server APIs")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err = <-errChan:
-		e.Log.WithError(err).Error("TCP server stopped prematurely")
+		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.Log.Info("Stopping server APIs")
+		log.Info("Stopping Server APIs")
 		server.Stop()
 		<-errChan
-		e.Log.Info("Server APIs have stopped")
+		log.Info("Server APIs have stopped")
 		return nil
 	}
 }
@@ -265,23 +265,24 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 		return err
 	}
 
-	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.Log = e.Log.WithFields(logrus.Fields{
+	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),
 		telemetry.Address: l.Addr().String()})
-	e.Log.Info("Starting Server APIs")
+
+	// Skip use of tomb here so we don't pollute a clean shutdown with errors
+	log.Info("Starting Server APIs")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err := <-errChan:
-		e.Log.WithError(err).Error("Server APIs stopped prematurely")
+		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.Log.Info("Stopping Server APIs")
+		log.Info("Stopping Server APIs")
 		server.Stop()
 		<-errChan
-		e.Log.Info("Server APIs have stopped")
+		log.Info("Server APIs have stopped")
 		return nil
 	}
 }
