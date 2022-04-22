@@ -308,13 +308,13 @@ func (a *Agent) CheckHealth() health.State {
 }
 
 func (a *Agent) checkWorkloadAPI() error {
-	clientOptions, err := util.GetWorkloadAPIClientOptions(a.c.BindAddress)
+	clientOption, err := util.GetWorkloadAPIClientOption(a.c.BindAddress)
 	if err != nil {
 		a.c.Log.WithError(err).Error("Failed to get Workload API client options for health check")
 		return err
 	}
 
-	_, err = workloadapi.FetchX509Bundles(context.TODO(), clientOptions...)
+	_, err = workloadapi.FetchX509Bundles(context.TODO(), clientOption)
 	if status.Code(err) == codes.Unavailable {
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")

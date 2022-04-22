@@ -51,7 +51,7 @@ func ServeGRPCServerOnRandPipeName(t *testing.T, server *grpc.Server) net.Addr {
 }
 
 func GetRandNamedPipeAddr() net.Addr {
-	return util.GetNamedPipeAddr(fmt.Sprintf(`\\.\pipe\spire-test-%x`, rand.Uint64())) // nolint: gosec // used for testing only
+	return util.GetNamedPipeAddr(fmt.Sprintf("spire-test-%x", rand.Uint64())) // nolint: gosec // used for testing only
 }
 
 func init() {

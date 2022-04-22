@@ -57,11 +57,11 @@ func GRPCDialContext(ctx context.Context, target string) (*grpc.ClientConn, erro
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(winio.DialPipeContext))
 }
 
-func GetWorkloadAPIClientOptions(addr net.Addr) ([]workloadapi.ClientOption, error) {
+func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {
 	if _, ok := addr.(*NamedPipeAddr); !ok {
 		return nil, errors.New("address is not a named pipe address")
 	}
-	return []workloadapi.ClientOption{workloadapi.WithNamedPipeName(addr.(*NamedPipeAddr).PipeName())}, nil
+	return workloadapi.WithNamedPipeName(addr.(*NamedPipeAddr).PipeName()), nil
 }
 
 func GetPipeName(addr string) string {
