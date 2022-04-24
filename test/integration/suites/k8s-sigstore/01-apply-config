@@ -38,3 +38,5 @@ ${KUBEBIN} apply -f ./conf/workload-signed-wrong-subject.yaml
 wait-for-rollout spire deployment/example-workload-signed-wrong-subject
 ${KUBEBIN} apply -f ./conf/workload-signed-extra.yaml
 wait-for-rollout spire deployment/example-workload-signed-extra
+${KUBEBIN} apply -f ./conf/multiple-containers.yaml
+wait-for-rollout spire deployment/example-multiple-containers

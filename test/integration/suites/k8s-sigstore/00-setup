@@ -38,6 +38,11 @@ docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/e
 #copying unsigned image with crane tool from public to local registry
 docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:unsigned docker-registry-local:5000/workload:unsigned
 
+#copying unsigned images for skiplist with crane tool from public to local registry
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:alternate-unsigned docker-registry-local:5000/workload:unsigned-skiplist1
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:alternate-unsigned docker-registry-local:5000/workload:unsigned-skiplist2
+
+
 #copy certificate to ssl certicates dest folder on kind cluster
 docker exec k8stest-control-plane cp /mnt/reg-certificate/docker-registry/certs/domain.crt /etc/ssl/certs/
 

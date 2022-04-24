@@ -1,0 +1,21 @@
+#!/bin/sh
+
+source init-kubectl
+source check_for_workload_svid
+
+CONTAINERS_ARRAY="
+    example-multiple-containers-signed-1
+    example-multiple-containers-unsigned-1    
+"
+for container_name in $CONTAINERS_ARRAY; do
+    check_for_workload_svid_multiple_containers "spiffe://example.org/ns/default/sa/default/workload-multiple-containers" example-multiple-containers $$container_name
+    if [ "${DONE}" -eq 1 ]; then
+        log-info "SPIFFE ID FOUND"
+    elif [ "${FETCHSVID}" -eq 0 ]; then
+        log-info "SVID NOT ASSIGNED"
+    elif [ "${FETCHSVID}" -eq 1 ]; then
+        fail-now "svid was assigned improperly"
+    else
+        fail-now "failed to check for svid"
+    fi
+done

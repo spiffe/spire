@@ -73,6 +73,9 @@ data:
           # Minikube does not have a cert in the cluster CA bundle that
           # can authenticate the kubelet cert, so skip validation.
           skip_kubelet_verification = true
+          skip_signature_verification_image_list = ["docker-registry-local:5000/workload@sha256:9874d301c1e2bf9a72c9e7b57d64150202d0ad01599ae8b2ba32f936c21813e3"]
+          enable_allowed_subjects_list = true
+          allowed_subjects_list = ["hpespirex@gmail.com"]
         }
       }
     }

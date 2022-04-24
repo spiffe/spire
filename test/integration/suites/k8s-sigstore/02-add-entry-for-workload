@@ -27,6 +27,7 @@ add_entry_for_workload() {
 add_entry_for_workload spire example-workload-signed spiffe://example.org/ns/default/sa/default/workload-signed
 add_entry_for_workload spire example-workload-unsigned spiffe://example.org/ns/default/sa/default/workload-unsigned
 add_entry_for_workload spire example-workload-signed-wrong-subject spiffe://example.org/ns/default/sa/default/workload-signed-wrong-subject
+add_entry_for_workload spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers
 
 add_entry_for_workload_with_extra_selectors() {
     ns=$1
@@ -54,3 +55,53 @@ add_entry_for_workload_with_extra_selectors() {
 }
 
 add_entry_for_workload_with_extra_selectors spire example-workload-signed-extra spiffe://example.org/ns/default/sa/default/workload-signed-extra MEUCIG6n/ocQSOvznvs/Co/tmp5tY5tDb4Zl+3un5X+whQddAiEA4mHVOBBT9XW086M2dM8RyjutBdMrJxcJB5wHYFyzzzs= c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d 1638297518
+
+add_entry_for_workload_with_multi_container_pods() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/k8s-workload-registrar/example-cluster/node"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+    CONTAINER_ID=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{"\tname: "}{.containerID}{" image: "}{.image}{" pod: "}{..name}{"\n"}{end}' | awk '{split($2,a,/\\n/); print a[1] }')
+    for container_id in $CONTAINER_ID;do
+        if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+        -spiffeID ${workload_spiffe_id} \
+        -parentID ${CLUSTERNODESPIFFEID} \
+        -selector k8s:${container_id}:image-signature-subject:hpespirex@gmail.com \
+        -selector k8s:ns:${ns} \
+        -selector k8s:pod-name:${WORKLOAD_POD}; then
+            log-info "entry created."
+        else
+            fail-now "Failed creating entry for workload "
+        fi
+    done
+}
+
+add_entry_for_workload_with_multi_container_pods_skiplist() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    image_name=$4
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/k8s-workload-registrar/example-cluster/node"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+    CONTAINER_ID=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{"\tname: "}{.containerID}{" image: "}{.image}{" pod: "}{..name}{"\n"}{end}' |grep "image: ${image_name}"| awk '{split($2,a,/\\n/); print a[1] }')
+    for container_id in $CONTAINER_ID;do
+        CONTAINER_NAME=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{"\tname: "}{.containerID}{" image: "}{.image}{" pod: "}{..name}{"\n"}{end}' |grep "name: ${container_id}"| awk '{print $6}')
+        if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+        -spiffeID ${workload_spiffe_id} \
+        -parentID ${CLUSTERNODESPIFFEID} \
+        -selector k8s:signature-verified:true \
+        -selector k8s:ns:${ns} \
+        -selector k8s:container-name:${CONTAINER_NAME} \
+        -selector k8s:pod-name:${WORKLOAD_POD}; then
+            log-info "entry created."
+        else
+            fail-now "Failed creating entry for workload "
+        fi
+    done
+}
+
+add_entry_for_workload_with_multi_container_pods spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers
+add_entry_for_workload_with_multi_container_pods_skiplist spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers docker-registry-local:5000/workload:unsigned-skiplist1
