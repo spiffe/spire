@@ -115,6 +115,7 @@ func (w *windowsWatcher) Close() {
 func (w *windowsWatcher) IsAlive() error {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
+	fmt.Println("]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
 
 	if w.procHandle == windows.InvalidHandle {
 		w.log.Warn("Caller is no longer being watched")
@@ -143,10 +144,35 @@ func (w *windowsWatcher) IsAlive() error {
 		}
 	}()
 
-	err = w.sc.CompareObjectHandles(w.procHandle, h)
+	fmt.Println("/////////////////////////////////////////")
+	err = w.CompareObjectHandles(w.procHandle, h)
 	if err != nil {
+		fmt.Println("_________________________________________")
 		w.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
 		return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
+	}
+
+	return nil
+}
+
+func (w *windowsWatcher) CompareObjectHandles(h1, h2 windows.Handle) error {
+	fmt.Println("11111111111111111111111111111111111111111")
+	var h1Information windows.ByHandleFileInformation
+	if err := w.sc.GetFileInformationByHandle(h1, &h1Information); err != nil {
+		return err
+	}
+	w.log.Infof("------------------------------------ h1: %v\n", h1Information)
+
+	var h2Information windows.ByHandleFileInformation
+	if err := w.sc.GetFileInformationByHandle(h2, &h2Information); err != nil {
+		return err
+	}
+	w.log.Infof("------------------------------------ h2: %v\n", h2Information)
+
+	if h2Information.FileIndexLow == h2Information.FileIndexLow &&
+		h2Information.FileIndexHigh == h2Information.FileIndexHigh &&
+		h2Information.VolumeSerialNumber == h2Information.VolumeSerialNumber {
+		return errors.New("handles does not match")
 	}
 
 	return nil
@@ -160,9 +186,8 @@ type systemCaller interface {
 	// CloseHandle closes an open object handle.
 	CloseHandle(windows.Handle) error
 
-	// CompareObjectHandles compares two object handles to determine if they
-	// refer to the same underlying kernel object
-	CompareObjectHandles(windows.Handle, windows.Handle) error
+	// GetFileInformationByHandle get handle information
+	GetFileInformationByHandle(handle windows.Handle, data *windows.ByHandleFileInformation) error
 
 	// OpenProcess returns an open handle to the specified process id.
 	OpenProcess(int32) (windows.Handle, error)
@@ -183,8 +208,8 @@ func (s *systemCall) CloseHandle(h windows.Handle) error {
 	return windows.CloseHandle(h)
 }
 
-func (s *systemCall) CompareObjectHandles(h1, h2 windows.Handle) error {
-	return compareObjectHandles(h1, h2)
+func (s *systemCall) GetFileInformationByHandle(handle windows.Handle, data *windows.ByHandleFileInformation) error {
+	return windows.GetFileInformationByHandle(handle, data)
 }
 
 func (s *systemCall) GetExitCodeProcess(h windows.Handle, exitCode *uint32) error {
