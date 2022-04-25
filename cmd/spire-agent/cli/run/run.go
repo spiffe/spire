@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
@@ -492,6 +493,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
+		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
+	}
 
 	for _, f := range c.Agent.Experimental.Flags {
 		logger.Warnf("Developer feature flag %q has been enabled", f)
