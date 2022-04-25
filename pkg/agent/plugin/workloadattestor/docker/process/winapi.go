@@ -15,10 +15,13 @@ var (
 	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
 	modntdll    = windows.NewLazySystemDLL("ntdll.dll")
 
-	procIsProcessInJob = modkernel32.NewProc("IsProcessInJob")
+	procIsProcessInJob    = modkernel32.NewProc("IsProcessInJob")
+	procIsProcessInJobErr = procIsProcessInJob.Find()
 
-	procNtQueryObject            = modntdll.NewProc("NtQueryObject")
-	procNtQuerySystemInformation = modntdll.NewProc("NtQuerySystemInformation")
+	procNtQueryObject               = modntdll.NewProc("NtQueryObject")
+	procNtQueryObjectErr            = procNtQueryObject.Find()
+	procNtQuerySystemInformation    = modntdll.NewProc("NtQuerySystemInformation")
+	procNtQuerySystemInformationErr = procNtQuerySystemInformation.Find()
 )
 
 const (
@@ -34,14 +37,11 @@ type API interface {
 	// IsProcessInJob determines whether the process is running in the specified job.
 	IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle, result *bool) error
 
-	// GetObjectType get handle object type
+	// GetObjectType gets the object type of the given handle
 	GetObjectType(handle windows.Handle) (string, error)
 
-	// GetObjectType get handle object name
+	// GetObjectName gets the object name of the given handle
 	GetObjectName(handle windows.Handle) (string, error)
-
-	// // NtQuerySystemInformation retrieves the specified system information.
-	// NtQuerySystemInformation(sysInfoClass int32, sysInfo unsafe.Pointer, sysInfoLen uint32, retLen *uint32) (ntstatus windows.NTStatus)
 
 	// QuerySystemExtendedHandleInformation retrieves Extended handle system information.
 	QuerySystemExtendedHandleInformation() ([]SystemHandleInformationExItem, error)
@@ -73,6 +73,9 @@ type api struct {
 }
 
 func (a *api) IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle, result *bool) error {
+	if procIsProcessInJobErr != nil {
+		return procIsProcessInJobErr
+	}
 	r1, _, e1 := syscall.SyscallN(procIsProcessInJob.Addr(), uintptr(procHandle), uintptr(jobHandle), uintptr(unsafe.Pointer(result)))
 	if r1 == 0 {
 		if e1 != 0 {
@@ -83,7 +86,7 @@ func (a *api) IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle
 	return nil
 }
 
-// getObjectType get the handle type
+// GetObjectType gets the object type of the given handle
 func (a *api) GetObjectType(handle windows.Handle) (string, error) {
 	buffer := make([]byte, 1024*10)
 	length := uint32(0)
@@ -97,7 +100,7 @@ func (a *api) GetObjectType(handle windows.Handle) (string, error) {
 	return (*ObjectTypeInformation)(unsafe.Pointer(&buffer[0])).TypeName.String(), nil
 }
 
-// getObjectName get the handle name
+// GetObjectName gets the object name of the given handle
 func (a *api) GetObjectName(handle windows.Handle) (string, error) {
 	buffer := make([]byte, 1024*2)
 	var length uint32
@@ -235,6 +238,9 @@ func (u UnicodeString) String() string {
 }
 
 func ntQueryObject(handle windows.Handle, objectInformationClass uint32, objectInformation *byte, objectInformationLength uint32, returnLength *uint32) (ntStatus windows.NTStatus) {
+	if procNtQueryObjectErr != nil {
+		return windows.STATUS_PROCEDURE_NOT_FOUND
+	}
 	r0, _, _ := syscall.SyscallN(procNtQueryObject.Addr(), uintptr(handle), uintptr(objectInformationClass), uintptr(unsafe.Pointer(objectInformation)), uintptr(objectInformationLength), uintptr(unsafe.Pointer(returnLength)), 0)
 	if r0 != 0 {
 		ntStatus = windows.NTStatus(r0)
@@ -243,6 +249,9 @@ func ntQueryObject(handle windows.Handle, objectInformationClass uint32, objectI
 }
 
 func ntQuerySystemInformation(sysInfoClass int32, sysInfo unsafe.Pointer, sysInfoLen uint32, retLen *uint32) (ntstatus windows.NTStatus) {
+	if procNtQuerySystemInformationErr != nil {
+		return windows.STATUS_PROCEDURE_NOT_FOUND
+	}
 	r0, _, _ := syscall.SyscallN(procNtQuerySystemInformation.Addr(), uintptr(sysInfoClass), uintptr(sysInfo), uintptr(sysInfoLen), uintptr(unsafe.Pointer(retLen)), 0, 0)
 	if r0 != 0 {
 		ntstatus = windows.NTStatus(r0)

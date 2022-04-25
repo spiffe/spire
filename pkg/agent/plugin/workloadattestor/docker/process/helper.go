@@ -29,21 +29,21 @@ type helper struct {
 	wapi API
 }
 
-// GetContainerIDByProcess get container ID from provided process ID,
+// GetContainerIDByProcess gets the container ID from the provided process ID,
 // on windows process that are running in a docker containers are grouped by Named Jobs,
 // those Jobs has the container ID as name.
 // In the format `\Container_${CONTAINER_ID}`
 func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, error) {
-	// Search all processes that runs vmcompute.exe
+	// Search all processes that run vmcompute.exe
 	vmComputeProcessIds, err := h.searchProcessByExeFile("vmcompute.exe", log)
 	if err != nil {
 		return "", fmt.Errorf("failed to search vmcompute process: %w", err)
 	}
 
-	// Get current process, current process handle is not required to be closed
+	// Get current process. The handle must not be closed.
 	currentProcess := h.wapi.CurrentProcess()
 
-	// Duplicate process handle we want to validate, with limited permissions
+	// Duplicate the process handle that we want to validate, with limited permissions.
 	childProcessHandle, err := h.wapi.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pID))
 	if err != nil {
 		return "", fmt.Errorf("failed to open child process: %w", err)
@@ -96,7 +96,7 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 	}
 }
 
-// searchProcessByExeFile search all process with specified exe file
+// searchProcessByExeFile searches all the processes with specified exe file
 func (h *helper) searchProcessByExeFile(exeFile string, log hclog.Logger) ([]uint32, error) {
 	snapshotHandle, err := h.wapi.CreateToolhelp32Snapshot(Th32csSnapProcess, 0)
 	if err != nil {
@@ -135,7 +135,7 @@ func (h *helper) searchProcessByExeFile(exeFile string, log hclog.Logger) ([]uin
 }
 
 func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess windows.Handle, childProcessHandle windows.Handle, log hclog.Logger) (string, error) {
-	// Open handle process ID, with permissions to duplicateg handle
+	// Open the handle associated with the process ID, with permissions to duplicate the handle
 	hProcess, err := h.wapi.OpenProcess(windows.PROCESS_DUP_HANDLE, false, uint32(handle.UniqueProcessID))
 	if err != nil {
 		return "", fmt.Errorf("failed to open unique process: %w", err)

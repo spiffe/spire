@@ -64,7 +64,7 @@ type dockerPluginConfig struct {
 	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
 	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information. (Unix)
 	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers" json:"container_id_cgroup_matchers"`
-	// DockerHost is the host URI used to connect Docker API (default: "npipe:////./pipe/docker_engine").
+	// DockerHost is the location of the Docker Engine API endpoint on Windows (default: "npipe:////./pipe/docker_engine").
 	DockerHost string `hcl:"docker_host" json:"docker_host"`
 }
 
