@@ -611,7 +611,7 @@ func TestNewAgentConfig(t *testing.T) {
 
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
-				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
 			},
 		},
 		{
@@ -625,7 +625,7 @@ func TestNewAgentConfig(t *testing.T) {
 
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
-				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
 			},
 		},
 		{
