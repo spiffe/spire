@@ -17,6 +17,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	// SDDLSecureListener describes a security descriptor using the
+	// security descriptor definition language (SDDL) that is meant
+	// to be used to define the access control to named pipes
+	// listeners that only need to be accessed locally by the owner
+	// of the service, granting read, write and execute permissions
+	// to the creator owner only.
+	SDDLSecureListener = "D:P(A;;GRGWGX;;;OW)"
+)
+
 type NamedPipeAddr struct {
 	serverName string
 	pipeName   string
@@ -47,11 +57,11 @@ func GRPCDialContext(ctx context.Context, target string) (*grpc.ClientConn, erro
 	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(winio.DialPipeContext))
 }
 
-func GetWorkloadAPIClientOptions(addr net.Addr) ([]workloadapi.ClientOption, error) {
+func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {
 	if _, ok := addr.(*NamedPipeAddr); !ok {
 		return nil, errors.New("address is not a named pipe address")
 	}
-	return []workloadapi.ClientOption{workloadapi.WithNamedPipeName(addr.(*NamedPipeAddr).PipeName())}, nil
+	return workloadapi.WithNamedPipeName(addr.(*NamedPipeAddr).PipeName()), nil
 }
 
 func GetPipeName(addr string) string {

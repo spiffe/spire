@@ -6,9 +6,14 @@ package endpoints
 import (
 	"fmt"
 	"net"
+	"os"
 
 	"github.com/spiffe/spire/pkg/common/peertracker"
 )
+
+func (e *Endpoints) listen() (net.Listener, error) {
+	return net.Listen(e.LocalAddr.Network(), e.LocalAddr.String())
+}
 
 func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
 	unixListener := &peertracker.ListenerFactory{
@@ -19,4 +24,10 @@ func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
 		return nil, fmt.Errorf("create UDS listener: address is type %T, not net.UnixAddr", e.LocalAddr)
 	}
 	return unixListener.ListenUnix(e.LocalAddr.Network(), unixAddr)
+}
+
+func (e *Endpoints) restrictLocalAddr() error {
+	// Restrict access to the UDS to processes running as the same user or
+	// group as the server.
+	return os.Chmod(e.LocalAddr.String(), 0770)
 }

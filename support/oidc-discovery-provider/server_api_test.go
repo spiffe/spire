@@ -28,7 +28,7 @@ func TestServerAPISource(t *testing.T) {
 
 	api := &fakeServerAPIServer{}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	socketPath := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		bundlev1.RegisterBundleServer(s, api)
 	})
 
@@ -37,7 +37,7 @@ func TestServerAPISource(t *testing.T) {
 
 	source, err := NewServerAPISource(ServerAPISourceConfig{
 		Log:          log,
-		Address:      "unix://" + socketPath,
+		Address:      "unix://" + socketPath.String(),
 		PollInterval: pollInterval,
 		Clock:        clock,
 	})

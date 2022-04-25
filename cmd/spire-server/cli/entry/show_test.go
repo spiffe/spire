@@ -16,26 +16,7 @@ func TestShowHelp(t *testing.T) {
 	test := setupTest(t, newShowCommand)
 	test.client.Help()
 
-	require.Equal(t, `Usage of entry show:
-  -downstream
-    	A boolean value that, when set, indicates that the entry describes a downstream SPIRE server
-  -entryID string
-    	The Entry ID of the records to show
-  -federatesWith value
-    	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
-  -matchFederatesWithOn string
-    	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
-  -matchSelectorsOn string
-    	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
-  -parentID string
-    	The Parent ID of the records to show
-  -selector value
-    	A colon-delimited type:value selector. Can be used more than once
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
-    	The SPIFFE ID of the records to show
-`, test.stderr.String())
+	require.Equal(t, showUsage, test.stderr.String())
 }
 
 func TestShowSynopsis(t *testing.T) {

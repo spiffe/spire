@@ -434,7 +434,7 @@ func (s *Server) CheckHealth() health.State {
 }
 
 func (s *Server) tryGetBundle() error {
-	client, err := server_util.NewServerClient(s.config.BindLocalAddress.String())
+	client, err := server_util.NewServerClient(s.config.BindLocalAddress)
 	if err != nil {
 		return errors.New("cannot create registration client")
 	}
