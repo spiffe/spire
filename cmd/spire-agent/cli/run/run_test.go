@@ -502,16 +502,6 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Agent.TrustDomain)
 			},
 		},
-		{
-			msg: "admin_socket_path should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Agent.AdminSocketPath = "/tmp/admin.sock"
-			},
-			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/admin.sock", c.Agent.AdminSocketPath)
-			},
-		},
 	}
 	cases = append(cases, mergeInputCasesOS()...)
 
@@ -687,15 +677,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "admin_socket_path not provided",
-			input: func(c *Config) {
-				c.Agent.AdminSocketPath = ""
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Nil(t, c.AdminBindAddress)
 			},
 		},
 		{

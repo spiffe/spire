@@ -128,6 +128,16 @@ func mergeInputCasesOS() []mergeInputCase {
 				require.Equal(t, "bar", c.Agent.Experimental.NamedPipeName)
 			},
 		},
+		{
+			msg: "admin_named_pipe_name should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.Experimental.AdminNamedPipeName = "\\spire-agent\\private\\api-test"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "\\spire-agent\\private\\api-test", c.Agent.Experimental.AdminNamedPipeName)
+			},
+		},
 	}
 }
 
@@ -142,6 +152,15 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 				require.Equal(t, "\\\\.\\pipe\\foo", c.BindAddress.String())
 				require.Equal(t, "foo", c.BindAddress.(*util.NamedPipeAddr).PipeName())
 				require.Equal(t, "pipe", c.BindAddress.(*util.NamedPipeAddr).Network())
+			},
+		},
+		{
+			msg: "admin_named_pipe_name not provided",
+			input: func(c *Config) {
+				c.Agent.Experimental.AdminNamedPipeName = ""
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.AdminBindAddress)
 			},
 		},
 	}

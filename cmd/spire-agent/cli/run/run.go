@@ -96,8 +96,9 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval  string `hcl:"sync_interval"`
-	NamedPipeName string `hcl:"named_pipe_name"`
+	SyncInterval       string `hcl:"sync_interval"`
+	NamedPipeName      string `hcl:"named_pipe_name"`
+	AdminNamedPipeName string `hcl:"admin_named_pipe_name"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -446,7 +447,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.BindAddress = addr
 
-	if c.Agent.AdminSocketPath != "" {
+	if c.Agent.hasAdminAddr() {
 		adminAddr, err := c.Agent.getAdminAddr()
 		if err != nil {
 			return nil, err
