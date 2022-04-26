@@ -224,7 +224,7 @@ func TestEndpoints(t *testing.T) {
 			waitForListening(t, endpoints, errCh)
 			target, err := util.GetTargetName(endpoints.addr)
 			require.NoError(t, err)
-			conn, err := util.GRPCDialContext(ctx, target)
+			conn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
 			require.NoError(t, err)
 			defer conn.Close()
 
