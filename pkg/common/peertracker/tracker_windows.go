@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -115,7 +116,6 @@ func (w *windowsWatcher) Close() {
 func (w *windowsWatcher) IsAlive() error {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
-	fmt.Println("]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]")
 
 	if w.procHandle == windows.InvalidHandle {
 		w.log.Warn("Caller is no longer being watched")
@@ -144,10 +144,8 @@ func (w *windowsWatcher) IsAlive() error {
 		}
 	}()
 
-	fmt.Println("/////////////////////////////////////////")
-	err = w.CompareObjectHandles(w.procHandle, h)
+	err = w.compareObjectHandles(w.procHandle, h)
 	if err != nil {
-		fmt.Println("_________________________________________")
 		w.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
 		return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
 	}
@@ -155,26 +153,25 @@ func (w *windowsWatcher) IsAlive() error {
 	return nil
 }
 
-func (w *windowsWatcher) CompareObjectHandles(h1, h2 windows.Handle) error {
-	fmt.Println("11111111111111111111111111111111111111111")
-	var h1Information windows.ByHandleFileInformation
-	if err := w.sc.GetFileInformationByHandle(h1, &h1Information); err != nil {
+func (w *windowsWatcher) compareObjectHandles(h1, h2 windows.Handle) error {
+	// In case CompareObjectHandles is found on OS, use it
+	if procCompareObjectHandlesErr == nil {
+		return w.sc.CompareObjectHandles(h1, h2)
+	}
+
+	h1ImagePath, err := w.sc.QueryFullProcessImageName(h1)
+	if err != nil {
 		return err
 	}
-	w.log.Infof("------------------------------------ h1: %v\n", h1Information)
 
-	var h2Information windows.ByHandleFileInformation
-	if err := w.sc.GetFileInformationByHandle(h2, &h2Information); err != nil {
+	h2ImagePath, err := w.sc.QueryFullProcessImageName(h2)
+	if err != nil {
 		return err
 	}
-	w.log.Infof("------------------------------------ h2: %v\n", h2Information)
 
-	if h2Information.FileIndexLow == h2Information.FileIndexLow &&
-		h2Information.FileIndexHigh == h2Information.FileIndexHigh &&
-		h2Information.VolumeSerialNumber == h2Information.VolumeSerialNumber {
-		return errors.New("handles does not match")
+	if h1ImagePath != h2ImagePath {
+		return errors.New("process handles does not match")
 	}
-
 	return nil
 }
 
@@ -186,8 +183,11 @@ type systemCaller interface {
 	// CloseHandle closes an open object handle.
 	CloseHandle(windows.Handle) error
 
-	// GetFileInformationByHandle get handle information
-	GetFileInformationByHandle(handle windows.Handle, data *windows.ByHandleFileInformation) error
+	// CompareObjectHandles compares two object handles to determine if they
+	// refer to the same underlying kernel object
+	CompareObjectHandles(windows.Handle, windows.Handle) error
+
+	QueryFullProcessImageName(handle windows.Handle) (string, error)
 
 	// OpenProcess returns an open handle to the specified process id.
 	OpenProcess(int32) (windows.Handle, error)
@@ -208,8 +208,20 @@ func (s *systemCall) CloseHandle(h windows.Handle) error {
 	return windows.CloseHandle(h)
 }
 
-func (s *systemCall) GetFileInformationByHandle(handle windows.Handle, data *windows.ByHandleFileInformation) error {
-	return windows.GetFileInformationByHandle(handle, data)
+func (s *systemCall) CompareObjectHandles(h1, h2 windows.Handle) error {
+	return compareObjectHandles(h1, h2)
+}
+
+func (s *systemCall) QueryFullProcessImageName(handle windows.Handle) (string, error) {
+	var buf [windows.MAX_PATH]uint16
+	length := uint32(windows.MAX_PATH)
+
+	if err := windows.QueryFullProcessImageName(handle, 0,
+		&buf[0], &length); err != nil {
+		return "", err
+	}
+
+	return syscall.UTF16ToString(buf[:]), nil
 }
 
 func (s *systemCall) GetExitCodeProcess(h windows.Handle, exitCode *uint32) error {
