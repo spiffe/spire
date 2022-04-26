@@ -73,7 +73,7 @@ This may be useful for templating configuration files, for example across differ
 | `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)             |                                  |
 | `profiling_port`            | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`. |                                                                |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                               |                                                                |
-| `socket_path`               | Path to bind the SPIRE Server API socket to                                                                                    | /tmp/spire-server/private/api.sock                             |
+| `socket_path`               | Path to bind the SPIRE Server API socket to (Unix only)                                                                                   | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)                                           |                                                                |
 
 | ca_subject                  | Description                    | Default        |
@@ -86,6 +86,7 @@ This may be useful for templating configuration files, for example across differ
 |:----------------------------|--------------------------------|----------------|
 | `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s |
 | `auth_opa_policy_engine`    | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions | default SPIRE authorization policy                             |
+| `named_pipe_name`           | Pipe name of the SPIRE Server API named pipe (Windows only)| \spire-server\private\api |
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|

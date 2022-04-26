@@ -12,7 +12,7 @@ import (
 )
 
 type Config struct {
-	BindAddr *net.UnixAddr
+	BindAddr net.Addr
 
 	Manager manager.Manager
 
@@ -31,7 +31,7 @@ type Config struct {
 func New(c *Config) *Endpoints {
 	return &Endpoints{
 		c: c,
-		unixListener: &peertracker.ListenerFactory{
+		listener: &peertracker.ListenerFactory{
 			Log: c.Log,
 		},
 	}

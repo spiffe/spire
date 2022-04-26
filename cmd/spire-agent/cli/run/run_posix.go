@@ -27,7 +27,7 @@ func (c *agentConfig) getAddr() (net.Addr, error) {
 	return util.GetUnixAddrWithAbsPath(c.SocketPath)
 }
 
-func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
+func (c *agentConfig) getAdminAddr() (net.Addr, error) {
 	socketPathAbs, err := filepath.Abs(c.SocketPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
@@ -47,10 +47,17 @@ func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
 	}, nil
 }
 
+func (c *agentConfig) hasAdminAddr() bool {
+	return c.AdminSocketPath != ""
+}
+
 // validateOS performs posix specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.Experimental.NamedPipeName != "" {
 		return errors.New("invalid configuration: named_pipe_name is not supported in this platform; please use socket_path instead")
+	}
+	if c.Experimental.AdminNamedPipeName != "" {
+		return errors.New("invalid configuration: admin_named_pipe_name is not supported in this platform; please use admin_socket_path instead")
 	}
 	return nil
 }
