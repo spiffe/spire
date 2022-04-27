@@ -62,7 +62,7 @@ cp "${REPODIR}"/LICENSE "${EXTRAS_STAGING}"
 mkdir -p "${STAGING}"/bin "${EXTRAS_STAGING}"/bin
 cp "${BINDIR}"/spire-server "${STAGING}"/bin
 cp "${BINDIR}"/spire-agent "${STAGING}"/bin
-# Exclude regitrar from windows artifact
+# Exclude registrar from windows artifact
 if [ $OS != "windows" ]; then 
     cp "${BINDIR}"/k8s-workload-registrar "${EXTRAS_STAGING}"/bin
 fi
