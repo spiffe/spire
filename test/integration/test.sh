@@ -6,7 +6,10 @@ cd "${DIR}" || fail-now "Unable to change to script directory"
 
 . ./common
 
-SUITES=suites/*
+if [[ -z "${SUITES}" ]]; then
+   SUITES=suites/*
+fi
+
 if [[ -n $1 ]]; then
         SUITES=$@
 fi
