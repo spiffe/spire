@@ -125,6 +125,9 @@ func (m *m3Sink) flattenKey(parts []string) string {
 	return strings.Join(parts[2:], "_")
 }
 
+func (m *m3Sink) Shutdown() {
+}
+
 func labelsToTags(labels []Label) map[string]string {
 	tags := make(map[string]string, len(labels))
 	for _, l := range labels {
