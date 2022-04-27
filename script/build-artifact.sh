@@ -12,7 +12,7 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
 # change OS name to windows
-if [[ "$OS" == msys_nt-10.0-* ]]; then
+if [[ "$OS" == msys_nt-10.0-* ]] || [[ "$OS" == mingw64_nt-10.0- ]]; then
     OS=windows 
 fi
 
