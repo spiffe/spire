@@ -87,18 +87,18 @@ will terminate if another domain is requested.
 | Key                | Type     | Required? | Description                              | Default |
 | ------------------ | -------- | --------- | ----------------------------------------- | ------- |
 | `address`          | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See https://github.com/grpc/grpc/blob/master/doc/naming.md. Unix platforms only. | |
-| `experimental`     | section | optional  | The experimental options that are subject to change or removal. | |
+| `experimental`     | section  | optional  | The experimental options that are subject to change or removal. | |
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 
-| experimental     | Type   | Required? | Description                                                | Default |
-|:--------------------------|-----------|------------------------------------------------------------| ------- |
-| `named_pipe_name`| string | required  |Pipe name of the SPIRE Server API named pipe. Windows only. |         |
+| experimental     | Type   | Required? | Description                                                 | Default |
+|:--------------------------|-----------|-------------------------------------------------------------| ------- |
+| `named_pipe_name`| string | required  | Pipe name of the SPIRE Server API named pipe. Windows only. |         |
 
 #### Workload API Section
 
 | Key                | Type     | Required? | Description                               | Default |
 | ------------------ | -------- | --------- | ----------------------------------------- | ------- |
-| `experimental`     | section | optional  | The experimental options that are subject to change or removal. | |
+| `experimental`     | section  | optional  | The experimental options that are subject to change or removal. | |
 | `socket_path`      | string   | required  | Path on disk to the Workload API Unix Domain socket. Unix platforms only. | |
 | `poll_interval`    | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 | `trust_domain`     | string   | required  | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. | |

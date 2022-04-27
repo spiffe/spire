@@ -170,15 +170,14 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		if c.ACME.RawCacheDir != nil {
 			c.ACME.CacheDir = *c.ACME.RawCacheDir
 		}
-	}
-
-	switch {
-	case c.ACME != nil && c.InsecureAddr != "":
-		return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
-	case c.ACME != nil && !c.ACME.ToSAccepted:
-		return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
-	case c.ACME != nil && c.ACME.Email == "":
-		return nil, errs.New("email must be configured in the acme configuration section")
+		switch {
+		case c.InsecureAddr != "":
+			return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
+		case !c.ACME.ToSAccepted:
+			return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
+		case c.ACME.Email == "":
+			return nil, errs.New("email must be configured in the acme configuration section")
+		}
 	}
 
 	var methodCount int
