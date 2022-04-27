@@ -53,8 +53,9 @@ func GetNamedPipeAddr(pipeName string) net.Addr {
 	}
 }
 
-func GRPCDialContext(ctx context.Context, target string) (*grpc.ClientConn, error) {
-	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(winio.DialPipeContext))
+func GRPCDialContext(ctx context.Context, target string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
+	options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(winio.DialPipeContext))
+	return grpc.DialContext(ctx, target, options...)
 }
 
 func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {

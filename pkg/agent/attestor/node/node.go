@@ -24,8 +24,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
+)
+
+const (
+	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
 type AttestationResult struct {
@@ -261,8 +264,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	}
 
 	return grpc.DialContext(ctx, a.c.ServerAddress,
-		// TODO: port to non-deprecated option
-		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck // not ready to port
+		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithReturnConnectionError(),

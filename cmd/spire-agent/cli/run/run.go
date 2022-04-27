@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
@@ -95,8 +96,9 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval  string `hcl:"sync_interval"`
-	NamedPipeName string `hcl:"named_pipe_name"`
+	SyncInterval       string `hcl:"sync_interval"`
+	NamedPipeName      string `hcl:"named_pipe_name"`
+	AdminNamedPipeName string `hcl:"admin_named_pipe_name"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -445,7 +447,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.BindAddress = addr
 
-	if c.Agent.AdminSocketPath != "" {
+	if c.Agent.hasAdminAddr() {
 		adminAddr, err := c.Agent.getAdminAddr()
 		if err != nil {
 			return nil, err
@@ -492,6 +494,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
+		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
+	}
 
 	for _, f := range c.Agent.Experimental.Flags {
 		logger.Warnf("Developer feature flag %q has been enabled", f)
