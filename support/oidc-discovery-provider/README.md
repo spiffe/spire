@@ -109,7 +109,7 @@ will terminate if another domain is requested.
 
 ### Examples (Unix platforms)
 
-#### Server API 
+#### Server API
 
 ```
 log_level = "debug"
