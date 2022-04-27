@@ -26,10 +26,15 @@ if [ "$OS" = "linux" ]; then
     TAROPTS=("--owner=root" "--group=root")
 fi
 
-TARBALL="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}.tar.gz"
+ARTIFACT_EXTENSION="tar.gz"
+if [ ${OS} == "windows" ]; then
+    ARTIFACT_EXTENSION="zip"
+fi
+
+ARTIFACT="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}.${ARTIFACT_EXTENSION}"
 CHECKSUM="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}_checksums.txt"
 
-EXTRAS_TARBALL="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}.tar.gz"
+EXTRAS_ARTIFACT="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}.${ARTIFACT_EXTENSION}"
 EXTRAS_CHECKSUM="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}_checksums.txt"
 
 TMPDIR=$(mktemp -d)
@@ -42,17 +47,17 @@ STAGING="${TMPDIR}"/spire/spire-${TAG}
 EXTRAS_STAGING="${TMPDIR}"/spire-extras/spire-extras-${TAG}
 mkdir -p "${STAGING}" "${EXTRAS_STAGING}"
 
-echo "Creating \"${TARBALL}\" and \"${EXTRAS_TARBALL}\""
+echo "Creating \"${ARTIFACT}\" and \"${EXTRAS_ARTIFACT}\""
 
 # Use linux config file as default
-RELEASE_FOLDER="linux"
+RELEASE_FOLDER="posix"
 if [ ${OS} == "windows" ]; then
     RELEASE_FOLDER="windows"
 fi
 
 # Copy in the contents under release/
-cp -r release/spire-${RELEASE_FOLDER}/* "${STAGING}"
-cp -r release/spire-extras-${RELEASE_FOLDER}/* "${EXTRAS_STAGING}"
+cp -r release/${RELEASE_FOLDER}/spire/* "${STAGING}"
+cp -r release/${RELEASE_FOLDER}/spire-extras/* "${EXTRAS_STAGING}"
 
 # Copy in the LICENSE
 cp "${REPODIR}"/LICENSE "${STAGING}"
@@ -68,15 +73,18 @@ if [ $OS != "windows" ]; then
 fi
 cp "${BINDIR}"/oidc-discovery-provider "${EXTRAS_STAGING}"/bin
 
-# Create the tarballs and checksums
 mkdir -p "${OUTDIR}"
-(cd "${TMPDIR}/spire"; tar -cvzf "${TARBALL}" "${TAROPTS[@]}" -- *)
-(cd "${TMPDIR}/spire-extras"; tar -cvzf "${EXTRAS_TARBALL}" "${TAROPTS[@]}" -- *)
 
 if [ $OS == "windows" ]; then 
-    echo "$(CertUtil -hashfile "${TARBALL}" SHA256 | sed -n '2p') $(basename "${TARBALL}")" > "${CHECKSUM}"
-    echo "$(CertUtil -hashfile "${EXTRAS_TARBALL}" SHA256 | sed -n '2p') $(basename "${EXTRAS_TARBALL}")" > "${EXTRAS_CHECKSUM}"
+    powershell Compress-Archive -Path "${TMPDIR}/spire/*" -DestinationPath "${ARTIFACT}" -Update -Verb
+    powershell Compress-Archive -Path "${TMPDIR}/spire-extras/*" -DestinationPath "${EXTRAS_ARTIFACT}" -Update -Verb
+
+    echo "$(CertUtil -hashfile "${ARTIFACT}" SHA256 | sed -n '2p') $(basename "${ARTIFACT}")" > "${CHECKSUM}"
+    echo "$(CertUtil -hashfile "${EXTRAS_ARTIFACT}" SHA256 | sed -n '2p') $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
 else 
-    echo "$(shasum -a 256 "${TARBALL}" | cut -d' ' -f1) $(basename "${TARBALL}")" > "${CHECKSUM}"
-    echo "$(shasum -a 256 "${EXTRAS_TARBALL}" | cut -d' ' -f1) $(basename "${EXTRAS_TARBALL}")" > "${EXTRAS_CHECKSUM}"
+    # Create the tarballs and checksums
+    (cd "${TMPDIR}/spire"; tar -cvzf "${ARTIFACT}" "${TAROPTS[@]}" -- *)
+    (cd "${TMPDIR}/spire-extras"; tar -cvzf "${EXTRAS_ARTIFACT}" "${TAROPTS[@]}" -- *)
+    echo "$(shasum -a 256 "${ARTIFACT}" | cut -d' ' -f1) $(basename "${ARTIFACT}")" > "${CHECKSUM}"
+    echo "$(shasum -a 256 "${EXTRAS_ARTIFACT}" | cut -d' ' -f1) $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
 fi
