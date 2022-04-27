@@ -34,6 +34,9 @@ help:
 	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
 	@echo "                                          support 'SUITES' variable for executing specific tests"
 	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
+	@echo "  $(cyan)integration-windows$(reset)                   - run integration tests for windows (requires Docker images)"
+	@echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
 	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
@@ -50,6 +53,12 @@ help:
 	@echo "  $(cyan)spire-agent-scratch-image$(reset)             - build SPIRE agent Docker scratch image"
 	@echo "  $(cyan)k8s-workload-registrar-scratch-image$(reset)  - build Kubernetes Workload Registrar Docker scratch image"
 	@echo "  $(cyan)oidc-discovery-provider-scratch-image$(reset) - build OIDC Discovery Provider Docker image"
+	@echo "$(bold)Windows docker image:$(reset)"
+	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
+	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
+	@echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"
+	@echo "  $(cyan)k8s-workload-registrar-image-windows$(reset)  - build Kubernetes Workload Registrar Docker image for windows"
+	@echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"
 	@echo "$(bold)Developer support:$(reset)"
 	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
 	@echo "  $(cyan)dev-shell$(reset)                             - run a shell in a development Docker container"
@@ -271,7 +280,7 @@ $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oi
 # Test Targets
 #############################################################################
 
-.PHONY: test race-test integration
+.PHONY: test race-test integration integration-windows
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
@@ -300,6 +309,9 @@ ifeq ($(os1), windows)
 else
 	$(E)./test/integration/test.sh $(SUITES)
 endif
+
+integration-windows:
+	$(E)./test/integration/test-windows.sh $(SUITES)
 
 #############################################################################
 # Build Artifact
@@ -363,6 +375,33 @@ k8s-workload-registrar-scratch-image: Dockerfile
 oidc-discovery-provider-scratch-image: Dockerfile
 	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider-scratch -t oidc-discovery-provider-scratch -f Dockerfile.scratch .
 	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
+
+#############################################################################
+# Docker Images
+#############################################################################
+
+.PHONY: images-windows
+images-windows: spire-server-image-windows spire-agent-image-windows k8s-workload-registrar-image-windows oidc-discovery-provider-image-windows
+
+.PHONY: spire-server-image-windows
+spire-server-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target spire-server-windows -t spire-server-windows .
+	docker tag spire-server-windows:latest spire-server-windows:latest-local
+
+.PHONY: spire-agent-image-windows
+spire-agent-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target spire-agent-windows -t spire-agent-windows .
+	docker tag spire-agent-windows:latest spire-agent-windows:latest-local
+
+.PHONY: k8s-workload-registrar-image-windows
+k8s-workload-registrar-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target k8s-workload-registrar-windows -t k8s-workload-registrar-windows .
+	docker tag k8s-workload-registrar-windows:latest k8s-workload-registrar-windows:latest-local
+
+.PHONY: oidc-discovery-provider-image-windows
+oidc-discovery-provider-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target oidc-discovery-provider-windows -t oidc-discovery-provider-windows .
+	docker tag oidc-discovery-provider-windows:latest oidc-discovery-provider-windows:latest-local
 
 #############################################################################
 # Code cleanliness
