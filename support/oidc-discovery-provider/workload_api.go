@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 	"gopkg.in/square/go-jose.v2"
 )
@@ -23,7 +25,7 @@ const (
 
 type WorkloadAPISourceConfig struct {
 	Log          logrus.FieldLogger
-	SocketPath   string
+	Addr         net.Addr
 	TrustDomain  string
 	PollInterval time.Duration
 	Clock        clock.Clock
@@ -50,8 +52,12 @@ func NewWorkloadAPISource(config WorkloadAPISourceConfig) (*WorkloadAPISource, e
 		config.Clock = clock.New()
 	}
 	var opts []workloadapi.ClientOption
-	if config.SocketPath != "" {
-		opts = append(opts, workloadapi.WithAddr("unix://"+config.SocketPath))
+	if config.Addr != nil {
+		o, err := util.GetWorkloadAPIClientOption(config.Addr)
+		if err != nil {
+			return nil, errs.Wrap(err)
+		}
+		opts = append(opts, o)
 	}
 
 	trustDomain, err := spiffeid.TrustDomainFromString(config.TrustDomain)
