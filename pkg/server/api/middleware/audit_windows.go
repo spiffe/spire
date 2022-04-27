@@ -43,7 +43,7 @@ func getUserSID(pID int32) (string, error) {
 		return "", fmt.Errorf("failed to open the access token associated with the process: %w", err)
 	}
 	defer func() {
-		token.Close()
+		_ = token.Close()
 	}()
 	tokenUser, err := token.GetTokenUser()
 	if err != nil {
