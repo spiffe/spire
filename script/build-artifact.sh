@@ -44,9 +44,15 @@ mkdir -p "${STAGING}" "${EXTRAS_STAGING}"
 
 echo "Creating \"${TARBALL}\" and \"${EXTRAS_TARBALL}\""
 
+# Use linux config file as default
+RELEASE_FOLDER="linux"
+if [ ${OS} == "windows" ]; then
+    RELEASE_FOLDER="windows"
+fi
+
 # Copy in the contents under release/
-cp -r release/spire-${OS}/* "${STAGING}"
-cp -r release/spire-extras-${OS}/* "${EXTRAS_STAGING}"
+cp -r release/spire-${RELEASE_FOLDER}/* "${STAGING}"
+cp -r release/spire-extras-${RELEASE_FOLDER}/* "${EXTRAS_STAGING}"
 
 # Copy in the LICENSE
 cp "${REPODIR}"/LICENSE "${STAGING}"
