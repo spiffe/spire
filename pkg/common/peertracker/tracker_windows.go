@@ -180,7 +180,8 @@ type systemCaller interface {
 	// specified process handle.
 	GetExitCodeProcess(windows.Handle, *uint32) error
 
-	// IsCompareObjectHandlesFound verifies if CompareObjectHandles is found on Windows instance
+	// IsCompareObjectHandlesFound returns true if the CompareObjectHandles
+	// function could be found in this Windows instance
 	IsCompareObjectHandlesFound() bool
 }
 
