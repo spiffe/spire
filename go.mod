@@ -17,12 +17,12 @@ require (
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.10
-	github.com/aws/aws-sdk-go v1.43.0
+	github.com/aws/aws-sdk-go v1.44.0
 	github.com/aws/aws-sdk-go-v2 v1.16.3
 	github.com/aws/aws-sdk-go-v2/config v1.15.4
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.0
-	github.com/aws/aws-sdk-go-v2/service/kms v1.17.0
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.5
+	github.com/aws/aws-sdk-go-v2/service/kms v1.17.1
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.6
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.4
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
@@ -33,9 +33,9 @@ require (
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
-	github.com/google/go-cmp v0.5.7
+	github.com/google/go-cmp v0.5.8
 	github.com/google/go-tpm v0.3.3
-	github.com/google/go-tpm-tools v0.3.7
+	github.com/google/go-tpm-tools v0.3.8
 	github.com/googleapis/gax-go/v2 v2.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.2.0
@@ -66,7 +66,7 @@ require (
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65
-	google.golang.org/api v0.75.0
+	google.golang.org/api v0.76.0
 	google.golang.org/genproto v0.0.0-20220414192740-2d67ff6cf2b4
 	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
