@@ -117,3 +117,7 @@ WorkloadAttestor "k8s" {
   }
 }
 ```
+
+### Platform support
+
+This plugin is only supported on Unix systems.
