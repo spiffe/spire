@@ -45,8 +45,8 @@ mkdir -p "${STAGING}" "${EXTRAS_STAGING}"
 echo "Creating \"${TARBALL}\" and \"${EXTRAS_TARBALL}\""
 
 # Copy in the contents under release/
-cp -r release/spire/* "${STAGING}"
-cp -r release/spire-extras/* "${EXTRAS_STAGING}"
+cp -r release/spire-${OS}/* "${STAGING}"
+cp -r release/spire-extras-${OS}/* "${EXTRAS_STAGING}"
 
 # Copy in the LICENSE
 cp "${REPODIR}"/LICENSE "${STAGING}"
@@ -56,7 +56,10 @@ cp "${REPODIR}"/LICENSE "${EXTRAS_STAGING}"
 mkdir -p "${STAGING}"/bin "${EXTRAS_STAGING}"/bin
 cp "${BINDIR}"/spire-server "${STAGING}"/bin
 cp "${BINDIR}"/spire-agent "${STAGING}"/bin
-cp "${BINDIR}"/k8s-workload-registrar "${EXTRAS_STAGING}"/bin
+# Include registrar only for linux, until it is compatible with windows
+if [ $OS == "linux" ]; then 
+    cp "${BINDIR}"/k8s-workload-registrar "${EXTRAS_STAGING}"/bin
+fi
 cp "${BINDIR}"/oidc-discovery-provider "${EXTRAS_STAGING}"/bin
 
 # Create the tarballs and checksums
