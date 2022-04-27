@@ -1,0 +1,12 @@
+#!/bin/bash
+
+log-debug "creating regular registration entry..."
+docker-compose exec -T spire-server \
+    c:/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "windows:user_name:User Manager\ContainerUser" \
+    -ttl 0
+
+check-synced-entry "spire-agent" "spiffe://domain.test/workload"
+

@@ -20,7 +20,7 @@ func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
 		Log: e.Log,
 	}
 
-	return lf.ListenPipe(e.LocalAddr.String(), nil)
+	return lf.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLSecureListener})
 }
 
 func (e *Endpoints) restrictLocalAddr() error {

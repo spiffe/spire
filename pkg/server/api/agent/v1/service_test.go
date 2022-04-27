@@ -3093,7 +3093,7 @@ func setupServiceTest(t *testing.T, agentTTL time.Duration) *serviceTest {
 	})
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
 		ppMiddleware,
-		// Add audit log with uds tracking disabled
+		// Add audit log with local tracking disabled
 		middleware.WithAuditLog(false),
 	))
 
