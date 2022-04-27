@@ -373,6 +373,7 @@ jobs:
             git
             base-devel 
             mingw-w64-x86_64-toolchain 
+            zip
             unzip 
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh
