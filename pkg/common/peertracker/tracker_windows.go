@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -43,9 +42,8 @@ func (*windowsTracker) Close() {
 }
 
 type windowsWatcher struct {
-	mtx              sync.Mutex
-	procHandle       windows.Handle
-	procCreationTime windows.Filetime
+	mtx        sync.Mutex
+	procHandle windows.Handle
 
 	pid int32
 	log logrus.FieldLogger
@@ -70,11 +68,6 @@ func (t *windowsTracker) newWindowsWatcher(info CallerInfo, log logrus.FieldLogg
 	case 4:
 		// Process ID 4 is the System process
 		return nil, errors.New("caller is the System process")
-	}
-
-	var creationTime windows.Filetime
-	if err := t.sc.GetProcessTimes(procHandle, &creationTime, &windows.Filetime{}, &windows.Filetime{}, &windows.Filetime{}); err != nil {
-		return nil, fmt.Errorf("error getting process times: %w", err)
 	}
 
 	// This is a mitigation for attacks that leverage opening a
@@ -103,11 +96,10 @@ func (t *windowsTracker) newWindowsWatcher(info CallerInfo, log logrus.FieldLogg
 	})
 
 	return &windowsWatcher{
-		log:              log,
-		pid:              info.PID,
-		procHandle:       procHandle,
-		procCreationTime: creationTime,
-		sc:               t.sc,
+		log:        log,
+		pid:        info.PID,
+		procHandle: procHandle,
+		sc:         t.sc,
 	}, nil
 }
 
@@ -130,6 +122,9 @@ func (w *windowsWatcher) IsAlive() error {
 		return errors.New("caller is no longer being watched")
 	}
 
+	// The process object remains as long as the process is still running or
+	// as long as there is a handle to the process object.
+	// GetExitCodeProcess can be called to retrieve the exit code.
 	var exitCode uint32
 	err := w.sc.GetExitCodeProcess(w.procHandle, &exitCode)
 	if err != nil {
@@ -152,46 +147,14 @@ func (w *windowsWatcher) IsAlive() error {
 		}
 	}()
 
-	err = w.compareHandles(w.procHandle, h)
-	if err != nil {
-		w.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
-		return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
+	if w.sc.IsCompareObjectHandlesFound() {
+		if err := w.sc.CompareObjectHandles(w.procHandle, h); err != nil {
+			w.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
+			return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
+		}
 	}
 
 	return nil
-}
-
-func (w *windowsWatcher) compareHandles(h1, h2 windows.Handle) error {
-	// In case CompareObjectHandles is found on OS, use it
-	// if procCompareObjectHandlesErr == nil {
-	// return w.sc.CompareObjectHandles(h1, h2)
-	// }
-
-	h1ImagePath, err := w.sc.QueryFullProcessImageName(h1)
-	if err != nil {
-		return err
-	}
-
-	h2ImagePath, err := w.sc.QueryFullProcessImageName(h2)
-	if err != nil {
-		return err
-	}
-
-	var creationTime windows.Filetime
-	if err := w.sc.GetProcessTimes(h2, &creationTime, &windows.Filetime{}, &windows.Filetime{}, &windows.Filetime{}); err != nil {
-		return fmt.Errorf("failed to get process times: %w", err)
-	}
-
-	switch {
-	case h1ImagePath != h2ImagePath:
-		return errors.New("process path does not match")
-
-	case w.procCreationTime != creationTime:
-		return errors.New("process creation time does not match")
-
-	default:
-		return nil
-	}
 }
 
 func (w *windowsWatcher) PID() int32 {
@@ -206,10 +169,6 @@ type systemCaller interface {
 	// refer to the same underlying kernel object
 	CompareObjectHandles(windows.Handle, windows.Handle) error
 
-	QueryFullProcessImageName(handle windows.Handle) (string, error)
-
-	GetProcessTimes(h windows.Handle, creationTime *windows.Filetime, exitTime *windows.Filetime, kernelTime *windows.Filetime, userTime *windows.Filetime) error
-
 	// OpenProcess returns an open handle to the specified process id.
 	OpenProcess(int32) (windows.Handle, error)
 
@@ -220,6 +179,9 @@ type systemCaller interface {
 	// GetExitCodeProcess retrieves the termination status of the
 	// specified process handle.
 	GetExitCodeProcess(windows.Handle, *uint32) error
+
+	// IsCompareObjectHandlesFound verifies if CompareObjectHandles is found on Windows instance
+	IsCompareObjectHandlesFound() bool
 }
 
 type systemCall struct {
@@ -229,24 +191,12 @@ func (s *systemCall) CloseHandle(h windows.Handle) error {
 	return windows.CloseHandle(h)
 }
 
+func (s *systemCall) IsCompareObjectHandlesFound() bool {
+	return isCompareObjectHandlesFound()
+}
+
 func (s *systemCall) CompareObjectHandles(h1, h2 windows.Handle) error {
 	return compareObjectHandles(h1, h2)
-}
-
-func (s *systemCall) QueryFullProcessImageName(handle windows.Handle) (string, error) {
-	var buf [windows.MAX_PATH]uint16
-	length := uint32(windows.MAX_PATH)
-
-	if err := windows.QueryFullProcessImageName(handle, 0,
-		&buf[0], &length); err != nil {
-		return "", err
-	}
-
-	return syscall.UTF16ToString(buf[:]), nil
-}
-
-func (s *systemCall) GetProcessTimes(h windows.Handle, creationTime *windows.Filetime, exitTime *windows.Filetime, kernelTime *windows.Filetime, userTime *windows.Filetime) error {
-	return windows.GetProcessTimes(h, creationTime, exitTime, kernelTime, userTime)
 }
 
 func (s *systemCall) GetExitCodeProcess(h windows.Handle, exitCode *uint32) error {
