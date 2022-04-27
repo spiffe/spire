@@ -56,8 +56,8 @@ cp "${REPODIR}"/LICENSE "${EXTRAS_STAGING}"
 mkdir -p "${STAGING}"/bin "${EXTRAS_STAGING}"/bin
 cp "${BINDIR}"/spire-server "${STAGING}"/bin
 cp "${BINDIR}"/spire-agent "${STAGING}"/bin
-# Include registrar only for linux, until it is compatible with windows
-if [ $OS == "linux" ]; then 
+# Exclude regitrar from windows artifact
+if [ $OS != "windows" ]; then 
     cp "${BINDIR}"/k8s-workload-registrar "${EXTRAS_STAGING}"/bin
 fi
 cp "${BINDIR}"/oidc-discovery-provider "${EXTRAS_STAGING}"/bin
