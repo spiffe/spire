@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"net"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -11,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/clock"
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -19,22 +16,17 @@ import (
 )
 
 func TestWorkloadAPISource(t *testing.T) {
-	// TODO: workload source is not supported on windows until we solve workload API
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
 	const pollInterval = time.Second
 
 	api := &fakeWorkloadAPIServer{}
 
-	socketPath := spiretest.StartWorkloadAPI(t, api).(*net.UnixAddr).Name
-
+	addr := startWorkloadAPI(t, api)
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)
 
 	source, err := NewWorkloadAPISource(WorkloadAPISourceConfig{
 		Log:          log,
-		SocketPath:   socketPath,
+		Addr:         addr,
 		TrustDomain:  "domain.test",
 		PollInterval: pollInterval,
 		Clock:        clock,

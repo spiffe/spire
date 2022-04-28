@@ -127,6 +127,7 @@ jobs:
           path: ./artifacts/
 
   images:
+    name: images (linux)
     runs-on: ubuntu-18.04
     needs: [cache-deps]
     steps:
@@ -157,6 +158,30 @@ jobs:
         with:
           name: images
           path: images.tar.gz
+
+  images-windows:
+    name: images (windows)
+    runs-on: windows-2022
+    needs: artifact-windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: bin-windows
+          path: ./bin/
+      - name: Build images
+        run: make images-windows
+      - name: Export images
+        run: |
+          docker save spire-server-windows:latest-local spire-agent-windows:latest-local k8s-workload-registrar-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
+          gzip images-windows.tar
+      - name: Archive images
+        uses: actions/upload-artifact@v2
+        with:
+          name: images-windows
+          path: images-windows.tar.gz
 
   scratch-images:
     runs-on: ubuntu-18.04
@@ -191,6 +216,7 @@ jobs:
           path: scratch-images.tar.gz
 
   integration:
+    name: integration (linux)
     runs-on: ubuntu-18.04
     needs: [cache-deps, images, scratch-images]
     strategy:
@@ -244,6 +270,56 @@ jobs:
           TERM: dumb
           CICD_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
         run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
+
+  integration-windows:
+    name: integration (windows)
+    runs-on: windows-2022
+    needs: images-windows
+    strategy:
+      fail-fast: false
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v2
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Install msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            unzip
+      - name: Download archived images
+        uses: actions/download-artifact@v2
+        with:
+          name: images-windows
+          path: .
+      - name: Load archived images
+        run: docker load -i images-windows.tar.gz
+      - name: Run integration tests
+        # Run all tests for now
+        run: make integration-windows
 
   cache-deps-windows:
     name: cache-deps (windows)
@@ -376,6 +452,11 @@ jobs:
             unzip 
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh
+      - name: Archive binaries
+        uses: actions/upload-artifact@v2
+        with:
+          name: bin-windows
+          path: ./bin/
       - name: Archive artifacts
         uses: actions/upload-artifact@v2
         with:

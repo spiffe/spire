@@ -13,21 +13,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func WithAuditLog(udsTrackerEnabled bool) Middleware {
+func WithAuditLog(localTrackerEnabled bool) Middleware {
 	return auditLogMiddleware{
-		udsTrackerEnabled: udsTrackerEnabled,
+		localTrackerEnabled: localTrackerEnabled,
 	}
 }
 
 type auditLogMiddleware struct {
 	Middleware
 
-	udsTrackerEnabled bool
+	localTrackerEnabled bool
 }
 
 func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 	log := rpccontext.Logger(ctx)
-	if rpccontext.CallerIsLocal(ctx) && m.udsTrackerEnabled {
+	if rpccontext.CallerIsLocal(ctx) && m.localTrackerEnabled {
 		fields, err := fieldsFromTracker(ctx)
 		if err != nil {
 			return nil, err
@@ -64,19 +64,11 @@ func fieldsFromTracker(ctx context.Context) (logrus.Fields, error) {
 		return nil, err
 	}
 
-	uID, err := getUID(p)
-	if err != nil {
+	if err := setFields(p, fields); err != nil {
 		return nil, err
 	}
-	fields[telemetry.CallerUID] = uID
 
-	gID, err := getGID(p)
-	if err != nil {
-		return nil, err
-	}
-	fields[telemetry.CallerGID] = gID
-
-	// Addr expected to fail on k8s when "hostPID" is not provided
+	// Addr is expected to fail on k8s when "hostPID" is not provided
 	addr, _ := getAddr(p)
 	if addr != "" {
 		fields[telemetry.CallerPath] = addr
@@ -86,38 +78,6 @@ func fieldsFromTracker(ctx context.Context) (logrus.Fields, error) {
 		return nil, status.Errorf(codes.Internal, "peertracker fails: %v", err)
 	}
 	return fields, nil
-}
-
-func getUID(proc *process.Process) (int32, error) {
-	uids, err := proc.Uids()
-	if err != nil {
-		return 0, status.Errorf(codes.Internal, "failed UIDs lookup: %v", err)
-	}
-
-	switch len(uids) {
-	case 0:
-		return 0, status.Error(codes.Internal, "failed UIDs lookup: no UIDs for process")
-	case 1:
-		return uids[0], nil
-	default:
-		return uids[1], nil
-	}
-}
-
-func getGID(proc *process.Process) (int32, error) {
-	gids, err := proc.Gids()
-	if err != nil {
-		return 0, status.Errorf(codes.Internal, "failed GIDs lookup: %v", err)
-	}
-
-	switch len(gids) {
-	case 0:
-		return 0, status.Error(codes.Internal, "failed GIDs lookup: no GIDs for process")
-	case 1:
-		return gids[0], nil
-	default:
-		return gids[1], nil
-	}
 }
 
 func getAddr(proc *process.Process) (string, error) {
