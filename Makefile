@@ -57,7 +57,6 @@ help:
 	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
 	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
 	@echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"
-	@echo "  $(cyan)k8s-workload-registrar-image-windows$(reset)  - build Kubernetes Workload Registrar Docker image for windows"
 	@echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"
 	@echo "$(bold)Developer support:$(reset)"
 	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
@@ -247,7 +246,9 @@ endef
 # main SPIRE binaries
 $(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
 $(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
-$(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
+ifneq ($(os1), windows)
+    $(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
+endif
 $(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
 
 bin/:
@@ -381,7 +382,7 @@ oidc-discovery-provider-scratch-image: Dockerfile
 #############################################################################
 
 .PHONY: images-windows
-images-windows: spire-server-image-windows spire-agent-image-windows k8s-workload-registrar-image-windows oidc-discovery-provider-image-windows
+images-windows: spire-server-image-windows spire-agent-image-windows oidc-discovery-provider-image-windows
 
 .PHONY: spire-server-image-windows
 spire-server-image-windows: Dockerfile
@@ -392,11 +393,6 @@ spire-server-image-windows: Dockerfile
 spire-agent-image-windows: Dockerfile
 	docker build -f Dockerfile.windows --target spire-agent-windows -t spire-agent-windows .
 	docker tag spire-agent-windows:latest spire-agent-windows:latest-local
-
-.PHONY: k8s-workload-registrar-image-windows
-k8s-workload-registrar-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target k8s-workload-registrar-windows -t k8s-workload-registrar-windows .
-	docker tag k8s-workload-registrar-windows:latest k8s-workload-registrar-windows:latest-local
 
 .PHONY: oidc-discovery-provider-image-windows
 oidc-discovery-provider-image-windows: Dockerfile
