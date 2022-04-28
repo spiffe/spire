@@ -246,9 +246,7 @@ endef
 # main SPIRE binaries
 $(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
 $(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
-ifneq ($(os1), windows)
-    $(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
-endif
+$(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
 $(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
 
 bin/:
