@@ -15,6 +15,14 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const (
+	containerPrefix = `\Container_`
+)
+
+var (
+	prefixLength = len(containerPrefix)
+)
+
 type Helper interface {
 	GetContainerIDByProcess(pID int32, log hclog.Logger) (string, error)
 }
@@ -90,7 +98,7 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 	case 0:
 		return "", nil
 	case 1:
-		return jobNames[0][11:], nil
+		return jobNames[0][prefixLength:], nil
 	default:
 		return "", fmt.Errorf("process has multiple jobs: %v", jobNames)
 	}
@@ -188,7 +196,7 @@ func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess
 	}
 
 	// Jobs created on windows environments start with "\Container_"
-	if !strings.HasPrefix(objectName, `\Container_`) {
+	if !strings.HasPrefix(objectName, containerPrefix) {
 		return "", nil
 	}
 	return objectName, nil
