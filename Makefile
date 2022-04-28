@@ -57,6 +57,7 @@ help:
 	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
 	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
 	@echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"
+	@echo "  $(cyan)k8s-workload-registrar-image-windows$(reset)  - build Kubernetes Workload Registrar Docker image for windows"
 	@echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"
 	@echo "$(bold)Developer support:$(reset)"
 	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
@@ -391,6 +392,11 @@ spire-server-image-windows: Dockerfile
 spire-agent-image-windows: Dockerfile
 	docker build -f Dockerfile.windows --target spire-agent-windows -t spire-agent-windows .
 	docker tag spire-agent-windows:latest spire-agent-windows:latest-local
+
+.PHONY: k8s-workload-registrar-image-windows
+k8s-workload-registrar-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target k8s-workload-registrar-windows -t k8s-workload-registrar-windows .
+	docker tag k8s-workload-registrar-windows:latest k8s-workload-registrar-windows:latest-local
 
 .PHONY: oidc-discovery-provider-image-windows
 oidc-discovery-provider-image-windows: Dockerfile
