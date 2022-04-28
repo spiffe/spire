@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,7 +21,7 @@ func TestWorkloadAPISource(t *testing.T) {
 
 	api := &fakeWorkloadAPIServer{}
 
-	addr := startWorkloadAPI(t, api)
+	addr := spiretest.StartWorkloadAPI(t, api)
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)
 

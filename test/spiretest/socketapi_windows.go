@@ -43,7 +43,7 @@ func ServeGRPCServerOnNamedPipe(t *testing.T, server *grpc.Server, pipeName stri
 	listener, err := winio.ListenPipe(fmt.Sprintf(`\\.\`+filepath.Join("pipe", pipeName)), nil)
 	require.NoError(t, err)
 	ServeGRPCServerOnListener(t, server, listener)
-	return listener.Addr()
+	return util.GetNamedPipeAddr(util.GetPipeName(listener.Addr().String()))
 }
 
 func ServeGRPCServerOnRandPipeName(t *testing.T, server *grpc.Server) net.Addr {
