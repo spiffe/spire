@@ -157,6 +157,18 @@ container_id_cgroup_matchers = [
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "error parsing list, expected comma or list end")
 	})
+
+	t.Run("unknow configuration", func(t *testing.T) {
+		p := New()
+		cfg := `
+invalid1 = "/oh/"
+invalid2 = "/no/"
+`
+
+		err := doConfigure(t, p, cfg)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unknown configuration detected: invalid1,invalid2")
+	})
 }
 
 func TestDockerConfigDefault(t *testing.T) {

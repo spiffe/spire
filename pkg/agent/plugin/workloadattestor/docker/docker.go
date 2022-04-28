@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types"
@@ -13,6 +14,8 @@ import (
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -57,15 +60,12 @@ func New() *Plugin {
 }
 
 type dockerPluginConfig struct {
-	// DockerSocketPath is the location of the docker daemon socket, this config can be used only on unix environments (default: "unix:///var/run/docker.sock").
-	DockerSocketPath string `hcl:"docker_socket_path" json:"docker_socket_path"`
+	OSConfig `hcl:",squash"`
+
 	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
 	DockerVersion string `hcl:"docker_version" json:"docker_version"`
-	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
-	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information. (Unix)
-	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers" json:"container_id_cgroup_matchers"`
-	// DockerHost is the location of the Docker Engine API endpoint on Windows (default: "npipe:////./pipe/docker_engine").
-	DockerHost string `hcl:"docker_host" json:"docker_host"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -123,8 +123,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	if err := validateOS(config); err != nil {
-		return nil, err
+	if len(config.UnusedKeys) > 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "unknown configuration detected: %s", strings.Join(config.UnusedKeys, ","))
 	}
 
 	containerHelper, err := createHelper(config)

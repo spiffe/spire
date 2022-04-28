@@ -10,6 +10,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type OSConfig struct {
+	// DockerHost is the location of the Docker Engine API endpoint on Windows (default: "npipe:////./pipe/docker_engine").
+	DockerHost string `hcl:"docker_host" json:"docker_host"`
+}
+
 func createHelper(c *dockerPluginConfig) (*containerHelper, error) {
 	return &containerHelper{
 		ph: process.CreateHelper(),
@@ -26,18 +31,6 @@ func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, e
 		return "", status.Errorf(codes.Internal, "failed to get container ID: %v", err)
 	}
 	return containerID, nil
-}
-
-func validateOS(c *dockerPluginConfig) error {
-	if c.DockerSocketPath != "" {
-		return status.Error(codes.InvalidArgument, "invalid configuration: docker_socket_path is not supported in this platform; please use docker_host instead")
-	}
-
-	if len(c.ContainerIDCGroupMatchers) > 0 {
-		return status.Error(codes.InvalidArgument, "invalid configuration: container_id_cgroup_matchers is not supported in this platform")
-	}
-
-	return nil
 }
 
 func getDockerHost(c *dockerPluginConfig) string {

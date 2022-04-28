@@ -11,9 +11,16 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
+
+type OSConfig struct {
+	// DockerSocketPath is the location of the docker daemon socket, this config can be used only on unix environments (default: "unix:///var/run/docker.sock").
+	DockerSocketPath string `hcl:"docker_socket_path" json:"docker_socket_path"`
+
+	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
+	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information. (Unix)
+	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers" json:"container_id_cgroup_matchers"`
+}
 
 func createHelper(c *dockerPluginConfig) (*containerHelper, error) {
 	var containerIDFinder cgroup.ContainerIDFinder = &defaultContainerIDFinder{}
@@ -43,14 +50,6 @@ func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, e
 	}
 
 	return getContainerIDFromCGroups(h.containerIDFinder, cgroupList)
-}
-
-func validateOS(c *dockerPluginConfig) error {
-	if c.DockerHost != "" {
-		return status.Error(codes.InvalidArgument, "invalid configuration: docker_host is not supported in this platform; please use docker_socket_path instead")
-	}
-
-	return nil
 }
 
 func getDockerHost(c *dockerPluginConfig) string {

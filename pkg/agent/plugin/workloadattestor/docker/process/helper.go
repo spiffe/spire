@@ -146,6 +146,10 @@ func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess
 	// Open the handle associated with the process ID, with permissions to duplicate the handle
 	hProcess, err := h.wapi.OpenProcess(windows.PROCESS_DUP_HANDLE, false, uint32(handle.UniqueProcessID))
 	if err != nil {
+		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
+			// This is expected when trying to open process
+			return "", nil
+		}
 		return "", fmt.Errorf("failed to open unique process: %w", err)
 	}
 	defer func() {
