@@ -10,9 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2"
 )
@@ -23,7 +23,7 @@ const (
 
 type ServerAPISourceConfig struct {
 	Log          logrus.FieldLogger
-	Address      string
+	GRPCTarget   string
 	PollInterval time.Duration
 	Clock        clock.Clock
 }
@@ -48,7 +48,7 @@ func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) 
 		config.Clock = clock.New()
 	}
 
-	conn, err := grpc.Dial(config.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := util.GRPCDialContext(context.Background(), config.GRPCTarget)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}

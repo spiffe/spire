@@ -171,11 +171,15 @@ const (
 	CallerID = "caller_id"
 
 	// CallerUID tags an API caller user ID; should be used with other tags
-	// to add clarity
+	// to add clarity; Unix only
 	CallerUID = "caller_uid"
 
+	// CallerSID tags an API caller user SID; should be used with other tags
+	// to add clarity; Windows only
+	CallerUserSID = "caller_user_sid"
+
 	// CallerGID tags an API caller group ID; should be used with other tags
-	// to add clarity
+	// to add clarity; Unix only
 	CallerGID = "caller_gid"
 
 	// CallerPath tags an API caller binary path; should be used with other tags
