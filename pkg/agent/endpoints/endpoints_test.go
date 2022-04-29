@@ -166,14 +166,15 @@ func TestEndpoints(t *testing.T) {
 					Net:  "unix",
 					Name: udsPath,
 				},
-				Log:                     log,
-				Metrics:                 metrics,
-				Attestor:                FakeAttestor{},
-				Manager:                 FakeManager{},
-				DefaultSVIDName:         "DefaultSVIDName",
-				DefaultBundleName:       "DefaultBundleName",
-				DefaultAllBundlesName:   "DefaultAllBundlesName",
-				AllowedForeignJWTClaims: tt.allowedClaims,
+				Log:                         log,
+				Metrics:                     metrics,
+				Attestor:                    FakeAttestor{},
+				Manager:                     FakeManager{},
+				DefaultSVIDName:             "DefaultSVIDName",
+				DefaultBundleName:           "DefaultBundleName",
+				DefaultAllBundlesName:       "DefaultAllBundlesName",
+				DisableSPIFFECertValidation: true,
+				AllowedForeignJWTClaims:     tt.allowedClaims,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
@@ -206,6 +207,7 @@ func TestEndpoints(t *testing.T) {
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
 					assert.Equal(t, "DefaultAllBundlesName", c.DefaultAllBundlesName)
+					assert.Equal(t, true, c.DisableSPIFFECertValidation)
 					return FakeSDSv3Server{Attestor: attestor}
 				},
 
