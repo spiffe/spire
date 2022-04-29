@@ -38,12 +38,12 @@ type Manager interface {
 }
 
 type Config struct {
-	Attestor                Attestor
-	Manager                 Manager
-	DefaultAllBundlesName   string
-	DefaultBundleName       string
-	DefaultSVIDName         string
-	DisableCustomValidation bool
+	Attestor                    Attestor
+	Manager                     Manager
+	DefaultAllBundlesName       string
+	DefaultBundleName           string
+	DefaultSVIDName             string
+	DisableSpiffeCertValidation bool
 }
 
 type Handler struct {
@@ -251,7 +251,7 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 
 	// Use RootCA as default, but replace with SPIFFE auth when Envoy version is at least v1.18.0
 	var builder validationContextBuilder
-	if !h.c.DisableCustomValidation && supportsSPIFFEAuthExtension(req) {
+	if !h.c.DisableSpiffeCertValidation && supportsSPIFFEAuthExtension(req) {
 		builder, err = newSpiffeBuilder(upd.Bundle, upd.FederatedBundles)
 		if err != nil {
 			return nil, err

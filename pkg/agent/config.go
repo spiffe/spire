@@ -30,7 +30,7 @@ type Config struct {
 	DefaultBundleName string
 
 	// Disable custom Envoy SDS validator
-	DisableCustomValidation bool
+	DisableSpiffeCertValidation bool
 
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
 	DefaultSVIDName string
