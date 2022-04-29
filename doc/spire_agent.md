@@ -80,11 +80,12 @@ Only one of these three options may be set at a time.
 
 ### SDS Configuration
 
-| Configuration              | Description                                                                                      | Default           |
-| -------------------------- | ------------------------------------------------------------------------------------------------ | ----------------- |
-| `default_svid_name`        | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                | default           |
-| `default_bundle_name`      | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA            |
-| `default_all_bundles_name` | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL               |
+| Configuration               | Description                                                                                      | Default           |
+| --------------------------- | ------------------------------------------------------------------------------------------------ | ----------------- |
+| `default_svid_name`         | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                | default           |
+| `default_bundle_name`       | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA            |
+| `default_all_bundles_name`  | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL               |
+| `disable_custom_validation` | Disable Envoy SDS custom validation                                                              | false             |
 
 ### Profiling Names
 These are the available profiles that can be set in the `profiling_freq` configuration value:

@@ -84,11 +84,12 @@ func New(c Config) *Endpoints {
 	})
 
 	sdsv3Server := c.newSDSv3Server(sdsv3.Config{
-		Attestor:              attestor,
-		Manager:               c.Manager,
-		DefaultSVIDName:       c.DefaultSVIDName,
-		DefaultBundleName:     c.DefaultBundleName,
-		DefaultAllBundlesName: c.DefaultAllBundlesName,
+		Attestor:                attestor,
+		Manager:                 c.Manager,
+		DefaultSVIDName:         c.DefaultSVIDName,
+		DefaultBundleName:       c.DefaultBundleName,
+		DefaultAllBundlesName:   c.DefaultAllBundlesName,
+		DisableCustomValidation: c.DisableCustomValidation,
 	})
 
 	healthServer := c.newHealthServer(healthv1.Config{

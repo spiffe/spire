@@ -166,6 +166,7 @@ func TestEndpoints(t *testing.T) {
 				DefaultSVIDName:         "DefaultSVIDName",
 				DefaultBundleName:       "DefaultBundleName",
 				DefaultAllBundlesName:   "DefaultAllBundlesName",
+				DisableCustomValidation: true,
 				AllowedForeignJWTClaims: tt.allowedClaims,
 
 				// Assert the provided config and return a fake Workload API server
@@ -199,6 +200,7 @@ func TestEndpoints(t *testing.T) {
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
 					assert.Equal(t, "DefaultAllBundlesName", c.DefaultAllBundlesName)
+					assert.Equal(t, true, c.DisableCustomValidation)
 					return FakeSDSv3Server{Attestor: attestor}
 				},
 
