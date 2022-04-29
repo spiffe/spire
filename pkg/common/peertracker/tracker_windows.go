@@ -44,8 +44,9 @@ func (*windowsTracker) Close() {
 type windowsWatcher struct {
 	mtx        sync.Mutex
 	procHandle windows.Handle
-	pid        int32
-	log        logrus.FieldLogger
+
+	pid int32
+	log logrus.FieldLogger
 
 	sc systemCaller
 }
@@ -121,6 +122,9 @@ func (w *windowsWatcher) IsAlive() error {
 		return errors.New("caller is no longer being watched")
 	}
 
+	// The process object remains as long as the process is still running or
+	// as long as there is a handle to the process object.
+	// GetExitCodeProcess can be called to retrieve the exit code.
 	var exitCode uint32
 	err := w.sc.GetExitCodeProcess(w.procHandle, &exitCode)
 	if err != nil {
@@ -143,10 +147,11 @@ func (w *windowsWatcher) IsAlive() error {
 		}
 	}()
 
-	err = w.sc.CompareObjectHandles(w.procHandle, h)
-	if err != nil {
-		w.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
-		return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
+	if w.sc.IsCompareObjectHandlesFound() {
+		if err := w.sc.CompareObjectHandles(w.procHandle, h); err != nil {
+			w.log.WithError(err).Warn("Current process handle does not refer to the same original process: CompareObjectHandles failed")
+			return fmt.Errorf("current process handle does not refer to the same original process: CompareObjectHandles failed: %w", err)
+		}
 	}
 
 	return nil
@@ -174,6 +179,10 @@ type systemCaller interface {
 	// GetExitCodeProcess retrieves the termination status of the
 	// specified process handle.
 	GetExitCodeProcess(windows.Handle, *uint32) error
+
+	// IsCompareObjectHandlesFound returns true if the CompareObjectHandles
+	// function could be found in this Windows instance
+	IsCompareObjectHandlesFound() bool
 }
 
 type systemCall struct {
@@ -181,6 +190,10 @@ type systemCall struct {
 
 func (s *systemCall) CloseHandle(h windows.Handle) error {
 	return windows.CloseHandle(h)
+}
+
+func (s *systemCall) IsCompareObjectHandlesFound() bool {
+	return isCompareObjectHandlesFound()
 }
 
 func (s *systemCall) CompareObjectHandles(h1, h2 windows.Handle) error {
