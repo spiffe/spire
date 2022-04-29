@@ -10,10 +10,15 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -147,28 +152,55 @@ func TestDockerErrorContextCancel(t *testing.T) {
 }
 
 func TestDockerConfig(t *testing.T) {
-	t.Run("bad hcl", func(t *testing.T) {
-		p := New()
-		cfg := `
+	for _, tt := range []struct {
+		name       string
+		expectCode codes.Code
+		expectMsg  string
+		config     string
+		expectLogs []spiretest.LogEntry
+	}{
+		{
+			name:   "success configuration",
+			config: `docker_version = "/123/"`,
+		},
+		{
+			name: "bad hcl",
+			config: `
 container_id_cgroup_matchers = [
-	"/docker/"`
-
-		err := doConfigure(t, p, cfg)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "error parsing list, expected comma or list end")
-	})
-
-	t.Run("unknow configuration", func(t *testing.T) {
-		p := New()
-		cfg := `
+	"/docker/"`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unable to decode configuration:",
+		},
+		{
+			name: "unknow configuration",
+			config: `
 invalid1 = "/oh/"
-invalid2 = "/no/"
-`
+invalid2 = "/no/"`,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Detected unknown configuration; this will be fatal in a future release",
+					Data: logrus.Fields{
+						telemetry.Keys: "[invalid1 invalid2]",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := New()
+			log, logHook := test.NewNullLogger()
 
-		err := doConfigure(t, p, cfg)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "unknown configuration detected: invalid1,invalid2")
-	})
+			var err error
+			plugintest.Load(t, builtin(p), new(workloadattestor.V1),
+				plugintest.Configure(tt.config),
+				plugintest.Log(log),
+				plugintest.CaptureConfigureError(&err))
+
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
+		})
+	}
 }
 
 func TestDockerConfigDefault(t *testing.T) {

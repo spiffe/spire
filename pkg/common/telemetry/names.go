@@ -66,6 +66,9 @@ const (
 	// (server)
 	GetPublicKeys = "get_public_keys"
 
+	// Keys related to keys used on HCL
+	Keys = "keys"
+
 	// List functionality related to listing some objects; should be used
 	// with other tags to add clarity
 	List = "list"

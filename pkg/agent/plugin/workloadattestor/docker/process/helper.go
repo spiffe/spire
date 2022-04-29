@@ -19,10 +19,6 @@ const (
 	containerPrefix = `\Container_`
 )
 
-var (
-	prefixLength = len(containerPrefix)
-)
-
 type Helper interface {
 	GetContainerIDByProcess(pID int32, log hclog.Logger) (string, error)
 }
@@ -98,7 +94,7 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 	case 0:
 		return "", nil
 	case 1:
-		return jobNames[0][prefixLength:], nil
+		return jobNames[0][len(containerPrefix):], nil
 	default:
 		return "", fmt.Errorf("process has multiple jobs: %v", jobNames)
 	}
@@ -147,7 +143,7 @@ func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess
 	hProcess, err := h.wapi.OpenProcess(windows.PROCESS_DUP_HANDLE, false, uint32(handle.UniqueProcessID))
 	if err != nil {
 		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
-			// This is expected when trying to open process
+			// This is expected when trying to open process as a non admin user
 			return "", nil
 		}
 		return "", fmt.Errorf("failed to open unique process: %w", err)
