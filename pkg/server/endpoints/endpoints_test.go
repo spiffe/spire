@@ -243,7 +243,7 @@ func TestListenAndServe(t *testing.T) {
 
 	dialTCP := func(tlsConfig *tls.Config) *grpc.ClientConn {
 		conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(),
-			grpc.WithBlock(), grpc.FailOnNonTempDialError(true),
+			grpc.WithBlock(),
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
 		require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestListenAndServe(t *testing.T) {
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
 
-	localConn, err := util.GRPCDialContext(ctx, target)
+	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
 	require.NoError(t, err)
 	defer localConn.Close()
 

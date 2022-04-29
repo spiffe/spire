@@ -1,0 +1,35 @@
+# Build stage
+
+# Common base
+FROM mcr.microsoft.com/windows/nanoserver:ltsc2022 AS spire-base-windows
+RUN mkdir c:\\spire\\bin
+RUN mkdir c:\\spire\\data
+
+# SPIRE Server
+FROM spire-base-windows AS spire-server-windows
+COPY bin/spire-server.exe C:/spire/bin/spire-server.exe
+WORKDIR C:/spire
+ENTRYPOINT ["c:/spire/bin/spire-server.exe", "run"]
+CMD []
+
+# SPIRE Agent
+FROM spire-base-windows AS spire-agent-windows
+COPY ./bin/spire-agent.exe C:/spire/bin/spire-agent.exe
+WORKDIR C:/spire
+ENTRYPOINT ["c:/spire/bin/spire-agent.exe", "run"]
+CMD []
+
+# K8S Workload Registrar
+FROM spire-base-windows AS k8s-workload-registrar-windows
+COPY ./bin/k8s-workload-registrar.exe C:/spire/bin/k8s-workload-registrar.exe
+WORKDIR c:/spire
+ENTRYPOINT ["c:/spire/bin/k8s-workload-registrar.exe"]
+CMD []
+
+# OIDC Discovery Provider
+FROM spire-base-windows AS oidc-discovery-provider-windows
+COPY ./bin/oidc-discovery-provider.exe c:/spire/bin/oidc-discovery-provider.exe
+WORKDIR c:/spire
+ENTRYPOINT ["c:/spire/bin/oidc-discovery-provider.exe"]
+CMD []
+

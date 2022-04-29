@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	debugv1 "github.com/spiffe/spire/pkg/agent/api/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire/pkg/agent/api/delegatedidentity/v1"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
@@ -18,8 +19,8 @@ type Server interface {
 }
 
 type Endpoints struct {
-	c            *Config
-	unixListener *peertracker.ListenerFactory
+	c        *Config
+	listener *peertracker.ListenerFactory
 }
 
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
@@ -41,17 +42,23 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		return err
 	}
 	defer l.Close()
+	log := e.c.Log.WithFields(logrus.Fields{
+		telemetry.Network: l.Addr().Network(),
+		telemetry.Address: l.Addr().String()})
+	log.Info("Starting Admin APIs")
 
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err = <-errChan:
+		log.WithError(err).Error("Admin APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.c.Log.Info("Stopping debug API")
+		log.Info("Stopping Admin APIs")
 		server.Stop()
 		<-errChan
+		log.Info("Admin APIs have stopped")
 		return nil
 	}
 }

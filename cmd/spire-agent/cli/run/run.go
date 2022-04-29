@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
@@ -39,11 +40,12 @@ const (
 	defaultConfigPath = "conf/agent/agent.conf"
 
 	// TODO: Make my defaults sane
-	defaultDataDir               = "."
-	defaultLogLevel              = "INFO"
-	defaultDefaultSVIDName       = "default"
-	defaultDefaultBundleName     = "ROOTCA"
-	defaultDefaultAllBundlesName = "ALL"
+	defaultDataDir                     = "."
+	defaultLogLevel                    = "INFO"
+	defaultDefaultSVIDName             = "default"
+	defaultDefaultBundleName           = "ROOTCA"
+	defaultDefaultAllBundlesName       = "ALL"
+	defaultDisableSPIFFECertValidation = false
 )
 
 // Config contains all available configurables, arranged by section
@@ -89,14 +91,16 @@ type agentConfig struct {
 }
 
 type sdsConfig struct {
-	DefaultSVIDName       string `hcl:"default_svid_name"`
-	DefaultBundleName     string `hcl:"default_bundle_name"`
-	DefaultAllBundlesName string `hcl:"default_all_bundles_name"`
+	DefaultSVIDName             string `hcl:"default_svid_name"`
+	DefaultBundleName           string `hcl:"default_bundle_name"`
+	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
+	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
 }
 
 type experimentalConfig struct {
-	SyncInterval  string `hcl:"sync_interval"`
-	NamedPipeName string `hcl:"named_pipe_name"`
+	SyncInterval       string `hcl:"sync_interval"`
+	NamedPipeName      string `hcl:"named_pipe_name"`
+	AdminNamedPipeName string `hcl:"admin_named_pipe_name"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -445,7 +449,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.BindAddress = addr
 
-	if c.Agent.AdminSocketPath != "" {
+	if c.Agent.hasAdminAddr() {
 		adminAddr, err := c.Agent.getAdminAddr()
 		if err != nil {
 			return nil, err
@@ -492,6 +496,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
+		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
+	}
 
 	for _, f := range c.Agent.Experimental.Flags {
 		logger.Warnf("Developer feature flag %q has been enabled", f)
@@ -576,9 +584,10 @@ func defaultConfig() *Config {
 			LogLevel:  defaultLogLevel,
 			LogFormat: log.DefaultFormat,
 			SDS: sdsConfig{
-				DefaultBundleName:     defaultDefaultBundleName,
-				DefaultSVIDName:       defaultDefaultSVIDName,
-				DefaultAllBundlesName: defaultDefaultAllBundlesName,
+				DefaultBundleName:           defaultDefaultBundleName,
+				DefaultSVIDName:             defaultDefaultSVIDName,
+				DefaultAllBundlesName:       defaultDefaultAllBundlesName,
+				DisableSPIFFECertValidation: defaultDisableSPIFFECertValidation,
 			},
 		},
 	}
