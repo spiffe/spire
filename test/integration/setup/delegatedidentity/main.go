@@ -99,7 +99,7 @@ func run() error {
 		return fmt.Errorf("error receiving from SubscribeToX509SVIDs: %w", err)
 	}
 	if err := validateSubscribeToX509SVIDsResponse(subscribeToX509SVIDsResp); err != nil {
-		return fmt.Errorf("error validating SubscribeToX509SVIDs response: %v", err)
+		return fmt.Errorf("error validating SubscribeToX509SVIDs response: %w", err)
 	}
 
 	return nil
