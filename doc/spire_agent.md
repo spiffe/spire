@@ -304,7 +304,7 @@ agent {
     trust_domain = "example.org"
     ...
     experimental {
-      admin_named_pipe_name = "\\spire-agent\\private\\api"
+      admin_named_pipe_name = "\\spire-agent\\private\\admin"
     }
     authorized_delegates = [
         "spiffe://example.org/authorized_client1",
