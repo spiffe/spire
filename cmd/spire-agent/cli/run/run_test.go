@@ -198,19 +198,19 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, false, c.Agent.SDS.DisableSpiffeCertValidation)
+				require.Equal(t, false, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{
 			msg: "disable_custom_validation should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.SDS = sdsConfig{
-					DisableSpiffeCertValidation: true,
+					DisableSPIFFECertValidation: true,
 				}
 			},
 			cliInput: func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, true, c.Agent.SDS.DisableSpiffeCertValidation)
+				require.Equal(t, true, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{

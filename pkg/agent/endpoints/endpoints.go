@@ -89,7 +89,7 @@ func New(c Config) *Endpoints {
 		DefaultSVIDName:             c.DefaultSVIDName,
 		DefaultBundleName:           c.DefaultBundleName,
 		DefaultAllBundlesName:       c.DefaultAllBundlesName,
-		DisableSpiffeCertValidation: c.DisableSpiffeCertValidation,
+		DisableSPIFFECertValidation: c.DisableSPIFFECertValidation,
 	})
 
 	healthServer := c.newHealthServer(healthv1.Config{

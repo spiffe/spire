@@ -39,7 +39,7 @@ type Config struct {
 	DefaultBundleName string
 
 	// Disable custom Envoy SDS validator
-	DisableSpiffeCertValidation bool
+	DisableSPIFFECertValidation bool
 
 	AllowUnauthenticatedVerifiers bool
 

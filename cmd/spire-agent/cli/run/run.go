@@ -45,7 +45,7 @@ const (
 	defaultDefaultSVIDName             = "default"
 	defaultDefaultBundleName           = "ROOTCA"
 	defaultDefaultAllBundlesName       = "ALL"
-	defaultDisableSpiffeCertValidation = false
+	defaultDisableSPIFFECertValidation = false
 )
 
 // Config contains all available configurables, arranged by section
@@ -94,7 +94,7 @@ type sdsConfig struct {
 	DefaultSVIDName             string `hcl:"default_svid_name"`
 	DefaultBundleName           string `hcl:"default_bundle_name"`
 	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
-	DisableSpiffeCertValidation bool   `hcl:"disable_spiffe_cert_validation"`
+	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
 }
 
 type experimentalConfig struct {
@@ -587,7 +587,7 @@ func defaultConfig() *Config {
 				DefaultBundleName:           defaultDefaultBundleName,
 				DefaultSVIDName:             defaultDefaultSVIDName,
 				DefaultAllBundlesName:       defaultDefaultAllBundlesName,
-				DisableSpiffeCertValidation: defaultDisableSpiffeCertValidation,
+				DisableSPIFFECertValidation: defaultDisableSPIFFECertValidation,
 			},
 		},
 	}
