@@ -594,54 +594,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 	}
 }
 
-// func Test_getOnlySubject(t *testing.T) {
-// 	type args struct {
-// 		payload string
-// 	}
-// 	tests := []struct {
-// 		name string
-// 		args args
-// 		want string
-// 	}{
-// 		// TODO: Add test cases.
-// 		{
-// 			name: "getOnlySubject",
-// 			args: args{
-// 				payload: "test1",
-// 			},
-// 			want: "",
-// 		},
-// 		{
-// 			name: "getOnlySubject",
-// 			args: args{
-// 				payload: "test2\n",
-// 			},
-// 			want: "",
-// 		},
-// 		{
-// 			name: "getOnlySubject",
-// 			args: args{
-// 				payload: "[{\"optional\":{\"Subject\":\"test3\"}}]",
-// 			},
-// 			want: "test3",
-// 		},
-// 		{
-// 			name: "getOnlySubject",
-// 			args: args{
-// 				payload: "[{\"optional\":{\"Subject\":\"test4\"}},{\"optional\":{\"Subject\":\"test5\"}}]",
-// 			},
-// 			want: "test4",
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			if got := getOnlySubject(tt.args.payload); got != tt.want {
-// 				t.Errorf("getOnlySubject() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }
-
 type noCertSignature signature
 
 func (noCertSignature) Annotations() (map[string]string, error) {

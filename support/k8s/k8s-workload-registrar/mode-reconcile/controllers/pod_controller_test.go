@@ -78,12 +78,12 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 		second                string
 		checkSignatureEnabled bool
 	}{
-		{PodReconcilerModeLabel, "label1", "label2", false},
-		{PodReconcilerModeAnnotation, "annotation1", "annotation2", false},
-		{PodReconcilerModeServiceAccount, "ns/bar/sa/sa1", "ns/bar/sa/sa2", false},
-		{PodReconcilerModeLabel, "label1", "label2", true},
-		{PodReconcilerModeAnnotation, "annotation1", "annotation2", true},
-		{PodReconcilerModeServiceAccount, "ns/bar/sa/sa1", "ns/bar/sa/sa2", true},
+		{PodReconcilerModeLabel, "/label1", "/label2", false},
+		{PodReconcilerModeAnnotation, "/annotation1", "/annotation2", false},
+		{PodReconcilerModeServiceAccount, "/ns/bar/sa/sa1", "/ns/bar/sa/sa2", false},
+		{PodReconcilerModeLabel, "/label1", "/label2", true},
+		{PodReconcilerModeAnnotation, "/annotation1", "/annotation2", true},
+		{PodReconcilerModeServiceAccount, "/ns/bar/sa/sa1", "/ns/bar/sa/sa2", true},
 	}
 
 	for _, tt := range tests {
@@ -239,12 +239,11 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	if s.Assert().Len(es, 1) {
-		s.Assert().Equal([]string{
-			"123-123-123-124.bar.pod.cluster.local",
-			"123-123-123-124.bar.pod",
-		}, es[0].DnsNames)
-	}
+	s.Assert().Len(es, 1)
+	s.Assert().Equal([]string{
+		"123-123-123-124.bar.pod.cluster.local",
+		"123-123-123-124.bar.pod",
+	}, es[0].DnsNames)
 
 	endpointsToCreate := corev1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
@@ -379,22 +378,21 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	if s.Assert().Len(es, 1) {
-		s.Assert().ElementsMatch([]string{
-			"123-123-123-124.bar.pod.cluster.local",
-			"foo-svc.bar.svc.cluster.local",
-			"123-123-123-123.foo-svc.bar.svc.cluster.local",
-			"123-123-123-124.bar.pod",
-			"foo-svc.bar.svc",
-			"123-123-123-123.foo-svc.bar.svc",
-			"foo-svc.bar",
-			"123-123-123-123.foo-svc.bar",
-			"foo-svc",
-			"123-123-123-123.foo-svc",
-		}, es[0].DnsNames)
-		// It's important that the pod name is the first in the list so that it gets used as the DN
-		s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
-	}
+	s.Assert().Len(es, 1)
+	s.Assert().ElementsMatch([]string{
+		"123-123-123-124.bar.pod.cluster.local",
+		"foo-svc.bar.svc.cluster.local",
+		"123-123-123-123.foo-svc.bar.svc.cluster.local",
+		"123-123-123-124.bar.pod",
+		"foo-svc.bar.svc",
+		"123-123-123-123.foo-svc.bar.svc",
+		"foo-svc.bar",
+		"123-123-123-123.foo-svc.bar",
+		"foo-svc",
+		"123-123-123-123.foo-svc",
+	}, es[0].DnsNames)
+	// It's important that the pod name is the first in the list so that it gets used as the DN
+	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
 }
 
 func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
@@ -471,14 +469,13 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 		BySpiffeId: s.makePodID("/ns/bar/sa/sa1"),
 	})
 	s.Assert().NoError(err)
-	if s.Assert().Len(es, 1) {
-		s.Assert().ElementsMatch([]string{
-			"123-123-123-124.bar.pod.cluster.local",
-			"123-123-123-124.bar.pod",
-		}, es[0].DnsNames)
-		// It's important that the pod name is the first in the list so that it gets used as the DN
-		s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
-	}
+	s.Assert().Len(es, 1)
+	s.Assert().ElementsMatch([]string{
+		"123-123-123-124.bar.pod.cluster.local",
+		"123-123-123-124.bar.pod",
+	}, es[0].DnsNames)
+	// It's important that the pod name is the first in the list so that it gets used as the DN
+	s.Assert().Equal("123-123-123-124.bar.pod.cluster.local", es[0].DnsNames[0])
 }
 
 func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {

@@ -162,7 +162,7 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 
 	if c.c.CheckSignatureEnabled {
 		return c.createEntry(ctx, &types.Entry{
-			ParentId: c.nodeID(),
+			ParentId: parentID,
 			SpiffeId: spiffeID,
 			Selectors: []*types.Selector{
 				namespaceSelector(pod.Namespace),

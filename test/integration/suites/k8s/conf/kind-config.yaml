@@ -18,4 +18,3 @@ nodes:
   extraMounts:
   - containerPath: /etc/kubernetes/pki/admctrl
     hostPath: CONFDIR/admctrl
-    
