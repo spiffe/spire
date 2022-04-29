@@ -61,7 +61,7 @@ func run() error {
 		return fmt.Errorf("error testing FetchJWTSVIDs RPC: %w", err)
 	}
 	if err := validateFetchJWTSVIDsResponse(fetchJWTSVIDsResp); err != nil {
-		return fmt.Errorf("error validating FetchJWTSVIDs RPC response: %v", err)
+		return fmt.Errorf("error validating FetchJWTSVIDs RPC response: %w", err)
 	}
 
 	streamJWTBundles, err := client.SubscribeToJWTBundles(ctx, &agent_delegatedidentityv1.SubscribeToJWTBundlesRequest{})
@@ -74,7 +74,7 @@ func run() error {
 		return fmt.Errorf("error receiving from SubscribeToJWTBundles: %w", err)
 	}
 	if err := validateSubscribeToJWTBundlesResponse(subscribeToJWTBundlesResp); err != nil {
-		return fmt.Errorf("error validating SubscribeToJWTBundles response: %v", err)
+		return fmt.Errorf("error validating SubscribeToJWTBundles response: %w", err)
 	}
 
 	streamX509Bundles, err := client.SubscribeToX509Bundles(ctx, &agent_delegatedidentityv1.SubscribeToX509BundlesRequest{})
@@ -87,7 +87,7 @@ func run() error {
 		return fmt.Errorf("error receiving from SubscribeToX509Bundles: %w", err)
 	}
 	if err := validateSubscribeToX509BundlesResponse(subscribeToX509BundlesResp); err != nil {
-		return fmt.Errorf("error validating SubscribeToX509Bundles response: %v", err)
+		return fmt.Errorf("error validating SubscribeToX509Bundles response: %w", err)
 	}
 
 	streamSubscribeToX509SVIDs, err := client.SubscribeToX509SVIDs(ctx, &agent_delegatedidentityv1.SubscribeToX509SVIDsRequest{})
