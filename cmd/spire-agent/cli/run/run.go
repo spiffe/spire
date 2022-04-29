@@ -38,11 +38,12 @@ const (
 	defaultConfigPath = "conf/agent/agent.conf"
 
 	// TODO: Make my defaults sane
-	defaultDataDir               = "."
-	defaultLogLevel              = "INFO"
-	defaultDefaultSVIDName       = "default"
-	defaultDefaultBundleName     = "ROOTCA"
-	defaultDefaultAllBundlesName = "ALL"
+	defaultDataDir                     = "."
+	defaultLogLevel                    = "INFO"
+	defaultDefaultSVIDName             = "default"
+	defaultDefaultBundleName           = "ROOTCA"
+	defaultDefaultAllBundlesName       = "ALL"
+	defaultDisableSPIFFECertValidation = false
 )
 
 // Config contains all available configurables, arranged by section
@@ -88,9 +89,10 @@ type agentConfig struct {
 }
 
 type sdsConfig struct {
-	DefaultSVIDName       string `hcl:"default_svid_name"`
-	DefaultBundleName     string `hcl:"default_bundle_name"`
-	DefaultAllBundlesName string `hcl:"default_all_bundles_name"`
+	DefaultSVIDName             string `hcl:"default_svid_name"`
+	DefaultBundleName           string `hcl:"default_bundle_name"`
+	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
+	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
 }
 
 type experimentalConfig struct {
@@ -556,9 +558,10 @@ func defaultConfig() *Config {
 			LogFormat:  log.DefaultFormat,
 			SocketPath: common.DefaultSocketPath,
 			SDS: sdsConfig{
-				DefaultBundleName:     defaultDefaultBundleName,
-				DefaultSVIDName:       defaultDefaultSVIDName,
-				DefaultAllBundlesName: defaultDefaultAllBundlesName,
+				DefaultBundleName:           defaultDefaultBundleName,
+				DefaultSVIDName:             defaultDefaultSVIDName,
+				DefaultAllBundlesName:       defaultDefaultAllBundlesName,
+				DisableSPIFFECertValidation: defaultDisableSPIFFECertValidation,
 			},
 		},
 	}
