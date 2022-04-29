@@ -257,6 +257,26 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "disable_custom_validation should default value of false",
+			fileInput: func(c *Config) {},
+			cliInput:  func(ac *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, false, c.Agent.SDS.DisableSPIFFECertValidation)
+			},
+		},
+		{
+			msg: "disable_custom_validation should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.SDS = sdsConfig{
+					DisableSPIFFECertValidation: true,
+				}
+			},
+			cliInput: func(ac *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, true, c.Agent.SDS.DisableSPIFFECertValidation)
+			},
+		},
+		{
 			msg: "insecure_bootstrap should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.InsecureBootstrap = true
