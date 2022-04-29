@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
@@ -107,8 +108,8 @@ type cmdTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	socketPath string
-	server     *fakeServer
+	addr   string
+	server *fakeServer
 
 	client cli.Command
 }
@@ -121,7 +122,7 @@ func (c *cmdTest) afterTest(t *testing.T) {
 }
 
 func (c *cmdTest) args(extra ...string) []string {
-	return append([]string{"-socketPath", c.socketPath}, extra...)
+	return append([]string{common.AddrArg, c.addr}, extra...)
 }
 
 type fakeServer struct {
@@ -214,17 +215,17 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTe
 	})
 
 	server := &fakeServer{t: t}
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		trustdomainv1.RegisterTrustDomainServer(s, server)
 	})
 
 	test := &cmdTest{
-		socketPath: socketPath,
-		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
-		server:     server,
-		client:     client,
+		addr:   common.GetAddr(addr),
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		server: server,
+		client: client,
 	}
 
 	t.Cleanup(func() {

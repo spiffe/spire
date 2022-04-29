@@ -25,5 +25,5 @@ var (
 )
 
 func startGRPCSocketServer(t *testing.T, registerFn func(srv *grpc.Server)) string {
-	return spiretest.StartGRPCSocketServerOnTempUDSSocket(t, registerFn)
+	return spiretest.StartGRPCServer(t, registerFn).String()
 }

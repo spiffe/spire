@@ -31,7 +31,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 	}
 
 	if auditLogEnabled {
-		// Add audit log with UDS tracking enabled
+		// Add audit log with local tracking enabled
 		chain = append(chain, middleware.WithAuditLog(true))
 	}
 

@@ -24,14 +24,21 @@ func (c *agentConfig) getAddr() (net.Addr, error) {
 	return util.GetNamedPipeAddr(c.Experimental.NamedPipeName), nil
 }
 
-func (c *agentConfig) getAdminAddr() (*net.UnixAddr, error) {
-	return nil, errors.New("admin API: platform not supported")
+func (c *agentConfig) getAdminAddr() (net.Addr, error) {
+	return util.GetNamedPipeAddr(c.Experimental.AdminNamedPipeName), nil
+}
+
+func (c *agentConfig) hasAdminAddr() bool {
+	return c.Experimental.AdminNamedPipeName != ""
 }
 
 // validateOS performs windows specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.SocketPath != "" {
 		return errors.New("invalid configuration: socket_path is not supported in this platform; please use named_pipe_name instead")
+	}
+	if c.AdminSocketPath != "" {
+		return errors.New("invalid configuration: admin_socket_path is not supported in this platform; please use admin_named_pipe_name instead")
 	}
 	return nil
 }

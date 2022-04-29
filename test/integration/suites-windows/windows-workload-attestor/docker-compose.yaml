@@ -1,0 +1,15 @@
+version: '3'
+services:
+  spire-server:
+    image: spire-server-windows:latest-local
+    hostname: spire-server
+    volumes:
+      - ./conf/server:c:/spire/conf/server
+    command: ["-config", "c:/spire/conf/server/server.conf"]
+  spire-agent:
+    image: spire-agent-windows:latest-local
+    hostname: spire-agent
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent:c:/spire/conf/agent
+    command: ["-config", "c:/spire/conf/agent/agent.conf"]

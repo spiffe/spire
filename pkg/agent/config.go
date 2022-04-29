@@ -21,13 +21,16 @@ type Config struct {
 	DataDir string
 
 	// Directory to bind the admin api to
-	AdminBindAddress *net.UnixAddr
+	AdminBindAddress net.Addr
 
 	// The Validation Context resource name to use when fetching X.509 bundle together with federated bundles with Envoy SDS
 	DefaultAllBundlesName string
 
 	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
 	DefaultBundleName string
+
+	// Disable custom Envoy SDS validator
+	DisableSPIFFECertValidation bool
 
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
 	DefaultSVIDName string
