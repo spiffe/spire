@@ -41,6 +41,8 @@ type Selector struct {
 	ContainerName string `json:"containerName,omitempty"`
 	// NodeName to match for this spiffe ID
 	NodeName string `json:"nodeName,omitempty"`
+	// whether sigstore validation passed for the container
+	SigstoreValidationPassed string `json:"sigstoreValidationPassed,omitempty"`
 	// Arbitrary k8s selectors
 	Arbitrary []string `json:"arbitrary,omitempty"`
 }

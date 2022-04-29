@@ -60,7 +60,7 @@ server name validation against the kubelet certificate.
 | k8s:pod-init-image       | An Image OR ImageID of any init container in the workload's pod, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb`|
 | k8s:pod-init-image-count | The number of init container images in workload's pod |
 | k8s:signature-content    | The value of the signature itself in a hash|
-| k8s:signature-verified   | The confirmation if the signature is valid |
+| k8s:sigstore-validation   | The confirmation if the signature is valid, has value of "passed" (eg. "k8s:sigstore-validation:passed") |
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of 
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod, 
 > respectively.

@@ -1548,7 +1548,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				ContainerID: "000000",
 			},
 			want: []string{
-				"000000:image-signature-subject:spirex@example.com", "000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "000000:image-signature-logid:samplelogID", "000000:image-signature-integrated-time:12345", "000000:signature-verified:true",
+				"000000:image-signature-subject:spirex@example.com", "000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=", "000000:image-signature-logid:samplelogID", "000000:image-signature-integrated-time:12345", "000000:sigstore-validation:passed",
 			},
 			wantErr: false,
 		},
@@ -1573,7 +1573,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				ContainerID: "111111",
 			},
 			want: []string{
-				"signature-verified:true",
+				"sigstore-validation:passed",
 			},
 			wantErr: false,
 		},

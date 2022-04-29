@@ -157,7 +157,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
 		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "sa:default"},
-		{Type: "k8s", Value: "signature-verified:true"},
+		{Type: "k8s", Value: "sigstore-validation:passed"},
 	}
 
 	testSigstoreSkippedSelectors = []*common.Selector{
@@ -179,7 +179,7 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
 		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "sa:default"},
-		{Type: "k8s", Value: "signature-verified:true"},
+		{Type: "k8s", Value: "sigstore-validation:passed"},
 	}
 )
 
@@ -241,7 +241,7 @@ func (s *Suite) TestAttestWithPidInPod() {
 
 func (s *Suite) TestAttestWithSigstoreSignatures() {
 	s.startInsecureKubelet()
-	s.setSigstoreSelectors([]string{"image-signature-subject:sigstore-subject", "signature-verified:true"})
+	s.setSigstoreSelectors([]string{"image-signature-subject:sigstore-subject", "sigstore-validation:passed"})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodandSignature(p)
 	s.setSigstoreSelectors(nil)
@@ -251,7 +251,7 @@ func (s *Suite) TestAttestWithSigstoreSkippedImage() {
 	s.startInsecureKubelet()
 	// Skip the image
 	s.setSigstoreSkipSigs(true)
-	s.setSigstoreSkippedSigSelectors([]string{"signature-verified:true"})
+	s.setSigstoreSkippedSigSelectors([]string{"sigstore-validation:passed"})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodandSkippedImage(p)
 	s.setSigstoreSkipSigs(false)

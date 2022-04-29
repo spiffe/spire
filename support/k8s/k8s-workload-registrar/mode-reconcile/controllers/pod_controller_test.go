@@ -73,13 +73,17 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 	ctx := context.TODO()
 
 	tests := []struct {
-		m      PodReconcilerMode
-		first  string
-		second string
+		m                     PodReconcilerMode
+		first                 string
+		second                string
+		checkSignatureEnabled bool
 	}{
-		{PodReconcilerModeLabel, "/label1", "/label2"},
-		{PodReconcilerModeAnnotation, "/annotation1", "/annotation2"},
-		{PodReconcilerModeServiceAccount, "/ns/bar/sa/sa1", "/ns/bar/sa/sa2"},
+		{PodReconcilerModeLabel, "label1", "label2", false},
+		{PodReconcilerModeAnnotation, "annotation1", "annotation2", false},
+		{PodReconcilerModeServiceAccount, "ns/bar/sa/sa1", "ns/bar/sa/sa2", false},
+		{PodReconcilerModeLabel, "label1", "label2", true},
+		{PodReconcilerModeAnnotation, "annotation1", "annotation2", true},
+		{PodReconcilerModeServiceAccount, "ns/bar/sa/sa1", "ns/bar/sa/sa2", true},
 	}
 
 	for _, tt := range tests {
@@ -99,6 +103,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 				"",
 				false,
 				[]string{},
+				tt.checkSignatureEnabled,
 			)
 
 			pod := corev1.Pod{
@@ -204,6 +209,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		"cluster.local",
 		true,
 		[]string{},
+		false,
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -317,6 +323,7 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 		"cluster.local",
 		true,
 		[]string{},
+		true,
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -408,6 +415,7 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 		"cluster.local",
 		true,
 		[]string{},
+		false,
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -491,6 +499,7 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 		"cluster.local",
 		true,
 		[]string{"bar"},
+		false,
 	)
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

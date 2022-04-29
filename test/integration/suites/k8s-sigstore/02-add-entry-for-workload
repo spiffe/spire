@@ -92,7 +92,7 @@ add_entry_for_workload_with_multi_container_pods_skiplist() {
         if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
         -spiffeID ${workload_spiffe_id} \
         -parentID ${CLUSTERNODESPIFFEID} \
-        -selector k8s:signature-verified:true \
+        -selector k8s:sigstore-validation:passed \
         -selector k8s:ns:${ns} \
         -selector k8s:container-name:${CONTAINER_NAME} \
         -selector k8s:pod-name:${WORKLOAD_POD}; then

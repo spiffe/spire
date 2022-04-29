@@ -79,7 +79,7 @@ Pods. The available workload registration modes are:
 
 If using `webhook` and `reconcile` modes with [Service Account Based SPIFFE IDs](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based SPIFFE IDs, specify only `pod_label`. If you use Annotation Based SPIFFE IDs, specify only `pod_annotation`.
 
-If using `webhook` and if set `check_signature_enabled = true` is used to create new selector.
+If using `webhook` or `crd` modes and if `check_signature_enabled` equals `true`, a `sigstore-validation:passed` selector is added to the entry.
 
 ### Example
 
@@ -91,7 +91,7 @@ Revision         : 0
 TTL              : default
 Selector         : k8s:ns:spire
 Selector         : k8s:pod-name:spire-agent-rdb2l
-Selector         : k8s:signature-verified:true
+Selector         : k8s:sigstore-validation:passed
 ```
 
 For `crd` mode, if neither `pod_label` nor `pod_annotation`

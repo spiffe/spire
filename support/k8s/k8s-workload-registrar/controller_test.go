@@ -573,7 +573,7 @@ func TestControllerCreateNewSelectorSignatureVerified(t *testing.T) {
 			Selectors: []*types.Selector{
 				{Type: "k8s", Value: "ns:NAMESPACE"},
 				{Type: "k8s", Value: "pod-name:PODNAME"},
-				{Type: "k8s", Value: "signature-verified:true"},
+				{Type: "k8s", Value: "sigstore-validation:passed"},
 			},
 		},
 	}, r.GetEntries())

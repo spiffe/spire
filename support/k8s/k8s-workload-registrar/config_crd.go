@@ -205,7 +205,7 @@ func (c *CRDMode) Run(ctx context.Context) error {
 			IdentityTemplate:      c.IdentityTemplate,
 			Context:               c.Context,
 			IdentityTemplateLabel: c.IdentityTemplateLabel,
-			DNSNameTemplates:      *c.DNSNameTemplates,
+			CheckSignatureEnabled: c.CheckSignatureEnabled,
 		})
 		if err != nil {
 			return err

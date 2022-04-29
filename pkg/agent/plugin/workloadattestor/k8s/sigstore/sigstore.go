@@ -26,7 +26,7 @@ import (
 
 const (
 	// Signature Verification Selector
-	signatureVerifiedSelector = "signature-verified:true"
+	signatureVerifiedSelector = "sigstore-validation:passed"
 )
 
 type Sigstore interface {

@@ -85,6 +85,12 @@ func (s *SpiffeID) TypesSelector() []*types.Selector {
 			Value: fmt.Sprintf("node-name:%s", s.Spec.Selector.NodeName),
 		})
 	}
+	if len(s.Spec.Selector.SigstoreValidationPassed) > 0 {
+		commonSelector = append(commonSelector, &types.Selector{
+			Type:  "k8s",
+			Value: "sigstore-validation:passed",
+		})
+	}
 	for _, v := range s.Spec.Selector.Arbitrary {
 		commonSelector = append(commonSelector, &types.Selector{
 			Type:  "k8s",
