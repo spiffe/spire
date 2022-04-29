@@ -128,7 +128,7 @@ func validateFetchJWTSVIDsResponse(resp *agent_delegatedidentityv1.FetchJWTSVIDs
 		return err
 	}
 	if j.ID.String() != *expectedID {
-		return fmt.Errorf("unexpected SPIFFE ID: %s", j.ID.String())
+		return fmt.Errorf("unexpected SPIFFE ID: %q", j.ID.String())
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func validateSubscribeToJWTBundlesResponse(resp *agent_delegatedidentityv1.Subsc
 
 	for td := range resp.Bundles {
 		if td != expectedTD {
-			return fmt.Errorf("trust domain does not match; expected %s, but was %s", td, expectedTD)
+			return fmt.Errorf("trust domain does not match; expected %q, but was %q", td, expectedTD)
 		}
 	}
 
