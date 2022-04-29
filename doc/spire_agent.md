@@ -281,14 +281,31 @@ plugins {
 ```
 ## Delegated Identity API
 
-SPIRE agent has support for Delegated Identity API. This API is intended for use cases where a (authorized) workload wants access to the X509-SVIDs and bundles on behalf of another workload. A list of authorized delegates SPIFFE IDs of workloads are defined for this purpose. The API is served over the same Unix domain socket as the admin API socket. Based on workload's selectors, a (authorized) workload could be subscribed to get X509-SVIDs and federated bundles from the registered entries that match the provided selectors.
+SPIRE agent has support for Delegated Identity API. This API is intended for use cases where a (authorized) workload wants access to the X509-SVIDs and bundles on behalf of another workload. A list of authorized delegates SPIFFE IDs of workloads are defined for this purpose. The API is served over the same endpoint address as the admin API socket. Based on workload's selectors, a (authorized) workload could be subscribed to get X509-SVIDs and federated bundles from the registered entries that match the provided selectors.
 
 In order to use this API, you shall configure the `admin_socket_path` and `authorized_delegates` (SPIFFE ID list of authorized delegates identities), as the following example:
+
+Unix systems:
 ```hcl
 agent {
     trust_domain = "example.org"
     ...
     admin_socket_path = "/tmp/spire-agent/private/admin.sock"
+    authorized_delegates = [
+        "spiffe://example.org/authorized_client1",
+        "spiffe://example.org/authorized_client2",
+    ]
+}
+```
+
+Windows:
+```hcl
+agent {
+    trust_domain = "example.org"
+    ...
+    experimental {
+      admin_named_pipe_name = "\\spire-agent\\private\\api"
+    }
     authorized_delegates = [
         "spiffe://example.org/authorized_client1",
         "spiffe://example.org/authorized_client2",
