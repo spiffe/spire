@@ -381,7 +381,7 @@ oidc-discovery-provider-scratch-image: Dockerfile
 #############################################################################
 
 .PHONY: images-windows
-images-windows: spire-server-image-windows spire-agent-image-windows k8s-workload-registrar-image-windows oidc-discovery-provider-image-windows
+images-windows: spire-server-image-windows spire-agent-image-windows oidc-discovery-provider-image-windows
 
 .PHONY: spire-server-image-windows
 spire-server-image-windows: Dockerfile
