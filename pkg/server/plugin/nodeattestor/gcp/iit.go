@@ -160,6 +160,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       id.String(),
 				SelectorValues: selectorValues,
+				CanReattest:    false,
 			},
 		},
 	})
