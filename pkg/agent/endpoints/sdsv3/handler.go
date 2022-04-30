@@ -339,7 +339,7 @@ type validationContextBuilder interface {
 }
 
 func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
-	if !h.isDisabledSPIFFECertValidation(req) && supportsSPIFFEAuthExtension(req) {
+	if !h.isSPIFFECertValidationDisabled(req) && supportsSPIFFEAuthExtension(req) {
 		return newSpiffeBuilder(upd.Bundle, upd.FederatedBundles)
 	}
 
@@ -506,7 +506,7 @@ func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 	return false
 }
 
-func (h *Handler) isDisabledSPIFFECertValidation(req *discovery_v3.DiscoveryRequest) bool {
+func (h *Handler) isSPIFFECertValidationDisabled(req *discovery_v3.DiscoveryRequest) bool {
 	if h.c.DisableSPIFFECertValidation {
 		return true
 	}
