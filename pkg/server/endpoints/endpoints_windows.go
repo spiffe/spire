@@ -12,7 +12,7 @@ import (
 )
 
 func (e *Endpoints) listen() (net.Listener, error) {
-	return winio.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLSecureListener})
+	return winio.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
 }
 
 func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
@@ -20,7 +20,7 @@ func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
 		Log: e.Log,
 	}
 
-	return lf.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLSecureListener})
+	return lf.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
 }
 
 func (e *Endpoints) restrictLocalAddr() error {

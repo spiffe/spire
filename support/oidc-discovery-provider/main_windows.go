@@ -52,5 +52,5 @@ func (c *Config) validateOS() (err error) {
 
 func listenLocal(c *Config) (net.Listener, error) {
 	return winio.ListenPipe(util.GetNamedPipeAddr(c.Experimental.ListenNamedPipeName).String(),
-		&winio.PipeConfig{SecurityDescriptor: util.SDDLSecureListener})
+		&winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
 }
