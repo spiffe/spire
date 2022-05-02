@@ -12,7 +12,7 @@ import (
 )
 
 func (e *Endpoints) createListener() (net.Listener, error) {
-	l, err := e.listener.ListenPipe(e.c.BindAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLSecureListener})
+	l, err := e.listener.ListenPipe(e.c.BindAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
 	if err != nil {
 		return nil, fmt.Errorf("error creating named pipe listener: %w", err)
 	}
