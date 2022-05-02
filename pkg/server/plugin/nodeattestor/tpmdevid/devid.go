@@ -179,6 +179,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				CanReattest:    true,
 				SpiffeId:       spiffeID.String(),
 				SelectorValues: selectors,
 			},

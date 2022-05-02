@@ -89,8 +89,9 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 	}
 
 	return &AttestResult{
-		AgentID:   attribs.SpiffeId,
-		Selectors: selectors,
+		AgentID:     attribs.SpiffeId,
+		Selectors:   selectors,
+		CanReattest: attribs.CanReattest,
 	}, nil
 }
 

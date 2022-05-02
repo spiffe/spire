@@ -622,12 +622,13 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	expired := now.Add(-time.Hour)
 	unexpired := now.Add(time.Hour)
 
-	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, selectors ...string) *common.AttestedNode {
+	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, canReattest bool, selectors ...string) *common.AttestedNode {
 		return &common.AttestedNode{
 			SpiffeId:            makeID(spiffeIDSuffix),
 			AttestationDataType: attestationType,
 			CertSerialNumber:    sn,
 			CertNotAfter:        notAfter.Unix(),
+			CanReattest:         canReattest,
 			Selectors:           makeSelectors(selectors...),
 		}
 	}
@@ -637,14 +638,18 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	bannedTrue := true
 	unbanned := "IRRELEVANT"
 
-	nodeA := makeAttestedNode("A", "T1", expired, unbanned, "S1")
-	nodeB := makeAttestedNode("B", "T2", expired, unbanned, "S1")
-	nodeC := makeAttestedNode("C", "T1", expired, unbanned, "S2")
-	nodeD := makeAttestedNode("D", "T2", expired, unbanned, "S2")
-	nodeE := makeAttestedNode("E", "T1", unexpired, banned, "S1", "S2")
-	nodeF := makeAttestedNode("F", "T2", unexpired, banned, "S1", "S3")
-	nodeG := makeAttestedNode("G", "T1", unexpired, banned, "S2", "S3")
-	nodeH := makeAttestedNode("H", "T2", unexpired, banned, "S2", "S3")
+	canReattestFalse := false
+	canReattestTrue := true
+
+	nodeA := makeAttestedNode("A", "T1", expired, unbanned, false, "S1")
+	nodeB := makeAttestedNode("B", "T2", expired, unbanned, false, "S1")
+	nodeC := makeAttestedNode("C", "T1", expired, unbanned, false, "S2")
+	nodeD := makeAttestedNode("D", "T2", expired, unbanned, false, "S2")
+	nodeE := makeAttestedNode("E", "T1", unexpired, banned, false, "S1", "S2")
+	nodeF := makeAttestedNode("F", "T2", unexpired, banned, false, "S1", "S3")
+	nodeG := makeAttestedNode("G", "T1", unexpired, banned, false, "S2", "S3")
+	nodeH := makeAttestedNode("H", "T2", unexpired, banned, false, "S2", "S3")
+	nodeI := makeAttestedNode("I", "T1", unexpired, unbanned, true, "S1")
 
 	for _, tt := range []struct {
 		test                string
@@ -654,6 +659,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
 		byBanned            *bool
+		byCanReattest       *bool
 		expectNodesOut      []*common.AttestedNode
 		expectPagedTokensIn []string
 		expectPagedNodesOut [][]*common.AttestedNode
@@ -799,6 +805,28 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectPagedTokensIn: []string{"", "5"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {}},
 		},
+		// By CanReattest=true
+		{
+			test:                "by CanReattest=true",
+			nodes:               []*common.AttestedNode{nodeA, nodeI},
+			byAttestationType:   "T1",
+			bySelectors:         nil,
+			byCanReattest:       &canReattestTrue,
+			expectNodesOut:      []*common.AttestedNode{nodeI},
+			expectPagedTokensIn: []string{"", "2"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeI}, {}},
+		},
+		// By CanReattest=false
+		{
+			test:                "by CanReattest=false",
+			nodes:               []*common.AttestedNode{nodeA, nodeI},
+			byAttestationType:   "T1",
+			bySelectors:         nil,
+			byCanReattest:       &canReattestFalse,
+			expectNodesOut:      []*common.AttestedNode{nodeA},
+			expectPagedTokensIn: []string{"", "1"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
+		},
 		// By attestation type and selector subset. This is to exercise some
 		// of the logic that combines these parts of the queries together to
 		// make sure they glom well.
@@ -822,6 +850,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectNodesOut:      []*common.AttestedNode{nodeA},
 			expectPagedTokensIn: []string{"", "1"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
+			byCanReattest:       &canReattestFalse,
 		},
 	} {
 		tt := tt
@@ -872,6 +901,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 						ByAttestationType: tt.byAttestationType,
 						BySelectorMatch:   tt.bySelectors,
 						ByBanned:          tt.byBanned,
+						ByCanReattest:     tt.byCanReattest,
 						FetchSelectors:    withSelectors,
 					}
 
