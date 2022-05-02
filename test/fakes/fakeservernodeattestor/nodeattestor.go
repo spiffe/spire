@@ -17,9 +17,6 @@ const (
 )
 
 type Config struct {
-	// DisallowReattestation determines whether or not the attestor allows reattestation
-	DisallowReattestation bool
-
 	// TrustDomain is the trust domain for SPIFFE IDs created by the attestor.
 	// Defaults to "example.org" if empty.
 	TrustDomain string

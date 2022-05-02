@@ -229,6 +229,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 					k8s.MakeSelectorValue("agent_ns", namespace),
 					k8s.MakeSelectorValue("agent_sa", serviceAccountName),
 				},
+				CanReattest: false,
 			},
 		},
 	})
