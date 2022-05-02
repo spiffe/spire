@@ -157,7 +157,8 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId: agentID,
+				SpiffeId:    agentID,
+				CanReattest: false,
 			},
 		},
 	})

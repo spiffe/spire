@@ -29,6 +29,7 @@ func TestV1(t *testing.T) {
 	selectorValues := []string{"value"}
 	resultWithoutSelectors := &nodeattestor.AttestResult{AgentID: agentID}
 	resultWithSelectors := &nodeattestor.AttestResult{AgentID: agentID, Selectors: selectors}
+	resultWithSelectorsAndCanReattest := &nodeattestor.AttestResult{AgentID: agentID, Selectors: selectors, CanReattest: true}
 
 	for _, tt := range []struct {
 		test           string
@@ -119,6 +120,14 @@ func TestV1(t *testing.T) {
 			// errors returned by the callback are returned verbatim
 			expectMessage: "response error",
 		},
+		{
+			test:          "CanReattest flag is passed through",
+			plugin:        &fakeV1Plugin{challenges: challenges, agentID: agentID, selectorValues: selectorValues, canReattest: true},
+			payload:       "without-challenge",
+			expectCode:    codes.OK,
+			expectMessage: "",
+			expectResult:  resultWithSelectorsAndCanReattest,
+		},
 	} {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
@@ -140,6 +149,7 @@ func TestV1(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectResult.AgentID, result.AgentID)
+			assert.Equal(t, tt.expectResult.CanReattest, result.CanReattest)
 			spiretest.AssertProtoListEqual(t, tt.expectResult.Selectors, result.Selectors)
 		})
 	}
@@ -161,6 +171,7 @@ type fakeV1Plugin struct {
 	challenges     map[string][]string
 	agentID        string
 	selectorValues []string
+	canReattest    bool
 }
 
 func (plugin *fakeV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
@@ -214,6 +225,7 @@ func (plugin *fakeV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       plugin.agentID,
 				SelectorValues: plugin.selectorValues,
+				CanReattest:    plugin.canReattest,
 			},
 		},
 	})

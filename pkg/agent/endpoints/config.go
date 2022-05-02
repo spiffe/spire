@@ -38,6 +38,9 @@ type Config struct {
 	// The Validation Context resource name to use for the default X.509 bundle with Envoy SDS
 	DefaultBundleName string
 
+	// Disable custom Envoy SDS validator
+	DisableSPIFFECertValidation bool
+
 	AllowUnauthenticatedVerifiers bool
 
 	AllowedForeignJWTClaims []string
