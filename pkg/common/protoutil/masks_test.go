@@ -51,6 +51,7 @@ func TestAllTrueMasks(t *testing.T) {
 		CertNotAfter:        true,
 		NewCertSerialNumber: true,
 		NewCertNotAfter:     true,
+		CanReattest:         true,
 	}, protoutil.AllTrueCommonAgentMask)
 
 	assert.Equal(t, &types.FederationRelationshipMask{
