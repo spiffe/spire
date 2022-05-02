@@ -257,3 +257,7 @@ less configuration.
 registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
 SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
 enabled.
+
+### Platform support
+
+This tool is only supported on Unix systems.

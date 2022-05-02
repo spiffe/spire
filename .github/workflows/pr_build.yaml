@@ -175,7 +175,7 @@ jobs:
         run: make images-windows
       - name: Export images
         run: |
-          docker save spire-server-windows:latest-local spire-agent-windows:latest-local k8s-workload-registrar-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
+          docker save spire-server-windows:latest-local spire-agent-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
           gzip images-windows.tar
       - name: Archive images
         uses: actions/upload-artifact@v2
@@ -449,6 +449,7 @@ jobs:
             git
             base-devel 
             mingw-w64-x86_64-toolchain 
+            zip
             unzip 
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh

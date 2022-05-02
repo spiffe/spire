@@ -53,6 +53,15 @@ func TestWindowsTracker(t *testing.T) {
 			},
 		},
 		{
+			name: "compare object handle not found",
+			pid:  65279,
+			sc: &fakeSystemCall{
+				processID:                      65279,
+				exitCode:                       stillActive,
+				isCompareObjectHandlesNotFound: true,
+			},
+		},
+		{
 			name:                "get process id error",
 			pid:                 1000,
 			expectNewWatcherErr: "error getting process id from handle: get process id error",
@@ -186,11 +195,12 @@ type fakeSystemCall struct {
 	exitCode  uint32
 	processID uint32
 
-	closeHandleErr          error
-	compareObjectHandlesErr error
-	getExitCodeProcessErr   error
-	getProcessIDErr         error
-	openProcessErr          error
+	closeHandleErr                 error
+	compareObjectHandlesErr        error
+	getExitCodeProcessErr          error
+	getProcessIDErr                error
+	openProcessErr                 error
+	isCompareObjectHandlesNotFound bool
 }
 
 func (s *fakeSystemCall) CloseHandle(h windows.Handle) error {
@@ -212,4 +222,8 @@ func (s *fakeSystemCall) GetProcessID(h windows.Handle) (uint32, error) {
 
 func (s *fakeSystemCall) OpenProcess(pid int32) (handle windows.Handle, err error) {
 	return s.handle, s.openProcessErr
+}
+
+func (s *fakeSystemCall) IsCompareObjectHandlesFound() bool {
+	return !s.isCompareObjectHandlesNotFound
 }
