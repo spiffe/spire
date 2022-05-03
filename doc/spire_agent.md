@@ -316,7 +316,7 @@ support for the [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/en
 extension, which is only available starting with Envoy 1.18.
 The default name is configurable (see `default_all_bundles_name` under [SDS Configuration](#sds-configuration).
 
-The [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto) configures Envoy to perform SPIFFE authentication. It is used by default but can be disabled by setting `disable_spiffe_cert_validation` to `true` in [SDS Configuration](#sds-configuration). Alternatively, to disable for an individual envoy instance, the `disable_spiffe_cert_validation` key can be configured and set to `true` in the Envoy node metadata. When used, Envoy will perform standard X.509 certificate chain validation. 
+The [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto) configures Envoy to perform SPIFFE authentication. The validation context returned by SPIRE Agent contains this extension by default. However, if standard X.509 chain validation is desired, SPIRE Agent can be configured to omit the extension. The default behavior can be changed by configuring `disable_spiffe_cert_validation` in [SDS Configuration](#sds-configuration). Individual Envoy instances can also override the default behavior by configuring setting a `disable_spiffe_cert_validation` key in the Envoy node metadata.
 
 ## OpenShift Support
 
