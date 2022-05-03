@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -507,14 +508,38 @@ func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 }
 
 func (h *Handler) isSPIFFECertValidationDisabled(req *discovery_v3.DiscoveryRequest) bool {
-	if h.c.DisableSPIFFECertValidation {
+	fields := req.Node.GetMetadata().GetFields()
+	v, ok := fields[disableSPIFFECertValidationKey]
+	var vb bool
+	if ok {
+		var err error
+		vb, err = parseBool(v)
+		if err != nil {
+			// error means that value isn't parsable string
+			// so it would be safer to assume that key doesn't exist in envoy node metadata
+			ok = false
+		}
+	}
+
+	if h.c.DisableSPIFFECertValidation && (!ok || vb) {
 		return true
 	}
 
-	fields := req.Node.GetMetadata().GetFields()
-	v, ok := fields[disableSPIFFECertValidationKey]
+	return vb
+}
 
-	return ok && (v.GetBoolValue() || v.GetStringValue() == "true")
+func parseBool(v *structpb.Value) (bool, error) {
+	str := v.GetStringValue()
+	if str != "" {
+		strBool, err := strconv.ParseBool(str)
+		if err != nil {
+			return false, err
+		}
+
+		return strBool, nil
+	}
+
+	return v.GetBoolValue(), nil
 }
 
 func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {

@@ -532,6 +532,78 @@ func TestStreamSecrets(t *testing.T) {
 			},
 			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
 		},
+		{
+			name: "Disable SPIFFE cert validation in config and in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"default"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("true"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate3},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config but opt-in in envoy node metadata with string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("false"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config but opt-in in envoy node metadata with bool value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(false),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and set to unknown string value in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"default"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("test"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate3},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTestWithConfig(t, tt.config)
