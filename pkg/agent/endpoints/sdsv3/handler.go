@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strconv"
@@ -508,38 +509,27 @@ func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 }
 
 func (h *Handler) isSPIFFECertValidationDisabled(req *discovery_v3.DiscoveryRequest) bool {
-	fields := req.Node.GetMetadata().GetFields()
-	v, ok := fields[disableSPIFFECertValidationKey]
-	var vb bool
-	if ok {
-		var err error
-		vb, err = parseBool(v)
-		if err != nil {
-			// error means that value isn't parsable string
-			// so it would be safer to assume that key doesn't exist in envoy node metadata
-			ok = false
+	disabled := h.c.DisableSPIFFECertValidation
+	if v, ok := req.Node.GetMetadata().GetFields()[disableSPIFFECertValidationKey]; ok {
+		// error means that field have some unexpected value
+		// so it would be safer to assume that key doesn't exist in envoy node metadata
+		if override, err := parseBool(v); err == nil {
+			disabled = override
 		}
 	}
 
-	if h.c.DisableSPIFFECertValidation && (!ok || vb) {
-		return true
-	}
-
-	return vb
+	return disabled
 }
 
 func parseBool(v *structpb.Value) (bool, error) {
-	str := v.GetStringValue()
-	if str != "" {
-		strBool, err := strconv.ParseBool(str)
-		if err != nil {
-			return false, err
-		}
-
-		return strBool, nil
+	switch v := v.GetKind().(type) {
+	case *structpb.Value_BoolValue:
+		return v.BoolValue, nil
+	case *structpb.Value_StringValue:
+		return strconv.ParseBool(v.StringValue)
 	}
 
-	return v.GetBoolValue(), nil
+	return false, fmt.Errorf("unsupported value type %T", v)
 }
 
 func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {
