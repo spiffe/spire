@@ -316,6 +316,8 @@ support for the [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/en
 extension, which is only available starting with Envoy 1.18.
 The default name is configurable (see `default_all_bundles_name` under [SDS Configuration](#sds-configuration).
 
+The [SPIFFE Certificate Validator](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/tls_spiffe_validator_config.proto) configures Envoy to perform SPIFFE authentication. It is used by default but can be disabled by setting `disable_spiffe_cert_validation` to `true` in [SDS Configuration](#sds-configuration). Alternatively, to disable for an individual envoy instance, the `disable_spiffe_cert_validation` key can be configured and set to `true` in the Envoy node metadata. When used, Envoy will perform standard X.509 certificate chain validation. 
+
 ## OpenShift Support
 
 The default security profile of [OpenShift](https://www.openshift.com/products/container-platform) forbids access to host level resources. A custom set of policies can be applied to enable the level of access needed by Spire to operate within OpenShift.

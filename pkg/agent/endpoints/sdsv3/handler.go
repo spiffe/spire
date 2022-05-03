@@ -28,6 +28,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+const (
+	disableSPIFFECertValidationKey = "disable_spiffe_cert_validation"
+)
+
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
@@ -249,15 +253,9 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 	}
 	returnAllEntries := len(names) == 0
 
-	// Use RootCA as default, but replace with SPIFFE auth when Envoy version is at least v1.18.0
-	var builder validationContextBuilder
-	if !h.c.DisableSPIFFECertValidation && supportsSPIFFEAuthExtension(req) {
-		builder, err = newSpiffeBuilder(upd.Bundle, upd.FederatedBundles)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		builder = newRootCABuilder(upd.Bundle, upd.FederatedBundles)
+	builder, err := h.getValidationContextBuilder(req, upd)
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO: verify the type url
@@ -338,6 +336,14 @@ func (h *Handler) triggerReceivedHook() {
 type validationContextBuilder interface {
 	buildOne(resourceName, trustDomainID string) (*any.Any, error)
 	buildAll(resourceName string) (*any.Any, error)
+}
+
+func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
+	if !h.isSPIFFECertValidationDisabled(req) && supportsSPIFFEAuthExtension(req) {
+		return newSpiffeBuilder(upd.Bundle, upd.FederatedBundles)
+	}
+
+	return newRootCABuilder(upd.Bundle, upd.FederatedBundles), nil
 }
 
 type rootCABuilder struct {
@@ -498,6 +504,17 @@ func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 		return (version.MajorNumber == 1 && version.MinorNumber > 17) || version.MajorNumber > 1
 	}
 	return false
+}
+
+func (h *Handler) isSPIFFECertValidationDisabled(req *discovery_v3.DiscoveryRequest) bool {
+	if h.c.DisableSPIFFECertValidation {
+		return true
+	}
+
+	fields := req.Node.GetMetadata().GetFields()
+	v, ok := fields[disableSPIFFECertValidationKey]
+
+	return ok && (v.GetBoolValue() || v.GetStringValue() == "true")
 }
 
 func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {
