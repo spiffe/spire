@@ -360,8 +360,7 @@ func (sigstore *Sigstoreimpl) AttestContainerSignatures(status *corev1.Container
 
 	selectors := sigstore.ExtractSelectorsFromSignatures(signatures, status.ContainerID)
 	if len(selectors) > 0 {
-		signatureVerifiedSelectorWithContainerID := status.ContainerID + ":" + signatureVerifiedSelector
-		selectors = append(selectors, signatureVerifiedSelectorWithContainerID)
+		selectors = append(selectors, signatureVerifiedSelector)
 	}
 
 	return selectors, nil
