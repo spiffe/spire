@@ -50,14 +50,15 @@ type Sigstoreimpl struct {
 	allowListEnabled           bool
 	subjectAllowList           map[string]bool
 	rekorURL                   url.URL
-
-	sigstorecache sigstorecache.Cache
+	checkOptsFunction          func(url.URL) *cosign.CheckOpts
+	sigstorecache              sigstorecache.Cache
 }
 
 func New(cache sigstorecache.Cache) Sigstore {
 	return &Sigstoreimpl{
 		verifyFunction:             cosign.VerifyImageSignatures,
 		fetchImageManifestFunction: remote.Get,
+		checkOptsFunction:          DefaultCheckOpts,
 		skippedImages:              nil,
 		allowListEnabled:           false,
 		subjectAllowList:           nil,
@@ -68,6 +69,17 @@ func New(cache sigstorecache.Cache) Sigstore {
 		},
 		sigstorecache: cache,
 	}
+}
+
+func DefaultCheckOpts(rekorURL url.URL) *cosign.CheckOpts {
+	co := &cosign.CheckOpts{}
+
+	// Set the rekor client
+	co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host))
+
+	co.RootCerts = fulcio.GetRoots()
+
+	return co
 }
 
 // FetchImageSignatures retrieves signatures for specified image via cosign, using the specified rekor server.
@@ -90,14 +102,8 @@ func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string) ([]oci.Sign
 		return nil, errors.New(message)
 	}
 
-	co := &cosign.CheckOpts{}
-
-	// Set the rekor client
-	co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(sigstore.rekorURL.Path).WithHost(sigstore.rekorURL.Host))
-
-	co.RootCerts = fulcio.GetRoots()
-
 	ctx := context.Background()
+	co := sigstore.checkOptsFunction(sigstore.rekorURL)
 	sigs, ok, err := sigstore.verifyFunction(ctx, ref, co)
 	if err != nil {
 		message := fmt.Sprint("Error verifying signature: ", err.Error())
