@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strconv"
@@ -26,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -507,14 +509,27 @@ func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 }
 
 func (h *Handler) isSPIFFECertValidationDisabled(req *discovery_v3.DiscoveryRequest) bool {
-	if h.c.DisableSPIFFECertValidation {
-		return true
+	disabled := h.c.DisableSPIFFECertValidation
+	if v, ok := req.Node.GetMetadata().GetFields()[disableSPIFFECertValidationKey]; ok {
+		// error means that field have some unexpected value
+		// so it would be safer to assume that key doesn't exist in envoy node metadata
+		if override, err := parseBool(v); err == nil {
+			disabled = override
+		}
 	}
 
-	fields := req.Node.GetMetadata().GetFields()
-	v, ok := fields[disableSPIFFECertValidationKey]
+	return disabled
+}
 
-	return ok && (v.GetBoolValue() || v.GetStringValue() == "true")
+func parseBool(v *structpb.Value) (bool, error) {
+	switch v := v.GetKind().(type) {
+	case *structpb.Value_BoolValue:
+		return v.BoolValue, nil
+	case *structpb.Value_StringValue:
+		return strconv.ParseBool(v.StringValue)
+	}
+
+	return false, fmt.Errorf("unsupported value type %T", v)
 }
 
 func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {
