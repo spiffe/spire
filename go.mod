@@ -11,7 +11,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v0.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v0.3.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.3.1
-	github.com/GoogleCloudPlatform/cloudsql-proxy v1.30.0
+	github.com/GoogleCloudPlatform/cloudsql-proxy v1.30.1
 	github.com/InVisionApp/go-health/v2 v2.1.2
 	github.com/InVisionApp/go-logger v1.0.1
 	github.com/Microsoft/go-winio v0.5.2
@@ -64,10 +64,10 @@ require (
 	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
 	golang.org/x/net v0.0.0-20220412020605-290c469a71a5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
-	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65
+	golang.org/x/sys v0.0.0-20220429121018-84afa8d3f7b3
+	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	google.golang.org/api v0.77.0
-	google.golang.org/genproto v0.0.0-20220414192740-2d67ff6cf2b4
+	google.golang.org/genproto v0.0.0-20220421151946-72621c1f0bd3
 	google.golang.org/grpc v1.46.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -81,7 +81,7 @@ require (
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
-	cloud.google.com/go/compute v1.6.0 // indirect
+	cloud.google.com/go/compute v1.6.1 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v0.9.1 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
