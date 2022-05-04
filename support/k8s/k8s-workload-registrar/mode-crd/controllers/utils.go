@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, webhookPort int) (ctrl.Manager, error) {
+func NewManager(leaderElection bool, leaderElectionResourceLock string, metricsBindAddr, webhookCertDir string, webhookPort int) (ctrl.Manager, error) {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = spiffeidv1beta1.AddToScheme(scheme)
@@ -49,7 +49,7 @@ func NewManager(leaderElection bool, metricsBindAddr, webhookCertDir string, web
 		CertDir:                    webhookCertDir,
 		LeaderElection:             leaderElection,
 		LeaderElectionID:           "spire-k8s-registrar-leader-election",
-		LeaderElectionResourceLock: "configmaps",
+		LeaderElectionResourceLock: leaderElectionResourceLock,
 		MetricsBindAddress:         metricsBindAddr,
 		Port:                       webhookPort,
 		Scheme:                     scheme,
