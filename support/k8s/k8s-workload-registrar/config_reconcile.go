@@ -31,11 +31,12 @@ const (
 
 type ReconcileMode struct {
 	CommonMode
-	MetricsAddr    string `hcl:"metrics_addr"`
-	LeaderElection bool   `hcl:"leader_election"`
-	ControllerName string `hcl:"controller_name"`
-	AddPodDNSNames bool   `hcl:"add_pod_dns_names"`
-	ClusterDNSZone string `hcl:"cluster_dns_zone"`
+	MetricsAddr                string `hcl:"metrics_addr"`
+	LeaderElection             bool   `hcl:"leader_election"`
+	LeaderElectionResourceLock string `hcl:"leader_election_resource_lock"`
+	ControllerName             string `hcl:"controller_name"`
+	AddPodDNSNames             bool   `hcl:"add_pod_dns_names"`
+	ClusterDNSZone             string `hcl:"cluster_dns_zone"`
 }
 
 func (c *ReconcileMode) ParseConfig(hclConfig string) error {
@@ -52,6 +53,9 @@ func (c *ReconcileMode) ParseConfig(hclConfig string) error {
 	if c.ClusterDNSZone == "" {
 		c.ClusterDNSZone = defaultClusterDNSZone
 	}
+	if c.LeaderElectionResourceLock == "" {
+		c.LeaderElectionResourceLock = defaultLeaderElectionResourceLock
+	}
 
 	return nil
 }
@@ -64,6 +68,11 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		o.Development = true
 	}))
 	setupLog := ctrl.Log.WithName("setup")
+
+	// DEPRECATED: remove in SPIRE 1.4
+	if c.LeaderElection && c.LeaderElectionResourceLock == configMapsResourceLock {
+		setupLog.Info(`The "configmaps" leader election resource lock type is no longer supported in Kubernetes v1.24+; support for this lock type will be removed from the k8s-workload-registrar in a future release.`)
+	}
 
 	// Connect to Spire Server
 	spireClient, err := c.EntryClient(ctx, SpiffeLogWrapper{setupLog})
@@ -89,7 +98,7 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 		MetricsBindAddress:         c.MetricsAddr,
 		LeaderElection:             c.LeaderElection,
 		LeaderElectionID:           fmt.Sprintf("%s-leader-election", c.ControllerName),
-		LeaderElectionResourceLock: "configmaps",
+		LeaderElectionResourceLock: c.LeaderElectionResourceLock,
 	})
 	if err != nil {
 		setupLog.Error(err, "Unable to start manager")
