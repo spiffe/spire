@@ -24,9 +24,11 @@ import (
 	"time"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/hashicorp/go-hclog"
 	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -136,12 +138,11 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "pod-uid:d488cae9-b2a0-11e7-9350-020968147796"},
 		{Type: "k8s", Value: "sa:flannel"},
 	}
-
 	testSigstoreSelectors = []*common.Selector{
 		{Type: "k8s", Value: "container-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
 		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
 		{Type: "k8s", Value: "container-name:blog"},
-		{Type: "k8s", Value: "image-signature-subject:sigstore-subject"},
+		{Type: "k8s", Value: "docker://9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961:image-signature-subject:sigstore-subject"},
 		{Type: "k8s", Value: "node-name:k8s-node-1"},
 		{Type: "k8s", Value: "ns:default"},
 		{Type: "k8s", Value: "pod-image-count:2"},
@@ -206,7 +207,7 @@ type Suite struct {
 	kubeletCert *x509.Certificate
 	clientCert  *x509.Certificate
 
-	sigstoreSelectors           []string
+	sigstoreSelectors           []sigstore.SelectorsFromSignatures
 	sigstoreSigs                []oci.Signature
 	sigstoreSkipSigs            bool
 	sigstoreSkippedSigSelectors []string
@@ -241,7 +242,12 @@ func (s *Suite) TestAttestWithPidInPod() {
 
 func (s *Suite) TestAttestWithSigstoreSignatures() {
 	s.startInsecureKubelet()
-	s.setSigstoreSelectors([]string{"image-signature-subject:sigstore-subject", "sigstore-validation:passed"})
+	s.setSigstoreSelectors([]sigstore.SelectorsFromSignatures{
+		{
+			Subject:  "sigstore-subject",
+			Verified: true,
+		},
+	})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodandSignature(p)
 	s.setSigstoreSelectors(nil)
@@ -803,7 +809,7 @@ func (signature) Bundle() (*oci.Bundle, error) {
 }
 
 type SigstoreMock struct {
-	selectors []string
+	selectors []sigstore.SelectorsFromSignatures
 
 	sigs                []oci.Signature
 	skipSigs            bool
@@ -813,15 +819,19 @@ type SigstoreMock struct {
 	rekorURL string
 }
 
+// SetLogger implements sigstore.Sigstore
+func (*SigstoreMock) SetLogger(logger hclog.Logger) {
+}
+
 func (s *SigstoreMock) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
 	return s.sigs, s.returnError
 }
 
-func (s *SigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []string {
-	return s.selectors
+func (s *SigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) sigstore.SelectorsFromSignatures {
+	return s.selectors[0]
 }
 
-func (s *SigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) []string {
+func (s *SigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
 	return s.selectors
 }
 
@@ -846,7 +856,25 @@ func (s *SigstoreMock) AttestContainerSignatures(status *corev1.ContainerStatus)
 	if s.skipSigs {
 		return s.skippedSigSelectors, nil
 	}
-	return s.selectors, s.returnError
+	var selectorsString []string
+	for _, selector := range s.selectors {
+		if selector.Subject != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-subject:%s", status.ContainerID, selector.Subject))
+		}
+		if selector.Content != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-content:%s", status.ContainerID, selector.Content))
+		}
+		if selector.LogID != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-logid:%s", status.ContainerID, selector.LogID))
+		}
+		if selector.IntegratedTime != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-integrated-time:%s", status.ContainerID, selector.IntegratedTime))
+		}
+		if selector.Verified {
+			selectorsString = append(selectorsString, "sigstore-validation:passed")
+		}
+	}
+	return selectorsString, s.returnError
 }
 
 func (s *SigstoreMock) SetRekorURL(url string) error {
@@ -879,7 +907,7 @@ func (s *Suite) setServer(server *httptest.Server) {
 	s.server = server
 }
 
-func (s *Suite) setSigstoreSelectors(selectors []string) {
+func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignatures) {
 	s.sigstoreSelectors = selectors
 	if s.sigstoreSelectors == nil {
 		s.sigstoreSigs = nil
