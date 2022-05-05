@@ -408,6 +408,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if ac.DefaultAllBundlesName == ac.DefaultBundleName {
 		logger.Warn(`The "default_bundle_name" and "default_all_bundles_name" configurables have the same value. "default_all_bundles_name" will be ignored. Please configure distinct values or use the defaults. This will be a configuration error in a future release.`)
 	}
+	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
 	err = setupTrustBundle(ac, c)
 	if err != nil {
