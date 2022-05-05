@@ -194,7 +194,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg:       "disable_custom_validation should default value of false",
+			msg:       "disable_spiffe_cert_validation should default value of false",
 			fileInput: func(c *Config) {},
 			cliInput:  func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
@@ -202,7 +202,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "disable_custom_validation should be configurable by file",
+			msg: "disable_spiffe_cert_validation should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.SDS = sdsConfig{
 					DisableSPIFFECertValidation: true,
@@ -575,7 +575,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "insecure_bootsrap should be correctly set to false",
+			msg: "insecure_bootstrap should be correctly set to false",
 			input: func(c *Config) {
 				c.Agent.InsecureBootstrap = false
 			},
@@ -584,7 +584,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "insecure_bootsrap should be correctly set to true",
+			msg: "insecure_bootstrap should be correctly set to true",
 			input: func(c *Config) {
 				c.Agent.InsecureBootstrap = true
 			},
@@ -706,6 +706,21 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, []string{"c1", "c2"}, c.AllowedForeignJWTClaims)
+			},
+		},
+		{
+			msg: "SDS configurables are provided",
+			input: func(c *Config) {
+				c.Agent.SDS.DefaultSVIDName = "DefaultSVIDName"
+				c.Agent.SDS.DefaultBundleName = "DefaultBundleName"
+				c.Agent.SDS.DefaultAllBundlesName = "DefaultAllBundlesName"
+				c.Agent.SDS.DisableSPIFFECertValidation = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				assert.Equal(t, c.DefaultSVIDName, "DefaultSVIDName")
+				assert.Equal(t, c.DefaultBundleName, "DefaultBundleName")
+				assert.Equal(t, c.DefaultAllBundlesName, "DefaultAllBundlesName")
+				assert.True(t, c.DisableSPIFFECertValidation)
 			},
 		},
 		{
