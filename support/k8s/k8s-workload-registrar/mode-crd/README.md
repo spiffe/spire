@@ -34,7 +34,7 @@ The configuration file is a **required** by the registrar. It contains
 | `cluster`                       | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `context`                       | map[string]string | optional | The map of key/value pairs of arbitrary string parameters to be used by `identity_template` | |
 | `disabled_namespaces`           | []string | optional | Comma separated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
-| `dns_name_templates`            | []string | optional | Comma separated list of templates to be used to generate [additional DNS names](#additional-dns-names) for a workload | `[{{.Pod.Name}}]` |
+| `dns_name_templates`            | []string | optional | Comma separated list of templates to generate [DNS names](#dns-names) for a workload. The first template in the list will also populate the CN of the SVID. | `[{{.Pod.Name}}]` |
 | `identity_template`             | string   | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
 | `identity_template_label`       | string   | optional | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set  |  |
 | `leader_election`               | bool     | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
@@ -389,9 +389,9 @@ spec:
   ...
 ```
 
-### Additional DNS Names
+### DNS Names
 
-If additional DNS names are desired for your workload, they can be specified using the `dns_name_templates` configuration option. Similar to the `identity_template` field, `dns_name_templates` uses Golang
+If DNS names are desired for your workload, they can be specified using the `dns_name_templates` configuration option. Similar to the `identity_template` field, `dns_name_templates` uses Golang
 [text/template](https://pkg.go.dev/text/template) conventions. It can reference arbitrary values provided in the `context` map of strings, in addition to the following Pod-specific arguments:
 * Pod.Name
 * Pod.UID
@@ -413,6 +413,8 @@ and the _example-workload_ pod was deployed in _production_ namespace and _myser
 
 - myserviceacct.production.svc
 - my-domain.example-workload.svc
+
+<table><tr><td>Note: The first template in the list will also populate the Common Name (CN) field of the SVID.</td></tr></table>
 
 ## How it Works
 
