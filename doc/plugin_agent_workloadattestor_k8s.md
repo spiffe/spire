@@ -42,6 +42,16 @@ server name validation against the kubelet certificate.
 | `private_key_path` | The path on disk to client key used for kubelet authentication |
 | `node_name_env` | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`. |
 | `node_name` | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`. |
+| `skip_signature_verification_image_list`| The list of images, described as digest hashes, that should be skipped in signature verification. |
+| `enable_allowed_subjects_list`| Enables a list of allowed subjects that are trusted and are allowed to sign container images artificats.|
+| `allowed_subjects_list`| The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. |
+| `rekor_url` | The URL for the rekor STL Server to use with cosign.  |
+
+## Sigstore workload attestor for SPIRE
+
+The k8s workload attestor plugins has also capabilities to validate images signatures through [sigstore](https://www.sigstore.dev/)
+
+The RFC is available [here](https://docs.google.com/document/d/1YVuu7HMHnp8nx3sCPx7R2lCfjjno363s4oiPlI6axF4/edit#heading=h.ttn87ugq19sb) for reference.
 
 | Selector | Value |
 | -------- | ----- |
@@ -59,7 +69,10 @@ server name validation against the kubelet certificate.
 | k8s:pod-image-count      | The number of container images in workload's pod |
 | k8s:pod-init-image       | An Image OR ImageID of any init container in the workload's pod, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb`|
 | k8s:pod-init-image-count | The number of init container images in workload's pod |
-| k8s:signature-content    | The value of the signature itself in a hash|
+| k8s:image-signature-content | The value of the signature itself in a hash|
+| k8s:image-signature-subject | OIDC principal that signed it​ |
+| k8s:image-signature-logid | A unique LogID for the Rekor transparency log​  |
+| k8s:image-signature-integrated-time | The date when the image signature was integrated into the signature transparency log​ |
 | k8s:sigstore-validation   | The confirmation if the signature is valid, has value of "passed" (eg. "k8s:sigstore-validation:passed") |
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of 
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod, 
