@@ -109,6 +109,8 @@ specific metrics should be centrally defined in the `telemetry` package or its s
 desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
 The metrics emitted by SPIRE are listed in the [telemetry document](doc/telemetry.md) and should be kept up to date.
 
+In addition, metrics should be unit-tested where reasonable.
+
 ### Count in Aggregate
 
 Event count metrics should aggregate where possible to reduce burden on metric sinks, infrastructure,
