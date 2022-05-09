@@ -11,7 +11,7 @@ check-version-against-latest-release() {
     # - for PRs, this will be the branch the PR targets (as supplied via
     #   CICD_TARGET_BRANCH by the CI/CD pipeline).
     # - for non-PRs from a local branch with a tracking branch, we'll use
-    #   the tracking branch (e.g. local development branch tracking master)
+    #   the tracking branch (e.g. local development branch tracking main)
     # - for non-PRs from a local branch without a tracking branch, we'll fail
     #   the test, since it isn't clear which version we should be tracking.
     _version_from_branch=

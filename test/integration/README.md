@@ -1,7 +1,7 @@
 # Integration Test Framework
 
 This directory contains the Integration Test framework for SPIRE. Integration
-tests are run nightly or after there has been a merge into the master branch.
+tests are run nightly, for each PR, and doing a release.
 
 ## Executing Test Suites
 

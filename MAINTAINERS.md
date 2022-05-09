@@ -185,9 +185,9 @@ The responsibilities of the community chair are as follows:
 
 
 
-[1]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md
-[2]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md#maintainers
-[3]: https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md#change-review-process
+[1]: https://github.com/spiffe/spiffe/blob/main/GOVERNANCE.md
+[2]: https://github.com/spiffe/spiffe/blob/main/GOVERNANCE.md#maintainers
+[3]: https://github.com/spiffe/spiffe/blob/main/GOVERNANCE.md#change-review-process
 [4]: https://github.com/spiffe/spire/blob/main/CONTRIBUTING.md
 [5]: https://github.com/spiffe/spire/blob/main/doc/upgrading.md
-[6]: https://github.com/spiffe/spiffe/blob/master/CODE-OF-CONDUCT.md
+[6]: https://github.com/spiffe/spiffe/blob/main/CODE-OF-CONDUCT.md
