@@ -1,9 +1,9 @@
 # Contributor guidelines and Governance
 
 Please see
-[CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md)
+[CONTRIBUTING](https://github.com/spiffe/spiffe/blob/main/CONTRIBUTING.md)
 and
-[GOVERNANCE](https://github.com/spiffe/spiffe/blob/master/GOVERNANCE.md)
+[GOVERNANCE](https://github.com/spiffe/spiffe/blob/main/GOVERNANCE.md)
 from the SPIFFE project.
 
 # Prerequisites
@@ -62,7 +62,7 @@ run the container.
 # Conventions
 
 In addition to the conventions covered in the SPIFFE project's
-[CONTRIBUTING](https://github.com/spiffe/spiffe/blob/master/CONTRIBUTING.md), the following
+[CONTRIBUTING](https://github.com/spiffe/spiffe/blob/main/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
 
 ## SQL Plugin Changes
