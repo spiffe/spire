@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -50,6 +51,8 @@ type Catalog interface {
 }
 
 type HCLPluginConfigMap = catalog.HCLPluginConfigMap
+
+type HCLPluginConfig = catalog.HCLPluginConfig
 
 type Config struct {
 	Log          logrus.FieldLogger
@@ -110,6 +113,12 @@ func (repo *Repository) Close() {
 }
 
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
+	// DEPRECATE: make this an error in SPIRE 1.5
+	if c, ok := config.PluginConfig[nodeAttestorType][jointoken.PluginName]; ok && c.IsEnabled() && c.IsExternal() {
+		config.Log.Warn("The built-in join_token node attestor cannot be overridden by an external plugin. The external plugin will be ignored; this will be a configuration error in a future release.")
+		config.PluginConfig[nodeAttestorType][jointoken.PluginName] = catalog.HCLPluginConfig{}
+	}
+
 	repo := &Repository{
 		log: config.Log,
 	}
