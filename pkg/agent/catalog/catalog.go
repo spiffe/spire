@@ -46,7 +46,9 @@ type Repository struct {
 	nodeAttestorRepository
 	svidStoreRepository
 	workloadAttestorRepository
-	io.Closer
+
+	log           logrus.FieldLogger
+	catalogCloser io.Closer
 }
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
@@ -62,6 +64,15 @@ func (repo *Repository) Services() []catalog.ServiceRepo {
 	return nil
 }
 
+func (repo *Repository) Close() {
+	repo.log.Debug("Closing catalog")
+	if err := repo.catalogCloser.Close(); err == nil {
+		repo.log.Info("Catalog closed")
+	} else {
+		repo.log.WithError(err).Error("Failed to close catalog")
+	}
+}
+
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
 	if err != nil {
@@ -69,8 +80,10 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	}
 
 	// Load the plugins and populate the repository
-	repo := new(Repository)
-	repo.Closer, err = catalog.Load(ctx, catalog.Config{
+	repo := &Repository{
+		log: config.Log,
+	}
+	repo.catalogCloser, err = catalog.Load(ctx, catalog.Config{
 		Log: config.Log,
 		CoreConfig: catalog.CoreConfig{
 			TrustDomain: config.TrustDomain,
