@@ -119,7 +119,7 @@ func (s *PluginSuite) SetupTest() {
 
 func (s *PluginSuite) TearDownTest() {
 	if s.ds != nil {
-		s.ds.closeDB()
+		s.ds.Close()
 	}
 }
 
@@ -616,7 +616,7 @@ func (s *PluginSuite) TestFetchAttestedNodeMissing() {
 
 func (s *PluginSuite) TestListAttestedNodes() {
 	// Connection is never used, each test creates a connection to a diffent database
-	s.ds.closeDB()
+	s.ds.Close()
 
 	now := time.Now()
 	expired := now.Add(-time.Hour)
@@ -869,7 +869,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 				}
 				s.T().Run(name, func(t *testing.T) {
 					s.ds = s.newPlugin()
-					defer s.ds.closeDB()
+					defer s.ds.Close()
 
 					// Create entries for the test. For convenience, map the actual
 					// entry ID to the "test" entry ID, so we can easily pinpoint
@@ -983,7 +983,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	updatedNewExpires := int64(0)
 
 	// This connection is never used, each plugin is creating a connection to a new database
-	s.ds.closeDB()
+	s.ds.Close()
 
 	for _, tt := range []struct {
 		name           string
@@ -1066,7 +1066,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.ds = s.newPlugin()
-			defer s.ds.closeDB()
+			defer s.ds.Close()
 
 			_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 				SpiffeId:            nodeID,
@@ -1453,7 +1453,7 @@ func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
 
 func (s *PluginSuite) TestListRegistrationEntries() {
 	// Connection is never used, each test creates new connection to a different database
-	s.ds.closeDB()
+	s.ds.Close()
 
 	s.testListRegistrationEntries(datastore.RequireCurrent)
 	s.testListRegistrationEntries(datastore.TolerateStale)
@@ -2066,7 +2066,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			}
 			s.T().Run(name, func(t *testing.T) {
 				s.ds = s.newPlugin()
-				defer s.ds.closeDB()
+				defer s.ds.Close()
 
 				s.createBundle("spiffe://federated1.test")
 				s.createBundle("spiffe://federated2.test")
@@ -2558,7 +2558,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2606,7 +2606,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2661,7 +2661,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2716,7 +2716,7 @@ func (s *PluginSuite) TestListSelectorEntriesSuperset() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2782,7 +2782,7 @@ func (s *PluginSuite) TestListEntriesBySelectorMatchAny() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2848,7 +2848,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithExact() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -2912,7 +2912,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithSubset() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -2983,7 +2983,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithMatchAny() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -3053,7 +3053,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithSuperset() {
 		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
-			defer ds.closeDB()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -4100,7 +4100,7 @@ func (s *PluginSuite) TestConfigure() {
 				%s
 			`, dbPath, tt.giveDBConfig))
 			require.NoError(t, err)
-			defer p.closeDB()
+			defer p.Close()
 
 			db := p.db.DB.DB()
 			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
