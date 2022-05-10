@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -51,6 +52,8 @@ type Catalog interface {
 
 type HCLPluginConfigMap = catalog.HCLPluginConfigMap
 
+type HCLPluginConfig = catalog.HCLPluginConfig
+
 type Config struct {
 	Log          logrus.FieldLogger
 	TrustDomain  spiffeid.TrustDomain
@@ -71,7 +74,10 @@ type Repository struct {
 	nodeResolverRepository
 	notifierRepository
 	upstreamAuthorityRepository
-	io.Closer
+
+	log             logrus.FieldLogger
+	dataStoreCloser io.Closer
+	catalogCloser   io.Closer
 }
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
@@ -88,23 +94,56 @@ func (repo *Repository) Services() []catalog.ServiceRepo {
 	return nil
 }
 
+func (repo *Repository) Close() {
+	// Must close in reverse initialization order!
+
+	repo.log.Debug("Closing catalog")
+	if err := repo.catalogCloser.Close(); err == nil {
+		repo.log.Info("Catalog closed")
+	} else {
+		repo.log.WithError(err).Error("Failed to close catalog")
+	}
+
+	repo.log.Debug("Closing DataStore")
+	if err := repo.dataStoreCloser.Close(); err == nil {
+		repo.log.Info("DataStore closed")
+	} else {
+		repo.log.WithError(err).Error("Failed to close DataStore")
+	}
+}
+
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
+	// DEPRECATE: make this an error in SPIRE 1.5
+	if c, ok := config.PluginConfig[nodeAttestorType][jointoken.PluginName]; ok && c.IsEnabled() && c.IsExternal() {
+		config.Log.Warn("The built-in join_token node attestor cannot be overridden by an external plugin. The external plugin will be ignored; this will be a configuration error in a future release.")
+		config.PluginConfig[nodeAttestorType][jointoken.PluginName] = catalog.HCLPluginConfig{}
+	}
+
+	repo := &Repository{
+		log: config.Log,
+	}
+	defer func() {
+		if err != nil {
+			repo.Close()
+		}
+	}()
+
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfig := config.PluginConfig[dataStoreType]
 	delete(config.PluginConfig, dataStoreType)
-	dataStore, err := loadSQLDataStore(config.Log, dataStoreConfig)
+	sqlDataStore, err := loadSQLDataStore(config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
 	}
+	repo.dataStoreCloser = sqlDataStore
 
 	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	repo := new(Repository)
-	repo.Closer, err = catalog.Load(ctx, catalog.Config{
+	repo.catalogCloser, err = catalog.Load(ctx, catalog.Config{
 		Log: config.Log,
 		CoreConfig: catalog.CoreConfig{
 			TrustDomain: config.TrustDomain,
@@ -120,6 +159,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		return nil, err
 	}
 
+	var dataStore datastore.DataStore = sqlDataStore
 	_ = config.HealthChecker.AddCheck("catalog.datastore", &datastore.Health{
 		DataStore: dataStore,
 	})
@@ -133,7 +173,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
-func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (datastore.DataStore, error) {
+func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (*ds_sql.Plugin, error) {
 	switch {
 	case len(datastoreConfig) == 0:
 		return nil, errors.New("expecting a DataStore plugin")

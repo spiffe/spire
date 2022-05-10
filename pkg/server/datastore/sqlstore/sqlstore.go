@@ -580,14 +580,16 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 	return nil
 }
 
-func (ds *Plugin) closeDB() {
+func (ds *Plugin) Close() error {
+	var errs errs.Group
 	if ds.db != nil {
-		ds.db.Close()
+		errs.Add(ds.db.Close())
 	}
 
 	if ds.roDb != nil {
-		ds.roDb.Close()
+		errs.Add(ds.roDb.Close())
 	}
+	return errs.Err()
 }
 
 // withReadModifyWriteTx wraps the operation in a transaction appropriate for
