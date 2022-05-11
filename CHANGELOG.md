@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.5] - 2022-05-12
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
 ## [1.1.4] - 2022-04-13
 
 ### Security
