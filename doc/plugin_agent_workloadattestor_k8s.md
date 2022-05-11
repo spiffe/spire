@@ -69,10 +69,10 @@ The RFC is available [here](https://docs.google.com/document/d/1YVuu7HMHnp8nx3sC
 | k8s:pod-image-count      | The number of container images in workload's pod |
 | k8s:pod-init-image       | An Image OR ImageID of any init container in the workload's pod, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb`|
 | k8s:pod-init-image-count | The number of init container images in workload's pod |
-| k8s:image-signature-content | The value of the signature itself in a hash|
-| k8s:image-signature-subject | OIDC principal that signed it​ |
-| k8s:image-signature-logid | A unique LogID for the Rekor transparency log​  |
-| k8s:image-signature-integrated-time | The date when the image signature was integrated into the signature transparency log​ |
+| k8s:containerID:image-signature-content | The value of the signature itself in a hash (eg. "k8s:000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=")|
+| k8s:containerID:image-signature-subject | OIDC principal that signed it​ (eg. "k8s:000000:image-signature-subject:spirex@example.com")|
+| k8s:containerID:image-signature-logid | A unique LogID for the Rekor transparency log​ (eg. "k8s:000000:image-signature-logid:samplelogID") |
+| k8s:containerID:image-signature-integrated-time | The date when the image signature was integrated into the signature transparency log​ (eg. "k8s:000000:image-signature-integrated-time:12345") |
 | k8s:sigstore-validation   | The confirmation if the signature is valid, has value of "passed" (eg. "k8s:sigstore-validation:passed") |
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of 
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod, 
