@@ -305,12 +305,12 @@ func createDefaultFakeWinAPI(t *testing.T) *fakeWinAPI {
 }
 
 func strToUTF16Max(t *testing.T, s string) [windows.MAX_PATH]uint16 {
-	var resp [windows.MAX_PATH]uint16
 	u, err := syscall.UTF16FromString(s)
 	require.NoError(t, err)
-	for i, each := range u {
-		resp[i] = each
-	}
+	require.LessOrEqual(t, len(u), windows.MAX_PATH)
+
+	var resp [windows.MAX_PATH]uint16
+	_ = copy(resp[:], u)
 	return resp
 }
 
