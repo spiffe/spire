@@ -883,7 +883,6 @@ func TestFetchJWTSVID(t *testing.T) {
 
 	// expire the JWT soon, fail the fetch, and make sure cached JWT is returned
 	clk.Add(time.Second * 30)
-	now = clk.Now()
 	fetchResp.Svid = nil
 	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
 	require.NoError(t, err)
