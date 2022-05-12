@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.3.0] - 2022-05-12
+
+### Added
+- Experimental Windows support (https://github.com/spiffe/spire/projects/12)
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009, #3014, #3020, #3034)
+- Configurable leader election resource lock type for the K8s Workload Registrar (#3030)
+- Ability to fetch JWT SVIDs and JWT Bundles on behalf of workloads via the Delegated Identity API (#2789)
+- CanReattest flag to NodeAttestor responses to facilitate future features (#2646)
+
+### Fixed
+- Spurious message to STDOUT when there is no plugin_data section configured for a plugin (#2927)
+
+### Changed
+- SPIRE entries with malformed parent or SPIFFE IDs are removed on server startup (#2965)
+- SPIRE no longer prepends slashes to paths passed to the API when missing (#2963)
+- K8s Workload Registrar retries up to 5 seconds to connect to SPIRE Server (#2921)
+- Improved error messaging when unauthorized resources are requested via SDS (#2916)
+- Small documentation improvements (#2934, #2947, #3013)
+
+### Deprecated
+- The webhook mode for the K8s Workload Register has been deprecated (#2964)
+
+## [1.2.4] - 2022-05-12
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
 ## [1.2.3] - 2022-04-12
 
 ### Security
@@ -55,6 +82,12 @@
 ### Removed
 - The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
 - The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
+
+## [1.1.5] - 2022-05-12
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
 
 ## [1.1.4] - 2022-04-13
 
