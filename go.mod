@@ -6,11 +6,11 @@ require (
 	cloud.google.com/go/secretmanager v1.4.0
 	cloud.google.com/go/security v1.3.0
 	cloud.google.com/go/storage v1.22.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.23.1
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.14.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v0.7.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v0.5.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.5.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.0.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.0.0
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.30.1
 	github.com/InVisionApp/go-health/v2 v2.1.2
 	github.com/InVisionApp/go-logger v1.0.1
@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.7
-	github.com/aws/aws-sdk-go-v2/service/sts v1.16.4
+	github.com/aws/aws-sdk-go-v2/service/sts v1.16.5
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v20.10.16+incompatible
@@ -61,7 +61,7 @@ require (
 	github.com/uber-go/tally/v4 v4.1.1
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/atomic v1.9.0
-	golang.org/x/crypto v0.0.0-20211215153901-e495a2d5b3d3
+	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6
@@ -83,7 +83,7 @@ require (
 	cloud.google.com/go v0.100.2 // indirect
 	cloud.google.com/go/compute v1.6.1 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v0.9.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.20 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.18 // indirect
