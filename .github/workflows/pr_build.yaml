@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -29,7 +29,7 @@ jobs:
     needs: cache-deps
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -63,7 +63,7 @@ jobs:
     needs: cache-deps
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -82,7 +82,7 @@ jobs:
     needs: cache-deps
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -101,7 +101,7 @@ jobs:
     needs: [cache-deps]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -132,7 +132,7 @@ jobs:
     needs: [cache-deps]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -165,7 +165,7 @@ jobs:
     needs: artifact-windows
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download artifacts
         uses: actions/download-artifact@v2
         with:
@@ -188,7 +188,7 @@ jobs:
     needs: [cache-deps]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -226,7 +226,7 @@ jobs:
         runner_id: [1, 2, 3, 4, 5]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # The "upgrade" integration test needs the history to ensure
           # that the version number in the source code has been bumped as
@@ -282,7 +282,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -326,7 +326,7 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -348,7 +348,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -391,7 +391,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
@@ -423,7 +423,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
         uses: actions/setup-go@v2
         with:
