@@ -157,6 +157,16 @@
 - The server now restarts appropriately after undergoing forceful shutdown (#2496)
 - The server CLI list commands now work reliably for large listings (#2456)
 
+## [1.0.4] - 2022-05-13
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
+## [1.0.3] - 2022-01-07
+
+### Security
+- Fixed CVE-2021-44716
+
 ## [1.0.2] - 2021-09-02
 
 ### Added
