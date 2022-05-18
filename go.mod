@@ -18,7 +18,7 @@ require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.3.11
 	github.com/aws/aws-sdk-go v1.44.0
-	github.com/aws/aws-sdk-go-v2 v1.16.3
+	github.com/aws/aws-sdk-go-v2 v1.16.4
 	github.com/aws/aws-sdk-go-v2/config v1.15.6
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.17.1
@@ -51,7 +51,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.13
 	github.com/mitchellh/cli v1.1.3
 	github.com/open-policy-agent/opa v0.40.0
-	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/client_golang v1.12.2
 	github.com/shirou/gopsutil/v3 v3.22.4
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3
