@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -65,7 +65,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -84,7 +84,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -103,7 +103,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -134,7 +134,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -190,7 +190,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -234,7 +234,7 @@ jobs:
           # fetch depth of zero.
           fetch-depth: 0
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -284,7 +284,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -328,7 +328,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
@@ -350,7 +350,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -393,7 +393,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -425,7 +425,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
