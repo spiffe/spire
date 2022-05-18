@@ -168,7 +168,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Download artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: bin-windows
           path: ./bin/
@@ -260,12 +260,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-tools-
       - name: Download archived images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: images
           path: .
       - name: Download archived scratch images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: scratch-images
           path: .
@@ -323,7 +323,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             unzip
       - name: Download archived images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: images-windows
           path: .
@@ -484,7 +484,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Download archived artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: binaries
           path: ./artifacts/
@@ -507,12 +507,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Download archived images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: images
           path: .
       - name: Download archived scratch images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: scratch-images
           path: .
