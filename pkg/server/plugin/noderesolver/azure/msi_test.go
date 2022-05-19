@@ -48,8 +48,8 @@ var (
 
 type fakeAzureCredential struct{}
 
-func (f *fakeAzureCredential) GetToken(context.Context, policy.TokenRequestOptions) (*azcore.AccessToken, error) {
-	return &azcore.AccessToken{}, nil
+func (f *fakeAzureCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{}, nil
 }
 
 func TestMSIResolver(t *testing.T) {
