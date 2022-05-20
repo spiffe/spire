@@ -5,7 +5,7 @@ go 1.18
 require (
 	cloud.google.com/go/secretmanager v1.4.0
 	cloud.google.com/go/security v1.3.0
-	cloud.google.com/go/storage v1.22.0
+	cloud.google.com/go/storage v1.22.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -67,7 +67,7 @@ require (
 	golang.org/x/sys v0.0.0-20220503163025-988cb79eb6c6
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	google.golang.org/api v0.80.0
-	google.golang.org/genproto v0.0.0-20220505152158-f39f71e6c8f3
+	google.golang.org/genproto v0.0.0-20220518221133-4f43b3371335
 	google.golang.org/grpc v1.46.2
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/square/go-jose.v2 v2.6.0
