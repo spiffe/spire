@@ -21,7 +21,7 @@ The main configuration accepts the following values:
 | `cluster`       | Name of the cluster. It must correspond to a cluster configured in the server plugin. |
 | `token_path`      | Path to the service account token on disk | "/var/run/secrets/kubernetes.io/serviceaccount/token" |
 
-The token path defaults to the default location kubernetes uses to place the token and should not need to be overriden in most cases.
+The token path defaults to the default location kubernetes uses to place the token and should not need to be overridden in most cases.
 
 A sample configuration with the default token path:
 

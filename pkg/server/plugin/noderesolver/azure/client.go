@@ -29,13 +29,25 @@ type azureClient struct {
 	n              *armnetwork.InterfacesClient
 }
 
-func newAzureClient(subscriptionID string, cred azcore.TokenCredential) apiClient {
+func newAzureClient(subscriptionID string, cred azcore.TokenCredential) (apiClient, error) {
+	r, err := armresources.NewClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, err
+	}
+	v, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, err
+	}
+	n, err := armnetwork.NewInterfacesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return nil, err
+	}
 	return &azureClient{
 		subscriptionID: subscriptionID,
-		r:              armresources.NewClient(subscriptionID, cred, nil),
-		v:              armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil),
-		n:              armnetwork.NewInterfacesClient(subscriptionID, cred, nil),
-	}
+		r:              r,
+		v:              v,
+		n:              n,
+	}, nil
 }
 
 func (c *azureClient) SubscriptionID() string {
@@ -44,17 +56,17 @@ func (c *azureClient) SubscriptionID() string {
 
 func (c *azureClient) GetVirtualMachineResourceID(ctx context.Context, principalID string) (string, error) {
 	filter := fmt.Sprintf("resourceType eq 'Microsoft.Compute/virtualMachines' and identity/principalId eq '%s'", principalID)
-	listPager := c.r.List(&armresources.ClientListOptions{
+	listPager := c.r.NewListPager(&armresources.ClientListOptions{
 		Filter: &filter,
 	})
 
 	var values []*armresources.GenericResourceExpanded
-	for listPager.NextPage(ctx) {
-		values = append(values, listPager.PageResponse().ClientListResult.ResourceListResult.Value...)
-	}
-
-	if listPager.Err() != nil {
-		return "", status.Errorf(codes.Internal, "unable to list virtual machine by principal: %v", listPager.Err())
+	for listPager.More() {
+		resp, err := listPager.NextPage(ctx)
+		if err != nil {
+			return "", status.Errorf(codes.Internal, "unable to list virtual machine by principal: %v", err)
+		}
+		values = append(values, resp.ResourceListResult.Value...)
 	}
 
 	if len(values) == 0 {
@@ -75,7 +87,7 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, resourceGroup strin
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to get virtual machine: %v", err)
 	}
-	return &resp.VirtualMachinesClientGetResult.VirtualMachine, nil
+	return &resp.VirtualMachine, nil
 }
 
 func (c *azureClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*armnetwork.Interface, error) {
@@ -83,5 +95,5 @@ func (c *azureClient) GetNetworkInterface(ctx context.Context, resourceGroup str
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to get network interface: %v", err)
 	}
-	return &resp.InterfacesClientGetResult.Interface, nil
+	return &resp.Interface, nil
 }

@@ -89,7 +89,7 @@ type MSIResolverPlugin struct {
 	config *MSIResolverConfig
 
 	hooks struct {
-		newClient             func(string, azcore.TokenCredential) apiClient
+		newClient             func(string, azcore.TokenCredential) (apiClient, error)
 		fetchInstanceMetadata func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error)
 		msiCredential         func() (azcore.TokenCredential, error)
 	}
@@ -147,7 +147,10 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
 		}
-		msiClient = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+		msiClient, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to create client with MSI credential: %v", err)
+		}
 	} else {
 		if len(config.Tenants) == 0 {
 			return nil, status.Error(codes.InvalidArgument, "configuration must have at least one tenant when not using MSI")
@@ -168,7 +171,10 @@ func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.Configu
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "unable to get tenant client credential: %v", err)
 			}
-			tenantClients[tenantID] = p.hooks.newClient(tenant.SubscriptionID, cred)
+			tenantClients[tenantID], err = p.hooks.newClient(tenant.SubscriptionID, cred)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
+			}
 		}
 	}
 
