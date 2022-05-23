@@ -4,6 +4,9 @@ on:
     # Random minute number to avoid GH scheduler stampede
     - cron: '37 21 * * *'
   workflow_dispatch: {}
+permissions:
+  contents: read
+
 jobs:
   build-and-publish-images:
     runs-on: ubuntu-18.04

@@ -4,6 +4,9 @@ on:
   workflow_dispatch: {}
 env:
   GO_VERSION: 1.18.1
+permissions:
+  contents: read
+
 jobs:
   cache-deps:
     name: cache-deps (linux)
