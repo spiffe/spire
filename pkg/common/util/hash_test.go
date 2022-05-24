@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +28,7 @@ func Test_GetSHA256Digest_AboveLimit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "file")
 	require.NoError(t, ioutil.WriteFile(path, []byte("some data"), 0600))
 	hash, err := GetSHA256Digest(path, 5)
-	spiretest.RequireErrorContains(t, err, "exceeds size limit")
+	require.ErrorContains(t, err, "exceeds size limit")
 	require.Empty(t, hash)
 }
 
