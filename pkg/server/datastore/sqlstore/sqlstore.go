@@ -599,7 +599,8 @@ func (ds *Plugin) Close() error {
 // concurrently.
 func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, func(tx *gorm.DB) error {
-		if ds.db.databaseType == MySQL {
+		switch ds.db.databaseType {
+		case MySQL:
 			// MySQL REPEATABLE READ is weaker than that of PostgreSQL. Namely,
 			// PostgreSQL, beyond providing the minimum consistency guarantees
 			// mandated for REPEATABLE READ in the standard, automatically fails
@@ -610,6 +611,10 @@ func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB
 			// from update by other transactions. This is preferred to a stronger
 			// isolation level, like SERIALIZABLE, which is not supported by
 			// some MySQL-compatible databases (i.e. Percona XtraDB cluster)
+			tx = tx.Set("gorm:query_option", "FOR UPDATE")
+		case PostgreSQL:
+			// `SELECT .. FOR UPDATE`is also required when PostgreSQL is in
+			// hot standby mode for this operation to work properly (see issue #3039).
 			tx = tx.Set("gorm:query_option", "FOR UPDATE")
 		}
 		return op(tx)
