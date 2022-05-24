@@ -148,6 +148,48 @@ func TestAttest(t *testing.T) {
 			expectCode: codes.OK,
 		},
 		{
+			name: "failed to get binary path",
+			pq: &fakeProcessQuery{
+				handle:           windows.InvalidHandle,
+				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups:      &windows.Tokengroups{},
+				account:          "user1",
+				domain:           "domain1",
+				getProcessExeErr: errors.New("get process exe error"),
+			},
+			config:     "discover_workload_path = true\nworkload_size_limit = -1",
+			expectCode: codes.Internal,
+			expectMsg:  "workloadattestor(windows): failed to get process information: error getting process exe: get process exe error",
+		},
+		{
+			name: "failed to hash binary",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+				exe:         "unreadable",
+			},
+			config:     "discover_workload_path = true",
+			expectCode: codes.Internal,
+			expectMsg:  "workloadattestor(windows): SHA256 digest: open unreadable: The system cannot find the file specified.",
+		},
+		{
+			name: "binary exceeds limit size",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+				exe:         exe,
+			},
+			config:     "discover_workload_path = true\nworkload_size_limit = 2",
+			expectCode: codes.Internal,
+			expectMsg:  fmt.Sprintf("workloadattestor(windows): SHA256 digest: workload %s exceeds size limit (4 > 2)", exe),
+		},
+		{
 			name: "OpenProcess error",
 			pq: &fakeProcessQuery{
 				openProcessErr: errors.New("open process error"),
@@ -275,7 +317,7 @@ func TestAttest(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			test := setupTest()
-			p := test.loadPlugin(t, testCase.pq, testCase.config)
+			p, _ := test.loadPlugin(t, testCase.pq, testCase.config)
 
 			selectors, err := p.Attest(ctx, testPID)
 			spiretest.RequireGRPCStatus(t, err, testCase.expectCode, testCase.expectMsg)
@@ -296,20 +338,34 @@ func TestAttest(t *testing.T) {
 	}
 }
 
+func TestConfigure(t *testing.T) {
+	test := setupTest()
+
+	// malformed configuration
+	_, err := test.loadPlugin(t, &fakeProcessQuery{}, "malformed")
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to decode configuration")
+
+	// success
+	_, err = test.loadPlugin(t, &fakeProcessQuery{}, "discover_workload_path = true\nworkload_size_limit = 2")
+	require.NoError(t, err)
+}
+
 type windowsTest struct {
 	log     logrus.FieldLogger
 	logHook *test.Hook
 }
 
-func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery, config string) workloadattestor.WorkloadAttestor {
+func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery, config string) (workloadattestor.WorkloadAttestor, error) {
+	var err error
 	p := New()
 	p.q = q
 
 	v1 := new(workloadattestor.V1)
 	plugintest.Load(t, builtin(p), v1,
 		plugintest.Log(w.log),
-		plugintest.Configure(config))
-	return v1
+		plugintest.Configure(config),
+		plugintest.CaptureConfigureError(&err))
+	return v1, err
 }
 
 type fakeProcessQuery struct {
@@ -327,6 +383,7 @@ type fakeProcessQuery struct {
 	getTokenGroupsErr    error
 	closeHandleErr       error
 	closeProcessTokenErr error
+	getProcessExeErr     error
 }
 
 func (q *fakeProcessQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
@@ -377,7 +434,7 @@ func (q *fakeProcessQuery) CloseProcessToken(t windows.Token) error {
 }
 
 func (q *fakeProcessQuery) GetProcessExe(h windows.Handle) (string, error) {
-	return q.exe, nil
+	return q.exe, q.getProcessExeErr
 }
 
 func setupTest() *windowsTest {

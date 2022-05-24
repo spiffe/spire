@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"sync"
 	"syscall"
-	"unsafe"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -59,10 +58,6 @@ type processInfo struct {
 	groupsSIDs []string
 }
 
-var (
-	procQueryFullProcessImageNameW = windows.NewLazyDLL("kernel32.dll").NewProc("QueryFullProcessImageNameW")
-)
-
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
@@ -73,7 +68,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return nil, err
 	}
 
-	process, err := p.newProcessInfo(req.Pid)
+	process, err := p.newProcessInfo(req.Pid, config.DiscoverWorkloadPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get process information: %v", err)
 	}
@@ -96,7 +91,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		if config.WorkloadSizeLimit >= 0 {
 			sha256Digest, err := util.GetSHA256Digest(process.path, config.WorkloadSizeLimit)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, err.Error())
+				return nil, status.Error(codes.Internal, err.Error())
 			}
 
 			selectorValues = append(selectorValues, makeSelectorValue("sha256", sha256Digest))
@@ -108,7 +103,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
-func (p *Plugin) newProcessInfo(pid int32) (*processInfo, error) {
+func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error) {
 	p.log = p.log.With(telemetry.PID, pid)
 
 	h, err := p.q.OpenProcess(pid)
@@ -172,8 +167,10 @@ func (p *Plugin) newProcessInfo(pid int32) (*processInfo, error) {
 		processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 	}
 
-	if processInfo.path, err = p.q.GetProcessExe(h); err != nil {
-		return nil, fmt.Errorf("error getting process exe: %w", err)
+	if queryPath {
+		if processInfo.path, err = p.q.GetProcessExe(h); err != nil {
+			return nil, fmt.Errorf("error getting process exe: %w", err)
+		}
 	}
 
 	return processInfo, nil
@@ -275,20 +272,10 @@ func (q *processQuery) CloseProcessToken(t windows.Token) error {
 }
 
 func (q *processQuery) GetProcessExe(h windows.Handle) (string, error) {
-	if err := procQueryFullProcessImageNameW.Find(); err != nil {
-		return "", fmt.Errorf("procQueryFullProcessImageName name is not supported on this platform: %w", err)
-	}
-
 	buf := make([]uint16, syscall.MAX_LONG_PATH)
 	size := uint32(syscall.MAX_LONG_PATH)
-	ret, _, err := procQueryFullProcessImageNameW.Call(
-		uintptr(h),
-		uintptr(0),
-		uintptr(unsafe.Pointer(&buf[0])),
-		uintptr(unsafe.Pointer(&size)),
-	)
 
-	if ret == 0 {
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &size); err != nil {
 		return "", err
 	}
 
@@ -297,7 +284,7 @@ func (q *processQuery) GetProcessExe(h windows.Handle) (string, error) {
 
 func addSelectorValueIfNotEmpty(selectorValues []string, kind, value string) []string {
 	if value != "" {
-		return append(selectorValues, fmt.Sprintf("%s:%s", kind, value))
+		return append(selectorValues, makeSelectorValue(kind, value))
 	}
 	return selectorValues
 }

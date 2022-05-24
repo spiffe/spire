@@ -180,7 +180,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			exePath := p.getNamespacedPath(proc)
 			sha256Digest, err := util.GetSHA256Digest(exePath, config.WorkloadSizeLimit)
 			if err != nil {
-				return nil, err
+				return nil, status.Error(codes.Internal, err.Error())
 			}
 
 			selectorValues = append(selectorValues, makeSelectorValue("sha256", sha256Digest))
