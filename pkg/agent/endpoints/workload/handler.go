@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -26,6 +25,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -279,7 +279,7 @@ func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiff
 		return nil, status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	if reflect.DeepEqual(resp.GetBundles(), previousResponse.GetBundles()) {
+	if proto.Equal(resp, previousResponse) {
 		return previousResponse, nil
 	}
 
@@ -394,7 +394,7 @@ func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiffe
 		return nil, status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
 	}
 
-	if reflect.DeepEqual(resp.GetBundles(), previousResponse.GetBundles()) {
+	if proto.Equal(resp, previousResponse) {
 		return previousResponse, nil
 	}
 
