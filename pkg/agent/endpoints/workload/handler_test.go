@@ -432,7 +432,7 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
 			spiretest.RequireProtoEqual(t, expectResp[0], resp)
 
-			resp, err = stream.Recv()
+			_, err = stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.DeadlineExceeded, "context deadline exceeded")
 		})
 }
