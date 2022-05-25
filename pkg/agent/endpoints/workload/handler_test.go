@@ -321,6 +321,122 @@ func TestFetchX509Bundles(t *testing.T) {
 	}
 }
 
+func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(workloadID)
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	otherBundle := testca.New(t, td).Bundle()
+	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
+
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, otherBundle),
+		},
+	}
+
+	expectResp := []*workloadPB.X509BundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleX509,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): otherBundleX509,
+			},
+		},
+	}
+
+	params := testParams{
+		CA:                            ca,
+		Updates:                       updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
+func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(workloadID)
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+	}
+
+	expectResp := []*workloadPB.X509BundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleX509,
+			},
+		},
+	}
+
+	params := testParams{
+		CA:                            ca,
+		Updates:                       updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			stream, err := client.FetchX509Bundles(timeoutCtx, &workloadPB.X509BundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.DeadlineExceeded, "context deadline exceeded")
+		})
+}
+
 func TestFetchJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 
