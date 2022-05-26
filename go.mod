@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/secretmanager v1.4.0
-	cloud.google.com/go/security v1.3.0
+	cloud.google.com/go/security v1.4.0
 	cloud.google.com/go/storage v1.22.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.0.0
@@ -16,7 +16,7 @@ require (
 	github.com/InVisionApp/go-logger v1.0.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
-	github.com/armon/go-metrics v0.3.11
+	github.com/armon/go-metrics v0.4.0
 	github.com/aws/aws-sdk-go v1.44.0
 	github.com/aws/aws-sdk-go-v2 v1.16.4
 	github.com/aws/aws-sdk-go-v2/config v1.15.7
@@ -80,7 +80,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.100.2 // indirect
+	cloud.google.com/go v0.101.1 // indirect
 	cloud.google.com/go/compute v1.6.1 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
