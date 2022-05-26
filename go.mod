@@ -42,7 +42,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.4
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
-	github.com/hashicorp/vault/api v1.5.0
+	github.com/hashicorp/vault/api v1.6.0
 	github.com/hashicorp/vault/sdk v0.5.0
 	github.com/imdario/mergo v0.3.12
 	github.com/imkira/go-observer v1.0.3
