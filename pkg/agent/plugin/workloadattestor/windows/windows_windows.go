@@ -279,7 +279,7 @@ func (q *processQuery) GetProcessExe(h windows.Handle) (string, error) {
 		return "", err
 	}
 
-	return windows.UTF16ToString(buf[:]), nil
+	return windows.UTF16ToString(buf), nil
 }
 
 func addSelectorValueIfNotEmpty(selectorValues []string, kind, value string) []string {

@@ -23,7 +23,7 @@ Workload path enabled selectors (available when configured with `discover_worklo
 
 | Selector         | Value                                                                                                                             |
 |------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `windows:path`   | The path to the workload binary (e.g. `windows:path:C:\\Program Files\\nginx\\nginx.exe`)                                         |
+| `windows:path`   | The path to the workload binary (e.g. `windows:path:C:\Program Files\nginx\nginx.exe`)                                            |
 | `windows:sha256` | The SHA256 digest of the workload binary (e.g. `windows:sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7`) |
 
 Security Considerations:
