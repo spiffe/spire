@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -22,6 +23,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 var (
@@ -769,6 +772,18 @@ func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.
 	if c.err != nil {
 		return nil, c.err
 	}
+	if diff := cmp.Diff(in.OutputMask, &types.EntryMask{
+		SpiffeId:       true,
+		Selectors:      true,
+		FederatesWith:  true,
+		Admin:          true,
+		Downstream:     true,
+		RevisionNumber: true,
+		StoreSvid:      true,
+	}, protocmp.Transform()); diff != "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid output mask requested")
+	}
+
 	return &entryv1.GetAuthorizedEntriesResponse{
 		Entries: c.entries,
 	}, nil
