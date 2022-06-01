@@ -318,7 +318,6 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 			FederatesWith:  true,
 			Admin:          true,
 			Downstream:     true,
-			ExpiresAt:      true,
 			RevisionNumber: true,
 			StoreSvid:      true,
 		},

@@ -778,7 +778,6 @@ func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.
 		FederatesWith:  true,
 		Admin:          true,
 		Downstream:     true,
-		ExpiresAt:      true,
 		RevisionNumber: true,
 		StoreSvid:      true,
 	}, protocmp.Transform()); diff != "" {
