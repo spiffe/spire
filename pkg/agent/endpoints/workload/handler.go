@@ -141,11 +141,11 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
-	var resp *workload.JWTBundlesResponse
+	var previousResp *workload.JWTBundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if resp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, resp); err != nil {
+			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -253,11 +253,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
-	var resp *workload.X509BundlesResponse
+	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			resp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, resp)
+			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp)
 			if err != nil {
 				return err
 			}
