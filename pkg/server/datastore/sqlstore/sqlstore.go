@@ -3230,6 +3230,11 @@ func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
 		return sqlError.Wrap(err)
 	}
 
+	// Delete existing dns_names
+	if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
 	return nil
 }
 
