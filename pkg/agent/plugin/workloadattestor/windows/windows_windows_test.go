@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -42,6 +44,10 @@ var (
 )
 
 func TestAttest(t *testing.T) {
+	d := t.TempDir()
+	exe := filepath.Join(d, "exe")
+	require.NoError(t, os.WriteFile(exe, []byte("data"), 0600))
+
 	testCases := []struct {
 		name            string
 		expectSelectors []string
@@ -103,6 +109,85 @@ func TestAttest(t *testing.T) {
 				"windows:group_name:se_group_enabled:false:domain2\\group2",
 			},
 			expectCode: codes.OK,
+		},
+		{
+			name: "successful getting path and hashing process binary",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+				exe:         exe,
+			},
+			config: "discover_workload_path = true",
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+				fmt.Sprintf("windows:path:%s", exe),
+				"windows:sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name: "successful getting path, disabled hashing process binary",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+				exe:         exe,
+			},
+			config: "discover_workload_path = true\nworkload_size_limit = -1",
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+				fmt.Sprintf("windows:path:%s", exe),
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name: "failed to get binary path",
+			pq: &fakeProcessQuery{
+				handle:           windows.InvalidHandle,
+				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups:      &windows.Tokengroups{},
+				account:          "user1",
+				domain:           "domain1",
+				getProcessExeErr: errors.New("get process exe error"),
+			},
+			config:     "discover_workload_path = true\nworkload_size_limit = -1",
+			expectCode: codes.Internal,
+			expectMsg:  "workloadattestor(windows): failed to get process information: error getting process exe: get process exe error",
+		},
+		{
+			name: "failed to hash binary",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+				exe:         "unreadable",
+			},
+			config:     "discover_workload_path = true",
+			expectCode: codes.Internal,
+			expectMsg:  "workloadattestor(windows): SHA256 digest: open unreadable: The system cannot find the file specified.",
+		},
+		{
+			name: "binary exceeds limit size",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+				exe:         exe,
+			},
+			config:     "discover_workload_path = true\nworkload_size_limit = 2",
+			expectCode: codes.Internal,
+			expectMsg:  fmt.Sprintf("workloadattestor(windows): SHA256 digest: workload %s exceeds size limit (4 > 2)", exe),
 		},
 		{
 			name: "OpenProcess error",
@@ -232,7 +317,8 @@ func TestAttest(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			test := setupTest()
-			p := test.loadPlugin(t, testCase.pq)
+			p, err := test.loadPlugin(t, testCase.pq, testCase.config)
+			require.NoError(t, err)
 
 			selectors, err := p.Attest(ctx, testPID)
 			spiretest.RequireGRPCStatus(t, err, testCase.expectCode, testCase.expectMsg)
@@ -253,18 +339,34 @@ func TestAttest(t *testing.T) {
 	}
 }
 
+func TestConfigure(t *testing.T) {
+	test := setupTest()
+
+	// malformed configuration
+	_, err := test.loadPlugin(t, &fakeProcessQuery{}, "malformed")
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to decode configuration")
+
+	// success
+	_, err = test.loadPlugin(t, &fakeProcessQuery{}, "discover_workload_path = true\nworkload_size_limit = 2")
+	require.NoError(t, err)
+}
+
 type windowsTest struct {
 	log     logrus.FieldLogger
 	logHook *test.Hook
 }
 
-func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery) workloadattestor.WorkloadAttestor {
+func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery, config string) (workloadattestor.WorkloadAttestor, error) {
+	var err error
 	p := New()
 	p.q = q
 
 	v1 := new(workloadattestor.V1)
-	plugintest.Load(t, builtin(p), v1, plugintest.Log(w.log))
-	return v1
+	plugintest.Load(t, builtin(p), v1,
+		plugintest.Log(w.log),
+		plugintest.Configure(config),
+		plugintest.CaptureConfigureError(&err))
+	return v1, err
 }
 
 type fakeProcessQuery struct {
@@ -273,6 +375,7 @@ type fakeProcessQuery struct {
 	tokenGroups      *windows.Tokengroups
 	account, domain  string
 	sidAndAttributes []windows.SIDAndAttributes
+	exe              string
 
 	openProcessErr       error
 	openProcessTokenErr  error
@@ -281,6 +384,7 @@ type fakeProcessQuery struct {
 	getTokenGroupsErr    error
 	closeHandleErr       error
 	closeProcessTokenErr error
+	getProcessExeErr     error
 }
 
 func (q *fakeProcessQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
@@ -328,6 +432,10 @@ func (q *fakeProcessQuery) CloseHandle(h windows.Handle) error {
 
 func (q *fakeProcessQuery) CloseProcessToken(t windows.Token) error {
 	return q.closeProcessTokenErr
+}
+
+func (q *fakeProcessQuery) GetProcessExe(h windows.Handle) (string, error) {
+	return q.exe, q.getProcessExeErr
 }
 
 func setupTest() *windowsTest {

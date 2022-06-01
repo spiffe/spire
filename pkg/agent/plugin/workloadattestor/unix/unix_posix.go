@@ -6,10 +6,7 @@ package unix
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -24,6 +21,7 @@ import (
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -180,9 +178,9 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 		if config.WorkloadSizeLimit >= 0 {
 			exePath := p.getNamespacedPath(proc)
-			sha256Digest, err := getSHA256Digest(exePath, config.WorkloadSizeLimit)
+			sha256Digest, err := util.GetSHA256Digest(exePath, config.WorkloadSizeLimit)
 			if err != nil {
-				return nil, err
+				return nil, status.Error(codes.Internal, err.Error())
 			}
 
 			selectorValues = append(selectorValues, makeSelectorValue("sha256", sha256Digest))
@@ -280,30 +278,6 @@ func (p *Plugin) getPath(proc processInfo) (string, error) {
 
 func (p *Plugin) getNamespacedPath(proc processInfo) string {
 	return proc.NamespacedExe()
-}
-
-func getSHA256Digest(path string, limit int64) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", status.Errorf(codes.Internal, "SHA256 digest: %v", err)
-	}
-	defer f.Close()
-
-	if limit > 0 {
-		fi, err := f.Stat()
-		if err != nil {
-			return "", status.Errorf(codes.Internal, "SHA256 digest: %v", err)
-		}
-		if fi.Size() > limit {
-			return "", status.Errorf(codes.Internal, "SHA256 digest: workload %s exceeds size limit (%d > %d)", path, fi.Size(), limit)
-		}
-	}
-
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", status.Errorf(codes.Internal, "SHA256 digest: %v", err)
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func makeSelectorValue(kind, value string) string {
