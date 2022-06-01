@@ -389,6 +389,9 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 	bundle := ca.Bundle()
 	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
 
+	otherBundle := testca.New(t, td).Bundle()
+	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
+
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
@@ -402,12 +405,23 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 			},
 			Bundle: utilBundleFromBundle(t, bundle),
 		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, otherBundle),
+		},
 	}
 
 	expectResp := []*workloadPB.X509BundlesResponse{
 		{
 			Bundles: map[string][]byte{
 				bundle.TrustDomain().IDString(): bundleX509,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): otherBundleX509,
 			},
 		},
 	}
@@ -422,18 +436,19 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 
 	runTest(t, params,
 		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
-			timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-
-			stream, err := client.FetchX509Bundles(timeoutCtx, &workloadPB.X509BundlesRequest{})
+			stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
 			require.NoError(t, err)
 
+			// First response should be the original update.
 			resp, err := stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
 			spiretest.RequireProtoEqual(t, expectResp[0], resp)
 
-			_, err = stream.Recv()
-			spiretest.RequireGRPCStatus(t, err, codes.DeadlineExceeded, "context deadline exceeded")
+			// Next response should be the third update, as the second contained
+			// no bundle changes and should have been skipped.
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
 		})
 }
 
