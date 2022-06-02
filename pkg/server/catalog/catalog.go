@@ -132,7 +132,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfig := config.PluginConfig[dataStoreType]
 	delete(config.PluginConfig, dataStoreType)
-	sqlDataStore, err := loadSQLDataStore(config.Log, dataStoreConfig)
+	sqlDataStore, err := loadSQLDataStore(ctx, config.Log, dataStoreConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
-func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (*ds_sql.Plugin, error) {
+func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (*ds_sql.Plugin, error) {
 	switch {
 	case len(datastoreConfig) == 0:
 		return nil, errors.New("expecting a DataStore plugin")
@@ -197,7 +197,7 @@ func loadSQLDataStore(log logrus.FieldLogger, datastoreConfig map[string]catalog
 	}
 
 	ds := ds_sql.New(log.WithField(telemetry.SubsystemName, sqlConfig.Name))
-	if err := ds.Configure(sqlConfig.Data); err != nil {
+	if err := ds.Configure(ctx, sqlConfig.Data); err != nil {
 		return nil, err
 	}
 	return ds, nil

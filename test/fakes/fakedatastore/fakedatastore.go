@@ -20,6 +20,8 @@ import (
 )
 
 var (
+	ctx = context.Background()
+
 	nextID uint32
 )
 
@@ -35,7 +37,7 @@ func New(tb testing.TB) *DataStore {
 
 	ds := sql.New(log)
 
-	err := ds.Configure(fmt.Sprintf(`
+	err := ds.Configure(ctx, fmt.Sprintf(`
 		database_type = "sqlite3"
 		connection_string = "file:memdb%d?mode=memory&cache=shared"
 	`, atomic.AddUint32(&nextID, 1)))
