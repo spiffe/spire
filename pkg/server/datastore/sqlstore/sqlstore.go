@@ -506,7 +506,8 @@ func (ds *Plugin) UpdateFederationRelationship(ctx context.Context, fr *datastor
 	})
 }
 
-// Configure parses HCL config payload into config struct, and opens new DB based on the result
+// Configure parses HCL config payload into config struct, opens new DB based on the result, and
+// prunes all orphaned records
 func (ds *Plugin) Configure(hclConfiguration string) error {
 	config := &configuration{}
 	if err := hcl.Decode(config, hclConfiguration); err != nil {
@@ -521,6 +522,12 @@ func (ds *Plugin) Configure(hclConfiguration string) error {
 	defer ds.mu.Unlock()
 
 	if err := ds.openConnection(config, false); err != nil {
+		return err
+	}
+
+	if err := ds.withWriteTx(context.Background(), func(tx *gorm.DB) (err error) {
+		return pruneOrphanedRecords(tx, ds.log)
+	}); err != nil {
 		return err
 	}
 
@@ -628,7 +635,7 @@ func (ds *Plugin) withWriteTx(ctx context.Context, op func(tx *gorm.DB) error) e
 	return ds.withTx(ctx, op, false)
 }
 
-// withWriteTx wraps the operation in a transaction appropriate for operations
+// withReadTx wraps the operation in a transaction appropriate for operations
 // that only read rows.
 func (ds *Plugin) withReadTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, op, true)
@@ -3799,4 +3806,31 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	default:
 		return nil, nil
 	}
+}
+
+// pruneOrphanedRecords will delete from the database any table rows which have become orphaned.
+func pruneOrphanedRecords(tx *gorm.DB, logger logrus.FieldLogger) error {
+	// Delete selectors which were left behind during registered_entry deletion.
+	// The issue allowing orphaned selector records was fixed in #1191
+	// TODO: remove in 1.5.0 (see #3131)
+	if res := tx.Exec("DELETE FROM selectors WHERE registered_entry_id NOT IN (SELECT id FROM registered_entries)"); res.Error != nil {
+		return sqlError.Wrap(res.Error)
+	} else if (res.RowsAffected > 0) {
+		logger.WithFields(logrus.Fields{
+			telemetry.Count: res.RowsAffected,
+		}).Info("Pruned orphaned selectors")
+	}
+
+	// Delete dns_names which were left behind during registered_entry deletion.
+	// The issue allowing orphaned dns_name records was reported in #3126 and fixed in #3127
+	// TODO: remove in 1.5.0 (see #3131)
+	if res := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id NOT IN (SELECT id FROM registered_entries)"); res.Error != nil {
+		return sqlError.Wrap(res.Error)
+	} else if (res.RowsAffected > 0) {
+		logger.WithFields(logrus.Fields{
+			telemetry.Count: res.RowsAffected,
+		}).Info("Pruned orphaned dns_names")
+	}
+
+	return nil
 }
