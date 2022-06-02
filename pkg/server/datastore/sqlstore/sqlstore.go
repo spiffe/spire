@@ -518,16 +518,20 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 		return err
 	}
 
+	if err := ds.openConnections(config); err != nil {
+		return err
+	}
+
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return pruneOrphanedRecords(tx, ds.log)
+	})
+}
+
+func (ds *Plugin) openConnections(config *configuration) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
 	if err := ds.openConnection(config, false); err != nil {
-		return err
-	}
-
-	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return pruneOrphanedRecords(tx, ds.log)
-	}); err != nil {
 		return err
 	}
 
