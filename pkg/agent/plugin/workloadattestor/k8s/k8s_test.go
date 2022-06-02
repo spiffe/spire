@@ -249,7 +249,7 @@ func (s *Suite) TestAttestWithSigstoreSignatures() {
 		},
 	})
 	p := s.loadInsecurePlugin()
-	s.requireAttestSuccessWithPodandSignature(p)
+	s.requireAttestSuccessWithPodAndSignature(p)
 	s.setSigstoreSelectors(nil)
 }
 
@@ -259,7 +259,7 @@ func (s *Suite) TestAttestWithSigstoreSkippedImage() {
 	s.setSigstoreSkipSigs(true)
 	s.setSigstoreSkippedSigSelectors([]string{"sigstore-validation:passed"})
 	p := s.loadInsecurePlugin()
-	s.requireAttestSuccessWithPodandSkippedImage(p)
+	s.requireAttestSuccessWithPodAndSkippedImage(p)
 	s.setSigstoreSkipSigs(false)
 	s.setSigstoreSkippedSigSelectors(nil)
 }
@@ -1092,13 +1092,13 @@ func (s *Suite) requireAttestSuccessWithPod(p workloadattestor.WorkloadAttestor)
 	s.requireAttestSuccess(p, testPodSelectors)
 }
 
-func (s *Suite) requireAttestSuccessWithPodandSignature(p workloadattestor.WorkloadAttestor) {
+func (s *Suite) requireAttestSuccessWithPodAndSignature(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 	s.requireAttestSuccess(p, testSigstoreSelectors)
 }
 
-func (s *Suite) requireAttestSuccessWithPodandSkippedImage(p workloadattestor.WorkloadAttestor) {
+func (s *Suite) requireAttestSuccessWithPodAndSkippedImage(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
 	s.requireAttestSuccess(p, testSigstoreSkippedSelectors)

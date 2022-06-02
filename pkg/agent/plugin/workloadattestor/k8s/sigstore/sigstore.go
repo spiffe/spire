@@ -97,8 +97,7 @@ func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string) ([]oci.Sign
 		return nil, errors.New(message)
 	}
 
-	_, err = sigstore.ValidateImage(ref)
-	if err != nil {
+	if _, err := sigstore.ValidateImage(ref); err != nil {
 		message := fmt.Sprint("Could not validate image reference digest: ", err.Error())
 		return nil, errors.New(message)
 	}
@@ -120,7 +119,6 @@ func (sigstore *Sigstoreimpl) FetchImageSignatures(imageName string) ([]oci.Sign
 
 // ExtractSelectorsFromSignatures extracts selectors from a list of image signatures.
 // returns a list of selector strings.
-
 func (sigstore *Sigstoreimpl) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures {
 	// Payload can be empty if the attestor fails to retrieve it
 	if signatures == nil {
@@ -139,7 +137,7 @@ func (sigstore *Sigstoreimpl) ExtractSelectorsFromSignatures(signatures []oci.Si
 
 func getSignatureSubject(signature oci.Signature) (string, error) {
 	if signature == nil {
-		return "", errors.New("Signature is nil")
+		return "", errors.New("signature is nil")
 	}
 	ss := payload.SimpleContainerImage{}
 	pl, err := signature.Payload()
@@ -190,28 +188,28 @@ type BundleBody struct {
 
 func getBundleSignatureContent(bundle *oci.Bundle) (string, error) {
 	if bundle == nil {
-		return "", errors.New("Bundle is nil")
+		return "", errors.New("bundle is nil")
 	}
 	body64, ok := bundle.Payload.Body.(string)
 	if !ok {
-		return "", errors.New("Payload body is not a string")
+		return "", errors.New("payload body is not a string")
 	}
 	body, err := base64.StdEncoding.DecodeString(body64)
 	if err != nil {
 		return "", err
 	}
-	var bundlebody BundleBody
-	err = json.Unmarshal(body, &bundlebody)
+	var bundleBody BundleBody
+	err = json.Unmarshal(body, &bundleBody)
 
 	if err != nil {
 		return "", err
 	}
 
-	if bundlebody.Spec.Signature.Content == "" {
-		return "", errors.New("Bundle payload body has no signature content")
+	if bundleBody.Spec.Signature.Content == "" {
+		return "", errors.New("bundle payload body has no signature content")
 	}
 
-	return bundlebody.Spec.Signature.Content, nil
+	return bundleBody.Spec.Signature.Content, nil
 }
 
 type SelectorsFromSignatures struct {
@@ -229,7 +227,7 @@ func (sigstore *Sigstoreimpl) SelectorValuesFromSignature(signature oci.Signatur
 	var selectorsFromSignatures SelectorsFromSignatures
 
 	if err != nil {
-		sigstore.logger.Error("Error getting signature subject: ", err.Error())
+		sigstore.logger.Error("Error getting signature subject", "error", err)
 		return selectorsFromSignatures
 	}
 
@@ -255,7 +253,7 @@ func (sigstore *Sigstoreimpl) SelectorValuesFromSignature(signature oci.Signatur
 		} else {
 			sigContent, err := getBundleSignatureContent(bundle)
 			if err != nil {
-				sigstore.logger.Error("Error getting signature content: ", err.Error())
+				sigstore.logger.Error("Error getting signature content", "error", err)
 			} else {
 				selectorsFromSignatures.Content = sigContent
 			}
@@ -291,14 +289,15 @@ func certSubject(c *x509.Certificate) string {
 	switch {
 	case c == nil:
 		return ""
-	case c.EmailAddresses != nil:
+	case len(c.EmailAddresses) > 0:
 		return c.EmailAddresses[0]
-	case c.URIs != nil:
+	case len(c.URIs) > 0:
 		// removing leading '//' from c.URIs[0].String()
 		re := regexp.MustCompile(`^\/*(?P<email>.*)`)
 		return re.ReplaceAllString(c.URIs[0].String(), "$email")
+	default:
+		return ""
 	}
-	return ""
 }
 
 // ShouldSkipImage checks the skip list for the image ID in the container status.
@@ -309,7 +308,7 @@ func (sigstore *Sigstoreimpl) ShouldSkipImage(imageID string) (bool, error) {
 		return false, nil
 	}
 	if imageID == "" {
-		return false, errors.New("Image ID is empty")
+		return false, errors.New("image ID is empty")
 	}
 	if _, ok := sigstore.skippedImages[imageID]; ok {
 		return true, nil
@@ -333,14 +332,14 @@ func (sigstore *Sigstoreimpl) ClearSkipList() {
 	sigstore.skippedImages = nil
 }
 
-// Validates if the image manifest hash matches the digest in the image reference
+// ValidateImage validates if the image manifest hash matches the digest in the image reference
 func (sigstore *Sigstoreimpl) ValidateImage(ref name.Reference) (bool, error) {
 	desc, err := sigstore.fetchImageManifestFunction(ref)
 	if err != nil {
 		return false, err
 	}
 	if desc.Manifest == nil {
-		return false, errors.New("Manifest is nil")
+		return false, errors.New("manifest is nil")
 	}
 	hash, _, err := v1.SHA256(bytes.NewReader(desc.Manifest))
 	if err != nil {
@@ -355,9 +354,9 @@ func validateRefDigest(ref name.Reference, digest string) (bool, error) {
 		if dgst.DigestStr() == digest {
 			return true, nil
 		}
-		return false, fmt.Errorf("Digest %s does not match %s", digest, dgst.DigestStr())
+		return false, fmt.Errorf("digest %s does not match %s", digest, dgst.DigestStr())
 	}
-	return false, fmt.Errorf("Reference %s is not a digest", ref.String())
+	return false, fmt.Errorf("reference %s is not a digest", ref.String())
 }
 
 func (sigstore *Sigstoreimpl) AddAllowedSubject(subject string) {
@@ -422,7 +421,7 @@ func (sigstore *Sigstoreimpl) AttestContainerSignatures(status *corev1.Container
 
 func (sigstore *Sigstoreimpl) SetRekorURL(rekorURL string) error {
 	if rekorURL == "" {
-		return errors.New("Rekor URL is empty")
+		return errors.New("rekor URL is empty")
 	}
 	rekorURI, err := url.Parse(rekorURL)
 	if err != nil {

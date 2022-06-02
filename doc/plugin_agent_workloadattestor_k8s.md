@@ -47,11 +47,13 @@ server name validation against the kubelet certificate.
 | `allowed_subjects_list`| The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. |
 | `rekor_url` | The URL for the rekor STL Server to use with cosign.  |
 
-## Sigstore workload attestor for SPIRE
+### Sigstore workload attestor for SPIRE
 
 The k8s workload attestor plugins has also capabilities to validate images signatures through [sigstore](https://www.sigstore.dev/)
 
 The RFC is available [here](https://docs.google.com/document/d/1YVuu7HMHnp8nx3sCPx7R2lCfjjno363s4oiPlI6axF4/edit#heading=h.ttn87ugq19sb) for reference.
+
+### K8s selectors
 
 | Selector | Value |
 | -------- | ----- |

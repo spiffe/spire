@@ -70,7 +70,7 @@ func TestNewCache(t *testing.T) {
 				size:     3,
 				items:    list.New(),
 				mutex:    sync.RWMutex{},
-				itensMap: make(map[string]MapItem),
+				itemsMap: make(map[string]MapItem),
 			},
 		},
 	}
@@ -100,7 +100,7 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 		size:     3,
 		items:    items,
 		mutex:    sync.RWMutex{},
-		itensMap: m,
+		itemsMap: m,
 	}
 
 	tests := []struct {
@@ -140,7 +140,7 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 		size:     2,
 		items:    items,
 		mutex:    sync.RWMutex{},
-		itensMap: m,
+		itemsMap: m,
 	}
 
 	tests := []struct {
