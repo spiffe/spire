@@ -508,7 +508,7 @@ func (ds *Plugin) UpdateFederationRelationship(ctx context.Context, fr *datastor
 
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
-func (ds *Plugin) Configure(hclConfiguration string) error {
+func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
 	config := &configuration{}
 	if err := hcl.Decode(config, hclConfiguration); err != nil {
 		return err
@@ -525,7 +525,7 @@ func (ds *Plugin) Configure(hclConfiguration string) error {
 		return err
 	}
 
-	if err := ds.withWriteTx(context.Background(), func(tx *gorm.DB) (err error) {
+	if err := ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return pruneOrphanedRecords(tx, ds.log)
 	}); err != nil {
 		return err
@@ -3815,10 +3815,8 @@ func pruneOrphanedRecords(tx *gorm.DB, logger logrus.FieldLogger) error {
 	// TODO: remove in 1.5.0 (see #3131)
 	if res := tx.Exec("DELETE FROM selectors WHERE registered_entry_id NOT IN (SELECT id FROM registered_entries)"); res.Error != nil {
 		return sqlError.Wrap(res.Error)
-	} else if (res.RowsAffected > 0) {
-		logger.WithFields(logrus.Fields{
-			telemetry.Count: res.RowsAffected,
-		}).Info("Pruned orphaned selectors")
+	} else if res.RowsAffected > 0 {
+		logger.WithField(telemetry.Count, res.RowsAffected).Info("Pruned orphaned selectors")
 	}
 
 	// Delete dns_names which were left behind during registered_entry deletion.
@@ -3826,10 +3824,8 @@ func pruneOrphanedRecords(tx *gorm.DB, logger logrus.FieldLogger) error {
 	// TODO: remove in 1.5.0 (see #3131)
 	if res := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id NOT IN (SELECT id FROM registered_entries)"); res.Error != nil {
 		return sqlError.Wrap(res.Error)
-	} else if (res.RowsAffected > 0) {
-		logger.WithFields(logrus.Fields{
-			telemetry.Count: res.RowsAffected,
-		}).Info("Pruned orphaned dns_names")
+	} else if res.RowsAffected > 0 {
+		logger.WithField(telemetry.Count, res.RowsAffected).Info("Pruned orphaned dns_names")
 	}
 
 	return nil

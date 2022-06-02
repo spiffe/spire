@@ -477,7 +477,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 func BenchmarkBuildSQL(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 	ctx := context.Background()
-	ds := newSQLPlugin(b)
+	ds := newSQLPlugin(ctx, b)
 
 	for _, entry := range allEntries {
 		e, _ := api.ProtoToRegistrationEntry(context.Background(), td, entry)
@@ -732,7 +732,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	return allEntries, agents
 }
 
-func newSQLPlugin(tb testing.TB) datastore.DataStore {
+func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 	log, _ := test.NewNullLogger()
 	p := sqlds.New(log)
 
@@ -770,7 +770,7 @@ func newSQLPlugin(tb testing.TB) datastore.DataStore {
 		require.FailNowf(tb, "Unsupported external test dialect %q", TestDialect)
 	}
 
-	err := p.Configure(cfg)
+	err := p.Configure(ctx, cfg)
 	require.NoError(tb, err)
 
 	return p

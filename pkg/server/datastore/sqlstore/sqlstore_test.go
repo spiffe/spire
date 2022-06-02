@@ -135,7 +135,7 @@ func (s *PluginSuite) newPlugin() *Plugin {
 	case "":
 		s.nextID++
 		dbPath := filepath.ToSlash(filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID)))
-		err := ds.Configure(fmt.Sprintf(`
+		err := ds.Configure(ctx, fmt.Sprintf(`
 			database_type = "sqlite3"
 			log_sql = true
 			connection_string = "%s"
@@ -159,7 +159,7 @@ func (s *PluginSuite) newPlugin() *Plugin {
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipeMySQL(s.T(), TestConnString)
-		err := ds.Configure(fmt.Sprintf(`
+		err := ds.Configure(ctx, fmt.Sprintf(`
 			database_type = "mysql"
 			log_sql = true
 			connection_string = "%s"
@@ -170,7 +170,7 @@ func (s *PluginSuite) newPlugin() *Plugin {
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipePostgres(s.T(), TestConnString)
-		err := ds.Configure(fmt.Sprintf(`
+		err := ds.Configure(ctx, fmt.Sprintf(`
 			database_type = "postgres"
 			log_sql = true
 			connection_string = "%s"
@@ -185,7 +185,7 @@ func (s *PluginSuite) newPlugin() *Plugin {
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
-	err := s.ds.Configure(`
+	err := s.ds.Configure(ctx, `
 		database_type = "wrong"
 		connection_string = "bad"
 	`)
@@ -193,19 +193,19 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 }
 
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
-	err := s.ds.Configure(`
+	err := s.ds.Configure(ctx, `
 		database_type = "mysql"
 		connection_string = "username:@tcp(127.0.0.1)/spire_test"
 	`)
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
 
-	err = s.ds.Configure(`
+	err = s.ds.Configure(ctx, `
 		database_type = "mysql"
 		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
 	`)
 	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
 
-	err = s.ds.Configure(`
+	err = s.ds.Configure(ctx, `
 		database_type = "mysql"
 	`)
 	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
@@ -3921,7 +3921,7 @@ func (s *PluginSuite) TestMigration() {
 					dump = minimalDB()
 				}
 				dumpDB(t, dbPath, dump)
-				err := s.ds.Configure(fmt.Sprintf(`
+				err := s.ds.Configure(ctx, fmt.Sprintf(`
 					database_type = "sqlite3"
 					connection_string = %q
 				`, dbURI))
@@ -4093,7 +4093,7 @@ func (s *PluginSuite) TestConfigure() {
 			log, _ := test.NewNullLogger()
 
 			p := New(log)
-			err := p.Configure(fmt.Sprintf(`
+			err := p.Configure(ctx, fmt.Sprintf(`
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
