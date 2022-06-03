@@ -59,7 +59,8 @@ func TestShow(t *testing.T) {
 		{
 			name: "List all entries (empty filter)",
 			expListReq: &entryv1.ListEntriesRequest{
-				Filter: &entryv1.ListEntriesRequest_Filter{},
+				PageSize: listEntriesRequestPageSize,
+				Filter:   &entryv1.ListEntriesRequest_Filter{},
 			},
 			fakeListResp: fakeRespAll,
 			expOut: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
@@ -92,6 +93,7 @@ func TestShow(t *testing.T) {
 			name: "List by parentID",
 			args: []string{"-parentID", "spiffe://example.org/father"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
 				},
@@ -111,6 +113,7 @@ func TestShow(t *testing.T) {
 			name: "List by SPIFFE ID",
 			args: []string{"-spiffeID", "spiffe://example.org/daughter"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
 				},
@@ -130,6 +133,7 @@ func TestShow(t *testing.T) {
 			name: "List by selectors: default matcher",
 			args: []string{"-selector", "foo:bar", "-selector", "bar:baz"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
@@ -149,6 +153,7 @@ func TestShow(t *testing.T) {
 			name: "List by selectors: exact matcher",
 			args: []string{"-selector", "foo:bar", "-selector", "bar:baz", "-matchSelectorsOn", "exact"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
@@ -168,6 +173,7 @@ func TestShow(t *testing.T) {
 			name: "List by selectors: superset matcher",
 			args: []string{"-selector", "foo:bar", "-selector", "bar:baz", "-matchSelectorsOn", "superset"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
@@ -187,6 +193,7 @@ func TestShow(t *testing.T) {
 			name: "List by selectors: subset matcher",
 			args: []string{"-selector", "foo:bar", "-selector", "bar:baz", "-matchSelectorsOn", "subset"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
@@ -206,6 +213,7 @@ func TestShow(t *testing.T) {
 			name: "List by selectors: Any matcher",
 			args: []string{"-selector", "foo:bar", "-selector", "bar:baz", "-matchSelectorsOn", "any"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySelectors: &types.SelectorMatch{
 						Selectors: []*types.Selector{
@@ -235,6 +243,7 @@ func TestShow(t *testing.T) {
 			name: "Server error",
 			args: []string{"-spiffeID", "spiffe://example.org/daughter"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
 				},
@@ -246,6 +255,7 @@ func TestShow(t *testing.T) {
 			name: "List by Federates With: default matcher",
 			args: []string{"-federatesWith", "spiffe://domain.test"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{"spiffe://domain.test"},
@@ -262,6 +272,7 @@ func TestShow(t *testing.T) {
 			name: "List by Federates With: exact matcher",
 			args: []string{"-federatesWith", "spiffe://domain.test", "-matchFederatesWithOn", "exact"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{"spiffe://domain.test"},
@@ -278,6 +289,7 @@ func TestShow(t *testing.T) {
 			name: "List by Federates With: Any matcher",
 			args: []string{"-federatesWith", "spiffe://domain.test", "-matchFederatesWithOn", "any"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{"spiffe://domain.test"},
@@ -294,6 +306,7 @@ func TestShow(t *testing.T) {
 			name: "List by Federates With: superset matcher",
 			args: []string{"-federatesWith", "spiffe://domain.test", "-matchFederatesWithOn", "superset"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{"spiffe://domain.test"},
@@ -310,6 +323,7 @@ func TestShow(t *testing.T) {
 			name: "List by Federates With: subset matcher",
 			args: []string{"-federatesWith", "spiffe://domain.test", "-matchFederatesWithOn", "subset"},
 			expListReq: &entryv1.ListEntriesRequest{
+				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{"spiffe://domain.test"},
