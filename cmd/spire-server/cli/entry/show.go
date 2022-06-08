@@ -15,7 +15,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const listEntriesRequestPageSize = 1000
+const listEntriesRequestPageSize = 500
 
 // NewShowCommand creates a new "show" subcommand for "entry" command.
 func NewShowCommand() cli.Command {
