@@ -6,16 +6,14 @@
 - The `windows` workload attestor gained a new `sha256` selector that can attest the SHA256 digest of the workload binary (#3100)
 
 ### Fixed
-- All records related with registration entries are now also deleted when a registration entry is deleted (#3127)
-- Removed orphaned database records related with registration entries (#3132)
-- Re-introduced entry output mask on agent FetchX509SVID sync with the server (#3123)
+- Database rows related to registration entries are now properly removed (#3127, #3132)
+- Agent reduces bandwidth use by requesting only required information when syncing with the server (#3123)
 - Issue with read-modify-write operations when using PostgreSQL datastore in hot standby mode (#3103)
 
 ### Changed
-- FetchX509Bundles RPC now only sends the updates when there are new bundles, preventing spurious updates (#3102)
+- FetchX509Bundles RPC no longer sends spurious updates that contain no changes (#3102)
 - Warn if the built-in `join_token` node attestor is attempted to be overridden by an external plugin (#3045)
-- Datastore is now closed when the catalog is shut down and logging was improved (#3047)
-- Updated the CRD registrar quickstart to use SPIRE 1.3.0, and small documentation improvements (#3061)
+- Database connections are now proactively closed when SPIRE server is shut down (#3047)
 
 ## [1.3.0] - 2022-05-12
 
