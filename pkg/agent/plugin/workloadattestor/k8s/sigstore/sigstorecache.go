@@ -17,14 +17,14 @@ type Cache interface {
 	PutSignature(Item)
 }
 
-//
+// Map for signatures is created
 type MapItem struct {
 	element *list.Element
 	item    *Item
 }
 
-// Cacheimpl implements Cache interface
-type Cacheimpl struct {
+// cacheImpl implements Cache interface
+type cacheImpl struct {
 	size     int
 	items    *list.List
 	mutex    sync.RWMutex
@@ -33,7 +33,7 @@ type Cacheimpl struct {
 
 // NewCache creates and returns a new cache
 func NewCache(maximumAmountCache int) Cache {
-	return &Cacheimpl{
+	return &cacheImpl{
 		size:     maximumAmountCache,
 		items:    list.New(),
 		mutex:    sync.RWMutex{},
@@ -43,7 +43,7 @@ func NewCache(maximumAmountCache int) Cache {
 
 // GetSignature returns an existing item from the cache.
 // Get also moves the existing item to the front of the items list to indicate that the existing item is recently used.
-func (c *Cacheimpl) GetSignature(key string) *Item {
+func (c *cacheImpl) GetSignature(key string) *Item {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -60,7 +60,7 @@ func (c *Cacheimpl) GetSignature(key string) *Item {
 // PutSignature puts a new item into the cache.
 // Put removes the least recently used item from the items list when the cache is full.
 // Put pushes the new item to the front of the items list to indicate that the new item is recently used.
-func (c *Cacheimpl) PutSignature(i Item) {
+func (c *cacheImpl) PutSignature(i Item) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 

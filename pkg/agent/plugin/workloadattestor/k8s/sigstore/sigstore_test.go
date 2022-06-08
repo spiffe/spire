@@ -111,7 +111,7 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			name: "New",
-			want: &Sigstoreimpl{
+			want: &sigstoreImpl{
 				verifyFunction:             cosign.VerifyImageSignatures,
 				fetchImageManifestFunction: remote.Get,
 				skippedImages:              nil,
@@ -353,7 +353,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := Sigstoreimpl{
+			sigstore := sigstoreImpl{
 				verifyFunction:             tt.fields.verifyFunction,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 				sigstorecache:              NewCache(maximumAmountCache),
@@ -361,11 +361,11 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			}
 			got, err := sigstore.FetchImageSignatures(tt.args.imageName)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Sigstoreimpl.FetchImageSignatures() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("sigstoreImpl.FetchImageSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Sigstoreimpl.FetchImageSignatures() = %v, want %v", got, tt.want)
+				t.Errorf("sigstoreImpl.FetchImageSignatures() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -583,12 +583,12 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := Sigstoreimpl{
+			s := sigstoreImpl{
 				verifyFunction: tt.fields.verifyFunction,
 				logger:         hclog.Default(),
 			}
 			if got := s.ExtractSelectorsFromSignatures(tt.args.signatures, tt.containerID); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Sigstoreimpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
+				t.Errorf("sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -837,16 +837,16 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := Sigstoreimpl{
+			sigstore := sigstoreImpl{
 				skippedImages: tt.fields.skippedImages,
 			}
 			got, err := sigstore.ShouldSkipImage(tt.args.imageID)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Sigstoreimpl.SkipImage() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("sigstoreImpl.SkipImage() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Sigstoreimpl.SkipImage() = %v, want %v", got, tt.want)
+				t.Errorf("sigstoreImpl.SkipImage() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -959,7 +959,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := Sigstoreimpl{
+			sigstore := sigstoreImpl{
 				verifyFunction:             tt.fields.verifyFunction,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 				skippedImages:              tt.fields.skippedImages,
@@ -1028,7 +1028,7 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				verifyFunction:             tt.fields.verifyFunction,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 				skippedImages:              tt.fields.skippedImages,
@@ -1109,18 +1109,18 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				verifyFunction:             tt.fields.verifyFunction,
 				skippedImages:              tt.fields.skippedImages,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 			}
 			got, err := sigstore.ValidateImage(tt.args.ref)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Sigstoreimpl.ValidateImage() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("sigstoreImpl.ValidateImage() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("Sigstoreimpl.ValidateImage() = %v, want %v", got, tt.want)
+				t.Errorf("sigstoreImpl.ValidateImage() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -1209,7 +1209,7 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				subjectAllowList: tt.fields.subjectAllowList,
 			}
 			sigstore.AddAllowedSubject(tt.args.subject)
@@ -1246,7 +1246,7 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				subjectAllowList: tt.fields.subjectAllowList,
 			}
 			sigstore.ClearAllowedSubjects()
@@ -1293,7 +1293,7 @@ func TestSigstoreimpl_EnableAllowSubjectList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				allowListEnabled: tt.fields.allowListEnabled,
 			}
 			sigstore.EnableAllowSubjectList(tt.args.flag)
@@ -1462,13 +1462,13 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				allowListEnabled: tt.fields.allowListEnabled,
 				subjectAllowList: tt.fields.subjectAllowList,
 				logger:           hclog.Default(),
 			}
 			if got := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Sigstoreimpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
+				t.Errorf("sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -1689,7 +1689,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				verifyFunction:             tt.fields.verifyFunction,
 				fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
 				skippedImages:              tt.fields.skippedImages,
@@ -1700,11 +1700,11 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 			}
 			got, err := sigstore.AttestContainerSignatures(&tt.status)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Sigstoreimpl.AttestContainerSignatures() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("sigstoreImpl.AttestContainerSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Sigstoreimpl.AttestContainerSignatures() = %v, want %v", got, tt.want)
+				t.Errorf("sigstoreImpl.AttestContainerSignatures() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -1791,14 +1791,14 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &Sigstoreimpl{
+			sigstore := &sigstoreImpl{
 				rekorURL: tt.fields.rekorURL,
 			}
 			if err := sigstore.SetRekorURL(tt.args.rekorURL); (err != nil) != tt.wantErr {
-				t.Errorf("Sigstoreimpl.SetRekorURL() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("sigstoreImpl.SetRekorURL() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if !reflect.DeepEqual(sigstore.rekorURL, tt.want) {
-				t.Errorf("Sigstoreimpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
+				t.Errorf("sigstoreImpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
 			}
 		})
 	}

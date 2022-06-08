@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/hashicorp/go-hclog"
 	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
@@ -725,15 +724,15 @@ func (s *Suite) TestConfigure() {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
-			if testCase.sigstoreError != nil {
-				p.sigstore.(*SigstoreMock).returnError = testCase.sigstoreError
-			}
+
+			p.sigstore.(*sigstoreMock).returnError = testCase.sigstoreError
+			
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
 				plugintest.Configure(testCase.hcl),
 				plugintest.CaptureConfigureError(&err))
 			if testCase.sigstoreError != nil {
-				p.sigstore.(*SigstoreMock).returnError = nil
+				p.sigstore.(*sigstoreMock).returnError = nil
 			}
 			if testCase.err != "" {
 				s.AssertErrorContains(err, testCase.err)
@@ -778,7 +777,7 @@ func (s *Suite) TestConfigure() {
 }
 
 type signature struct {
-	v1.Layer
+	oci.Signature
 
 	payload []byte
 	cert    *x509.Certificate
@@ -808,7 +807,7 @@ func (signature) Bundle() (*oci.Bundle, error) {
 	return nil, nil
 }
 
-type SigstoreMock struct {
+type sigstoreMock struct {
 	selectors []sigstore.SelectorsFromSignatures
 
 	sigs                []oci.Signature
@@ -820,39 +819,39 @@ type SigstoreMock struct {
 }
 
 // SetLogger implements sigstore.Sigstore
-func (*SigstoreMock) SetLogger(logger hclog.Logger) {
+func (*sigstoreMock) SetLogger(logger hclog.Logger) {
 }
 
-func (s *SigstoreMock) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
+func (s *sigstoreMock) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
 	return s.sigs, s.returnError
 }
 
-func (s *SigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) sigstore.SelectorsFromSignatures {
+func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) sigstore.SelectorsFromSignatures {
 	return s.selectors[0]
 }
 
-func (s *SigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
+func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
 	return s.selectors
 }
 
-func (s *SigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
+func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
 	return s.skipSigs, s.returnError
 }
 
-func (s *SigstoreMock) AddSkippedImage(string) {
+func (s *sigstoreMock) AddSkippedImage(string) {
 }
-func (s *SigstoreMock) ClearSkipList() {
-}
-
-func (s *SigstoreMock) AddAllowedSubject(subject string) {
+func (s *sigstoreMock) ClearSkipList() {
 }
 
-func (s *SigstoreMock) ClearAllowedSubjects() {
+func (s *sigstoreMock) AddAllowedSubject(subject string) {
 }
 
-func (s *SigstoreMock) EnableAllowSubjectList(flag bool) {
+func (s *sigstoreMock) ClearAllowedSubjects() {
 }
-func (s *SigstoreMock) AttestContainerSignatures(status *corev1.ContainerStatus) ([]string, error) {
+
+func (s *sigstoreMock) EnableAllowSubjectList(flag bool) {
+}
+func (s *sigstoreMock) AttestContainerSignatures(status *corev1.ContainerStatus) ([]string, error) {
 	if s.skipSigs {
 		return s.skippedSigSelectors, nil
 	}
@@ -877,7 +876,7 @@ func (s *SigstoreMock) AttestContainerSignatures(status *corev1.ContainerStatus)
 	return selectorsString, s.returnError
 }
 
-func (s *SigstoreMock) SetRekorURL(url string) error {
+func (s *sigstoreMock) SetRekorURL(url string) error {
 	s.rekorURL = url
 	return s.returnError
 }
@@ -889,7 +888,7 @@ func (s *Suite) newPlugin() *Plugin {
 	p.getenv = func(key string) string {
 		return s.env[key]
 	}
-	p.sigstore = &SigstoreMock{
+	p.sigstore = &sigstoreMock{
 		selectors:           s.sigstoreSelectors,
 		sigs:                s.sigstoreSigs,
 		skipSigs:            s.sigstoreSkipSigs,
@@ -911,14 +910,15 @@ func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignature
 	s.sigstoreSelectors = selectors
 	if s.sigstoreSelectors == nil {
 		s.sigstoreSigs = nil
-	} else {
-		s.sigstoreSigs = []oci.Signature{
-			signature{
-				payload: []byte("payload"),
-				cert:    &x509.Certificate{},
-			},
-		}
+		return
+	}	
+	s.sigstoreSigs = []oci.Signature{
+		signature{
+			payload: []byte("payload"),
+			cert:    &x509.Certificate{},
+		},
 	}
+	
 }
 
 func (s *Suite) setSigstoreSkipSigs(skip bool) {

@@ -354,8 +354,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		}
 	}
 	if c.RekorURL != "" {
-		err = p.sigstore.SetRekorURL(c.RekorURL)
-		if err != nil {
+		if err := p.sigstore.SetRekorURL(c.RekorURL); err != nil {
 			return nil, err
 		}
 	}

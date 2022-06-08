@@ -66,7 +66,7 @@ func TestNewCache(t *testing.T) {
 	}{
 		{
 			name: "New",
-			want: &Cacheimpl{
+			want: &cacheImpl{
 				size:     3,
 				items:    list.New(),
 				mutex:    sync.RWMutex{},
@@ -96,7 +96,7 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 		element: items.PushFront(selectors2.Key),
 	}
 
-	cacheInstance := &Cacheimpl{
+	cacheInstance := &cacheImpl{
 		size:     3,
 		items:    items,
 		mutex:    sync.RWMutex{},
@@ -136,7 +136,7 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 	m := make(map[string]MapItem)
 	items := list.New()
 
-	cacheInstance := &Cacheimpl{
+	cacheInstance := &cacheImpl{
 		size:     2,
 		items:    items,
 		mutex:    sync.RWMutex{},
