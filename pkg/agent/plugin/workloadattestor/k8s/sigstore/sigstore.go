@@ -83,27 +83,27 @@ func DefaultCheckOpts(rekorURL url.URL) *cosign.CheckOpts {
 	return co
 }
 
-func (sigstore *sigstoreImpl) SetLogger(logger hclog.Logger) {
-	sigstore.logger = logger
+func (s *sigstoreImpl) SetLogger(logger hclog.Logger) {
+	s.logger = logger
 }
 
 // FetchImageSignatures retrieves signatures for specified image via cosign, using the specified rekor server.
 // Returns a list of verified signatures, and an error if any.
-func (sigstore *sigstoreImpl) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
+func (s *sigstoreImpl) FetchImageSignatures(imageName string) ([]oci.Signature, error) {
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
 		message := fmt.Errorf("error parsing image reference: %w", err)
 		return nil, message
 	}
 
-	if _, err := sigstore.ValidateImage(ref); err != nil {
+	if _, err := s.ValidateImage(ref); err != nil {
 		message := fmt.Errorf("could not validate image reference digest: %w", err)
 		return nil, message
 	}
 
 	ctx := context.Background()
-	co := sigstore.checkOptsFunction(sigstore.rekorURL)
-	sigs, ok, err := sigstore.verifyFunction(ctx, ref, co)
+	co := s.checkOptsFunction(s.rekorURL)
+	sigs, ok, err := s.verifyFunction(ctx, ref, co)
 	if err != nil {
 		message := fmt.Errorf("error verifying signature: %w", err)
 		return nil, message
@@ -152,7 +152,7 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	}
 
 	subject := ""
-	if len(ss.Optional) >0 {
+	if len(ss.Optional) > 0 {
 		subjString := ss.Optional["subject"]
 		subj, ok := subjString.(string)
 		if ok {
@@ -198,7 +198,7 @@ func getBundleSignatureContent(bundle *oci.Bundle) (string, error) {
 	}
 	var bundleBody BundleBody
 	if err := json.Unmarshal(body, &bundleBody); err != nil {
-		return "", fmt.Errorf("failed to parse bundle body: %w",  err)
+		return "", fmt.Errorf("failed to parse bundle body: %w", err)
 	}
 
 	if bundleBody.Spec.Signature.Content == "" {
@@ -218,23 +218,23 @@ type SelectorsFromSignatures struct {
 
 // SelectorValuesFromSignature extracts selectors from a signature.
 // returns a list of selectors.
-func (sigstore *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) SelectorsFromSignatures {
-	var selectorsFromSignatures SelectorsFromSignatures	
+func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) SelectorsFromSignatures {
+	var selectorsFromSignatures SelectorsFromSignatures
 	subject, err := getSignatureSubject(signature)
 
 	if err != nil {
-		sigstore.logger.Error("Error getting signature subject", "error", err)
+		s.logger.Error("Error getting signature subject", "error", err)
 		return selectorsFromSignatures
 	}
 
 	if subject == "" {
-		sigstore.logger.Error("Error getting signature subject: empty subject")
+		s.logger.Error("Error getting signature subject: empty subject")
 		return selectorsFromSignatures
 	}
 
 	suppress := false
-	if sigstore.allowListEnabled {
-		if _, ok := sigstore.subjectAllowList[subject]; !ok {
+	if s.allowListEnabled {
+		if _, ok := s.subjectAllowList[subject]; !ok {
 			suppress = true
 		}
 	}
@@ -245,11 +245,11 @@ func (sigstore *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signatur
 
 		bundle, err := signature.Bundle()
 		if err != nil {
-			sigstore.logger.Error("error getting signature bundle: ", err.Error())
+			s.logger.Error("error getting signature bundle: ", err.Error())
 		} else {
 			sigContent, err := getBundleSignatureContent(bundle)
 			if err != nil {
-				sigstore.logger.Error("error getting signature content", "error", err)
+				s.logger.Error("error getting signature content", "error", err)
 			} else {
 				selectorsFromSignatures.Content = sigContent
 			}
@@ -298,36 +298,36 @@ func certSubject(c *x509.Certificate) string {
 // ShouldSkipImage checks the skip list for the image ID in the container status.
 // If the image ID is found in the skip list, it returns true.
 // If the image ID is not found in the skip list, it returns false.
-func (sigstore *sigstoreImpl) ShouldSkipImage(imageID string) (bool, error) {
-	if sigstore.skippedImages == nil {
+func (s *sigstoreImpl) ShouldSkipImage(imageID string) (bool, error) {
+	if s.skippedImages == nil {
 		return false, nil
 	}
 	if imageID == "" {
 		return false, errors.New("image ID is empty")
 	}
-	_, ok := sigstore.skippedImages[imageID]
+	_, ok := s.skippedImages[imageID]
 	return ok, nil
 }
 
 // AddSkippedImage adds the image ID and selectors to the skip list.
-func (sigstore *sigstoreImpl) AddSkippedImage(imageID string) {
-	if sigstore.skippedImages == nil {
-		sigstore.skippedImages = make(map[string]bool)
+func (s *sigstoreImpl) AddSkippedImage(imageID string) {
+	if s.skippedImages == nil {
+		s.skippedImages = make(map[string]bool)
 	}
-	sigstore.skippedImages[imageID] = true
+	s.skippedImages[imageID] = true
 }
 
 // ClearSkipList clears the skip list.
-func (sigstore *sigstoreImpl) ClearSkipList() {
-	for k := range sigstore.skippedImages {
-		delete(sigstore.skippedImages, k)
+func (s *sigstoreImpl) ClearSkipList() {
+	for k := range s.skippedImages {
+		delete(s.skippedImages, k)
 	}
-	sigstore.skippedImages = nil
+	s.skippedImages = nil
 }
 
 // ValidateImage validates if the image manifest hash matches the digest in the image reference
-func (sigstore *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
-	desc, err := sigstore.fetchImageManifestFunction(ref)
+func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
+	desc, err := s.fetchImageManifestFunction(ref)
 	if err != nil {
 		return false, err
 	}
@@ -352,50 +352,50 @@ func validateRefDigest(ref name.Reference, digest string) (bool, error) {
 	return false, fmt.Errorf("reference %s is not a digest", ref.String())
 }
 
-func (sigstore *sigstoreImpl) AddAllowedSubject(subject string) {
-	if sigstore.subjectAllowList == nil {
-		sigstore.subjectAllowList = make(map[string]bool)
+func (s *sigstoreImpl) AddAllowedSubject(subject string) {
+	if s.subjectAllowList == nil {
+		s.subjectAllowList = make(map[string]bool)
 	}
-	sigstore.subjectAllowList[subject] = true
+	s.subjectAllowList[subject] = true
 }
 
-func (sigstore *sigstoreImpl) ClearAllowedSubjects() {
-	for k := range sigstore.subjectAllowList {
-		delete(sigstore.subjectAllowList, k)
+func (s *sigstoreImpl) ClearAllowedSubjects() {
+	for k := range s.subjectAllowList {
+		delete(s.subjectAllowList, k)
 	}
-	sigstore.subjectAllowList = nil
+	s.subjectAllowList = nil
 }
 
-func (sigstore *sigstoreImpl) EnableAllowSubjectList(flag bool) {
-	sigstore.allowListEnabled = flag
+func (s *sigstoreImpl) EnableAllowSubjectList(flag bool) {
+	s.allowListEnabled = flag
 }
 
-func (sigstore *sigstoreImpl) AttestContainerSignatures(status *corev1.ContainerStatus) ([]string, error) {
-	skip, _ := sigstore.ShouldSkipImage(status.ImageID)
+func (s *sigstoreImpl) AttestContainerSignatures(status *corev1.ContainerStatus) ([]string, error) {
+	skip, _ := s.ShouldSkipImage(status.ImageID)
 	if skip {
 		return []string{signatureVerifiedSelector}, nil
 	}
 
 	imageID := status.ImageID
 
-	cachedSignature := sigstore.sigstorecache.GetSignature(imageID)
+	cachedSignature := s.sigstorecache.GetSignature(imageID)
 	if cachedSignature != nil {
-		sigstore.logger.Debug("Found cached signature", "imageId", imageID)
+		s.logger.Debug("Found cached signature", "imageId", imageID)
 	} else {
-		signatures, err := sigstore.FetchImageSignatures(imageID)
+		signatures, err := s.FetchImageSignatures(imageID)
 		if err != nil {
 			return nil, err
 		}
 
-		selectors := sigstore.ExtractSelectorsFromSignatures(signatures, status.ContainerID)
+		selectors := s.ExtractSelectorsFromSignatures(signatures, status.ContainerID)
 
 		cachedSignature = &Item{
 			Key:   imageID,
 			Value: selectors,
 		}
 
-		sigstore.logger.Debug("Caching signature", "imageID", imageID)
-		sigstore.sigstorecache.PutSignature(*cachedSignature)
+		s.logger.Debug("Caching signature", "imageID", imageID)
+		s.sigstorecache.PutSignature(*cachedSignature)
 	}
 
 	var selectorsString []string
@@ -410,7 +410,7 @@ func (sigstore *sigstoreImpl) AttestContainerSignatures(status *corev1.Container
 	return selectorsString, nil
 }
 
-func (sigstore *sigstoreImpl) SetRekorURL(rekorURL string) error {
+func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	if rekorURL == "" {
 		return errors.New("rekor URL is empty")
 	}
@@ -424,6 +424,6 @@ func (sigstore *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	if rekorURI.Host == "" {
 		return fmt.Errorf("invalid rekor URL Host: %s", rekorURI.Host)
 	}
-	sigstore.rekorURL = *rekorURI
+	s.rekorURL = *rekorURI
 	return nil
 }
