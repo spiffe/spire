@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.1] - 2022-06-09
+
+### Added
+- The `windows` workload attestor gained a new `sha256` selector that can attest the SHA256 digest of the workload binary (#3100)
+
+### Fixed
+- Database rows related to registration entries are now properly removed (#3127, #3132)
+- Agent reduces bandwidth use by requesting only required information when syncing with the server (#3123)
+- Issue with read-modify-write operations when using PostgreSQL datastore in hot standby mode (#3103)
+
+### Changed
+- FetchX509Bundles RPC no longer sends spurious updates that contain no changes (#3102)
+- Warn if the built-in `join_token` node attestor is attempted to be overridden by an external plugin (#3045)
+- Database connections are now proactively closed when SPIRE server is shut down (#3047)
+
 ## [1.3.0] - 2022-05-12
 
 ### Added
