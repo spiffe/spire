@@ -310,8 +310,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
-	m, closer := initializeAndRunNewManager(t, c)
-	defer closer()
+	m := initializeNewManager(t, c)
 
 	svid := m.svid.State().SVID
 	if !svidsEqual(svid, baseSVID) {
@@ -345,8 +344,13 @@ func TestSVIDRotation(t *testing.T) {
 	// Get RLock to simulate an ongoing request (Rotator should wait until mtx is unlocked)
 	m.GetRotationMtx().RLock()
 
-	// now that the ticker is created, cause a tick to happen
+	// Now advance time enough that the cert is expiring soon enough that the
+	// manager will attempt to rotate, but be unable to since the read lock is
+	// held.
 	clk.Add(baseTTLSeconds / 2)
+
+	closer := runManager(t, m)
+	defer closer()
 
 	// Loop, we should not detect SVID rotations
 	for i := 0; i < 10; i++ {
@@ -1320,20 +1324,25 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKe
 	return []*x509.Certificate{svid}
 }
 
-func initializeAndRunNewManager(t *testing.T, c *Config) (m *manager, closer func()) {
-	m = newManager(c)
-	return m, initializeAndRunManager(t, m)
+func initializeNewManager(t *testing.T, c *Config) *manager {
+	m := newManager(c)
+	require.NoError(t, m.Initialize(context.Background()))
+	return m
+}
+
+func initializeAndRunNewManager(t *testing.T, c *Config) (*manager, func()) {
+	m := initializeNewManager(t, c)
+	return m, runManager(t, m)
 }
 
 func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
-	ctx := context.Background()
+	require.NoError(t, m.Initialize(context.Background()))
+	return runManager(t, m)
+}
 
-	if err := m.Initialize(ctx); err != nil {
-		t.Fatal(err)
-	}
-
+func runManager(t *testing.T, m *manager) (closer func()) {
 	var wg sync.WaitGroup
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
