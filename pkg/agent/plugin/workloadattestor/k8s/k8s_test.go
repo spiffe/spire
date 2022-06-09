@@ -918,7 +918,7 @@ func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignature
 			cert:    &x509.Certificate{},
 		},
 	}
-	
+		
 }
 
 func (s *Suite) setSigstoreSkipSigs(skip bool) {
