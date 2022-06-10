@@ -66,11 +66,11 @@ func TestNewCache(t *testing.T) {
 	}{
 		{
 			name: "New",
-			want: &Cacheimpl{
+			want: &cacheImpl{
 				size:     3,
 				items:    list.New(),
 				mutex:    sync.RWMutex{},
-				itensMap: make(map[string]MapItem),
+				itemsMap: make(map[string]MapItem),
 			},
 		},
 	}
@@ -96,11 +96,11 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 		element: items.PushFront(selectors2.Key),
 	}
 
-	cacheInstance := &Cacheimpl{
+	cacheInstance := &cacheImpl{
 		size:     3,
 		items:    items,
 		mutex:    sync.RWMutex{},
-		itensMap: m,
+		itemsMap: m,
 	}
 
 	tests := []struct {
@@ -136,11 +136,11 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 	m := make(map[string]MapItem)
 	items := list.New()
 
-	cacheInstance := &Cacheimpl{
+	cacheInstance := &cacheImpl{
 		size:     2,
 		items:    items,
 		mutex:    sync.RWMutex{},
-		itensMap: m,
+		itemsMap: m,
 	}
 
 	tests := []struct {
