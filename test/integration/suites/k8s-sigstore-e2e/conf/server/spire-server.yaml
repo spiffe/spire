@@ -169,7 +169,8 @@ data:
     trust_domain = "example.org"
     cluster = "example-cluster"
     server_socket_path = "/tmp/spire-server/private/api.sock"
-    check_signature_enabled = false
+    check_signature_enabled = true
+    pod_controller=true
 
 ---
 

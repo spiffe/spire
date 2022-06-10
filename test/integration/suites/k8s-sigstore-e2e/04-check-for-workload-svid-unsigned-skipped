@@ -1,0 +1,14 @@
+#!/bin/sh
+
+source init-kubectl
+source check_for_workload_svid
+
+check_for_workload_svid "spiffe://example.org/ns/spire/sa/example-workload-unsigned-skipped" example-workload-unsigned-skipped
+
+if [ "${DONE}" -eq 1 ]; then
+    log-info "SPIFFE ID found."
+elif [ "${DONE}" -eq 0 ]; then
+    fail-now "timed out waiting for workload to obtain credentials."
+else
+    fail-now "failed to check for svid"
+fi

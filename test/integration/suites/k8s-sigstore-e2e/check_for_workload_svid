@@ -1,0 +1,24 @@
+#!/bin/bash
+source init-kubectl
+
+#1 - target spiffe id
+#2 - app name
+check_for_workload_svid(){
+    MAXFETCHCHECKS=5
+    FETCHCHECKINTERVAL=5
+    target_spiffeid=$1
+    app_name=$2
+    DONE=0
+
+    for ((i=1; i<=${MAXFETCHCHECKS}; i++)); do
+        EXAMPLE_POD=$(${KUBEBIN} -nspire get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+        log-info "checking for workload SPIFFE ID ($i of $MAXFETCHCHECKS max)..."
+        if ${KUBEBIN} -nspire exec -t "${EXAMPLE_POD}" -- \
+            /opt/spire/bin/spire-agent api fetch --timeout 10s\
+                | grep ${target_spiffeid} ; then
+            DONE=1
+            break
+        fi
+        sleep "${FETCHCHECKINTERVAL}" 
+    done
+}
