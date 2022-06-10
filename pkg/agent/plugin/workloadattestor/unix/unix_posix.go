@@ -39,6 +39,8 @@ type processInfo interface {
 	Groups() ([]string, error)
 	Exe() (string, error)
 	NamespacedExe() string
+	Arg1() (string, error)
+	Name() (string, error)
 }
 
 type PSProcessInfo struct {
@@ -47,6 +49,25 @@ type PSProcessInfo struct {
 
 func (ps PSProcessInfo) NamespacedExe() string {
 	return getProcPath(ps.Pid, "exe")
+}
+
+func (ps PSProcessInfo) ProcessName() (string, error) {
+	return ps.Name()
+}
+
+func (ps PSProcessInfo) Arg1() (string, error) {
+	list, err := ps.CmdlineSlice()
+
+	if err != nil {
+		return "", err
+	}
+
+	// return the first arguement
+	if len(list) >= 2 {
+		return list[1], nil
+	}
+
+	return "", err
 }
 
 // Groups returns the supplementary group IDs
@@ -176,6 +197,24 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		}
 		selectorValues = append(selectorValues, makeSelectorValue("path", processPath))
 
+		// add process_name selector value
+		processName, err := p.getProcessName(proc)
+
+		if err != nil {
+			return nil, err
+		}
+
+		selectorValues = append(selectorValues, makeSelectorValue("process_name", processName))
+
+		// add first arguement selector value
+		arg1, err := p.getFirstArgument(proc)
+
+		if err != nil {
+			return nil, err
+		}
+
+		selectorValues = append(selectorValues, makeSelectorValue("arg1", arg1))
+
 		if config.WorkloadSizeLimit >= 0 {
 			exePath := p.getNamespacedPath(proc)
 			sha256Digest, err := util.GetSHA256Digest(exePath, config.WorkloadSizeLimit)
@@ -274,6 +313,26 @@ func (p *Plugin) getPath(proc processInfo) (string, error) {
 	}
 
 	return path, nil
+}
+
+func (p *Plugin) getProcessName(proc processInfo) (string, error) {
+	processName, err := proc.Name()
+
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "process name lookup: %v", err)
+	}
+
+	return processName, nil
+}
+
+func (p *Plugin) getFirstArgument(proc processInfo) (string, error) {
+	arg1, err := proc.Arg1()
+
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "process argument lookup: %v", err)
+	}
+
+	return arg1, nil
 }
 
 func (p *Plugin) getNamespacedPath(proc processInfo) string {

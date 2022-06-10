@@ -172,6 +172,8 @@ func (s *Suite) TestAttest() {
 				"gid:2000",
 				"group:g2000",
 				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
+				"process_name:exe",
+				"arg1:",
 				"sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
 			},
 			expectCode: codes.OK,
@@ -186,6 +188,8 @@ func (s *Suite) TestAttest() {
 				"gid:2000",
 				"group:g2000",
 				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
+				"process_name:exe",
+				"arg1:",
 				"sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7",
 			},
 			expectCode: codes.OK,
@@ -200,6 +204,8 @@ func (s *Suite) TestAttest() {
 				"gid:2000",
 				"group:g2000",
 				fmt.Sprintf("path:%s", filepath.Join(s.dir, "exe")),
+				"process_name:exe",
+				"arg1:",
 			},
 			expectCode: codes.OK,
 		},
@@ -352,6 +358,32 @@ func (p fakeProcess) NamespacedExe() string {
 		return filepath.Join(p.dir, "exe")
 	default:
 		return filepath.Join("/proc", strconv.Itoa(int(p.pid)), "unreadable-exe")
+	}
+}
+
+func (p fakeProcess) Name() (string, error) {
+	switch p.pid {
+	case 7, 8, 9:
+		return "", fmt.Errorf("unable to get EXE for PID %d", p.pid)
+	case 10:
+		return filepath.Join(p.dir, "unreadable-exe"), nil
+	case 11, 12:
+		return "exe", nil
+	default:
+		return "", fmt.Errorf("unhandled exe test case %d", p.pid)
+	}
+}
+
+func (p fakeProcess) Arg1() (string, error) {
+	switch p.pid {
+	case 7, 8, 9:
+		return "", fmt.Errorf("unable to get EXE for PID %d", p.pid)
+	case 10:
+		return filepath.Join(p.dir, "unreadable-exe"), nil
+	case 11, 12:
+		return "", nil
+	default:
+		return "", fmt.Errorf("unhandled exe test case %d", p.pid)
 	}
 }
 
