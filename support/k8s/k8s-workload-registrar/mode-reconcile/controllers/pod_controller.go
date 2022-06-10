@@ -48,14 +48,15 @@ const (
 // PodReconciler reconciles a Pod object
 type PodReconciler struct {
 	client.Client
-	TrustDomain        string
-	Mode               PodReconcilerMode
-	Value              string
-	RootID             *spiretypes.SPIFFEID
-	SpireClient        entryv1.EntryClient
-	ClusterDNSZone     string
-	AddPodDNSNames     bool
-	DisabledNamespaces map[string]bool
+	TrustDomain           string
+	Mode                  PodReconcilerMode
+	Value                 string
+	RootID                *spiretypes.SPIFFEID
+	SpireClient           entryv1.EntryClient
+	ClusterDNSZone        string
+	AddPodDNSNames        bool
+	DisabledNamespaces    map[string]bool
+	CheckSignatureEnabled bool
 }
 
 type WorkloadSelectorSubType string
@@ -218,6 +219,13 @@ func (r *PodReconciler) fillEntryForPod(ctx context.Context, entry *spiretypes.E
 		fmt.Sprintf("%s.%s.pod", r.mungeIP(pod.Status.PodIP), pod.Namespace), // k8s search path contains $clusterDNSZone
 	}, endpointNames...)
 
+	if r.CheckSignatureEnabled {
+		entry.Selectors = append(entry.Selectors, &spiretypes.Selector{
+			Type:  "k8s",
+			Value: "sigstore-validation:passed",
+		})
+	}
+
 	return entry, nil
 }
 
@@ -364,7 +372,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager, builder *ctrlBuilder.
 	return nil
 }
 
-func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string) *BaseReconciler {
+func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Scheme, trustDomain string, rootID *spiretypes.SPIFFEID, spireClient entryv1.EntryClient, mode PodReconcilerMode, value string, clusterDNSZone string, addPodDNSNames bool, disabledNamespaces []string, enableSignatureChecking bool) *BaseReconciler {
 	disabledNamespacesMap := make(map[string]bool, len(disabledNamespaces))
 	for _, ns := range disabledNamespaces {
 		disabledNamespacesMap[ns] = true
@@ -377,15 +385,16 @@ func NewPodReconciler(client client.Client, log logr.Logger, scheme *runtime.Sch
 		SpireClient: spireClient,
 		Log:         log,
 		ObjectReconciler: &PodReconciler{
-			Client:             client,
-			RootID:             rootID,
-			SpireClient:        spireClient,
-			TrustDomain:        trustDomain,
-			Mode:               mode,
-			Value:              value,
-			ClusterDNSZone:     clusterDNSZone,
-			AddPodDNSNames:     addPodDNSNames,
-			DisabledNamespaces: disabledNamespacesMap,
+			Client:                client,
+			RootID:                rootID,
+			SpireClient:           spireClient,
+			TrustDomain:           trustDomain,
+			Mode:                  mode,
+			Value:                 value,
+			ClusterDNSZone:        clusterDNSZone,
+			AddPodDNSNames:        addPodDNSNames,
+			DisabledNamespaces:    disabledNamespacesMap,
+			CheckSignatureEnabled: enableSignatureChecking,
 		},
 	}
 }

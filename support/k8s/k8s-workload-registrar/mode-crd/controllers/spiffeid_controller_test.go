@@ -76,7 +76,8 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 			SpiffeId: makeID(s.trustDomain, "%s", SpiffeIDName),
 			ParentId: makeID(s.trustDomain, "%s/%s", "spire", "server"),
 			Selector: spiffeidv1beta1.Selector{
-				Namespace: SpiffeIDNamespace,
+				Namespace:                SpiffeIDNamespace,
+				SigstoreValidationPassed: "passed",
 			},
 			Downstream: true,
 		},
@@ -123,6 +124,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().Equal(createdSpiffeID.Spec.ParentId, stringFromID(entry.ParentId))
 	s.Require().False(createdSpiffeID.Spec.Downstream)
 	s.Require().Equal(createdSpiffeID.Spec.Selector.PodName, "test")
+	s.Require().Equal(createdSpiffeID.Spec.Selector.SigstoreValidationPassed, "passed")
 }
 
 func (s *SpiffeIDControllerTestSuite) TestSpiffeIDEqual() {

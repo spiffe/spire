@@ -22,13 +22,14 @@ import (
 )
 
 type ControllerConfig struct {
-	Log                logrus.FieldLogger
-	E                  entryv1.EntryClient
-	TrustDomain        string
-	Cluster            string
-	PodLabel           string
-	PodAnnotation      string
-	DisabledNamespaces map[string]bool
+	Log                   logrus.FieldLogger
+	E                     entryv1.EntryClient
+	TrustDomain           string
+	Cluster               string
+	PodLabel              string
+	PodAnnotation         string
+	DisabledNamespaces    map[string]bool
+	CheckSignatureEnabled bool
 }
 
 type Controller struct {
@@ -159,6 +160,19 @@ func (c *Controller) createPodEntry(ctx context.Context, pod *corev1.Pod) error 
 
 	federationDomains := federation.GetFederationDomains(pod)
 
+	if c.c.CheckSignatureEnabled {
+		return c.createEntry(ctx, &types.Entry{
+			ParentId: parentID,
+			SpiffeId: spiffeID,
+			Selectors: []*types.Selector{
+				namespaceSelector(pod.Namespace),
+				podNameSelector(pod.Name),
+				sigstoreSignatureSelector(),
+			},
+			FederatesWith: federationDomains,
+		})
+	}
+
 	return c.createEntry(ctx, &types.Entry{
 		ParentId: parentID,
 		SpiffeId: spiffeID,
@@ -283,6 +297,13 @@ func podNameSelector(podName string) *types.Selector {
 	return &types.Selector{
 		Type:  "k8s",
 		Value: fmt.Sprintf("pod-name:%s", podName),
+	}
+}
+
+func sigstoreSignatureSelector() *types.Selector {
+	return &types.Selector{
+		Type:  "k8s",
+		Value: "sigstore-validation:passed",
 	}
 }
 

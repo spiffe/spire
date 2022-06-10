@@ -163,6 +163,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 		uid                   string
 		err                   string
 		spiffeIDCount         int
+		checkSignatureEnabled bool
 	}{
 		// This section is testing various error conditions.
 		{
@@ -281,6 +282,23 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			expectedSpiffeIDPath: fmt.Sprintf("%s/%s/%s/hostname/test-node", PodName, PodNamespace, PodServiceAccount),
 			spiffeIDCount:        1,
 		},
+		// Testing sigstore signature selector option
+		{
+			// identity_template_label.
+			identityTemplate:      DefaultTemplate,
+			identityTemplateLabel: IdentityLabel,
+			labelValue:            "true",
+			expectedSpiffeIDPath:  fmt.Sprintf("ns/%s/sa/%s", PodNamespace, PodServiceAccount),
+			spiffeIDCount:         1,
+			checkSignatureEnabled: true,
+		},
+		{
+			// identity template formatting
+			identityTemplate:      DefaultTemplate + "/podName/{{.Pod.Name}}",
+			expectedSpiffeIDPath:  fmt.Sprintf("ns/%s/sa/%s/podName/%s", PodNamespace, PodServiceAccount, PodName),
+			spiffeIDCount:         1,
+			checkSignatureEnabled: true,
+		},
 	}
 
 	for _, test := range tests {
@@ -293,6 +311,7 @@ func (s *PodControllerTestSuite) TestIdentityTemplate() {
 			IdentityTemplate:      test.identityTemplate,
 			Context:               test.context,
 			IdentityTemplateLabel: test.identityTemplateLabel,
+			CheckSignatureEnabled: test.checkSignatureEnabled,
 		})
 		if test.err != "" {
 			s.Require().Error(err)

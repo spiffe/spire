@@ -33,6 +33,7 @@ The configuration file is a **required** by the registrar. It contains
 | `pod_annotation`           | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
 | `mode`                     | string   | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
 | `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
+| `check_signature_enabled`     | boolean | optional | Used to enable signature verification | `false` |
 
 The following configuration directives are specific to `"webhook"` mode:
 
@@ -77,6 +78,21 @@ Pods. The available workload registration modes are:
 | `crd`       | as specified by pod_label | as specified by pod_annotation | as specified by identity_template | _unavailable_ |
 
 If using `webhook` and `reconcile` modes with [Service Account Based SPIFFE IDs](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based SPIFFE IDs, specify only `pod_label`. If you use Annotation Based SPIFFE IDs, specify only `pod_annotation`.
+
+If using `webhook` or `crd` modes and if `check_signature_enabled` equals `true`, a `sigstore-validation:passed` selector is added to the entry.
+
+### Example
+
+```
+Entry ID         : b22e70fc-9a11-4d86-8a36-b191a3d00dfb
+SPIFFE ID        : spiffe://example.org/ns/spire/sa/spire-agent
+Parent ID        : spiffe://example.org/k8s-workload-registrar/example-cluster/node
+Revision         : 0
+TTL              : default
+Selector         : k8s:ns:spire
+Selector         : k8s:pod-name:spire-agent-rdb2l
+Selector         : k8s:sigstore-validation:passed
+```
 
 For `crd` mode, if neither `pod_label` nor `pod_annotation`
 workload registration mode is selected,
