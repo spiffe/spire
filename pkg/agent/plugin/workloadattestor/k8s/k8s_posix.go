@@ -11,6 +11,10 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/types"
@@ -22,6 +26,330 @@ func (p *Plugin) defaultKubeletCAPath() string {
 
 func (p *Plugin) defaultTokenPath() string {
 	return defaultTokenPath
+const (
+	defaultMaxPollAttempts   = 60
+	defaultPollRetryInterval = time.Millisecond * 500
+	defaultSecureKubeletPort = 10250
+	defaultKubeletCAPath     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultTokenPath         = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
+	defaultNodeNameEnv       = "MY_NODE_NAME"
+	defaultReloadInterval    = time.Minute
+)
+
+type containerLookup int
+
+const (
+	containerInPod = iota
+	containerNotInPod
+	maximumAmountCache = 10
+)
+
+func builtin(p *Plugin) catalog.BuiltIn {
+	return catalog.MakeBuiltIn(pluginName,
+		workloadattestorv1.WorkloadAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
+}
+
+// HCLConfig holds the configuration parsed from HCL
+type HCLConfig struct {
+	// KubeletReadOnlyPort defines the read only port for the kubelet
+	// (typically 10255). This option is mutally exclusive with
+	// KubeletSecurePort.
+	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port"`
+
+	// KubeletSecurePort defines the secure port for the kubelet (typically
+	// 10250). This option is mutually exclusive with KubeletReadOnlyPort.
+	KubeletSecurePort int `hcl:"kubelet_secure_port"`
+
+	// MaxPollAttempts is the maximum number of polling attempts for the
+	// container hosting the workload process.
+	MaxPollAttempts int `hcl:"max_poll_attempts"`
+
+	// PollRetryInterval is the time in between polling attempts.
+	PollRetryInterval string `hcl:"poll_retry_interval"`
+
+	// KubeletCAPath is the path to the CA certificate for authenticating the
+	// kubelet over the secure port. Required when using the secure port unless
+	// SkipKubeletVerification is set. Defaults to the cluster trust bundle.
+	KubeletCAPath string `hcl:"kubelet_ca_path"`
+
+	// SkipKubeletVerification controls whether or not the plugin will
+	// verify the certificate presented by the kubelet.
+	SkipKubeletVerification bool `hcl:"skip_kubelet_verification"`
+
+	// TokenPath is the path to the bearer token used to authenticate to the
+	// secure port. Defaults to the default service account token path unless
+	// PrivateKeyPath and CertificatePath are specified.
+	TokenPath string `hcl:"token_path"`
+
+	// CertificatePath is the path to a certificate key used for client
+	// authentication with the kubelet. Must be used with PrivateKeyPath.
+	CertificatePath string `hcl:"certificate_path"`
+
+	// PrivateKeyPath is the path to a private key used for client
+	// authentication with the kubelet. Must be used with CertificatePath.
+	PrivateKeyPath string `hcl:"private_key_path"`
+
+	// NodeNameEnv is the environment variable used to determine the node name
+	// for contacting the kubelet. It defaults to "MY_NODE_NAME". If the
+	// environment variable is not set, and NodeName is not specified, the
+	// plugin will default to localhost (which requires host networking).
+	NodeNameEnv string `hcl:"node_name_env"`
+
+	// NodeName is the node name used when contacting the kubelet. If set, it
+	// takes precedence over NodeNameEnv.
+	NodeName string `hcl:"node_name"`
+
+	// ReloadInterval controls how often TLS and token configuration is loaded
+	// from the disk.
+	ReloadInterval string `hcl:"reload_interval"`
+
+	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
+	RekorURL string `hcl:"sigstore.rekor_url"`
+
+	// SkippedImages is a list of images that should skip sigstore verification
+	SkippedImages []string `hcl:"sigstore.skip_signature_verification_image_list"`
+
+	// AllowedSubjects is a flag indicating whether signature subjects should be compared against the allow-list
+	AllowedSubjectListEnabled bool `hcl:"sigstore.enable_allowed_subjects_list"`
+
+	// AllowedSubjects is a list of subjects that should be allowed after verification
+	AllowedSubjects []string `hcl:"sigstore.allowed_subjects_list"`
+}
+
+// k8sConfig holds the configuration distilled from HCL
+type k8sConfig struct {
+	Secure                  bool
+	Port                    int
+	MaxPollAttempts         int
+	PollRetryInterval       time.Duration
+	SkipKubeletVerification bool
+	TokenPath               string
+	CertificatePath         string
+	PrivateKeyPath          string
+	KubeletCAPath           string
+	NodeName                string
+	ReloadInterval          time.Duration
+
+	RekorURL      string
+	SkippedImages []string
+
+	AllowedSubjectListEnabled bool
+	AllowedSubjects           []string
+
+	Client     *kubeletClient
+	LastReload time.Time
+}
+
+type Plugin struct {
+	workloadattestorv1.UnsafeWorkloadAttestorServer
+	configv1.UnsafeConfigServer
+
+	log    hclog.Logger
+	fs     cgroups.FileSystem
+	clock  clock.Clock
+	getenv func(string) string
+
+	mu     sync.RWMutex
+	config *k8sConfig
+
+	sigstore sigstore.Sigstore
+}
+
+func New() *Plugin {
+	newcache := sigstore.NewCache(maximumAmountCache)
+	return &Plugin{
+		fs:       cgroups.OSFileSystem{},
+		clock:    clock.New(),
+		getenv:   os.Getenv,
+		sigstore: sigstore.New(newcache, nil),
+	}
+}
+
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
+	p.sigstore.SetLogger(log)
+}
+
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+	config, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	podUID, containerID, err := p.getPodUIDAndContainerIDFromCGroups(req.Pid)
+	if err != nil {
+		return nil, err
+	}
+
+	// Not a Kubernetes pod
+	if containerID == "" {
+		return &workloadattestorv1.AttestResponse{}, nil
+	}
+
+	log := p.log.With(
+		telemetry.PodUID, podUID,
+		telemetry.ContainerID, containerID,
+	)
+
+	// Poll pod information and search for the pod with the container. If
+	// the pod is not found then delay for a little bit and try again.
+	for attempt := 1; ; attempt++ {
+		log = log.With(telemetry.Attempt, attempt)
+
+		list, err := config.Client.GetPodList()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, item := range list.Items {
+			item := item
+			if item.UID != podUID {
+				continue
+			}
+
+			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			switch lookup {
+			case containerInPod:
+				selectors := getSelectorValuesFromPodInfo(&item, status)
+				log.Debug("Attemping to get signature info from image", status)
+				sigstoreSelectors, err := p.sigstore.AttestContainerSignatures(status, ctx)
+				if err != nil {
+					log.Error("Error retrieving signature payload: ", "error", err)
+				} else {
+					selectors = append(selectors, sigstoreSelectors...)
+				}
+
+				return &workloadattestorv1.AttestResponse{
+					SelectorValues: selectors,
+				}, nil
+			case containerNotInPod:
+			}
+		}
+
+		// if the container was not located after the maximum number of attempts then the search is over.
+		if attempt >= config.MaxPollAttempts {
+			log.Warn("Container id not found; giving up")
+			return nil, status.Error(codes.DeadlineExceeded, "no selectors found after max poll attempts")
+		}
+
+		// wait a bit for containers to initialize before trying again.
+		log.Warn("Container id not found", telemetry.RetryInterval, config.PollRetryInterval)
+
+		select {
+		case <-p.clock.After(config.PollRetryInterval):
+		case <-ctx.Done():
+			return nil, status.Errorf(codes.Canceled, "no selectors found: %v", ctx.Err())
+		}
+	}
+}
+
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
+	// Parse HCL config payload into config struct
+	config := new(HCLConfig)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	}
+
+	// Determine max poll attempts with default
+	maxPollAttempts := config.MaxPollAttempts
+	if maxPollAttempts <= 0 {
+		maxPollAttempts = defaultMaxPollAttempts
+	}
+
+	// Determine poll retry interval with default
+	var pollRetryInterval time.Duration
+	if config.PollRetryInterval != "" {
+		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to parse poll retry interval: %v", err)
+		}
+	}
+	if pollRetryInterval <= 0 {
+		pollRetryInterval = defaultPollRetryInterval
+	}
+
+	// Determine reload interval
+	var reloadInterval time.Duration
+	if config.ReloadInterval != "" {
+		reloadInterval, err = time.ParseDuration(config.ReloadInterval)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to parse reload interval: %v", err)
+		}
+	}
+	if reloadInterval <= 0 {
+		reloadInterval = defaultReloadInterval
+	}
+
+	// Determine which kubelet port to hit. Default to the secure port if none
+	// is specified (this is backwards compatible because the read-only-port
+	// config value has always been required, so it should already be set in
+	// existing configurations that rely on it).
+	if config.KubeletSecurePort > 0 && config.KubeletReadOnlyPort > 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot use both the read-only and secure port")
+	}
+	port := config.KubeletReadOnlyPort
+	secure := false
+	if port <= 0 {
+		port = config.KubeletSecurePort
+		secure = true
+	}
+	if port <= 0 {
+		port = defaultSecureKubeletPort
+		secure = true
+	}
+
+	// Determine the node name
+	nodeName := p.getNodeName(config.NodeName, config.NodeNameEnv)
+
+	// Configure the kubelet client
+	c := &k8sConfig{
+		Secure:                  secure,
+		Port:                    port,
+		MaxPollAttempts:         maxPollAttempts,
+		PollRetryInterval:       pollRetryInterval,
+		SkipKubeletVerification: config.SkipKubeletVerification,
+		TokenPath:               config.TokenPath,
+		CertificatePath:         config.CertificatePath,
+		PrivateKeyPath:          config.PrivateKeyPath,
+		KubeletCAPath:           config.KubeletCAPath,
+		NodeName:                nodeName,
+		ReloadInterval:          reloadInterval,
+
+		RekorURL:                  config.RekorURL,
+		SkippedImages:             config.SkippedImages,
+		AllowedSubjectListEnabled: config.AllowedSubjectListEnabled,
+		AllowedSubjects:           config.AllowedSubjects,
+	}
+	if err := p.reloadKubeletClient(c); err != nil {
+		return nil, err
+	}
+
+	// Configure sigstore settings
+	p.sigstore.ClearSkipList()
+	if c.SkippedImages != nil {
+		for _, imageID := range c.SkippedImages {
+			p.sigstore.AddSkippedImage(imageID)
+		}
+	}
+
+	p.sigstore.EnableAllowSubjectList(c.AllowedSubjectListEnabled)
+	p.sigstore.ClearAllowedSubjects()
+	if c.AllowedSubjects != nil {
+		for _, subject := range c.AllowedSubjects {
+			p.sigstore.AddAllowedSubject(subject)
+		}
+	}
+	if c.RekorURL != "" {
+		if err := p.sigstore.SetRekorURL(c.RekorURL); err != nil {
+			return nil, err
+		}
+	}
+
+	// Set the config
+	p.setConfig(c)
+	return &configv1.ConfigureResponse{}, nil
 }
 
 func createHelper(c *Plugin) (ContainerHelper, error) {

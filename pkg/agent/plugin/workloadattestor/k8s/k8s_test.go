@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -18,7 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
+	"github.com/sigstore/cosign/pkg/oci"
+	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -28,6 +33,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -78,6 +85,92 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "container-name:blog"},
 	}
 	testPodAndContainerSelectors = append(testPodSelectors, testContainerSelectors...)
+
+	testKindPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
+		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
+		{Type: "k8s", Value: "container-name:workload-api-client"},
+		{Type: "k8s", Value: "node-name:kind-control-plane"},
+		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-image-count:1"},
+		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
+		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
+		{Type: "k8s", Value: "pod-init-image-count:0"},
+		{Type: "k8s", Value: "pod-label:app:sample-workload"},
+		{Type: "k8s", Value: "pod-label:pod-template-hash:6658cb9566"},
+		{Type: "k8s", Value: "pod-name:sample-workload-6658cb9566-5n4b4"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicaSet:349d135e-3781-43e3-bc25-c900aedf1d0c"},
+		{Type: "k8s", Value: "pod-owner:ReplicaSet:sample-workload-6658cb9566"},
+		{Type: "k8s", Value: "pod-uid:a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80"},
+		{Type: "k8s", Value: "sa:default"},
+	}
+
+	testInitPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:docker-pullable://quay.io/coreos/flannel@sha256:1b401bf0c30bada9a539389c3be652b58fe38463361edf488e6543c8761d4970"},
+		{Type: "k8s", Value: "container-image:quay.io/coreos/flannel:v0.9.0-amd64"},
+		{Type: "k8s", Value: "container-name:install-cni"},
+		{Type: "k8s", Value: "node-name:k8s-node-1"},
+		{Type: "k8s", Value: "ns:kube-system"},
+		{Type: "k8s", Value: "pod-image-count:1"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://quay.io/coreos/flannel@sha256:1b401bf0c30bada9a539389c3be652b58fe38463361edf488e6543c8761d4970"},
+		{Type: "k8s", Value: "pod-image:quay.io/coreos/flannel:v0.9.0-amd64"},
+		{Type: "k8s", Value: "pod-init-image-count:1"},
+		{Type: "k8s", Value: "pod-init-image:docker-pullable://quay.io/coreos/flannel@sha256:1b401bf0c30bada9a539389c3be652b58fe38463361edf488e6543c8761d4970"},
+		{Type: "k8s", Value: "pod-init-image:quay.io/coreos/flannel:v0.9.0-amd64"},
+		{Type: "k8s", Value: "pod-label:app:flannel"},
+		{Type: "k8s", Value: "pod-label:controller-revision-hash:1846323910"},
+		{Type: "k8s", Value: "pod-label:pod-template-generation:1"},
+		{Type: "k8s", Value: "pod-label:tier:node"},
+		{Type: "k8s", Value: "pod-name:kube-flannel-ds-gp1g9"},
+		{Type: "k8s", Value: "pod-owner-uid:DaemonSet:2f0350fc-b29d-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "pod-owner:DaemonSet:kube-flannel-ds"},
+		{Type: "k8s", Value: "pod-uid:d488cae9-b2a0-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:flannel"},
+	}
+	testSigstoreSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
+		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "container-name:blog"},
+		{Type: "k8s", Value: "docker://9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961:image-signature-subject:sigstore-subject"},
+		{Type: "k8s", Value: "node-name:k8s-node-1"},
+		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-image-count:2"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/ghostunnel@sha256:b2fc20676c92a433b9a91f3f4535faddec0c2c3613849ac12f02c1d5cfcd4c3a"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/ghostunnel:latest"},
+		{Type: "k8s", Value: "pod-init-image-count:0"},
+		{Type: "k8s", Value: "pod-label:k8s-app:blog"},
+		{Type: "k8s", Value: "pod-label:version:v0"},
+		{Type: "k8s", Value: "pod-name:blog-24ck7"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
+		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:default"},
+		{Type: "k8s", Value: "sigstore-validation:passed"},
+	}
+
+	testSigstoreSkippedSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
+		{Type: "k8s", Value: "container-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "container-name:blog"},
+		{Type: "k8s", Value: "node-name:k8s-node-1"},
+		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-image-count:2"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"},
+		{Type: "k8s", Value: "pod-image:docker-pullable://localhost/spiffe/ghostunnel@sha256:b2fc20676c92a433b9a91f3f4535faddec0c2c3613849ac12f02c1d5cfcd4c3a"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/blog:latest"},
+		{Type: "k8s", Value: "pod-image:localhost/spiffe/ghostunnel:latest"},
+		{Type: "k8s", Value: "pod-init-image-count:0"},
+		{Type: "k8s", Value: "pod-label:k8s-app:blog"},
+		{Type: "k8s", Value: "pod-label:version:v0"},
+		{Type: "k8s", Value: "pod-name:blog-24ck7"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicationController:2c401175-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "pod-owner:ReplicationController:blog"},
+		{Type: "k8s", Value: "pod-uid:2c48913c-b29f-11e7-9350-020968147796"},
+		{Type: "k8s", Value: "sa:default"},
+		{Type: "k8s", Value: "sigstore-validation:passed"},
+	}
 )
 
 type attestResult struct {
@@ -103,7 +196,12 @@ type Suite struct {
 	kubeletCert *x509.Certificate
 	clientCert  *x509.Certificate
 
-	oc *osConfig
+	oc                          *osConfig
+	sigstoreSelectors           []sigstore.SelectorsFromSignatures
+	sigstoreSigs                []oci.Signature
+	sigstoreSkipSigs            bool
+	sigstoreSkippedSigSelectors []string
+	sigstoreReturnError         error
 }
 
 func (s *Suite) SetupTest() {
@@ -116,6 +214,9 @@ func (s *Suite) SetupTest() {
 	s.podList = nil
 	s.env = map[string]string{}
 	s.oc = createOSConfig()
+
+	s.sigstoreSelectors = nil
+	s.sigstoreSigs = nil
 }
 
 func (s *Suite) TearDownTest() {
@@ -128,6 +229,59 @@ func (s *Suite) TestAttestWithPidInPod() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithPod(p)
+}
+
+func (s *Suite) TestAttestWithSigstoreSignatures() {
+	s.startInsecureKubelet()
+	s.setSigstoreSelectors([]sigstore.SelectorsFromSignatures{
+		{
+			Subject:  "sigstore-subject",
+			Verified: true,
+		},
+	})
+	p := s.loadInsecurePlugin()
+	s.requireAttestSuccessWithPodAndSignature(p)
+	s.setSigstoreSelectors(nil)
+}
+
+func (s *Suite) TestAttestWithSigstoreSkippedImage() {
+	s.startInsecureKubelet()
+	// Skip the image
+	s.setSigstoreSkipSigs(true)
+	s.setSigstoreSkippedSigSelectors([]string{"sigstore-validation:passed"})
+	p := s.loadInsecurePlugin()
+	s.requireAttestSuccessWithPodAndSkippedImage(p)
+	s.setSigstoreSkipSigs(false)
+	s.setSigstoreSkippedSigSelectors(nil)
+}
+
+func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.setSigstoreReturnError(errors.New("sigstore error"))
+	s.requireAttestSuccessWithPod(p)
+	s.setSigstoreReturnError(nil)
+}
+
+func (s *Suite) TestAttestWithPidInKindPod() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestSuccessWithKindPod(p)
+}
+
+func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestSuccessWithPodSystemdCgroups(p)
+}
+
+func (s *Suite) TestAttestWithInitPidInPod() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestSuccessWithInitPod(p)
 }
 
 func (s *Suite) TestAttestWithPidInPodAfterRetry() {
@@ -285,23 +439,28 @@ func (s *Suite) TestConfigure() {
 	s.writeCert("some-other-ca", s.kubeletCert)
 
 	type config struct {
-		Insecure          bool
-		VerifyKubelet     bool
-		HasNodeName       bool
-		Token             string
-		KubeletURL        string
-		MaxPollAttempts   int
-		PollRetryInterval time.Duration
-		ReloadInterval    time.Duration
+		Insecure                  bool
+		VerifyKubelet             bool
+		HasNodeName               bool
+		Token                     string
+		KubeletURL                string
+		MaxPollAttempts           int
+		PollRetryInterval         time.Duration
+		ReloadInterval            time.Duration
+		SkippedImages             []string
+		AllowedSubjectListEnabled bool
+		AllowedSubjects           []string
+		RekorURL                  string
 	}
 
 	testCases := []struct {
-		name    string
-		raw     string
-		hcl     string
-		config  *config
-		errCode codes.Code
-		errMsg  string
+		name          string
+		raw           string
+		hcl           string
+		config        *config
+		sigstoreError error
+		errCode       codes.Code
+		errMsg        string
 	}{
 		{
 			name: "insecure defaults",
@@ -507,20 +666,82 @@ func (s *Suite) TestConfigure() {
 			errCode: codes.InvalidArgument,
 			errMsg:  "unable to load private key",
 		},
+		{
+			name: "secure defaults with skipped images for sigstore",
+			hcl: `
+				skip_signature_verification_image_list = ["sha:image1hash","sha:image2hash"]
+			`,
+			config: &config{
+				VerifyKubelet:     true,
+				Token:             "default-token",
+				KubeletURL:        "https://127.0.0.1:10250",
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
+				SkippedImages: []string{
+					"sha:image1hash",
+					"sha:image2hash",
+				},
+			},
+		},
+		{
+			name: "secure defaults with allowed subjects for sigstore",
+			hcl: `
+				enable_allowed_subjects_list = true,
+				allowed_subjects_list = ["spirex@example.com","spirex1@example.com"]
+			`,
+			config: &config{
+				VerifyKubelet:             true,
+				Token:                     "default-token",
+				KubeletURL:                "https://127.0.0.1:10250",
+				MaxPollAttempts:           defaultMaxPollAttempts,
+				PollRetryInterval:         defaultPollRetryInterval,
+				ReloadInterval:            defaultReloadInterval,
+				AllowedSubjectListEnabled: true,
+				AllowedSubjects:           []string{"spirex@example.com", "spirex1@example.com"},
+			},
+		},
+		{
+			name: "secure defaults with rekor URL",
+			hcl: `
+				rekor_url = "https://rekor.example.com"
+			`,
+			config: &config{
+				VerifyKubelet:     true,
+				Token:             "default-token",
+				KubeletURL:        "https://127.0.0.1:10250",
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
+				RekorURL:          "https://rekor.example.com",
+			},
+		},
+		{
+			name: "secure defaults with empty rekor URL",
+			hcl: `
+				rekor_url = "inva{{{lid}"
+			`,
+			sigstoreError: errors.New("Error parsing rekor URI"),
+			config:        nil,
+			errMsg:        "Error parsing rekor URI",
+		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
-
+			p.sigstore.(*sigstoreMock).returnError = testCase.sigstoreError
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
 				plugintest.Configure(testCase.hcl),
 				plugintest.CaptureConfigureError(&err))
-
 			if testCase.errMsg != "" {
 				s.RequireGRPCStatusContains(err, testCase.errCode, testCase.errMsg)
+				return
+			}
+			if testCase.sigstoreError != nil {
+				p.sigstore.(*sigstoreMock).returnError = nil
 				return
 			}
 			require.NotNil(t, testCase.config, "test case missing expected config")
@@ -552,8 +773,117 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
+			assert.Equal(t, testCase.config.SkippedImages, c.SkippedImages)
+			assert.Equal(t, testCase.config.AllowedSubjectListEnabled, c.AllowedSubjectListEnabled)
+			assert.Equal(t, testCase.config.AllowedSubjects, c.AllowedSubjects)
+			assert.Equal(t, testCase.config.RekorURL, c.RekorURL)
 		})
 	}
+}
+
+type signature struct {
+	oci.Signature
+
+	payload []byte
+	cert    *x509.Certificate
+}
+
+func (signature) Annotations() (map[string]string, error) {
+	return nil, nil
+}
+
+func (s signature) Payload() ([]byte, error) {
+	return s.payload, nil
+}
+
+func (signature) Base64Signature() (string, error) {
+	return "", nil
+}
+
+func (s signature) Cert() (*x509.Certificate, error) {
+	return s.cert, nil
+}
+
+func (signature) Chain() ([]*x509.Certificate, error) {
+	return nil, nil
+}
+
+func (signature) Bundle() (*oci.Bundle, error) {
+	return nil, nil
+}
+
+type sigstoreMock struct {
+	selectors []sigstore.SelectorsFromSignatures
+
+	sigs                []oci.Signature
+	skipSigs            bool
+	skippedSigSelectors []string
+	returnError         error
+
+	rekorURL string
+}
+
+// SetLogger implements sigstore.Sigstore
+func (*sigstoreMock) SetLogger(logger hclog.Logger) {
+}
+
+func (s *sigstoreMock) FetchImageSignatures(imageName string, ctx context.Context) ([]oci.Signature, error) {
+	return s.sigs, s.returnError
+}
+
+func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) sigstore.SelectorsFromSignatures {
+	return s.selectors[0]
+}
+
+func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
+	return s.selectors
+}
+
+func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
+	return s.skipSigs, s.returnError
+}
+
+func (s *sigstoreMock) AddSkippedImage(string) {
+}
+func (s *sigstoreMock) ClearSkipList() {
+}
+
+func (s *sigstoreMock) AddAllowedSubject(subject string) {
+}
+
+func (s *sigstoreMock) ClearAllowedSubjects() {
+}
+
+func (s *sigstoreMock) EnableAllowSubjectList(flag bool) {
+}
+func (s *sigstoreMock) AttestContainerSignatures(status *corev1.ContainerStatus, ctx context.Context) ([]string, error) {
+	if s.skipSigs {
+		return s.skippedSigSelectors, nil
+	}
+	var selectorsString []string
+	for _, selector := range s.selectors {
+		if selector.Subject != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-subject:%s", status.ContainerID, selector.Subject))
+		}
+		if selector.Content != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-content:%s", status.ContainerID, selector.Content))
+		}
+		if selector.LogID != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-logid:%s", status.ContainerID, selector.LogID))
+		}
+		if selector.IntegratedTime != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-integrated-time:%s", status.ContainerID, selector.IntegratedTime))
+		}
+		if selector.Verified {
+			selectorsString = append(selectorsString, "sigstore-validation:passed")
+		}
+	}
+	return selectorsString, s.returnError
+}
+
+func (s *sigstoreMock) SetRekorURL(url string) error {
+	s.rekorURL = url
+	return s.returnError
 }
 
 func (s *Suite) newPlugin() *Plugin {
@@ -563,6 +893,14 @@ func (s *Suite) newPlugin() *Plugin {
 	p.getenv = func(key string) string {
 		return s.env[key]
 	}
+	p.sigstore = &sigstoreMock{
+		selectors:           s.sigstoreSelectors,
+		sigs:                s.sigstoreSigs,
+		skipSigs:            s.sigstoreSkipSigs,
+		skippedSigSelectors: s.sigstoreSkippedSigSelectors,
+		returnError:         s.sigstoreReturnError,
+	}
+
 	return p
 }
 
@@ -571,6 +909,32 @@ func (s *Suite) setServer(server *httptest.Server) {
 		s.server.Close()
 	}
 	s.server = server
+}
+
+func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignatures) {
+	s.sigstoreSelectors = selectors
+	if s.sigstoreSelectors == nil {
+		s.sigstoreSigs = nil
+		return
+	}
+	s.sigstoreSigs = []oci.Signature{
+		signature{
+			payload: []byte("payload"),
+			cert:    &x509.Certificate{},
+		},
+	}
+}
+
+func (s *Suite) setSigstoreSkipSigs(skip bool) {
+	s.sigstoreSkipSigs = skip
+}
+
+func (s *Suite) setSigstoreSkippedSigSelectors(selectors []string) {
+	s.sigstoreSkippedSigSelectors = selectors
+}
+
+func (s *Suite) setSigstoreReturnError(err error) {
+	s.sigstoreReturnError = err
 }
 
 func (s *Suite) writeFile(path, data string) {
@@ -767,6 +1131,31 @@ func (s *Suite) requireAttestSuccessWithPod(p workloadattestor.WorkloadAttestor)
 	s.addPodListResponse(podListFilePath)
 	s.addGetContainerResponsePidInPod()
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+	s.addCgroupsResponse(cgPidInPodFilePath)
+}
+
+func (s *Suite) requireAttestSuccessWithPodAndSignature(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgPidInPodFilePath)
+	s.requireAttestSuccess(p, testSigstoreSelectors)
+}
+
+func (s *Suite) requireAttestSuccessWithPodAndSkippedImage(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgPidInPodFilePath)
+	s.requireAttestSuccess(p, testSigstoreSkippedSelectors)
+}
+
+func (s *Suite) requireAttestSuccessWithKindPod(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(kindPodListFilePath)
+	s.addCgroupsResponse(cgPidInKindPodFilePath)
+	s.requireAttestSuccess(p, testKindPodSelectors)
+}
+
+func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(podListFilePath)
+	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
+	s.requireAttestSuccess(p, testPodSelectors)
 }
 
 func (s *Suite) requireAttestSuccess(p workloadattestor.WorkloadAttestor, expectedSelectors []*common.Selector) {
