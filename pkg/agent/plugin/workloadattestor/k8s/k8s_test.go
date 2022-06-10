@@ -724,9 +724,7 @@ func (s *Suite) TestConfigure() {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
-
 			p.sigstore.(*sigstoreMock).returnError = testCase.sigstoreError
-			
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
 				plugintest.Configure(testCase.hcl),
@@ -911,14 +909,13 @@ func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignature
 	if s.sigstoreSelectors == nil {
 		s.sigstoreSigs = nil
 		return
-	}	
+	}
 	s.sigstoreSigs = []oci.Signature{
 		signature{
 			payload: []byte("payload"),
 			cert:    &x509.Certificate{},
 		},
 	}
-		
 }
 
 func (s *Suite) setSigstoreSkipSigs(skip bool) {
