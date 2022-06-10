@@ -62,7 +62,7 @@ func (ps PSProcessInfo) Arg1() (string, error) {
 		return "", err
 	}
 
-	// return the first arguement
+	// return the first argument
 	if len(list) >= 2 {
 		return list[1], nil
 	}
@@ -206,7 +206,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 		selectorValues = append(selectorValues, makeSelectorValue("process_name", processName))
 
-		// add first arguement selector value
+		// add first argument selector value
 		arg1, err := p.getFirstArgument(proc)
 
 		if err != nil {
