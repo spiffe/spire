@@ -9,9 +9,13 @@ import (
 )
 
 const (
-	defaultLogLevel     = "info"
-	defaultPollInterval = time.Second * 10
-	defaultCacheDir     = "./.acme-cache"
+	defaultLogLevel                = "info"
+	defaultPollInterval            = time.Second * 10
+	defaultCacheDir                = "./.acme-cache"
+	defaultHealthChecksBindAddress = "localhost"
+	defaultHealthChecksBindPort    = "8080"
+	defaultHealthChecksReadyPath   = "/ready"
+	defaultHealthChecksLivePath    = "/live"
 )
 
 type Config struct {
@@ -59,6 +63,9 @@ type Config struct {
 	// Workload API is the configuration for using the SPIFFE Workload API
 	// as the source for the public keys. Only one source can be configured.
 	WorkloadAPI *WorkloadAPIConfig `hcl:"workload_api"`
+
+	// Health checks enable Liveness and Readiness probes.
+	HealthChecks *HealthChecksConfig `hcl:"health_checks"`
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
@@ -123,6 +130,15 @@ type WorkloadAPIConfig struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalWorkloadAPIConfig `hcl:"experimental"`
+}
+
+type HealthChecksConfig struct {
+	// Listener bindings
+	BindAddress string `hcl:"bind_address"`
+	BindPort    string `hcl:"bind_port"`
+	// Paths for /ready and /live
+	LivePath  string `hcl:"live_path"`
+	ReadyPath string `hcl:"ready_path"`
 }
 
 type experimentalConfig struct {
@@ -199,6 +215,21 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 			return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
 		}
 		methodCount++
+	}
+
+	if c.HealthChecks != nil {
+		if c.HealthChecks.BindAddress == "" {
+			c.HealthChecks.BindAddress = defaultHealthChecksBindAddress
+		}
+		if c.HealthChecks.BindPort == "" {
+			c.HealthChecks.BindPort = defaultHealthChecksBindPort
+		}
+		if c.HealthChecks.ReadyPath == "" {
+			c.HealthChecks.ReadyPath = defaultHealthChecksReadyPath
+		}
+		if c.HealthChecks.LivePath == "" {
+			c.HealthChecks.LivePath = defaultHealthChecksLivePath
+		}
 	}
 
 	if err := c.validateOS(); err != nil {

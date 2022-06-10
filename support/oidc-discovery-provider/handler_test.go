@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -576,32 +575,6 @@ func TestHandlerProxied(t *testing.T) {
 			assert.Equal(t, testCase.body, w.Body.String())
 		})
 	}
-}
-
-type FakeKeySetSource struct {
-	mu      sync.Mutex
-	jwks    *jose.JSONWebKeySet
-	modTime time.Time
-}
-
-func (s *FakeKeySetSource) SetKeySet(jwks *jose.JSONWebKeySet, modTime time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.jwks = jwks
-	s.modTime = modTime
-}
-
-func (s *FakeKeySetSource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.jwks == nil {
-		return nil, time.Time{}, false
-	}
-	return s.jwks, s.modTime, true
-}
-
-func (s *FakeKeySetSource) Close() error {
-	return nil
 }
 
 func domainAllowlist(t *testing.T, domains ...string) DomainPolicy {
