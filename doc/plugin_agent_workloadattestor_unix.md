@@ -33,6 +33,8 @@ Workload path enabled selectors (available when configured with `discover_worklo
 | Selector      | Value                                                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `unix:path`   | The path to the workload binary (e.g. `unix:path:/usr/bin/nginx`)                                                              |
+| `unix:process_name`   | The process name of the workload (e.g. `unix:path:python`)                                                              |
+| `unix:arg1`   | The first arguement of the workload command line (e.g. `unix:path:hello.py`)                                                              |
 | `unix:sha256` | The SHA256 digest of the workload binary (e.g. `unix:sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7`) |
 
 Security Considerations:
