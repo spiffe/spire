@@ -63,7 +63,7 @@ func TestHealthCheckHandler(t *testing.T) {
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
-			h := NewHealthChecksHandler(source, HealthChecksConfig{BindAddress: "localhost", BindPort: "8080", ReadyPath: "/ready", LivePath: "/live"})
+			h := NewHealthChecksHandler(source, HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"})
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())

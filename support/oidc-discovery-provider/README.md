@@ -112,14 +112,13 @@ will terminate if another domain is requested.
 #### Health Checks Section
 
 Health checks are enabled by adding `health_checks {}` to the configuration.
-The health checks endpoints runs at a dedicated listener.
+The health checks endpoints runs at a dedicated listener on localhost.
 
-| Key            | Type   | Required? | Description                            | Default       |
-| -------------- | ------ | --------- | -------------------------------------- | ------------- |
-| `bind_address` | string | optional  | override default listener bind address | `"localhost"` |
-| `bind_port`    | string | optional  | override default listener bind port    | `"8080"`      |
-| `ready_path`   | string | optional  | override default ready path            | `"/ready"`    |
-| `live_path`    | string | optional  | override default live path             | `"/live"`     |
+| Key          | Type   | Required? | Description                         | Default    |
+| ------------ | ------ | --------- | ----------------------------------- | ---------- |
+| `bind_port`  | string | optional  | override default listener bind port | `"8008"`   |
+| `ready_path` | string | optional  | override default ready path         | `"/ready"` |
+| `live_path`  | string | optional  | override default live path          | `"/live"`  |
 
 ### Examples (Unix platforms)
 

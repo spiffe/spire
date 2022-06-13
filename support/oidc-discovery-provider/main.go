@@ -85,16 +85,12 @@ func run(configPath string) error {
 	}()
 
 	if config.HealthChecks != nil {
-		var healthChecksHandler http.Handler = NewHealthChecksHandler(source, *config.HealthChecks)
-		var healthChecksListener, err = net.Listen("tcp", config.HealthChecks.BindAddress+":"+config.HealthChecks.BindPort)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			err := healthChecksListener.Close()
-			log.Error(err)
+		go func() {
+			log.Error(http.ListenAndServe(
+				fmt.Sprintf("localhost:%d", config.HealthChecks.BindPort),
+				NewHealthChecksHandler(source, *config.HealthChecks),
+			))
 		}()
-		http.Serve(healthChecksListener, healthChecksHandler)
 	}
 
 	return http.Serve(listener, handler)

@@ -9,13 +9,12 @@ import (
 )
 
 const (
-	defaultLogLevel                = "info"
-	defaultPollInterval            = time.Second * 10
-	defaultCacheDir                = "./.acme-cache"
-	defaultHealthChecksBindAddress = "localhost"
-	defaultHealthChecksBindPort    = "8080"
-	defaultHealthChecksReadyPath   = "/ready"
-	defaultHealthChecksLivePath    = "/live"
+	defaultLogLevel              = "info"
+	defaultPollInterval          = time.Second * 10
+	defaultCacheDir              = "./.acme-cache"
+	defaultHealthChecksBindPort  = 8008
+	defaultHealthChecksReadyPath = "/ready"
+	defaultHealthChecksLivePath  = "/live"
 )
 
 type Config struct {
@@ -133,9 +132,8 @@ type WorkloadAPIConfig struct {
 }
 
 type HealthChecksConfig struct {
-	// Listener bindings
-	BindAddress string `hcl:"bind_address"`
-	BindPort    string `hcl:"bind_port"`
+	// Listener port binding
+	BindPort int `hcl:"bind_port"`
 	// Paths for /ready and /live
 	LivePath  string `hcl:"live_path"`
 	ReadyPath string `hcl:"ready_path"`
@@ -218,10 +216,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	if c.HealthChecks != nil {
-		if c.HealthChecks.BindAddress == "" {
-			c.HealthChecks.BindAddress = defaultHealthChecksBindAddress
-		}
-		if c.HealthChecks.BindPort == "" {
+		if c.HealthChecks.BindPort <= 0 {
 			c.HealthChecks.BindPort = defaultHealthChecksBindPort
 		}
 		if c.HealthChecks.ReadyPath == "" {
