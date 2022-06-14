@@ -30,8 +30,8 @@ const (
 )
 
 type Sigstore interface {
-	AttestContainerSignatures(status *corev1.ContainerStatus, ctx context.Context) ([]string, error)
-	FetchImageSignatures(imageName string, ctx context.Context) ([]oci.Signature, error)
+	AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error)
+	FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error)
 	SelectorValuesFromSignature(oci.Signature, string) SelectorsFromSignatures
 	ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures
 	ShouldSkipImage(imageID string) (bool, error)
@@ -89,7 +89,7 @@ func (s *sigstoreImpl) SetLogger(logger hclog.Logger) {
 
 // FetchImageSignatures retrieves signatures for specified image via cosign, using the specified rekor server.
 // Returns a list of verified signatures, and an error if any.
-func (s *sigstoreImpl) FetchImageSignatures(imageName string, ctx context.Context) ([]oci.Signature, error) {
+func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
 		message := fmt.Errorf("error parsing image reference: %w", err)
@@ -271,7 +271,7 @@ func (s *sigstoreImpl) EnableAllowSubjectList(flag bool) {
 	s.allowListEnabled = flag
 }
 
-func (s *sigstoreImpl) AttestContainerSignatures(status *corev1.ContainerStatus, ctx context.Context) ([]string, error) {
+func (s *sigstoreImpl) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
 	skip, _ := s.ShouldSkipImage(status.ImageID)
 	if skip {
 		return []string{signatureVerifiedSelector}, nil
@@ -283,7 +283,7 @@ func (s *sigstoreImpl) AttestContainerSignatures(status *corev1.ContainerStatus,
 	if cachedSignature != nil {
 		s.logger.Debug("Found cached signature", "imageId", imageID)
 	} else {
-		signatures, err := s.FetchImageSignatures(imageID, ctx)
+		signatures, err := s.FetchImageSignatures(ctx, imageID)
 		if err != nil {
 			return nil, err
 		}
