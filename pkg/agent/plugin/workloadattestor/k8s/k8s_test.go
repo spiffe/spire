@@ -669,7 +669,7 @@ func (s *Suite) TestConfigure() {
 		{
 			name: "secure defaults with skipped images for sigstore",
 			hcl: `
-				skip_signature_verification_image_list = ["sha:image1hash","sha:image2hash"]
+				sigstore.skip_signature_verification_image_list = ["sha:image1hash","sha:image2hash"]
 			`,
 			config: &config{
 				VerifyKubelet:     true,
@@ -687,8 +687,8 @@ func (s *Suite) TestConfigure() {
 		{
 			name: "secure defaults with allowed subjects for sigstore",
 			hcl: `
-				enable_allowed_subjects_list = true,
-				allowed_subjects_list = ["spirex@example.com","spirex1@example.com"]
+				sigstore.enable_allowed_subjects_list = true,
+				sigstore.allowed_subjects_list = ["spirex@example.com","spirex1@example.com"]
 			`,
 			config: &config{
 				VerifyKubelet:             true,
@@ -704,7 +704,7 @@ func (s *Suite) TestConfigure() {
 		{
 			name: "secure defaults with rekor URL",
 			hcl: `
-				rekor_url = "https://rekor.example.com"
+				sigstore.rekor_url = "https://rekor.example.com"
 			`,
 			config: &config{
 				VerifyKubelet:     true,
@@ -719,7 +719,7 @@ func (s *Suite) TestConfigure() {
 		{
 			name: "secure defaults with empty rekor URL",
 			hcl: `
-				rekor_url = "inva{{{lid}"
+				sigstore.rekor_url = "inva{{{lid}"
 			`,
 			sigstoreError: errors.New("Error parsing rekor URI"),
 			config:        nil,
