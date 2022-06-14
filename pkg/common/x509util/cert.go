@@ -54,6 +54,9 @@ func RawCertsToCertificates(rawCerts [][]byte) ([]*x509.Certificate, error) {
 
 // RawCertsFromCertificates parses ASN.1 DER data from given slice of X.509 Certificates
 func RawCertsFromCertificates(certs []*x509.Certificate) [][]byte {
+	if certs == nil {
+		return nil
+	}
 	rawCerts := make([][]byte, 0, len(certs))
 	for _, cert := range certs {
 		rawCerts = append(rawCerts, cert.Raw)

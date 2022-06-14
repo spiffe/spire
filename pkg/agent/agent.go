@@ -7,7 +7,6 @@ import (
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"os"
-	"path"
 	"runtime"
 	"sync"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
@@ -41,6 +41,14 @@ type Agent struct {
 func (a *Agent) Run(ctx context.Context) error {
 	a.c.Log.Infof("Starting agent with data directory: %q", a.c.DataDir)
 	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
+		return err
+	}
+
+	// TODO: Switch over to the JSONFile storage after the backcompat shim
+	// has been in place for an entire minor release, following deprecation
+	// guidelines.
+	sto, err := storage.Backcompat(a.c.DataDir)
+	if err != nil {
 		return err
 	}
 
@@ -76,14 +84,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
-	as, err := a.attest(ctx, cat, metrics)
+	as, err := a.attest(ctx, sto, cat, metrics)
 	if err != nil {
 		return err
 	}
 
 	svidStoreCache := a.newSVIDStoreCache()
 
-	manager, err := a.newManager(ctx, cat, metrics, as, svidStoreCache)
+	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache)
 	if err != nil {
 		return err
 	}
@@ -181,7 +189,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
 		Catalog:           cat,
 		Metrics:           metrics,
@@ -189,28 +197,26 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 		TrustDomain:       a.c.TrustDomain,
 		TrustBundle:       a.c.TrustBundle,
 		InsecureBootstrap: a.c.InsecureBootstrap,
-		BundleCachePath:   a.bundleCachePath(),
-		SVIDCachePath:     a.agentSVIDPath(),
+		Storage:           sto,
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:     a.c.ServerAddress,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
 	config := &manager.Config{
-		SVID:            as.SVID,
-		SVIDKey:         as.Key,
-		Bundle:          as.Bundle,
-		Catalog:         cat,
-		TrustDomain:     a.c.TrustDomain,
-		ServerAddr:      a.c.ServerAddress,
-		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
-		Metrics:         metrics,
-		BundleCachePath: a.bundleCachePath(),
-		SVIDCachePath:   a.agentSVIDPath(),
-		SyncInterval:    a.c.SyncInterval,
-		SVIDStoreCache:  cache,
+		SVID:           as.SVID,
+		SVIDKey:        as.Key,
+		Bundle:         as.Bundle,
+		Catalog:        cat,
+		TrustDomain:    a.c.TrustDomain,
+		ServerAddr:     a.c.ServerAddress,
+		Log:            a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
+		Metrics:        metrics,
+		Storage:        sto,
+		SyncInterval:   a.c.SyncInterval,
+		SVIDStoreCache: cache,
 	}
 
 	mgr := manager.New(config)
@@ -271,13 +277,6 @@ func (a *Agent) newAdminEndpoints(mgr manager.Manager, attestor workload_attesto
 	}
 
 	return admin_api.New(config)
-}
-func (a *Agent) bundleCachePath() string {
-	return path.Join(a.c.DataDir, "bundle.der")
-}
-
-func (a *Agent) agentSVIDPath() string {
-	return path.Join(a.c.DataDir, "agent_svid.der")
 }
 
 // waitForTestDial calls health.WaitForTestDial to wait for a connection to the
