@@ -28,8 +28,6 @@ General selectors:
 | `unix:supplementary_gid`   | **Currently only supported on linux:** The supplementary group ID of the workload (e.g. `unix:supplementary_gid:2000`)         |
 | `unix:supplementary_group` | **Currently only supported on linux:** The supplementary group name of the workload (e.g. `unix:supplementary_group:www-data`) |
 
-Workload path enabled selectors (available when configured with `discover_workload_path = true`):
-
 | Selector      | Value                                                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `unix:path`   | The path to the workload binary (e.g. `unix:path:/usr/bin/nginx`)                                                              |
