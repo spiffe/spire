@@ -359,7 +359,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				sigstorecache:              NewCache(maximumAmountCache),
 				checkOptsFunction:          emptyCheckOptsFunction,
 			}
-			got, err := sigstore.FetchImageSignatures(tt.args.imageName, context.Background())
+			got, err := sigstore.FetchImageSignatures(context.Background(), tt.args.imageName)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("sigstoreImpl.FetchImageSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1698,7 +1698,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				checkOptsFunction:          emptyCheckOptsFunction,
 				logger:                     hclog.Default(),
 			}
-			got, err := sigstore.AttestContainerSignatures(&tt.status, context.Background())
+			got, err := sigstore.AttestContainerSignatures(context.Background(), &tt.status)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("sigstoreImpl.AttestContainerSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return

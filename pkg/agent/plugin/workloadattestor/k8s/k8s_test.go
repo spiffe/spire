@@ -816,7 +816,7 @@ type sigstoreMock struct {
 func (*sigstoreMock) SetLogger(logger hclog.Logger) {
 }
 
-func (s *sigstoreMock) FetchImageSignatures(imageName string, ctx context.Context) ([]oci.Signature, error) {
+func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
 	return s.sigs, s.returnError
 }
 
@@ -845,7 +845,7 @@ func (s *sigstoreMock) ClearAllowedSubjects() {
 
 func (s *sigstoreMock) EnableAllowSubjectList(flag bool) {
 }
-func (s *sigstoreMock) AttestContainerSignatures(status *corev1.ContainerStatus, ctx context.Context) ([]string, error) {
+func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
 	if s.skipSigs {
 		return s.skippedSigSelectors, nil
 	}
