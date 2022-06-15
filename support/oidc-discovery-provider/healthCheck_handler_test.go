@@ -25,13 +25,13 @@ func TestHealthCheckHandler(t *testing.T) {
 		code    int
 	}{
 		{
-			name:   "Check Ready State",
+			name:   "Check Live State with no Keyset and valid threshold",
 			method: "GET",
-			path:   "/ready",
+			path:   "/live",
 			code:   http.StatusOK,
 		},
 		{
-			name:   "Check Live State with Keyset",
+			name:   "Check Live State with Keyset and valid threshold",
 			method: "GET",
 			path:   "/live",
 			code:   http.StatusOK,
@@ -44,11 +44,60 @@ func TestHealthCheckHandler(t *testing.T) {
 					},
 				},
 			},
+			modTime: time.Now(),
 		},
 		{
-			name:   "Check Live State without Keyset",
+			name:   "Check Live State with Keyset and invalid threshold",
 			method: "GET",
 			path:   "/live",
+			code:   http.StatusInternalServerError,
+			jwks: &jose.JSONWebKeySet{
+				Keys: []jose.JSONWebKey{
+					{
+						Key:       ec256Pubkey,
+						KeyID:     "KEYID",
+						Algorithm: "ES256",
+					},
+				},
+			},
+			modTime: time.Now().Add(-time.Minute * 5),
+		},
+		{
+			name:   "Check Ready State with Keyset and valid threshold",
+			method: "GET",
+			path:   "/ready",
+			code:   http.StatusOK,
+			jwks: &jose.JSONWebKeySet{
+				Keys: []jose.JSONWebKey{
+					{
+						Key:       ec256Pubkey,
+						KeyID:     "KEYID",
+						Algorithm: "ES256",
+					},
+				},
+			},
+			modTime: time.Now(),
+		},
+		{
+			name:   "Check Ready State with Keyset and invalid threshold",
+			method: "GET",
+			path:   "/ready",
+			code:   http.StatusInternalServerError,
+			jwks: &jose.JSONWebKeySet{
+				Keys: []jose.JSONWebKey{
+					{
+						Key:       ec256Pubkey,
+						KeyID:     "KEYID",
+						Algorithm: "ES256",
+					},
+				},
+			},
+			modTime: time.Now().Add(-time.Minute * 5),
+		},
+		{
+			name:   "Check Ready State without Keyset",
+			method: "GET",
+			path:   "/ready",
 			code:   http.StatusInternalServerError,
 			jwks:   nil,
 		},
@@ -63,7 +112,10 @@ func TestHealthCheckHandler(t *testing.T) {
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
-			h := NewHealthChecksHandler(source, HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"})
+			c := Config{}
+			c.ServerAPI = &ServerAPIConfig{}
+			c.HealthChecks = &HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"}
+			h := NewHealthChecksHandler(source, &c)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())

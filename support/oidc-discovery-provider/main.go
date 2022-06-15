@@ -88,7 +88,7 @@ func run(configPath string) error {
 		go func() {
 			log.Error(http.ListenAndServe(
 				fmt.Sprintf("localhost:%d", config.HealthChecks.BindPort),
-				NewHealthChecksHandler(source, *config.HealthChecks),
+				NewHealthChecksHandler(source, config),
 			))
 		}()
 	}
