@@ -576,7 +576,7 @@ func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, st
 // container runtime prefixes, etc.
 var cgroupRE = regexp.MustCompile(`` +
 	// "pod"-prefixed Pod UID (with punctuation separated groups) followed by punctuation
-	`[[:punct:]]pod([[:xdigit:]]{8}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{4}[[:punct:]][[:xdigit:]]{12})[[:punct:]]` +
+	`[[:punct:]]pod([[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12})[[:punct:]]` +
 	// zero or more punctuation separated "segments" (e.g. "docker-")
 	`(?:[[:^punct:]]+[[:punct:]])*` +
 	// non-punctuation end of string, i.e., the container ID
