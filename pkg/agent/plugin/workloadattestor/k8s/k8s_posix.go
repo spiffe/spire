@@ -326,23 +326,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	// Configure sigstore settings
-	p.sigstore.ClearSkipList()
-	if c.SkippedImages != nil {
-		for _, imageID := range c.SkippedImages {
-			p.sigstore.AddSkippedImage(imageID)
-		}
-	}
-
-	p.sigstore.EnableAllowSubjectList(c.AllowedSubjectListEnabled)
-	p.sigstore.ClearAllowedSubjects()
-	if c.AllowedSubjects != nil {
-		for _, subject := range c.AllowedSubjects {
-			p.sigstore.AddAllowedSubject(subject)
-		}
-	}
-	if c.RekorURL != "" {
-		if err := p.sigstore.SetRekorURL(c.RekorURL); err != nil {
+	if p.sigstore != nil {
+		if err:= configureSigstore(c, p.sigstore); err != nil{
 			return nil, err
 		}
 	}
@@ -356,6 +341,35 @@ func createHelper(c *Plugin) (ContainerHelper, error) {
 	return &containerHelper{
 		fs: c.fs,
 	}, nil
+
+func configureSigstore(config *k8sConfig, sigstore sigstore.Sigstore) error {
+	// Configure sigstore settings
+	sigstore.ClearSkipList()
+	if config.SkippedImages != nil {
+		for _, imageID := range config.SkippedImages {
+			sigstore.AddSkippedImage(imageID)
+		}
+	}
+	
+	sigstore.EnableAllowSubjectList(config.AllowedSubjectListEnabled)
+	sigstore.ClearAllowedSubjects()
+	if config.AllowedSubjects != nil {
+		for _, subject := range config.AllowedSubjects {
+			sigstore.AddAllowedSubject(subject)
+		}
+	}
+	if config.RekorURL != "" {
+		if err := sigstore.SetRekorURL(config.RekorURL); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Plugin) setConfig(config *k8sConfig) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = config
 }
 
 type containerHelper struct {
