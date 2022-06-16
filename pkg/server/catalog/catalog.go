@@ -122,11 +122,6 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	repo := &Repository{
 		log: config.Log,
 	}
-	defer func() {
-		if err != nil {
-			repo.Close()
-		}
-	}()
 
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
