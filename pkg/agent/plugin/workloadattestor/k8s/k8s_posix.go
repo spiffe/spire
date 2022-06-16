@@ -347,7 +347,7 @@ func configureSigstore(config *k8sConfig, sigstore sigstore.Sigstore) error {
 		for _, imageID := range config.SkippedImages {
 			sigstore.AddSkippedImage(imageID)
 		}
-	}	
+	}
 	sigstore.EnableAllowSubjectList(config.AllowedSubjectListEnabled)
 	sigstore.ClearAllowedSubjects()
 	if config.AllowedSubjects != nil {
