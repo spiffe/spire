@@ -325,13 +325,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
 	}
-
 	if p.sigstore != nil {
-		if err:= configureSigstore(c, p.sigstore); err != nil{
+		if err := configureSigstore(c, p.sigstore); err != nil {
 			return nil, err
 		}
 	}
-
 	// Set the config
 	p.setConfig(c)
 	return &configv1.ConfigureResponse{}, nil
