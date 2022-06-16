@@ -95,7 +95,7 @@ func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureR
 		tokenPath: hclConfig.TokenPath,
 	}
 	if config.tokenPath == "" {
-		config.tokenPath = defaultTokenPath
+		config.tokenPath = getDefaultTokenPath()
 	}
 
 	p.setConfig(config)

@@ -5,7 +5,7 @@ package docker
 
 import (
 	hclog "github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/process"
+	"github.com/spiffe/spire/pkg/common/container/process"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
