@@ -97,18 +97,22 @@ func (repo *Repository) Services() []catalog.ServiceRepo {
 func (repo *Repository) Close() {
 	// Must close in reverse initialization order!
 
-	repo.log.Debug("Closing catalog")
-	if err := repo.catalogCloser.Close(); err == nil {
-		repo.log.Info("Catalog closed")
-	} else {
-		repo.log.WithError(err).Error("Failed to close catalog")
+	if repo.catalogCloser != nil {
+		repo.log.Debug("Closing catalog")
+		if err := repo.catalogCloser.Close(); err == nil {
+			repo.log.Info("Catalog closed")
+		} else {
+			repo.log.WithError(err).Error("Failed to close catalog")
+		}
 	}
 
-	repo.log.Debug("Closing DataStore")
-	if err := repo.dataStoreCloser.Close(); err == nil {
-		repo.log.Info("DataStore closed")
-	} else {
-		repo.log.WithError(err).Error("Failed to close DataStore")
+	if repo.dataStoreCloser != nil {
+		repo.log.Debug("Closing DataStore")
+		if err := repo.dataStoreCloser.Close(); err == nil {
+			repo.log.Info("DataStore closed")
+		} else {
+			repo.log.WithError(err).Error("Failed to close DataStore")
+		}
 	}
 }
 
@@ -122,6 +126,11 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	repo := &Repository{
 		log: config.Log,
 	}
+	defer func() {
+		if err != nil {
+			repo.Close()
+		}
+	}()
 
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
