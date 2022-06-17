@@ -3940,6 +3940,10 @@ func (s *PluginSuite) TestMigration() {
 				prepareDB(true)
 				require.True(s.ds.db.Dialect().HasColumn("attested_node_entries", "can_reattest"))
 				require.True(s.ds.db.Dialect().HasColumn("registered_entries", "hint"))
+			case 18:
+				prepareDB(true)
+				require.True(s.ds.db.Dialect().HasColumn("registered_entries", "x509_ttl"))
+				require.True(s.ds.db.Dialect().HasColumn("registered_entries", "jwt_ttl"))
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}

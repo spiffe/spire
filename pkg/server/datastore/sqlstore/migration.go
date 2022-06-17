@@ -126,15 +126,17 @@ import (
 // | v1.2.3  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.2.4  |        |                                                                           |
-// |---------|        |                                                                           |
+// |*********|********|***************************************************************************|
 // | v1.3.0  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.3.1  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.3.2  | 19     | Added TTLX509 and TTLJWT columns to entries                               |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 18
+	latestSchemaVersion = 19
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -353,6 +355,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	switch currVersion {
 	case 17:
 		err = migrateToV18(tx)
+	case 18:
+		err = migrateToV19(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -367,6 +371,13 @@ func migrateToV18(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV19(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
