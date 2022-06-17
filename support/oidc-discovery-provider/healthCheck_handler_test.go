@@ -17,12 +17,13 @@ func TestHealthCheckHandler(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 	testCases := []struct {
-		name    string
-		method  string
-		path    string
-		jwks    *jose.JSONWebKeySet
-		modTime time.Time
-		code    int
+		name     string
+		method   string
+		path     string
+		jwks     *jose.JSONWebKeySet
+		modTime  time.Time
+		pollTime time.Time
+		code     int
 	}{
 		{
 			name:   "Check Live State with no Keyset and valid threshold",
@@ -44,7 +45,7 @@ func TestHealthCheckHandler(t *testing.T) {
 					},
 				},
 			},
-			modTime: time.Now(),
+			pollTime: time.Now(),
 		},
 		{
 			name:   "Check Live State with Keyset and invalid threshold",
@@ -60,7 +61,7 @@ func TestHealthCheckHandler(t *testing.T) {
 					},
 				},
 			},
-			modTime: time.Now().Add(-time.Minute * 5),
+			pollTime: time.Now().Add(-time.Minute * 5),
 		},
 		{
 			name:   "Check Ready State with Keyset and valid threshold",
@@ -76,7 +77,7 @@ func TestHealthCheckHandler(t *testing.T) {
 					},
 				},
 			},
-			modTime: time.Now(),
+			pollTime: time.Now(),
 		},
 		{
 			name:   "Check Ready State with Keyset and invalid threshold",
@@ -92,7 +93,7 @@ func TestHealthCheckHandler(t *testing.T) {
 					},
 				},
 			},
-			modTime: time.Now().Add(-time.Minute * 5),
+			pollTime: time.Now().Add(-time.Minute * 5),
 		},
 		{
 			name:   "Check Ready State without Keyset",
@@ -107,7 +108,7 @@ func TestHealthCheckHandler(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
-			source.SetKeySet(testCase.jwks, testCase.modTime)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
 
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)

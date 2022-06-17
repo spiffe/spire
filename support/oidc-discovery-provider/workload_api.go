@@ -42,6 +42,7 @@ type WorkloadAPISource struct {
 	rawBundle []byte
 	jwks      *jose.JSONWebKeySet
 	modTime   time.Time
+	pollTime  time.Time
 }
 
 func NewWorkloadAPISource(config WorkloadAPISourceConfig) (*WorkloadAPISource, error) {
@@ -97,6 +98,10 @@ func (s *WorkloadAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool)
 	return s.jwks, s.modTime, true
 }
 
+func (s *WorkloadAPISource) LastPoll() time.Time {
+	return s.pollTime
+}
+
 func (s *WorkloadAPISource) pollEvery(ctx context.Context, client *workloadapi.Client, interval time.Duration) {
 	s.wg.Add(1)
 	defer s.wg.Done()
@@ -116,6 +121,8 @@ func (s *WorkloadAPISource) pollEvery(ctx context.Context, client *workloadapi.C
 }
 
 func (s *WorkloadAPISource) pollOnce(ctx context.Context, client *workloadapi.Client) {
+	s.pollTime = s.clock.Now()
+
 	jwtBundles, err := client.FetchJWTBundles(ctx)
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to fetch JWKS from the Workload API")

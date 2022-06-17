@@ -112,7 +112,13 @@ will terminate if another domain is requested.
 #### Health Checks Section
 
 Health checks are enabled by adding `health_checks {}` to the configuration.
-The health checks endpoints runs at a dedicated listener on localhost.
+The health checks endpoints are hosted on a dedicated listener on localhost.
+
+- The "ready" state is determined by the availability of keys fetched via the workload/server API. If the keys where fetched successfully but can't be fetched anymore (e.g. workload or server API can't be reached), the server is still determined ready for the threshold interval.
+- The "live" state is either determined by the availability of keys fetched via the workload/server API or the threshold interval after the server started serving requests. If the keys where fetched successfully but can't be fetched anymore (e.g. workload/server API can't be reached), the server is still determined ready for the threshold interval.
+
+The threshold interval is currently set to 5 times the workload/server APIs poll interval, but at least 3 minutes.
+Both states respond with a 200 OK status code for success or 500 Internal Server Error for failure.
 
 | Key          | Type   | Required? | Description                         | Default    |
 | ------------ | ------ | --------- | ----------------------------------- | ---------- |

@@ -57,8 +57,8 @@ func (h *HealthChecksHandler) readyCheck(w http.ResponseWriter, r *http.Request)
 	}
 
 	statusCode := http.StatusOK
-	_, modTime, isValid := h.source.FetchKeySet()
-	elapsed := time.Since(modTime)
+	_, _, isValid := h.source.FetchKeySet()
+	elapsed := time.Since(h.source.LastPoll())
 	isReady := isValid && elapsed < h.jwkThreshold
 
 	if !isReady {
@@ -75,8 +75,8 @@ func (h *HealthChecksHandler) liveCheck(w http.ResponseWriter, r *http.Request) 
 	}
 
 	statusCode := http.StatusOK
-	_, modTime, isValid := h.source.FetchKeySet()
-	elapsed := time.Since(modTime)
+	_, _, isValid := h.source.FetchKeySet()
+	elapsed := time.Since(h.source.LastPoll())
 	isReady := isValid && elapsed < h.jwkThreshold
 
 	if !isValid {

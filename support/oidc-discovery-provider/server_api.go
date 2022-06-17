@@ -33,11 +33,12 @@ type ServerAPISource struct {
 	clock  clock.Clock
 	cancel context.CancelFunc
 
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
-	bundle  *types.Bundle
-	jwks    *jose.JSONWebKeySet
-	modTime time.Time
+	mu       sync.RWMutex
+	wg       sync.WaitGroup
+	bundle   *types.Bundle
+	jwks     *jose.JSONWebKeySet
+	modTime  time.Time
+	pollTime time.Time
 }
 
 func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) {
@@ -79,6 +80,10 @@ func (s *ServerAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 	return s.jwks, s.modTime, true
 }
 
+func (s *ServerAPISource) LastPoll() time.Time {
+	return s.pollTime
+}
+
 func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
 	s.wg.Add(1)
 	defer s.wg.Done()
@@ -99,6 +104,8 @@ func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, 
 }
 
 func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleClient) {
+	s.pollTime = s.clock.Now()
+
 	// Ensure the stream gets cleaned up
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
