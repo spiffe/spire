@@ -57,9 +57,9 @@ func (h *HealthChecksHandler) readyCheck(w http.ResponseWriter, r *http.Request)
 	}
 
 	statusCode := http.StatusOK
-	_, _, isValid := h.source.FetchKeySet()
-	elapsed := time.Since(h.source.LastPoll())
-	isReady := isValid && elapsed < h.jwkThreshold
+	lastPoll := h.source.LastSuccessfulPoll()
+	elapsed := time.Since(lastPoll)
+	isReady := !lastPoll.IsZero() && elapsed < h.jwkThreshold
 
 	if !isReady {
 		statusCode = http.StatusInternalServerError
@@ -75,11 +75,11 @@ func (h *HealthChecksHandler) liveCheck(w http.ResponseWriter, r *http.Request) 
 	}
 
 	statusCode := http.StatusOK
-	_, _, isValid := h.source.FetchKeySet()
-	elapsed := time.Since(h.source.LastPoll())
-	isReady := isValid && elapsed < h.jwkThreshold
+	lastPoll := h.source.LastSuccessfulPoll()
+	elapsed := time.Since(lastPoll)
+	isReady := !lastPoll.IsZero() && elapsed < h.jwkThreshold
 
-	if !isValid {
+	if lastPoll.IsZero() {
 		elapsed := time.Since(h.initTime)
 		if elapsed >= h.jwkThreshold {
 			statusCode = http.StatusInternalServerError

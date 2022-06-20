@@ -13,7 +13,7 @@ type JWKSSource interface {
 	// Close closes the source.
 	Close() error
 
-	// LastPoll returns the time of the last successful poll of the JWKS from the source, or a zero value if
+	// LastSuccessfulPoll returns the time of the last successful poll of the JWKS from the source, or a zero value if
 	// there hasn't been a successful poll yet.
-	LastPoll() time.Time
+	LastSuccessfulPoll() time.Time
 }

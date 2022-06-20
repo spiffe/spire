@@ -80,7 +80,9 @@ func (s *ServerAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 	return s.jwks, s.modTime, true
 }
 
-func (s *ServerAPISource) LastPoll() time.Time {
+func (s *ServerAPISource) LastSuccessfulPoll() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.pollTime
 }
 
@@ -104,8 +106,6 @@ func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, 
 }
 
 func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleClient) {
-	s.pollTime = s.clock.Now()
-
 	// Ensure the stream gets cleaned up
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -121,6 +121,9 @@ func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleCl
 	}
 
 	s.parseBundle(bundle)
+	s.mu.Lock()
+	s.pollTime = s.clock.Now()
+	s.mu.Unlock()
 }
 
 func (s *ServerAPISource) parseBundle(bundle *types.Bundle) {

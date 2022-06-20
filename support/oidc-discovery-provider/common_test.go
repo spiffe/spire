@@ -45,6 +45,8 @@ func (s *FakeKeySetSource) Close() error {
 	return nil
 }
 
-func (s *FakeKeySetSource) LastPoll() time.Time {
+func (s *FakeKeySetSource) LastSuccessfulPoll() time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.pollTime
 }
