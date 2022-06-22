@@ -721,9 +721,13 @@ func (s *Suite) TestConfigure() {
 			hcl: `
 				sigstore.rekor_url = "inva{{{lid}"
 			`,
-			sigstoreError: errors.New("Error parsing rekor URI"),
+			sigstoreError: errors.New("error parsing rekor URI"),
 			config:        nil,
+<<<<<<< HEAD
 			errMsg:        "Error parsing rekor URI",
+=======
+			err:           "error parsing rekor URI",
+>>>>>>> refactor: pr adjustments related to cosign
 		},
 	}
 

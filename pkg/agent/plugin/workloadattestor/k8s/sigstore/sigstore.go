@@ -174,33 +174,30 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 		return selectorsFromSignatures
 	}
 
-	suppress := false
 	if s.allowListEnabled {
 		if _, ok := s.subjectAllowList[subject]; !ok {
-			suppress = true
+			return selectorsFromSignatures
 		}
 	}
 
-	if !suppress {
-		selectorsFromSignatures.Subject = subject
-		selectorsFromSignatures.Verified = true
+	selectorsFromSignatures.Subject = subject
+	selectorsFromSignatures.Verified = true
 
-		bundle, err := signature.Bundle()
+	bundle, err := signature.Bundle()
+	if err != nil {
+		s.logger.Error("error getting signature bundle: ", err.Error())
+	} else {
+		sigContent, err := getBundleSignatureContent(bundle)
 		if err != nil {
-			s.logger.Error("error getting signature bundle: ", err.Error())
+			s.logger.Error("error getting signature content", "error", err)
 		} else {
-			sigContent, err := getBundleSignatureContent(bundle)
-			if err != nil {
-				s.logger.Error("error getting signature content", "error", err)
-			} else {
-				selectorsFromSignatures.Content = sigContent
-			}
-			if bundle.Payload.LogID != "" {
-				selectorsFromSignatures.LogID = bundle.Payload.LogID
-			}
-			if bundle.Payload.IntegratedTime != 0 {
-				selectorsFromSignatures.IntegratedTime = strconv.FormatInt(bundle.Payload.IntegratedTime, 10)
-			}
+			selectorsFromSignatures.Content = sigContent
+		}
+		if bundle.Payload.LogID != "" {
+			selectorsFromSignatures.LogID = bundle.Payload.LogID
+		}
+		if bundle.Payload.IntegratedTime != 0 {
+			selectorsFromSignatures.IntegratedTime = strconv.FormatInt(bundle.Payload.IntegratedTime, 10)
 		}
 	}
 	return selectorsFromSignatures
@@ -230,9 +227,6 @@ func (s *sigstoreImpl) AddSkippedImage(imageID string) {
 
 // ClearSkipList clears the skip list.
 func (s *sigstoreImpl) ClearSkipList() {
-	for k := range s.skippedImages {
-		delete(s.skippedImages, k)
-	}
 	s.skippedImages = nil
 }
 
@@ -261,9 +255,6 @@ func (s *sigstoreImpl) AddAllowedSubject(subject string) {
 }
 
 func (s *sigstoreImpl) ClearAllowedSubjects() {
-	for k := range s.subjectAllowList {
-		delete(s.subjectAllowList, k)
-	}
 	s.subjectAllowList = nil
 }
 
