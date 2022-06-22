@@ -690,6 +690,50 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "svid_cache_expiry_interval parses a duration",
+			input: func(c *Config) {
+				c.Agent.Experimental.SVIDCacheExpiryPeriod = "1s50ms"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 1050000000, c.SVIDCacheExpiryPeriod)
+			},
+		},
+		{
+			msg:         "invalid svid_cache_expiry_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.SVIDCacheExpiryPeriod = "moo"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "svid_cache_expiry_interval is not set",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 0, c.SVIDCacheExpiryPeriod)
+			},
+		},
+		{
+			msg: "max_svid_cache_size is set",
+			input: func(c *Config) {
+				c.Agent.Experimental.MaxSvidCacheSize = 100
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 100, c.MaxSvidCacheSize)
+			},
+		},
+		{
+			msg: "max_svid_cache_size is not set",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 0, c.MaxSvidCacheSize)
+			},
+		},
+		{
 			msg: "admin_socket_path not provided",
 			input: func(c *Config) {
 				c.Agent.AdminSocketPath = ""

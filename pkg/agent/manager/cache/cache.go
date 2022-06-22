@@ -7,11 +7,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+)
+
+const (
+	DefaultMaxSvidCacheSize      = 1000
+	DefaultSVIDCacheExpiryPeriod = 1 * time.Hour
 )
 
 type Selectors []*common.Selector
@@ -58,9 +64,9 @@ type X509SVID struct {
 	PrivateKey crypto.Signer
 }
 
-// Cache caches each registration entry, signed X509-SVIDs for those entries,
-// bundles, and JWT SVIDs for the agent. It allows subscriptions by (workload)
-// selector sets and notifies subscribers when:
+// Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
+// The signed X509-SVIDs for those entries are stored in LRU-like cache.
+// It allows subscriptions by (workload) selector sets and notifies subscribers when:
 //
 // 1) a registration entry related to the selectors:
 //   * is modified
@@ -74,6 +80,22 @@ type X509SVID struct {
 // The cache does this efficiently by building an index for each unique
 // selector it encounters. Each selector index tracks the subscribers (i.e
 // workloads) and registration entries that have that selector.
+//
+// The LRU-like SVID cache has configurable size limit and expiry period.
+// 1. Size limit of SVID cache is a soft limit which means if SVID has a subscriber present then
+//    that SVID is never removed from cache.
+// 2. Least recently used SVIDs are removed from cache only after the cache expiry period has passed.
+//    This is done to reduce the overall cache churn.
+// 3. Last access timestamp for SVID cache entry is updated when a new subscriber is created
+// 4. When a new subscriber is created and if there is a cache miss
+//    then subscriber needs to wait for next SVID sync event to receive WorkloadUpdate with newly minted SVID
+//
+// The advantage of above approach is that if agent has entry count less than cache size
+// then all SVIDs are cached at all times. If agent has entry count greater than cache size then
+// subscribers will continue to get SVID updates (potential delay for first WorkloadUpdate if cache miss)
+// and least used SVIDs will be removed from cache which will save memory usage.
+// It will allow agent to support large number of registrations.
+//
 //
 // When registration entries are added/updated/removed, the set of relevant
 // selectors are gathered and the indexes for those selectors are combed for
@@ -102,6 +124,7 @@ type Cache struct {
 
 	log         logrus.FieldLogger
 	trustDomain spiffeid.TrustDomain
+	clk         clock.Clock
 
 	metrics telemetry.Metrics
 
@@ -113,14 +136,23 @@ type Cache struct {
 	// selectors holds the selector indices, keyed by a selector key
 	selectors map[selector]*selectorIndex
 
-	// staleEntries holds stale registration entries
+	// staleEntries holds stale or new registration entries which require new SVID to be stored in cache
 	staleEntries map[string]bool
 
 	// bundles holds the trust bundles, keyed by trust domain id (i.e. "spiffe://domain.test")
 	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+
+	// svids are stored by entry IDs
+	svids map[string]*X509SVID
+
+	// maxSVIDCacheSize is a soft limit of max number of SVIDs that would be stored in cache
+	maxSvidCacheSize int
+
+	// svidCacheExpiryPeriod is a period after which svids that don't have subscribers will be removed from cache
+	svidCacheExpiryPeriod time.Duration
 }
 
-// StaleEntry holds stale entries with SVIDs expiration time
+// StaleEntry holds stale or outdated entries which require new SVID with old SVIDs expiration time (if present)
 type StaleEntry struct {
 	// Entry stale registration entry
 	Entry *common.RegistrationEntry
@@ -128,7 +160,16 @@ type StaleEntry struct {
 	ExpiresAt time.Time
 }
 
-func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics) *Cache {
+func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics,
+	maxSvidCacheSize int, svidCacheExpiryPeriod time.Duration, clk clock.Clock) *Cache {
+	if maxSvidCacheSize == 0 {
+		maxSvidCacheSize = DefaultMaxSvidCacheSize
+	}
+
+	if svidCacheExpiryPeriod == 0 {
+		svidCacheExpiryPeriod = DefaultSVIDCacheExpiryPeriod
+	}
+
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
@@ -142,6 +183,10 @@ func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundl
 		bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
 			trustDomain: bundle,
 		},
+		svids:                 make(map[string]*X509SVID),
+		maxSvidCacheSize:      maxSvidCacheSize,
+		svidCacheExpiryPeriod: svidCacheExpiryPeriod,
+		clk:                   clk,
 	}
 }
 
@@ -153,14 +198,27 @@ func (c *Cache) Identities() []Identity {
 
 	out := make([]Identity, 0, len(c.records))
 	for _, record := range c.records {
-		if record.svid == nil {
+		svid, ok := c.svids[record.entry.EntryId]
+		if !ok {
 			// The record does not have an SVID yet and should not be returned
 			// from the cache.
 			continue
 		}
-		out = append(out, makeIdentity(record))
+		out = append(out, makeIdentity(record, svid))
 	}
 	sortIdentities(out)
+	return out
+}
+
+func (c *Cache) Entries() []*common.RegistrationEntry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	out := make([]*common.RegistrationEntry, 0, len(c.records))
+	for _, record := range c.records {
+		out = append(out, record.entry)
+	}
+	sortEntries(out)
 	return out
 }
 
@@ -168,26 +226,16 @@ func (c *Cache) CountSVIDs() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	var records int
-	for _, record := range c.records {
-		if record.svid == nil {
-			// The record does not have an SVID yet and should not be returned
-			// from the cache.
-			continue
-		}
-		records++
-	}
-
-	return records
+	return len(c.svids)
 }
 
-func (c *Cache) MatchingIdentities(selectors []*common.Selector) []Identity {
+func (c *Cache) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
 	set, setDone := allocSelectorSet(selectors...)
 	defer setDone()
 
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.matchingIdentities(set)
+	return c.matchingEntries(set)
 }
 
 func (c *Cache) FetchWorkloadUpdate(selectors []*common.Selector) *WorkloadUpdate {
@@ -199,6 +247,8 @@ func (c *Cache) FetchWorkloadUpdate(selectors []*common.Selector) *WorkloadUpdat
 	return c.buildWorkloadUpdate(set)
 }
 
+// SubscribeToWorkloadUpdates creates a subscriber for given selector set.
+// Separately call Notify for the first time after this method is invoked to receive latest updates.
 func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscriber {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -207,7 +257,8 @@ func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscri
 	for s := range sub.set {
 		c.addSelectorIndexSub(s, sub)
 	}
-	c.notify(sub)
+	// update lastAccessTimestamp of records containing provided selectors
+	c.updateLastAccessTimestamp(selectors)
 	return sub
 }
 
@@ -282,10 +333,13 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			c.delSelectorIndicesRecord(selRem, record)
 			notifySets = append(notifySets, selRem)
 			delete(c.records, id)
+			delete(c.svids, id)
 			// Remove stale entry since, registration entry is no longer on cache.
 			delete(c.staleEntries, id)
 		}
 	}
+
+	outdatedEntries := make(map[string]struct{})
 
 	// Add/update records for registration entries in the update
 	for _, newEntry := range update.RegistrationEntries {
@@ -344,9 +398,9 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			notifySets = append(notifySets, notifySet)
 		}
 
-		// Invoke the svid checker callback for this record
-		if checkSVID != nil && checkSVID(existingEntry, newEntry, record.svid) {
-			c.staleEntries[newEntry.EntryId] = true
+		// Identify stale/outdated entries
+		if existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber {
+			outdatedEntries[newEntry.EntryId] = struct{}{}
 		}
 
 		// Log all the details of the update to the DEBUG log
@@ -372,6 +426,43 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			} else {
 				log.Debug("Entry created")
 			}
+		}
+	}
+
+	// entries with active subscribers which are not cached will be put in staleEntries map
+	activeSubs, recordsWithLastAccessTime := c.syncSVIDs()
+	extraSize := len(c.svids) - c.maxSvidCacheSize
+
+	// delete svids without subscribers and which have not been accessed since svidCacheExpiryTime
+	if extraSize > 0 {
+		// sort recordsWithLastAccessTime
+		sortTimestamps(recordsWithLastAccessTime)
+		now := c.clk.Now()
+		svidCacheExpiryTime := now.Add(-1 * c.svidCacheExpiryPeriod).UnixMilli()
+		for _, record := range recordsWithLastAccessTime {
+			if extraSize <= 0 {
+				// no need to delete SVIDs any further as cache size <= maxSvidCacheSize
+				break
+			}
+			if _, ok := c.svids[record.id]; ok {
+				if _, exists := activeSubs[record.id]; !exists {
+					// remove svid if it has not been accessed since svidCacheExpiryTime
+					if record.timestamp < svidCacheExpiryTime {
+						c.log.WithField("record_id", record.id).
+							WithField("record_timestamp", record.timestamp).
+							Debug("Removing SVID record")
+						delete(c.svids, record.id)
+						extraSize--
+					}
+				}
+			}
+		}
+	}
+
+	// Update all stale svids or svids whose registration entry is outdated
+	for id, svid := range c.svids {
+		if _, ok := outdatedEntries[id]; ok || (checkSVID != nil && checkSVID(nil, c.records[id].entry, svid)) {
+			c.staleEntries[id] = true
 		}
 	}
 
@@ -402,7 +493,7 @@ func (c *Cache) UpdateSVIDs(update *UpdateSVIDs) {
 			continue
 		}
 
-		record.svid = svid
+		c.svids[entryID] = svid
 		notifySet.Merge(record.entry.Selectors...)
 		log := c.log.WithFields(logrus.Fields{
 			telemetry.Entry:    record.entry.EntryId,
@@ -432,8 +523,8 @@ func (c *Cache) GetStaleEntries() []*StaleEntry {
 		}
 
 		var expiresAt time.Time
-		if cachedEntry.svid != nil {
-			expiresAt = cachedEntry.svid.Chain[0].NotAfter
+		if cachedSvid, ok := c.svids[entryID]; ok {
+			expiresAt = cachedSvid.Chain[0].NotAfter
 		}
 
 		staleEntries = append(staleEntries, &StaleEntry{
@@ -443,6 +534,104 @@ func (c *Cache) GetStaleEntries() []*StaleEntry {
 	}
 
 	return staleEntries
+}
+
+// SyncSVIDsWithSubscribers will sync svid cache:
+// entries with active subscribers which are not cached will be put in staleEntries map
+// records which are not cached for remainder of max cache size will also be put in staleEntries map
+func (c *Cache) SyncSVIDsWithSubscribers() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.syncSVIDs()
+}
+
+// Notify subscribers of selector set only if all SVIDs for corresponding selector set are cached
+// It returns whether all SVIDs are cached or not.
+// This method should be retried with backoff to avoid lock contention.
+func (c *Cache) Notify(selectors []*common.Selector) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.missingSVIDRecords(selectors)) == 0 {
+		set, setFree := allocSelectorSet(selectors...)
+		defer setFree()
+		c.notifyBySelectorSet(set)
+		return true
+	}
+	return false
+}
+
+func (c *Cache) missingSVIDRecords(selectors []*common.Selector) []*StaleEntry {
+	set, setFree := allocSelectorSet(selectors...)
+	defer setFree()
+
+	records, recordsDone := c.getRecordsForSelectors(set)
+	defer recordsDone()
+
+	if len(records) == 0 {
+		return nil
+	}
+	out := make([]*StaleEntry, 0, len(records))
+	for record := range records {
+		if _, ok := c.svids[record.entry.EntryId]; !ok {
+			out = append(out, &StaleEntry{
+				Entry: record.entry,
+			})
+		}
+	}
+	return out
+}
+
+func (c *Cache) updateLastAccessTimestamp(selectors []*common.Selector) {
+	set, setFree := allocSelectorSet(selectors...)
+	defer setFree()
+
+	records, recordsDone := c.getRecordsForSelectors(set)
+	defer recordsDone()
+
+	for record := range records {
+		// Set lastAccessTimestamp so that svid LRU cache can be cleaned based on this timestamp
+		record.lastAccessTimestamp = c.clk.Now().UnixMilli()
+	}
+}
+
+// entries with active subscribers which are not cached will be put in staleEntries map
+// records which are not cached for remainder of max cache size will also be put in staleEntries map
+func (c *Cache) syncSVIDs() (map[string]struct{}, []record) {
+	activeSubs := make(map[string]struct{})
+	lastAccessTimestamps := make([]record, len(c.records))
+
+	i := 0
+	for id, record := range c.records {
+		for _, sel := range record.entry.Selectors {
+			if index, ok := c.selectors[makeSelector(sel)]; ok && index != nil {
+				if len(index.subs) > 0 {
+					if _, ok := c.svids[record.entry.EntryId]; !ok {
+						c.staleEntries[id] = true
+					}
+					activeSubs[id] = struct{}{}
+					break
+				}
+			}
+		}
+		lastAccessTimestamps[i] = newRecord(record.lastAccessTimestamp, id)
+		i++
+	}
+
+	remainderSize := c.maxSvidCacheSize - len(c.svids)
+	// add records which are not cached for remainder of cache size
+	for id, _ := range c.records {
+		if len(c.staleEntries) >= remainderSize {
+			break
+		}
+		if _, ok := c.svids[id]; !ok {
+			if _, ok := c.staleEntries[id]; !ok {
+				c.staleEntries[id] = true
+			}
+		}
+	}
+
+	return activeSubs, lastAccessTimestamps
 }
 
 func (c *Cache) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*cacheRecord, *common.RegistrationEntry) {
@@ -616,9 +805,30 @@ func (c *Cache) matchingIdentities(set selectorSet) []Identity {
 	// TODO: figure out how to determine the "default" identity
 	out := make([]Identity, 0, len(records))
 	for record := range records {
-		out = append(out, makeIdentity(record))
+		if svid, ok := c.svids[record.entry.EntryId]; ok {
+			out = append(out, makeIdentity(record, svid))
+		}
 	}
 	sortIdentities(out)
+	return out
+}
+
+func (c *Cache) matchingEntries(set selectorSet) []*common.RegistrationEntry {
+	records, recordsDone := c.getRecordsForSelectors(set)
+	defer recordsDone()
+
+	if len(records) == 0 {
+		return nil
+	}
+
+	// Return identities in ascending "entry id" order to maintain a consistent
+	// ordering.
+	// TODO: figure out how to determine the "default" identity
+	out := make([]*common.RegistrationEntry, 0, len(records))
+	for record := range records {
+		out = append(out, record.entry)
+	}
+	sortEntries(out)
 	return out
 }
 
@@ -656,17 +866,13 @@ func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 }
 
 func (c *Cache) getRecordsForSelectors(set selectorSet) (recordSet, func()) {
-	// Build and dedup a list of candidate entries. Ignore those without an
-	// SVID but otherwise don't check for selector set inclusion yet, since
+	// Build and dedup a list of candidate entries. Don't check for selector set inclusion yet, since
 	// that is a more expensive operation and we could easily have duplicate
 	// entries to check.
 	records, recordsDone := allocRecordSet()
 	for selector := range set {
 		if index := c.getSelectorIndexForRead(selector); index != nil {
 			for record := range index.records {
-				if record.svid == nil {
-					continue
-				}
 				records[record] = struct{}{}
 			}
 		}
@@ -708,9 +914,9 @@ func (c *Cache) getSelectorIndexForRead(s selector) *selectorIndex {
 }
 
 type cacheRecord struct {
-	entry *common.RegistrationEntry
-	svid  *X509SVID
-	subs  map[*subscriber]struct{}
+	entry               *common.RegistrationEntry
+	subs                map[*subscriber]struct{}
+	lastAccessTimestamp int64
 }
 
 func newCacheRecord() *cacheRecord {
@@ -744,10 +950,31 @@ func sortIdentities(identities []Identity) {
 	})
 }
 
-func makeIdentity(record *cacheRecord) Identity {
+func sortEntries(entries []*common.RegistrationEntry) {
+	sort.Slice(entries, func(a, b int) bool {
+		return entries[a].EntryId < entries[b].EntryId
+	})
+}
+
+func sortTimestamps(records []record) {
+	sort.Slice(records, func(a, b int) bool {
+		return records[a].timestamp < records[b].timestamp
+	})
+}
+
+func makeIdentity(record *cacheRecord, svid *X509SVID) Identity {
 	return Identity{
 		Entry:      record.entry,
-		SVID:       record.svid.Chain,
-		PrivateKey: record.svid.PrivateKey,
+		SVID:       svid.Chain,
+		PrivateKey: svid.PrivateKey,
 	}
+}
+
+type record struct {
+	timestamp int64
+	id        string
+}
+
+func newRecord(timestamp int64, id string) record {
+	return record{timestamp: timestamp, id: id}
 }

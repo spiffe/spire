@@ -97,7 +97,9 @@ type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
 	TCPSocketPort int    `hcl:"tcp_socket_port"`
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeys            []string `hcl:",unusedKeys"`
+	MaxSvidCacheSize      int      `hcl:"max_svid_cache_size"`
+	SVIDCacheExpiryPeriod string   `hcl:"svid_cache_expiry_interval"`
 }
 
 type Command struct {
@@ -397,6 +399,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.SyncInterval, err = time.ParseDuration(c.Agent.Experimental.SyncInterval)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse synchronization interval: %w", err)
+		}
+	}
+
+	if c.Agent.Experimental.MaxSvidCacheSize != 0 {
+		ac.MaxSvidCacheSize = c.Agent.Experimental.MaxSvidCacheSize
+	}
+	if c.Agent.Experimental.SVIDCacheExpiryPeriod != "" {
+		var err error
+		ac.SVIDCacheExpiryPeriod, err = time.ParseDuration(c.Agent.Experimental.SVIDCacheExpiryPeriod)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse svid cache expiry interval: %w", err)
 		}
 	}
 

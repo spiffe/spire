@@ -1014,8 +1014,12 @@ type FakeManager struct {
 	err         error
 }
 
-func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
-	return m.identities
+func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+	out := make([]*common.RegistrationEntry, 0, len(m.identities))
+	for _, identity := range m.identities {
+		out = append(out, identity.Entry)
+	}
+	return out
 }
 
 func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {

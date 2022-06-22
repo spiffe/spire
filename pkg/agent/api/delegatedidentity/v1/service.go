@@ -82,16 +82,16 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 		}
 	}
 
-	identities := s.manager.MatchingIdentities(callerSelectors)
-	numRegisteredIDs := len(identities)
+	entries := s.manager.MatchingRegistrationEntries(callerSelectors)
+	numRegisteredIDs := len(entries)
 
 	if numRegisteredIDs == 0 {
 		log.Error("no identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
-	for _, identity := range identities {
-		if _, ok := s.authorizedDelegates[identity.Entry.SpiffeId]; ok {
+	for _, entry := range entries {
+		if _, ok := s.authorizedDelegates[entry.SpiffeId]; ok {
 			return callerSelectors, nil
 		}
 	}
@@ -99,7 +99,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 	// caller has identity associeted with but none is authorized
 	log.WithFields(logrus.Fields{
 		"num_registered_ids": numRegisteredIDs,
-		"default_id":         identities[0].Entry.SpiffeId,
+		"default_id":         entries[0].SpiffeId,
 	}).Error("Permission denied; caller not configured as an authorized delegate.")
 
 	return nil, status.Error(codes.PermissionDenied, "caller not configured as an authorized delegate")
@@ -268,11 +268,11 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 	}
 	var spiffeIDs []spiffeid.ID
 
-	identities := s.manager.MatchingIdentities(selectors)
-	for _, identity := range identities {
-		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
+	entries := s.manager.MatchingRegistrationEntries(selectors)
+	for _, entry := range entries {
+		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
-			log.WithField(telemetry.SPIFFEID, identity.Entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 		}
 

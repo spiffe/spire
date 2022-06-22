@@ -30,7 +30,7 @@ import (
 
 type Manager interface {
 	SubscribeToCacheChanges(cache.Selectors) cache.Subscriber
-	MatchingIdentities([]*common.Selector) []cache.Identity
+	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
 }
@@ -84,15 +84,15 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	log = log.WithField(telemetry.Registered, true)
 
-	identities := h.c.Manager.MatchingIdentities(selectors)
-	for _, identity := range identities {
-		if req.SpiffeId != "" && identity.Entry.SpiffeId != req.SpiffeId {
+	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
+	for _, entry := range entries {
+		if req.SpiffeId != "" && entry.SpiffeId != req.SpiffeId {
 			continue
 		}
 
-		spiffeID, err := spiffeid.FromString(identity.Entry.SpiffeId)
+		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
-			log.WithField(telemetry.SPIFFEID, identity.Entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
 			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 		}
 

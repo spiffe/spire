@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -653,10 +654,6 @@ func (fa FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
-func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
-	return m.identities
-}
-
 type FakeManager struct {
 	manager.Manager
 
@@ -690,6 +687,14 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	return &client.JWTSVID{
 		Token: svid.Marshal(),
 	}, nil
+}
+
+func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+	out := make([]*common.RegistrationEntry, 0, len(m.identities))
+	for _, identity := range m.identities {
+		out = append(out, identity.Entry)
+	}
+	return out
 }
 
 type fakeSubscriber struct {
@@ -794,5 +799,5 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 
 func newTestCache() *cache.Cache {
 	log, _ := test.NewNullLogger()
-	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{})
+	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{}, 0, 0, clock.NewMock())
 }

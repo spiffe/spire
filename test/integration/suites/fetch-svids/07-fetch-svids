@@ -1,0 +1,28 @@
+#!/bin/bash
+
+CACHESIZE=8
+
+docker-compose exec -u 1002 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch x509 \
+  -socketPath /opt/spire/sockets/workload_api.sock || fail-now "x509-SVID check failed"
+
+# Call agent debug endpoints and check if svid count is equal to cache size limit
+check-svid-count "spire-agent" $CACHESIZE
+
+# introduce some delay between two fetch calls so that we can validate cache cleanup of svids from first fetch.
+sleep 5
+
+docker-compose exec -u 1001 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch x509 \
+  -socketPath /opt/spire/sockets/workload_api.sock || fail-now "x509-SVID check failed"
+
+# Call agent debug endpoints and check if svid count is equal to 17 (registration entry count for uids 1001 and 1002)
+check-svid-count "spire-agent" 17
+
+# Call agent debug endpoints and check if svid count is equal to 12
+# 17(svid-count) - 5(svids from entries with uuid 1002 will be removed first after svid_cache_expiry_interval) = 12
+check-svid-count "spire-agent" 12
+
+# Call agent debug endpoints and check if svid count is equal to 8
+# 12 - 8(cache size) = 4 extra svids from entries with uuid 1001 will be removed after svid_cache_expiry_interval
+check-svid-count "spire-agent" $CACHESIZE

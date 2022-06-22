@@ -73,7 +73,7 @@ func adaptCommand(env *cli.Env, clientsMaker workloadClientMaker, cmd command) *
 		clientsMaker: clientsMaker,
 		cmd:          cmd,
 		env:          env,
-		timeout:      cli.DurationFlag(time.Second),
+		timeout:      cli.DurationFlag(2 * time.Second),
 	}
 
 	fs := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
