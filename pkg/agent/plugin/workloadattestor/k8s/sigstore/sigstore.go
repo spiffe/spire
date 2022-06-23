@@ -165,7 +165,7 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 	subject, err := getSignatureSubject(signature)
 
 	if err != nil {
-		s.logger.Error("error getting signature subject: ", err)
+		s.logger.Error("error getting signature subject", "error", err)
 		return selectorsFromSignatures
 	}
 
@@ -189,7 +189,7 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 	} else {
 		sigContent, err := getBundleSignatureContent(bundle)
 		if err != nil {
-			s.logger.Error("error getting signature content: ", err)
+			s.logger.Error("error getting signature content", "error", err)
 		} else {
 			selectorsFromSignatures.Content = sigContent
 		}
