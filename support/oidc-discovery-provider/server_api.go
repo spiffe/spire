@@ -33,11 +33,12 @@ type ServerAPISource struct {
 	clock  clock.Clock
 	cancel context.CancelFunc
 
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
-	bundle  *types.Bundle
-	jwks    *jose.JSONWebKeySet
-	modTime time.Time
+	mu       sync.RWMutex
+	wg       sync.WaitGroup
+	bundle   *types.Bundle
+	jwks     *jose.JSONWebKeySet
+	modTime  time.Time
+	pollTime time.Time
 }
 
 func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) {
@@ -79,6 +80,12 @@ func (s *ServerAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 	return s.jwks, s.modTime, true
 }
 
+func (s *ServerAPISource) LastSuccessfulPoll() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pollTime
+}
+
 func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
 	s.wg.Add(1)
 	defer s.wg.Done()
@@ -114,6 +121,9 @@ func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleCl
 	}
 
 	s.parseBundle(bundle)
+	s.mu.Lock()
+	s.pollTime = s.clock.Now()
+	s.mu.Unlock()
 }
 
 func (s *ServerAPISource) parseBundle(bundle *types.Bundle) {

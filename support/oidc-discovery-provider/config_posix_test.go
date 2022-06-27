@@ -388,5 +388,101 @@ func parseConfigCasesOS() []parseConfigCase {
 			`,
 			err: "trust_domain must be configured in the workload_api configuration section",
 		},
+		{
+			name: "health checks default values",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+				health_checks {}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ACME: &ACMEConfig{
+					CacheDir:    defaultCacheDir,
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+				HealthChecks: &HealthChecksConfig{
+					BindPort:  defaultHealthChecksBindPort,
+					ReadyPath: defaultHealthChecksReadyPath,
+					LivePath:  defaultHealthChecksLivePath,
+				},
+			},
+		},
+		{
+			name: "health checks config overrides",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+				health_checks {
+					bind_address = "127.0.0.1"
+					bind_port = "8888"
+					live_path = "/live/override"
+					ready_path = "/ready/override"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ACME: &ACMEConfig{
+					CacheDir:    defaultCacheDir,
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+				HealthChecks: &HealthChecksConfig{
+					BindPort:  8888,
+					LivePath:  "/live/override",
+					ReadyPath: "/ready/override",
+				},
+			},
+		},
+		{
+			name: "health checks disabled",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ACME: &ACMEConfig{
+					CacheDir:    defaultCacheDir,
+					Email:       "admin@domain.test",
+					ToSAccepted: true,
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+				HealthChecks: nil,
+			},
+		},
 	}
 }

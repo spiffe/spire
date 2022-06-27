@@ -42,6 +42,7 @@ type WorkloadAPISource struct {
 	rawBundle []byte
 	jwks      *jose.JSONWebKeySet
 	modTime   time.Time
+	pollTime  time.Time
 }
 
 func NewWorkloadAPISource(config WorkloadAPISourceConfig) (*WorkloadAPISource, error) {
@@ -97,6 +98,12 @@ func (s *WorkloadAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool)
 	return s.jwks, s.modTime, true
 }
 
+func (s *WorkloadAPISource) LastSuccessfulPoll() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pollTime
+}
+
 func (s *WorkloadAPISource) pollEvery(ctx context.Context, client *workloadapi.Client, interval time.Duration) {
 	s.wg.Add(1)
 	defer s.wg.Done()
@@ -128,14 +135,19 @@ func (s *WorkloadAPISource) pollOnce(ctx context.Context, client *workloadapi.Cl
 		return
 	}
 
-	s.setJWKS(jwtBundle)
+	// update pollTime when setJWKS was successful
+	if s.setJWKS(jwtBundle) == nil {
+		s.mu.Lock()
+		s.pollTime = s.clock.Now()
+		s.mu.Unlock()
+	}
 }
 
-func (s *WorkloadAPISource) setJWKS(bundle *jwtbundle.Bundle) {
+func (s *WorkloadAPISource) setJWKS(bundle *jwtbundle.Bundle) error {
 	rawBundle, err := bundle.Marshal()
 	if err != nil {
 		s.log.WithError(err).Error("Failed to marshal JWKS bundle received from the Workload API")
-		return
+		return err
 	}
 
 	// If the bundle hasn't changed, don't bother continuing
@@ -143,14 +155,14 @@ func (s *WorkloadAPISource) setJWKS(bundle *jwtbundle.Bundle) {
 	unchanged := s.rawBundle != nil && bytes.Equal(s.rawBundle, rawBundle)
 	s.mu.RUnlock()
 	if unchanged {
-		return
+		return nil
 	}
 
 	// Clean the JWKS
 	jwks := new(jose.JSONWebKeySet)
 	if err := json.Unmarshal(rawBundle, jwks); err != nil {
 		s.log.WithError(err).Error("Failed to parse trust domain bundle received from the Workload API")
-		return
+		return err
 	}
 	for i, key := range jwks.Keys {
 		key.Use = ""
@@ -162,4 +174,6 @@ func (s *WorkloadAPISource) setJWKS(bundle *jwtbundle.Bundle) {
 	s.rawBundle = rawBundle
 	s.jwks = jwks
 	s.modTime = s.clock.Now()
+
+	return nil
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +22,7 @@ func TestHandlerHTTPS(t *testing.T) {
 		path      string
 		jwks      *jose.JSONWebKeySet
 		modTime   time.Time
+		pollTime  time.Time
 		code      int
 		body      string
 		setKeyUse bool
@@ -167,7 +167,7 @@ func TestHandlerHTTPS(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
-			source.SetKeySet(testCase.jwks, testCase.modTime)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
 
 			r, err := http.NewRequest(testCase.method, "https://localhost"+testCase.path, nil)
 			require.NoError(t, err)
@@ -187,13 +187,14 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 	testCases := []struct {
-		name    string
-		method  string
-		path    string
-		jwks    *jose.JSONWebKeySet
-		modTime time.Time
-		code    int
-		body    string
+		name     string
+		method   string
+		path     string
+		jwks     *jose.JSONWebKeySet
+		modTime  time.Time
+		pollTime time.Time
+		code     int
+		body     string
 	}{
 		{
 			name:   "GET well-known",
@@ -279,7 +280,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
-			source.SetKeySet(testCase.jwks, testCase.modTime)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
 
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)
@@ -305,6 +306,7 @@ func TestHandlerHTTP(t *testing.T) {
 		path         string
 		jwks         *jose.JSONWebKeySet
 		modTime      time.Time
+		pollTime     time.Time
 		code         int
 		body         string
 	}{
@@ -443,7 +445,7 @@ func TestHandlerHTTP(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
-			source.SetKeySet(testCase.jwks, testCase.modTime)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
 
 			host := "domain.test"
 			if testCase.overrideHost != "" {
@@ -468,13 +470,14 @@ func TestHandlerProxied(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 	testCases := []struct {
-		name    string
-		method  string
-		path    string
-		jwks    *jose.JSONWebKeySet
-		modTime time.Time
-		code    int
-		body    string
+		name     string
+		method   string
+		path     string
+		jwks     *jose.JSONWebKeySet
+		modTime  time.Time
+		pollTime time.Time
+		code     int
+		body     string
 	}{
 		{
 			name:   "GET well-known",
@@ -560,7 +563,7 @@ func TestHandlerProxied(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
-			source.SetKeySet(testCase.jwks, testCase.modTime)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
 
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)
@@ -576,32 +579,6 @@ func TestHandlerProxied(t *testing.T) {
 			assert.Equal(t, testCase.body, w.Body.String())
 		})
 	}
-}
-
-type FakeKeySetSource struct {
-	mu      sync.Mutex
-	jwks    *jose.JSONWebKeySet
-	modTime time.Time
-}
-
-func (s *FakeKeySetSource) SetKeySet(jwks *jose.JSONWebKeySet, modTime time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.jwks = jwks
-	s.modTime = modTime
-}
-
-func (s *FakeKeySetSource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.jwks == nil {
-		return nil, time.Time{}, false
-	}
-	return s.jwks, s.modTime, true
-}
-
-func (s *FakeKeySetSource) Close() error {
-	return nil
 }
 
 func domainAllowlist(t *testing.T, domains ...string) DomainPolicy {
