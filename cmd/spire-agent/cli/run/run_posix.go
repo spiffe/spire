@@ -8,10 +8,13 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/agent"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -59,5 +62,32 @@ func (c *agentConfig) validateOS() error {
 	if c.Experimental.AdminNamedPipeName != "" {
 		return errors.New("invalid configuration: admin_named_pipe_name is not supported in this platform; please use admin_socket_path instead")
 	}
+	return nil
+}
+
+func prepareEndpoints(c *agent.Config) error {
+	// Create uds dir and parents if not exists
+	dir := filepath.Dir(c.BindAddress.String())
+	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
+		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	// Set umask before starting up the agent
+	common_cli.SetUmask(c.Log)
+
+	if c.AdminBindAddress != nil {
+		// Create uds dir and parents if not exists
+		adminDir := filepath.Dir(c.AdminBindAddress.String())
+		if _, statErr := os.Stat(adminDir); os.IsNotExist(statErr) {
+			c.Log.WithField("dir", adminDir).Infof("Creating admin UDS directory")
+			if err := os.MkdirAll(adminDir, 0755); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }

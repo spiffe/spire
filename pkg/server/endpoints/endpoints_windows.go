@@ -29,3 +29,7 @@ func (e *Endpoints) restrictLocalAddr() error {
 	// Nothing else is needed to be done here.
 	return nil
 }
+
+func prepareLocalAddress(net.Addr) error {
+	return nil
+}

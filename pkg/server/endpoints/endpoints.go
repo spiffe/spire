@@ -96,8 +96,8 @@ type RateLimitConfig struct {
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
-	if err := os.MkdirAll(filepath.Dir(c.LocalAddr.String()), 0750); err != nil {
-		return nil, fmt.Errorf("unable to create socket directory: %w", err)
+	if err := prepareLocalAddr(c.LocalAddr); err != nil {
+		return nil, err
 	}
 
 	if c.AuthPolicyEngine == nil {
@@ -355,4 +355,20 @@ func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.Stream
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
 	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+}
+
+func prepareLocalAddr(localAddr net.Addr) error {
+	switch localAddr.Network() {
+	case "unix":
+		if err := os.MkdirAll(filepath.Dir(localAddr.String()), 0750); err != nil {
+			return fmt.Errorf("unable to create socket directory: %w", err)
+		}
+	case "pipe":
+		// Nothing to do if the network is named pipes
+		return nil
+	default:
+		return net.UnknownNetworkError(localAddr.Network())
+	}
+
+	return nil
 }
