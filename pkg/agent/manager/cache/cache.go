@@ -82,20 +82,20 @@ type X509SVID struct {
 // workloads) and registration entries that have that selector.
 //
 // The LRU-like SVID cache has configurable size limit and expiry period.
-// 1. Size limit of SVID cache is a soft limit which means if SVID has a subscriber present then
+// 1. Size limit of SVID cache is a soft limit. If SVID has a subscriber present then
 //    that SVID is never removed from cache.
 // 2. Least recently used SVIDs are removed from cache only after the cache expiry period has passed.
 //    This is done to reduce the overall cache churn.
 // 3. Last access timestamp for SVID cache entry is updated when a new subscriber is created
-// 4. When a new subscriber is created and if there is a cache miss
+// 4. When a new subscriber is created and there is a cache miss
 //    then subscriber needs to wait for next SVID sync event to receive WorkloadUpdate with newly minted SVID
 //
 // The advantage of above approach is that if agent has entry count less than cache size
 // then all SVIDs are cached at all times. If agent has entry count greater than cache size then
 // subscribers will continue to get SVID updates (potential delay for first WorkloadUpdate if cache miss)
 // and least used SVIDs will be removed from cache which will save memory usage.
-// It will allow agent to support large number of registrations.
-//
+// This allows agent to support environments where the active simultaneous workload count
+// is a small percentage of the large number of registrations assigned to the agent.
 //
 // When registration entries are added/updated/removed, the set of relevant
 // selectors are gathered and the indexes for those selectors are combed for
@@ -162,11 +162,11 @@ type StaleEntry struct {
 
 func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics,
 	maxSvidCacheSize int, svidCacheExpiryPeriod time.Duration, clk clock.Clock) *Cache {
-	if maxSvidCacheSize == 0 {
+	if maxSvidCacheSize <= 0 {
 		maxSvidCacheSize = DefaultMaxSvidCacheSize
 	}
 
-	if svidCacheExpiryPeriod == 0 {
+	if svidCacheExpiryPeriod <= 0 {
 		svidCacheExpiryPeriod = DefaultSVIDCacheExpiryPeriod
 	}
 
@@ -602,6 +602,11 @@ func (c *Cache) syncSVIDs() (map[string]struct{}, []record) {
 	lastAccessTimestamps := make([]record, len(c.records))
 
 	i := 0
+	// iterate over all selectors from cached entries and obtain:
+	// 1. entries that have active subscribers
+	//   1.1 if those entries don't have corresponding SVID cached then put them in staleEntries
+	//       so that SVID will be cached in next sync
+	// 2. get lastAccessTimestamp of each entry
 	for id, record := range c.records {
 		for _, sel := range record.entry.Selectors {
 			if index, ok := c.selectors[makeSelector(sel)]; ok && index != nil {

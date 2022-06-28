@@ -699,6 +699,16 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:         "svid_cache_expiry_interval is negative",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.SVIDCacheExpiryPeriod = "-1s50ms"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid svid_cache_expiry_interval returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -731,6 +741,25 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.EqualValues(t, 0, c.MaxSvidCacheSize)
+			},
+		},
+		{
+			msg: "max_svid_cache_size is zero",
+			input: func(c *Config) {
+				c.Agent.Experimental.MaxSvidCacheSize = 0
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 0, c.MaxSvidCacheSize)
+			},
+		},
+		{
+			msg:         "max_svid_cache_size is negative",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.MaxSvidCacheSize = -10
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{

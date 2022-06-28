@@ -83,9 +83,9 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 	}
 
 	entries := s.manager.MatchingRegistrationEntries(callerSelectors)
-	numRegisteredIDs := len(entries)
+	numRegisteredEntries := len(entries)
 
-	if numRegisteredIDs == 0 {
+	if numRegisteredEntries == 0 {
 		log.Error("no identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -98,8 +98,8 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 
 	// caller has identity associeted with but none is authorized
 	log.WithFields(logrus.Fields{
-		"num_registered_ids": numRegisteredIDs,
-		"default_id":         entries[0].SpiffeId,
+		"num_registered_entries": numRegisteredEntries,
+		"default_id":             entries[0].SpiffeId,
 	}).Error("Permission denied; caller not configured as an authorized delegate.")
 
 	return nil, status.Error(codes.PermissionDenied, "caller not configured as an authorized delegate")

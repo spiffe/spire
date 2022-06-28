@@ -54,22 +54,23 @@ func run() error {
 }
 
 func agentEndpoints(ctx context.Context) error {
-	s,err := retrieveDebugPage(ctx)
+	s, err := retrieveDebugPage(ctx)
 	if err == nil {
 		log.Printf("Debug info: %s", string(s))
 	}
 	return nil
 }
 
+// printDebugPage allows integration tests to easily parse debug page with jq
 func printDebugPage(ctx context.Context) error {
-	s,err := retrieveDebugPage(ctx)
+	s, err := retrieveDebugPage(ctx)
 	if err == nil {
 		fmt.Println(s)
 	}
 	return nil
 }
 
-func retrieveDebugPage(ctx context.Context) (string,error) {
+func retrieveDebugPage(ctx context.Context) (string, error) {
 	conn, err := grpc.Dial(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return "", fmt.Errorf("failed to connect server: %w", err)
@@ -87,7 +88,7 @@ func retrieveDebugPage(ctx context.Context) (string,error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse proto: %w", err)
 	}
-	return string(s),nil
+	return string(s), nil
 }
 
 func serverWithWorkload(ctx context.Context) error {

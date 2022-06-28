@@ -402,14 +402,19 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 	}
 
-	if c.Agent.Experimental.MaxSvidCacheSize != 0 {
-		ac.MaxSvidCacheSize = c.Agent.Experimental.MaxSvidCacheSize
+	if c.Agent.Experimental.MaxSvidCacheSize < 0 {
+		return nil, fmt.Errorf("max_svid_cache_size should not be negative")
 	}
+	ac.MaxSvidCacheSize = c.Agent.Experimental.MaxSvidCacheSize
+
 	if c.Agent.Experimental.SVIDCacheExpiryPeriod != "" {
 		var err error
 		ac.SVIDCacheExpiryPeriod, err = time.ParseDuration(c.Agent.Experimental.SVIDCacheExpiryPeriod)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse svid cache expiry interval: %w", err)
+		}
+		if ac.SVIDCacheExpiryPeriod < 0 {
+			return nil, fmt.Errorf("svid_cache_expiry_interval should not be negative")
 		}
 	}
 

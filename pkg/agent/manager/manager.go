@@ -94,10 +94,10 @@ type manager struct {
 	svidCachePath   string
 	bundleCachePath string
 
-	// backoff calculator for fetch interval, backing off if error is returned on
+	// synchronizeBackoff calculator for fetch interval, backing off if error is returned on
 	// fetch attempt
-	backoff         backoff.BackOff
-	svidSyncBackoff backoff.BackOff
+	synchronizeBackoff backoff.BackOff
+	svidSyncBackoff    backoff.BackOff
 
 	client client.Client
 
@@ -114,7 +114,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID)
 	m.storeBundle(m.cache.Bundle())
 
-	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
+	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, svidSyncInterval)
 
 	err := m.synchronize(ctx)
@@ -237,7 +237,7 @@ func (m *manager) getEntryID(spiffeID string) string {
 func (m *manager) runSynchronizer(ctx context.Context) error {
 	for {
 		select {
-		case <-m.clk.After(m.backoff.NextBackOff()):
+		case <-m.clk.After(m.synchronizeBackoff.NextBackOff()):
 		case <-ctx.Done():
 			return nil
 		}
@@ -251,7 +251,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			// Just log the error and wait for next synchronization
 			m.c.Log.WithError(err).Error("Synchronize failed")
 		default:
-			m.backoff.Reset()
+			m.synchronizeBackoff.Reset()
 		}
 	}
 }

@@ -15,6 +15,8 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+const commandTimeout = 5 * time.Second
+
 type workloadClient struct {
 	workload.SpiffeWorkloadAPIClient
 	timeout time.Duration
@@ -73,7 +75,7 @@ func adaptCommand(env *cli.Env, clientsMaker workloadClientMaker, cmd command) *
 		clientsMaker: clientsMaker,
 		cmd:          cmd,
 		env:          env,
-		timeout:      cli.DurationFlag(2 * time.Second),
+		timeout:      cli.DurationFlag(commandTimeout),
 	}
 
 	fs := flag.NewFlagSet(cmd.name(), flag.ContinueOnError)
