@@ -723,11 +723,7 @@ func (s *Suite) TestConfigure() {
 			`,
 			sigstoreError: errors.New("error parsing rekor URI"),
 			config:        nil,
-<<<<<<< HEAD
 			errMsg:        "Error parsing rekor URI",
-=======
-			err:           "error parsing rekor URI",
->>>>>>> refactor: pr adjustments related to cosign
 		},
 	}
 
