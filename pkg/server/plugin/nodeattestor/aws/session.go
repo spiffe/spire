@@ -1,7 +1,10 @@
 package aws
 
 import (
+	"context"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -35,22 +38,38 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 }
 
 // newAWSSession create an AWS config from the credentials and given region
-func newAWSConfig(accessKeyID, secretAccessKey, region, assumeRoleArn string) aws.Config {
-	var credsProvider aws.CredentialsProvider
-	switch {
-	case assumeRoleArn != "":
-		stsConf := aws.Config{
-			Region: region,
+func newAWSConfig(accessKeyID, secretAccessKey, region, assumeRoleArn string) (aws.Config, error) {
+	ctx := context.Background()
+
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	if secretAccessKey != "" && accessKeyID != "" {
+		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, "")))
+	}
+
+	stsConf, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return aws.Config{}, err
+	}
+
+	if assumeRoleArn != "" {
+		var opts []func(*config.LoadOptions) error
+		if region != "" {
+			opts = append(opts, config.WithRegion(region))
 		}
 
 		stsClient := sts.NewFromConfig(stsConf)
-		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn)
-	case secretAccessKey != "" && accessKeyID != "":
-		credsProvider = aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, ""))
-	}
+		opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+			stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
+		)
 
-	return aws.Config{
-		Credentials: credsProvider,
-		Region:      region,
+		stsConf, err = config.LoadDefaultConfig(ctx, opts...)
+		if err != nil {
+			return aws.Config{}, err
+		}
 	}
+	return stsConf, nil
 }

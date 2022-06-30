@@ -84,7 +84,10 @@ func (cc *clientsCache) getClient(region, accountID string) (Client, error) {
 }
 
 func newClient(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
-	conf := newAWSConfig(config.AccessKeyID, config.SecretAccessKey, region, asssumeRoleARN)
+	conf, err := newAWSConfig(config.AccessKeyID, config.SecretAccessKey, region, asssumeRoleARN)
+	if err != nil {
+		return nil, err
+	}
 	return struct {
 		iam.GetInstanceProfileAPIClient
 		ec2.DescribeInstancesAPIClient
