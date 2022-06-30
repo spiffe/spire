@@ -18,10 +18,10 @@ require (
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.0
 	github.com/aws/aws-sdk-go v1.44.0
-	github.com/aws/aws-sdk-go-v2 v1.16.5
+	github.com/aws/aws-sdk-go-v2 v1.16.6
 	github.com/aws/aws-sdk-go-v2/config v1.15.11
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.6
-	github.com/aws/aws-sdk-go-v2/service/kms v1.17.3
+	github.com/aws/aws-sdk-go-v2/service/kms v1.17.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.11
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.7
 	github.com/blang/semver/v4 v4.0.0
@@ -48,7 +48,7 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.6
-	github.com/mattn/go-sqlite3 v1.14.13
+	github.com/mattn/go-sqlite3 v1.14.14
 	github.com/mitchellh/cli v1.1.4
 	github.com/open-policy-agent/opa v0.41.0
 	github.com/prometheus/client_golang v1.12.2
@@ -57,17 +57,17 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3
 	github.com/spiffe/spire-api-sdk v1.2.2-0.20220317172821-e2705b35aa09
 	github.com/spiffe/spire-plugin-sdk v1.2.1
-	github.com/stretchr/testify v1.7.5
+	github.com/stretchr/testify v1.8.0
 	github.com/uber-go/tally/v4 v4.1.2
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/atomic v1.9.0
 	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
-	golang.org/x/net v0.0.0-20220617184016-355a448f1bc9
+	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c
+	golang.org/x/sys v0.0.0-20220624220833-87e55d714810
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
-	google.golang.org/api v0.85.0
-	google.golang.org/genproto v0.0.0-20220617124728-180714bec0ad
+	google.golang.org/api v0.86.0
+	google.golang.org/genproto v0.0.0-20220624142145-8cd45d7dbd1f
 	google.golang.org/grpc v1.47.0
 	google.golang.org/protobuf v1.28.0
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -99,12 +99,12 @@ require (
 	github.com/agnivade/levenshtein v1.0.1 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.12 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.6 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.7 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.11.9 // indirect
-	github.com/aws/smithy-go v1.11.3 // indirect
+	github.com/aws/smithy-go v1.12.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
@@ -191,7 +191,7 @@ require (
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
-	golang.org/x/oauth2 v0.0.0-20220608161450-d0670ef3b1eb // indirect
+	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
