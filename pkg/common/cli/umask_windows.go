@@ -1,7 +1,11 @@
+//go:build windows
+// +build windows
+
 package cli
 
-const umaskSupported = false
+import "github.com/sirupsen/logrus"
 
-func setUmask(umask int) int {
-	return umask
+// SetUmask does nothing on Windows
+func SetUmask(log logrus.FieldLogger) {
+	// Nothing to do in this platform
 }

@@ -173,29 +173,9 @@ func (cmd *Command) Run(args []string) int {
 		return 1
 	}
 
-	// Create uds dir and parents if not exists
-	dir := filepath.Dir(c.BindAddress.String())
-	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
-		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			fmt.Fprintln(cmd.env.Stderr, err)
-			return 1
-		}
-	}
-
-	// Set umask before starting up the agent
-	common_cli.SetUmask(c.Log)
-
-	if c.AdminBindAddress != nil {
-		// Create uds dir and parents if not exists
-		adminDir := filepath.Dir(c.AdminBindAddress.String())
-		if _, statErr := os.Stat(adminDir); os.IsNotExist(statErr) {
-			c.Log.WithField("dir", adminDir).Infof("Creating admin UDS directory")
-			if err := os.MkdirAll(adminDir, 0755); err != nil {
-				fmt.Fprintln(cmd.env.Stderr, err)
-				return 1
-			}
-		}
+	if err := prepareEndpoints(c); err != nil {
+		fmt.Fprintln(cmd.env.Stderr, err)
+		return 1
 	}
 
 	a := agent.New(c)

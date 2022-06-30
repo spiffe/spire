@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/spiffe/spire/pkg/common/peertracker"
 )
@@ -30,4 +31,12 @@ func (e *Endpoints) restrictLocalAddr() error {
 	// Restrict access to the UDS to processes running as the same user or
 	// group as the server.
 	return os.Chmod(e.LocalAddr.String(), 0770)
+}
+
+func prepareLocalAddr(localAddr net.Addr) error {
+	if err := os.MkdirAll(filepath.Dir(localAddr.String()), 0750); err != nil {
+		return fmt.Errorf("unable to create socket directory: %w", err)
+	}
+
+	return nil
 }

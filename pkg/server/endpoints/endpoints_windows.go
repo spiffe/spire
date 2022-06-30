@@ -29,3 +29,8 @@ func (e *Endpoints) restrictLocalAddr() error {
 	// Nothing else is needed to be done here.
 	return nil
 }
+
+func prepareLocalAddr(localAddr net.Addr) error {
+	// Nothing to do in this platform
+	return nil
+}
