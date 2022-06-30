@@ -38,9 +38,7 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 }
 
 // newAWSSession create an AWS config from the credentials and given region
-func newAWSConfig(accessKeyID, secretAccessKey, region, assumeRoleArn string) (aws.Config, error) {
-	ctx := context.Background()
-
+func newAWSConfig(ctx context.Context, accessKeyID, secretAccessKey, region, assumeRoleArn string) (aws.Config, error) {
 	var opts []func(*config.LoadOptions) error
 	if region != "" {
 		opts = append(opts, config.WithRegion(region))
@@ -50,26 +48,28 @@ func newAWSConfig(accessKeyID, secretAccessKey, region, assumeRoleArn string) (a
 		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, "")))
 	}
 
-	stsConf, err := config.LoadDefaultConfig(ctx, opts...)
+	conf, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return aws.Config{}, err
 	}
 
-	if assumeRoleArn != "" {
-		var opts []func(*config.LoadOptions) error
-		if region != "" {
-			opts = append(opts, config.WithRegion(region))
-		}
-
-		stsClient := sts.NewFromConfig(stsConf)
-		opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
-			stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
-		)
-
-		stsConf, err = config.LoadDefaultConfig(ctx, opts...)
-		if err != nil {
-			return aws.Config{}, err
-		}
+	if assumeRoleArn == "" {
+		return conf, nil
 	}
-	return stsConf, nil
+
+	return newAWSAssumeRoleConfig(ctx, region, conf, assumeRoleArn)
+}
+
+func newAWSAssumeRoleConfig(ctx context.Context, region string, stsConf aws.Config, assumeRoleArn string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	stsClient := sts.NewFromConfig(stsConf)
+	opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+		stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
+	)
+
+	return config.LoadDefaultConfig(ctx, opts...)
 }

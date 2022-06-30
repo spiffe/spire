@@ -334,9 +334,11 @@ func TestAttest(t *testing.T) {
 			opts := []plugintest.Option{
 				plugintest.HostServices(agentstorev1.AgentStoreServiceServer(agentStore)),
 			}
+			var configureErr error
 			if !tt.skipConfigure {
 				opts = append(opts,
 					plugintest.Configure(tt.config),
+					plugintest.CaptureConfigureError(&configureErr),
 					plugintest.CoreConfig(catalog.CoreConfig{
 						TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 					}),
@@ -350,12 +352,13 @@ func TestAttest(t *testing.T) {
 			attestor.hooks.getAWSCAPublicKey = func() (*rsa.PublicKey, error) {
 				return &testAWSCAKey.PublicKey, nil
 			}
-			attestor.clients = newClientsCache(func(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
+			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
 				return client, nil
 			})
 
 			plugin := new(nodeattestor.V1)
 			plugintest.Load(t, builtin(attestor), plugin, opts...)
+			require.NoError(t, configureErr)
 
 			attestationData := defaultAttestationData
 			if tt.overrideAttestationData != nil {
@@ -365,6 +368,7 @@ func TestAttest(t *testing.T) {
 			if tt.overridePayload != nil {
 				payload = tt.overridePayload()
 			}
+
 			result, err := plugin.Attest(context.Background(), payload, expectNoChallenge)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
 			if tt.expectCode != codes.OK {
