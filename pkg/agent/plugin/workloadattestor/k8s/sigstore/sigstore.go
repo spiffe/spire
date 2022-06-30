@@ -36,7 +36,7 @@ type Sigstore interface {
 	SelectorValuesFromSignature(oci.Signature, string) SelectorsFromSignatures
 	ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures
 	ShouldSkipImage(imageID string) (bool, error)
-	AddSkippedImage(imageID string)
+	AddSkippedImage(imageID []string)
 	ClearSkipList()
 	AddAllowedSubject(subject string)
 	EnableAllowSubjectList(bool)
@@ -55,6 +55,32 @@ type sigstoreImpl struct {
 	checkOptsFunction          func(url.URL) *cosign.CheckOpts
 	logger                     hclog.Logger
 	sigstorecache              Cache
+}
+
+// The following structs are used to go through the payload json objects
+type BundleSignature struct {
+	Content   string            `json:"content"`
+	Format    string            `json:"format"`
+	PublicKey map[string]string `json:"publicKey"`
+}
+
+type BundleSpec struct {
+	Data      map[string]map[string]string `json:"data"`
+	Signature BundleSignature              `json:"signature"`
+}
+
+type BundleBody struct {
+	APIVersion string     `json:"apiVersion"`
+	Kind       string     `json:"kind"`
+	Spec       BundleSpec `json:"spec"`
+}
+
+type SelectorsFromSignatures struct {
+	Subject        string
+	Content        string
+	LogID          string
+	IntegratedTime string
+	Verified       bool
 }
 
 func New(cache Cache, logger hclog.Logger) Sigstore {
@@ -133,32 +159,6 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 	return selectors
 }
 
-// The following structs are used to go through the payload json objects
-type BundleSignature struct {
-	Content   string            `json:"content"`
-	Format    string            `json:"format"`
-	PublicKey map[string]string `json:"publicKey"`
-}
-
-type BundleSpec struct {
-	Data      map[string]map[string]string `json:"data"`
-	Signature BundleSignature              `json:"signature"`
-}
-
-type BundleBody struct {
-	APIVersion string     `json:"apiVersion"`
-	Kind       string     `json:"kind"`
-	Spec       BundleSpec `json:"spec"`
-}
-
-type SelectorsFromSignatures struct {
-	Subject        string
-	Content        string
-	LogID          string
-	IntegratedTime string
-	Verified       bool
-}
-
 // SelectorValuesFromSignature extracts selectors from a signature.
 // returns a list of selectors.
 func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) SelectorsFromSignatures {
@@ -219,11 +219,13 @@ func (s *sigstoreImpl) ShouldSkipImage(imageID string) (bool, error) {
 }
 
 // AddSkippedImage adds the image ID and selectors to the skip list.
-func (s *sigstoreImpl) AddSkippedImage(imageID string) {
+func (s *sigstoreImpl) AddSkippedImage(imageIDList []string) {
 	if s.skippedImages == nil {
 		s.skippedImages = make(map[string]bool)
 	}
-	s.skippedImages[imageID] = true
+	for _, imageID := range imageIDList {
+		s.skippedImages[imageID] = true
+	}
 }
 
 // ClearSkipList clears the skip list.

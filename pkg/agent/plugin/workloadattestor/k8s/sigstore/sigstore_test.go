@@ -918,7 +918,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 		skippedImages              map[string]bool
 	}
 	type args struct {
-		imageID string
+		imageID []string
 	}
 	tests := []struct {
 		name   string
@@ -934,7 +934,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 				skippedImages:              nil,
 			},
 			args: args{
-				imageID: "sha256:sampleimagehash",
+				imageID: []string{"sha256:sampleimagehash"},
 			},
 			want: map[string]bool{
 				"sha256:sampleimagehash": true,
@@ -950,11 +950,44 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 				},
 			},
 			args: args{
-				imageID: "sha256:sampleimagehash",
+				imageID: []string{"sha256:sampleimagehash"},
 			},
 			want: map[string]bool{
 				"sha256:sampleimagehash":  true,
 				"sha256:sampleimagehash1": true,
+			},
+		},
+		{
+			name: "add a list of skipped images to empty map",
+			fields: fields{
+				verifyFunction:             nil,
+				fetchImageManifestFunction: nil,
+				skippedImages:              nil,
+			},
+			args: args{
+				imageID: []string{"sha256:sampleimagehash", "sha256:sampleimagehash1"},
+			},
+			want: map[string]bool{
+				"sha256:sampleimagehash":  true,
+				"sha256:sampleimagehash1": true,
+			},
+		},
+		{
+			name: "add a list of skipped images to a existing map",
+			fields: fields{
+				verifyFunction:             nil,
+				fetchImageManifestFunction: nil,
+				skippedImages: map[string]bool{
+					"sha256:sampleimagehash": true,
+				},
+			},
+			args: args{
+				imageID: []string{"sha256:sampleimagehash1", "sha256:sampleimagehash2"},
+			},
+			want: map[string]bool{
+				"sha256:sampleimagehash":  true,
+				"sha256:sampleimagehash1": true,
+				"sha256:sampleimagehash2": true,
 			},
 		},
 	}
