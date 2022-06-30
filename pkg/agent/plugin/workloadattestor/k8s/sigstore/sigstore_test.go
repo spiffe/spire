@@ -21,6 +21,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/hashicorp/go-hclog"
 	"github.com/sigstore/cosign/pkg/cosign"
+	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +36,7 @@ type signature struct {
 
 	payload []byte
 	cert    *x509.Certificate
-	bundle  *oci.Bundle
+	bundle  *bundle.RekorBundle
 }
 
 func (signature) Annotations() (map[string]string, error) {
@@ -58,7 +59,7 @@ func (signature) Chain() ([]*x509.Certificate, error) {
 	return nil, nil
 }
 
-func (s signature) Bundle() (*oci.Bundle, error) {
+func (s signature) Bundle() (*bundle.RekorBundle, error) {
 	return s.bundle, nil
 }
 
@@ -395,8 +396,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				signatures: []oci.Signature{
 					signature{
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
-						bundle: &oci.Bundle{
-							Payload: oci.BundlePayload{
+						bundle: &bundle.RekorBundle{
+							Payload: bundle.RekorPayload{
 								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 								LogID:          "samplelogID",
 								IntegratedTime: 12345,
@@ -425,8 +426,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				signatures: []oci.Signature{
 					signature{
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
-						bundle: &oci.Bundle{
-							Payload: oci.BundlePayload{
+						bundle: &bundle.RekorBundle{
+							Payload: bundle.RekorPayload{
 								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 								LogID:          "samplelogID1",
 								IntegratedTime: 12345,
@@ -435,8 +436,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 					signature{
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex2@example.com","key2": "value 2","key3": "value 3"}}`),
-						bundle: &oci.Bundle{
-							Payload: oci.BundlePayload{
+						bundle: &bundle.RekorBundle{
+							Payload: bundle.RekorPayload{
 								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUI9IgogICAgfQogIH0KfQo=",
 								LogID:          "samplelogID2",
 								IntegratedTime: 12346,
@@ -493,8 +494,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								"spirex2@example.com",
 							},
 						},
-						bundle: &oci.Bundle{
-							Payload: oci.BundlePayload{
+						bundle: &bundle.RekorBundle{
+							Payload: bundle.RekorPayload{
 								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 								LogID:          "samplelogID",
 								IntegratedTime: 12345,
@@ -537,8 +538,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								},
 							},
 						},
-						bundle: &oci.Bundle{
-							Payload: oci.BundlePayload{
+						bundle: &bundle.RekorBundle{
+							Payload: bundle.RekorPayload{
 								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 								LogID:          "samplelogID",
 								IntegratedTime: 12345,
@@ -616,7 +617,7 @@ func (noCertSignature) Chain() ([]*x509.Certificate, error) {
 	return nil, nil
 }
 
-func (noCertSignature) Bundle() (*oci.Bundle, error) {
+func (noCertSignature) Bundle() (*bundle.RekorBundle, error) {
 	return nil, nil
 }
 
@@ -642,7 +643,7 @@ func (noPayloadSignature) Chain() ([]*x509.Certificate, error) {
 	return nil, nil
 }
 
-func (noPayloadSignature) Bundle() (*oci.Bundle, error) {
+func (noPayloadSignature) Bundle() (*bundle.RekorBundle, error) {
 	return nil, nil
 }
 
@@ -668,7 +669,7 @@ func (noBundleSignature) Chain() ([]*x509.Certificate, error) {
 	return nil, nil
 }
 
-func (s noBundleSignature) Bundle() (*oci.Bundle, error) {
+func (s noBundleSignature) Bundle() (*bundle.RekorBundle, error) {
 	return nil, fmt.Errorf("no bundle test")
 }
 func Test_certSubject(t *testing.T) {
@@ -1328,8 +1329,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &oci.Bundle{
-						Payload: oci.BundlePayload{
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
 							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 							LogID:          "samplelogID",
 							IntegratedTime: 12345,
@@ -1355,8 +1356,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "","key2": "value 2","key3": "value 3"}}`),
-					bundle: &oci.Bundle{
-						Payload: oci.BundlePayload{
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
 							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 							LogID:          "samplelogID",
 							IntegratedTime: 12345,
@@ -1394,8 +1395,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &oci.Bundle{
-						Payload: oci.BundlePayload{
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
 							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 							LogID:          "samplelogID",
 							IntegratedTime: 12345,
@@ -1424,8 +1425,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &oci.Bundle{
-						Payload: oci.BundlePayload{
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
 							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiIgogICAgfQogIH0KfQ==",
 							LogID:          "samplelogID",
 							IntegratedTime: 12345,
@@ -1476,7 +1477,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 
 func Test_getBundleSignatureContent(t *testing.T) {
 	type args struct {
-		bundle *oci.Bundle
+		bundle *bundle.RekorBundle
 	}
 	tests := []struct {
 		name    string
@@ -1495,8 +1496,8 @@ func Test_getBundleSignatureContent(t *testing.T) {
 		{
 			name: "Bundle payload body is not a string",
 			args: args{
-				bundle: &oci.Bundle{
-					Payload: oci.BundlePayload{
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
 						Body: 42,
 					},
 				},
@@ -1507,8 +1508,8 @@ func Test_getBundleSignatureContent(t *testing.T) {
 		{
 			name: "Bundle payload body is not valid base64",
 			args: args{
-				bundle: &oci.Bundle{
-					Payload: oci.BundlePayload{
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
 						Body: "abc..........def",
 					},
 				},
@@ -1519,8 +1520,8 @@ func Test_getBundleSignatureContent(t *testing.T) {
 		{
 			name: "Bundle payload body has no signature content",
 			args: args{
-				bundle: &oci.Bundle{
-					Payload: oci.BundlePayload{
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
 						Body: "ewogICAgInNwZWMiOiB7CiAgICAgICJzaWduYXR1cmUiOiB7CiAgICAgIH0KICAgIH0KfQ==",
 					},
 				},
@@ -1531,8 +1532,8 @@ func Test_getBundleSignatureContent(t *testing.T) {
 		{
 			name: "Bundle payload body signature content is empty",
 			args: args{
-				bundle: &oci.Bundle{
-					Payload: oci.BundlePayload{
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
 						Body: "ewogICAgInNwZWMiOiB7CiAgICAgICAgInNpZ25hdHVyZSI6IHsKICAgICAgICAiY29udGVudCI6ICIiCiAgICAgICAgfQogICAgfQp9",
 					},
 				},
@@ -1543,8 +1544,8 @@ func Test_getBundleSignatureContent(t *testing.T) {
 		{
 			name: "Bundle payload body is not a valid JSON",
 			args: args{
-				bundle: &oci.Bundle{
-					Payload: oci.BundlePayload{
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
 						Body: "ewogICJzcGVjIjosLCB7CiAgICAic2lnbmF0dXJlIjogewogICAgICAiY29udGVudCI6ICJNRVVDSVFDeWVtOEdjcjBzUEZNUDdmVFhhekNONTdOY041K01qeEp3OU9vMHgyZU0rQUlnZGdCUDk2Qk8xVGUvTmRiakhiVWViMEJVeWU2ZGVSZ1Z0UUV2NU5vNXNtQT0iCiAgICB9CiAgfQp9",
 					},
 				},
@@ -1555,8 +1556,8 @@ func Test_getBundleSignatureContent(t *testing.T) {
 		{
 			name: "Bundle payload body signature content is correct",
 			args: args{
-				bundle: &oci.Bundle{
-					Payload: oci.BundlePayload{
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
 						Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 						LogID:          "samplelogID",
 						IntegratedTime: 12345,
@@ -1614,8 +1615,8 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 					return []oci.Signature{
 						signature{
 							payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-							bundle: &oci.Bundle{
-								Payload: oci.BundlePayload{
+							bundle: &bundle.RekorBundle{
+								Payload: bundle.RekorPayload{
 									Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
 									LogID:          "samplelogID",
 									IntegratedTime: 12345,
