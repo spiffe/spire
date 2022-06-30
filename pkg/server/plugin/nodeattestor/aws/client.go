@@ -23,11 +23,11 @@ type Client interface {
 type clientsCache struct {
 	mtx       sync.RWMutex
 	config    *SessionConfig
-	regions   map[string]*regionCache
+	clients   map[string]*cacheEntry
 	newClient newClientCallback
 }
 
-type regionCache struct {
+type cacheEntry struct {
 	lock   chan struct{}
 	client Client
 }
@@ -36,14 +36,14 @@ type newClientCallback func(ctx context.Context, config *SessionConfig, region s
 
 func newClientsCache(newClient newClientCallback) *clientsCache {
 	return &clientsCache{
-		regions:   make(map[string]*regionCache),
+		clients:   make(map[string]*cacheEntry),
 		newClient: newClient,
 	}
 }
 
 func (cc *clientsCache) configure(config SessionConfig) {
 	cc.mtx.Lock()
-	cc.regions = make(map[string]*regionCache)
+	cc.clients = make(map[string]*cacheEntry)
 	cc.config = &config
 	cc.mtx.Unlock()
 }
@@ -53,7 +53,7 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 	cacheKey := accountID + "@" + region
 
 	// Grab (or create) the cache for the region
-	r := cc.getRegion(cacheKey)
+	r := cc.getCachedClient(cacheKey)
 
 	// Obtain the "lock" to the region cache
 	select {
@@ -90,15 +90,15 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 	return client, nil
 }
 
-func (cc *clientsCache) getRegion(region string) *regionCache {
+func (cc *clientsCache) getCachedClient(cacheKey string) *cacheEntry {
 	cc.mtx.Lock()
 	defer cc.mtx.Unlock()
-	r, ok := cc.regions[region]
+	r, ok := cc.clients[cacheKey]
 	if !ok {
-		r = &regionCache{
+		r = &cacheEntry{
 			lock: make(chan struct{}, 1),
 		}
-		cc.regions[region] = r
+		cc.clients[cacheKey] = r
 	}
 	return r
 }
