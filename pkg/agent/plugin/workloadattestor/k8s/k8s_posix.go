@@ -343,11 +343,11 @@ func createHelper(c *Plugin) (ContainerHelper, error) {
 func configureSigstore(config *k8sConfig, sigstore sigstore.Sigstore) error {
 	// Configure sigstore settings
 	sigstore.ClearSkipList()
+	imageIDList := []string{}
 	if config.SkippedImages != nil {
-		for _, imageID := range config.SkippedImages {
-			sigstore.AddSkippedImage(imageID)
-		}
+		imageIDList = append(imageIDList, config.SkippedImages...)
 	}
+	sigstore.AddSkippedImage(imageIDList)
 	sigstore.EnableAllowSubjectList(config.AllowedSubjectListEnabled)
 	sigstore.ClearAllowedSubjects()
 	if config.AllowedSubjects != nil {

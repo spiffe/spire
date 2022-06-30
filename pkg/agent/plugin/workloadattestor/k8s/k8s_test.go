@@ -844,7 +844,7 @@ func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
 	return s.skipSigs, s.returnError
 }
 
-func (s *sigstoreMock) AddSkippedImage(string) {
+func (s *sigstoreMock) AddSkippedImage([]string) {
 }
 func (s *sigstoreMock) ClearSkipList() {
 }
