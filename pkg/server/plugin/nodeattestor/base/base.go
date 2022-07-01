@@ -2,7 +2,6 @@ package base
 
 import (
 	"context"
-	"errors"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
@@ -21,7 +20,7 @@ var _ pluginsdk.NeedsHostServices = (*Base)(nil)
 
 func (p *Base) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 	if !broker.BrokerClient(&p.store) {
-		return errors.New("required AgentStore host service not available")
+		return status.Error(codes.Internal, "required AgentStore host service not available")
 	}
 	return nil
 }
