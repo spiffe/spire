@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -56,6 +57,8 @@ type MSIAttestorPlugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
+	log hclog.Logger
+
 	mu     sync.RWMutex
 	config *MSIAttestorConfig
 
@@ -72,6 +75,10 @@ func New() *MSIAttestorPlugin {
 	p.hooks.now = time.Now
 	p.hooks.keySetProvider = jwtutil.NewCachingKeySetProvider(jwtutil.OIDCIssuer(azureOIDCIssuer), keySetRefreshInterval)
 	return p
+}
+
+func (p *MSIAttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
@@ -125,12 +132,8 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 	agentID := claims.AgentID(config.trustDomain)
 
-	attested, err := p.IsAttested(stream.Context(), agentID)
-	switch {
-	case err != nil:
+	if err := p.AssessTOFU(stream.Context(), agentID, p.log); err != nil {
 		return err
-	case attested:
-		return status.Error(codes.PermissionDenied, "MSI token has already been used to attest an agent")
 	}
 
 	// make sure tenant id is present and authorized
