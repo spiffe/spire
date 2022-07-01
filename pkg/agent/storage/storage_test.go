@@ -1,99 +1,260 @@
-package storage_test
+package storage
 
 import (
-	"crypto/x509"
 	"errors"
+	"os"
 	"testing"
+	"time"
 
-	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testCert, _ = pemutil.ParseCertificate([]byte(`-----BEGIN CERTIFICATE-----
-MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
-GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
-sCk5yi+yhSzNu5aquQwvm8a1Wh+qw1fiHAkhDni+wq+g3TQWxYlV51TCPH030yXs
-RxvujD4hUUaIQrXk4KKjODA2MA8GA1UdEwEB/wQFMAMBAf8wIwYDVR0RAQH/BBkw
-F4YVc3BpZmZlOi8vZG9tYWluMS50ZXN0MAoGCCqGSM49BAMCA0gAMEUCIA2dO09X
-makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
-dZglS5kKnYigmwDh+/U=
------END CERTIFICATE-----
+	certsA, _ = pemutil.ParseCertificates([]byte(`
+-----BEGIN CERTIFICATE-----                                                                                                                                                                                                                                       
+MIIBFzCBvaADAgECAgEBMAoGCCqGSM49BAMCMBExDzANBgNVBAMTBkNFUlQtQTAi                                                                                                                                                                                                  
+GA8wMDAxMDEwMTAwMDAwMFoYDzAwMDEwMTAxMDAwMDAwWjARMQ8wDQYDVQQDEwZD                                                                                                                                                                                                  
+RVJULUEwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAS6qfd5FtzLYW+p7NgjqqJu                                                                                                                                                                                                  
+EAyewtzk4ypsM7PfePnL+45U+mSSypopiiyXvumOlU3uIHpnVhH+dk26KXGHeh2i                                                                                                                                                                                                  
+owIwADAKBggqhkjOPQQDAgNJADBGAiEAom6HzKAkMs3wiQJUwJiSjp9q9PHaWgGh                                                                                                                                                                                                  
+m7Ins/ReHk4CIQCncVaUC6i90RxiUJNfxPPMwSV9kulsj67reucS+UkBIw==                                                                                                                                                                                                      
+-----END CERTIFICATE-----                                                                                                                                                                                                                                         
+`))
+
+	certsB, _ = pemutil.ParseCertificates([]byte(`
+-----BEGIN CERTIFICATE-----                                                                                                                                                                                                                                       
+MIIBFTCBvaADAgECAgEBMAoGCCqGSM49BAMCMBExDzANBgNVBAMTBkNFUlQtQjAi                                                                                                                                                                                                  
+GA8wMDAxMDEwMTAwMDAwMFoYDzAwMDEwMTAxMDAwMDAwWjARMQ8wDQYDVQQDEwZD                                                                                                                                                                                                  
+RVJULUIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAS6qfd5FtzLYW+p7NgjqqJu                                                                                                                                                                                                  
+EAyewtzk4ypsM7PfePnL+45U+mSSypopiiyXvumOlU3uIHpnVhH+dk26KXGHeh2i                                                                                                                                                                                                  
+owIwADAKBggqhkjOPQQDAgNHADBEAiBwFhJ/GSSuPTR9cn/R4RhK/FMdboO/nOFJ                                                                                                                                                                                                  
+banfBh0KjQIgdAKbWkRi8d/iE7wMaW4AqGXAsgpqS3I5nQCOb8RXn0M=                                                                                                                                                                                                          
+-----END CERTIFICATE-----                                                                                                                                                                                                                                         
 `))
 )
 
-func testLoadBundle(t *testing.T, fn func(t *testing.T, dir string) storage.Storage) {
-	dir := spiretest.TempDir(t)
-
-	sto := fn(t, dir)
-
+func TestBundle(t *testing.T) {
 	t.Run("load from empty storage", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
 		actual, err := sto.LoadBundle()
-		require.True(t, errors.Is(err, storage.ErrNotCached))
+		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
 	})
 
-	expected := []*x509.Certificate{testCert}
-	require.NoError(t, sto.StoreBundle(expected))
-
 	t.Run("load from same storage instance", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreBundle(certsA))
+
 		actual, err := sto.LoadBundle()
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Equal(t, certsA, actual)
 	})
 
-	sto = fn(t, dir)
-
 	t.Run("load from new storage instance", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreBundle(certsA))
+
+		sto = openStorage(t, dir)
 		actual, err := sto.LoadBundle()
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Equal(t, certsA, actual)
+	})
+
+	t.Run("populate from legacy after upgrade", func(t *testing.T) {
+		// Populate legacy bundle
+		dir := spiretest.TempDir(t)
+		require.NoError(t, storeLegacyBundle(dir, certsA))
+
+		// Open storage, simulating an upgrade
+		sto := openStorage(t, dir)
+
+		// Ensure the legacy bundle exists
+		actual, err := sto.LoadBundle()
+		require.NoError(t, err)
+		require.Equal(t, certsA, actual)
+	})
+
+	t.Run("restore from legacy after downgrade", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		// Open storage and store the bundle
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreBundle(certsA))
+
+		// Assert the legacy bundle has been stored
+		actual, _, err := loadLegacyBundle(dir)
+		require.NoError(t, err)
+		require.Equal(t, certsA, actual)
+	})
+
+	t.Run("restore from legacy after downgrade/upgrade", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		// Store to legacy storage simulating state before upgrade
+		require.NoError(t, storeLegacyBundle(dir, certsA))
+
+		// Open storage to simulate state after upgrade and assert legacy data
+		// is observed.
+		sto := openStorage(t, dir)
+		actual, err := sto.LoadBundle()
+		require.NoError(t, err)
+		require.Equal(t, certsA, actual)
+
+		// Write values to legacy storage simulating change after downgrade
+		require.NoError(t, storeLegacyBundle(dir, certsB))
+
+		// To be resilient against timing, manually adjust the mtime on the
+		// legacy data to ensure the mtime is after the storage data.
+		now := time.Now()
+		require.NoError(t, os.Chtimes(legacyBundlePath(dir), now, now.Add(time.Second)))
+
+		// Reload the sto storage (simulating the upgrade after
+		// downgrade) and assert new cert is observed.
+		sto = openStorage(t, dir)
+		actual, err = sto.LoadBundle()
+		require.NoError(t, err)
+		require.Equal(t, certsB, actual)
 	})
 }
 
-func testLoadSVID(t *testing.T, fn func(t *testing.T, dir string) storage.Storage) {
-	dir := spiretest.TempDir(t)
-
-	sto := fn(t, dir)
-
+func TestSVID(t *testing.T) {
 	t.Run("load from empty storage", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
 		actual, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, storage.ErrNotCached))
+		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
 	})
-
-	expected := []*x509.Certificate{testCert}
-	require.NoError(t, sto.StoreSVID(expected))
 
 	t.Run("load from same storage instance", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreSVID(certsA))
+
 		actual, err := sto.LoadSVID()
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Equal(t, certsA, actual)
 	})
-
-	sto = fn(t, dir)
 
 	t.Run("load from new storage instance", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreSVID(certsA))
+
+		sto = openStorage(t, dir)
 		actual, err := sto.LoadSVID()
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Equal(t, certsA, actual)
 	})
 
-	require.NoError(t, sto.DeleteSVID())
+	t.Run("populate from legacy after upgrade", func(t *testing.T) {
+		// Populate legacy SVID
+		dir := spiretest.TempDir(t)
+		require.NoError(t, storeLegacySVID(dir, certsA))
 
-	t.Run("load from same storage instance after delete", func(t *testing.T) {
+		// Open storage, simulating an upgrade
+		sto := openStorage(t, dir)
+
+		// Ensure the legacy SVID exists
 		actual, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, storage.ErrNotCached))
+		require.NoError(t, err)
+		require.Equal(t, certsA, actual)
+	})
+
+	t.Run("restore from legacy after downgrade", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		// Open storage and store the SVID
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreSVID(certsA))
+
+		// Assert the legacy SVID has been stored
+		actual, _, err := loadLegacySVID(dir)
+		require.NoError(t, err)
+		require.Equal(t, certsA, actual)
+	})
+
+	t.Run("restore from legacy after downgrade/upgrade", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		// Store to legacy storage simulating state before upgrade
+		require.NoError(t, storeLegacySVID(dir, certsA))
+
+		// Open storage to simulate state after upgrade and assert legacy data
+		// is observed.
+		sto := openStorage(t, dir)
+		actual, err := sto.LoadSVID()
+		require.NoError(t, err)
+		require.Equal(t, certsA, actual)
+
+		// Write values to legacy storage simulating change after downgrade
+		require.NoError(t, storeLegacySVID(dir, certsB))
+
+		// To be resilient against timing, manually adjust the mtime on the
+		// legacy data to ensure the mtime is after the storage data.
+		now := time.Now()
+		require.NoError(t, os.Chtimes(legacySVIDPath(dir), now, now.Add(time.Second)))
+
+		// Reload the sto storage (simulating the upgrade after
+		// downgrade) and assert new cert is observed.
+		sto = openStorage(t, dir)
+		actual, err = sto.LoadSVID()
+		require.NoError(t, err)
+		require.Equal(t, certsB, actual)
+	})
+
+	t.Run("delete from empty storage", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.DeleteSVID())
+
+		actual, err := sto.LoadSVID()
+		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
 	})
 
-	sto = fn(t, dir)
+	t.Run("delete from populated storage", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
 
-	t.Run("load from new storage instance after delete", func(t *testing.T) {
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreSVID(certsA))
+		require.NoError(t, sto.DeleteSVID())
+
 		actual, err := sto.LoadSVID()
-		require.True(t, errors.Is(err, storage.ErrNotCached))
+		require.True(t, errors.Is(err, ErrNotCached))
 		require.Nil(t, actual)
 	})
+
+	t.Run("delete from populated storage with new instances", func(t *testing.T) {
+		dir := spiretest.TempDir(t)
+
+		sto := openStorage(t, dir)
+		require.NoError(t, sto.StoreSVID(certsA))
+
+		sto = openStorage(t, dir)
+		require.NoError(t, sto.DeleteSVID())
+
+		sto = openStorage(t, dir)
+		actual, err := sto.LoadSVID()
+		require.True(t, errors.Is(err, ErrNotCached))
+		require.Nil(t, actual)
+	})
+}
+
+func openStorage(t *testing.T, dir string) Storage {
+	sto, err := Open(dir)
+	require.NoError(t, err)
+	return sto
 }

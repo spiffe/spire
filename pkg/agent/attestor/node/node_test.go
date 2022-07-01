@@ -397,7 +397,7 @@ func (c *fakeBundleService) GetBundle(ctx context.Context, in *bundlev1.GetBundl
 func prepareTestDir(t *testing.T, cachedSVID, cachedBundle *x509.Certificate) storage.Storage {
 	dir := spiretest.TempDir(t)
 
-	sto, err := storage.Backcompat(dir)
+	sto, err := storage.Open(dir)
 	require.NoError(t, err)
 
 	if cachedSVID != nil {

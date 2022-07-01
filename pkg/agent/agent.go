@@ -44,10 +44,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: Switch over to the JSONFile storage after the backcompat shim
-	// has been in place for an entire minor release, following deprecation
-	// guidelines.
-	sto, err := storage.Backcompat(a.c.DataDir)
+	sto, err := storage.Open(a.c.DataDir)
 	if err != nil {
 		return err
 	}

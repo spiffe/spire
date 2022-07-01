@@ -1359,7 +1359,7 @@ func svidsEqual(as, bs []*x509.Certificate) bool {
 }
 
 func backcompatStorage(t *testing.T, dir string) storage.Storage {
-	sto, err := storage.Backcompat(dir)
+	sto, err := storage.Open(dir)
 	require.NoError(t, err)
 	return sto
 }
