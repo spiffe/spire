@@ -33,30 +33,40 @@ func readARN(ctx context.Context, sm secretsManagerClient, arn string) (string, 
 }
 
 func newSecretsManagerClient(ctx context.Context, cfg *Configuration, region string) (secretsManagerClient, error) {
-	var credsProvider aws.CredentialsProvider
-	switch {
-	case cfg.AssumeRoleARN != "":
-		stsConf := aws.Config{
-			Region: region,
-		}
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
 
-		stsClient := sts.NewFromConfig(stsConf)
-		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, cfg.AssumeRoleARN)
-	case cfg.SecretAccessKey != "" && cfg.AccessKeyID != "":
-		credsProvider = aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, ""))
-	default:
-		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.Region))
+	if cfg.SecretAccessKey != "" && cfg.AccessKeyID != "" {
+		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SecurityToken)))
+	}
+
+	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.AssumeRoleARN != "" {
+		awsConfig, err = newAWSAssumeRoleConfig(ctx, region, awsConfig, cfg.AssumeRoleARN)
 		if err != nil {
 			return nil, err
 		}
-
-		credsProvider = awsCfg.Credentials
-	}
-
-	awsConfig := aws.Config{
-		Credentials: credsProvider,
-		Region:      region,
 	}
 
 	return secretsmanager.NewFromConfig(awsConfig), nil
+}
+
+func newAWSAssumeRoleConfig(ctx context.Context, region string, awsConf aws.Config, assumeRoleArn string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	stsClient := sts.NewFromConfig(awsConf)
+	opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+		stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
+	)
+
+	return config.LoadDefaultConfig(ctx, opts...)
 }
