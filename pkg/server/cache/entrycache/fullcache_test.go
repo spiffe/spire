@@ -132,6 +132,30 @@ func TestCache(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestCacheReturnsClonedEntries(t *testing.T) {
+	ds := fakedatastore.New(t)
+
+	expected, err := api.RegistrationEntryToProto(createRegistrationEntry(context.Background(), t, ds, &common.RegistrationEntry{
+		ParentId:  "spiffe://domain.test/node",
+		SpiffeId:  "spiffe://domain.test/workload",
+		Selectors: []*common.Selector{{Type: "T", Value: "V"}},
+		DnsNames:  []string{"dns"},
+	}))
+	require.NoError(t, err)
+
+	cache, err := BuildFromDataStore(context.Background(), ds)
+	require.NoError(t, err)
+
+	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
+	require.Equal(t, []*types.Entry{expected}, actual)
+
+	// Now mutate the returned entry, refetch, and assert the cache copy was
+	// not altered.
+	actual[0].DnsNames = nil
+	actual = cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
+	require.Equal(t, []*types.Entry{expected}, actual)
+}
+
 func TestFullCacheNodeAliasing(t *testing.T) {
 	ds := fakedatastore.New(t)
 	ctx := context.Background()
