@@ -155,7 +155,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	// Ideally we wouldn't do this work at all if the agent has already attested
-	// e.g. do it after the call to `p.IsAttested`, however, we may need
+	// e.g. do it after the call to `p.AssessTOFU`, however, we may need
 	// the instance to construct tags used in the agent ID.
 	//
 	// This overhead will only effect agents attempting to re-attest which
@@ -185,12 +185,8 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.Internal, "failed to create spiffe ID: %v", err)
 	}
 
-	attested, err := p.IsAttested(stream.Context(), agentID.String())
-	switch {
-	case err != nil:
+	if err := p.AssessTOFU(stream.Context(), agentID.String(), p.log); err != nil {
 		return err
-	case attested:
-		return status.Error(codes.PermissionDenied, "IID has already been used to attest an agent")
 	}
 
 	selectorValues, err := p.resolveSelectors(stream.Context(), instancesDesc, awsClient)

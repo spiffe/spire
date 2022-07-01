@@ -162,12 +162,8 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 	// It is incredibly unlikely the agent will have already attested since we
 	// generate a new UUID on each attestation but just in case...
 	agentID := k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, uuid)
-	attested, err := p.IsAttested(stream.Context(), agentID)
-	switch {
-	case err != nil:
+	if err := p.AssessTOFU(stream.Context(), agentID, p.log); err != nil {
 		return err
-	case attested:
-		return status.Error(codes.PermissionDenied, "SAT has already been used to attest an agent with the same UUID")
 	}
 
 	var namespace, serviceAccountName string

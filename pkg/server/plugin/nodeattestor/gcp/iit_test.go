@@ -103,7 +103,7 @@ func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
 		AgentId: testAgentID,
 	})
 
-	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): IIT has already been used to attest an agent")
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): attestation data has already been used to attest an agent")
 }
 
 func (s *IITAttestorSuite) TestErrorOnProjectIdMismatch() {
