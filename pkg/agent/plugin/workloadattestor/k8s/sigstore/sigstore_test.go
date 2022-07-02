@@ -413,7 +413,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
 					LogID:          "samplelogID",
 					IntegratedTime: "12345",
-					Verified:       true,
 				},
 			},
 		},
@@ -453,14 +452,12 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
 					LogID:          "samplelogID1",
 					IntegratedTime: "12345",
-					Verified:       true,
 				},
 				{
 					Subject:        "spirex2@example.com",
 					Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smB=",
 					LogID:          "samplelogID2",
 					IntegratedTime: "12346",
-					Verified:       true,
 				},
 			},
 		},
@@ -511,7 +508,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
 					LogID:          "samplelogID",
 					IntegratedTime: "12345",
-					Verified:       true,
 				},
 			},
 		},
@@ -555,7 +551,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
 					LogID:          "samplelogID",
 					IntegratedTime: "12345",
-					Verified:       true,
 				},
 			},
 		},
@@ -1351,7 +1346,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		fields      fields
 		args        args
 		containerID string
-		want        SelectorsFromSignatures
+		want        *SelectorsFromSignatures
 	}{
 		{
 			name: "selector from signature",
@@ -1372,12 +1367,11 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "000000",
-			want: SelectorsFromSignatures{
+			want: &SelectorsFromSignatures{
 				Subject:        "spirex@example.com",
 				Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
 				LogID:          "samplelogID",
 				IntegratedTime: "12345",
-				Verified:       true,
 			},
 		},
 		{
@@ -1399,7 +1393,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "111111",
-			want:        SelectorsFromSignatures{},
+			want:        nil,
 		},
 		{
 			name: "selector from signature, not in allowlist",
@@ -1415,7 +1409,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "222222",
-			want:        SelectorsFromSignatures{},
+			want:        nil,
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist",
@@ -1438,13 +1432,11 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "333333",
-			want: SelectorsFromSignatures{
-
+			want: &SelectorsFromSignatures{
 				Subject:        "spirex@example.com",
 				Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
 				LogID:          "samplelogID",
 				IntegratedTime: "12345",
-				Verified:       true,
 			},
 		},
 		{
@@ -1468,13 +1460,11 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "444444",
-			want: SelectorsFromSignatures{
+			want: &SelectorsFromSignatures{
 				Subject:        "spirex@example.com",
 				LogID:          "samplelogID",
-				IntegratedTime: "12345",
-				Verified:       true},
+				IntegratedTime: "12345"},
 		},
-
 		{
 			name: "selector from signature, no bundle",
 			fields: fields{
@@ -1487,10 +1477,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "555555",
-			want: SelectorsFromSignatures{
-
-				Subject:  "spirex@example.com",
-				Verified: true,
+			want: &SelectorsFromSignatures{
+				Subject: "spirex@example.com",
 			},
 		},
 	}
