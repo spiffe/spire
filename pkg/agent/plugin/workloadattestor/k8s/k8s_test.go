@@ -236,8 +236,7 @@ func (s *Suite) TestAttestWithSigstoreSignatures() {
 	s.startInsecureKubelet()
 	s.setSigstoreSelectors([]sigstore.SelectorsFromSignatures{
 		{
-			Subject:  "sigstore-subject",
-			Verified: true,
+			Subject: "sigstore-subject",
 		},
 	})
 	p := s.loadInsecurePlugin()
@@ -832,8 +831,8 @@ func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName strin
 	return s.sigs, s.returnError
 }
 
-func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) sigstore.SelectorsFromSignatures {
-	return s.selectors[0]
+func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) *sigstore.SelectorsFromSignatures {
+	return &s.selectors[0]
 }
 
 func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
@@ -875,9 +874,7 @@ func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *co
 		if selector.IntegratedTime != "" {
 			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-integrated-time:%s", status.ContainerID, selector.IntegratedTime))
 		}
-		if selector.Verified {
-			selectorsString = append(selectorsString, "sigstore-validation:passed")
-		}
+		selectorsString = append(selectorsString, "sigstore-validation:passed")
 	}
 	return selectorsString, s.returnError
 }
