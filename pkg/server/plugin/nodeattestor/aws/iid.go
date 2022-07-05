@@ -140,13 +140,13 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
-	awsClient, err := p.clients.getClient(attestationData.Region, attestationData.AccountID)
+	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
+	defer cancel()
+
+	awsClient, err := p.clients.getClient(ctx, attestationData.Region, attestationData.AccountID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get client: %v", err)
 	}
-
-	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
-	defer cancel()
 
 	instancesDesc, err := awsClient.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		InstanceIds: []string{attestationData.InstanceID},
