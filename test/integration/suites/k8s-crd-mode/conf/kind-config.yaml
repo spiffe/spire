@@ -1,0 +1,20 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+kubeadmConfigPatches:
+- |
+  apiVersion: kubeadm.k8s.io/v1beta2
+  kind: ClusterConfiguration
+  metadata:
+    name: config
+  apiServer:
+    extraArgs:
+        "service-account-signing-key-file": "/etc/kubernetes/pki/sa.key"
+        "service-account-issuer": "api"
+        "service-account-api-audiences": "api,spire-server"
+        "admission-control-config-file": "/etc/kubernetes/pki/admctrl/admission-control.yaml"
+nodes:
+- role: control-plane
+  image: kindest/node:v1.21.1@sha256:69860bda5563ac81e3c0057d654b5253219618a22ec3a346306239bba8cfa1a6
+  extraMounts:
+  - containerPath: /etc/kubernetes/pki/admctrl
+    hostPath: CONFDIR/admctrl
