@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
@@ -60,7 +59,7 @@ type Server interface {
 
 type Endpoints struct {
 	TCPAddr                      *net.TCPAddr
-	UDSAddr                      *net.UnixAddr
+	LocalAddr                    net.Addr
 	SVIDObserver                 svid.Observer
 	TrustDomain                  spiffeid.TrustDomain
 	DataStore                    datastore.DataStore
@@ -96,8 +95,8 @@ type RateLimitConfig struct {
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
-	if err := os.MkdirAll(filepath.Dir(c.UDSAddr.String()), 0750); err != nil {
-		return nil, fmt.Errorf("unable to create socket directory: %w", err)
+	if err := prepareLocalAddr(c.LocalAddr); err != nil {
+		return nil, err
 	}
 
 	if c.AuthPolicyEngine == nil {
@@ -121,7 +120,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	return &Endpoints{
 		TCPAddr:                      c.TCPAddr,
-		UDSAddr:                      c.UDSAddr,
+		LocalAddr:                    c.LocalAddr,
 		SVIDObserver:                 c.SVIDObserver,
 		TrustDomain:                  c.TrustDomain,
 		DataStore:                    c.Catalog.GetDataStore(),
@@ -169,7 +168,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			return e.runTCPServer(ctx, tcpServer)
 		},
 		func(ctx context.Context) error {
-			return e.runUDSServer(ctx, udsServer)
+			return e.runLocalAccess(ctx, udsServer)
 		},
 		e.EntryFetcherCacheRebuildTask,
 	}
@@ -222,37 +221,38 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		return err
 	}
 	defer l.Close()
+	log := e.Log.WithFields(logrus.Fields{
+		telemetry.Network: l.Addr().Network(),
+		telemetry.Address: l.Addr().String()})
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting TCP server")
+	log.Info("Starting Server APIs")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err = <-errChan:
-		e.Log.WithError(err).Error("TCP server stopped prematurely")
+		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.Log.Info("Stopping TCP server")
+		log.Info("Stopping Server APIs")
 		server.Stop()
 		<-errChan
-		e.Log.Info("TCP server has stopped")
+		log.Info("Server APIs have stopped")
 		return nil
 	}
 }
 
-// runUDSServer  will start the server and block until it exits or we are dying.
-func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error {
-	os.Remove(e.UDSAddr.String())
+// runLocalAccess will start a grpc server to be accessed locally
+// and block until it exits or we are dying.
+func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) error {
+	os.Remove(e.LocalAddr.String())
 	var l net.Listener
 	var err error
 	if e.AuditLogEnabled {
-		unixListener := &peertracker.ListenerFactory{
-			Log: e.Log,
-		}
-		l, err = unixListener.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+		l, err = e.listenWithAuditLog()
 	} else {
-		l, err = net.ListenUnix(e.UDSAddr.Network(), e.UDSAddr)
+		l, err = e.listen()
 	}
 
 	if err != nil {
@@ -260,26 +260,28 @@ func (e *Endpoints) runUDSServer(ctx context.Context, server *grpc.Server) error
 	}
 	defer l.Close()
 
-	// Restrict access to the UDS to processes running as the same user or
-	// group as the server.
-	if err := os.Chmod(e.UDSAddr.String(), 0770); err != nil {
+	if err := e.restrictLocalAddr(); err != nil {
 		return err
 	}
 
+	log := e.Log.WithFields(logrus.Fields{
+		telemetry.Network: l.Addr().Network(),
+		telemetry.Address: l.Addr().String()})
+
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
-	e.Log.WithField(telemetry.Address, l.Addr().String()).Info("Starting UDS server")
+	log.Info("Starting Server APIs")
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err := <-errChan:
-		e.Log.WithError(err).Error("UDS server stopped prematurely")
+		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.Log.Info("Stopping UDS server")
+		log.Info("Stopping Server APIs")
 		server.Stop()
 		<-errChan
-		e.Log.Info("UDS server has stopped")
+		log.Info("Server APIs have stopped")
 		return nil
 	}
 }

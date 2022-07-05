@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -69,7 +70,7 @@ func NewSVID(ctx context.Context, config SVIDConfig) (*SVID, error) {
 
 // MintSVID requests the SPIRE Server to mint a new SVID for the webhook
 func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
-	e.c.Log.Debug("Minting new SVID for webhook")
+	e.c.Log.Info("Minting new SVID for webhook")
 	// Generate key if not passed in
 	if key == nil {
 		key, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -91,7 +92,13 @@ func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
 
 	// Mint new SVID
 	var resp *svidv1.MintX509SVIDResponse
-	err = retry.OnError(retry.DefaultBackoff, e.mintSVIDRetry, func() (err error) {
+	backoff := wait.Backoff{
+		Steps:    8,
+		Duration: 10 * time.Millisecond,
+		Factor:   2.0,
+		Jitter:   0.1,
+	}
+	err = retry.OnError(backoff, e.mintSVIDRetry, func() (err error) {
 		resp, err = e.c.S.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 			Csr: csr,
 		})
@@ -109,6 +116,7 @@ func (e *SVID) MintSVID(ctx context.Context, key crypto.Signer) (err error) {
 	if err != nil {
 		return err
 	}
+	e.c.Log.Info("Successfully minted new SVID for webhook")
 
 	// Parse leaf certificate and calculate half life
 	leafCert, err := x509.ParseCertificate(resp.Svid.CertChain[0])
@@ -144,6 +152,7 @@ func (e *SVID) mintSVIDRetry(err error) bool {
 		return false
 	}
 
+	e.c.Log.Debug("Unable to contact SPIRE Server to mint webhook SVID, retrying...")
 	return true
 }
 

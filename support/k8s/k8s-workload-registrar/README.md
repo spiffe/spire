@@ -46,13 +46,14 @@ The following configuration directives are specific to `"webhook"` mode:
 
 The following configuration directives are specific to `"reconcile"` mode:
 
-| Key                        | Type    | Required? | Description                              | Default |
-| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
-| `leader_election`          | bool    | optional | Enable/disable leader election. Enable if you have multiple registrar replicas running. | false |
-| `metrics_addr`             | string  | optional | Address to expose metrics on, use `0` to disable. | `":8080"` |
-| `controller_name`          | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
-| `add_pod_dns_names`        | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
-| `cluster_dns_zone`         | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
+| Key                             | Type    | Required? | Description                              | Default |
+| ------------------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `leader_election`               | bool    | optional | Enable/disable leader election. Enable if you have multiple registrar replicas running. | false |
+| `leader_election_resource_lock` | string  | optional | Configures the type of resource to use for the leader election lock. | `"configmaps` |
+| `metrics_addr`                  | string  | optional | Address to expose metrics on, use `0` to disable. | `":8080"` |
+| `controller_name`               | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
+| `add_pod_dns_names`             | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
+| `cluster_dns_zone`              | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
 
 For CRD configuration directives see [CRD Mode Configuration](mode-crd/README.md#configuration)
 
@@ -257,3 +258,7 @@ less configuration.
 registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
 SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
 enabled.
+
+### Platform support
+
+This tool is only supported on Unix systems.

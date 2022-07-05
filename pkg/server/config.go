@@ -33,8 +33,8 @@ type Config struct {
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 
-	// Address of the UDS SPIRE server
-	BindUDSAddress *net.UnixAddr
+	// Address of SPIRE Server to be reached locally
+	BindLocalAddress net.Addr
 
 	// Directory to store runtime data
 	DataDir string

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -18,22 +17,17 @@ import (
 )
 
 func TestWorkloadAPISource(t *testing.T) {
-	// TODO: workload source is not supported on windows until we solve workload API
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
 	const pollInterval = time.Second
 
 	api := &fakeWorkloadAPIServer{}
 
-	socketPath := spiretest.StartWorkloadAPIOnTempUDSSocket(t, api).Name
-
+	addr := spiretest.StartWorkloadAPI(t, api)
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)
 
 	source, err := NewWorkloadAPISource(WorkloadAPISourceConfig{
 		Log:          log,
-		SocketPath:   socketPath,
+		Addr:         addr,
 		TrustDomain:  "domain.test",
 		PollInterval: pollInterval,
 		Clock:        clock,

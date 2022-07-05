@@ -66,6 +66,9 @@ const (
 	// (server)
 	GetPublicKeys = "get_public_keys"
 
+	// Keys related to keys used on HCL
+	Keys = "keys"
+
 	// List functionality related to listing some objects; should be used
 	// with other tags to add clarity
 	List = "list"
@@ -171,11 +174,15 @@ const (
 	CallerID = "caller_id"
 
 	// CallerUID tags an API caller user ID; should be used with other tags
-	// to add clarity
+	// to add clarity; Unix only
 	CallerUID = "caller_uid"
 
+	// CallerSID tags an API caller user SID; should be used with other tags
+	// to add clarity; Windows only
+	CallerUserSID = "caller_user_sid"
+
 	// CallerGID tags an API caller group ID; should be used with other tags
-	// to add clarity
+	// to add clarity; Unix only
 	CallerGID = "caller_gid"
 
 	// CallerPath tags an API caller binary path; should be used with other tags
@@ -546,6 +553,9 @@ const (
 	// Datastore functionality related to datastore plugin
 	Datastore = "datastore"
 
+	// Deleted tags something as deleted
+	Deleted = "deleted"
+
 	// Endpoints functionality related to agent/server endpoints
 	Endpoints = "endpoints"
 
@@ -564,9 +574,6 @@ const (
 	// FederatedBundle functionality related to a federated bundle; should be used
 	// with other tags to add clarity
 	FederatedBundle = "federated_bundle"
-
-	// Ignored tags something as ignored
-	Ignored = "ignored"
 
 	// JoinToken functionality related to a join token; should be used
 	// with other tags to add clarity

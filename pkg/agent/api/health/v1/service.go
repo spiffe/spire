@@ -49,11 +49,11 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
 	}
 
-	addr, err := util.GetURIAddress(s.addr)
+	clientOption, err := util.GetWorkloadAPIClientOption(s.addr)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "could not parse endpoint address", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "could not get Workload API client options", err)
 	}
-	_, err = workloadapi.FetchX509Context(ctx, workloadapi.WithAddr(addr))
+	_, err = workloadapi.FetchX509Context(ctx, clientOption)
 
 	healthStatus := grpc_health_v1.HealthCheckResponse_SERVING
 	switch status.Code(err) {

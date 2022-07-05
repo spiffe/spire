@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -159,15 +158,16 @@ func TestEndpoints(t *testing.T) {
 			metrics := fakemetrics.New()
 			addr := getTestAddr(t)
 			endpoints := New(Config{
-				BindAddr:                addr,
-				Log:                     log,
-				Metrics:                 metrics,
-				Attestor:                FakeAttestor{},
-				Manager:                 FakeManager{},
-				DefaultSVIDName:         "DefaultSVIDName",
-				DefaultBundleName:       "DefaultBundleName",
-				DefaultAllBundlesName:   "DefaultAllBundlesName",
-				AllowedForeignJWTClaims: tt.allowedClaims,
+				BindAddr:                    addr,
+				Log:                         log,
+				Metrics:                     metrics,
+				Attestor:                    FakeAttestor{},
+				Manager:                     FakeManager{},
+				DefaultSVIDName:             "DefaultSVIDName",
+				DefaultBundleName:           "DefaultBundleName",
+				DefaultAllBundlesName:       "DefaultAllBundlesName",
+				DisableSPIFFECertValidation: true,
+				AllowedForeignJWTClaims:     tt.allowedClaims,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
@@ -200,6 +200,7 @@ func TestEndpoints(t *testing.T) {
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
 					assert.Equal(t, "DefaultAllBundlesName", c.DefaultAllBundlesName)
+					assert.Equal(t, true, c.DisableSPIFFECertValidation)
 					return FakeSDSv3Server{Attestor: attestor}
 				},
 
@@ -225,9 +226,7 @@ func TestEndpoints(t *testing.T) {
 			waitForListening(t, endpoints, errCh)
 			target, err := util.GetTargetName(endpoints.addr)
 			require.NoError(t, err)
-			conn, err := grpc.DialContext(ctx, target,
-				grpc.WithReturnConnectionError(),
-				grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
 			require.NoError(t, err)
 			defer conn.Close()
 

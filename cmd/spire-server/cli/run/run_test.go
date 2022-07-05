@@ -26,14 +26,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mergeInputCase struct {
+	msg       string
+	fileInput func(*Config)
+	cliFlags  []string
+	test      func(*testing.T, *Config)
+}
+
+type newServerConfigCase struct {
+	msg         string
+	expectError bool
+	input       func(*Config)
+	logOptions  func(t *testing.T) []log.Option
+	test        func(*testing.T, *server.Config)
+}
+
 func TestParseConfigGood(t *testing.T) {
-	c, err := ParseFile("../../../../test/fixture/config/server_good.conf", false)
+	c, err := ParseFile(configFile, false)
 	require.NoError(t, err)
 
 	// Check for server configurations
 	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
 	assert.Equal(t, c.Server.BindPort, 8081)
-	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api.sock")
 	assert.Equal(t, c.Server.TrustDomain, "example.org")
 	assert.Equal(t, c.Server.LogLevel, "INFO")
 	assert.Equal(t, c.Server.Federation.BundleEndpoint.Address, "0.0.0.0")
@@ -50,6 +64,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	testParseConfigGoodOS(t, c)
 
 	// Check for plugins configurations
 	pluginConfigs := *c.Plugins
@@ -86,27 +101,8 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, expectedData, data.String())
 }
 
-func TestParseFlagsGood(t *testing.T) {
-	c, err := parseFlags("run", []string{
-		"-bindAddress=127.0.0.1",
-		"-socketPath=/tmp/flag.sock",
-		"-trustDomain=example.org",
-		"-logLevel=INFO",
-	}, os.Stderr)
-	require.NoError(t, err)
-	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.SocketPath, "/tmp/flag.sock")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.LogLevel, "INFO")
-}
-
 func TestMergeInput(t *testing.T) {
-	cases := []struct {
-		msg       string
-		fileInput func(*Config)
-		cliFlags  []string
-		test      func(*testing.T, *Config)
-	}{
+	cases := []mergeInputCase{
 		{
 			msg:       "bind_address should default to 0.0.0.0 if not set",
 			fileInput: func(c *Config) {},
@@ -356,34 +352,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "socket_path should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Server.SocketPath = "foo"
-			},
-			cliFlags: []string{},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.SocketPath)
-			},
-		},
-		{
-			msg:       "socket_path should be configuable by CLI flag",
-			fileInput: func(c *Config) {},
-			cliFlags:  []string{"-socketPath=foo"},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "foo", c.Server.SocketPath)
-			},
-		},
-		{
-			msg: "socket_path specified by CLI flag should take precedence over file",
-			fileInput: func(c *Config) {
-				c.Server.SocketPath = "foo"
-			},
-			cliFlags: []string{"-socketPath=bar"},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "bar", c.Server.SocketPath)
-			},
-		},
-		{
 			msg: "default_svid_ttl should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1h"
@@ -441,6 +409,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 	}
+	cases = append(cases, mergeInputCasesOS(t)...)
 
 	for _, testCase := range cases {
 		testCase := testCase
@@ -461,13 +430,7 @@ func TestMergeInput(t *testing.T) {
 }
 
 func TestNewServerConfig(t *testing.T) {
-	cases := []struct {
-		msg         string
-		expectError bool
-		input       func(*Config)
-		logOptions  func(t *testing.T) []log.Option
-		test        func(*testing.T, *server.Config)
-	}{
+	cases := []newServerConfigCase{
 		{
 			msg: "bind_address and bind_port should be correctly parsed",
 			input: func(c *Config) {
@@ -487,16 +450,6 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "socket_path should be correctly configured",
-			input: func(c *Config) {
-				c.Server.SocketPath = "foo"
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, "foo", c.BindUDSAddress.Name)
-				require.Equal(t, "unix", c.BindUDSAddress.Net)
 			},
 		},
 		{
@@ -547,7 +500,7 @@ func TestNewServerConfig(t *testing.T) {
 
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
-				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
 			},
 		},
 		{
@@ -561,7 +514,7 @@ func TestNewServerConfig(t *testing.T) {
 
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
-				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
 			},
 		},
 		{
@@ -884,7 +837,7 @@ func TestNewServerConfig(t *testing.T) {
 						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
-							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
 								{
 									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
 									Level: logrus.WarnLevel,
@@ -966,6 +919,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 	}
+	cases = append(cases, newServerConfigCasesOS()...)
 
 	for _, testCase := range cases {
 		testCase := testCase
@@ -1326,7 +1280,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 					},
 				})
 			}
-			spiretest.AssertLogsAnyOrder(t, hook.AllEntries(), logEntries)
+			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), logEntries)
 		})
 	}
 }

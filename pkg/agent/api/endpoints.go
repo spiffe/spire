@@ -2,11 +2,9 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"net"
-	"os"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	debugv1 "github.com/spiffe/spire/pkg/agent/api/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire/pkg/agent/api/delegatedidentity/v1"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
@@ -21,8 +19,8 @@ type Server interface {
 }
 
 type Endpoints struct {
-	c            *Config
-	unixListener *peertracker.ListenerFactory
+	c        *Config
+	listener *peertracker.ListenerFactory
 }
 
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
@@ -39,22 +37,28 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.registerDebugAPI(server)
 	e.registerDelegatedIdentityAPI(server)
 
-	l, err := e.createUDSListener()
+	l, err := e.createListener()
 	if err != nil {
 		return err
 	}
 	defer l.Close()
+	log := e.c.Log.WithFields(logrus.Fields{
+		telemetry.Network: l.Addr().Network(),
+		telemetry.Address: l.Addr().String()})
+	log.Info("Starting Admin APIs")
 
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
 	select {
 	case err = <-errChan:
+		log.WithError(err).Error("Admin APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		e.c.Log.Info("Stopping debug API")
+		log.Info("Stopping Admin APIs")
 		server.Stop()
 		<-errChan
+		log.Info("Admin APIs have stopped")
 		return nil
 	}
 }
@@ -81,18 +85,4 @@ func (e *Endpoints) registerDelegatedIdentityAPI(server *grpc.Server) {
 	})
 
 	delegatedidentityv1.RegisterService(server, service)
-}
-
-func (e *Endpoints) createUDSListener() (net.Listener, error) {
-	// Remove uds if already exists
-	os.Remove(e.c.BindAddr.String())
-
-	l, err := e.unixListener.ListenUnix(e.c.BindAddr.Network(), e.c.BindAddr)
-	if err != nil {
-		return nil, fmt.Errorf("create UDS listener: %w", err)
-	}
-	if err := os.Chmod(e.c.BindAddr.String(), 0770); err != nil {
-		return nil, fmt.Errorf("unable to change UDS permissions: %w", err)
-	}
-	return l, nil
 }

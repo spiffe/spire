@@ -1,5 +1,66 @@
 # Changelog
 
+## [1.3.1] - 2022-06-09
+
+### Added
+- The `windows` workload attestor gained a new `sha256` selector that can attest the SHA256 digest of the workload binary (#3100)
+
+### Fixed
+- Database rows related to registration entries are now properly removed (#3127, #3132)
+- Agent reduces bandwidth use by requesting only required information when syncing with the server (#3123)
+- Issue with read-modify-write operations when using PostgreSQL datastore in hot standby mode (#3103)
+
+### Changed
+- FetchX509Bundles RPC no longer sends spurious updates that contain no changes (#3102)
+- Warn if the built-in `join_token` node attestor is attempted to be overridden by an external plugin (#3045)
+- Database connections are now proactively closed when SPIRE server is shut down (#3047)
+
+## [1.3.0] - 2022-05-12
+
+### Added
+- Experimental Windows support (https://github.com/spiffe/spire/projects/12)
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009, #3014, #3020, #3034)
+- Configurable leader election resource lock type for the K8s Workload Registrar (#3030)
+- Ability to fetch JWT SVIDs and JWT Bundles on behalf of workloads via the Delegated Identity API (#2789)
+- CanReattest flag to NodeAttestor responses to facilitate future features (#2646)
+
+### Fixed
+- Spurious message to STDOUT when there is no plugin_data section configured for a plugin (#2927)
+
+### Changed
+- SPIRE entries with malformed parent or SPIFFE IDs are removed on server startup (#2965)
+- SPIRE no longer prepends slashes to paths passed to the API when missing (#2963)
+- K8s Workload Registrar retries up to 5 seconds to connect to SPIRE Server (#2921)
+- Improved error messaging when unauthorized resources are requested via SDS (#2916)
+- Small documentation improvements (#2934, #2947, #3013)
+
+### Deprecated
+- The webhook mode for the K8s Workload Register has been deprecated (#2964)
+
+## [1.2.4] - 2022-05-12
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
+## [1.2.3] - 2022-04-12
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
+
+## [1.2.2] - 2022-04-07
+
+### Added
+- SPIRE Server and Agent log files can be rotated by sending the `SIGUSR2` signal to the process (#2703)
+- K8s Workload Registrar CRD mode now supports registering "downstream" workloads (#2885)
+- SPIRE can now be compiled on macOS machines with an Apple Silicon CPU (#2876)
+- Small documentation improvements (#2851)
+
+### Changed
+- SPIRE Server no longer sets the `DigitalSignature` KeyUsage bit in its CA certificate (#2896)
+
+### Fixed
+- The `k8sbundle` Notifier plugin in SPIRE Server no longer consumes excessive CPU cycles (#2857)
+
 ## [1.2.1] - 2022-03-16
 
 ### Added
@@ -36,6 +97,17 @@
 ### Removed
 - The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
 - The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
+
+## [1.1.5] - 2022-05-12
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
+
+## [1.1.4] - 2022-04-13
+
+### Security
+- Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
 
 ## [1.1.3] - 2022-01-07
 
@@ -99,6 +171,16 @@
 - The server socketPath is now appropriately overriden via the configuration file (#2570)
 - The server now restarts appropriately after undergoing forceful shutdown (#2496)
 - The server CLI list commands now work reliably for large listings (#2456)
+
+## [1.0.4] - 2022-05-13
+
+### Added
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
+
+## [1.0.3] - 2022-01-07
+
+### Security
+- Fixed CVE-2021-44716
 
 ## [1.0.2] - 2021-09-02
 

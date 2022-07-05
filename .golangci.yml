@@ -1,4 +1,6 @@
 run:
+  go:  '1.18'
+
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   deadline: 10m
 
@@ -20,13 +22,14 @@ linters:
     - revive
     - gosec
     - misspell
-    - nolintlint
     - nakedret
     - unconvert
     - unparam
     - whitespace
     - gocritic
-
+    # nolintlint can be re-enabled after the rest of the linters have gained
+    # support for go1.18.
+    # - nolintlint
 linters-settings:
   revive:
     # minimal confidence for issues, default is 0.8

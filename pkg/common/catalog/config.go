@@ -38,8 +38,11 @@ func (c HCLPluginConfig) IsEnabled() bool {
 	if c.Enabled == nil {
 		return true
 	}
-
 	return *c.Enabled
+}
+
+func (c HCLPluginConfig) IsExternal() bool {
+	return c.PluginCmd != ""
 }
 
 type HCLPluginConfigMap map[string]map[string]HCLPluginConfig
@@ -68,8 +71,10 @@ func PluginConfigsFromHCL(hclPlugins HCLPluginConfigMap) ([]PluginConfig, error)
 
 func PluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig HCLPluginConfig) (PluginConfig, error) {
 	var data bytes.Buffer
-	if err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData); err != nil {
-		return PluginConfig{}, err
+	if hclPluginConfig.PluginData != nil {
+		if err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData); err != nil {
+			return PluginConfig{}, err
+		}
 	}
 
 	return PluginConfig{

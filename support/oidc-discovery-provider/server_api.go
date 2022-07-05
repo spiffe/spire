@@ -10,9 +10,9 @@ import (
 	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/square/go-jose.v2"
 )
@@ -23,7 +23,7 @@ const (
 
 type ServerAPISourceConfig struct {
 	Log          logrus.FieldLogger
-	Address      string
+	GRPCTarget   string
 	PollInterval time.Duration
 	Clock        clock.Clock
 }
@@ -33,11 +33,12 @@ type ServerAPISource struct {
 	clock  clock.Clock
 	cancel context.CancelFunc
 
-	mu      sync.RWMutex
-	wg      sync.WaitGroup
-	bundle  *types.Bundle
-	jwks    *jose.JSONWebKeySet
-	modTime time.Time
+	mu       sync.RWMutex
+	wg       sync.WaitGroup
+	bundle   *types.Bundle
+	jwks     *jose.JSONWebKeySet
+	modTime  time.Time
+	pollTime time.Time
 }
 
 func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) {
@@ -48,7 +49,7 @@ func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) 
 		config.Clock = clock.New()
 	}
 
-	conn, err := grpc.Dial(config.Address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := util.GRPCDialContext(context.Background(), config.GRPCTarget)
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}
@@ -77,6 +78,12 @@ func (s *ServerAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 		return nil, time.Time{}, false
 	}
 	return s.jwks, s.modTime, true
+}
+
+func (s *ServerAPISource) LastSuccessfulPoll() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pollTime
 }
 
 func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
@@ -114,6 +121,9 @@ func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleCl
 	}
 
 	s.parseBundle(bundle)
+	s.mu.Lock()
+	s.pollTime = s.clock.Now()
+	s.mu.Unlock()
 }
 
 func (s *ServerAPISource) parseBundle(bundle *types.Bundle) {

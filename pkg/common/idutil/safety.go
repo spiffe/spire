@@ -35,13 +35,3 @@ func IDFromProto(id *types.SPIFFEID) (spiffeid.ID, error) {
 	}
 	return spiffeid.FromPath(td, id.Path)
 }
-
-// EnsureLeadingSlashForBackcompat is for backcompat only. It adds a leading
-// slash to a path, if necessary. It is not expected to receive more callers.
-// Deprecated: remove in SPIRE 1.3
-func EnsureLeadingSlashForBackcompat(path string) (string, bool) {
-	if len(path) != 0 && path[0] != '/' {
-		return "/" + path, true
-	}
-	return path, false
-}

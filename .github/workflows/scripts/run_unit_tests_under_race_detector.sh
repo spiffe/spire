@@ -5,7 +5,7 @@ set -e
 COVERPROFILE=
 if [ -n "${COVERALLS_TOKEN}" ]; then
     COVERPROFILE=profile.cov
-    go get github.com/mattn/goveralls@v0.0.7
+    go install github.com/mattn/goveralls@v0.0.7
 fi
 
 COVERPROFILE="${COVERPROFILE}" make ci-race-test

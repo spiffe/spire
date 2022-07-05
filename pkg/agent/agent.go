@@ -252,6 +252,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DefaultSVIDName:               a.c.DefaultSVIDName,
 		DefaultBundleName:             a.c.DefaultBundleName,
 		DefaultAllBundlesName:         a.c.DefaultAllBundlesName,
+		DisableSPIFFECertValidation:   a.c.DisableSPIFFECertValidation,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		TrustDomain:                   a.c.TrustDomain,
@@ -308,13 +309,13 @@ func (a *Agent) CheckHealth() health.State {
 }
 
 func (a *Agent) checkWorkloadAPI() error {
-	addr, err := util.GetURIAddress(a.c.BindAddress)
+	clientOption, err := util.GetWorkloadAPIClientOption(a.c.BindAddress)
 	if err != nil {
-		a.c.Log.WithError(err).Error("Failed to parse endpoint address for health check")
+		a.c.Log.WithError(err).Error("Failed to get Workload API client options for health check")
 		return err
 	}
-	_, err = workloadapi.FetchX509Bundles(context.TODO(),
-		workloadapi.WithAddr(addr))
+
+	_, err = workloadapi.FetchX509Bundles(context.TODO(), clientOption)
 	if status.Code(err) == codes.Unavailable {
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")
