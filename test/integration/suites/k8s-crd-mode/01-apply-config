@@ -2,8 +2,6 @@
 
 source init-kubectl
 
-fail-now "Oh no!!!!"
-
 wait-for-rollout() {
     ns=$1
     obj=$2
@@ -22,11 +20,11 @@ wait-for-rollout() {
     fail-now "Failed waiting for ${obj} to roll out."
 }
 
-./bin/kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml
+./bin/kubectl apply -f ./conf/spiffeid.spiffe.io_spiffeids.yaml
 ./bin/kubectl create namespace spire
 ./bin/kubectl apply -k ./conf/server
 wait-for-rollout spire deployment/spire-server
-# ./bin/kubectl apply -k ./conf/webhook
+
 ./bin/kubectl apply -k ./conf/agent
 wait-for-rollout spire daemonset/spire-agent
 

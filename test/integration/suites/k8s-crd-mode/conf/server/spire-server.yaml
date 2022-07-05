@@ -1,4 +1,3 @@
-# ServiceAccount used by the SPIRE server.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -14,13 +13,14 @@ metadata:
   name: spire-server-cluster-role
 rules:
 - apiGroups: [""]
-  resources: ["nodes"]
+  resources: ["pods", "nodes"]
   verbs: ["get"]
-  # allow TokenReview requests (to verify service account tokens for PSAT
-  # attestation)
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "patch"]
 - apiGroups: ["authentication.k8s.io"]
   resources: ["tokenreviews"]
-  verbs: ["get", "create"]
+  verbs: ["create"]
 - apiGroups: ["admissionregistration.k8s.io"]
   resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
   verbs: ["get", "list", "patch", "watch"]
@@ -32,7 +32,6 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: spire-server-cluster-role-binding
-  namespace: spire
 subjects:
 - kind: ServiceAccount
   name: spire-server
@@ -44,79 +43,6 @@ roleRef:
 
 ---
 
-# Role for the SPIRE server
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  namespace: spire
-  name: spire-server-role
-rules:
-  # allow "get" access to pods (to resolve selectors for PSAT attestation)
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get"]
-  # allow access to "get" and "patch" the spire-bundle ConfigMap (for SPIRE
-  # agent bootstrapping, see the spire-bundle ConfigMap below)
-- apiGroups: [""]
-  resources: ["configmaps"]
-  resourceNames: ["spire-bundle"]
-  verbs: ["get", "patch"]
-
----
-
-# RoleBinding granting the spire-server-role to the SPIRE server
-# service account.
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: spire-server-role-binding
-  namespace: spire
-subjects:
-- kind: ServiceAccount
-  name: spire-server
-  namespace: spire
-roleRef:
-  kind: Role
-  name: spire-server-role
-  apiGroup: rbac.authorization.k8s.io
-
----
-
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: k8s-workload-registrar-role
-rules:
-- apiGroups: [""]
-  resources: ["endpoints", "nodes", "pods"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["spiffeid.spiffe.io"]
-  resources: ["spiffeids"]
-  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
-- apiGroups: ["spiffeid.spiffe.io"]
-  resources: ["spiffeids/status"]
-  verbs: ["get", "patch", "update"]
----
-
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: k8s-workload-registrar-role-binding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: k8s-workload-registrar-role
-subjects:
-- kind: ServiceAccount
-  name: spire-server
-  namespace: spire
-
----
-
-# ConfigMap containing the latest trust bundle for the trust domain. It is
-# updated by SPIRE using the k8sbundle notifier plugin. SPIRE agents mount
-# this config map and use the certificate to bootstrap trust with the SPIRE
-# server during attestation.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -125,7 +51,6 @@ metadata:
 
 ---
 
-# ConfigMap containing the SPIRE server configuration.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -140,11 +65,10 @@ data:
       data_dir = "/run/spire/data"
       log_level = "DEBUG"
       default_svid_ttl = "1h"
-      ca_ttl = "12h"
-      ca_subject {
-        country = ["US"]
-        organization = ["SPIFFE"]
-        common_name = ""
+      ca_subject = {
+        country = ["US"],
+        organization = ["SPIFFE"],
+        common_name = "",
       }
     }
 
@@ -174,8 +98,7 @@ data:
 
       Notifier "k8sbundle" {
         plugin_data {
-          # This plugin updates the bundle.crt value in the spire:spire-bundle
-          # ConfigMap by default, so no additional configuration is necessary.
+          webhook_label = "spiffe.io/webhook"
         }
       }
     }
@@ -190,6 +113,38 @@ data:
 
 ---
 
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-workload-registrar-role
+rules:
+- apiGroups: [""]
+  resources: ["endpoints", "nodes", "pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["spiffeid.spiffe.io"]
+  resources: ["spiffeids"]
+  verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+- apiGroups: ["spiffeid.spiffe.io"]
+  resources: ["spiffeids/status"]
+  verbs: ["get", "patch", "update"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-workload-registrar-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-workload-registrar-role
+subjects:
+- kind: ServiceAccount
+  name: spire-server
+  namespace: spire
+
+---
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -197,9 +152,6 @@ metadata:
   namespace: spire
 data:
   k8s-workload-registrar.conf: |
-    # cert_path = "/run/spire/k8s-workload-registrar/certs/server-cert.pem"
-    # key_path = "/run/spire/k8s-workload-registrar/secret/server-key.pem"
-    # cacert_path = "/run/spire/k8s-workload-registrar/certs/cacert.pem"
     log_level = "debug"
     trust_domain = "example.org"
     server_socket_path = "/tmp/spire-server/private/api.sock"
@@ -237,48 +189,6 @@ webhooks:
 
 ---
 
-# ConfigMap containing the K8S Workload Registrar server certificate and
-# CA bundle used to verify the client certificate presented by the API server.
-#
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k8s-workload-registrar-certs
-  namespace: spire
-data:
-  server-cert.pem: |
-    -----BEGIN CERTIFICATE-----
-    MIIB5zCCAY6gAwIBAgIIQhiO2hfTsKQwCgYIKoZIzj0EAwIwJDEiMCAGA1UEAxMZ
-    SzhTIFdPUktMT0FEIFJFR0lTVFJBUiBDQTAgFw0xOTA1MTMxOTE0MjNaGA85OTk5
-    MTIzMTIzNTk1OVowKDEmMCQGA1UEAxMdSzhTIFdPUktMT0FEIFJFR0lTVFJBUiBT
-    RVJWRVIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARUw4pHmWCzrfjkXsen9+mS
-    PzifWV43s6SZ1J++xvDXM2jOhM86Vp/RdC0m2FNj3WYg6suRlEzvf/Fw2CsuZbmo
-    o4GjMIGgMA4GA1UdDwEB/wQEAwIDqDATBgNVHSUEDDAKBggrBgEFBQcDATAMBgNV
-    HRMBAf8EAjAAMB0GA1UdDgQWBBS+rw+LUFZAT45Ia8SnrfdWOBtAAzAfBgNVHSME
-    GDAWgBSbrFJP/YFLhe+FSq6yHYEsvS9EwjArBgNVHREEJDAigiBrOHMtd29ya2xv
-    YWQtcmVnaXN0cmFyLnNwaXJlLnN2YzAKBggqhkjOPQQDAgNHADBEAiBSaDzjPws6
-    Kt68mcJGAYBuWasdgdXJXeySzcnfieXe5AIgXwwaeq+deuF4+ckEY6WIzNWoIPOd
-    SDoLJWybQN17R0M=
-    -----END CERTIFICATE-----
-
-  cacert.pem: |
-    -----BEGIN CERTIFICATE-----
-    MIIBgTCCASigAwIBAgIIVLxbHbQsZQMwCgYIKoZIzj0EAwIwJDEiMCAGA1UEAxMZ
-    SzhTIFdPUktMT0FEIFJFR0lTVFJBUiBDQTAgFw0xOTA1MTMxOTE0MjNaGA85OTk5
-    MTIzMTIzNTk1OVowJDEiMCAGA1UEAxMZSzhTIFdPUktMT0FEIFJFR0lTVFJBUiBD
-    QTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJNq7IL77XWiWbohBOsmrCKMj+g3
-    z/+U0c5HmXRj7lbSpjofS0Y1RkTHMEJSvAoMHzssCe5/MDMHX5Xnn4r/LSGjQjBA
-    MA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSbrFJP
-    /YFLhe+FSq6yHYEsvS9EwjAKBggqhkjOPQQDAgNHADBEAiBaun9z1WGCSkjx4P+x
-    mhZkiu1HsOifT9SGQx3in48OSgIgJm02lvnuuKcO/YT2CGHqZ7QjGAnJQY6uLgEQ
-    7CXLvcI=
-    -----END CERTIFICATE-----
-
----
-
-# This is the Deployment for the SPIRE server. It waits for SPIRE database to
-# initialize and uses the SPIRE healthcheck command for liveness/readiness
-# probes.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -310,8 +220,8 @@ spec:
             - name: spire-config
               mountPath: /run/spire/config
               readOnly: true
-            - name: spire-server-socket
-              mountPath: /tmp/spire-server/private
+            - name: spire-registration-socket
+              mountPath: /tmp
               readOnly: false
           livenessProbe:
             httpGet:
@@ -328,44 +238,42 @@ spec:
         - name: k8s-workload-registrar
           image: k8s-workload-registrar:latest-local
           imagePullPolicy: Never
-          args: ["-config", "/run/spire/k8s-workload-registrar/conf/k8s-workload-registrar.conf"]
+          args: ["-config", "/run/spire/config/k8s-workload-registrar.conf"]
+          env:
+            - name: MY_POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           ports:
-          - containerPort: 8443
-            name: registrar-port
+            - containerPort: 9443
+              name: webhook
+              protocol: TCP
           volumeMounts:
-          - name: spire-server-socket
-            mountPath: /tmp/spire-server/private
-            readOnly: true
-          - name: k8s-workload-registrar
-            mountPath: /run/spire/k8s-workload-registrar/conf
-            readOnly: true
-          - name: k8s-workload-registrar-certs
-            mountPath: /run/spire/k8s-workload-registrar/certs
-            readOnly: true
-          - name: k8s-workload-registrar-secret
-            mountPath: /run/spire/k8s-workload-registrar/secret
-            readOnly: true
+            - mountPath: /run/spire/config
+              name: k8s-workload-registrar-config
+              readOnly: true
+            - mountPath: /run/spire/sockets
+              name: spire-agent-socket
+              readOnly: true
+            - name: spire-registration-socket
+              mountPath: /tmp
+              readOnly: false
       volumes:
         - name: spire-config
           configMap:
             name: spire-server
-        - name: spire-server-socket
+        - name: spire-agent-socket
           hostPath:
-            path: /run/spire/server-sockets
+            path: /run/spire/sockets
             type: DirectoryOrCreate
-        - name: k8s-workload-registrar
+        - name: k8s-workload-registrar-config
           configMap:
             name: k8s-workload-registrar
-        - name: k8s-workload-registrar-certs
-          configMap:
-            name: k8s-workload-registrar-certs
-        - name: k8s-workload-registrar-secret
-          secret:
-            secretName: k8s-workload-registrar-secret
+        - name: spire-registration-socket
+          emptyDir: {}
 
 ---
 
-# Service definition for SPIRE server defining the gRPC port.
 apiVersion: v1
 kind: Service
 metadata:
@@ -383,15 +291,16 @@ spec:
 
 ---
 
-# Service definition for the admission webhook
 apiVersion: v1
 kind: Service
 metadata:
   name: k8s-workload-registrar
   namespace: spire
 spec:
+  ports:
+  - name: webhook
+    protocol: TCP
+    port: 443
+    targetPort: 9443
   selector:
     app: spire-server
-  ports:
-    - port: 443
-      targetPort: registrar-port
