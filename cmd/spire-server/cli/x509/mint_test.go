@@ -21,6 +21,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
@@ -29,13 +30,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
+var (
 	expectedUsage = `Usage of x509 mint:
   -dns value
-    	DNS name that will be included in SVID. Can be used more than once.
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
+    	DNS name that will be included in SVID. Can be used more than once.` + common.AddrUsage +
+		`  -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration
     	TTL of the X509-SVID
@@ -92,7 +91,6 @@ func TestMintRun(t *testing.T) {
 	svidPath := filepath.Join(dir, "svid.pem")
 	keyPath := filepath.Join(dir, "key.pem")
 	bundlePath := filepath.Join(dir, "bundle.pem")
-	socketPath := filepath.Join(dir, "socket")
 
 	notAfter := time.Now().Add(30 * time.Second)
 	tmpl := &x509.Certificate{
@@ -108,7 +106,7 @@ func TestMintRun(t *testing.T) {
 	}))
 
 	server := new(fakeSVIDServer)
-	spiretest.StartGRPCUDSSocketServer(t, socketPath, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		svidv1.RegisterSVIDServer(s, server)
 		bundlev1.RegisterBundleServer(s, server)
 	})
@@ -267,7 +265,7 @@ func TestMintRun(t *testing.T) {
 				return testKey, nil
 			})
 
-			args := []string{"-socketPath", socketPath}
+			args := []string{common.AddrArg, common.GetAddr(addr)}
 			if testCase.spiffeID != "" {
 				args = append(args, "-spiffeID", testCase.spiffeID)
 			}

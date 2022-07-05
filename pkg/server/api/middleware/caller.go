@@ -20,7 +20,7 @@ func callerContextFromContext(ctx context.Context) (context.Context, error) {
 	ctx = rpccontext.WithCallerAddr(ctx, p.Addr)
 
 	switch p.Addr.Network() {
-	case "unix", "unixgram", "unixpacket":
+	case "pipe", "unix", "unixgram", "unixpacket":
 		return rpccontext.WithLocalCaller(ctx), nil
 	case "tcp", "tcp4", "tcp6":
 		return tcpCallerContextFromPeer(ctx, p)

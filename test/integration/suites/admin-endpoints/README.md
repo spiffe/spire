@@ -2,4 +2,4 @@
 
 ## Description
 
-This suite validates the experimental endpoints that require an admin X509-SVID
+This suite validates the server endpoints that require an admin X509-SVID

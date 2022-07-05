@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -28,10 +29,8 @@ func TestUpdateHelp(t *testing.T) {
   -data string
     	Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.
   -endpointSpiffeID string
-    	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -trustDomain string
+    	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.`+common.AddrUsage+
+		`  -trustDomain string
     	Name of the trust domain to federate with (e.g., example.org)
   -trustDomainBundleFormat string
     	The format of the bundle data (optional). Either "pem" or "spiffe". (default "pem")

@@ -112,22 +112,36 @@ import (
 // | v1.1.2  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.1.3  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.1.4  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.1.5  |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.2.0  | 18     | Added hint column to entries and can_reattest column to attested nodes    |
 // |---------|        |                                                                           |
 // | v1.2.1  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.2.2  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.2.3  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.2.4  |        |                                                                           |
+// |*********|        |                                                                           |
+// | v1.3.0  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.3.1  |        |                                                                           |
+// |---------|--------|---------------------------------------------------------------------------|
+// | v1.3.2  | 19     | Added x509_svid_ttl and jwt_svid_ttl columns to entries                   |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 18
+	latestSchemaVersion = 19
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
 	// from the code after a minor release, this number should be updated.
-	lastMinorReleaseSchemaVersion = 17
+	lastMinorReleaseSchemaVersion = 18
 )
 
 var (
@@ -339,8 +353,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
 	switch currVersion {
-	case 17:
-		err = migrateToV18(tx)
+	case 18:
+		err = migrateToV19(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -351,10 +365,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	return nextVersion, nil
 }
 
-func migrateToV18(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
+func migrateToV19(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}

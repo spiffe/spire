@@ -1021,6 +1021,10 @@ func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 			expectPodUID:      "72f7f152-440c-66ac-9084-e0fc1d8a910c",
 			expectContainerID: "b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
 		},
+		{
+			name:       "uid generateds by kubernetes",
+			cgroupPath: "/kubepods/pod2732ca68f6358eba7703fb6f82a25c94",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {

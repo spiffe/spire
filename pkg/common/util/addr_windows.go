@@ -17,6 +17,25 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	// SDDLPrivateListener describes a security descriptor using the
+	// security descriptor definition language (SDDL) that is meant
+	// to be used to define the access control to named pipes
+	// listeners that only need to be accessed locally by the owner
+	// of the service, granting read, write and execute permissions
+	// to the creator owner only.
+	// E.g.: SPIRE Server APIs, Admin APIs.
+	SDDLPrivateListener = "D:P(A;;GRGWGX;;;OW)"
+
+	// SDDLPublicListener describes a security descriptor using the
+	// security descriptor definition language (SDDL) that is meant
+	// to be used to define the access control to named pipes
+	// listeners that need to be publicly accessed, granting read,
+	// write and execute permissions to everyone.
+	// E.g.: SPIFFE Workload API.
+	SDDLPublicListener = "D:P(A;;GRGWGX;;;WD)"
+)
+
 type NamedPipeAddr struct {
 	serverName string
 	pipeName   string
@@ -43,15 +62,16 @@ func GetNamedPipeAddr(pipeName string) net.Addr {
 	}
 }
 
-func GRPCDialContext(ctx context.Context, target string) (*grpc.ClientConn, error) {
-	return grpc.DialContext(ctx, target, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(winio.DialPipeContext))
+func GRPCDialContext(ctx context.Context, target string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
+	options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(winio.DialPipeContext))
+	return grpc.DialContext(ctx, target, options...)
 }
 
-func GetWorkloadAPIClientOptions(addr net.Addr) ([]workloadapi.ClientOption, error) {
+func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {
 	if _, ok := addr.(*NamedPipeAddr); !ok {
 		return nil, errors.New("address is not a named pipe address")
 	}
-	return []workloadapi.ClientOption{workloadapi.WithNamedPipeName(addr.(*NamedPipeAddr).PipeName())}, nil
+	return workloadapi.WithNamedPipeName(addr.(*NamedPipeAddr).PipeName()), nil
 }
 
 func GetPipeName(addr string) string {

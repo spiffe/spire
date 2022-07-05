@@ -16,34 +16,7 @@ func TestUpdateHelp(t *testing.T) {
 	test := setupTest(t, newUpdateCommand)
 	test.client.Help()
 
-	require.Equal(t, `Usage of entry update:
-  -admin
-    	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
-  -data string
-    	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
-  -dns value
-    	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
-  -downstream
-    	A boolean value that, when set, indicates that the entry describes a downstream SPIRE server
-  -entryExpiry int
-    	An expiry, from epoch in seconds, for the resulting registration entry to be pruned
-  -entryID string
-    	The Registration Entry ID of the record to update
-  -federatesWith value
-    	SPIFFE ID of a trust domain to federate with. Can be used more than once
-  -parentID string
-    	The SPIFFE ID of this record's parent
-  -selector value
-    	A colon-delimited type:value selector. Can be used more than once
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
-    	The SPIFFE ID that this record represents
-  -storeSVID
-    	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
-  -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry
-`, test.stderr.String())
+	require.Equal(t, updateUsage, test.stderr.String())
 }
 
 func TestUpdateSynopsis(t *testing.T) {

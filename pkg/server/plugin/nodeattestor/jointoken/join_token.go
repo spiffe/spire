@@ -10,12 +10,16 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	PluginName = "join_token"
+)
+
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn("join_token",
+	return catalog.MakeBuiltIn(PluginName,
 		nodeattestorv1.NodeAttestorPluginServer(p),
 		configv1.ConfigServiceServer(p),
 	)

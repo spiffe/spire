@@ -6,6 +6,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -175,7 +176,7 @@ func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entr
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
-	return c.getAuthorizedEntries(spiffeIDFromID(agentID), seen)
+	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
 }
 
 func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
@@ -267,4 +268,15 @@ func isSubset(sub, whole selectorSet) bool {
 		}
 	}
 	return true
+}
+
+func cloneEntries(entries []*types.Entry) []*types.Entry {
+	if len(entries) == 0 {
+		return entries
+	}
+	cloned := make([]*types.Entry, 0, len(entries))
+	for _, entry := range entries {
+		cloned = append(cloned, proto.Clone(entry).(*types.Entry))
+	}
+	return cloned
 }

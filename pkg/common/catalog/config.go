@@ -38,8 +38,11 @@ func (c HCLPluginConfig) IsEnabled() bool {
 	if c.Enabled == nil {
 		return true
 	}
-
 	return *c.Enabled
+}
+
+func (c HCLPluginConfig) IsExternal() bool {
+	return c.PluginCmd != ""
 }
 
 type HCLPluginConfigMap map[string]map[string]HCLPluginConfig

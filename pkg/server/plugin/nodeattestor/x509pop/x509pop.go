@@ -150,6 +150,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
 				SelectorValues: buildSelectorValues(leaf, chains),
+				CanReattest:    true,
 			},
 		},
 	})

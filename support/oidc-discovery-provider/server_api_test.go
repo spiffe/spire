@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -19,25 +19,22 @@ import (
 )
 
 func TestServerAPISource(t *testing.T) {
-	// TODO: workload source is not supported on windows until we solve workload API
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
-
 	const pollInterval = time.Second
 
 	api := &fakeServerAPIServer{}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		bundlev1.RegisterBundleServer(s, api)
 	})
 
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)
 
+	target, err := util.GetTargetName(addr)
+	require.NoError(t, err)
 	source, err := NewServerAPISource(ServerAPISourceConfig{
 		Log:          log,
-		Address:      "unix://" + socketPath,
+		GRPCTarget:   target,
 		PollInterval: pollInterval,
 		Clock:        clock,
 	})

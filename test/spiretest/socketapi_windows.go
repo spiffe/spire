@@ -23,35 +23,35 @@ func StartWorkloadAPI(t *testing.T, server workload.SpiffeWorkloadAPIServer) net
 }
 
 func StartWorkloadAPIOnNamedPipe(t *testing.T, pipeName string, server workload.SpiffeWorkloadAPIServer) net.Addr {
-	return StartGRPCNamedPipeServer(t, pipeName, func(s *grpc.Server) {
+	return StartGRPCOnNamedPipeServer(t, pipeName, func(s *grpc.Server) {
 		workload.RegisterSpiffeWorkloadAPIServer(s, server)
 	})
 }
 
-func StartGRPCSocketServerOnRandNamedPipe(t *testing.T, registerFn func(s *grpc.Server)) net.Addr {
-	return StartGRPCNamedPipeServer(t, GetRandNamedPipeAddr().String(), registerFn)
+func StartGRPCServer(t *testing.T, registerFn func(s *grpc.Server)) net.Addr {
+	return StartGRPCOnNamedPipeServer(t, GetRandNamedPipeAddr().String(), registerFn)
 }
 
-func StartGRPCNamedPipeServer(t *testing.T, pipeName string, registerFn func(s *grpc.Server)) net.Addr {
+func StartGRPCOnNamedPipeServer(t *testing.T, pipeName string, registerFn func(s *grpc.Server)) net.Addr {
 	server := grpc.NewServer()
 	registerFn(server)
 
-	return ServeGRPCServerOnPipeName(t, server, pipeName)
+	return ServeGRPCServerOnNamedPipe(t, server, pipeName)
 }
 
-func ServeGRPCServerOnPipeName(t *testing.T, server *grpc.Server, pipeName string) net.Addr {
+func ServeGRPCServerOnNamedPipe(t *testing.T, server *grpc.Server, pipeName string) net.Addr {
 	listener, err := winio.ListenPipe(fmt.Sprintf(`\\.\`+filepath.Join("pipe", pipeName)), nil)
 	require.NoError(t, err)
 	ServeGRPCServerOnListener(t, server, listener)
-	return listener.Addr()
+	return util.GetNamedPipeAddr(util.GetPipeName(listener.Addr().String()))
 }
 
 func ServeGRPCServerOnRandPipeName(t *testing.T, server *grpc.Server) net.Addr {
-	return ServeGRPCServerOnPipeName(t, server, GetRandNamedPipeAddr().String())
+	return ServeGRPCServerOnNamedPipe(t, server, GetRandNamedPipeAddr().String())
 }
 
 func GetRandNamedPipeAddr() net.Addr {
-	return util.GetNamedPipeAddr(fmt.Sprintf(`\\.\pipe\spire-test-%x`, rand.Uint64())) // nolint: gosec // used for testing only
+	return util.GetNamedPipeAddr(fmt.Sprintf("spire-test-%x", rand.Uint64())) // nolint: gosec // used for testing only
 }
 
 func init() {

@@ -5,7 +5,6 @@ package run
 
 import (
 	"bytes"
-	"net"
 	"os"
 	"testing"
 
@@ -128,6 +127,16 @@ func mergeInputCasesOS() []mergeInputCase {
 				require.Equal(t, "bar", c.Agent.SocketPath)
 			},
 		},
+		{
+			msg: "admin_socket_path should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.AdminSocketPath = "/tmp/admin.sock"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "/tmp/admin.sock", c.Agent.AdminSocketPath)
+			},
+		},
 	}
 }
 
@@ -139,8 +148,8 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 				c.Agent.SocketPath = "/foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "/foo", c.BindAddress.(*net.UnixAddr).Name)
-				require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
+				require.Equal(t, "/foo", c.BindAddress.String())
+				require.Equal(t, "unix", c.BindAddress.Network())
 			},
 		},
 		{
@@ -149,8 +158,8 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 				c.Agent.AdminSocketPath = "/foo"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "/foo", c.AdminBindAddress.Name)
-				require.Equal(t, "unix", c.AdminBindAddress.Net)
+				require.Equal(t, "/foo", c.AdminBindAddress.String())
+				require.Equal(t, "unix", c.AdminBindAddress.Network())
 			},
 		},
 		{
@@ -160,8 +169,8 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 				c.Agent.AdminSocketPath = "/tmp/workload-admin/admin.sock"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "/tmp/workload-admin/admin.sock", c.AdminBindAddress.Name)
-				require.Equal(t, "unix", c.AdminBindAddress.Net)
+				require.Equal(t, "/tmp/workload-admin/admin.sock", c.AdminBindAddress.String())
+				require.Equal(t, "unix", c.AdminBindAddress.Network())
 			},
 		},
 		{
@@ -171,10 +180,10 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 				c.Agent.AdminSocketPath = "/tmp/admin.sock"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, "/tmp/workload/workload.sock", c.BindAddress.(*net.UnixAddr).Name)
-				require.Equal(t, "unix", c.BindAddress.(*net.UnixAddr).Net)
-				require.Equal(t, "/tmp/admin.sock", c.AdminBindAddress.Name)
-				require.Equal(t, "unix", c.AdminBindAddress.Net)
+				require.Equal(t, "/tmp/workload/workload.sock", c.BindAddress.String())
+				require.Equal(t, "unix", c.BindAddress.Network())
+				require.Equal(t, "/tmp/admin.sock", c.AdminBindAddress.String())
+				require.Equal(t, "unix", c.AdminBindAddress.Network())
 			},
 		},
 		{
@@ -208,6 +217,15 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "admin_socket_path not provided",
+			input: func(c *Config) {
+				c.Agent.AdminSocketPath = ""
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.AdminBindAddress)
 			},
 		},
 	}

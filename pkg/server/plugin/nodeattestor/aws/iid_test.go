@@ -112,7 +112,7 @@ func TestAttest(t *testing.T) {
 			name:            "already attested",
 			alreadyAttested: true,
 			expectCode:      codes.PermissionDenied,
-			expectMsgPrefix: "nodeattestor(aws_iid): IID has already been used to attest an agent",
+			expectMsgPrefix: "nodeattestor(aws_iid): attestation data has already been used to attest an agent",
 		},
 		{
 			name:                   "DescribeInstances fails",

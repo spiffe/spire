@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -140,10 +141,11 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
+	var previousResp *workload.JWTBundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if err := sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers); err != nil {
+			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -251,10 +253,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
 	defer subscriber.Finish()
 
+	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			err := sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers)
+			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp)
 			if err != nil {
 				return err
 			}
@@ -264,24 +267,28 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool) error {
+func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return status.Error(codes.PermissionDenied, "no identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	resp, err := composeX509BundlesResponse(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X509 bundle response")
-		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+		return nil, status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+	}
+
+	if proto.Equal(resp, previousResponse) {
+		return previousResponse, nil
 	}
 
 	if err := stream.Send(resp); err != nil {
 		log.WithError(err).Error("Failed to send X509 bundle response")
-		return err
+		return nil, err
 	}
 
-	return nil
+	return resp, nil
 }
 
 func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509BundlesResponse, error) {
@@ -375,24 +382,28 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool) (err error) {
+func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse) (*workload.JWTBundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
-		return status.Error(codes.PermissionDenied, "no identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	resp, err := composeJWTBundlesResponse(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize JWT bundle response")
-		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+		return nil, status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+	}
+
+	if proto.Equal(resp, previousResponse) {
+		return previousResponse, nil
 	}
 
 	if err := stream.Send(resp); err != nil {
 		log.WithError(err).Error("Failed to send JWT bundle response")
-		return err
+		return nil, err
 	}
 
-	return nil
+	return resp, nil
 }
 
 func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {

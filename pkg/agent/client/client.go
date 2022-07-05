@@ -311,7 +311,17 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	}
 	defer connection.Release()
 
-	resp, err := entryClient.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{})
+	resp, err := entryClient.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{
+		OutputMask: &types.EntryMask{
+			SpiffeId:       true,
+			Selectors:      true,
+			FederatesWith:  true,
+			Admin:          true,
+			Downstream:     true,
+			RevisionNumber: true,
+			StoreSvid:      true,
+		},
+	})
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
