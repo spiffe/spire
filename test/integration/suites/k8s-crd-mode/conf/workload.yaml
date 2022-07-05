@@ -1,19 +1,19 @@
-apiVersion: spiffeid.spiffe.io/v1beta1
-kind: SpiffeID
-metadata:
-  name: example-workload
-  namespace: spire
-spec:
-  parentId: spiffe://example.org/spire/server
-  selector:
-    namespace: spire
-    podName: example-workload
-  dnsNames:
-  - dns1
-  - dns2
-  spiffeId: spiffe://example.org/workload
+# apiVersion: spiffeid.spiffe.io/v1beta1
+# kind: SpiffeID
+# metadata:
+  # name: example-workload
+  # namespace: spire
+# spec:
+  # parentId: spiffe://example.org/spire/server
+  # selector:
+    # namespace: spire
+    # podName: example-workload
+  # dnsNames:
+  # - dns1
+  # - dns2
+  # spiffeId: spiffe://example.org/workload
 
----
+# ---
 
 apiVersion: apps/v1
 kind: Deployment

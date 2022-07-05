@@ -80,7 +80,7 @@ data:
     health_checks {
       listener_enabled = true
       bind_address = "0.0.0.0"
-      bind_port = "8080"
+      bind_port = "8089"
       live_path = "/live"
       ready_path = "/ready"
     }
@@ -138,13 +138,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /live
-              port: 8080
+              port: 8089
             initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /ready
-              port: 8080
+              port: 8089
             initialDelaySeconds: 10
             periodSeconds: 10
       volumes:

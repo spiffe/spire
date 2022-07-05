@@ -26,13 +26,12 @@ wait-for-rollout() {
 ./bin/kubectl create namespace spire
 ./bin/kubectl apply -k ./conf/server
 wait-for-rollout spire deployment/spire-server
-./bin/kubectl apply -k ./conf/webhook
+# ./bin/kubectl apply -k ./conf/webhook
 ./bin/kubectl apply -k ./conf/agent
 wait-for-rollout spire daemonset/spire-agent
 
 # Apply this separately after all of the spire infrastructure has been rolled
 # out, otherwise the k8s-workload-registrar might miss its chance to create
 # an entry for it
-./bin/kubectl apply -f ./
 ./bin/kubectl apply -f ./conf/workload.yaml
 wait-for-rollout spire deployment/example-workload
