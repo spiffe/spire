@@ -20,9 +20,13 @@ type PCAClient interface {
 }
 
 func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
-	var endpointResolver aws.EndpointResolverWithOptions
+	var opts []func(*config.LoadOptions) error
+	if cfg.Region != "" {
+		opts = append(opts, config.WithRegion(cfg.Region))
+	}
+
 	if cfg.Endpoint != "" {
-		endpointResolver = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		endpointResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 			if service == acmpca.ServiceID && region == cfg.Region {
 				return aws.Endpoint{
 					PartitionID:   "aws",
@@ -33,25 +37,34 @@ func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
 
 			return aws.Endpoint{}, fmt.Errorf("unknown endpoint requested")
 		})
+		opts = append(opts, config.WithEndpointResolverWithOptions(endpointResolver))
 	}
 
-	var credsProvider aws.CredentialsProvider
-	switch {
-	case cfg.AssumeRoleARN != "":
-		stsClient := sts.NewFromConfig(aws.Config{})
-		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, cfg.AssumeRoleARN)
-	default:
-		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.Region), config.WithEndpointResolverWithOptions(endpointResolver))
+	awsCfg, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.AssumeRoleARN != "" {
+		awsCfg, err = newAWSAssumeRoleConfig(ctx, cfg.Region, awsCfg, cfg.AssumeRoleARN)
 		if err != nil {
 			return nil, err
 		}
-
-		credsProvider = awsCfg.Credentials
 	}
 
-	return acmpca.NewFromConfig(aws.Config{
-		Region:                      cfg.Region,
-		EndpointResolverWithOptions: endpointResolver,
-		Credentials:                 credsProvider,
-	}), nil
+	return acmpca.NewFromConfig(awsCfg), nil
+}
+
+func newAWSAssumeRoleConfig(ctx context.Context, region string, awsConf aws.Config, assumeRoleArn string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	stsClient := sts.NewFromConfig(awsConf)
+	opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+		stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
+	)
+
+	return config.LoadDefaultConfig(ctx, opts...)
 }
