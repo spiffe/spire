@@ -5,7 +5,6 @@
 mkdir -p ./bin
 
 docker build --target example-crd-agent -t example-crd-agent .
-# docker tag spire-server:latest spire-server:latest-local
 
 KIND_PATH=./bin/kind
 KUBECTL_PATH=./bin/kubectl
