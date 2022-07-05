@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,7 +24,7 @@ func TestEnsureNotAttested(t *testing.T) {
 	assert.NoError(err)
 
 	err = EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
-	assert.EqualError(err, "unable to get agent info: ohno")
+	spiretest.AssertGRPCStatus(t, err, codes.Unknown, "unable to get agent info: ohno")
 }
 
 func TestIsAttested(t *testing.T) {
@@ -39,7 +40,7 @@ func TestIsAttested(t *testing.T) {
 	assert.False(attested)
 
 	attested, err = IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
-	assert.EqualError(err, "unable to get agent info: ohno")
+	spiretest.AssertGRPCStatus(t, err, codes.Unknown, "unable to get agent info: ohno")
 	assert.False(attested)
 }
 

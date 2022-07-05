@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
@@ -42,7 +43,6 @@ const (
 	commandName = "run"
 
 	defaultConfigPath = "conf/server/server.conf"
-	defaultSocketPath = "/tmp/spire-server/private/api.sock"
 	defaultLogLevel   = "INFO"
 )
 
@@ -103,6 +103,8 @@ type experimentalConfig struct {
 	CacheReloadInterval string                      `hcl:"cache_reload_interval"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
+
+	NamedPipeName string `hcl:"named_pipe_name"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -300,9 +302,9 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
-	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Server API socket to")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
+	c.addOSFlags(flags)
 
 	err := flags.Parse(args)
 	if err != nil {
@@ -372,14 +374,13 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		Port: c.Server.BindPort,
 	}
 
-	socketPath := defaultSocketPath
-	if c.Server.SocketPath != "" {
-		socketPath = c.Server.SocketPath
+	c.Server.setDefaultsIfNeeded()
+
+	addr, err := c.Server.getAddr()
+	if err != nil {
+		return nil, err
 	}
-	sc.BindUDSAddress = &net.UnixAddr{
-		Name: socketPath,
-		Net:  "unix",
-	}
+	sc.BindLocalAddress = addr
 
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
@@ -572,6 +573,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 	}
 
+	if cmp.Diff(experimentalConfig{}, c.Server.Experimental) != "" {
+		sc.Log.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
+	}
+
 	if c.Server.Experimental.CacheReloadInterval != "" {
 		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
 		if err != nil {
@@ -675,7 +680,7 @@ func validateConfig(c *Config) error {
 		}
 	}
 
-	return nil
+	return c.validateOS()
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {

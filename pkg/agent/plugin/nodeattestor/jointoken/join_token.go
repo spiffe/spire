@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	pluginName = "join_token"
+	PluginName = "join_token"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -16,7 +16,7 @@ func BuiltIn() catalog.BuiltIn {
 }
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, nodeattestorv1.NodeAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(PluginName, nodeattestorv1.NodeAttestorPluginServer(p))
 }
 
 type Plugin struct {

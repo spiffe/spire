@@ -35,8 +35,8 @@ type Config struct {
 	// TPCAddr is the address to bind the TCP listener to.
 	TCPAddr *net.TCPAddr
 
-	// UDSAddr is the address to bind the UDS listener to.
-	UDSAddr *net.UnixAddr
+	// LocalAddr is the local address to bind the listener to.
+	LocalAddr net.Addr
 
 	// The svid rotator used to obtain the latest server credentials
 	SVIDObserver svid.Observer

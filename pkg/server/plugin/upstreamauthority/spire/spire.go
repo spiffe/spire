@@ -33,9 +33,14 @@ const (
 var clk clock.Clock = clock.New()
 
 type Configuration struct {
-	ServerAddr        string `hcl:"server_address" json:"server_address"`
-	ServerPort        string `hcl:"server_port" json:"server_port"`
-	WorkloadAPISocket string `hcl:"workload_api_socket" json:"workload_api_socket"`
+	ServerAddr        string             `hcl:"server_address" json:"server_address"`
+	ServerPort        string             `hcl:"server_port" json:"server_port"`
+	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket"`
+	Experimental      experimentalConfig `hcl:"experimental"`
+}
+
+type experimentalConfig struct {
+	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name"`
 }
 
 func BuiltIn() catalog.BuiltIn {
@@ -108,14 +113,17 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	// Create spire-server client
 	serverAddr := fmt.Sprintf("%s:%s", p.config.ServerAddr, p.config.ServerPort)
-	workloadAPISocket := fmt.Sprintf("unix://%s", p.config.WorkloadAPISocket)
+	workloadAPIAddr, err := p.getWorkloadAPIAddr()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to set Workload API address: %v", err)
+	}
 
 	serverID, err := idutil.ServerID(td)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to build server ID: %v", err)
 	}
 
-	p.serverClient = newServerClient(serverID, serverAddr, workloadAPISocket, p.log)
+	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log)
 
 	return &configv1.ConfigureResponse{}, nil
 }

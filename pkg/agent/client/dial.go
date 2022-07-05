@@ -16,12 +16,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
 )
 
 const (
-	_defaultDialTimeout = 30 * time.Second
+	defaultDialTimeout      = 30 * time.Second
+	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
 type DialServerConfig struct {
@@ -57,15 +57,14 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		tlsConfig = tlsconfig.MTLSClientConfig(newX509SVIDSource(config.GetAgentCertificate), bundleSource, authorizer)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, _defaultDialTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
 	if config.dialContext == nil {
 		config.dialContext = grpc.DialContext
 	}
 	client, err := config.dialContext(ctx, config.Address,
-		// TODO: port to non-deprecated option
-		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck // not ready to port
+		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithBlock(),
 		grpc.WithReturnConnectionError(),

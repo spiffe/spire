@@ -1,6 +1,9 @@
+//go:build !windows
+
 package cli
 
 import (
+	"syscall"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -9,11 +12,6 @@ import (
 )
 
 func TestUmask(t *testing.T) {
-	if !umaskSupported {
-		t.Logf("umask is not supported on this platform")
-		t.Skip()
-	}
-
 	testCases := []struct {
 		Initial  int
 		Expected int
@@ -41,9 +39,9 @@ func TestUmask(t *testing.T) {
 	for _, testCase := range testCases {
 		log, hook := test.NewNullLogger()
 		t.Logf("test case: %+v", testCase)
-		_ = setUmask(testCase.Initial)
+		_ = syscall.Umask(testCase.Initial)
 		SetUmask(log)
-		actualUmask := setUmask(0022)
+		actualUmask := syscall.Umask(0022)
 		assert.Equal(t, testCase.Expected, actualUmask, "umask")
 		assert.Empty(t, cmp.Diff(testCase.Logs, gatherLogs(hook)))
 	}

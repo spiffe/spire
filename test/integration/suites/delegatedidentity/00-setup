@@ -1,0 +1,5 @@
+#!/bin/bash
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+"${ROOTDIR}/setup/delegatedidentity/build.sh" "${RUNDIR}/conf/agent/delegatedidentityclient"

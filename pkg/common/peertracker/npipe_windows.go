@@ -59,10 +59,14 @@ func getNamedPipeClientProcessID(pipe windows.Handle, clientProcessID *int32) (e
 	return nil
 }
 
+func isCompareObjectHandlesFound() bool {
+	return procCompareObjectHandlesErr == nil
+}
+
 // compareObjectHandles compares two object handles to determine if they
 // refer to the same underlying kernel object
 func compareObjectHandles(firstHandle, secondHandle windows.Handle) error {
-	if procCompareObjectHandlesErr != nil {
+	if isCompareObjectHandlesFound() {
 		return procCompareObjectHandlesErr
 	}
 	r1, _, e1 := syscall.SyscallN(procCompareObjectHandles.Addr(), uintptr(firstHandle), uintptr(secondHandle))

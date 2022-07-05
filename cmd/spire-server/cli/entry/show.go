@@ -15,6 +15,8 @@ import (
 	"golang.org/x/net/context"
 )
 
+const listEntriesRequestPageSize = 500
+
 // NewShowCommand creates a new "show" subcommand for "entry" command.
 func NewShowCommand() cli.Command {
 	return newShowCommand(common_cli.DefaultEnv)
@@ -158,14 +160,25 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 		}
 	}
 
-	resp, err := client.ListEntries(ctx, &entryv1.ListEntriesRequest{
-		Filter: filter,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error fetching entries: %w", err)
+	pageToken := ""
+	var entries []*types.Entry
+
+	for {
+		resp, err := client.ListEntries(ctx, &entryv1.ListEntriesRequest{
+			PageSize:  listEntriesRequestPageSize,
+			PageToken: pageToken,
+			Filter:    filter,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error fetching entries: %w", err)
+		}
+		entries = append(entries, resp.Entries...)
+		if pageToken = resp.NextPageToken; pageToken == "" {
+			break
+		}
 	}
 
-	return resp.Entries, nil
+	return entries, nil
 }
 
 // fetchByEntryID uses the configured EntryID to fetch the appropriate registration entry

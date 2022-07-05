@@ -14,6 +14,7 @@ import (
 
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
@@ -33,13 +34,11 @@ qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
 `))
 )
 
-const (
+var (
 	expectedUsage = `Usage of jwt mint:
   -audience value
-    	Audience claim that will be included in the SVID. Can be used more than once.
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-  -spiffeID string
+    	Audience claim that will be included in the SVID. Can be used more than once.` + common.AddrUsage +
+		`  -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration
     	TTL of the JWT-SVID
@@ -68,14 +67,9 @@ func TestMintHelp(t *testing.T) {
 
 func TestMintRun(t *testing.T) {
 	dir := spiretest.TempDir(t)
-
 	svidPath := filepath.Join(dir, "token")
-
 	server := new(fakeSVIDServer)
-
-	socketPath := filepath.Join(dir, "socket")
-
-	spiretest.StartGRPCUDSSocketServer(t, socketPath, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		svidv1.RegisterSVIDServer(s, server)
 	})
 
@@ -278,7 +272,7 @@ func TestMintRun(t *testing.T) {
 				BaseDir: dir,
 			})
 
-			args := []string{"-socketPath", socketPath}
+			args := []string{common.AddrArg, common.GetAddr(addr)}
 			if tt.spiffeID != "" {
 				args = append(args, "-spiffeID", tt.spiffeID)
 			}

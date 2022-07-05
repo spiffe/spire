@@ -4,11 +4,17 @@
 package api
 
 import (
+	"fmt"
 	"net"
 
-	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/Microsoft/go-winio"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 func (e *Endpoints) createListener() (net.Listener, error) {
-	return nil, peertracker.ErrUnsupportedPlatform
+	l, err := e.listener.ListenPipe(e.c.BindAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
+	if err != nil {
+		return nil, fmt.Errorf("error creating named pipe listener: %w", err)
+	}
+	return l, nil
 }

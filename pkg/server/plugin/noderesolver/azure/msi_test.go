@@ -48,8 +48,8 @@ var (
 
 type fakeAzureCredential struct{}
 
-func (f *fakeAzureCredential) GetToken(context.Context, policy.TokenRequestOptions) (*azcore.AccessToken, error) {
-	return &azcore.AccessToken{}, nil
+func (f *fakeAzureCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{}, nil
 }
 
 func TestMSIResolver(t *testing.T) {
@@ -292,8 +292,8 @@ func (s *MSIResolverSuite) loadPluginWithTenant() noderesolver.NodeResolver {
 
 func (s *MSIResolverSuite) loadPlugin(options ...plugintest.Option) noderesolver.NodeResolver {
 	resolver := New()
-	resolver.hooks.newClient = func(string, azcore.TokenCredential) apiClient {
-		return s.api
+	resolver.hooks.newClient = func(string, azcore.TokenCredential) (apiClient, error) {
+		return s.api, nil
 	}
 	resolver.hooks.fetchInstanceMetadata = func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error) {
 		return &azure.InstanceMetadata{
