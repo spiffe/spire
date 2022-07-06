@@ -1,4 +1,4 @@
-# Kubernetes Suite
+# Kubernetes with CRD mode Suite
 
 ## Description
 
