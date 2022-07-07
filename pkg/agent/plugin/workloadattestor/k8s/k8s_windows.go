@@ -4,6 +4,8 @@
 package k8s
 
 import (
+	"path/filepath"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/container/process"
 	"google.golang.org/grpc/codes"
@@ -12,7 +14,7 @@ import (
 )
 
 const (
-	containerMountPoint = "CONTAINER_SANDBOX_MOUNT_POINT"
+	containerMountPointEnvVar = "CONTAINER_SANDBOX_MOUNT_POINT"
 )
 
 func createHelper(c *Plugin) (ContainerHelper, error) {
@@ -35,13 +37,13 @@ func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (
 }
 
 func (p *Plugin) defaultKubeletCAPath() string {
-	mountPoint := p.getenv(containerMountPoint)
-	return mountPoint + defaultKubeletCAPath
+	mountPoint := p.getenv(containerMountPointEnvVar)
+	return filepath.Join(mountPoint, defaultKubeletCAPath)
 }
 
 func (p *Plugin) defaultTokenPath() string {
-	mountPoint := p.getenv(containerMountPoint)
-	return mountPoint + defaultTokenPath
+	mountPoint := p.getenv(containerMountPointEnvVar)
+	return filepath.Join(mountPoint, defaultTokenPath)
 }
 
 func isNotPod(itemPodUID, podUID types.UID) bool {

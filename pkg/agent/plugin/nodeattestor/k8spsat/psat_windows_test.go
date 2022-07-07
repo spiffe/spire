@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package sat
+package psat
 
 import (
 	"testing"
@@ -20,18 +20,18 @@ func TestConfigureDefaultToken(t *testing.T) {
 	}{
 		{
 			name:            "mountPoint set",
-			mountPoint:      "c:\\somepath",
+			mountPoint:      "c:/somepath",
 			config:          `cluster = "production"`,
-			expectTokenPath: "c:\\somepath\\var\\run\\secrets\\kubernetes.io\\serviceaccount\\token",
+			expectTokenPath: "c:\\somepath\\var\\run\\secrets\\tokens\\spire-agent",
 		},
 		{
 			name:            "no mountPoint",
 			config:          `cluster = "production"`,
-			expectTokenPath: "\\var\\run\\secrets\\kubernetes.io\\serviceaccount\\token",
+			expectTokenPath: "\\var\\run\\secrets\\tokens\\spire-agent",
 		},
 		{
 			name:       "token path set on configuration",
-			mountPoint: "c:\\somepath",
+			mountPoint: "c:/somepath",
 			config: `
 			cluster = "production"
 			token_path = "c:\\token"`,
