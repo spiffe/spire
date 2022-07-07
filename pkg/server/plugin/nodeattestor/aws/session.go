@@ -1,13 +1,13 @@
 package aws
 
 import (
-	"time"
+	"context"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -37,29 +37,39 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 	return nil
 }
 
-// newAWSSession create an AWS Session from the config and given region
-func newAWSSession(accessKeyID, secretAccessKey, region, assumeRoleArn string) (*session.Session, error) {
-	var awsConf *aws.Config
+// newAWSSession create an AWS config from the credentials and given region
+func newAWSConfig(ctx context.Context, accessKeyID, secretAccessKey, region, assumeRoleArn string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
 	if secretAccessKey != "" && accessKeyID != "" {
-		creds := credentials.NewStaticCredentials(accessKeyID, secretAccessKey, "")
-		awsConf = &aws.Config{Credentials: creds, Region: &region}
-	} else {
-		awsConf = &aws.Config{Region: &region}
+		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, "")))
 	}
 
-	// Optional: Assuming role
-	if assumeRoleArn != "" {
-		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConf.Credentials})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create new session: %v", err)
-		}
-
-		awsConf.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
-			Client:   sts.New(staticsess),
-			RoleARN:  assumeRoleArn,
-			Duration: 15 * time.Minute,
-		})
+	conf, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return aws.Config{}, err
 	}
 
-	return session.NewSession(awsConf)
+	if assumeRoleArn == "" {
+		return conf, nil
+	}
+
+	return newAWSAssumeRoleConfig(ctx, region, conf, assumeRoleArn)
+}
+
+func newAWSAssumeRoleConfig(ctx context.Context, region string, stsConf aws.Config, assumeRoleArn string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	stsClient := sts.NewFromConfig(stsConf)
+	opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+		stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
+	)
+
+	return config.LoadDefaultConfig(ctx, opts...)
 }
