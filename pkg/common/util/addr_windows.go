@@ -17,25 +17,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-const (
-	// SDDLPrivateListener describes a security descriptor using the
-	// security descriptor definition language (SDDL) that is meant
-	// to be used to define the access control to named pipes
-	// listeners that only need to be accessed locally by the owner
-	// of the service, granting read, write and execute permissions
-	// to the creator owner only.
-	// E.g.: SPIRE Server APIs, Admin APIs.
-	SDDLPrivateListener = "D:P(A;;GRGWGX;;;OW)"
-
-	// SDDLPublicListener describes a security descriptor using the
-	// security descriptor definition language (SDDL) that is meant
-	// to be used to define the access control to named pipes
-	// listeners that need to be publicly accessed, granting read,
-	// write and execute permissions to everyone.
-	// E.g.: SPIFFE Workload API.
-	SDDLPublicListener = "D:P(A;;GRGWGX;;;WD)"
-)
-
 type NamedPipeAddr struct {
 	serverName string
 	pipeName   string

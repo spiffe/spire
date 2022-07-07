@@ -13,12 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -46,10 +48,10 @@ var (
 	testAccount        = "test-account"
 	testRegion         = "test-region"
 	testProfile        = "test-profile"
-	zeroDeviceIndex    = int64(0)
-	nonzeroDeviceIndex = int64(1)
-	instanceStoreType  = ec2.DeviceTypeInstanceStore
-	ebsType            = ec2.DeviceTypeEbs
+	zeroDeviceIndex    = int32(0)
+	nonzeroDeviceIndex = int32(1)
+	instanceStoreType  = ec2types.DeviceTypeInstanceStore
+	ebsType            = ec2types.DeviceTypeEbs
 )
 
 func TestAttest(t *testing.T) {
@@ -168,7 +170,7 @@ func TestAttest(t *testing.T) {
 			name: "block device anti-tampering check fails to locate root device",
 			mutateDescribeInstancesOutput: func(output *ec2.DescribeInstancesOutput) {
 				output.Reservations[0].Instances[0].RootDeviceName = aws.String("root")
-				output.Reservations[0].Instances[0].RootDeviceType = &ebsType
+				output.Reservations[0].Instances[0].RootDeviceType = ebsType
 			},
 			expectCode:      codes.Internal,
 			expectMsgPrefix: `nodeattestor(aws_iid): failed aws ec2 attestation: failed to locate the root device block mapping with name "root"`,
@@ -180,11 +182,11 @@ func TestAttest(t *testing.T) {
 				blockDeviceAttachTime := interfaceAttachTime.Add(time.Second * time.Duration(maxSecondsBetweenDeviceAttachments+1))
 
 				output.Reservations[0].Instances[0].RootDeviceName = aws.String("root")
-				output.Reservations[0].Instances[0].RootDeviceType = &ebsType
-				output.Reservations[0].Instances[0].BlockDeviceMappings = []*ec2.InstanceBlockDeviceMapping{
+				output.Reservations[0].Instances[0].RootDeviceType = ebsType
+				output.Reservations[0].Instances[0].BlockDeviceMappings = []ec2types.InstanceBlockDeviceMapping{
 					{
 						DeviceName: aws.String("root"),
-						Ebs: &ec2.EbsInstanceBlockDevice{
+						Ebs: &ec2types.EbsInstanceBlockDevice{
 							AttachTime: aws.Time(blockDeviceAttachTime),
 						},
 					},
@@ -201,11 +203,11 @@ func TestAttest(t *testing.T) {
 				blockDeviceAttachTime := interfaceAttachTime.Add(time.Second * time.Duration(maxSecondsBetweenDeviceAttachments))
 
 				output.Reservations[0].Instances[0].RootDeviceName = aws.String("root")
-				output.Reservations[0].Instances[0].RootDeviceType = &ebsType
-				output.Reservations[0].Instances[0].BlockDeviceMappings = []*ec2.InstanceBlockDeviceMapping{
+				output.Reservations[0].Instances[0].RootDeviceType = ebsType
+				output.Reservations[0].Instances[0].BlockDeviceMappings = []ec2types.InstanceBlockDeviceMapping{
 					{
 						DeviceName: aws.String("root"),
-						Ebs: &ec2.EbsInstanceBlockDevice{
+						Ebs: &ec2types.EbsInstanceBlockDevice{
 							AttachTime: aws.Time(blockDeviceAttachTime),
 						},
 					},
@@ -222,7 +224,7 @@ func TestAttest(t *testing.T) {
 		{
 			name: "success with tags in template",
 			mutateDescribeInstancesOutput: func(output *ec2.DescribeInstancesOutput) {
-				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{
+				output.Reservations[0].Instances[0].Tags = []ec2types.Tag{
 					{
 						Key:   aws.String("Hostname"),
 						Value: aws.String("host1"),
@@ -242,25 +244,25 @@ func TestAttest(t *testing.T) {
 		{
 			name: "success with all the selectors",
 			mutateDescribeInstancesOutput: func(output *ec2.DescribeInstancesOutput) {
-				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{
+				output.Reservations[0].Instances[0].Tags = []ec2types.Tag{
 					{
 						Key:   aws.String("Hostname"),
 						Value: aws.String("host1"),
 					},
 				}
-				output.Reservations[0].Instances[0].SecurityGroups = []*ec2.GroupIdentifier{
+				output.Reservations[0].Instances[0].SecurityGroups = []ec2types.GroupIdentifier{
 					{
 						GroupId:   aws.String("TestGroup"),
 						GroupName: aws.String("Test Group Name"),
 					},
 				}
-				output.Reservations[0].Instances[0].IamInstanceProfile = &ec2.IamInstanceProfile{
+				output.Reservations[0].Instances[0].IamInstanceProfile = &ec2types.IamInstanceProfile{
 					Arn: aws.String("arn:aws::::instance-profile/" + testProfile),
 				}
 			},
 			mutateGetInstanceProfileOutput: func(output *iam.GetInstanceProfileOutput) {
-				output.InstanceProfile = &iam.InstanceProfile{
-					Roles: []*iam.Role{
+				output.InstanceProfile = &iamtypes.InstanceProfile{
+					Roles: []iamtypes.Role{
 						{Arn: aws.String("role1")},
 						{Arn: aws.String("role2")},
 					},
@@ -279,25 +281,25 @@ func TestAttest(t *testing.T) {
 			name:   "success with instance profile selectors disabled",
 			config: `disable_instance_profile_selectors = true`,
 			mutateDescribeInstancesOutput: func(output *ec2.DescribeInstancesOutput) {
-				output.Reservations[0].Instances[0].Tags = []*ec2.Tag{
+				output.Reservations[0].Instances[0].Tags = []ec2types.Tag{
 					{
 						Key:   aws.String("Hostname"),
 						Value: aws.String("host1"),
 					},
 				}
-				output.Reservations[0].Instances[0].SecurityGroups = []*ec2.GroupIdentifier{
+				output.Reservations[0].Instances[0].SecurityGroups = []ec2types.GroupIdentifier{
 					{
 						GroupId:   aws.String("TestGroup"),
 						GroupName: aws.String("Test Group Name"),
 					},
 				}
-				output.Reservations[0].Instances[0].IamInstanceProfile = &ec2.IamInstanceProfile{
+				output.Reservations[0].Instances[0].IamInstanceProfile = &ec2types.IamInstanceProfile{
 					Arn: aws.String("arn:aws::::instance-profile/" + testProfile),
 				}
 			},
 			mutateGetInstanceProfileOutput: func(output *iam.GetInstanceProfileOutput) {
-				output.InstanceProfile = &iam.InstanceProfile{
-					Roles: []*iam.Role{
+				output.InstanceProfile = &iamtypes.InstanceProfile{
+					Roles: []iamtypes.Role{
 						{Arn: aws.String("role1")},
 						{Arn: aws.String("role2")},
 					},
@@ -332,9 +334,11 @@ func TestAttest(t *testing.T) {
 			opts := []plugintest.Option{
 				plugintest.HostServices(agentstorev1.AgentStoreServiceServer(agentStore)),
 			}
+			var configureErr error
 			if !tt.skipConfigure {
 				opts = append(opts,
 					plugintest.Configure(tt.config),
+					plugintest.CaptureConfigureError(&configureErr),
 					plugintest.CoreConfig(catalog.CoreConfig{
 						TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 					}),
@@ -348,12 +352,13 @@ func TestAttest(t *testing.T) {
 			attestor.hooks.getAWSCAPublicKey = func() (*rsa.PublicKey, error) {
 				return &testAWSCAKey.PublicKey, nil
 			}
-			attestor.clients = newClientsCache(func(config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
+			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
 				return client, nil
 			})
 
 			plugin := new(nodeattestor.V1)
 			plugintest.Load(t, builtin(attestor), plugin, opts...)
+			require.NoError(t, configureErr)
 
 			attestationData := defaultAttestationData
 			if tt.overrideAttestationData != nil {
@@ -363,6 +368,7 @@ func TestAttest(t *testing.T) {
 			if tt.overridePayload != nil {
 				payload = tt.overridePayload()
 			}
+
 			result, err := plugin.Attest(context.Background(), payload, expectNoChallenge)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
 			if tt.expectCode != codes.OK {
@@ -474,14 +480,14 @@ type fakeClient struct {
 func newFakeClient() *fakeClient {
 	return &fakeClient{
 		DescribeInstancesOutput: &ec2.DescribeInstancesOutput{
-			Reservations: []*ec2.Reservation{
+			Reservations: []ec2types.Reservation{
 				{
-					Instances: []*ec2.Instance{
+					Instances: []ec2types.Instance{
 						{
-							RootDeviceType: &instanceStoreType,
-							NetworkInterfaces: []*ec2.InstanceNetworkInterface{
+							RootDeviceType: instanceStoreType,
+							NetworkInterfaces: []ec2types.InstanceNetworkInterface{
 								{
-									Attachment: &ec2.InstanceNetworkInterfaceAttachment{
+									Attachment: &ec2types.InstanceNetworkInterfaceAttachment{
 										DeviceIndex: &zeroDeviceIndex,
 									},
 								},
@@ -495,22 +501,22 @@ func newFakeClient() *fakeClient {
 	}
 }
 
-func (c *fakeClient) DescribeInstancesWithContext(ctx context.Context, input *ec2.DescribeInstancesInput, opts ...request.Option) (*ec2.DescribeInstancesOutput, error) {
+func (c *fakeClient) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	expectInput := &ec2.DescribeInstancesInput{
-		InstanceIds: []*string{&testInstance},
+		InstanceIds: []string{testInstance},
 		Filters:     instanceFilters,
 	}
-	if diff := cmp.Diff(input, expectInput); diff != "" {
+	if diff := cmp.Diff(input, expectInput, cmpopts.IgnoreUnexported(ec2.DescribeInstancesInput{}, ec2types.Filter{})); diff != "" {
 		return nil, fmt.Errorf("unexpected request: %s", diff)
 	}
 	return c.DescribeInstancesOutput, c.DescribeInstancesError
 }
 
-func (c *fakeClient) GetInstanceProfileWithContext(ctx context.Context, input *iam.GetInstanceProfileInput, opts ...request.Option) (*iam.GetInstanceProfileOutput, error) {
+func (c *fakeClient) GetInstanceProfile(ctx context.Context, input *iam.GetInstanceProfileInput, optFns ...func(*iam.Options)) (*iam.GetInstanceProfileOutput, error) {
 	expectInput := &iam.GetInstanceProfileInput{
 		InstanceProfileName: aws.String(testProfile),
 	}
-	if diff := cmp.Diff(input, expectInput); diff != "" {
+	if diff := cmp.Diff(input, expectInput, cmpopts.IgnoreUnexported(iam.GetInstanceProfileInput{})); diff != "" {
 		return nil, fmt.Errorf("unexpected request: %s", diff)
 	}
 	return c.GetInstanceProfileOutput, c.GetInstanceProfileError
@@ -518,7 +524,7 @@ func (c *fakeClient) GetInstanceProfileWithContext(ctx context.Context, input *i
 
 func buildAttestationData(t *testing.T) caws.IIDAttestationData {
 	// doc body
-	doc := ec2metadata.EC2InstanceIdentityDocument{
+	doc := imds.InstanceIdentityDocument{
 		AccountID:  testAccount,
 		InstanceID: testInstance,
 		Region:     testRegion,

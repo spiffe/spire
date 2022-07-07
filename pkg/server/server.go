@@ -7,7 +7,6 @@ import (
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"net/url"
-	"os"
 	"runtime"
 	"sync"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -68,7 +68,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}).Info("Configured")
 
 	// create the data directory if needed
-	if err := os.MkdirAll(s.config.DataDir, 0755); err != nil {
+	if err := diskutil.CreateDataDirectory(s.config.DataDir); err != nil {
 		return err
 	}
 
