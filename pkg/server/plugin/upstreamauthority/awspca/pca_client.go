@@ -35,7 +35,7 @@ func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
 				}, nil
 			}
 
-			return aws.Endpoint{}, fmt.Errorf("unknown endpoint requested")
+			return aws.Endpoint{}, fmt.Errorf("unknown endpoint %s requested for region %s", service, region)
 		})
 		opts = append(opts, config.WithEndpointResolverWithOptions(endpointResolver))
 	}
