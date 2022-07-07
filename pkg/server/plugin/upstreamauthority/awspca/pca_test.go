@@ -6,14 +6,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/acmpca"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/acmpca"
+	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -120,7 +121,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "Describe certificate fails",
-			expectDescribeErr:       awserr.New("Internal", "some error", errors.New("oh no")),
+			expectDescribeErr:       awsErr("Internal", "some error", errors.New("oh no")),
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
 			caSigningTemplateARN:    validCASigningTemplateARN,
@@ -174,7 +175,7 @@ badjson
 		},
 		{
 			test:                    "Fail to create client",
-			newClientErr:            aws.ErrMissingEndpoint,
+			newClientErr:            awsErr("MissingEndpoint", "'Endpoint' configuration is required for this service", nil),
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
 			caSigningTemplateARN:    validCASigningTemplateARN,
@@ -212,12 +213,14 @@ badjson
 
 			p := new(PCAPlugin)
 			p.hooks.clock = clock
-			p.hooks.newClient = func(config *Configuration) (PCAClient, error) {
+			p.hooks.newClient = newACMPCAClientFunc(func(ctx context.Context, config *Configuration) (PCAClient, error) {
 				if tt.newClientErr != nil {
 					return nil, tt.newClientErr
 				}
 				return client, nil
-			}
+			})
+			setupWaitUntilCertificateIssued(t, p, nil)
+
 			setupDescribeCertificateAuthority(client, tt.expectedDescribeStatus, tt.expectDescribeErr)
 
 			plugintest.Load(t, builtin(p), nil, options...)
@@ -293,7 +296,7 @@ func TestMintX509CA(t *testing.T) {
 		expectTTL               time.Duration
 	}{
 		{
-			test:                    "Succesull mint",
+			test:                    "Successful mint",
 			config:                  successConfig,
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
@@ -324,16 +327,16 @@ func TestMintX509CA(t *testing.T) {
 			config:          successConfig,
 			csr:             makeCSR("spiffe://example.com/foo"),
 			preferredTTL:    300 * time.Second,
-			issuedCertErr:   awserr.New("Internal", "some error", errors.New("oh no")),
+			issuedCertErr:   awsErr("Internal", "some error", errors.New("oh no")),
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "upstreamauthority(aws_pca): failed submitting CSR: Internal: some error\ncaused by: oh no",
 		},
 		{
-			test:            "Issueance wait fails",
+			test:            "Issuance wait fails",
 			config:          successConfig,
 			csr:             makeCSR("spiffe://example.com/foo"),
 			preferredTTL:    300 * time.Second,
-			waitCertErr:     awserr.New("Internal", "some error", errors.New("oh no")),
+			waitCertErr:     awsErr("Internal", "some error", errors.New("oh no")),
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "upstreamauthority(aws_pca): failed waiting for issuance: Internal: some error\ncaused by: oh no",
 		},
@@ -342,12 +345,12 @@ func TestMintX509CA(t *testing.T) {
 			config:            successConfig,
 			csr:               makeCSR("spiffe://example.com/foo"),
 			preferredTTL:      300 * time.Second,
-			getCertificateErr: awserr.New("Internal", "some error", errors.New("oh no")),
+			getCertificateErr: awsErr("Internal", "some error", errors.New("oh no")),
 			expectCode:        codes.Internal,
 			expectMsgPrefix:   "upstreamauthority(aws_pca): failed to get cerficates: Internal: some error\ncaused by: oh no",
 		},
 		{
-			test:                    "Fails to parce certificate from GetCertificate",
+			test:                    "Fails to parse certificate from GetCertificate",
 			config:                  successConfig,
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
@@ -357,7 +360,7 @@ func TestMintX509CA(t *testing.T) {
 			expectMsgPrefix:         "upstreamauthority(aws_pca): failed to parse certificate from response: no PEM blocks",
 		},
 		{
-			test:                    "Fails to parce certificate chain from GetCertificate",
+			test:                    "Fails to parse certificate chain from GetCertificate",
 			config:                  successConfig,
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
@@ -375,7 +378,7 @@ func TestMintX509CA(t *testing.T) {
 			// Configure plugin
 			setupDescribeCertificateAuthority(client, "ACTIVE", nil)
 			p := New()
-			p.hooks.newClient = func(config *Configuration) (PCAClient, error) {
+			p.hooks.newClient = func(ctx context.Context, config *Configuration) (PCAClient, error) {
 				return client, nil
 			}
 			p.hooks.clock = clk
@@ -392,7 +395,7 @@ func TestMintX509CA(t *testing.T) {
 
 			// Setup expected responses and verify parameters to AWS client
 			setupIssueCertificate(client, clk, expectPem, tt.issuedCertErr)
-			setupWaitUntilCertificateIssued(client, tt.waitCertErr)
+			setupWaitUntilCertificateIssued(t, p, tt.waitCertErr)
 			setupGetCertificate(client, tt.getCertificateCert, tt.getCertificateCertChain, tt.getCertificateErr)
 
 			x509CA, x509Authorities, stream, err := ua.MintX509CA(context.Background(), tt.csr, tt.preferredTTL)
@@ -421,9 +424,10 @@ func TestPublishJWTKey(t *testing.T) {
 	// Configure plugin
 	setupDescribeCertificateAuthority(client, "ACTIVE", nil)
 	p := New()
-	p.hooks.newClient = func(config *Configuration) (PCAClient, error) {
+	p.hooks.newClient = func(ctx context.Context, config *Configuration) (PCAClient, error) {
 		return client, nil
 	}
+	setupWaitUntilCertificateIssued(t, p, nil)
 
 	ua := new(upstreamauthority.V1)
 	var err error
@@ -456,13 +460,13 @@ func setupDescribeCertificateAuthority(client *pcaClientFake, status string, err
 	client.describeCertificateErr = err
 
 	client.describeCertificateOutput = &acmpca.DescribeCertificateAuthorityOutput{
-		CertificateAuthority: &acmpca.CertificateAuthority{
-			CertificateAuthorityConfiguration: &acmpca.CertificateAuthorityConfiguration{
-				SigningAlgorithm: aws.String("defaultSigningAlgorithm"),
+		CertificateAuthority: &acmpcatypes.CertificateAuthority{
+			CertificateAuthorityConfiguration: &acmpcatypes.CertificateAuthorityConfiguration{
+				SigningAlgorithm: acmpcatypes.SigningAlgorithm("defaultSigningAlgorithm"),
 			},
 			// For all possible statuses, see:
 			// https://docs.aws.amazon.com/cli/latest/reference/acm-pca/describe-certificate-authority.html
-			Status: aws.String(status),
+			Status: acmpcatypes.CertificateAuthorityStatus(status),
 		},
 	}
 }
@@ -470,11 +474,11 @@ func setupDescribeCertificateAuthority(client *pcaClientFake, status string, err
 func setupIssueCertificate(client *pcaClientFake, clk clock.Clock, csr []byte, err error) {
 	client.expectedIssueInput = &acmpca.IssueCertificateInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
-		SigningAlgorithm:        aws.String(validSigningAlgorithm),
+		SigningAlgorithm:        acmpcatypes.SigningAlgorithm(validSigningAlgorithm),
 		Csr:                     csr,
 		TemplateArn:             aws.String(validCASigningTemplateARN),
-		Validity: &acmpca.Validity{
-			Type:  aws.String(acmpca.ValidityPeriodTypeAbsolute),
+		Validity: &acmpcatypes.Validity{
+			Type:  acmpcatypes.ValidityPeriodTypeAbsolute,
 			Value: aws.Int64(clk.Now().Add(time.Second * testTTL).Unix()),
 		},
 	}
@@ -484,13 +488,16 @@ func setupIssueCertificate(client *pcaClientFake, clk clock.Clock, csr []byte, e
 	}
 }
 
-func setupWaitUntilCertificateIssued(client *pcaClientFake, err error) {
-	client.expectedGetCertificateInput = &acmpca.GetCertificateInput{
+func setupWaitUntilCertificateIssued(t testing.TB, p *PCAPlugin, err error) {
+	expectedGetCertificateInput := &acmpca.GetCertificateInput{
 		CertificateAuthorityArn: aws.String(validCertificateAuthorityARN),
 		CertificateArn:          aws.String("certificateArn"),
 	}
 
-	client.waitUntilCertificateIssuedErr = err
+	p.hooks.waitRetryFn = certificateIssuedWaitRetryFunc(func(ctx context.Context, input *acmpca.GetCertificateInput, output *acmpca.GetCertificateOutput, innerErr error) (bool, error) {
+		require.Equal(t, expectedGetCertificateInput, input)
+		return false, err
+	})
 }
 
 func setupGetCertificate(client *pcaClientFake, encodedCert string, encodedCertChain string, err error) {
@@ -527,4 +534,8 @@ func svidFixture(t *testing.T) (*x509.Certificate, *bytes.Buffer) {
 	})
 	require.NoError(t, err)
 	return cert, encodedCert
+}
+
+func awsErr(code, status string, err error) error {
+	return fmt.Errorf("%s: %s\ncaused by: %w", code, status, err)
 }
