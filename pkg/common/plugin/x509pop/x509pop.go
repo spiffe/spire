@@ -34,6 +34,7 @@ type agentPathTemplateData struct {
 	Fingerprint string
 	PluginName  string
 	TrustDomain string
+	RandID      string
 }
 
 type AttestationData struct {
@@ -271,12 +272,13 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 		Certificate: cert,
 		PluginName:  PluginName,
 		Fingerprint: Fingerprint(cert),
+		RandID:      generateAgentIDPostfix(8),
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
 
-	return idutil.AgentID(td, agentPath+"/"+generateAgentIDPostfix(8))
+	return idutil.AgentID(td, agentPath)
 }
 
 func generateAgentIDPostfix(n int) string {
