@@ -3,7 +3,7 @@ package aws
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/stretchr/testify/require"
@@ -18,14 +18,14 @@ func TestMakeSpiffeID(t *testing.T) {
 	tests := []struct {
 		name              string
 		agentPathTemplate *agentpathtemplate.Template
-		doc               ec2metadata.EC2InstanceIdentityDocument
+		doc               imds.InstanceIdentityDocument
 		tags              instanceTags
 		want              string
 	}{
 		{
 			name:              "default",
 			agentPathTemplate: defaultAgentPathTemplate,
-			doc: ec2metadata.EC2InstanceIdentityDocument{
+			doc: imds.InstanceIdentityDocument{
 				Region:     "region",
 				InstanceID: "instanceID",
 				AccountID:  "accountID",

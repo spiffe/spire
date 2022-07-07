@@ -16,11 +16,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -36,12 +38,12 @@ import (
 
 var (
 	awsTimeout      = 5 * time.Second
-	instanceFilters = []*ec2.Filter{
+	instanceFilters = []ec2types.Filter{
 		{
 			Name: aws.String("instance-state-name"),
-			Values: []*string{
-				aws.String("pending"),
-				aws.String("running"),
+			Values: []string{
+				"pending",
+				"running",
 			},
 		},
 	}
@@ -138,18 +140,19 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
-	awsClient, err := p.clients.getClient(attestationData.Region, attestationData.AccountID)
+	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
+	defer cancel()
+
+	awsClient, err := p.clients.getClient(ctx, attestationData.Region, attestationData.AccountID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get client: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
-	defer cancel()
-
-	instancesDesc, err := awsClient.DescribeInstancesWithContext(ctx, &ec2.DescribeInstancesInput{
-		InstanceIds: []*string{aws.String(attestationData.InstanceID)},
+	instancesDesc, err := awsClient.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
+		InstanceIds: []string{attestationData.InstanceID},
 		Filters:     instanceFilters,
 	})
+
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to describe instance: %v", err)
 	}
@@ -162,7 +165,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	// should be a very small portion of the overall server workload. This
 	// is a potential DoS vector.
 	shouldCheckBlockDevice := !inTrustAcctList && !c.SkipBlockDevice
-	var instance *ec2.Instance
+	var instance ec2types.Instance
 	var tags = make(instanceTags)
 	if strings.Contains(c.AgentPathTemplate, ".Tags") || shouldCheckBlockDevice {
 		var err error
@@ -256,7 +259,7 @@ func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
+func (p *IIDAttestorPlugin) checkBlockDevice(instance ec2types.Instance) error {
 	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
 
 	if ifaceZeroDeviceIndex != 0 {
@@ -268,7 +271,7 @@ func (p *IIDAttestorPlugin) checkBlockDevice(instance *ec2.Instance) error {
 	// skip anti-tampering mechanism when RootDeviceType is instance-store
 	// specifically, if device type is persistent, and the device was attached past
 	// a threshold time after instance boot, fail attestation
-	if *instance.RootDeviceType != ec2.DeviceTypeInstanceStore {
+	if instance.RootDeviceType != ec2types.DeviceTypeInstanceStore {
 		rootDeviceIndex := -1
 		for i, bdm := range instance.BlockDeviceMappings {
 			if *bdm.DeviceName == *instance.RootDeviceName {
@@ -302,48 +305,48 @@ func (p *IIDAttestorPlugin) getConfig() (*IIDAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *IIDAttestorPlugin) getEC2Instance(instancesDesc *ec2.DescribeInstancesOutput) (*ec2.Instance, error) {
+func (p *IIDAttestorPlugin) getEC2Instance(instancesDesc *ec2.DescribeInstancesOutput) (ec2types.Instance, error) {
 	if len(instancesDesc.Reservations) < 1 {
-		return nil, status.Error(codes.Internal, "failed to query AWS via describe-instances: returned no reservations")
+		return ec2types.Instance{}, status.Error(codes.Internal, "failed to query AWS via describe-instances: returned no reservations")
 	}
 
 	if len(instancesDesc.Reservations[0].Instances) < 1 {
-		return nil, status.Error(codes.Internal, "failed to query AWS via describe-instances: returned no instances")
+		return ec2types.Instance{}, status.Error(codes.Internal, "failed to query AWS via describe-instances: returned no instances")
 	}
 
 	return instancesDesc.Reservations[0].Instances[0], nil
 }
 
-func tagsFromInstance(instance *ec2.Instance) instanceTags {
+func tagsFromInstance(instance ec2types.Instance) instanceTags {
 	tags := make(instanceTags, len(instance.Tags))
 	for _, tag := range instance.Tags {
-		if tag != nil && tag.Key != nil && tag.Value != nil {
+		if tag.Key != nil && tag.Value != nil {
 			tags[*tag.Key] = *tag.Value
 		}
 	}
 	return tags
 }
 
-func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (ec2metadata.EC2InstanceIdentityDocument, error) {
+func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (imds.InstanceIdentityDocument, error) {
 	var attestationData caws.IIDAttestationData
 	if err := json.Unmarshal(data, &attestationData); err != nil {
-		return ec2metadata.EC2InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the attestation data: %v", err)
+		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the attestation data: %v", err)
 	}
 
-	var doc ec2metadata.EC2InstanceIdentityDocument
+	var doc imds.InstanceIdentityDocument
 	if err := json.Unmarshal([]byte(attestationData.Document), &doc); err != nil {
-		return ec2metadata.EC2InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the IID: %v", err)
+		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the IID: %v", err)
 	}
 
 	docHash := sha256.Sum256([]byte(attestationData.Document))
 
 	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
 	if err != nil {
-		return ec2metadata.EC2InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to decode the IID signature: %v", err)
+		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to decode the IID signature: %v", err)
 	}
 
 	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
-		return ec2metadata.EC2InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to verify the cryptographic signature: %v", err)
+		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to verify the cryptographic signature: %v", err)
 	}
 
 	return doc, nil
@@ -372,7 +375,7 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 				}
 				ctx, cancel := context.WithTimeout(parent, awsTimeout)
 				defer cancel()
-				output, err := client.GetInstanceProfileWithContext(ctx, &iam.GetInstanceProfileInput{
+				output, err := client.GetInstanceProfile(ctx, &iam.GetInstanceProfileInput{
 					InstanceProfileName: aws.String(instanceProfileName),
 				})
 				if err != nil {
@@ -393,37 +396,33 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 	return selectors, nil
 }
 
-func resolveTags(tags []*ec2.Tag) []string {
+func resolveTags(tags []ec2types.Tag) []string {
 	values := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		if tag != nil {
-			values = append(values, fmt.Sprintf("tag:%s:%s", aws.StringValue(tag.Key), aws.StringValue(tag.Value)))
-		}
+		values = append(values, fmt.Sprintf("tag:%s:%s", aws.ToString(tag.Key), aws.ToString(tag.Value)))
 	}
 	return values
 }
 
-func resolveSecurityGroups(sgs []*ec2.GroupIdentifier) []string {
+func resolveSecurityGroups(sgs []ec2types.GroupIdentifier) []string {
 	values := make([]string, 0, len(sgs)*2)
 	for _, sg := range sgs {
-		if sg != nil {
-			values = append(values,
-				fmt.Sprintf("sg:id:%s", aws.StringValue(sg.GroupId)),
-				fmt.Sprintf("sg:name:%s", aws.StringValue(sg.GroupName)),
-			)
-		}
+		values = append(values,
+			fmt.Sprintf("sg:id:%s", aws.ToString(sg.GroupId)),
+			fmt.Sprintf("sg:name:%s", aws.ToString(sg.GroupName)),
+		)
 	}
 	return values
 }
 
-func resolveInstanceProfile(instanceProfile *iam.InstanceProfile) []string {
+func resolveInstanceProfile(instanceProfile *iamtypes.InstanceProfile) []string {
 	if instanceProfile == nil {
 		return nil
 	}
 	values := make([]string, 0, len(instanceProfile.Roles))
 	for _, role := range instanceProfile.Roles {
-		if role != nil && role.Arn != nil {
-			values = append(values, fmt.Sprintf("iamrole:%s", aws.StringValue(role.Arn)))
+		if role.Arn != nil {
+			values = append(values, fmt.Sprintf("iamrole:%s", aws.ToString(role.Arn)))
 		}
 	}
 	return values
