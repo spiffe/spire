@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/Microsoft/go-winio"
+	"github.com/spiffe/spire/pkg/common/sddl"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 )
@@ -52,5 +53,5 @@ func (c *Config) validateOS() (err error) {
 
 func listenLocal(c *Config) (net.Listener, error) {
 	return winio.ListenPipe(util.GetNamedPipeAddr(c.Experimental.ListenNamedPipeName).String(),
-		&winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
+		&winio.PipeConfig{SecurityDescriptor: sddl.PrivateListener})
 }
