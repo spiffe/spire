@@ -8,11 +8,11 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/spiffe/spire/pkg/common/peertracker"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/sddl"
 )
 
 func (e *Endpoints) listen() (net.Listener, error) {
-	return winio.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
+	return winio.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: sddl.PrivateListener})
 }
 
 func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
@@ -20,7 +20,7 @@ func (e *Endpoints) listenWithAuditLog() (*peertracker.Listener, error) {
 		Log: e.Log,
 	}
 
-	return lf.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPrivateListener})
+	return lf.ListenPipe(e.LocalAddr.String(), &winio.PipeConfig{SecurityDescriptor: sddl.PrivateListener})
 }
 
 func (e *Endpoints) restrictLocalAddr() error {

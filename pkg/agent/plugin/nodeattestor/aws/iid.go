@@ -3,11 +3,12 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
@@ -64,7 +65,8 @@ func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 		return err
 	}
 
-	attestationData, err := fetchMetadata(c.EC2MetadataEndpoint)
+	ctx := stream.Context()
+	attestationData, err := fetchMetadata(ctx, c.EC2MetadataEndpoint)
 	if err != nil {
 		return err
 	}
@@ -81,24 +83,25 @@ func (p *IIDAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	})
 }
 
-func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
-	awsCfg := aws.NewConfig()
+func fetchMetadata(ctx context.Context, endpoint string) (*caws.IIDAttestationData, error) {
+	var opts []func(*config.LoadOptions) error
 	if endpoint != "" {
-		awsCfg.WithEndpoint(endpoint)
+		opts = append(opts, config.WithEC2IMDSEndpoint(endpoint))
 	}
-	newSession, err := session.NewSession(awsCfg)
+
+	awsCfg, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	client := ec2metadata.New(newSession)
+	client := imds.NewFromConfig(awsCfg)
 
-	doc, err := client.GetDynamicData(docPath)
+	doc, err := getMetadataDoc(ctx, client)
 	if err != nil {
 		return nil, err
 	}
 
-	sig, err := client.GetDynamicData(sigPath)
+	sig, err := getMetadataSig(ctx, client)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +110,38 @@ func fetchMetadata(endpoint string) (*caws.IIDAttestationData, error) {
 		Document:  doc,
 		Signature: sig,
 	}, nil
+}
+
+func getMetadataDoc(ctx context.Context, client *imds.Client) (string, error) {
+	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
+		Path: docPath,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return readStringAndClose(res.Content)
+}
+
+func getMetadataSig(ctx context.Context, client *imds.Client) (string, error) {
+	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
+		Path: sigPath,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return readStringAndClose(res.Content)
+}
+
+func readStringAndClose(r io.ReadCloser) (string, error) {
+	defer r.Close()
+	var sb strings.Builder
+	if _, err := io.Copy(&sb, r); err != nil {
+		return "", err
+	}
+
+	return sb.String(), nil
 }
 
 // Configure implements the Config interface method of the same name

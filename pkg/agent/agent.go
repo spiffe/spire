@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
-	"os"
 	"path"
 	"runtime"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -40,7 +40,7 @@ type Agent struct {
 // and then blocks on the main event loop.
 func (a *Agent) Run(ctx context.Context) error {
 	a.c.Log.Infof("Starting agent with data directory: %q", a.c.DataDir)
-	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
+	if err := diskutil.CreateDataDirectory(a.c.DataDir); err != nil {
 		return err
 	}
 
