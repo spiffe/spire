@@ -35,6 +35,10 @@ func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
 	return dir.Close()
 }
 
+func CreateDataDirectory(path string) error {
+	return os.MkdirAll(path, 0755)
+}
+
 func write(tmpPath string, data []byte, mode os.FileMode) error {
 	file, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {

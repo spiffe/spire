@@ -9,14 +9,14 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/spiffe/spire/pkg/common/peertracker"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/sddl"
 )
 
 func (e *Endpoints) createPipeListener() (net.Listener, error) {
 	pipeListener := &peertracker.ListenerFactory{
 		Log: e.log,
 	}
-	l, err := pipeListener.ListenPipe(e.addr.String(), &winio.PipeConfig{SecurityDescriptor: util.SDDLPublicListener})
+	l, err := pipeListener.ListenPipe(e.addr.String(), &winio.PipeConfig{SecurityDescriptor: sddl.PublicListener})
 	if err != nil {
 		return nil, fmt.Errorf("create named pipe listener: %w", err)
 	}

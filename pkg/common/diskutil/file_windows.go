@@ -6,7 +6,9 @@ package diskutil
 import (
 	"os"
 	"syscall"
+	"unsafe"
 
+	"github.com/spiffe/spire/pkg/common/sddl"
 	"golang.org/x/sys/windows"
 )
 
@@ -25,6 +27,55 @@ func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
 	}
 
 	return atomicRename(tmpPath, path)
+}
+
+func CreateDataDirectory(path string) error {
+	return MkdirAll(path, sddl.PrivateFile)
+}
+
+// MkdirAll is a modified version of os.MkdirAll for use on Windows
+// so that it creates the directory with the specified security descriptor.
+func MkdirAll(path string, sddl string) error {
+	// Fast path: if we can tell whether path is a directory or file, stop with success or error.
+	dir, err := os.Stat(path)
+	if err == nil {
+		if dir.IsDir() {
+			return nil
+		}
+		return &os.PathError{Op: "mkdir", Path: path, Err: syscall.ENOTDIR}
+	}
+
+	// Slow path: make sure parent exists and then call Mkdir for path.
+	i := len(path)
+	for i > 0 && os.IsPathSeparator(path[i-1]) { // Skip trailing path separator.
+		i--
+	}
+
+	j := i
+	for j > 0 && !os.IsPathSeparator(path[j-1]) { // Scan backward over element.
+		j--
+	}
+
+	if j > 1 {
+		// Create parent.
+		err = MkdirAll(path[:j-1], sddl)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Parent now exists; invoke Mkdir and use its result.
+	err = mkdir(path, sddl)
+	if err != nil {
+		// Handle arguments like "foo/." by
+		// double-checking that directory doesn't exist.
+		dir, err1 := os.Lstat(path)
+		if err1 == nil && dir.IsDir() {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 func write(tmpPath string, data []byte, mode os.FileMode) error {
@@ -70,4 +121,31 @@ func rename(oldPath, newPath string) error {
 	}
 
 	return windows.MoveFileEx(from, to, movefileReplaceExisting|movefileWriteThrough)
+}
+
+// mkdir creates a new directory with a specific security descriptor.
+// The security descriptor must be specified using the Security Descriptor
+// Definition Language (SDDL).
+//
+// In the same way as os.MkDir, errors returned are of type *os.PathError.
+func mkdir(path string, sddl string) error {
+	sa := windows.SecurityAttributes{Length: 0}
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		return &os.PathError{Op: "mkdir", Path: path, Err: err}
+	}
+	sa.Length = uint32(unsafe.Sizeof(sa))
+	sa.InheritHandle = 1
+	sa.SecurityDescriptor = sd
+
+	pathUTF16, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return &os.PathError{Op: "mkdir", Path: path, Err: err}
+	}
+
+	e := windows.CreateDirectory(pathUTF16, &sa)
+	if e != nil {
+		return &os.PathError{Op: "mkdir", Path: path, Err: e}
+	}
+	return nil
 }
