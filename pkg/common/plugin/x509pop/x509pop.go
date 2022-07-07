@@ -272,7 +272,7 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 		Certificate: cert,
 		PluginName:  PluginName,
 		Fingerprint: Fingerprint(cert),
-		RandID:      generateAgentIDPostfix(8),
+		RandID:      generateAgentIDRandomness(8),
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
@@ -281,15 +281,15 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 	return idutil.AgentID(td, agentPath)
 }
 
-func generateAgentIDPostfix(n int) string {
+func generateAgentIDRandomness(n int) string {
 	runes := []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-	postfix := make([]rune, n)
+	id := make([]rune, n)
 
-	for i := range postfix {
-		postfix[i] = runes[mrand.Intn(len(runes))]
+	for i := range id {
+		id[i] = runes[mrand.Intn(len(runes))]
 	}
 
-	return string(postfix)
+	return string(id)
 }
 
 func generateNonce() ([]byte, error) {
