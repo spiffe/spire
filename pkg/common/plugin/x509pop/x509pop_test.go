@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	mrand "math/rand"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -130,6 +131,7 @@ func createBadCertificate(privateKey, publicKey interface{}) (*x509.Certificate,
 }
 
 func TestMakeAgentID(t *testing.T) {
+	mrand.Seed(2121)
 	tests := []struct {
 		desc      string
 		template  *agentpathtemplate.Template
@@ -145,6 +147,11 @@ func TestMakeAgentID(t *testing.T) {
 			desc:     "custom template with subject identifiers",
 			template: agentpathtemplate.MustParse("/foo/{{ .Subject.CommonName }}"),
 			expectID: "spiffe://example.org/spire/agent/foo/test-cert",
+		},
+		{
+			desc:     "custom template with random suffix",
+			template: agentpathtemplate.MustParse("/foo/{{ .RandID }}"),
+			expectID: "spiffe://example.org/spire/agent/foo/4yfbxurj",
 		},
 		{
 			desc:      "custom template with nonexistant fields",

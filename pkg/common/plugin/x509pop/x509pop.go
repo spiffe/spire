@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	mrand "math/rand"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -33,6 +34,7 @@ type agentPathTemplateData struct {
 	Fingerprint string
 	PluginName  string
 	TrustDomain string
+	RandID      string
 }
 
 type AttestationData struct {
@@ -270,12 +272,24 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 		Certificate: cert,
 		PluginName:  PluginName,
 		Fingerprint: Fingerprint(cert),
+		RandID:      generateAgentIDRandomness(8),
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
 
 	return idutil.AgentID(td, agentPath)
+}
+
+func generateAgentIDRandomness(n int) string {
+	runes := []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+	id := make([]rune, n)
+
+	for i := range id {
+		id[i] = runes[mrand.Intn(len(runes))]
+	}
+
+	return string(id)
 }
 
 func generateNonce() ([]byte, error) {
