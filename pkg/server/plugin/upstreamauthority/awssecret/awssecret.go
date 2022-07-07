@@ -61,7 +61,7 @@ type Plugin struct {
 	hooks struct {
 		clock     clock.Clock
 		getenv    func(string) string
-		newClient func(config *Configuration, region string) (secretsManagerClient, error)
+		newClient func(ctx context.Context, config *Configuration, region string) (secretsManagerClient, error)
 	}
 }
 
@@ -69,7 +69,7 @@ func New() *Plugin {
 	return newPlugin(newSecretsManagerClient)
 }
 
-func newPlugin(newClient func(config *Configuration, region string) (secretsManagerClient, error)) *Plugin {
+func newPlugin(newClient func(ctx context.Context, config *Configuration, region string) (secretsManagerClient, error)) *Plugin {
 	p := &Plugin{}
 	p.hooks.clock = clock.New()
 	p.hooks.getenv = os.Getenv
@@ -89,7 +89,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	// set the AWS configuration and reset clients +
 	// Set local vars from config struct
-	sm, err := p.hooks.newClient(config, config.Region)
+	sm, err := p.hooks.newClient(ctx, config, config.Region)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create AWS client: %v", err)
 	}

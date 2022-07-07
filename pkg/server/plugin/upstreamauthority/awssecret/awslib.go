@@ -3,23 +3,21 @@ package awssecret
 import (
 	"context"
 	"fmt"
-	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 type secretsManagerClient interface {
-	GetSecretValueWithContext(aws.Context, *secretsmanager.GetSecretValueInput, ...request.Option) (*secretsmanager.GetSecretValueOutput, error)
+	GetSecretValue(context.Context, *secretsmanager.GetSecretValueInput, ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
 }
 
 func readARN(ctx context.Context, sm secretsManagerClient, arn string) (string, error) {
-	resp, err := sm.GetSecretValueWithContext(ctx, &secretsmanager.GetSecretValueInput{
+	resp, err := sm.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(arn),
 	})
 
@@ -34,32 +32,41 @@ func readARN(ctx context.Context, sm secretsManagerClient, arn string) (string, 
 	return *resp.SecretString, nil
 }
 
-func newSecretsManagerClient(config *Configuration, region string) (secretsManagerClient, error) {
-	awsConfig := &aws.Config{
-		Region: aws.String(region),
+func newSecretsManagerClient(ctx context.Context, cfg *Configuration, region string) (secretsManagerClient, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
 	}
 
-	if config.SecretAccessKey != "" && config.AccessKeyID != "" {
-		awsConfig.Credentials = credentials.NewStaticCredentials(config.AccessKeyID, config.SecretAccessKey, config.SecurityToken)
+	if cfg.SecretAccessKey != "" && cfg.AccessKeyID != "" {
+		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SecurityToken)))
 	}
 
-	// Optional: Assuming role
-	if config.AssumeRoleARN != "" {
-		staticsess, err := session.NewSession(&aws.Config{Credentials: awsConfig.Credentials})
-		if err != nil {
-			return nil, err
-		}
-		awsConfig.Credentials = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
-			Client:   sts.New(staticsess),
-			RoleARN:  config.AssumeRoleARN,
-			Duration: 15 * time.Minute,
-		})
-	}
-
-	awsSession, err := session.NewSession(awsConfig)
+	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	return secretsmanager.New(awsSession), nil
+	if cfg.AssumeRoleARN != "" {
+		awsConfig, err = newAWSAssumeRoleConfig(ctx, region, awsConfig, cfg.AssumeRoleARN)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return secretsmanager.NewFromConfig(awsConfig), nil
+}
+
+func newAWSAssumeRoleConfig(ctx context.Context, region string, awsConf aws.Config, assumeRoleArn string) (aws.Config, error) {
+	var opts []func(*config.LoadOptions) error
+	if region != "" {
+		opts = append(opts, config.WithRegion(region))
+	}
+
+	stsClient := sts.NewFromConfig(awsConf)
+	opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+		stscreds.NewAssumeRoleProvider(stsClient, assumeRoleArn))),
+	)
+
+	return config.LoadDefaultConfig(ctx, opts...)
 }
