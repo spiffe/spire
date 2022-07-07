@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	mrand "math/rand"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -275,7 +276,18 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 		return spiffeid.ID{}, err
 	}
 
-	return idutil.AgentID(td, agentPath)
+	return idutil.AgentID(td, agentPath+"/"+generateAgentIDPostfix(8))
+}
+
+func generateAgentIDPostfix(n int) string {
+	runes := []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+	postfix := make([]rune, n)
+
+	for i := range postfix {
+		postfix[i] = runes[mrand.Intn(len(runes))]
+	}
+
+	return string(postfix)
 }
 
 func generateNonce() ([]byte, error) {
