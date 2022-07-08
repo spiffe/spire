@@ -120,7 +120,7 @@ spec:
           args: ["-t", "30", "spire-server:8081"]
       containers:
         - name: spire-agent
-          image: spire-agent:latest-local
+          image: spire-agent-scratch:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:

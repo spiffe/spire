@@ -28,10 +28,10 @@ metadata:
   namespace: spire
 rules:
   - apiGroups: [""]
-    resources: ["configmaps"]
+    resources: ["leases"]
     verbs: ["create"]
   - apiGroups: [""]
-    resources: ["configmaps"]
+    resources: ["leases"]
     resourceNames: ["controller-leader-election-helper"]
     verbs: ["update", "get"]
   - apiGroups: [""]
