@@ -12,7 +12,7 @@
 - A regression in the server that caused a panic instead of a clean shutdown if a plugin was misconfigured (#3166)
 
 ### Changed
-- The parent directory for UDS endpoints is no longer created by SPIRE on Windows (#3192)
+- Directories for UDS endpoints are no longer created by SPIRE on Windows (#3192)
 
 ## [1.3.1] - 2022-06-09
 
