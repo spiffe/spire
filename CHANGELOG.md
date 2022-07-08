@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.2] - 2022-07-08
+
+### Added
+- Support for K8s workload attestation when the Kubelet is run as a standalone component (#3163)
+- Optional health check endpoints to the OIDC Discovery Provider (#3151)
+- Pagination support to the server `entry show` command (#3135)
+
+### Fixed
+- A regression in workload SVID minting that caused DNS names not to be set in the SVID (#3215)
+- A regression in the server that caused a panic instead of a clean shutdown if a plugin was misconfigured (#3166)
+
+### Changed
+- Directories for UDS endpoints are no longer created by SPIRE on Windows (#3192)
+
 ## [1.3.1] - 2022-06-09
 
 ### Added
