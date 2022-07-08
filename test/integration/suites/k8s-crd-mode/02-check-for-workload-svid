@@ -1,0 +1,30 @@
+#!/bin/sh
+
+source init-kubectl
+
+MAXFETCHCHECKS=60
+FETCHCHECKINTERVAL=1
+for ((i=1; i<=${MAXFETCHCHECKS}; i++)); do
+    EXAMPLEPOD=$(./bin/kubectl -nspire get pod -l app=example-workload -o jsonpath="{.items[0].metadata.name}")
+    log-info "checking for workload SPIFFE ID ($i of $MAXFETCHCHECKS max)..."
+    if ./bin/kubectl -nspire exec -t "${EXAMPLEPOD}" -- \
+        /opt/spire/bin/spire-agent api fetch -write /tmp \
+            | grep "SPIFFE ID:"; then
+        DONE=1
+
+        data=$(./bin/kubectl -nspire exec -t "${EXAMPLEPOD}" -- \
+           openssl x509 -in /tmp/svid.0.pem -text -noout)
+        
+        echo $data | grep -q "URI:spiffe://example.org/workload" || fail-now "unexpected SPIFFE ID: $data"
+        echo $data | grep -q "DNS:dns1, DNS:dns2," || fail-now "unexpected DNS: $data"
+
+        break
+    fi
+    sleep "${FETCHCHECKINTERVAL}" 
+done
+
+if [ "${DONE}" -eq 1 ]; then
+    log-info "SPIFFE ID found."
+else
+    fail-now "timed out waiting for workload to obtain credentials."
+fi
