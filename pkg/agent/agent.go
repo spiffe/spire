@@ -209,6 +209,7 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 		Metrics:         metrics,
 		BundleCachePath: a.bundleCachePath(),
 		SVIDCachePath:   a.agentSVIDPath(),
+		WorkloadKeyType: a.c.WorkloadKeyType,
 		SyncInterval:    a.c.SyncInterval,
 		SVIDStoreCache:  cache,
 	}
