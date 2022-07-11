@@ -153,7 +153,7 @@ func TestEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name:       "access denied from remote caller",
+			name:       "access denied to remote caller",
 			fromRemote: true,
 		},
 	} {
