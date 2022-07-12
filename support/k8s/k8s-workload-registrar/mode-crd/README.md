@@ -484,3 +484,14 @@ to any pod in the namespace.
 If allowing users to manually create SpiffeID custom resources it is important to use the Validating Webhook.  The Validating Webhook ensures that
 registration entries created have a namespace selector that matches the namespace the resource was created in.  This ensures that the manually created
 entries can only be consumed by workloads within that namespace.
+
+## Troubleshooting
+
+### Migrating to the CRD mode from the deprecated webhook mode
+
+The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail admission. If you used the default
+configuration this can be done with:
+
+```
+kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook
+```

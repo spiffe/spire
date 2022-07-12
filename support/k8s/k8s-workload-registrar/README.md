@@ -31,7 +31,7 @@ The configuration file is a **required** by the registrar. It contains
 | `cluster`                  | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string   | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `mode`                     | string   | required | How to run the registrar, either `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | |
+| `mode`                     | string   | required | How to run the registrar, either `"reconcile"` or `"crd"`. See [Differences](#differences-between-modes) for more details. | |
 | `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
 
 The following configuration directives are specific to `"reconcile"` mode:

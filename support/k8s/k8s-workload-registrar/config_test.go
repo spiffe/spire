@@ -85,11 +85,6 @@ func TestLoadMode(t *testing.T) {
 				mode = "reconcile"
 				log_level = "LEVELOVERRIDE"
 				log_path = "PATHOVERRIDE"
-				addr = ":1234"
-				cert_path = "CERTOVERRIDE"
-				key_path = "KEYOVERRIDE"
-				cacert_path = "CACERTOVERRIDE"
-				insecure_skip_client_verification = true
 				server_socket_path = "SOCKETPATHOVERRIDE"
 				trust_domain = "domain.test"
 				cluster = "CLUSTEROVERRIDE"
