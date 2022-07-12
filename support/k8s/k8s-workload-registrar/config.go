@@ -26,9 +26,7 @@ const (
 	defaultLogLevel = "info"
 
 	modeCRD       = "crd"
-	modeWebhook   = "webhook"
 	modeReconcile = "reconcile"
-	defaultMode   = modeWebhook
 )
 
 type Mode interface {
@@ -58,7 +56,6 @@ type CommonMode struct {
 }
 
 func (c *CommonMode) ParseConfig(hclConfig string) (err error) {
-	c.Mode = defaultMode
 	if err := hcl.Decode(c, hclConfig); err != nil {
 		return errs.New("unable to decode configuration: %v", err)
 	}
@@ -89,8 +86,11 @@ func (c *CommonMode) ParseConfig(hclConfig string) (err error) {
 	if c.PodLabel != "" && c.PodAnnotation != "" {
 		return errs.New("workload registration mode specification is incorrect, can't specify both pod_label and pod_annotation")
 	}
-	if c.Mode != modeCRD && c.Mode != modeWebhook && c.Mode != modeReconcile {
-		return errs.New("invalid mode \"%s\", valid values are %s, %s and %s", c.Mode, modeCRD, modeWebhook, modeReconcile)
+	if c.Mode == "" {
+		return errs.New("mode must be specified, valid values are %q and %q", modeCRD, modeReconcile)
+	}
+	if c.Mode != modeCRD && c.Mode != modeReconcile {
+		return errs.New("invalid mode %q, valid values are %q and %q", c.Mode, modeCRD, modeReconcile)
 	}
 	if c.DisabledNamespaces == nil {
 		c.DisabledNamespaces = defaultDisabledNamespaces()
@@ -137,9 +137,9 @@ func LoadMode(path string) (Mode, error) {
 			CommonMode: *c,
 		}
 	default:
-		mode = &WebhookMode{
-			CommonMode: *c,
-		}
+		// This case is defensive since ParseConfig ensures we have
+		// a valid mode value.
+		return nil, errs.New("unknown mode: %q", c.Mode)
 	}
 
 	err = mode.ParseConfig(string(hclBytes))
