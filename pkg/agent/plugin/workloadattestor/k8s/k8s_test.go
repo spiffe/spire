@@ -200,6 +200,7 @@ type Suite struct {
 	sigstoreSkipSigs            bool
 	sigstoreSkippedSigSelectors []string
 	sigstoreReturnError         error
+	sigstoreMock                *sigstoreMock
 }
 
 func (s *Suite) SetupTest() {
@@ -215,6 +216,9 @@ func (s *Suite) SetupTest() {
 
 	s.sigstoreSelectors = nil
 	s.sigstoreSigs = nil
+	s.sigstoreReturnError = nil
+	s.sigstoreSkipSigs = false
+	s.sigstoreSkippedSigSelectors = nil
 }
 
 func (s *Suite) TearDownTest() {
@@ -238,7 +242,6 @@ func (s *Suite) TestAttestWithSigstoreSignatures() {
 	})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodAndSignature(p)
-	s.setSigstoreSelectors(nil)
 }
 
 func (s *Suite) TestAttestWithSigstoreSkippedImage() {
@@ -248,8 +251,6 @@ func (s *Suite) TestAttestWithSigstoreSkippedImage() {
 	s.setSigstoreSkippedSigSelectors([]string{"sigstore-validation:passed"})
 	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodAndSkippedImage(p)
-	s.setSigstoreSkipSigs(false)
-	s.setSigstoreSkippedSigSelectors(nil)
 }
 
 func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
@@ -257,7 +258,6 @@ func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
 	p := s.loadInsecurePlugin()
 	s.setSigstoreReturnError(errors.New("sigstore error"))
 	s.requireAttestSuccessWithPod(p)
-	s.setSigstoreReturnError(nil)
 }
 
 func (s *Suite) TestAttestWithPidInKindPod() {
@@ -720,7 +720,7 @@ func (s *Suite) TestConfigure() {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
-			p.sigstore.(*sigstoreMock).returnError = testCase.sigstoreError
+			s.sigstoreMock.returnError = testCase.sigstoreError
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
 				plugintest.Configure(testCase.hcl),
@@ -910,7 +910,8 @@ func (s *Suite) newPlugin() *Plugin {
 	p.getenv = func(key string) string {
 		return s.env[key]
 	}
-	p.sigstore = &sigstoreMock{
+
+	s.sigstoreMock = &sigstoreMock{
 		selectors:           s.sigstoreSelectors,
 		sigs:                s.sigstoreSigs,
 		skipSigs:            s.sigstoreSkipSigs,
@@ -918,6 +919,7 @@ func (s *Suite) newPlugin() *Plugin {
 		returnError:         s.sigstoreReturnError,
 	}
 
+	p.sigstore = s.sigstoreMock
 	return p
 }
 
