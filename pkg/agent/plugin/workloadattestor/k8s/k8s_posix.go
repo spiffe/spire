@@ -190,20 +190,30 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, err
 		}
 
+		var attestResponse *workloadattestorv1.AttestResponse = nil
 		for _, item := range list.Items {
 			item := item
-			if item.UID != podUID {
+
+			// podUID can be empty, when cgroup contains only containerID
+			if item.UID != podUID && podUID != "" {
 				continue
 			}
 
-			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
-				return &workloadattestorv1.AttestResponse{
-					SelectorValues: getSelectorValuesFromPodInfo(&item, status),
-				}, nil
+				if attestResponse != nil {
+					log.Warn("Two pods found with same container Id")
+					return nil, status.Error(codes.Aborted, "Two pods found with same container Id")
+				}
+				attestResponse = &workloadattestorv1.AttestResponse{
+					SelectorValues: getSelectorValuesFromPodInfo(&item, lookupStatus),
+				}
 			case containerNotInPod:
 			}
+		}
+		if attestResponse != nil {
+			return attestResponse, nil
 		}
 
 		// if the container was not located after the maximum number of attempts then the search is over.
@@ -582,6 +592,16 @@ var cgroupRE = regexp.MustCompile(`` +
 	// non-punctuation end of string, i.e., the container ID
 	`([[:^punct:]]+)$`)
 
+// cgroupNoPodUidRE is the backup regex, when cgroupRE does not match
+// This regex applies for container runtimes, that won't put the PodUID into
+// the cgroup name.
+// Currently only cri-o is known for this abnormaly.
+var cgroupNoPodUidRE = regexp.MustCompile(`` +
+	// /crio-
+	`[[:punct:]]crio[[:punct:]]` +
+	// non-punctuation end of string, i.e., the container ID
+	`([[:^punct:]]+)$`)
+
 func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
 	// We are only interested in kube pods entries, for example:
 	// - /kubepods/burstable/pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
@@ -589,7 +609,7 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 	// - /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope
 	// - /kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2"
 	// - /../../pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
-
+	// - 0::/../crio-45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814.scope
 	// First trim off any .scope suffix. This allows for a cleaner regex since
 	// we don't have to muck with greediness. TrimSuffix is no-copy so this
 	// is cheap.
@@ -598,6 +618,11 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 	matches := cgroupRE.FindStringSubmatch(cgroupPath)
 	if matches != nil {
 		return canonicalizePodUID(matches[1]), matches[2], true
+	} else {
+		matches := cgroupNoPodUidRE.FindStringSubmatch(cgroupPath)
+		if matches != nil {
+			return "", matches[1], true
+		}
 	}
 	return "", "", false
 }

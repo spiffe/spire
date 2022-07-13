@@ -39,12 +39,15 @@ import (
 const (
 	pid = 123
 
-	podListFilePath           = "testdata/pod_list.json"
-	kindPodListFilePath       = "testdata/kind_pod_list.json"
-	podListNotRunningFilePath = "testdata/pod_list_not_running.json"
+	podListFilePath                         = "testdata/pod_list.json"
+	kindPodListFilePath                     = "testdata/kind_pod_list.json"
+	crioPodListFilePath                     = "testdata/crio_pod_list.json"
+	crioPodListDuplicateContainerIdFilePath = "testdata/crio_pod_list_duplicate_containerId.json"
+	podListNotRunningFilePath               = "testdata/pod_list_not_running.json"
 
 	cgPidInPodFilePath        = "testdata/cgroups_pid_in_pod.txt"
 	cgPidInKindPodFilePath    = "testdata/cgroups_pid_in_kind_pod.txt"
+	cgPidInCrioPodFilePath    = "testdata/cgroups_pid_in_crio_pod.txt"
 	cgInitPidInPodFilePath    = "testdata/cgroups_init_pid_in_pod.txt"
 	cgPidNotInPodFilePath     = "testdata/cgroups_pid_not_in_pod.txt"
 	cgSystemdPidInPodFilePath = "testdata/systemd_cgroups_pid_in_pod.txt"
@@ -97,6 +100,25 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "container-name:workload-api-client"},
 		{Type: "k8s", Value: "node-name:kind-control-plane"},
 		{Type: "k8s", Value: "ns:default"},
+		{Type: "k8s", Value: "pod-image-count:1"},
+		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
+		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
+		{Type: "k8s", Value: "pod-init-image-count:0"},
+		{Type: "k8s", Value: "pod-label:app:sample-workload"},
+		{Type: "k8s", Value: "pod-label:pod-template-hash:6658cb9566"},
+		{Type: "k8s", Value: "pod-name:sample-workload-6658cb9566-5n4b4"},
+		{Type: "k8s", Value: "pod-owner-uid:ReplicaSet:349d135e-3781-43e3-bc25-c900aedf1d0c"},
+		{Type: "k8s", Value: "pod-owner:ReplicaSet:sample-workload-6658cb9566"},
+		{Type: "k8s", Value: "pod-uid:a2830d0d-b0f0-4ff0-81b5-0ee4e299cf80"},
+		{Type: "k8s", Value: "sa:default"},
+	}
+
+	testCrioPodSelectors = []*common.Selector{
+		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
+		{Type: "k8s", Value: "container-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
+		{Type: "k8s", Value: "container-name:workload-api-client"},
+		{Type: "k8s", Value: "node-name:a37b7d23-d32a-4932-8f33-40950ac16ee9"},
+		{Type: "k8s", Value: "ns:sfh-199"},
 		{Type: "k8s", Value: "pod-image-count:1"},
 		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent:0.8.1"},
 		{Type: "k8s", Value: "pod-image:gcr.io/spiffe-io/spire-agent@sha256:1e4c481d76e9ecbd3d8684891e0e46aa021a30920ca04936e1fdcc552747d941"},
@@ -186,6 +208,20 @@ func (s *Suite) TestAttestWithPidInKindPod() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithKindPod(p)
+}
+
+func (s *Suite) TestAttestWithPidInCrioPod() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestSuccessWithCrioPod(p)
+}
+
+func (s *Suite) TestAttestFailDuplicateContainerId() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestFailWithCrioPod(p)
 }
 
 func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
@@ -796,6 +832,18 @@ func (s *Suite) requireAttestSuccessWithKindPod(p workloadattestor.WorkloadAttes
 	s.requireAttestSuccess(p, testKindPodSelectors)
 }
 
+func (s *Suite) requireAttestSuccessWithCrioPod(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(crioPodListFilePath)
+	s.addCgroupsResponse(cgPidInCrioPodFilePath)
+	s.requireAttestSuccess(p, testCrioPodSelectors)
+}
+
+func (s *Suite) requireAttestFailWithCrioPod(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(crioPodListDuplicateContainerIdFilePath)
+	s.addCgroupsResponse(cgPidInCrioPodFilePath)
+	s.requireAttestFailure(p, codes.Aborted, "Two pods found with same container Id")
+}
+
 func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
@@ -910,6 +958,15 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 			expectCode:        codes.OK,
 		},
 		{
+			name: "cri-o",
+			cgroupPaths: []string{
+				"0::/../crio-45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814.scope",
+			},
+			expectPodUID:      "",
+			expectContainerID: "45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814",
+			expectCode:        codes.OK,
+		},
+		{
 			name: "more than one container ID in cgroups",
 			cgroupPaths: []string{
 				"/user.slice",
@@ -1020,6 +1077,12 @@ func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 			cgroupPath:        "/kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
 			expectPodUID:      "72f7f152-440c-66ac-9084-e0fc1d8a910c",
 			expectContainerID: "b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
+		},
+		{
+			name:              "cri-o",
+			cgroupPath:        "0::/../crio-45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814.scope",
+			expectPodUID:      "",
+			expectContainerID: "45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814",
 		},
 		{
 			name:       "uid generateds by kubernetes",
