@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/webhook"
 	"github.com/zeebo/errs"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -23,7 +24,7 @@ const (
 	defaultWebhookCertDir             = "/run/spire/serving-certs"
 	defaultWebhookPort                = 9443
 	defaultWebhookServiceName         = "k8s-workload-registrar"
-	defaultLeaderElectionResourceLock = configMapsResourceLock
+	defaultLeaderElectionResourceLock = resourcelock.LeasesResourceLock
 	configMapsResourceLock            = "configmaps"
 	namespaceFile                     = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
@@ -104,9 +105,9 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
-	// DEPRECATED: remove in SPIRE 1.4
+	// DEPRECATED: remove this check in 1.5.0 since all those who migrate through 1.4.0 will already have moved away
 	if c.LeaderElection && c.LeaderElectionResourceLock == configMapsResourceLock {
-		log.Warn(`The "configmaps" leader election resource lock type is no longer supported in Kubernetes v1.24+; support for this lock type will be removed from the k8s-workload-registrar in a future release.`)
+		return errs.New(`the "configmaps" leader election resource lock type is no longer supported`)
 	}
 
 	entryClient, err := c.EntryClient(ctx, log)

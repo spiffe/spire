@@ -49,7 +49,7 @@ func TestLoadMode(t *testing.T) {
 		},
 		ControllerName:             "spire-k8s-registrar",
 		ClusterDNSZone:             "cluster.local",
-		LeaderElectionResourceLock: "configmaps",
+		LeaderElectionResourceLock: "leases",
 		MetricsAddr:                ":8080",
 	}, config)
 
@@ -75,7 +75,7 @@ func TestLoadMode(t *testing.T) {
 				},
 				ControllerName:             "spire-k8s-registrar",
 				ClusterDNSZone:             "cluster.local",
-				LeaderElectionResourceLock: "configmaps",
+				LeaderElectionResourceLock: "leases",
 				MetricsAddr:                ":8080",
 			},
 		},
@@ -91,7 +91,7 @@ func TestLoadMode(t *testing.T) {
 				pod_label = "PODLABEL"
 				controller_name = "override"
 				cluster_dns_zone = "override.local"
-				leader_election_resource_lock = "leases"
+				leader_election_resource_lock = "endpointsleases"
 				metrics_addr = ":8081"
 			`,
 			out: &ReconcileMode{
@@ -109,7 +109,7 @@ func TestLoadMode(t *testing.T) {
 				},
 				ControllerName:             "override",
 				ClusterDNSZone:             "override.local",
-				LeaderElectionResourceLock: "leases",
+				LeaderElectionResourceLock: "endpointsleases",
 				MetricsAddr:                ":8081",
 			},
 		},
