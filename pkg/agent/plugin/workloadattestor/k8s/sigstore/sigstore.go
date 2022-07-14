@@ -346,6 +346,10 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	}
 
 	subject := ""
+	if cert != nil {
+		subject = certSubject(cert)
+		return subject, nil
+	}
 	if len(ss.Optional) > 0 {
 		subjString, ok := ss.Optional["subject"]
 		if ok {
@@ -354,9 +358,6 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 				subject = subj
 			}
 		}
-	}
-	if cert != nil {
-		subject = certSubject(cert)
 	}
 
 	return subject, nil
