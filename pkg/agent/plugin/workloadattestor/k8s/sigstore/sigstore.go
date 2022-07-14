@@ -235,7 +235,11 @@ func (s *sigstoreImpl) ClearSkipList() {
 
 // ValidateImage validates if the image manifest hash matches the digest in the image reference
 func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
-	desc, err := s.fetchImageManifestFunction(ref)
+	dgst, ok := ref.(name.Digest)
+	if !ok {
+		return false, fmt.Errorf("reference %s is not a digest", ref.String())
+	}
+	desc, err := s.fetchImageManifestFunction(dgst)
 	if err != nil {
 		return false, err
 	}
@@ -247,7 +251,7 @@ func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
 		return false, err
 	}
 
-	return validateRefDigest(ref, hash.String())
+	return validateRefDigest(dgst, hash.String())
 }
 
 func (s *sigstoreImpl) AddAllowedSubject(subject string) {
@@ -413,12 +417,9 @@ func certSubject(c *x509.Certificate) string {
 	}
 }
 
-func validateRefDigest(ref name.Reference, digest string) (bool, error) {
-	if dgst, ok := ref.(name.Digest); ok {
-		if dgst.DigestStr() == digest {
-			return true, nil
-		}
-		return false, fmt.Errorf("digest %s does not match %s", digest, dgst.DigestStr())
+func validateRefDigest(dgst name.Digest, digest string) (bool, error) {
+	if dgst.DigestStr() == digest {
+		return true, nil
 	}
-	return false, fmt.Errorf("reference %s is not a digest", ref.String())
+	return false, fmt.Errorf("digest %s does not match %s", digest, dgst.DigestStr())
 }
