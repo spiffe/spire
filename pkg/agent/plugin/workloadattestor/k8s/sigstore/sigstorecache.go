@@ -71,15 +71,15 @@ func (c *cacheImpl) PutSignature(i Item) {
 			element: c.items.PushFront(i.Key),
 			item:    &i,
 		}
-	} else {
-		if c.items.Len() >= c.size {
-			removed := c.items.Remove(c.items.Back())
-			delete(c.itemsMap, removed.(string))
-		}
+		return
+	}
+	if c.items.Len() >= c.size {
+		removed := c.items.Remove(c.items.Back())
+		delete(c.itemsMap, removed.(string))
+	}
 
-		c.itemsMap[i.Key] = MapItem{
-			element: c.items.PushFront(i.Key),
-			item:    &i,
-		}
+	c.itemsMap[i.Key] = MapItem{
+		element: c.items.PushFront(i.Key),
+		item:    &i,
 	}
 }
