@@ -272,11 +272,12 @@ func (s *Suite) TestConfigure() {
 	}
 
 	testCases := []struct {
-		name   string
-		raw    string
-		hcl    string
-		config *config
-		err    string
+		name    string
+		raw     string
+		hcl     string
+		config  *config
+		errCode codes.Code
+		errMsg  string
 	}{
 		{
 			name: "insecure defaults",
@@ -367,9 +368,10 @@ func (s *Suite) TestConfigure() {
 		},
 
 		{
-			name: "invalid hcl",
-			hcl:  "bad",
-			err:  "unable to decode configuration",
+			name:    "invalid hcl",
+			hcl:     "bad",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to decode configuration",
 		},
 		{
 			name: "both insecure and secure ports specified",
@@ -377,21 +379,24 @@ func (s *Suite) TestConfigure() {
 				kubelet_read_only_port = 10255
 				kubelet_secure_port = 10250
 			`,
-			err: "cannot use both the read-only and secure port",
+			errCode: codes.InvalidArgument,
+			errMsg:  "cannot use both the read-only and secure port",
 		},
 		{
 			name: "non-existent kubelet ca",
 			hcl: `
 				kubelet_ca_path = "no-such-file"
 			`,
-			err: "unable to load kubelet CA",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to load kubelet CA",
 		},
 		{
 			name: "bad kubelet ca",
 			hcl: `
 				kubelet_ca_path =  "bad-pem"
 			`,
-			err: "unable to parse kubelet CA",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to parse kubelet CA",
 		},
 		{
 			name: "non-existent token",
@@ -399,7 +404,8 @@ func (s *Suite) TestConfigure() {
 				skip_kubelet_verification = true
 				token_path = "no-such-file"
 			`,
-			err: "unable to load token",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to load token",
 		},
 		{
 			name: "invalid poll retry interval",
@@ -407,7 +413,8 @@ func (s *Suite) TestConfigure() {
 				kubelet_read_only_port = 10255
 				poll_retry_interval = "blah"
 			`,
-			err: "unable to parse poll retry interval",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to parse poll retry interval",
 		},
 		{
 			name: "invalid reload interval",
@@ -415,7 +422,8 @@ func (s *Suite) TestConfigure() {
 				kubelet_read_only_port = 10255
 				reload_interval = "blah"
 			`,
-			err: "unable to parse reload interval",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to parse reload interval",
 		},
 		{
 			name: "cert but no key",
@@ -423,7 +431,8 @@ func (s *Suite) TestConfigure() {
 				skip_kubelet_verification = true
 				certificate_path = "cert"
 			`,
-			err: "the private key path is required with the certificate path",
+			errCode: codes.InvalidArgument,
+			errMsg:  "the private key path is required with the certificate path",
 		},
 		{
 			name: "key but no cert",
@@ -431,7 +440,8 @@ func (s *Suite) TestConfigure() {
 				skip_kubelet_verification = true
 				private_key_path = "key"
 			`,
-			err: "the certificate path is required with the private key path",
+			errCode: codes.InvalidArgument,
+			errMsg:  "the certificate path is required with the private key path",
 		},
 		{
 			name: "bad cert",
@@ -440,7 +450,8 @@ func (s *Suite) TestConfigure() {
 				certificate_path = "bad-pem"
 				private_key_path = "key.pem"
 			`,
-			err: "unable to load keypair",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to load keypair",
 		},
 		{
 			name: "non-existent cert",
@@ -449,7 +460,8 @@ func (s *Suite) TestConfigure() {
 				certificate_path = "no-such-file"
 				private_key_path = "key.pem"
 			`,
-			err: "unable to load certificate",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to load certificate",
 		},
 		{
 			name: "bad key",
@@ -458,7 +470,8 @@ func (s *Suite) TestConfigure() {
 				certificate_path = "cert.pem"
 				private_key_path = "bad-pem"
 			`,
-			err: "unable to load keypair",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to load keypair",
 		},
 		{
 			name: "non-existent key",
@@ -467,7 +480,8 @@ func (s *Suite) TestConfigure() {
 				certificate_path = "cert.pem"
 				private_key_path = "no-such-file"
 			`,
-			err: "unable to load private key",
+			errCode: codes.InvalidArgument,
+			errMsg:  "unable to load private key",
 		},
 	}
 
@@ -481,8 +495,8 @@ func (s *Suite) TestConfigure() {
 				plugintest.Configure(testCase.hcl),
 				plugintest.CaptureConfigureError(&err))
 
-			if testCase.err != "" {
-				s.AssertErrorContains(err, testCase.err)
+			if testCase.errMsg != "" {
+				s.RequireGRPCStatusContains(err, testCase.errCode, testCase.errMsg)
 				return
 			}
 			require.NotNil(t, testCase.config, "test case missing expected config")
