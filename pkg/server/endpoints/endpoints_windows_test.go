@@ -4,7 +4,6 @@
 package endpoints
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -32,5 +31,5 @@ func testRemoteCaller(ctx context.Context, t *testing.T, target string) {
 	_, err = util.GRPCDialContext(ctx, targetAsRemote, grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
 
 	// Remote calls must be denied
-	require.True(t, errors.Is(err, windows.ERROR_ACCESS_DENIED))
+	require.ErrorIs(t, err, windows.ERROR_ACCESS_DENIED)
 }
