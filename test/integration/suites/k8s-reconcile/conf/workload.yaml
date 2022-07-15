@@ -21,8 +21,8 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: example-workload
-          image: spire-agent:latest-local
-          command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
+          image: spire-agent-scratch:latest-local
+          command: ["/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
           volumeMounts:
             - name: spire-agent-socket

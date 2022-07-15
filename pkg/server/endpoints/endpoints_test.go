@@ -253,6 +253,10 @@ func TestListenAndServe(t *testing.T) {
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
 
+	t.Run("Access denied to remote caller", func(t *testing.T) {
+		testRemoteCaller(ctx, t, target)
+	})
+
 	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
 	require.NoError(t, err)
 	defer localConn.Close()
