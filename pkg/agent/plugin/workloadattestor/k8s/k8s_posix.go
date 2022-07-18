@@ -105,17 +105,32 @@ type HCLConfig struct {
 	// from the disk.
 	ReloadInterval string `hcl:"reload_interval"`
 
+	// Experimental enables experimental features.
+	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
+}
+
+type ExperimentalK8SConfig struct {
+
+	// Experimental enables experimental features.
+	Sigstore *ExperimentalSigstoreConfig `hcl:"sigstore,omitempty"`
+}
+
+type ExperimentalSigstoreConfig struct {
+
+	// // EnableSigstore enables sigstore signature checking.
+	// EnableSigstore bool `hcl:"check_signature_enabled"`
+
 	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
-	RekorURL string `hcl:"sigstore.rekor_url"`
+	RekorURL string `hcl:"rekor_url"`
 
 	// SkippedImages is a list of images that should skip sigstore verification
-	SkippedImages []string `hcl:"sigstore.skip_signature_verification_image_list"`
+	SkippedImages []string `hcl:"skip_signature_verification_image_list"`
 
 	// AllowedSubjects is a flag indicating whether signature subjects should be compared against the allow-list
-	AllowedSubjectListEnabled bool `hcl:"sigstore.enable_allowed_subjects_list"`
+	AllowedSubjectListEnabled bool `hcl:"enable_allowed_subjects_list"`
 
 	// AllowedSubjects is a list of subjects that should be allowed after verification
-	AllowedSubjects []string `hcl:"sigstore.allowed_subjects_list"`
+	AllowedSubjects []string `hcl:"allowed_subjects_list"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -132,9 +147,9 @@ type k8sConfig struct {
 	NodeName                string
 	ReloadInterval          time.Duration
 
-	RekorURL      string
-	SkippedImages []string
-
+	EnableSigstore            bool
+	RekorURL                  string
+	SkippedImages             []string
 	AllowedSubjectListEnabled bool
 	AllowedSubjects           []string
 
@@ -213,12 +228,14 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			switch lookup {
 			case containerInPod:
 				selectors := getSelectorValuesFromPodInfo(&item, status)
-				log.Debug("Attemping to get signature info from image", status.Name)
-				sigstoreSelectors, err := p.sigstore.AttestContainerSignatures(ctx, status)
-				if err != nil {
-					log.Error("Error retrieving signature payload: ", "error", err)
-				} else {
-					selectors = append(selectors, sigstoreSelectors...)
+				if p.config.EnableSigstore {
+					log.Debug("Attemping to get signature info from image", status.Name)
+					sigstoreSelectors, err := p.sigstore.AttestContainerSignatures(ctx, status)
+					if err != nil {
+						log.Error("Error retrieving signature payload: ", "error", err)
+					} else {
+						selectors = append(selectors, sigstoreSelectors...)
+					}
 				}
 
 				return &workloadattestorv1.AttestResponse{
@@ -317,17 +334,32 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		NodeName:                nodeName,
 		ReloadInterval:          reloadInterval,
 
-		RekorURL:                  config.RekorURL,
-		SkippedImages:             config.SkippedImages,
-		AllowedSubjectListEnabled: config.AllowedSubjectListEnabled,
-		AllowedSubjects:           config.AllowedSubjects,
+		EnableSigstore:            false,
+		RekorURL:                  "",
+		SkippedImages:             nil,
+		AllowedSubjectListEnabled: false,
+		AllowedSubjects:           nil,
 	}
+
+	// set experimental flags
+	if config.Experimental != nil {
+		if config.Experimental.Sigstore != nil {
+			c.EnableSigstore = true
+			c.RekorURL = config.Experimental.Sigstore.RekorURL
+			c.SkippedImages = config.Experimental.Sigstore.SkippedImages
+			c.AllowedSubjectListEnabled = config.Experimental.Sigstore.AllowedSubjectListEnabled
+			c.AllowedSubjects = config.Experimental.Sigstore.AllowedSubjects
+		}
+	}
+
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
 	}
-	if p.sigstore != nil {
-		if err := p.configureSigstore(c, p.sigstore); err != nil {
-			return nil, err
+	if c.EnableSigstore {
+		if p.sigstore != nil {
+			if err := p.configureSigstore(c, p.sigstore); err != nil {
+				return nil, err
+			}
 		}
 	}
 	// Set the config
