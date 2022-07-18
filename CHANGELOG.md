@@ -187,7 +187,7 @@
 - The deprecated `service_account_whitelist` configurables have been removed from the SAT and PSAT Node Attestor plugins (#2543)
 - The deprecated `projectid_whitelist` configurable has been removed from the GCP IIT Node Attestor plugin (#2492)
 - The deprecated `bundle_endpoint` and `registration_uds_path` configurables have been removed from SPIRE Server (#2486,#2519)
-## 
+
 ### Fixed
 - The GCP CAS UpstreamAuthority now works with the GA release of GCP CAS (#2569)
 - Fixed a variety of issues with the scratch image, preparatory to publishing as the official image on GitHub Container Registry (#2582)
