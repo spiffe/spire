@@ -40,6 +40,7 @@ func TestEndpoints(t *testing.T) {
 
 	for _, tt := range []struct {
 		name            string
+		fromRemote      bool
 		do              func(t *testing.T, conn *grpc.ClientConn)
 		expectedLogs    []spiretest.LogEntry
 		expectedMetrics []fakemetrics.MetricItem
@@ -151,6 +152,10 @@ func TestEndpoints(t *testing.T) {
 				}},
 			},
 		},
+		{
+			name:       "access denied to remote caller",
+			fromRemote: true,
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -226,6 +231,12 @@ func TestEndpoints(t *testing.T) {
 			waitForListening(t, endpoints, errCh)
 			target, err := util.GetTargetName(endpoints.addr)
 			require.NoError(t, err)
+
+			if tt.fromRemote {
+				testRemoteCaller(ctx, t, target)
+				return
+			}
+
 			conn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
 			require.NoError(t, err)
 			defer conn.Close()

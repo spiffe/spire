@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/acmpca"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/acmpca"
+	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
@@ -31,7 +32,12 @@ const (
 	// The default CA signing template to use.
 	// The SPIRE server intermediate CA can sign end-entity SVIDs only.
 	defaultCASigningTemplateArn = "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1"
+	// Max certificate issuance wait duration
+	maxCertIssuanceWaitDur = 3 * time.Minute
 )
+
+type newACMPCAClientFunc func(context.Context, *Configuration) (PCAClient, error)
+type certificateIssuedWaitRetryFunc func(context.Context, *acmpca.GetCertificateInput, *acmpca.GetCertificateOutput, error) (bool, error)
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -67,8 +73,9 @@ type PCAPlugin struct {
 	config    *configuration
 
 	hooks struct {
-		clock     clock.Clock
-		newClient func(config *Configuration) (PCAClient, error)
+		clock       clock.Clock
+		newClient   newACMPCAClientFunc
+		waitRetryFn certificateIssuedWaitRetryFunc
 	}
 }
 
@@ -81,13 +88,14 @@ type configuration struct {
 
 // New returns an instantiated plugin
 func New() *PCAPlugin {
-	return newPlugin(newPCAClient)
+	return newPlugin(newPCAClient, nil)
 }
 
-func newPlugin(newClient func(config *Configuration) (PCAClient, error)) *PCAPlugin {
+func newPlugin(newClient newACMPCAClientFunc, waitRetryFn certificateIssuedWaitRetryFunc) *PCAPlugin {
 	p := &PCAPlugin{}
 	p.hooks.clock = clock.New()
 	p.hooks.newClient = newClient
+	p.hooks.waitRetryFn = waitRetryFn
 	return p
 }
 
@@ -112,14 +120,14 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 	}
 
 	// Create the client
-	pcaClient, err := p.hooks.newClient(config)
+	pcaClient, err := p.hooks.newClient(ctx, config)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
 
 	// Perform a check for the presence of the CA
 	p.log.Info("Looking up certificate authority from ACM", "certificate_authority_arn", config.CertificateAuthorityARN)
-	describeResponse, err := pcaClient.DescribeCertificateAuthorityWithContext(ctx, &acmpca.DescribeCertificateAuthorityInput{
+	describeResponse, err := pcaClient.DescribeCertificateAuthority(ctx, &acmpca.DescribeCertificateAuthorityInput{
 		CertificateAuthorityArn: aws.String(config.CertificateAuthorityARN),
 	})
 	if err != nil {
@@ -127,7 +135,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 	}
 
 	// Ensure the CA is set to ACTIVE
-	caStatus := aws.StringValue(describeResponse.CertificateAuthority.Status)
+	caStatus := describeResponse.CertificateAuthority.Status
 	if caStatus != "ACTIVE" {
 		p.log.Warn("Certificate is in an invalid state for issuance",
 			"certificate_authority_arn", config.CertificateAuthorityARN,
@@ -138,7 +146,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 	// Otherwise, fall back to the pre-configured value on the CA
 	signingAlgorithm := config.SigningAlgorithm
 	if signingAlgorithm == "" {
-		signingAlgorithm = aws.StringValue(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
+		signingAlgorithm = string(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
 		p.log.Info("No signing algorithm specified, using the CA default", "signing_algorithm", signingAlgorithm)
 	}
 
@@ -186,13 +194,13 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 	p.log.Info("Submitting CSR to ACM", "signing_algorithm", config.signingAlgorithm)
 	validityPeriod := time.Second * time.Duration(request.PreferredTtl)
 
-	issueResponse, err := p.pcaClient.IssueCertificateWithContext(ctx, &acmpca.IssueCertificateInput{
+	issueResponse, err := p.pcaClient.IssueCertificate(ctx, &acmpca.IssueCertificateInput{
 		CertificateAuthorityArn: aws.String(config.certificateAuthorityArn),
-		SigningAlgorithm:        aws.String(config.signingAlgorithm),
+		SigningAlgorithm:        acmpcatypes.SigningAlgorithm(config.signingAlgorithm),
 		Csr:                     csrBuf.Bytes(),
 		TemplateArn:             aws.String(config.caSigningTemplateArn),
-		Validity: &acmpca.Validity{
-			Type:  aws.String(acmpca.ValidityPeriodTypeAbsolute),
+		Validity: &acmpcatypes.Validity{
+			Type:  acmpcatypes.ValidityPeriodTypeAbsolute,
 			Value: aws.Int64(p.hooks.clock.Now().Add(validityPeriod).Unix()),
 		},
 	})
@@ -204,36 +212,45 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 	// the certificate has been issued
 	certificateArn := issueResponse.CertificateArn
 
-	p.log.Info("Waiting for issuance from ACM", "certificate_arn", aws.StringValue(certificateArn))
+	p.log.Info("Waiting for issuance from ACM", "certificate_arn", aws.ToString(certificateArn))
 	getCertificateInput := &acmpca.GetCertificateInput{
 		CertificateAuthorityArn: aws.String(config.certificateAuthorityArn),
 		CertificateArn:          certificateArn,
 	}
-	err = p.pcaClient.WaitUntilCertificateIssuedWithContext(ctx, getCertificateInput)
-	if err != nil {
+
+	var certIssuedWaitOptFns []func(*acmpca.CertificateIssuedWaiterOptions)
+	if p.hooks.waitRetryFn != nil {
+		retryableOption := func(opts *acmpca.CertificateIssuedWaiterOptions) {
+			opts.Retryable = p.hooks.waitRetryFn
+		}
+		certIssuedWaitOptFns = append(certIssuedWaitOptFns, retryableOption)
+	}
+
+	waiter := acmpca.NewCertificateIssuedWaiter(p.pcaClient, certIssuedWaitOptFns...)
+	if err := waiter.Wait(ctx, getCertificateInput, maxCertIssuanceWaitDur); err != nil {
 		return status.Errorf(codes.Internal, "failed waiting for issuance: %v", err)
 	}
-	p.log.Info("Certificate issued", "certificate_arn", aws.StringValue(certificateArn))
+	p.log.Info("Certificate issued", "certificate_arn", aws.ToString(certificateArn))
 
 	// Finally get the certificate contents
-	p.log.Info("Retrieving certificate and chain from ACM", "certificate_arn", aws.StringValue(certificateArn))
-	getResponse, err := p.pcaClient.GetCertificateWithContext(ctx, getCertificateInput)
+	p.log.Info("Retrieving certificate and chain from ACM", "certificate_arn", aws.ToString(certificateArn))
+	getResponse, err := p.pcaClient.GetCertificate(ctx, getCertificateInput)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get cerficates: %v", err)
 	}
 
 	// Parse the cert from the response
-	cert, err := pemutil.ParseCertificate([]byte(aws.StringValue(getResponse.Certificate)))
+	cert, err := pemutil.ParseCertificate([]byte(aws.ToString(getResponse.Certificate)))
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to parse certificate from response: %v", err)
 	}
 
 	// Parse the chain from the response
-	certChain, err := pemutil.ParseCertificates([]byte(aws.StringValue(getResponse.CertificateChain)))
+	certChain, err := pemutil.ParseCertificates([]byte(aws.ToString(getResponse.CertificateChain)))
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to parse certificate chain from response: %v", err)
 	}
-	p.log.Info("Certificate and chain received", "certificate_arn", aws.StringValue(certificateArn))
+	p.log.Info("Certificate and chain received", "certificate_arn", aws.ToString(certificateArn))
 
 	// ACM's API outputs the certificate chain from a GetCertificate call in the following
 	// order: A (signed by B) -> B (signed by ROOT) -> ROOT.

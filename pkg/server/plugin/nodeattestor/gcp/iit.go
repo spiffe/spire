@@ -126,12 +126,8 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
 
-	attested, err := p.IsAttested(stream.Context(), id.String())
-	switch {
-	case err != nil:
+	if err := p.AssessTOFU(stream.Context(), id.String(), p.log); err != nil {
 		return err
-	case attested:
-		return status.Error(codes.PermissionDenied, "IIT has already been used to attest an agent")
 	}
 
 	var instance *compute.Instance

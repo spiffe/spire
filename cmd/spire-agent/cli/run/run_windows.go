@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -40,5 +41,10 @@ func (c *agentConfig) validateOS() error {
 	if c.AdminSocketPath != "" {
 		return errors.New("invalid configuration: admin_socket_path is not supported in this platform; please use admin_named_pipe_name instead")
 	}
+	return nil
+}
+
+func prepareEndpoints(c *agent.Config) error {
+	// Nothing to do in this platform
 	return nil
 }

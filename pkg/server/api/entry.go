@@ -44,13 +44,16 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		return nil, fmt.Errorf("invalid parent ID: %w", err)
 	}
 
-	federatesWith := make([]string, 0, len(e.FederatesWith))
-	for _, trustDomainID := range e.FederatesWith {
-		td, err := spiffeid.TrustDomainFromString(trustDomainID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid federated trust domain: %w", err)
+	var federatesWith []string
+	if len(e.FederatesWith) > 0 {
+		federatesWith = make([]string, 0, len(e.FederatesWith))
+		for _, trustDomainID := range e.FederatesWith {
+			td, err := spiffeid.TrustDomainFromString(trustDomainID)
+			if err != nil {
+				return nil, fmt.Errorf("invalid federated trust domain: %w", err)
+			}
+			federatesWith = append(federatesWith, td.String())
 		}
-		federatesWith = append(federatesWith, td.String())
 	}
 
 	return &types.Entry{

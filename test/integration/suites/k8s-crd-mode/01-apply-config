@@ -20,10 +20,11 @@ wait-for-rollout() {
     fail-now "Failed waiting for ${obj} to roll out."
 }
 
+./bin/kubectl apply -f ./conf/spiffeid.spiffe.io_spiffeids.yaml
 ./bin/kubectl create namespace spire
 ./bin/kubectl apply -k ./conf/server
 wait-for-rollout spire deployment/spire-server
-./bin/kubectl apply -k ./conf/webhook
+
 ./bin/kubectl apply -k ./conf/agent
 wait-for-rollout spire daemonset/spire-agent
 

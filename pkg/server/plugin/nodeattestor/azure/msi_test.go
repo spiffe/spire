@@ -229,7 +229,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	})
 	s.requireAttestError(s.T(), s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID"),
 		codes.PermissionDenied,
-		"nodeattestor(azure_msi): MSI token has already been used to attest an agent")
+		"nodeattestor(azure_msi): attestation data has already been used to attest an agent")
 }
 
 func (s *MSIAttestorSuite) TestConfigure() {

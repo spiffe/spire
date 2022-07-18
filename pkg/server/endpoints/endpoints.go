@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
@@ -96,8 +95,8 @@ type RateLimitConfig struct {
 
 // New creates new endpoints struct
 func New(ctx context.Context, c Config) (*Endpoints, error) {
-	if err := os.MkdirAll(filepath.Dir(c.LocalAddr.String()), 0750); err != nil {
-		return nil, fmt.Errorf("unable to create socket directory: %w", err)
+	if err := prepareLocalAddr(c.LocalAddr); err != nil {
+		return nil, err
 	}
 
 	if c.AuthPolicyEngine == nil {

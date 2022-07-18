@@ -9,34 +9,49 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type agentConfig struct {
+	info *agentstorev1.AgentInfo
+	err  error
+}
+
 type AgentStore struct {
 	agentstorev1.UnsafeAgentStoreServer
 
-	mu    sync.RWMutex
-	nodes map[string]*agentstorev1.AgentInfo
+	mu     sync.RWMutex
+	agents map[string]agentConfig
 }
 
 func New() *AgentStore {
 	return &AgentStore{
-		nodes: make(map[string]*agentstorev1.AgentInfo),
+		agents: make(map[string]agentConfig),
 	}
 }
 
 func (s *AgentStore) SetAgentInfo(info *agentstorev1.AgentInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.nodes[info.AgentId] = info
+	s.agents[info.AgentId] = agentConfig{info: info}
+}
+
+func (s *AgentStore) SetAgentErr(agentID string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agents[agentID] = agentConfig{err: err}
 }
 
 func (s *AgentStore) GetAgentInfo(ctx context.Context, req *agentstorev1.GetAgentInfoRequest) (*agentstorev1.GetAgentInfoResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	info, ok := s.nodes[req.AgentId]
-	if !ok {
+	agent, ok := s.agents[req.AgentId]
+	switch {
+	case !ok:
 		return nil, status.Error(codes.NotFound, "no such node")
+	case agent.err != nil:
+		return nil, agent.err
+	default:
+		return &agentstorev1.GetAgentInfoResponse{
+			Info: agent.info,
+		}, nil
 	}
-	return &agentstorev1.GetAgentInfoResponse{
-		Info: info,
-	}, nil
 }

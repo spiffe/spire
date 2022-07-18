@@ -15,6 +15,7 @@ var (
 		trust_domain = "domain.test"
 		cluster = "CLUSTER"
 		server_socket_path = "SOCKETPATH"
+		mode = "reconcile"
 `
 )
 
@@ -35,66 +36,65 @@ func TestLoadMode(t *testing.T) {
 	config, err := LoadMode(confPath)
 	require.NoError(err)
 
-	require.Equal(&WebhookMode{
+	require.Equal(&ReconcileMode{
 		CommonMode: CommonMode{
 			ServerSocketPath:   "SOCKETPATH",
 			ServerAddress:      "unix://SOCKETPATH",
 			TrustDomain:        "domain.test",
 			Cluster:            "CLUSTER",
 			LogLevel:           defaultLogLevel,
-			Mode:               "webhook",
+			Mode:               "reconcile",
 			DisabledNamespaces: []string{"kube-system", "kube-public"},
 			trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 		},
-		Addr:       ":8443",
-		CertPath:   defaultCertPath,
-		KeyPath:    defaultKeyPath,
-		CaCertPath: defaultCaCertPath,
+		ControllerName:             "spire-k8s-registrar",
+		ClusterDNSZone:             "cluster.local",
+		LeaderElectionResourceLock: "leases",
+		MetricsAddr:                ":8080",
 	}, config)
 
 	testCases := []struct {
 		name string
 		in   string
-		out  *WebhookMode
+		out  *ReconcileMode
 		err  string
 	}{
 		{
 			name: "defaults",
 			in:   testMinimalConfig,
-			out: &WebhookMode{
+			out: &ReconcileMode{
 				CommonMode: CommonMode{
 					LogLevel:           defaultLogLevel,
 					ServerSocketPath:   "SOCKETPATH",
 					ServerAddress:      "unix://SOCKETPATH",
 					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTER",
-					Mode:               "webhook",
+					Mode:               "reconcile",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
-				Addr:                           ":8443",
-				CertPath:                       defaultCertPath,
-				KeyPath:                        defaultKeyPath,
-				CaCertPath:                     defaultCaCertPath,
-				InsecureSkipClientVerification: false,
+				ControllerName:             "spire-k8s-registrar",
+				ClusterDNSZone:             "cluster.local",
+				LeaderElectionResourceLock: "leases",
+				MetricsAddr:                ":8080",
 			},
 		},
 		{
 			name: "overrides",
 			in: `
+				mode = "reconcile"
 				log_level = "LEVELOVERRIDE"
 				log_path = "PATHOVERRIDE"
-				addr = ":1234"
-				cert_path = "CERTOVERRIDE"
-				key_path = "KEYOVERRIDE"
-				cacert_path = "CACERTOVERRIDE"
-				insecure_skip_client_verification = true
 				server_socket_path = "SOCKETPATHOVERRIDE"
 				trust_domain = "domain.test"
 				cluster = "CLUSTEROVERRIDE"
 				pod_label = "PODLABEL"
+				controller_name = "override"
+				cluster_dns_zone = "override.local"
+				leader_election_resource_lock = "endpointsleases"
+				metrics_addr = ":8081"
 			`,
-			out: &WebhookMode{
+			out: &ReconcileMode{
 				CommonMode: CommonMode{
 					LogLevel:           "LEVELOVERRIDE",
 					LogPath:            "PATHOVERRIDE",
@@ -103,15 +103,14 @@ func TestLoadMode(t *testing.T) {
 					TrustDomain:        "domain.test",
 					Cluster:            "CLUSTEROVERRIDE",
 					PodLabel:           "PODLABEL",
-					Mode:               "webhook",
+					Mode:               "reconcile",
 					DisabledNamespaces: []string{"kube-system", "kube-public"},
 					trustDomain:        spiffeid.RequireTrustDomainFromString("domain.test"),
 				},
-				Addr:                           ":1234",
-				CertPath:                       "CERTOVERRIDE",
-				KeyPath:                        "KEYOVERRIDE",
-				CaCertPath:                     "CACERTOVERRIDE",
-				InsecureSkipClientVerification: true,
+				ControllerName:             "override",
+				ClusterDNSZone:             "override.local",
+				LeaderElectionResourceLock: "endpointsleases",
+				MetricsAddr:                ":8081",
 			},
 		},
 		{

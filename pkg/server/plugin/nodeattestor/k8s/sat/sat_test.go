@@ -135,7 +135,7 @@ func (s *AttestorSuite) TestAttestFailsWhenAttestedBefore() {
 	token := s.signToken(s.fooSigner, "NS1", "SA1")
 	s.requireAttestError(makePayload("FOO", token),
 		codes.PermissionDenied,
-		"nodeattestor(k8s_sat): SAT has already been used to attest an agent with the same UUID")
+		"nodeattestor(k8s_sat): attestation data has already been used to attest an agent")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMalformedPayload() {
