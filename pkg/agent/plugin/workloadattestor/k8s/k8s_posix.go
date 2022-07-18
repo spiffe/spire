@@ -4,12 +4,29 @@
 package k8s
 
 import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/hcl"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -17,15 +34,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func (p *Plugin) defaultKubeletCAPath() string {
-	return defaultKubeletCAPath
-}
-
-func (p *Plugin) defaultTokenPath() string {
-	return defaultTokenPath
 const (
 	defaultMaxPollAttempts   = 60
 	defaultPollRetryInterval = time.Millisecond * 500
@@ -111,14 +123,12 @@ type HCLConfig struct {
 
 type ExperimentalK8SConfig struct {
 
-	// Experimental enables experimental features.
-	Sigstore *ExperimentalSigstoreConfig `hcl:"sigstore,omitempty"`
+	// Sigstore contains sigstore specific configs.
+	Sigstore *SigstoreHCLConfig `hcl:"sigstore,omitempty"`
 }
 
-type ExperimentalSigstoreConfig struct {
-
-	// // EnableSigstore enables sigstore signature checking.
-	// EnableSigstore bool `hcl:"check_signature_enabled"`
+// SigstoreHCLConfig holds the sigstore configuration parsed from HCL
+type SigstoreHCLConfig struct {
 
 	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
 	RekorURL string `hcl:"rekor_url"`
@@ -126,7 +136,7 @@ type ExperimentalSigstoreConfig struct {
 	// SkippedImages is a list of images that should skip sigstore verification
 	SkippedImages []string `hcl:"skip_signature_verification_image_list"`
 
-	// AllowedSubjects is a flag indicating whether signature subjects should be compared against the allow-list
+	// AllowedSubjectListEnabled is a flag indicating whether signature subjects should be compared against AllowedSubjects
 	AllowedSubjectListEnabled bool `hcl:"enable_allowed_subjects_list"`
 
 	// AllowedSubjects is a list of subjects that should be allowed after verification
@@ -147,14 +157,18 @@ type k8sConfig struct {
 	NodeName                string
 	ReloadInterval          time.Duration
 
-	EnableSigstore            bool
+	sigstoreConfig *sigstoreConfig
+
+	Client     *kubeletClient
+	LastReload time.Time
+}
+
+// sigstoreConfig holds the sigstore configuration distilled from HCL
+type sigstoreConfig struct {
 	RekorURL                  string
 	SkippedImages             []string
 	AllowedSubjectListEnabled bool
 	AllowedSubjects           []string
-
-	Client     *kubeletClient
-	LastReload time.Time
 }
 
 type Plugin struct {
@@ -173,18 +187,19 @@ type Plugin struct {
 }
 
 func New() *Plugin {
-	newcache := sigstore.NewCache(maximumAmountCache)
 	return &Plugin{
 		fs:       cgroups.OSFileSystem{},
 		clock:    clock.New(),
 		getenv:   os.Getenv,
-		sigstore: sigstore.New(newcache, nil),
+		sigstore: nil,
 	}
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
-	p.sigstore.SetLogger(log)
+	if p.sigstore != nil {
+		p.sigstore.SetLogger(log)
+	}
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
@@ -228,11 +243,11 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			switch lookup {
 			case containerInPod:
 				selectors := getSelectorValuesFromPodInfo(&item, status)
-				if p.config.EnableSigstore {
-					log.Debug("Attemping to get signature info from image", status.Name)
+				if p.config.sigstoreConfig != nil {
+					log.Debug("Attemping to get signature info for container", telemetry.ContainerName, status.Name)
 					sigstoreSelectors, err := p.sigstore.AttestContainerSignatures(ctx, status)
 					if err != nil {
-						log.Error("Error retrieving signature payload: ", "error", err)
+						log.Error("Error retrieving signature payload", "error", err)
 					} else {
 						selectors = append(selectors, sigstoreSelectors...)
 					}
@@ -333,44 +348,36 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		KubeletCAPath:           config.KubeletCAPath,
 		NodeName:                nodeName,
 		ReloadInterval:          reloadInterval,
-
-		EnableSigstore:            false,
-		RekorURL:                  "",
-		SkippedImages:             nil,
-		AllowedSubjectListEnabled: false,
-		AllowedSubjects:           nil,
 	}
 
 	// set experimental flags
-	if config.Experimental != nil {
-		if config.Experimental.Sigstore != nil {
-			c.EnableSigstore = true
-			c.RekorURL = config.Experimental.Sigstore.RekorURL
-			c.SkippedImages = config.Experimental.Sigstore.SkippedImages
-			c.AllowedSubjectListEnabled = config.Experimental.Sigstore.AllowedSubjectListEnabled
-			c.AllowedSubjects = config.Experimental.Sigstore.AllowedSubjects
+	if config.Experimental != nil && config.Experimental.Sigstore != nil {
+		c.sigstoreConfig = &sigstoreConfig{
+			RekorURL:                  config.Experimental.Sigstore.RekorURL,
+			SkippedImages:             config.Experimental.Sigstore.SkippedImages,
+			AllowedSubjectListEnabled: config.Experimental.Sigstore.AllowedSubjectListEnabled,
+			AllowedSubjects:           config.Experimental.Sigstore.AllowedSubjects,
 		}
 	}
 
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
 	}
-	if c.EnableSigstore {
-		if p.sigstore != nil {
-			if err := p.configureSigstore(c, p.sigstore); err != nil {
-				return nil, err
-			}
+	if c.sigstoreConfig != nil {
+		if p.sigstore == nil {
+			newcache := sigstore.NewCache(maximumAmountCache)
+			p.sigstore = sigstore.New(newcache, nil)
+			p.sigstore.SetLogger(p.log)
+		}
+		if err := p.configureSigstore(c, p.sigstore); err != nil {
+			return nil, err
 		}
 	}
+
 	// Set the config
 	p.setConfig(c)
 	return &configv1.ConfigureResponse{}, nil
 }
-
-func createHelper(c *Plugin) (ContainerHelper, error) {
-	return &containerHelper{
-		fs: c.fs,
-	}, nil
 
 func (p *Plugin) configureSigstore(config *k8sConfig, sigstore sigstore.Sigstore) error {
 	p.mu.Lock()
@@ -379,21 +386,19 @@ func (p *Plugin) configureSigstore(config *k8sConfig, sigstore sigstore.Sigstore
 	// Configure sigstore settings
 	sigstore.ClearSkipList()
 	imageIDList := []string{}
-	if config.SkippedImages != nil {
-		imageIDList = append(imageIDList, config.SkippedImages...)
+	if config.sigstoreConfig.SkippedImages != nil {
+		imageIDList = append(imageIDList, config.sigstoreConfig.SkippedImages...)
 	}
 	sigstore.AddSkippedImage(imageIDList)
-	sigstore.EnableAllowSubjectList(config.AllowedSubjectListEnabled)
+	sigstore.EnableAllowSubjectList(config.sigstoreConfig.AllowedSubjectListEnabled)
 	sigstore.ClearAllowedSubjects()
-	if config.AllowedSubjects != nil {
-		for _, subject := range config.AllowedSubjects {
+	if config.sigstoreConfig.AllowedSubjects != nil {
+		for _, subject := range config.sigstoreConfig.AllowedSubjects {
 			sigstore.AddAllowedSubject(subject)
 		}
 	}
-	if config.RekorURL != "" {
-		if err := sigstore.SetRekorURL(config.RekorURL); err != nil {
-			return err
-		}
+	if err := p.sigstore.SetRekorURL(config.sigstoreConfig.RekorURL); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to parse Rekor URL: %v", err)
 	}
 	return nil
 }
@@ -404,17 +409,232 @@ func (p *Plugin) setConfig(config *k8sConfig) {
 	p.config = config
 }
 
-type containerHelper struct {
-	fs cgroups.FileSystem
+func (p *Plugin) getConfig() (*k8sConfig, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.config == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	if err := p.reloadKubeletClient(p.config); err != nil {
+		p.log.Warn("Unable to load kubelet client", "err", err)
+	}
+	return p.config, nil
 }
 
-func (h *containerHelper) GetPodUIDAndContainerID(pID int32, _ hclog.Logger) (types.UID, string, error) {
-	cgroups, err := cgroups.GetCgroups(pID, h.fs)
+func (p *Plugin) getPodUIDAndContainerIDFromCGroups(pid int32) (types.UID, string, error) {
+	cgroups, err := cgroups.GetCgroups(pid, p.fs)
 	if err != nil {
 		return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 	}
 
 	return getPodUIDAndContainerIDFromCGroups(cgroups)
+}
+
+func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
+	// The insecure client only needs to be loaded once.
+	if !config.Secure {
+		if config.Client == nil {
+			config.Client = &kubeletClient{
+				URL: url.URL{
+					Scheme: "http",
+					Host:   fmt.Sprintf("127.0.0.1:%d", config.Port),
+				},
+			}
+		}
+		return nil
+	}
+
+	// Is the client still fresh?
+	if config.Client != nil && p.clock.Now().Sub(config.LastReload) < config.ReloadInterval {
+		return nil
+	}
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: config.SkipKubeletVerification, //nolint: gosec // intentionally configurable
+	}
+
+	var rootCAs *x509.CertPool
+	if !config.SkipKubeletVerification {
+		rootCAs, err = p.loadKubeletCA(config.KubeletCAPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	switch {
+	case config.SkipKubeletVerification:
+
+	// When contacting the kubelet over localhost, skip the hostname validation.
+	// Unfortunately Go does not make this straightforward. We disable
+	// verification but supply a VerifyPeerCertificate that will be called
+	// with the raw kubelet certs that we can verify directly.
+	case config.NodeName == "":
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			var certs []*x509.Certificate
+			for _, rawCert := range rawCerts {
+				cert, err := x509.ParseCertificate(rawCert)
+				if err != nil {
+					return err
+				}
+				certs = append(certs, cert)
+			}
+
+			// this is improbable.
+			if len(certs) == 0 {
+				return errors.New("no certs presented by kubelet")
+			}
+
+			_, err := certs[0].Verify(x509.VerifyOptions{
+				Roots:         rootCAs,
+				Intermediates: newCertPool(certs[1:]),
+			})
+			return err
+		}
+	default:
+		tlsConfig.RootCAs = rootCAs
+	}
+
+	var token string
+	switch {
+	case config.CertificatePath != "" && config.PrivateKeyPath != "":
+		kp, err := p.loadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
+		if err != nil {
+			return err
+		}
+		tlsConfig.Certificates = append(tlsConfig.Certificates, *kp)
+	case config.CertificatePath != "" && config.PrivateKeyPath == "":
+		return status.Error(codes.InvalidArgument, "the private key path is required with the certificate path")
+	case config.CertificatePath == "" && config.PrivateKeyPath != "":
+		return status.Error(codes.InvalidArgument, "the certificate path is required with the private key path")
+	case config.CertificatePath == "" && config.PrivateKeyPath == "":
+		token, err = p.loadToken(config.TokenPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	host := config.NodeName
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	config.Client = &kubeletClient{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+		URL: url.URL{
+			Scheme: "https",
+			Host:   fmt.Sprintf("%s:%d", host, config.Port),
+		},
+		Token: token,
+	}
+	config.LastReload = p.clock.Now()
+	return nil
+}
+
+func (p *Plugin) loadKubeletCA(path string) (*x509.CertPool, error) {
+	if path == "" {
+		path = defaultKubeletCAPath
+	}
+	caPEM, err := p.readFile(path)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load kubelet CA: %v", err)
+	}
+	certs, err := pemutil.ParseCertificates(caPEM)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to parse kubelet CA: %v", err)
+	}
+
+	return newCertPool(certs), nil
+}
+
+func (p *Plugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
+	certPEM, err := p.readFile(cert)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load certificate: %v", err)
+	}
+	keyPEM, err := p.readFile(key)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load private key: %v", err)
+	}
+	kp, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
+	}
+	return &kp, nil
+}
+
+func (p *Plugin) loadToken(path string) (string, error) {
+	if path == "" {
+		path = defaultTokenPath
+	}
+	token, err := p.readFile(path)
+	if err != nil {
+		return "", status.Errorf(codes.InvalidArgument, "unable to load token: %v", err)
+	}
+	return strings.TrimSpace(string(token)), nil
+}
+
+// readFile reads the contents of a file through the filesystem interface
+func (p *Plugin) readFile(path string) ([]byte, error) {
+	f, err := p.fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(f)
+}
+
+func (p *Plugin) getNodeName(name string, env string) string {
+	switch {
+	case name != "":
+		return name
+	case env != "":
+		return p.getenv(env)
+	default:
+		return p.getenv(defaultNodeNameEnv)
+	}
+}
+
+type kubeletClient struct {
+	Transport *http.Transport
+	URL       url.URL
+	Token     string
+}
+
+func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
+	url := c.URL
+	url.Path = "/pods"
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create request: %v", err)
+	}
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+
+	client := &http.Client{}
+	if c.Transport != nil {
+		client.Transport = c.Transport
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to perform request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, status.Errorf(codes.Internal, "unexpected status code on pods response: %d %s", resp.StatusCode, tryRead(resp.Body))
+	}
+
+	out := new(corev1.PodList)
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to decode kubelet response: %v", err)
+	}
+
+	return out, nil
 }
 
 func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, string, error) {
@@ -444,64 +664,22 @@ func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, st
 	return podUID, containerID, nil
 }
 
-// regexes listed here have to exlusively match a cgroup path
-// the regexes must include two named groups "poduid" and "containerid"
-// if the regex needs to exclude certain substrings, the "mustnotmatch" group can be used
-var cgroupREs = []*regexp.Regexp{
-	// the regex used to parse out the pod UID and container ID from a
-	// cgroup name. It assumes that any ".scope" suffix has been trimmed off
-	// beforehand.  CAUTION: we used to verify that the pod and container id were
-	// descendants of a kubepods directory, however, as of Kubernetes 1.21, cgroups
-	// namespaces are in use and therefore we can no longer discern if that is the
-	// case from within SPIRE agent container (since the container itself is
-	// namespaced). As such, the regex has been relaxed to simply find the pod UID
-	// followed by the container ID with allowances for arbitrary punctuation, and
-	// container runtime prefixes, etc.
-	regexp.MustCompile(`` +
-		// "pod"-prefixed Pod UID (with punctuation separated groups) followed by punctuation
-		`[[:punct:]]pod(?P<poduid>[[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12})[[:punct:]]` +
-		// zero or more punctuation separated "segments" (e.g. "docker-")
-		`(?:[[:^punct:]]+[[:punct:]])*` +
-		// non-punctuation end of string, i.e., the container ID
-		`(?P<containerid>[[:^punct:]]+)$`),
-
-	// This regex applies for container runtimes, that won't put the PodUID into
-	// the cgroup name.
-	// Currently only cri-o in combination with kubeedge is known for this abnormally.
-	regexp.MustCompile(`` +
-		// intentionally empty poduid group
-		`(?P<poduid>)` +
-		// mustnotmatch group: cgroup path must not include a poduid
-		`(?P<mustnotmatch>pod[[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12}[[:punct:]])?` +
-		// /crio-
-		`(?:[[:^punct:]]*/*)*crio[[:punct:]]` +
-		// non-punctuation end of string, i.e., the container ID
-		`(?P<containerid>[[:^punct:]]+)$`),
-}
-
-func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
-	match := r.FindStringSubmatch(str)
-	if match == nil {
-		return nil
-	}
-	subMatchMap := make(map[string]string)
-	for i, name := range r.SubexpNames() {
-		if i != 0 {
-			subMatchMap[name] = match[i]
-		}
-	}
-	return subMatchMap
-}
-
-func isValidCGroupPathMatches(matches map[string]string) bool {
-	if matches == nil {
-		return false
-	}
-	if matches["mustnotmatch"] != "" {
-		return false
-	}
-	return true
-}
+// cgroupRE is the regex used to parse out the pod UID and container ID from a
+// cgroup name. It assumes that any ".scope" suffix has been trimmed off
+// beforehand.  CAUTION: we used to verify that the pod and container id were
+// descendants of a kubepods directory, however, as of Kubernetes 1.21, cgroups
+// namespaces are in use and therefore we can no longer discern if that is the
+// case from within SPIRE agent container (since the container itself is
+// namespaced). As such, the regex has been relaxed to simply find the pod UID
+// followed by the container ID with allowances for arbitrary punctuation, and
+// container runtime prefixes, etc.
+var cgroupRE = regexp.MustCompile(`` +
+	// "pod"-prefixed Pod UID (with punctuation separated groups) followed by punctuation
+	`[[:punct:]]pod([[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12})[[:punct:]]` +
+	// zero or more punctuation separated "segments" (e.g. "docker-")
+	`(?:[[:^punct:]]+[[:punct:]])*` +
+	// non-punctuation end of string, i.e., the container ID
+	`([[:^punct:]]+)$`)
 
 func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
 	// We are only interested in kube pods entries, for example:
@@ -510,30 +688,15 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 	// - /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2c48913c-b29f-11e7-9350-020968147796.slice/docker-9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961.scope
 	// - /kubepods-besteffort-pod72f7f152_440c_66ac_9084_e0fc1d8a910c.slice:cri-containerd:b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2"
 	// - /../../pod2c48913c-b29f-11e7-9350-020968147796/9bca8d63d5fa610783847915bcff0ecac1273e5b4bed3f6fa1b07350e0135961
-	// - 0::/../crio-45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814.scope
+
 	// First trim off any .scope suffix. This allows for a cleaner regex since
 	// we don't have to muck with greediness. TrimSuffix is no-copy so this
 	// is cheap.
 	cgroupPath = strings.TrimSuffix(cgroupPath, ".scope")
 
-	var matchResults map[string]string
-	for _, regex := range cgroupREs {
-		matches := reSubMatchMap(regex, cgroupPath)
-		if isValidCGroupPathMatches(matches) {
-			if matchResults != nil {
-				log.Printf("More than one regex matches for cgroup %s", cgroupPath)
-				return "", "", false
-			}
-			matchResults = matches
-		}
-	}
-
-	if matchResults != nil {
-		var podUID types.UID
-		if matchResults["poduid"] != "" {
-			podUID = canonicalizePodUID(matchResults["poduid"])
-		}
-		return podUID, matchResults["containerid"], true
+	matches := cgroupRE.FindStringSubmatch(cgroupPath)
+	if matches != nil {
+		return canonicalizePodUID(matches[1]), matches[2], true
 	}
 	return "", "", false
 }
@@ -550,6 +713,111 @@ func canonicalizePodUID(uid string) types.UID {
 	}, uid))
 }
 
-func isNotPod(itemPodUID, podUID types.UID) bool {
-	return podUID != "" && itemPodUID != podUID
+func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.ContainerStatus, containerLookup) {
+	for _, status := range status.ContainerStatuses {
+		// TODO: should we be keying off of the status or is the lack of a
+		// container id sufficient to know the container is not ready?
+		if status.ContainerID == "" {
+			continue
+		}
+
+		containerURL, err := url.Parse(status.ContainerID)
+		if err != nil {
+			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
+			continue
+		}
+
+		if containerID == containerURL.Host {
+			return &status, containerInPod
+		}
+	}
+
+	for _, status := range status.InitContainerStatuses {
+		// TODO: should we be keying off of the status or is the lack of a
+		// container id sufficient to know the container is not ready?
+		if status.ContainerID == "" {
+			continue
+		}
+
+		containerURL, err := url.Parse(status.ContainerID)
+		if err != nil {
+			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
+			continue
+		}
+
+		if containerID == containerURL.Host {
+			return &status, containerInPod
+		}
+	}
+
+	return nil, containerNotInPod
+}
+
+func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[string]bool {
+	// Map is used purely to exclude duplicate selectors, value is unused.
+	podImages := make(map[string]bool)
+	// Note that for each pod image we generate *2* matching selectors.
+	// This is to support matching against ImageID, which has a SHA
+	// docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb
+	// as well as
+	// docker.io/envoyproxy/envoy-alpine:v1.16.0, which does not,
+	// while also maintaining backwards compatibility and allowing for dynamic workload registration (k8s operator)
+	// when the SHA is not yet known (e.g. before the image pull is initiated at workload creation time)
+	// More info here: https://github.com/spiffe/spire/issues/2026
+	for _, status := range containerStatusArray {
+		podImages[status.ImageID] = true
+		podImages[status.Image] = true
+	}
+	return podImages
+}
+
+func getSelectorValuesFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []string {
+	podImageIdentifiers := getPodImageIdentifiers(pod.Status.ContainerStatuses)
+	podInitImageIdentifiers := getPodImageIdentifiers(pod.Status.InitContainerStatuses)
+	containerImageIdentifiers := getPodImageIdentifiers([]corev1.ContainerStatus{*status})
+
+	selectorValues := []string{
+		fmt.Sprintf("sa:%s", pod.Spec.ServiceAccountName),
+		fmt.Sprintf("ns:%s", pod.Namespace),
+		fmt.Sprintf("node-name:%s", pod.Spec.NodeName),
+		fmt.Sprintf("pod-uid:%s", pod.UID),
+		fmt.Sprintf("pod-name:%s", pod.Name),
+		fmt.Sprintf("container-name:%s", status.Name),
+		fmt.Sprintf("pod-image-count:%s", strconv.Itoa(len(pod.Status.ContainerStatuses))),
+		fmt.Sprintf("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
+	}
+
+	for containerImage := range containerImageIdentifiers {
+		selectorValues = append(selectorValues, fmt.Sprintf("container-image:%s", containerImage))
+	}
+	for podImage := range podImageIdentifiers {
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-image:%s", podImage))
+	}
+	for podInitImage := range podInitImageIdentifiers {
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-init-image:%s", podInitImage))
+	}
+
+	for k, v := range pod.Labels {
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-label:%s:%s", k, v))
+	}
+	for _, ownerReference := range pod.OwnerReferences {
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-owner:%s:%s", ownerReference.Kind, ownerReference.Name))
+		selectorValues = append(selectorValues, fmt.Sprintf("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
+	}
+
+	return selectorValues
+}
+
+func tryRead(r io.Reader) string {
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	return string(buf[:n])
+}
+
+func newCertPool(certs []*x509.Certificate) *x509.CertPool {
+	certPool := x509.NewCertPool()
+	for _, cert := range certs {
+		certPool.AddCert(cert)
+	}
+	return certPool
 }
