@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.3] - 2022-07-13
+
+### Security
+- Updated to Go 1.18.4 to address CVE-2022-1705, CVE-2022-32148, CVE-2022-30631, CVE-2022-30633, CVE-2022-28131, CVE-2022-30635, CVE-2022-30632, CVE-2022-30630, and CVE-2022-1962.
+
 ## [1.3.2] - 2022-07-08
 
 ### Added
@@ -50,6 +55,11 @@
 
 ### Deprecated
 - The webhook mode for the K8s Workload Register has been deprecated (#2964)
+
+## [1.2.5] - 2022-07-13
+
+### Security
+- Updated to Go 1.17.12 to address CVE-2022-1705, CVE-2022-32148, CVE-2022-30631, CVE-2022-30633, CVE-2022-28131, CVE-2022-30635, CVE-2022-30632, CVE-2022-30630, and CVE-2022-1962.
 
 ## [1.2.4] - 2022-05-12
 
@@ -177,7 +187,7 @@
 - The deprecated `service_account_whitelist` configurables have been removed from the SAT and PSAT Node Attestor plugins (#2543)
 - The deprecated `projectid_whitelist` configurable has been removed from the GCP IIT Node Attestor plugin (#2492)
 - The deprecated `bundle_endpoint` and `registration_uds_path` configurables have been removed from SPIRE Server (#2486,#2519)
-
+## 
 ### Fixed
 - The GCP CAS UpstreamAuthority now works with the GA release of GCP CAS (#2569)
 - Fixed a variety of issues with the scratch image, preparatory to publishing as the official image on GitHub Container Registry (#2582)
