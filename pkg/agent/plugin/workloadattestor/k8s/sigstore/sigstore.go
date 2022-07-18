@@ -315,7 +315,7 @@ func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	}
 	rekorURI, err := url.Parse(rekorURL)
 	if err != nil {
-		return fmt.Errorf("failed to parsing rekor URI: %w", err)
+		return fmt.Errorf("failed parsing rekor URI: %w", err)
 	}
 	if rekorURI.Scheme != "" && rekorURI.Scheme != "https" {
 		return fmt.Errorf("invalid rekor URL Scheme: %s", rekorURI.Scheme)

@@ -1,45 +1,9 @@
 package k8s
 
-import (
-	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/andres-erbsen/clock"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
-	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
-	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-)
+import "github.com/spiffe/spire/pkg/common/catalog"
 
 const (
-	pluginName               = "k8s"
-	defaultMaxPollAttempts   = 60
-	defaultPollRetryInterval = time.Millisecond * 500
-	defaultSecureKubeletPort = 10250
-	defaultKubeletCAPath     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	defaultTokenPath         = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
-	defaultNodeNameEnv       = "MY_NODE_NAME"
-	defaultReloadInterval    = time.Minute
+	pluginName = "k8s"
 )
 
 func BuiltIn() catalog.BuiltIn {
