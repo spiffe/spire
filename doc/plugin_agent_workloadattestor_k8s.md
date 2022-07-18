@@ -61,7 +61,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 The k8s workload attestor plugins has also capabilities to validate images signatures through [sigstore](https://www.sigstore.dev/)
 
-The RFC is available [here](https://docs.google.com/document/d/1YVuu7HMHnp8nx3sCPx7R2lCfjjno363s4oiPlI6axF4/edit#heading=h.ttn87ugq19sb) for reference.
+Cosign supports container signing, verification, and storage in an OCI registry. Cosign aims to make signatures invisible infrastructure. For this, we’ve chosen the Sigstore ecosystem and artifacts. Digging deeper, we are using: Rekor (signature transparency log), Fulcio (signing certificate issuer and certificate transparency log) and Cosign (container image signing tool) to guarantee the authenticity of the running workload.
 
 > **Note** you can provide your own CA roots signed through TUF via the cosign initialize command.
 This effectively securely pins the CA roots. We allow you to also specify trusted roots via the `SIGSTORE_ROOT_FILE` flag
