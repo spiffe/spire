@@ -194,8 +194,8 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		for _, item := range list.Items {
 			item := item
 
-			// podUID can be empty, when cgroup contains only containerID
-			if item.UID != podUID && podUID != "" {
+			// if podUID is not empty, we skip the item, when UIDs don`t match
+			if podUID != "" && item.UID != podUID {
 				continue
 			}
 
@@ -204,7 +204,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			case containerInPod:
 				if attestResponse != nil {
 					log.Warn("Two pods found with same container Id")
-					return nil, status.Error(codes.Aborted, "Two pods found with same container Id")
+					return nil, status.Error(codes.Internal, "two pods found with same container Id")
 				}
 				attestResponse = &workloadattestorv1.AttestResponse{
 					SelectorValues: getSelectorValuesFromPodInfo(&item, lookupStatus),
@@ -575,32 +575,47 @@ func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, st
 	return podUID, containerID, nil
 }
 
-// cgroupRE is the regex used to parse out the pod UID and container ID from a
-// cgroup name. It assumes that any ".scope" suffix has been trimmed off
-// beforehand.  CAUTION: we used to verify that the pod and container id were
-// descendants of a kubepods directory, however, as of Kubernetes 1.21, cgroups
-// namespaces are in use and therefore we can no longer discern if that is the
-// case from within SPIRE agent container (since the container itself is
-// namespaced). As such, the regex has been relaxed to simply find the pod UID
-// followed by the container ID with allowances for arbitrary punctuation, and
-// container runtime prefixes, etc.
-var cgroupRE = regexp.MustCompile(`` +
-	// "pod"-prefixed Pod UID (with punctuation separated groups) followed by punctuation
-	`[[:punct:]]pod([[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12})[[:punct:]]` +
-	// zero or more punctuation separated "segments" (e.g. "docker-")
-	`(?:[[:^punct:]]+[[:punct:]])*` +
-	// non-punctuation end of string, i.e., the container ID
-	`([[:^punct:]]+)$`)
+var cgroupREs = []*regexp.Regexp{
+	// the regex used to parse out the pod UID and container ID from a
+	// cgroup name. It assumes that any ".scope" suffix has been trimmed off
+	// beforehand.  CAUTION: we used to verify that the pod and container id were
+	// descendants of a kubepods directory, however, as of Kubernetes 1.21, cgroups
+	// namespaces are in use and therefore we can no longer discern if that is the
+	// case from within SPIRE agent container (since the container itself is
+	// namespaced). As such, the regex has been relaxed to simply find the pod UID
+	// followed by the container ID with allowances for arbitrary punctuation, and
+	// container runtime prefixes, etc.
+	regexp.MustCompile(`` +
+		// "pod"-prefixed Pod UID (with punctuation separated groups) followed by punctuation
+		`[[:punct:]]pod(?P<poduid>[[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12})[[:punct:]]` +
+		// zero or more punctuation separated "segments" (e.g. "docker-")
+		`(?:[[:^punct:]]+[[:punct:]])*` +
+		// non-punctuation end of string, i.e., the container ID
+		`(?P<containerid>[[:^punct:]]+)$`),
 
-// cgroupNoPodUidRE is the backup regex, when cgroupRE does not match
-// This regex applies for container runtimes, that won't put the PodUID into
-// the cgroup name.
-// Currently only cri-o is known for this abnormaly.
-var cgroupNoPodUidRE = regexp.MustCompile(`` +
-	// /crio-
-	`[[:punct:]]crio[[:punct:]]` +
-	// non-punctuation end of string, i.e., the container ID
-	`([[:^punct:]]+)$`)
+	// This regex applies for container runtimes, that won't put the PodUID into
+	// the cgroup name.
+	// Currently only cri-o in combination with kubeedge is known for this abnormaly.
+	regexp.MustCompile(`` +
+		// /crio-
+		`(?P<poduid>)[[:punct:]]crio[[:punct:]]` +
+		// non-punctuation end of string, i.e., the container ID
+		`(?P<containerid>[[:^punct:]]+)$`),
+}
+
+func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
+	match := r.FindStringSubmatch(str)
+	var subMatchMap map[string]string = nil
+	if match != nil {
+		subMatchMap = make(map[string]string)
+		for i, name := range r.SubexpNames() {
+			if i != 0 {
+				subMatchMap[name] = match[i]
+			}
+		}
+	}
+	return subMatchMap
+}
 
 func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
 	// We are only interested in kube pods entries, for example:
@@ -615,14 +630,24 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 	// is cheap.
 	cgroupPath = strings.TrimSuffix(cgroupPath, ".scope")
 
-	matches := cgroupRE.FindStringSubmatch(cgroupPath)
-	if matches != nil {
-		return canonicalizePodUID(matches[1]), matches[2], true
-	} else {
-		matches := cgroupNoPodUidRE.FindStringSubmatch(cgroupPath)
+	var matchResults map[string]string
+	for _, regex := range cgroupREs {
+		matches := reSubMatchMap(regex, cgroupPath)
 		if matches != nil {
-			return "", matches[1], true
+			if matchResults != nil {
+				log.Printf("More than one regex matches for cgroup %s", cgroupPath)
+				return "", "", false
+			}
+			matchResults = matches
 		}
+	}
+
+	if matchResults != nil {
+		var podUID types.UID = ""
+		if matchResults["poduid"] != "" {
+			podUID = canonicalizePodUID(matchResults["poduid"])
+		}
+		return podUID, matchResults["containerid"], true
 	}
 	return "", "", false
 }
