@@ -672,7 +672,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "workload_key_type is set",
 			input: func(c *Config) {
-				c.Agent.WorkloadKeyType = "rsa-2048"
+				c.Agent.WorkloadX509SVIDKeyType = "rsa-2048"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, workloadkey.RSA2048, c.WorkloadKeyType)
@@ -682,7 +682,7 @@ func TestNewAgentConfig(t *testing.T) {
 			msg:         "workload_key_type invalid value",
 			expectError: true,
 			input: func(c *Config) {
-				c.Agent.WorkloadKeyType = "no a key"
+				c.Agent.WorkloadX509SVIDKeyType = "not a key"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)

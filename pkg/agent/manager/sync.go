@@ -232,12 +232,7 @@ func newCSR(spiffeID spiffeid.ID, keyType workloadkey.KeyType) (crypto.Signer, [
 		return nil, nil, err
 	}
 
-	signatureAlgorithm, err := keyType.SignatureAlgorithm()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	csr, err := util.MakeCSR(pk, spiffeID, signatureAlgorithm)
+	csr, err := util.MakeCSR(pk, spiffeID)
 	if err != nil {
 		return nil, nil, err
 	}

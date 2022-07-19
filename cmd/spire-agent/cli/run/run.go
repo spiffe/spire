@@ -70,7 +70,7 @@ type agentConfig struct {
 	ServerAddress                 string    `hcl:"server_address"`
 	ServerPort                    int       `hcl:"server_port"`
 	SocketPath                    string    `hcl:"socket_path"`
-	WorkloadKeyType               string    `hcl:"workload_key_type"`
+	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
 	TrustBundlePath               string    `hcl:"trust_bundle_path"`
 	TrustBundleURL                string    `hcl:"trust_bundle_url"`
 	TrustDomain                   string    `hcl:"trust_domain"`
@@ -454,8 +454,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.WorkloadKeyType = workloadkey.ECP256
-	if c.Agent.WorkloadKeyType != "" {
-		ac.WorkloadKeyType, err = workloadkey.KeyTypeFromString(c.Agent.WorkloadKeyType)
+	if c.Agent.WorkloadX509SVIDKeyType != "" {
+		ac.WorkloadKeyType, err = workloadkey.KeyTypeFromString(c.Agent.WorkloadX509SVIDKeyType)
 		if err != nil {
 			return nil, err
 		}

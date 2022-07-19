@@ -10,14 +10,13 @@ import (
 	"github.com/zeebo/errs"
 )
 
-func MakeCSR(privateKey interface{}, spiffeID spiffeid.ID, signatureAlgorithm x509.SignatureAlgorithm) ([]byte, error) {
+func MakeCSR(privateKey interface{}, spiffeID spiffeid.ID) ([]byte, error) {
 	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
-		SignatureAlgorithm: signatureAlgorithm,
-		URIs:               []*url.URL{spiffeID.URL()},
+		URIs: []*url.URL{spiffeID.URL()},
 	})
 }
 

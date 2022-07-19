@@ -20,25 +20,15 @@ func TestKeyTypeFromString(t *testing.T) {
 			expectKeyType: workloadkey.RSA2048,
 		},
 		{
-			name:          "RSA 4096",
-			keyType:       "rsa-4096",
-			expectKeyType: workloadkey.RSA4096,
-		},
-		{
 			name:          "EC 256",
 			keyType:       "ec-p256",
 			expectKeyType: workloadkey.ECP256,
 		},
 		{
-			name:          "EC 384",
-			keyType:       "ec-p384",
-			expectKeyType: workloadkey.ECP384,
-		},
-		{
 			name:          "unsupported type",
 			keyType:       "Unsupported",
 			expectKeyType: workloadkey.KeyTypeUnset,
-			errMsg:        "key type \"Unsupported\" is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]",
+			errMsg:        "key type \"Unsupported\" is unknown; must be one of [rsa-2048, ec-p256]",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
