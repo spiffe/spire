@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -29,6 +30,7 @@ type Config struct {
 	Metrics          telemetry.Metrics
 	ServerAddr       string
 	Storage          storage.Storage
+	WorkloadKeyType  workloadkey.KeyType
 	SyncInterval     time.Duration
 	RotationInterval time.Duration
 	SVIDStoreCache   *storecache.Cache

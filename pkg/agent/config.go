@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -51,6 +52,9 @@ type Config struct {
 
 	// Address of SPIRE server
 	ServerAddress string
+
+	// SVID key type
+	WorkloadKeyType workloadkey.KeyType
 
 	// SyncInterval controls how often the agent sync synchronizer waits
 	SyncInterval time.Duration

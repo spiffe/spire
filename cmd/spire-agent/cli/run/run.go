@@ -24,6 +24,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/fflag"
@@ -69,6 +70,7 @@ type agentConfig struct {
 	ServerAddress                 string    `hcl:"server_address"`
 	ServerPort                    int       `hcl:"server_port"`
 	SocketPath                    string    `hcl:"socket_path"`
+	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
 	TrustBundlePath               string    `hcl:"trust_bundle_path"`
 	TrustBundleURL                string    `hcl:"trust_bundle_url"`
 	TrustDomain                   string    `hcl:"trust_domain"`
@@ -449,6 +451,14 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	err = setupTrustBundle(ac, c)
 	if err != nil {
 		return nil, err
+	}
+
+	ac.WorkloadKeyType = workloadkey.ECP256
+	if c.Agent.WorkloadX509SVIDKeyType != "" {
+		ac.WorkloadKeyType, err = workloadkey.KeyTypeFromString(c.Agent.WorkloadX509SVIDKeyType)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	ac.ProfilingEnabled = c.Agent.ProfilingEnabled

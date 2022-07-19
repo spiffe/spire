@@ -203,17 +203,18 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 
 func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
 	config := &manager.Config{
-		SVID:           as.SVID,
-		SVIDKey:        as.Key,
-		Bundle:         as.Bundle,
-		Catalog:        cat,
-		TrustDomain:    a.c.TrustDomain,
-		ServerAddr:     a.c.ServerAddress,
-		Log:            a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
-		Metrics:        metrics,
-		Storage:        sto,
-		SyncInterval:   a.c.SyncInterval,
-		SVIDStoreCache: cache,
+		SVID:            as.SVID,
+		SVIDKey:         as.Key,
+		Bundle:          as.Bundle,
+		Catalog:         cat,
+		TrustDomain:     a.c.TrustDomain,
+		ServerAddr:      a.c.ServerAddress,
+		Log:             a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
+		Metrics:         metrics,
+		WorkloadKeyType: a.c.WorkloadKeyType,
+		Storage:         sto,
+		SyncInterval:    a.c.SyncInterval,
+		SVIDStoreCache:  cache,
 	}
 
 	mgr := manager.New(config)
