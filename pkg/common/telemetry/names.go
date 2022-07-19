@@ -206,6 +206,9 @@ const (
 	// ContainerID tags some container ID, most likely for use in attestation
 	ContainerID = "container_id"
 
+	// ContainerName tags some container name, most likely for use in attestation
+	ContainerName = "container_name"
+
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
