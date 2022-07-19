@@ -46,7 +46,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	sto, err := storage.Open(a.c.DataDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
