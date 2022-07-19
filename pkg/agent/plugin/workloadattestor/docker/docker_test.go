@@ -10,10 +10,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -157,7 +154,6 @@ func TestDockerConfig(t *testing.T) {
 		expectCode codes.Code
 		expectMsg  string
 		config     string
-		expectLogs []spiretest.LogEntry
 	}{
 		{
 			name:   "success configuration",
@@ -176,29 +172,19 @@ container_id_cgroup_matchers = [
 			config: `
 invalid1 = "/oh/"
 invalid2 = "/no/"`,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "Detected unknown configuration; this will be fatal in a future release",
-					Data: logrus.Fields{
-						telemetry.Keys: "[invalid1 invalid2]",
-					},
-				},
-			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unknown configurations detected: invalid1,invalid2",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			p := New()
-			log, logHook := test.NewNullLogger()
 
 			var err error
 			plugintest.Load(t, builtin(p), new(workloadattestor.V1),
 				plugintest.Configure(tt.config),
-				plugintest.Log(log),
 				plugintest.CaptureConfigureError(&err))
 
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
-			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
 		})
 	}
 }

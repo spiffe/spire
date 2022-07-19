@@ -38,7 +38,7 @@ The configuration file is a **required** by the registrar. It contains
 | `identity_template`             | string   | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
 | `identity_template_label`       | string   | optional | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set  |  |
 | `leader_election`               | bool     | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
-| `leader_election_resource_lock` | string   | optional | Configures the type of resource to use for the leader election lock. | `"configmaps` |
+| `leader_election_resource_lock` | string   | optional | Configures the type of resource to use for the leader election lock. | `"leases` |
 | `log_level`                     | string   | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
 | `log_path`                      | string   | optional | Path on disk to write the log | |
 | `metrics_bind_addr`             | string   | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
@@ -484,3 +484,14 @@ to any pod in the namespace.
 If allowing users to manually create SpiffeID custom resources it is important to use the Validating Webhook.  The Validating Webhook ensures that
 registration entries created have a namespace selector that matches the namespace the resource was created in.  This ensures that the manually created
 entries can only be consumed by workloads within that namespace.
+
+## Troubleshooting
+
+### Migrating to the CRD mode from the deprecated webhook mode
+
+The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail admission. If you used the default
+configuration this can be done with:
+
+```
+kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook
+```
