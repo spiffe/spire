@@ -16,8 +16,7 @@ func MakeCSR(privateKey interface{}, spiffeID spiffeid.ID) ([]byte, error) {
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		},
-		SignatureAlgorithm: x509.ECDSAWithSHA256,
-		URIs:               []*url.URL{spiffeID.URL()},
+		URIs: []*url.URL{spiffeID.URL()},
 	})
 }
 

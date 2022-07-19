@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/test/spiretest"
@@ -655,6 +656,33 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Agent.TrustBundleURL = "foo"
 				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "workload_key_type is not set",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.ECP256, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg: "workload_key_type is set",
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.RSA2048, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg:         "workload_key_type invalid value",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "not a key"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)

@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/svid"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -28,6 +29,7 @@ type Config struct {
 	Metrics          telemetry.Metrics
 	ServerAddr       string
 	SVIDCachePath    string
+	WorkloadKeyType  workloadkey.KeyType
 	BundleCachePath  string
 	SyncInterval     time.Duration
 	RotationInterval time.Duration

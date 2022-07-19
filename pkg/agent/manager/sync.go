@@ -2,15 +2,14 @@ package manager
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
+	"crypto"
 	"crypto/x509"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -136,7 +135,7 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 
 	csrsIn := make(map[string][]byte)
 
-	privateKeys := make(map[string]*ecdsa.PrivateKey, len(csrs))
+	privateKeys := make(map[string]crypto.Signer, len(csrs))
 	for _, csr := range csrs {
 		log := m.c.Log.WithField("spiffe_id", csr.SpiffeID)
 		if !csr.CurrentSVIDExpiresAt.IsZero() {
@@ -155,7 +154,7 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 		if err != nil {
 			return nil, err
 		}
-		privateKey, csrBytes, err := newCSR(spiffeID)
+		privateKey, csrBytes, err := newCSR(spiffeID, m.c.WorkloadKeyType)
 		if err != nil {
 			return nil, err
 		}
@@ -227,16 +226,17 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		}, nil
 }
 
-func newCSR(spiffeID spiffeid.ID) (pk *ecdsa.PrivateKey, csr []byte, err error) {
-	pk, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return
-	}
-	csr, err = util.MakeCSR(pk, spiffeID)
+func newCSR(spiffeID spiffeid.ID, keyType workloadkey.KeyType) (crypto.Signer, []byte, error) {
+	pk, err := keyType.GenerateSigner()
 	if err != nil {
 		return nil, nil, err
 	}
-	return
+
+	csr, err := util.MakeCSR(pk, spiffeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pk, csr, nil
 }
 
 func parseBundles(bundles map[string]*common.Bundle) (map[spiffeid.TrustDomain]*cache.Bundle, error) {
