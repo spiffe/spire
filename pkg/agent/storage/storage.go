@@ -145,6 +145,9 @@ func (s *storage) StoreSVID(svid []*x509.Certificate) error {
 }
 
 func (s *storage) DeleteSVID() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	if err := deleteLegacySVID(s.dir); err != nil {
 		return err
 	}
