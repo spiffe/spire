@@ -11,8 +11,6 @@ import (
 	"math/big"
 	"net"
 	"net/url"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -23,6 +21,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
@@ -75,8 +74,8 @@ func TestAttestor(t *testing.T) {
 		name                        string
 		bootstrapBundle             *x509.Certificate
 		insecureBootstrap           bool
-		cachedBundle                []byte
-		cachedSVID                  []byte
+		cachedBundle                *x509.Certificate
+		cachedSVID                  *x509.Certificate
 		err                         string
 		keepAgentKey                bool
 		failFetchingAttestationData bool
@@ -92,27 +91,6 @@ func TestAttestor(t *testing.T) {
 			bundleService: &fakeBundleService{
 				bundle: bundle,
 			},
-		},
-		{
-			name:         "cached bundle empty",
-			cachedBundle: []byte(""),
-			err:          "load bundle: no certs in bundle",
-			agentService: &fakeAgentService{
-				svid: &types.X509SVID{
-					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-					CertChain: [][]byte{agentCert.Raw},
-				},
-			},
-			bundleService: &fakeBundleService{
-				bundle: bundle,
-			},
-		},
-		{
-			name:          "cached bundle malformed",
-			cachedBundle:  []byte("INVALID DER BYTES"),
-			err:           "load bundle: error parsing bundle",
-			agentService:  &fakeAgentService{},
-			bundleService: &fakeBundleService{bundle: &types.Bundle{}},
 		},
 		{
 			name:                        "fail fetching attestation data",
@@ -179,7 +157,7 @@ func TestAttestor(t *testing.T) {
 		},
 		{
 			name:         "success with cached bundle",
-			cachedBundle: caCert.Raw,
+			cachedBundle: caCert,
 			agentService: &fakeAgentService{
 				svid: svid,
 			},
@@ -190,7 +168,7 @@ func TestAttestor(t *testing.T) {
 		{
 			name:            "success with expired cached bundle",
 			bootstrapBundle: caCert,
-			cachedSVID:      expiredCert.Raw,
+			cachedSVID:      expiredCert,
 			agentService: &fakeAgentService{
 				svid: svid,
 			},
@@ -226,7 +204,7 @@ func TestAttestor(t *testing.T) {
 		{
 			name:              "cached svid and private key but missing bundle",
 			insecureBootstrap: true,
-			cachedSVID:        agentCert.Raw,
+			cachedSVID:        agentCert,
 			keepAgentKey:      true,
 			agentService: &fakeAgentService{
 				svid: svid,
@@ -238,8 +216,8 @@ func TestAttestor(t *testing.T) {
 		},
 		{
 			name:         "success with cached svid, private key, and bundle",
-			cachedBundle: caCert.Raw,
-			cachedSVID:   agentCert.Raw,
+			cachedBundle: caCert,
+			cachedSVID:   agentCert,
 			keepAgentKey: true,
 			agentService: &fakeAgentService{
 				svid:            svid,
@@ -250,23 +228,9 @@ func TestAttestor(t *testing.T) {
 			},
 		},
 		{
-			name:            "malformed cached svid ignored",
-			bootstrapBundle: caCert,
-			cachedSVID:      []byte("INVALID"),
-			keepAgentKey:    true,
-			agentService: &fakeAgentService{
-				svid:            svid,
-				failAttestAgent: true,
-			},
-			bundleService: &fakeBundleService{
-				bundle: bundle,
-			},
-			err: "attestation failed by test",
-		},
-		{
 			name:            "missing key in keymanager ignored",
 			bootstrapBundle: caCert,
-			cachedSVID:      agentCert.Raw,
+			cachedSVID:      agentCert,
 			agentService: &fakeAgentService{
 				svid:            svid,
 				failAttestAgent: true,
@@ -296,7 +260,7 @@ func TestAttestor(t *testing.T) {
 			require := require.New(t)
 
 			// prepare the temp directory holding the cached bundle/svid
-			svidCachePath, bundleCachePath := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
+			sto := prepareTestDir(t, testCase.cachedSVID, testCase.cachedBundle)
 
 			// load up the fake agent-side node attestor
 			agentNA := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{
@@ -331,8 +295,7 @@ func TestAttestor(t *testing.T) {
 				Catalog:           catalog,
 				Metrics:           telemetry.Blackhole{},
 				JoinToken:         testCase.agentService.joinToken,
-				SVIDCachePath:     svidCachePath,
-				BundleCachePath:   bundleCachePath,
+				Storage:           sto,
 				Log:               log,
 				TrustDomain:       trustDomain,
 				TrustBundle:       makeTrustBundle(testCase.bootstrapBundle),
@@ -431,23 +394,20 @@ func (c *fakeBundleService) GetBundle(ctx context.Context, in *bundlev1.GetBundl
 	return c.bundle, nil
 }
 
-func prepareTestDir(t *testing.T, cachedSVID, cachedBundle []byte) (string, string) {
+func prepareTestDir(t *testing.T, cachedSVID, cachedBundle *x509.Certificate) storage.Storage {
 	dir := spiretest.TempDir(t)
 
-	svidCachePath := filepath.Join(dir, "svid.der")
-	bundleCachePath := filepath.Join(dir, "bundle.der")
+	sto, err := storage.Open(dir)
+	require.NoError(t, err)
+
 	if cachedSVID != nil {
-		writeFile(t, svidCachePath, cachedSVID, 0644)
+		require.NoError(t, sto.StoreSVID([]*x509.Certificate{cachedSVID}))
 	}
 	if cachedBundle != nil {
-		writeFile(t, bundleCachePath, cachedBundle, 0644)
+		require.NoError(t, sto.StoreBundle([]*x509.Certificate{cachedBundle}))
 	}
 
-	return svidCachePath, bundleCachePath
-}
-
-func writeFile(t *testing.T, path string, data []byte, mode os.FileMode) {
-	require.NoError(t, os.WriteFile(path, data, mode))
+	return sto
 }
 
 func createCACertificate(t *testing.T) *x509.Certificate {

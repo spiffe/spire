@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -26,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -72,16 +72,15 @@ func TestInitializationFailure(t *testing.T) {
 	cat.SetKeyManager(km)
 
 	c := &Config{
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Clk:             clk,
-		Catalog:         cat,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		SVID:           baseSVID,
+		SVIDKey:        baseSVIDKey,
+		Log:            testLogger,
+		Metrics:        &telemetry.Blackhole{},
+		TrustDomain:    trustDomain,
+		Storage:        openStorage(t, dir),
+		Clk:            clk,
+		Catalog:        cat,
+		SVIDStoreCache: storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 	m := newManager(c)
 	require.Error(t, m.Initialize(context.Background()))
@@ -97,17 +96,18 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
+	sto := openStorage(t, dir)
+
 	c := &Config{
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Bundle:          bundleutil.BundleFromRootCA(trustDomain, ca),
-		Clk:             clk,
-		Catalog:         cat,
+		SVID:        baseSVID,
+		SVIDKey:     baseSVIDKey,
+		Log:         testLogger,
+		Metrics:     &telemetry.Blackhole{},
+		TrustDomain: trustDomain,
+		Storage:     sto,
+		Bundle:      bundleutil.BundleFromRootCA(trustDomain, ca),
+		Clk:         clk,
+		Catalog:     cat,
 	}
 
 	m := newManager(c)
@@ -124,7 +124,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 
 	// Although init failed, the bundle should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
-	bundle, err := ReadBundle(c.BundleCachePath)
+	bundle, err := sto.LoadBundle()
 	if err != nil {
 		t.Fatalf("bundle should have been saved in a file: %v", err)
 	}
@@ -144,33 +144,32 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
+	sto := openStorage(t, dir)
+
 	c := &Config{
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		Metrics:         &telemetry.Blackhole{},
-		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
-		Clk:             clk,
-		Catalog:         cat,
+		SVID:        baseSVID,
+		SVIDKey:     baseSVIDKey,
+		Log:         testLogger,
+		Metrics:     &telemetry.Blackhole{},
+		TrustDomain: trustDomain,
+		Storage:     sto,
+		Clk:         clk,
+		Catalog:     cat,
 	}
 
-	_, err := ReadSVID(c.SVIDCachePath)
-	if !errors.Is(err, ErrNotCached) {
-		t.Fatalf("wanted: %v, got: %v", ErrNotCached, err)
+	if _, err := sto.LoadSVID(); !errors.Is(err, storage.ErrNotCached) {
+		t.Fatalf("wanted: %v, got: %v", storage.ErrNotCached, err)
 	}
 
 	m := newManager(c)
 
-	err = m.Initialize(context.Background())
-	if err == nil {
+	if err := m.Initialize(context.Background()); err == nil {
 		t.Fatal("manager was expected to fail during initialization")
 	}
 
 	// Although start failed, the SVID should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
-	svid, err := ReadSVID(c.SVIDCachePath)
+	svid, err := sto.LoadSVID()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,9 +206,8 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
+		Storage:         openStorage(t, dir),
 		WorkloadKeyType: workloadkey.ECP256,
-		BundleCachePath: path.Join(dir, "bundle.der"),
 		Bundle:          api.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
@@ -298,8 +296,7 @@ func TestRotationWithRSAKey(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
+		Storage:         openStorage(t, dir),
 		Bundle:          api.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
@@ -393,8 +390,7 @@ func TestSVIDRotation(t *testing.T) {
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
 		TrustDomain:      trustDomain,
-		SVIDCachePath:    path.Join(dir, "svid.der"),
-		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Storage:          openStorage(t, dir),
 		Bundle:           api.bundle,
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: baseTTLSeconds / 2,
@@ -505,8 +501,7 @@ func TestSynchronization(t *testing.T) {
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
 		TrustDomain:      trustDomain,
-		SVIDCachePath:    path.Join(dir, "svid.der"),
-		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Storage:          openStorage(t, dir),
 		Bundle:           api.bundle,
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: time.Hour,
@@ -659,8 +654,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
+		Storage:         openStorage(t, dir),
 		Bundle:          api.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
@@ -733,8 +727,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
+		Storage:         openStorage(t, dir),
 		Bundle:          api.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
@@ -793,8 +786,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
 		TrustDomain:      trustDomain,
-		SVIDCachePath:    path.Join(dir, "svid.der"),
-		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Storage:          openStorage(t, dir),
 		Bundle:           api.bundle,
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
@@ -856,8 +848,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SVIDKey:          baseSVIDKey,
 		Log:              testLogger,
 		TrustDomain:      trustDomain,
-		SVIDCachePath:    path.Join(dir, "svid.der"),
-		BundleCachePath:  path.Join(dir, "bundle.der"),
+		Storage:          openStorage(t, dir),
 		Bundle:           api.bundle,
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
@@ -919,8 +910,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
+		Storage:         openStorage(t, dir),
 		Bundle:          api.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Catalog:         cat,
@@ -1043,8 +1033,7 @@ func TestStorableSVIDsSync(t *testing.T) {
 		SVIDKey:         baseSVIDKey,
 		Log:             testLogger,
 		TrustDomain:     trustDomain,
-		SVIDCachePath:   path.Join(dir, "svid.der"),
-		BundleCachePath: path.Join(dir, "bundle.der"),
+		Storage:         openStorage(t, dir),
 		Bundle:          api.bundle,
 		Metrics:         &telemetry.Blackhole{},
 		Clk:             clk,
@@ -1467,4 +1456,10 @@ func svidsEqual(as, bs []*x509.Certificate) bool {
 		}
 	}
 	return true
+}
+
+func openStorage(t *testing.T, dir string) storage.Storage {
+	sto, err := storage.Open(dir)
+	require.NoError(t, err)
+	return sto
 }
