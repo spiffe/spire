@@ -14,15 +14,14 @@ import (
 )
 
 func loadLegacyBundle(dir string) ([]*x509.Certificate, time.Time, error) {
-	path := legacyBundlePath(dir)
-	data, mtime, err := readFile(path)
+	data, mtime, err := readFile(legacyBundlePath(dir))
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("error reading bundle at %s: %w", path, err)
+		return nil, time.Time{}, fmt.Errorf("failed to read legacy bundle: %w", err)
 	}
 
 	bundle, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("error parsing bundle at %s: %w", path, err)
+		return nil, time.Time{}, fmt.Errorf("failed to parse legacy bundle: %w", err)
 	}
 	return bundle, mtime, nil
 }
@@ -32,19 +31,21 @@ func storeLegacyBundle(dir string, bundle []*x509.Certificate) error {
 	for _, cert := range bundle {
 		data.Write(cert.Raw)
 	}
-	return diskutil.AtomicWriteFile(legacyBundlePath(dir), data.Bytes(), 0600)
+	if err := diskutil.AtomicWriteFile(legacyBundlePath(dir), data.Bytes(), 0600); err != nil {
+		return fmt.Errorf("failed to store legacy bundle: %w", err)
+	}
+	return nil
 }
 
 func loadLegacySVID(dir string) ([]*x509.Certificate, time.Time, error) {
-	path := legacySVIDPath(dir)
-	data, mtime, err := readFile(path)
+	data, mtime, err := readFile(legacySVIDPath(dir))
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("error reading SVID at %s: %w", path, err)
+		return nil, time.Time{}, fmt.Errorf("failed to read legacy SVID: %w", err)
 	}
 
 	certChain, err := x509.ParseCertificates(data)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("error parsing SVID at %s: %w", path, err)
+		return nil, time.Time{}, fmt.Errorf("failed to parse legacy SVID: %w", err)
 	}
 	return certChain, mtime, nil
 }
@@ -54,7 +55,10 @@ func storeLegacySVID(dir string, svidChain []*x509.Certificate) error {
 	for _, cert := range svidChain {
 		data.Write(cert.Raw)
 	}
-	return diskutil.AtomicWriteFile(legacySVIDPath(dir), data.Bytes(), 0600)
+	if err := diskutil.AtomicWriteFile(legacySVIDPath(dir), data.Bytes(), 0600); err != nil {
+		return fmt.Errorf("failed to store legacy SVID: %w", err)
+	}
+	return nil
 }
 
 func deleteLegacySVID(dir string) error {
@@ -63,7 +67,7 @@ func deleteLegacySVID(dir string) error {
 	case err == nil, errors.Is(err, fs.ErrNotExist):
 		return nil
 	default:
-		return err
+		return fmt.Errorf("failed to delete legacy SVID: %w", err)
 	}
 }
 

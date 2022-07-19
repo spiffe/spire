@@ -40,6 +40,8 @@ type Storage interface {
 }
 
 func Open(dir string) (Storage, error) {
+	// TODO: stop updating and instead delete legacy files in 1.5.0
+
 	legacySVID, legacySVIDTime, err := loadLegacySVID(dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
@@ -165,21 +167,21 @@ func (s *storage) DeleteSVID() error {
 func readFile(path string) ([]byte, time.Time, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, time.Time{}, err
+		return nil, time.Time{}, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer func() {
 		_ = f.Close()
 	}()
 	fi, err := f.Stat()
 	if err != nil {
-		return nil, time.Time{}, err
+		return nil, time.Time{}, fmt.Errorf("failed to stat file: %w", err)
 	}
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return nil, time.Time{}, err
+		return nil, time.Time{}, fmt.Errorf("failed to read file: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		return nil, time.Time{}, err
+		return nil, time.Time{}, fmt.Errorf("failed to close file: %w", err)
 	}
 	return data, fi.ModTime(), nil
 }
@@ -197,11 +199,11 @@ type storageData struct {
 func (d storageData) MarshalJSON() ([]byte, error) {
 	svid, err := encodeCertificates(d.SVID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode SVID: %w", err)
 	}
 	bundle, err := encodeCertificates(d.Bundle)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to encode bundle: %w", err)
 	}
 	return json.Marshal(storageJSON{
 		SVID:   svid,
@@ -212,15 +214,15 @@ func (d storageData) MarshalJSON() ([]byte, error) {
 func (d *storageData) UnmarshalJSON(b []byte) error {
 	j := new(storageJSON)
 	if err := json.Unmarshal(b, j); err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 	svid, err := parseCertificates(j.SVID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse SVID: %w", err)
 	}
 	bundle, err := parseCertificates(j.Bundle)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse bundle: %w", err)
 	}
 
 	d.SVID = svid
@@ -248,7 +250,7 @@ func loadData(dir string) (storageData, time.Time, error) {
 
 	marshaled, mtime, err := readFile(path)
 	if err != nil {
-		return storageData{}, time.Time{}, fmt.Errorf("failed to load data: %w", err)
+		return storageData{}, time.Time{}, fmt.Errorf("failed to read data: %w", err)
 	}
 
 	var data storageData
