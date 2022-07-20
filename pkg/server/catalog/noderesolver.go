@@ -3,7 +3,7 @@ package catalog
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/azure"
+	"github.com/spiffe/spire/pkg/server/plugin/noderesolver/azuremsi"
 )
 
 type nodeResolverRepository struct {
@@ -24,7 +24,7 @@ func (repo *nodeResolverRepository) Versions() []catalog.Version {
 
 func (repo *nodeResolverRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
-		azure.BuiltIn(),
+		azuremsi.BuiltIn(),
 	}
 }
 
