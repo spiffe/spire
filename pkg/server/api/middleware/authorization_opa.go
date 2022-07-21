@@ -145,10 +145,7 @@ func isAgent(ctx context.Context, agentAuthorizer AgentAuthorizer) (context.Cont
 	}
 
 	if err := agentAuthorizer.AuthorizeAgent(ctx, agentID, agentSVID); err != nil {
-		if status.Convert(err).Code() != codes.PermissionDenied {
-			return ctx, false, err
-		}
-		return ctx, false, nil
+		return ctx, false, err
 	}
 
 	return rpccontext.WithAgentCaller(ctx), true, nil
