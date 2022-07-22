@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package sat
+package k8ssat
 
 import (
 	"testing"

@@ -1,7 +1,7 @@
 //go:build !windows
 // +build !windows
 
-package psat
+package k8spsat
 
 import (
 	"testing"
