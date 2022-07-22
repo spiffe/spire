@@ -80,7 +80,7 @@ func TestInitializationFailure(t *testing.T) {
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 	m := newManager(c)
@@ -108,7 +108,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		Bundle:           bundleutil.BundleFromRootCA(trustDomain, ca),
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 	}
 
 	m := newManager(c)
@@ -155,7 +155,7 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 		BundleCachePath:  path.Join(dir, "bundle.der"),
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 	}
 
 	_, err := ReadSVID(c.SVIDCachePath)
@@ -310,7 +310,7 @@ func TestSVIDRotation(t *testing.T) {
 		RotationInterval: baseTTLSeconds / 2,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -419,7 +419,7 @@ func TestSynchronization(t *testing.T) {
 		SyncInterval:     time.Hour,
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -571,7 +571,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Metrics:          &telemetry.Blackhole{},
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -645,7 +645,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Metrics:          &telemetry.Blackhole{},
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -706,7 +706,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		Catalog:          cat,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
@@ -729,155 +729,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	})
 }
 
-func TestSynchronizationClearsExpiredSVIDCache(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	km := fakeagentkeymanager.New(t, dir)
-
-	clk := clock.NewMock(t)
-	api := newMockAPI(t, &mockAPIConfig{
-		km: km,
-		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
-		},
-		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
-			h.rotateCA()
-			return makeBatchNewX509SVIDEntries("resp1", "resp2")
-		},
-		svidTTL: 200,
-		clk:     clk,
-	})
-
-	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
-	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(km)
-
-	c := &Config{
-		ServerAddr:            api.addr,
-		SVID:                  baseSVID,
-		SVIDKey:               baseSVIDKey,
-		Log:                   testLogger,
-		TrustDomain:           trustDomain,
-		SVIDCachePath:         path.Join(dir, "svid.der"),
-		BundleCachePath:       path.Join(dir, "bundle.der"),
-		Bundle:                api.bundle,
-		Metrics:               &telemetry.Blackhole{},
-		RotationInterval:      1 * time.Hour,
-		SyncInterval:          1 * time.Hour,
-		MaxSvidCacheSize:      1,
-		SVIDCacheExpiryPeriod: 5 * time.Second,
-		Clk:                   clk,
-		Catalog:               cat,
-		SVIDStoreCache:        storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-	}
-
-	clk.Add(1 * time.Second)
-
-	m := newManager(c)
-	if err := m.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	// After Initialize, just 1 SVID should be cached
-	require.Equal(t, 1, m.CountSVIDs())
-	waitCh := make(chan struct{})
-
-	closer := runSVIDSync(t, waitCh, m)
-	defer closer()
-
-	// Keep clk moving so that each subscriber gets SVID after SVID sync
-	clkCloser := moveClkAfterInterval(clk, 100*time.Millisecond, svidSyncInterval, waitCh)
-
-	sub1 := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
-
-	sub2 := m.SubscribeToCacheChanges(
-		cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}})
-
-	sub1.Finish()
-	sub2.Finish()
-	close(waitCh)
-	clkCloser()
-
-	// All 3 SVIDs should be cached
-	require.Equal(t, 3, m.CountSVIDs())
-
-	// Move clock so that svid cache is expired
-	clk.Add(6 * time.Second)
-
-	require.NoError(t, m.synchronize(context.Background()))
-
-	// Make sure svid count is MaxSvidCacheSize and remaining SVIDs are deleted from cache
-	require.Equal(t, 1, m.CountSVIDs())
-}
-
 func TestSyncSVIDs(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	km := fakeagentkeymanager.New(t, dir)
-
-	clk := clock.NewMock(t)
-	api := newMockAPI(t, &mockAPIConfig{
-		km: km,
-		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
-		},
-		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
-			h.rotateCA()
-			return makeBatchNewX509SVIDEntries("resp1", "resp2")
-		},
-		svidTTL: 200,
-		clk:     clk,
-	})
-
-	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
-	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(km)
-
-	c := &Config{
-		ServerAddr:            api.addr,
-		SVID:                  baseSVID,
-		SVIDKey:               baseSVIDKey,
-		Log:                   testLogger,
-		TrustDomain:           trustDomain,
-		SVIDCachePath:         path.Join(dir, "svid.der"),
-		BundleCachePath:       path.Join(dir, "bundle.der"),
-		Bundle:                api.bundle,
-		Metrics:               &telemetry.Blackhole{},
-		RotationInterval:      1 * time.Hour,
-		SyncInterval:          1 * time.Hour,
-		MaxSvidCacheSize:      1,
-		SVIDCacheExpiryPeriod: 5 * time.Second,
-		Clk:                   clk,
-		Catalog:               cat,
-		SVIDStoreCache:        storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-	}
-
-	clk.Add(1 * time.Second)
-
-	m := newManager(c)
-	closer := initializeAndRunManager(t, m)
-	defer closer()
-
-	// After Initialize, just 1 SVID should be cached
-	require.Equal(t, 1, m.CountSVIDs())
-	waitCh := make(chan struct{})
-
-	// Keep clk moving so that each subscriber gets SVID after SVID sync
-	clkCloser := moveClkAfterInterval(clk, 100*time.Millisecond, svidSyncInterval, waitCh)
-	defer clkCloser()
-
-	sub1 := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
-	defer sub1.Finish()
-
-	sub2 := m.SubscribeToCacheChanges(
-		cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}})
-	defer sub2.Finish()
-
-	close(waitCh)
-
-	// All 3 SVIDs should be cached
-	require.Equal(t, 3, m.CountSVIDs())
-}
-
-func TestSubscribersWaitForSVID(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
 
@@ -911,72 +763,64 @@ func TestSubscribersWaitForSVID(t *testing.T) {
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		Clk:              clk,
 		Catalog:          cat,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
-
 	if err := m.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
 	// After Initialize, just 1 SVID should be cached
-	require.Equal(t, 1, m.CountSVIDs())
-
+	assert.Equal(t, 1, m.CountSVIDs())
 	waitCh := make(chan struct{})
+	errCh := make(chan error)
 
-	closer := runSVIDSync(t, waitCh, m)
+	// Run svidSync in separate routine and advance clock.
+	// It allows SubscribeToCacheChanges to keep checking for SVID in cache as clk advances.
+	closer := runSVIDSync(waitCh, clk, 50*time.Millisecond, m, errCh)
 	defer closer()
 
-	// Keep clk moving so that each subscriber gets SVID after SVID sync
-	clkCloser := moveClkAfterInterval(clk, 100*time.Millisecond, svidSyncInterval, waitCh)
-	defer clkCloser()
-
-	go func() {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sub1 := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
-			defer sub1.Finish()
-			u := <-sub1.Updates()
-			if len(u.Identities) != 2 {
-				t.Fatalf("expected 2 SVIDs, got: %d", len(u.Identities))
-			}
-			if !u.Bundle.EqualTo(c.Bundle) {
-				t.Fatal("bundles were expected to be equal")
-			}
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sub2 := m.SubscribeToCacheChanges(
-				cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}})
-			defer sub2.Finish()
-			u := <-sub2.Updates()
-			if len(u.Identities) != 1 {
-				t.Fatalf("expected 1 SVID, got: %d", len(u.Identities))
-			}
-			if !u.Bundle.EqualTo(c.Bundle) {
-				t.Fatal("bundles were expected to be equal")
-			}
-		}()
-
-		wg.Wait()
-		close(waitCh)
-	}()
-
-	select {
-	case <-waitCh:
-	case <-time.After(5 * time.Second):
-		t.Fatalf("subscriber update wait timed out")
+	sub1 := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	// Validate the update received by subscribers
+	u1 := <-sub1.Updates()
+	if len(u1.Identities) != 2 {
+		t.Fatalf("expected 2 SVIDs, got: %d", len(u1.Identities))
+	}
+	if !u1.Bundle.EqualTo(c.Bundle) {
+		t.Fatal("bundles were expected to be equal")
 	}
 
-	require.Equal(t, 3, m.CountSVIDs())
+	sub2 := m.SubscribeToCacheChanges(
+		cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}})
+	// Validate the update received by subscribers
+	u2 := <-sub2.Updates()
+	if len(u2.Identities) != 1 {
+		t.Fatalf("expected 1 SVID, got: %d", len(u2.Identities))
+	}
+	if !u2.Bundle.EqualTo(c.Bundle) {
+		t.Fatal("bundles were expected to be equal")
+	}
+
+	sub1.Finish()
+	sub2.Finish()
+	close(waitCh)
+
+	err := <-errCh
+	if err != nil {
+		t.Fatalf("syncSVIDs method failed with error %v", err)
+	}
+
+	// All 3 SVIDs should be cached
+	assert.Equal(t, 3, m.CountSVIDs())
+
+	assert.NoError(t, m.synchronize(context.Background()))
+
+	// Make sure svid count is SVIDCacheMaxSize and non-active SVIDs are deleted from cache
+	assert.Equal(t, 1, m.CountSVIDs())
 }
 
 func TestSurvivesCARotation(t *testing.T) {
@@ -1020,7 +864,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		SyncInterval:     syncInterval,
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -1081,7 +925,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Metrics:          &telemetry.Blackhole{},
 		Catalog:          cat,
 		Clk:              clk,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -1206,7 +1050,7 @@ func TestStorableSVIDsSync(t *testing.T) {
 		Metrics:          &telemetry.Blackhole{},
 		Clk:              clk,
 		Catalog:          cat,
-		MaxSvidCacheSize: 1,
+		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
@@ -1245,7 +1089,8 @@ func TestStorableSVIDsSync(t *testing.T) {
 	validateResponse(records, entries)
 }
 
-func runSVIDSync(t *testing.T, waitCh chan struct{}, m *manager) (closer func()) {
+func runSVIDSync(waitCh chan struct{}, clk *clock.Mock, interval time.Duration, m *manager,
+	errCh chan<- error) (closer func()) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -1253,28 +1098,15 @@ func runSVIDSync(t *testing.T, waitCh chan struct{}, m *manager) (closer func())
 		for {
 			select {
 			case <-waitCh:
-				return
-			case <-m.clk.After(svidSyncInterval):
-				require.NoError(t, m.syncSVIDs(context.Background()))
-			}
-		}
-	}()
-	return func() {
-		wg.Wait()
-	}
-}
-
-func moveClkAfterInterval(clk *clock.Mock, interval, period time.Duration, waitCh chan struct{}) (closer func()) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-waitCh:
+				errCh <- nil
 				return
 			case <-time.After(interval):
-				clk.Add(period)
+				clk.Add(interval)
+				err := m.syncSVIDs(context.Background())
+				if err != nil {
+					errCh <- err
+					return
+				}
 			}
 		}
 	}()

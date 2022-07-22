@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SIZE=5
+SIZE=10
 
 # Create entries for uid 1002
 for ((m=1; m<=$SIZE;m++)); do

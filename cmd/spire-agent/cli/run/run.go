@@ -97,9 +97,8 @@ type experimentalConfig struct {
 	SyncInterval  string `hcl:"sync_interval"`
 	TCPSocketPort int    `hcl:"tcp_socket_port"`
 
-	UnusedKeys            []string `hcl:",unusedKeys"`
-	MaxSvidCacheSize      int      `hcl:"max_svid_cache_size"`
-	SVIDCacheExpiryPeriod string   `hcl:"svid_cache_expiry_interval"`
+	UnusedKeys           []string `hcl:",unusedKeys"`
+	X509SVIDCacheMaxSize int      `hcl:"x509_svid_cache_max_size"`
 }
 
 type Command struct {
@@ -402,21 +401,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 	}
 
-	if c.Agent.Experimental.MaxSvidCacheSize < 0 {
-		return nil, fmt.Errorf("max_svid_cache_size should not be negative")
+	if c.Agent.Experimental.X509SVIDCacheMaxSize < 0 {
+		return nil, errors.New("x509_svid_cache_max_size should not be negative")
 	}
-	ac.MaxSvidCacheSize = c.Agent.Experimental.MaxSvidCacheSize
-
-	if c.Agent.Experimental.SVIDCacheExpiryPeriod != "" {
-		var err error
-		ac.SVIDCacheExpiryPeriod, err = time.ParseDuration(c.Agent.Experimental.SVIDCacheExpiryPeriod)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse svid cache expiry interval: %w", err)
-		}
-		if ac.SVIDCacheExpiryPeriod < 0 {
-			return nil, fmt.Errorf("svid_cache_expiry_interval should not be negative")
-		}
-	}
+	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)

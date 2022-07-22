@@ -157,9 +157,9 @@ func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subsc
 		if m.cache.Notify(selectors) {
 			return subscriber
 		}
-		select {
-		case <-m.clk.After(backoff.NextBackOff()):
-		}
+		m.c.Log.WithField(telemetry.Selectors, selectors).Info("Waiting for SVID to get cached")
+
+		<-m.clk.After(backoff.NextBackOff())
 	}
 }
 

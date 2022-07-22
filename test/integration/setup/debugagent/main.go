@@ -55,18 +55,20 @@ func run() error {
 
 func agentEndpoints(ctx context.Context) error {
 	s, err := retrieveDebugPage(ctx)
-	if err == nil {
-		log.Printf("Debug info: %s", string(s))
+	if err != nil {
+		return err
 	}
+	log.Printf("Debug info: %s", s)
 	return nil
 }
 
 // printDebugPage allows integration tests to easily parse debug page with jq
 func printDebugPage(ctx context.Context) error {
 	s, err := retrieveDebugPage(ctx)
-	if err == nil {
-		fmt.Println(s)
+	if err != nil {
+		return err
 	}
+	fmt.Println(s)
 	return nil
 }
 

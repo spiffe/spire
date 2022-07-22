@@ -199,20 +199,19 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 
 func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
 	config := &manager.Config{
-		SVID:            as.SVID,
-		SVIDKey:               as.Key,
-		Bundle:                as.Bundle,
-		Catalog:               cat,
-		TrustDomain:           a.c.TrustDomain,
-		ServerAddr:            a.c.ServerAddress,
-		Log:                   a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
-		Metrics:               metrics,
-		BundleCachePath:       a.bundleCachePath(),
-		SVIDCachePath:         a.agentSVIDPath(),
-		SyncInterval:          a.c.SyncInterval,
-		MaxSvidCacheSize:      a.c.MaxSvidCacheSize,
-		SVIDCacheExpiryPeriod: a.c.SVIDCacheExpiryPeriod,
-		SVIDStoreCache:        cache,
+		SVID:             as.SVID,
+		SVIDKey:          as.Key,
+		Bundle:           as.Bundle,
+		Catalog:          cat,
+		TrustDomain:      a.c.TrustDomain,
+		ServerAddr:       a.c.ServerAddress,
+		Log:              a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
+		Metrics:          metrics,
+		BundleCachePath:  a.bundleCachePath(),
+		SVIDCachePath:    a.agentSVIDPath(),
+		SyncInterval:     a.c.SyncInterval,
+		SVIDCacheMaxSize: a.c.X509SVIDCacheMaxSize,
+		SVIDStoreCache:   cache,
 	}
 
 	mgr := manager.New(config)

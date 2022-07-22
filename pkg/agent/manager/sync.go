@@ -39,7 +39,11 @@ type Cache interface {
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 	m.cache.SyncSVIDsWithSubscribers()
-	return m.updateSVIDs(ctx, m.cache.GetStaleEntries(), m.cache)
+	staleEntries := m.cache.GetStaleEntries()
+	if len(staleEntries) > 0 {
+		return m.updateSVIDs(ctx, staleEntries, m.cache)
+	}
+	return nil
 }
 
 // synchronize fetches the authorized entries from the server, updates the
@@ -116,27 +120,26 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 
 func (m *manager) updateSVIDs(ctx context.Context, entries []*cache.StaleEntry, c Cache) error {
 	var csrs []csrRequest
-	if len(entries) > 0 {
-		for _, entry := range entries {
-			// we've exceeded the CSR limit, don't make any more CSRs
-			if len(csrs) >= limits.SignLimitPerIP {
-				break
-			}
-
-			csrs = append(csrs, csrRequest{
-				EntryID:              entry.Entry.EntryId,
-				SpiffeID:             entry.Entry.SpiffeId,
-				CurrentSVIDExpiresAt: entry.ExpiresAt,
-			})
+	for _, entry := range entries {
+		// we've exceeded the CSR limit, don't make any more CSRs
+		if len(csrs) >= limits.SignLimitPerIP {
+			break
 		}
 
-		update, err := m.fetchSVIDs(ctx, csrs)
-		if err != nil {
-			return err
-		}
-		// the values in `update` now belong to the cache. DO NOT MODIFY.
-		c.UpdateSVIDs(update)
+		csrs = append(csrs, csrRequest{
+			EntryID:              entry.Entry.EntryId,
+			SpiffeID:             entry.Entry.SpiffeId,
+			CurrentSVIDExpiresAt: entry.ExpiresAt,
+		})
 	}
+
+	update, err := m.fetchSVIDs(ctx, csrs)
+	if err != nil {
+		return err
+	}
+	// the values in `update` now belong to the cache. DO NOT MODIFY.
+	c.UpdateSVIDs(update)
+
 	return nil
 }
 

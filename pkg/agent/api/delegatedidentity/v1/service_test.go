@@ -799,5 +799,5 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 
 func newTestCache() *cache.Cache {
 	log, _ := test.NewNullLogger()
-	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{}, 0, 0, clock.NewMock())
+	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{}, 0, clock.NewMock())
 }
