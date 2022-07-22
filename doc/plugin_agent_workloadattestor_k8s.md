@@ -31,8 +31,8 @@ server name validation against the kubelet certificate.
 > mitigate this issue. A large cache ttl value is not recommended however, as
 > that can impact permission revocation.
 
-**Note** To run on windows containers, kubernetes v1.24+ and containerd v1.6+ are required,
-since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) is required on agent container
+**Note** To run on Windows containers, Kubernetes v1.24+ and containerd v1.6+ are required,
+since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) container is required on the agent container.
 
 | Configuration | Description |
 | ------------- | ----------- |
