@@ -3,8 +3,8 @@
 SIZE=10
 
 # Create entries for uid 1002
-for ((m=1; m<=$SIZE;m++)); do
-  log-debug "creating regular registration entry...($m)"
+for ((m=1;m<=$SIZE;m++)); do
+  log-debug "creating registration entry...($m)"
   docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
@@ -13,7 +13,6 @@ for ((m=1; m<=$SIZE;m++)); do
     -ttl 0 &
 done
 
-for ((m=1; m<=$SIZE;m++)); do
+for ((m=1;m<=$SIZE;m++)); do
   check-synced-entry "spire-agent" "spiffe://domain.test/workload/$m"
-  ((m++))
 done

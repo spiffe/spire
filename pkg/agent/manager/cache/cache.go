@@ -421,7 +421,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 	}
 
 	// entries with active subscribers which are not cached will be put in staleEntries map
-	activeSubs, recordsWithLastAccessTime := c.syncSVIDs()
+	activeSubsByEntryID, recordsWithLastAccessTime := c.syncSVIDs()
 	extraSize := len(c.svids) - c.svidCacheMaxSize
 
 	// delete svids without subscribers and which have not been accessed since svidCacheExpiryTime
@@ -435,7 +435,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 				break
 			}
 			if _, ok := c.svids[record.id]; ok {
-				if _, exists := activeSubs[record.id]; !exists {
+				if _, exists := activeSubsByEntryID[record.id]; !exists {
 					// remove svid
 					c.log.WithField("record_id", record.id).
 						WithField("record_timestamp", record.timestamp).
@@ -587,7 +587,6 @@ func (c *Cache) syncSVIDs() (map[string]struct{}, []recordAccessEvent) {
 	activeSubsByEntryID := make(map[string]struct{})
 	lastAccessTimestamps := make([]recordAccessEvent, 0, len(c.records))
 
-	i := 0
 	// iterate over all selectors from cached entries and obtain:
 	// 1. entries that have active subscribers
 	//   1.1 if those entries don't have corresponding SVID cached then put them in staleEntries
@@ -606,7 +605,6 @@ func (c *Cache) syncSVIDs() (map[string]struct{}, []recordAccessEvent) {
 			}
 		}
 		lastAccessTimestamps = append(lastAccessTimestamps, newRecord(record.lastAccessTimestamp, id))
-		i++
 	}
 
 	remainderSize := c.svidCacheMaxSize - len(c.svids)
