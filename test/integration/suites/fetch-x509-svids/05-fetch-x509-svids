@@ -13,5 +13,5 @@ else
   echo "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1001";
 fi
 
-# Call agent debug endpoints and check if extra svids from cache are cleaned up
+# Call agent debug endpoints and check if extra X.509-SVIDs from cache are cleaned up
 check-x509-svid-count "spire-agent" $CACHESIZE
