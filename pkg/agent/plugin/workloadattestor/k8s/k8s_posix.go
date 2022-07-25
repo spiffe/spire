@@ -190,7 +190,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, err
 		}
 
-		var attestResponse *workloadattestorv1.AttestResponse = nil
+		var attestResponse *workloadattestorv1.AttestResponse
 		for _, item := range list.Items {
 			item := item
 
