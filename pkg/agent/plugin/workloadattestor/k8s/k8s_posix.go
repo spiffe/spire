@@ -595,7 +595,7 @@ var cgroupREs = []*regexp.Regexp{
 
 	// This regex applies for container runtimes, that won't put the PodUID into
 	// the cgroup name.
-	// Currently only cri-o in combination with kubeedge is known for this abnormaly.
+	// Currently only cri-o in combination with kubeedge is known for this abnormally.
 	regexp.MustCompile(`` +
 		// /crio-
 		`(?P<poduid>)[[:punct:]]crio[[:punct:]]` +
