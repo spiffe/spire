@@ -221,7 +221,7 @@ func (s *Suite) TestAttestFailDuplicateContainerId() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
 
-	s.requireAttestFailWithCrioPod(p)
+	s.requireAttestFailWithDuplicateContainerId(p)
 }
 
 func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
@@ -838,7 +838,7 @@ func (s *Suite) requireAttestSuccessWithCrioPod(p workloadattestor.WorkloadAttes
 	s.requireAttestSuccess(p, testCrioPodSelectors)
 }
 
-func (s *Suite) requireAttestFailWithCrioPod(p workloadattestor.WorkloadAttestor) {
+func (s *Suite) requireAttestFailWithDuplicateContainerId(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(crioPodListDuplicateContainerIdFilePath)
 	s.addCgroupsResponse(cgPidInCrioPodFilePath)
 	s.requireAttestFailure(p, codes.Internal, "two pods found with same container Id")
@@ -1079,10 +1079,16 @@ func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 			expectContainerID: "b2a102854b4969b2ce98dc329c86b4fb2b06e4ad2cc8da9d8a7578c9cd2004a2",
 		},
 		{
-			name:              "cri-o",
+			name:              "cri-o in combination with kubeedge",
 			cgroupPath:        "0::/../crio-45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814.scope",
 			expectPodUID:      "",
 			expectContainerID: "45490e76e0878aaa4d9808f7d2eefba37f093c3efbba9838b6d8ab804d9bd814",
+		},
+		{
+			name:              "cri-o in combination with minikube",
+			cgroupPath:        "9:devices:/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod561fd272_d131_47ef_a01b_46a997a778f3.slice/crio-030ded69d4c98fcf69c988f75a5eb3a1b4357e1432bd5510c936a40d7e9a1198.scope",
+			expectPodUID:      "561fd272-d131-47ef-a01b-46a997a778f3",
+			expectContainerID: "030ded69d4c98fcf69c988f75a5eb3a1b4357e1432bd5510c936a40d7e9a1198",
 		},
 		{
 			name:       "uid generateds by kubernetes",

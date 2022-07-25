@@ -575,6 +575,9 @@ func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, st
 	return podUID, containerID, nil
 }
 
+// regexes listed here have to exlusively match a cgroup path
+// the regexes must include two named groups "poduid" and "containerid"
+// if the regex needs to exclude certain substrings, the "mustnotmatch" group can be used
 var cgroupREs = []*regexp.Regexp{
 	// the regex used to parse out the pod UID and container ID from a
 	// cgroup name. It assumes that any ".scope" suffix has been trimmed off
@@ -597,24 +600,38 @@ var cgroupREs = []*regexp.Regexp{
 	// the cgroup name.
 	// Currently only cri-o in combination with kubeedge is known for this abnormally.
 	regexp.MustCompile(`` +
+		// intentionally empty poduid group
+		`(?P<poduid>)` +
+		// mustnotmatch group: cgroup path must not include a poduid
+		`(?P<mustnotmatch>pod[[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12}[[:punct:]])?` +
 		// /crio-
-		`(?P<poduid>)[[:punct:]]crio[[:punct:]]` +
+		`(?:[[:^punct:]]*/*)*crio[[:punct:]]` +
 		// non-punctuation end of string, i.e., the container ID
 		`(?P<containerid>[[:^punct:]]+)$`),
 }
 
 func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
 	match := r.FindStringSubmatch(str)
-	var subMatchMap map[string]string
-	if match != nil {
-		subMatchMap = make(map[string]string)
-		for i, name := range r.SubexpNames() {
-			if i != 0 {
-				subMatchMap[name] = match[i]
-			}
+	if match == nil {
+		return nil
+	}
+	subMatchMap := make(map[string]string)
+	for i, name := range r.SubexpNames() {
+		if i != 0 {
+			subMatchMap[name] = match[i]
 		}
 	}
 	return subMatchMap
+}
+
+func isValidCGroupPathMatches(matches map[string]string) bool {
+	if matches == nil {
+		return false
+	}
+	if matches["mustnotmatch"] != "" {
+		return false
+	}
+	return true
 }
 
 func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
@@ -633,7 +650,7 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 	var matchResults map[string]string
 	for _, regex := range cgroupREs {
 		matches := reSubMatchMap(regex, cgroupPath)
-		if matches != nil {
+		if isValidCGroupPathMatches(matches) {
 			if matchResults != nil {
 				log.Printf("More than one regex matches for cgroup %s", cgroupPath)
 				return "", "", false
