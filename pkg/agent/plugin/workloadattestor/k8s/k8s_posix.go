@@ -643,7 +643,7 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 	}
 
 	if matchResults != nil {
-		var podUID types.UID = ""
+		var podUID types.UID
 		if matchResults["poduid"] != "" {
 			podUID = canonicalizePodUID(matchResults["poduid"])
 		}
