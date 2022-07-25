@@ -605,7 +605,7 @@ var cgroupREs = []*regexp.Regexp{
 
 func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
 	match := r.FindStringSubmatch(str)
-	var subMatchMap map[string]string = nil
+	var subMatchMap map[string]string
 	if match != nil {
 		subMatchMap = make(map[string]string)
 		for i, name := range r.SubexpNames() {
