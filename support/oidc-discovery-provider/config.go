@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl"
@@ -10,9 +9,12 @@ import (
 )
 
 const (
-	defaultLogLevel     = "info"
-	defaultPollInterval = time.Second * 10
-	defaultCacheDir     = "./.acme-cache"
+	defaultLogLevel              = "info"
+	defaultPollInterval          = time.Second * 10
+	defaultCacheDir              = "./.acme-cache"
+	defaultHealthChecksBindPort  = 8008
+	defaultHealthChecksReadyPath = "/ready"
+	defaultHealthChecksLivePath  = "/live"
 )
 
 type Config struct {
@@ -60,6 +62,12 @@ type Config struct {
 	// Workload API is the configuration for using the SPIFFE Workload API
 	// as the source for the public keys. Only one source can be configured.
 	WorkloadAPI *WorkloadAPIConfig `hcl:"workload_api"`
+
+	// Health checks enable Liveness and Readiness probes.
+	HealthChecks *HealthChecksConfig `hcl:"health_checks"`
+
+	// Experimental options that are subject to change or removal.
+	Experimental experimentalConfig `hcl:"experimental"`
 }
 
 type ACMEConfig struct {
@@ -97,6 +105,9 @@ type ServerAPIConfig struct {
 	// RawPollInterval holds the string version of the PollInterval. Consumers
 	// should use PollInterval instead.
 	RawPollInterval string `hcl:"poll_interval"`
+
+	// Experimental options that are subject to change or removal.
+	Experimental experimentalServerAPIConfig `hcl:"experimental"`
 }
 
 type WorkloadAPIConfig struct {
@@ -115,6 +126,34 @@ type WorkloadAPIConfig struct {
 	// RawPollInterval holds the string version of the PollInterval. Consumers
 	// should use PollInterval instead.
 	RawPollInterval string `hcl:"poll_interval"`
+
+	// Experimental options that are subject to change or removal.
+	Experimental experimentalWorkloadAPIConfig `hcl:"experimental"`
+}
+
+type HealthChecksConfig struct {
+	// Listener port binding
+	BindPort int `hcl:"bind_port"`
+	// Paths for /ready and /live
+	LivePath  string `hcl:"live_path"`
+	ReadyPath string `hcl:"ready_path"`
+}
+
+type experimentalConfig struct {
+	// ListenNamedPipeName specifies the pipe name of the named pipe
+	// to listen for plaintext HTTP on, for when deployed behind another
+	// webserver or sidecar.
+	ListenNamedPipeName string `hcl:"listen_named_pipe_name" json:"listen_named_pipe_name"`
+}
+
+type experimentalServerAPIConfig struct {
+	// Pipe name of the Server API named pipe.
+	NamedPipeName string `hcl:"named_pipe_name" json:"named_pipe_name"`
+}
+
+type experimentalWorkloadAPIConfig struct {
+	// Pipe name of the Workload API named pipe.
+	NamedPipeName string `hcl:"named_pipe_name" json:"named_pipe_name"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -145,35 +184,19 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		if c.ACME.RawCacheDir != nil {
 			c.ACME.CacheDir = *c.ACME.RawCacheDir
 		}
-	}
-
-	switch {
-	case c.ACME == nil:
-		if c.InsecureAddr == "" && c.ListenSocketPath == "" {
-			return nil, errs.New("either acme or listen_socket_path must be configured")
+		switch {
+		case c.InsecureAddr != "":
+			return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
+		case !c.ACME.ToSAccepted:
+			return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
+		case c.ACME.Email == "":
+			return nil, errs.New("email must be configured in the acme configuration section")
 		}
-		if c.InsecureAddr != "" && c.ListenSocketPath != "" {
-			return nil, errs.New("insecure_addr and listen_socket_path are mutually exclusive")
-		}
-	case c.InsecureAddr != "":
-		return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
-	case c.ListenSocketPath != "":
-		return nil, errs.New("listen_socket_path and the acme section are mutually exclusive")
-	case !c.ACME.ToSAccepted:
-		return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
-	case c.ACME.Email == "":
-		return nil, errs.New("email must be configured in the acme configuration section")
 	}
 
 	var methodCount int
 
 	if c.ServerAPI != nil {
-		if c.ServerAPI.Address == "" {
-			return nil, errs.New("address must be configured in the server_api configuration section")
-		}
-		if !strings.HasPrefix(c.ServerAPI.Address, "unix:") {
-			return nil, errs.New("address must use the unix name system in the server_api configuration section")
-		}
 		c.ServerAPI.PollInterval, err = parsePollInterval(c.ServerAPI.RawPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
@@ -182,9 +205,6 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	if c.WorkloadAPI != nil {
-		if c.WorkloadAPI.SocketPath == "" {
-			return nil, errs.New("socket_path must be configured in the workload_api configuration section")
-		}
 		if c.WorkloadAPI.TrustDomain == "" {
 			return nil, errs.New("trust_domain must be configured in the workload_api configuration section")
 		}
@@ -193,6 +213,22 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 			return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
 		}
 		methodCount++
+	}
+
+	if c.HealthChecks != nil {
+		if c.HealthChecks.BindPort <= 0 {
+			c.HealthChecks.BindPort = defaultHealthChecksBindPort
+		}
+		if c.HealthChecks.ReadyPath == "" {
+			c.HealthChecks.ReadyPath = defaultHealthChecksReadyPath
+		}
+		if c.HealthChecks.LivePath == "" {
+			c.HealthChecks.LivePath = defaultHealthChecksLivePath
+		}
+	}
+
+	if err := c.validateOS(); err != nil {
+		return nil, err
 	}
 
 	switch methodCount {

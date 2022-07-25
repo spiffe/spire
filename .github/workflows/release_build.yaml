@@ -4,19 +4,20 @@ on:
     tags:
       - 'v[0-9].[0-9]+.[0-9]+'
 env:
-  GO_VERSION: 1.17.7
+  GO_VERSION: 1.18.4
 jobs:
   cache-deps:
+    name: cache-deps (linux)
     runs-on: ubuntu-18.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -24,22 +25,23 @@ jobs:
         run: go mod download
 
   lint:
+    name: lint (linux)
     runs-on: ubuntu-18.04
     needs: cache-deps
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Setup build tool cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -62,13 +64,13 @@ jobs:
     needs: cache-deps
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -81,13 +83,13 @@ jobs:
     needs: cache-deps
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -95,22 +97,23 @@ jobs:
         run: ./.github/workflows/scripts/run_unit_tests_under_race_detector.sh
 
   artifacts:
+    name: artifacts (linux)
     runs-on: ubuntu-18.04
     needs: [cache-deps]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -119,28 +122,29 @@ jobs:
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh
       - name: Archive artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: binaries
           path: ./artifacts/
 
   images:
+    name: images (linux)
     runs-on: ubuntu-18.04
     needs: [cache-deps]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -151,28 +155,52 @@ jobs:
       - name: Export images
         run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
       - name: Archive images
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: images
           path: images.tar.gz
+
+  images-windows:
+    name: images (windows)
+    runs-on: windows-2022
+    needs: artifact-windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: bin-windows
+          path: ./bin/
+      - name: Build images
+        run: make images-windows
+      - name: Export images
+        run: |
+          docker save spire-server-windows:latest-local spire-agent-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
+          gzip images-windows.tar
+      - name: Archive images
+        uses: actions/upload-artifact@v3
+        with:
+          name: images-windows
+          path: images-windows.tar.gz
 
   scratch-images:
     runs-on: ubuntu-18.04
     needs: [cache-deps]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -183,12 +211,13 @@ jobs:
       - name: Export scratch images
         run: docker save spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > scratch-images.tar.gz
       - name: Archive scratch images
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: scratch-images
           path: scratch-images.tar.gz
 
   integration:
+    name: integration (linux)
     runs-on: ubuntu-18.04
     needs: [cache-deps, images, scratch-images]
     strategy:
@@ -198,7 +227,7 @@ jobs:
         runner_id: [1, 2, 3, 4, 5]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # The "upgrade" integration test needs the history to ensure
           # that the version number in the source code has been bumped as
@@ -215,28 +244,28 @@ jobs:
       - name: Fix tag annotations
         run: git fetch --tags --force
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-tools-
       - name: Download archived images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: images
           path: .
       - name: Download archived scratch images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: scratch-images
           path: .
@@ -254,14 +283,208 @@ jobs:
           # CICD_TARGET_BRANCH:
         run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
 
-  publish-artifacts:
-    runs-on: ubuntu-18.04
-    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration]
+  integration-windows:
+    name: integration (windows)
+    runs-on: windows-2022
+    needs: images-windows
+    strategy:
+      fail-fast: false
+    defaults:
+      run:
+        shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v3
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Install msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            git
+            base-devel
+            mingw-w64-x86_64-toolchain
+            unzip
+      - name: Download archived images
+        uses: actions/download-artifact@v3
+        with:
+          name: images-windows
+          path: .
+      - name: Load archived images
+        run: docker load -i images-windows.tar.gz
+      - name: Run integration tests
+        # Run all tests for now
+        run: make integration-windows
+
+  cache-deps-windows:
+    name: cache-deps (windows)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Setup dep cache
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Pull go deps
+        run: go mod download
+
+  lint-windows:
+    name: lint (windows)
+    runs-on: windows-2022
+    needs: cache-deps-windows
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Setup build tool cache
+        uses: actions/cache@v3
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Install msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel 
+            mingw-w64-x86_64-toolchain 
+            unzip 
+      - name: Lint
+        run: make lint
+      - name: Tidy check
+        run: make tidy-check
+      - name: Generate check
+        run: make generate-check
+
+  unit-test-windows:
+    name: unit-test (windows)
+    runs-on: windows-2022
+    needs: cache-deps-windows
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Install msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel 
+            mingw-w64-x86_64-toolchain 
+            unzip 
+      - name: Run unit tests
+        run: ./.github/workflows/scripts/run_unit_tests.sh
+          
+  artifact-windows:
+    name: artifact (windows)
+    runs-on: windows-2022
+    needs: cache-deps-windows
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Load cached deps
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@v3
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+      - name: Install msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            base-devel 
+            mingw-w64-x86_64-toolchain 
+            zip
+            unzip 
+      - name: Build artifacts
+        run: ./.github/workflows/scripts/build_artifacts.sh
+      - name: Archive binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: bin-windows
+          path: ./bin/
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: ./artifacts/
+
+  publish-artifacts:
+    runs-on: ubuntu-18.04
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration,
+            lint-windows, unit-test-windows, artifact-windows, integration-windows]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
       - name: Download archived artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: binaries
           path: ./artifacts/
@@ -275,21 +498,21 @@ jobs:
           GH_REPO: ${{ github.repository }} 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Create the release using the version number as the title
-        run: gh release create "${GITHUB_REF#refs/tags/}" ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
+        run: gh release create "${GITHUB_REF#refs/tags/}" ./artifacts/*.zip ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
 
   publish-images:
     runs-on: ubuntu-18.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Download archived images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: images
           path: .
       - name: Download archived scratch images
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: scratch-images
           path: .
@@ -298,7 +521,7 @@ jobs:
       - name: Load archived scratch images
         run: zcat scratch-images.tar.gz | docker load
       - name: Log in to GCR
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: gcr.io
           username: _json_key
@@ -307,7 +530,7 @@ jobs:
       - name: Push images
         run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/v}"
       - name: Log in to GHCR
-        uses: docker/login-action@v1
+        uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
-	"os"
-	"path"
 	"runtime"
 	"sync"
 
@@ -19,7 +17,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -40,8 +40,13 @@ type Agent struct {
 // and then blocks on the main event loop.
 func (a *Agent) Run(ctx context.Context) error {
 	a.c.Log.Infof("Starting agent with data directory: %q", a.c.DataDir)
-	if err := os.MkdirAll(a.c.DataDir, 0755); err != nil {
+	if err := diskutil.CreateDataDirectory(a.c.DataDir); err != nil {
 		return err
+	}
+
+	sto, err := storage.Open(a.c.DataDir)
+	if err != nil {
+		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -76,14 +81,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
-	as, err := a.attest(ctx, cat, metrics)
+	as, err := a.attest(ctx, sto, cat, metrics)
 	if err != nil {
 		return err
 	}
 
 	svidStoreCache := a.newSVIDStoreCache()
 
-	manager, err := a.newManager(ctx, cat, metrics, as, svidStoreCache)
+	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache)
 	if err != nil {
 		return err
 	}
@@ -181,7 +186,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
 		Catalog:           cat,
 		Metrics:           metrics,
@@ -189,15 +194,14 @@ func (a *Agent) attest(ctx context.Context, cat catalog.Catalog, metrics telemet
 		TrustDomain:       a.c.TrustDomain,
 		TrustBundle:       a.c.TrustBundle,
 		InsecureBootstrap: a.c.InsecureBootstrap,
-		BundleCachePath:   a.bundleCachePath(),
-		SVIDCachePath:     a.agentSVIDPath(),
+		Storage:           sto,
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:     a.c.ServerAddress,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:             as.SVID,
 		SVIDKey:          as.Key,
@@ -207,8 +211,8 @@ func (a *Agent) newManager(ctx context.Context, cat catalog.Catalog, metrics tel
 		ServerAddr:       a.c.ServerAddress,
 		Log:              a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
 		Metrics:          metrics,
-		BundleCachePath:  a.bundleCachePath(),
-		SVIDCachePath:    a.agentSVIDPath(),
+		WorkloadKeyType:  a.c.WorkloadKeyType,
+		Storage:          sto,
 		SyncInterval:     a.c.SyncInterval,
 		SVIDCacheMaxSize: a.c.X509SVIDCacheMaxSize,
 		SVIDStoreCache:   cache,
@@ -253,6 +257,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DefaultSVIDName:               a.c.DefaultSVIDName,
 		DefaultBundleName:             a.c.DefaultBundleName,
 		DefaultAllBundlesName:         a.c.DefaultAllBundlesName,
+		DisableSPIFFECertValidation:   a.c.DisableSPIFFECertValidation,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		TrustDomain:                   a.c.TrustDomain,
@@ -271,13 +276,6 @@ func (a *Agent) newAdminEndpoints(mgr manager.Manager, attestor workload_attesto
 	}
 
 	return admin_api.New(config)
-}
-func (a *Agent) bundleCachePath() string {
-	return path.Join(a.c.DataDir, "bundle.der")
-}
-
-func (a *Agent) agentSVIDPath() string {
-	return path.Join(a.c.DataDir, "agent_svid.der")
 }
 
 // waitForTestDial calls health.WaitForTestDial to wait for a connection to the
@@ -309,13 +307,13 @@ func (a *Agent) CheckHealth() health.State {
 }
 
 func (a *Agent) checkWorkloadAPI() error {
-	addr, err := util.GetURIAddress(a.c.BindAddress)
+	clientOption, err := util.GetWorkloadAPIClientOption(a.c.BindAddress)
 	if err != nil {
-		a.c.Log.WithError(err).Error("Failed to parse endpoint address for health check")
+		a.c.Log.WithError(err).Error("Failed to get Workload API client options for health check")
 		return err
 	}
-	_, err = workloadapi.FetchX509Bundles(context.TODO(),
-		workloadapi.WithAddr(addr))
+
+	_, err = workloadapi.FetchX509Bundles(context.TODO(), clientOption)
 	if status.Code(err) == codes.Unavailable {
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")

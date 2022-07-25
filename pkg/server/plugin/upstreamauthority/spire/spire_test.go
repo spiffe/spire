@@ -1,7 +1,3 @@
-//go:build !windows
-// +build !windows
-
-// TODO: plugin is not supported on windows until workload api works
 package spireplugin
 
 import (
@@ -35,29 +31,35 @@ var (
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
+type configureCase struct {
+	name                     string
+	serverAddr               string
+	serverPort               string
+	workloadAPISocket        string
+	workloadAPINamedPipeName string
+	overrideCoreConfig       *catalog.CoreConfig
+	overrideConfig           string
+	expectCode               codes.Code
+	expectMsgPrefix          string
+	expectServerID           string
+	expectWorkloadAPIAddr    net.Addr
+	expectServerAddr         string
+}
+
+type mintX509CACase struct {
+	name                  string
+	ttl                   time.Duration
+	getCSR                func() ([]byte, crypto.PublicKey)
+	expectCode            codes.Code
+	expectMsgPrefix       string
+	sAPIError             error
+	downstreamResp        *svidv1.NewDownstreamX509CAResponse
+	customWorkloadAPIAddr net.Addr
+	customServerAddr      string
+}
+
 func TestConfigure(t *testing.T) {
-	for _, tt := range []struct {
-		name                    string
-		serverAddr              string
-		serverPort              string
-		workloadAPISocket       string
-		overrideCoreConfig      *catalog.CoreConfig
-		overrideConfig          string
-		expectCode              codes.Code
-		expectMsgPrefix         string
-		expectServerID          string
-		expectWorkloadAPISocket string
-		expectServerAddr        string
-	}{
-		{
-			name:                    "success",
-			serverAddr:              "localhost",
-			serverPort:              "8081",
-			workloadAPISocket:       "socketPath",
-			expectServerID:          "spiffe://example.org/spire/server",
-			expectWorkloadAPISocket: "unix://socketPath",
-			expectServerAddr:        "localhost:8081",
-		},
+	cases := []configureCase{
 		{
 			name:            "malformed configuration",
 			overrideConfig:  "{1}",
@@ -73,7 +75,9 @@ func TestConfigure(t *testing.T) {
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "trust_domain is required",
 		},
-	} {
+	}
+	cases = append(cases, configureCasesOS(t)...)
+	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
@@ -97,6 +101,9 @@ func TestConfigure(t *testing.T) {
 					ServerAddr:        tt.serverAddr,
 					ServerPort:        tt.serverPort,
 					WorkloadAPISocket: tt.workloadAPISocket,
+					Experimental: experimentalConfig{
+						WorkloadAPINamedPipeName: tt.workloadAPINamedPipeName,
+					},
 				}))
 			}
 
@@ -109,7 +116,7 @@ func TestConfigure(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectServerID, p.serverClient.serverID.String())
-			assert.Equal(t, tt.expectWorkloadAPISocket, p.serverClient.workloadAPISocket)
+			assert.Equal(t, tt.expectWorkloadAPIAddr, p.serverClient.workloadAPIAddr)
 			assert.Equal(t, tt.expectServerAddr, p.serverClient.serverAddr)
 		})
 	}
@@ -136,31 +143,12 @@ func TestMintX509CA(t *testing.T) {
 	csr, pubKey, err := util.NewCSRTemplate(trustDomain.IDString())
 	require.NoError(t, err)
 
-	cases := []struct {
-		name             string
-		ttl              time.Duration
-		getCSR           func() ([]byte, crypto.PublicKey)
-		expectCode       codes.Code
-		expectMsgPrefix  string
-		sAPIError        error
-		downstreamResp   *svidv1.NewDownstreamX509CAResponse
-		customSocketPath string
-		customServerAddr string
-	}{
+	cases := []mintX509CACase{
 		{
 			name: "valid CSR",
 			getCSR: func() ([]byte, crypto.PublicKey) {
 				return csr, pubKey
 			},
-		},
-		{
-			name: "invalid socket path",
-			getCSR: func() ([]byte, crypto.PublicKey) {
-				return csr, pubKey
-			},
-			customSocketPath: "malformed path",
-			expectCode:       codes.Internal,
-			expectMsgPrefix:  `upstreamauthority(spire): unable to create X509Source: workload endpoint socket is not a valid URI: parse "unix://malformed path"`,
 		},
 		{
 			name: "invalid server address",
@@ -232,6 +220,7 @@ func TestMintX509CA(t *testing.T) {
 		},
 	}
 
+	cases = append(cases, mintX509CACasesOS(t)...)
 	for _, c := range cases {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
@@ -242,15 +231,15 @@ func TestMintX509CA(t *testing.T) {
 			server.sAPIServer.downstreamResponse = c.downstreamResp
 
 			serverAddr := server.sAPIServer.addr
-			socketPath := server.wAPIServer.socketPath
+			workloadAPIAddr := server.wAPIServer.workloadAPIAddr
 			if c.customServerAddr != "" {
 				serverAddr = c.customServerAddr
 			}
-			if c.customSocketPath != "" {
-				socketPath = c.customSocketPath
+			if c.customWorkloadAPIAddr != nil {
+				workloadAPIAddr = c.customWorkloadAPIAddr
 			}
 
-			ua, mockClock := newWithDefault(t, serverAddr, socketPath)
+			ua, mockClock := newWithDefault(t, serverAddr, workloadAPIAddr)
 
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -324,7 +313,7 @@ func TestPublishJWTKey(t *testing.T) {
 	// Setup servers
 	server := testHandler{}
 	server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
-	ua, mockClock := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.socketPath)
+	ua, mockClock := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.workloadAPIAddr)
 
 	// Get first response
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -376,14 +365,13 @@ func TestPublishJWTKey(t *testing.T) {
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(spire): failed to push JWT authority: rpc error: code = Unknown desc = some erro")
 }
 
-func newWithDefault(t *testing.T, addr string, socketPath string) (*upstreamauthority.V1, *clock.Mock) {
-	host, port, _ := net.SplitHostPort(addr)
-
+func newWithDefault(t *testing.T, serverAddr string, workloadAPIAddr net.Addr) (*upstreamauthority.V1, *clock.Mock) {
+	host, port, _ := net.SplitHostPort(serverAddr)
 	config := Configuration{
-		ServerAddr:        host,
-		ServerPort:        port,
-		WorkloadAPISocket: socketPath,
+		ServerAddr: host,
+		ServerPort: port,
 	}
+	setWorkloadAPIAddr(&config, workloadAPIAddr)
 
 	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, BuiltIn(), ua,

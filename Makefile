@@ -34,6 +34,9 @@ help:
 	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
 	@echo "                                          support 'SUITES' variable for executing specific tests"
 	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
+	@echo "  $(cyan)integration-windows$(reset)                   - run integration tests for windows (requires Docker images)"
+	@echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"
 	@echo
 	@echo "$(bold)Build and test:$(reset)"
 	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
@@ -50,6 +53,12 @@ help:
 	@echo "  $(cyan)spire-agent-scratch-image$(reset)             - build SPIRE agent Docker scratch image"
 	@echo "  $(cyan)k8s-workload-registrar-scratch-image$(reset)  - build Kubernetes Workload Registrar Docker scratch image"
 	@echo "  $(cyan)oidc-discovery-provider-scratch-image$(reset) - build OIDC Discovery Provider Docker image"
+	@echo "$(bold)Windows docker image:$(reset)"
+	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
+	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
+	@echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"
+	@echo "  $(cyan)k8s-workload-registrar-image-windows$(reset)  - build Kubernetes Workload Registrar Docker image for windows"
+	@echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"
 	@echo "$(bold)Developer support:$(reset)"
 	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
 	@echo "  $(cyan)dev-shell$(reset)                             - run a shell in a development Docker container"
@@ -115,15 +124,15 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.44.0
+golangci_lint_version = v1.46.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-protoc_version = 3.14.0
+protoc_version = 3.20.1
 ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
-else ifeq ($(arch1),aarch64)
+else ifeq ($(arch2),arm64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
 else
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-$(arch1).zip
@@ -271,7 +280,7 @@ $(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oi
 # Test Targets
 #############################################################################
 
-.PHONY: test race-test integration
+.PHONY: test race-test integration integration-windows
 
 test: | go-check
 ifneq ($(COVERPROFILE),)
@@ -300,6 +309,9 @@ ifeq ($(os1), windows)
 else
 	$(E)./test/integration/test.sh $(SUITES)
 endif
+
+integration-windows:
+	$(E)./test/integration/test-windows.sh $(SUITES)
 
 #############################################################################
 # Build Artifact
@@ -365,6 +377,33 @@ oidc-discovery-provider-scratch-image: Dockerfile
 	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
 
 #############################################################################
+# Docker Images
+#############################################################################
+
+.PHONY: images-windows
+images-windows: spire-server-image-windows spire-agent-image-windows oidc-discovery-provider-image-windows
+
+.PHONY: spire-server-image-windows
+spire-server-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target spire-server-windows -t spire-server-windows .
+	docker tag spire-server-windows:latest spire-server-windows:latest-local
+
+.PHONY: spire-agent-image-windows
+spire-agent-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target spire-agent-windows -t spire-agent-windows .
+	docker tag spire-agent-windows:latest spire-agent-windows:latest-local
+
+.PHONY: k8s-workload-registrar-image-windows
+k8s-workload-registrar-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target k8s-workload-registrar-windows -t k8s-workload-registrar-windows .
+	docker tag k8s-workload-registrar-windows:latest k8s-workload-registrar-windows:latest-local
+
+.PHONY: oidc-discovery-provider-image-windows
+oidc-discovery-provider-image-windows: Dockerfile
+	docker build -f Dockerfile.windows --target oidc-discovery-provider-windows -t oidc-discovery-provider-windows .
+	docker tag oidc-discovery-provider-windows:latest oidc-discovery-provider-windows:latest-local
+
+#############################################################################
 # Code cleanliness
 #############################################################################
 
@@ -384,7 +423,7 @@ endif
 
 lint: lint-code
 
-lint-code: $(golangci_lint_bin) | go-check
+lint-code: $(golangci_lint_bin)
 	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
 
@@ -499,12 +538,12 @@ $(protoc_bin):
 
 install-golangci-lint: $(golangci_lint_bin)
 
-$(golangci_lint_bin):
+$(golangci_lint_bin): | go-check
 	@echo "Installing golangci-lint $(golangci_lint_version)..."
 	$(E)rm -rf $(dir $(golangci_lint_dir))
 	$(E)mkdir -p $(golangci_lint_dir)
 	$(E)mkdir -p $(golangci_lint_cache)
-	$(E)curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(golangci_lint_dir) $(golangci_lint_version)
+	$(E)GOBIN=$(golangci_lint_dir) $(go_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)
 

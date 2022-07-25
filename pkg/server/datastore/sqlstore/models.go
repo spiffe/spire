@@ -97,6 +97,12 @@ type RegisteredEntry struct {
 	// Hint is a "hint string" passed to the workload to distinguish between
 	// multiple SVIDs
 	Hint string
+
+	// TTL of X509 identities derived from this entry
+	X509SvidTTL int32 `gorm:"column:x509_svid_ttl"`
+
+	// TTL of JWT identities derived from this entry
+	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 }
 
 // JoinToken holds a join token

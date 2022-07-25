@@ -1,7 +1,7 @@
 # Integration Test Framework
 
 This directory contains the Integration Test framework for SPIRE. Integration
-tests are run nightly or after there has been a merge into the master branch.
+tests are run nightly, for each PR, and doing a release.
 
 ## Executing Test Suites
 
@@ -81,7 +81,7 @@ The following environment variables are available to the teardown script:
 * [Envoy SDS (v3)](suites/envoy-sds-v3/README.md)
 * [Ghostunnel + Federation](suites/ghostunnel-federation/README.md)
 * [Join Token](suites/join-token/README.md)
-* [Kubernetes (K8S Workload Registrar "webhook" mode)](suites/k8s/README.md)
+* [Kubernetes (K8S Workload Registrar "crd" mode)](suites/k8s-crd-mode/README.md)
 * [Kubernetes (K8S Workload Registrar "reconcile" mode)](suites/k8s-reconcile/README.md)
 * [Nested Rotation](suites/nested-rotation/README.md)
 * [Node Attestation](suites/node-attestation/README.md)

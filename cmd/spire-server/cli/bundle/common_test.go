@@ -9,6 +9,7 @@ import (
 	"github.com/mitchellh/cli"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
@@ -183,7 +184,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 
 	server := &fakeBundleServer{t: t}
 
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		bundlev1.RegisterBundleServer(s, server)
 	})
 
@@ -198,15 +199,15 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 	})
 
 	test := &bundleTest{
-		cert1:      cert1,
-		cert2:      cert2,
-		key1Pkix:   key1Pkix,
-		socketPath: socketPath,
-		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
-		server:     server,
-		client:     client,
+		cert1:    cert1,
+		cert2:    cert2,
+		key1Pkix: key1Pkix,
+		addr:     common.GetAddr(addr),
+		stdin:    stdin,
+		stdout:   stdout,
+		stderr:   stderr,
+		server:   server,
+		client:   client,
 	}
 
 	t.Cleanup(func() {
@@ -225,8 +226,8 @@ type bundleTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	socketPath string
-	server     *fakeBundleServer
+	addr   string
+	server *fakeBundleServer
 
 	client cli.Command
 }
@@ -239,7 +240,7 @@ func (s *bundleTest) afterTest(t *testing.T) {
 }
 
 func (s *bundleTest) args(extra ...string) []string {
-	return append([]string{"-socketPath", s.socketPath}, extra...)
+	return append([]string{common.AddrArg, s.addr}, extra...)
 }
 
 type fakeBundleServer struct {

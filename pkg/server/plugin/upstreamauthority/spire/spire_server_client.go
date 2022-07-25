@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -14,6 +15,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -22,21 +24,21 @@ import (
 )
 
 // newServerClient creates a new spire-sever client
-func newServerClient(serverID spiffeid.ID, serverAddr string, workloadapiSocket string, log hclog.Logger) *serverClient {
+func newServerClient(serverID spiffeid.ID, serverAddr string, workloadAPIAddr net.Addr, log hclog.Logger) *serverClient {
 	return &serverClient{
-		serverID:          serverID,
-		serverAddr:        serverAddr,
-		workloadAPISocket: workloadapiSocket,
-		log:               &logAdapter{log: log},
+		serverID:        serverID,
+		serverAddr:      serverAddr,
+		workloadAPIAddr: workloadAPIAddr,
+		log:             &logAdapter{log: log},
 	}
 }
 
 type serverClient struct {
-	serverID          spiffeid.ID
-	conn              *grpc.ClientConn
-	serverAddr        string
-	workloadAPISocket string
-	log               logger.Logger
+	serverID        spiffeid.ID
+	conn            *grpc.ClientConn
+	serverAddr      string
+	workloadAPIAddr net.Addr
+	log             logger.Logger
 
 	mtx    sync.RWMutex
 	source *workloadapi.X509Source
@@ -47,7 +49,11 @@ type serverClient struct {
 
 // start initializes spire-server endpoints client, it uses X509 source to keep an active connection
 func (c *serverClient) start(ctx context.Context) error {
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(c.workloadAPISocket),
+	clientOption, err := util.GetWorkloadAPIClientOption(c.workloadAPIAddr)
+	if err != nil {
+		return status.Errorf(codes.Internal, "could not get Workload API client options: %v", err)
+	}
+	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(clientOption,
 		workloadapi.WithLogger(c.log)))
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to create X509Source: %v", err)

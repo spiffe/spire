@@ -94,7 +94,7 @@ func TestServiceCheck(t *testing.T) {
 			}
 
 			service := health.New(health.Config{
-				Addr: startWorkloadAPI(t, wlAPI),
+				Addr: spiretest.StartWorkloadAPI(t, wlAPI),
 			})
 
 			conn, done := spiretest.NewAPIServer(t,

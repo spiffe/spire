@@ -31,6 +31,9 @@ server name validation against the kubelet certificate.
 > mitigate this issue. A large cache ttl value is not recommended however, as
 > that can impact permission revocation.
 
+**Note** To run on Windows containers, Kubernetes v1.24+ and containerd v1.6+ are required,
+since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) container is required on the agent container.
+
 | Configuration | Description |
 | ------------- | ----------- |
 | `kubelet_read_only_port` | The kubelet read-only port. This is mutually exlusive with `kubelet_secure_port`. |
@@ -117,3 +120,7 @@ WorkloadAttestor "k8s" {
   }
 }
 ```
+
+### Platform support
+
+This plugin is only supported on Unix systems.

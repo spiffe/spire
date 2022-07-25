@@ -2,9 +2,8 @@ package docker
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/docker/docker/api/types"
@@ -14,9 +13,9 @@ import (
 	"github.com/hashicorp/hcl"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -47,29 +46,26 @@ type Plugin struct {
 	configv1.UnsafeConfigServer
 
 	log     hclog.Logger
-	fs      cgroups.FileSystem
 	retryer *retryer
 
-	mtx               sync.RWMutex
-	containerIDFinder cgroup.ContainerIDFinder
-	docker            Docker
+	mtx    sync.RWMutex
+	docker Docker
+	c      *containerHelper
 }
 
 func New() *Plugin {
 	return &Plugin{
-		fs:      cgroups.OSFileSystem{},
 		retryer: newRetryer(),
 	}
 }
 
 type dockerPluginConfig struct {
-	// DockerSocketPath is the location of the docker daemon socket (default: "unix:///var/run/docker.sock" on unix).
-	DockerSocketPath string `hcl:"docker_socket_path"`
+	OSConfig `hcl:",squash"`
+
 	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
-	DockerVersion string `hcl:"docker_version"`
-	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
-	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information.
-	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers"`
+	DockerVersion string `hcl:"docker_version" json:"docker_version"`
+
+	UnusedKeys []string `hcl:",unusedKeys"`
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -80,12 +76,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	cgroupList, err := cgroups.GetCgroups(req.Pid, p.fs)
-	if err != nil {
-		return nil, err
-	}
-
-	containerID, err := getContainerIDFromCGroups(p.containerIDFinder, cgroupList)
+	containerID, err := p.c.getContainerID(req.Pid, p.log)
 	switch {
 	case err != nil:
 		return nil, err
@@ -129,12 +120,22 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	var err error
 	config := &dockerPluginConfig{}
 	if err = hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	}
+
+	if len(config.UnusedKeys) > 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(config.UnusedKeys, ","))
+	}
+
+	containerHelper, err := createHelper(config)
+	if err != nil {
 		return nil, err
 	}
 
 	var opts []dockerclient.Opt
-	if config.DockerSocketPath != "" {
-		opts = append(opts, dockerclient.WithHost(config.DockerSocketPath))
+	dockerHost := getDockerHost(config)
+	if dockerHost != "" {
+		opts = append(opts, dockerclient.WithHost(dockerHost))
 	}
 	switch {
 	case config.DockerVersion != "":
@@ -148,83 +149,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	var containerIDFinder cgroup.ContainerIDFinder = &defaultContainerIDFinder{}
-	if len(config.ContainerIDCGroupMatchers) > 0 {
-		containerIDFinder, err = cgroup.NewContainerIDFinder(config.ContainerIDCGroupMatchers)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.docker = docker
-	p.containerIDFinder = containerIDFinder
+	p.c = containerHelper
 	return &configv1.ConfigureResponse{}, nil
-}
-
-// getContainerIDFromCGroups returns the container ID from a set of cgroups
-// using the given finder. The container ID found on each cgroup path (if any)
-// must be consistent. If no container ID is found among the cgroups, i.e.,
-// this isn't a docker workload, the function returns an empty string. If more
-// than one container ID is found, or the "found" container ID is blank, the
-// function will fail.
-func getContainerIDFromCGroups(finder cgroup.ContainerIDFinder, cgroups []cgroups.Cgroup) (string, error) {
-	var hasDockerEntries bool
-	var containerID string
-	for _, cgroup := range cgroups {
-		candidate, ok := finder.FindContainerID(cgroup.GroupPath)
-		if !ok {
-			continue
-		}
-
-		hasDockerEntries = true
-
-		switch {
-		case containerID == "":
-			// This is the first container ID found so far.
-			containerID = candidate
-		case containerID != candidate:
-			// More than one container ID found in the cgroups.
-			return "", fmt.Errorf("workloadattestor/docker: multiple container IDs found in cgroups (%s, %s)",
-				containerID, candidate)
-		}
-	}
-
-	switch {
-	case !hasDockerEntries:
-		// Not a docker workload. Since it is expected that non-docker workloads will call the
-		// workload API, it is fine to return a response without any selectors.
-		return "", nil
-	case containerID == "":
-		// The "finder" found a container ID, but it was blank. This is a
-		// defensive measure against bad matcher patterns and shouldn't
-		// be possible with the default finder.
-		return "", errors.New("workloadattestor/docker: a pattern matched, but no container id was found")
-	default:
-		return containerID, nil
-	}
-}
-
-// dockerCGroupRE matches cgroup paths that have the following properties.
-// 1) `\bdocker\b` the whole word docker
-// 2) `.+` followed by one or more characters (which will start on a word boundary due to #1)
-// 3) `\b([[:xdigit:]][64])\b` followed by a 64 hex-character container id on word boundary
-//
-// The "docker" prefix and 64-hex character container id can be anywhere in the path. The only
-// requirement is that the docker prefix comes before the id.
-var dockerCGroupRE = regexp.MustCompile(`\bdocker\b.+\b([[:xdigit:]]{64})\b`)
-
-type defaultContainerIDFinder struct{}
-
-// FindContainerID returns the container ID in the given cgroup path. The cgroup
-// path must have the whole word "docker" at some point in the path followed
-// at some point by a 64 hex-character container ID. If the cgroup path does
-// not match the above description, the method returns false.
-func (f *defaultContainerIDFinder) FindContainerID(cgroupPath string) (string, bool) {
-	m := dockerCGroupRE.FindStringSubmatch(cgroupPath)
-	if m != nil {
-		return m[1], true
-	}
-	return "", false
 }

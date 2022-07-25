@@ -1,7 +1,3 @@
-//go:build !windows
-// +build !windows
-
-// TODO: plugin is not supported on windows until workload api works
 package spireplugin
 
 import (
@@ -53,7 +49,7 @@ type handler struct {
 type whandler struct {
 	w_pb.SpiffeWorkloadAPIServer
 
-	socketPath string
+	workloadAPIAddr net.Addr
 
 	ca   *testca.CA
 	cert []*x509.Certificate
@@ -77,7 +73,7 @@ func (h *testHandler) startTestServers(t *testing.T, ca *testca.CA, serverCert [
 }
 
 func (w *whandler) startWAPITestServer(t *testing.T) {
-	w.socketPath = spiretest.StartWorkloadAPIOnTempUDSSocket(t, w).String()
+	w.workloadAPIAddr = spiretest.StartWorkloadAPI(t, w)
 }
 
 func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWorkloadAPI_FetchX509SVIDServer) error {

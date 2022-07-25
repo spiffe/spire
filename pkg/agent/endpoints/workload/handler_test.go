@@ -321,6 +321,137 @@ func TestFetchX509Bundles(t *testing.T) {
 	}
 }
 
+func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(workloadID)
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	otherBundle := testca.New(t, td).Bundle()
+	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
+
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, otherBundle),
+		},
+	}
+
+	expectResp := []*workloadPB.X509BundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleX509,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): otherBundleX509,
+			},
+		},
+	}
+
+	params := testParams{
+		CA:                            ca,
+		Updates:                       updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
+func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(workloadID)
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	otherBundle := testca.New(t, td).Bundle()
+	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
+
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, otherBundle),
+		},
+	}
+
+	expectResp := []*workloadPB.X509BundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleX509,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): otherBundleX509,
+			},
+		},
+	}
+
+	params := testParams{
+		CA:                            ca,
+		Updates:                       updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+			require.NoError(t, err)
+
+			// First response should be the original update.
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			// Next response should be the third update, as the second contained
+			// no bundle changes and should have been skipped.
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
 func TestFetchJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 
@@ -660,6 +791,161 @@ func TestFetchJWTBundles(t *testing.T) {
 	}
 }
 
+func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	x509SVID := ca.CreateX509SVID(workloadID)
+
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
+
+	bundle := ca.Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
+
+	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	otherBundleJWKS = indent(otherBundleJWKS)
+
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, otherBundle),
+		},
+	}
+
+	expectResp := []*workloadPB.JWTBundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleJWKS,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				otherBundle.TrustDomain().IDString(): otherBundleJWKS,
+			},
+		},
+	}
+
+	params := testParams{
+		CA:                            ca,
+		Updates:                       updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
+func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	x509SVID := ca.CreateX509SVID(workloadID)
+
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
+
+	bundle := ca.Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
+
+	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	otherBundleJWKS = indent(otherBundleJWKS)
+
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, bundle),
+		},
+		{
+			Identities: []cache.Identity{
+				identityFromX509SVID(x509SVID),
+			},
+			Bundle: utilBundleFromBundle(t, otherBundle),
+		},
+	}
+
+	expectResp := []*workloadPB.JWTBundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleJWKS,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				otherBundle.TrustDomain().IDString(): otherBundleJWKS,
+			},
+		},
+	}
+
+	params := testParams{
+		CA:                            ca,
+		Updates:                       updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+			require.NoError(t, err)
+
+			// First response should be the original update.
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			// Next response should be the third update, as the second contained
+			// no bundle changes and should have been skipped.
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
 func TestValidateJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 	ca2 := testca.New(t, td2)
@@ -983,7 +1269,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		grpc.StreamInterceptor(streamInterceptor),
 	)
 	workloadPB.RegisterSpiffeWorkloadAPIServer(server, handler)
-	socketPath := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
+	addr := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
 	t.Cleanup(func() { server.Stop() })
 
 	// Provide a cancelable context to ensure the stream is always
@@ -992,7 +1278,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, "unix:"+socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(ctx, "unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 

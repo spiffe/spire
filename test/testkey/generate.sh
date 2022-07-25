@@ -9,7 +9,7 @@
 # The following variables control how many keys of each type are generated:
 NUMRSA2048=5
 NUMRSA4096=5
-NUMEC256=26
+NUMEC256=48
 NUMEC384=5
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"

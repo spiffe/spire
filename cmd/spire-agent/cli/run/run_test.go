@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/test/spiretest"
@@ -191,6 +192,26 @@ func TestMergeInput(t *testing.T) {
 			cliInput: func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "foo", c.Agent.SDS.DefaultAllBundlesName)
+			},
+		},
+		{
+			msg:       "disable_spiffe_cert_validation should default value of false",
+			fileInput: func(c *Config) {},
+			cliInput:  func(ac *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, false, c.Agent.SDS.DisableSPIFFECertValidation)
+			},
+		},
+		{
+			msg: "disable_spiffe_cert_validation should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.SDS = sdsConfig{
+					DisableSPIFFECertValidation: true,
+				}
+			},
+			cliInput: func(ac *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, true, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{
@@ -502,16 +523,6 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Agent.TrustDomain)
 			},
 		},
-		{
-			msg: "admin_socket_path should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Agent.AdminSocketPath = "/tmp/admin.sock"
-			},
-			cliInput: func(c *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "/tmp/admin.sock", c.Agent.AdminSocketPath)
-			},
-		},
 	}
 	cases = append(cases, mergeInputCasesOS()...)
 
@@ -565,7 +576,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "insecure_bootsrap should be correctly set to false",
+			msg: "insecure_bootstrap should be correctly set to false",
 			input: func(c *Config) {
 				c.Agent.InsecureBootstrap = false
 			},
@@ -574,7 +585,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "insecure_bootsrap should be correctly set to true",
+			msg: "insecure_bootstrap should be correctly set to true",
 			input: func(c *Config) {
 				c.Agent.InsecureBootstrap = true
 			},
@@ -611,7 +622,7 @@ func TestNewAgentConfig(t *testing.T) {
 
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
-				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
 			},
 		},
 		{
@@ -625,7 +636,7 @@ func TestNewAgentConfig(t *testing.T) {
 
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
-				require.Equal(t, &logrus.TextFormatter{}, l.Formatter)
+				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
 			},
 		},
 		{
@@ -645,6 +656,33 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Agent.TrustBundleURL = "foo"
 				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "workload_key_type is not set",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.ECP256, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg: "workload_key_type is set",
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "rsa-2048"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.RSA2048, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg:         "workload_key_type invalid value",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "not a key"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
@@ -726,21 +764,27 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "admin_socket_path not provided",
-			input: func(c *Config) {
-				c.Agent.AdminSocketPath = ""
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Nil(t, c.AdminBindAddress)
-			},
-		},
-		{
 			msg: "allowed_foreign_jwt_claims provided",
 			input: func(c *Config) {
 				c.Agent.AllowedForeignJWTClaims = []string{"c1", "c2"}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, []string{"c1", "c2"}, c.AllowedForeignJWTClaims)
+			},
+		},
+		{
+			msg: "SDS configurables are provided",
+			input: func(c *Config) {
+				c.Agent.SDS.DefaultSVIDName = "DefaultSVIDName"
+				c.Agent.SDS.DefaultBundleName = "DefaultBundleName"
+				c.Agent.SDS.DefaultAllBundlesName = "DefaultAllBundlesName"
+				c.Agent.SDS.DisableSPIFFECertValidation = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				assert.Equal(t, c.DefaultSVIDName, "DefaultSVIDName")
+				assert.Equal(t, c.DefaultBundleName, "DefaultBundleName")
+				assert.Equal(t, c.DefaultAllBundlesName, "DefaultAllBundlesName")
+				assert.True(t, c.DisableSPIFFECertValidation)
 			},
 		},
 		{
@@ -762,7 +806,7 @@ func TestNewAgentConfig(t *testing.T) {
 						logger.SetOutput(io.Discard)
 						hook := test.NewLocal(logger.Logger)
 						t.Cleanup(func() {
-							spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
 								{
 									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
 									Level: logrus.WarnLevel,
@@ -964,7 +1008,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 					},
 				})
 			}
-			spiretest.AssertLogsAnyOrder(t, hook.AllEntries(), logEntries)
+			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), logEntries)
 		})
 	}
 }

@@ -132,6 +132,30 @@ func TestCache(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
+func TestCacheReturnsClonedEntries(t *testing.T) {
+	ds := fakedatastore.New(t)
+
+	expected, err := api.RegistrationEntryToProto(createRegistrationEntry(context.Background(), t, ds, &common.RegistrationEntry{
+		ParentId:  "spiffe://domain.test/node",
+		SpiffeId:  "spiffe://domain.test/workload",
+		Selectors: []*common.Selector{{Type: "T", Value: "V"}},
+		DnsNames:  []string{"dns"},
+	}))
+	require.NoError(t, err)
+
+	cache, err := BuildFromDataStore(context.Background(), ds)
+	require.NoError(t, err)
+
+	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
+	require.Equal(t, []*types.Entry{expected}, actual)
+
+	// Now mutate the returned entry, refetch, and assert the cache copy was
+	// not altered.
+	actual[0].DnsNames = nil
+	actual = cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
+	require.Equal(t, []*types.Entry{expected}, actual)
+}
+
 func TestFullCacheNodeAliasing(t *testing.T) {
 	ds := fakedatastore.New(t)
 	ctx := context.Background()
@@ -477,7 +501,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 func BenchmarkBuildSQL(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 	ctx := context.Background()
-	ds := newSQLPlugin(b)
+	ds := newSQLPlugin(ctx, b)
 
 	for _, entry := range allEntries {
 		e, _ := api.ProtoToRegistrationEntry(context.Background(), td, entry)
@@ -732,7 +756,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	return allEntries, agents
 }
 
-func newSQLPlugin(tb testing.TB) datastore.DataStore {
+func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 	log, _ := test.NewNullLogger()
 	p := sqlds.New(log)
 
@@ -770,7 +794,7 @@ func newSQLPlugin(tb testing.TB) datastore.DataStore {
 		require.FailNowf(tb, "Unsupported external test dialect %q", TestDialect)
 	}
 
-	err := p.Configure(cfg)
+	err := p.Configure(ctx, cfg)
 	require.NoError(tb, err)
 
 	return p

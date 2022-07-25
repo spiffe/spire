@@ -28,6 +28,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
 | NodeAttestor | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
 | NodeAttestor | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
+| NodeAttestor | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md) | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate |
 | NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
 | NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | Notifier   | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md) | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage. |
@@ -73,7 +74,7 @@ This may be useful for templating configuration files, for example across differ
 | `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)             |                                  |
 | `profiling_port`            | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`. |                                                                |
 | `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                               |                                                                |
-| `socket_path`               | Path to bind the SPIRE Server API socket to                                                                                    | /tmp/spire-server/private/api.sock                             |
+| `socket_path`               | Path to bind the SPIRE Server API socket to (Unix only)                                                                                   | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)                                           |                                                                |
 
 | ca_subject                  | Description                    | Default        |
@@ -86,6 +87,7 @@ This may be useful for templating configuration files, for example across differ
 |:----------------------------|--------------------------------|----------------|
 | `cache_reload_interval`     | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s |
 | `auth_opa_policy_engine`    | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions | default SPIRE authorization policy                             |
+| `named_pipe_name`           | Pipe name of the SPIRE Server API named pipe (Windows only)| \spire-server\private\api |
 
 | ratelimit                   | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -189,7 +191,7 @@ This optional section contains the configurables used by SPIRE Server to expose 
 
 | Configuration   | Description                                                                                                               | Default                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| directory_url   | Directory endpoint URL                                                                                                    | "https://acme-v02.api.letsencrypt.org/directory" |
+| directory_url   | Directory endpoint URL                                                                                                    | https://acme-v02.api.letsencrypt.org/directory |
 | domain_name     | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                  |
 | email           | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                  |
 | tos_accepted    | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                            |

@@ -9,6 +9,7 @@ import (
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -134,8 +135,8 @@ type entryTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 
-	socketPath string
-	server     *fakeEntryServer
+	addr   string
+	server *fakeEntryServer
 
 	client cli.Command
 }
@@ -148,7 +149,7 @@ func (e *entryTest) afterTest(t *testing.T) {
 }
 
 func (e *entryTest) args(extra ...string) []string {
-	return append([]string{"-socketPath", e.socketPath}, extra...)
+	return append([]string{common.AddrArg, e.addr}, extra...)
 }
 
 type fakeEntryServer struct {
@@ -230,17 +231,17 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 	})
 
 	server := &fakeEntryServer{t: t}
-	socketPath := spiretest.StartGRPCSocketServerOnTempUDSSocket(t, func(s *grpc.Server) {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		entryv1.RegisterEntryServer(s, server)
 	})
 
 	test := &entryTest{
-		socketPath: socketPath,
-		stdin:      stdin,
-		stdout:     stdout,
-		stderr:     stderr,
-		server:     server,
-		client:     client,
+		addr:   common.GetAddr(addr),
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		server: server,
+		client: client,
 	}
 
 	t.Cleanup(func() {

@@ -12,9 +12,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -24,8 +24,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
+)
+
+const (
+	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
 type AttestationResult struct {
@@ -45,8 +48,7 @@ type Config struct {
 	TrustDomain       spiffeid.TrustDomain
 	TrustBundle       []*x509.Certificate
 	InsecureBootstrap bool
-	BundleCachePath   string
-	SVIDCachePath     string
+	Storage           storage.Storage
 	Log               logrus.FieldLogger
 	ServerAddress     string
 }
@@ -144,8 +146,8 @@ func IsSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 }
 
 func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
-	bundle, err := manager.ReadBundle(a.c.BundleCachePath)
-	if errors.Is(err, manager.ErrNotCached) {
+	bundle, err := a.c.Storage.LoadBundle()
+	if errors.Is(err, storage.ErrNotCached) {
 		if a.c.InsecureBootstrap {
 			if len(a.c.TrustBundle) > 0 {
 				a.c.Log.Warn("Trust bundle will be ignored; performing insecure bootstrap")
@@ -167,14 +169,12 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
 // will be returned.
 func (a *attestor) readSVIDFromDisk() []*x509.Certificate {
-	log := a.c.Log.WithField(telemetry.Path, a.c.SVIDCachePath)
-
-	svid, err := manager.ReadSVID(a.c.SVIDCachePath)
-	if errors.Is(err, manager.ErrNotCached) {
-		log.Debug("No pre-existing agent SVID found. Will perform node attestation")
+	svid, err := a.c.Storage.LoadSVID()
+	if errors.Is(err, storage.ErrNotCached) {
+		a.c.Log.Debug("No pre-existing agent SVID found. Will perform node attestation")
 		return nil
 	} else if err != nil {
-		log.WithError(err).Warn("Could not get agent SVID from path")
+		a.c.Log.WithError(err).Warn("Could not get agent SVID from path")
 	}
 	return svid
 }
@@ -261,8 +261,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 	}
 
 	return grpc.DialContext(ctx, a.c.ServerAddress,
-		// TODO: port to non-deprecated option
-		grpc.WithBalancerName(roundrobin.Name), //nolint:staticcheck // not ready to port
+		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithReturnConnectionError(),

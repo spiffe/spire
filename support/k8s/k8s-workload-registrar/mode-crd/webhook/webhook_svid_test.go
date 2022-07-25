@@ -123,7 +123,7 @@ func TestMintSVIDRetryLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svidClient.setErrorCount(10)
+	svidClient.setErrorCount(11)
 	err = webhookSVID.MintSVID(ctx, nil)
 	require.Equal(t, err.Error(), "unable to make Mint SVID Request: test error")
 }

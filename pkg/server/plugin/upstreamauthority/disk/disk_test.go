@@ -2,21 +2,31 @@ package disk
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"io"
+	"math/big"
+	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -25,20 +35,8 @@ import (
 )
 
 func TestMintX509CA(t *testing.T) {
-	// On OSX
-	// openssl ecparam -name prime256v1 -genkey -noout -out root_key.pem
-	// openssl req -days 3650 -x509 -new -key root_key.pem -out root_cert.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://root\nbasicConstraints=CA:true") -extensions v3
-	// openssl ecparam -name prime256v1 -genkey -noout -out intermediate_key.pem
-	// openssl req  -new -key intermediate_key.pem -out intermediate_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
-	// openssl x509 -days 3650 -req -CA root_cert.pem -CAkey root_key.pem -in intermediate_csr.pem -out intermediate_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://intermediate\nbasicConstraints=CA:true") -extensions v3
-	// openssl ecparam -name prime256v1 -genkey -noout -out upstream_key.pem
-	// openssl req  -new -key upstream_key.pem -out upstream_csr.pem -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
-	// openssl x509 -days 3650 -req -CA intermediate_cert.pem -CAkey intermediate_key.pem -in upstream_csr.pem -out upstream_cert.pem -CAcreateserial -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://upstream\nbasicConstraints=CA:true") -extensions v3
-	// cat upstream_cert.pem intermediate_cert.pem > upstream_and_intermediate.pem
-	// This test verifies the cert chain and will start failing on May 15 2029
-
 	key := testkey.NewEC256(t)
-	clock := clock.NewMock(t)
+	testData := createTestData(t)
 
 	makeCSR := func(spiffeID string) []byte {
 		csr, err := util.NewCSRTemplateWithKey(spiffeID, key)
@@ -47,13 +45,13 @@ func TestMintX509CA(t *testing.T) {
 	}
 
 	selfSignedCA := Configuration{
-		CertFilePath: "testdata/keys/EC/cert.pem",
-		KeyFilePath:  "testdata/keys/EC/private_key.pem",
+		CertFilePath: testData.ECRootCert,
+		KeyFilePath:  testData.ECRootKey,
 	}
 	intermediateCA := Configuration{
-		CertFilePath:   "testdata/keys/EC/upstream_and_intermediate.pem",
-		KeyFilePath:    "testdata/keys/EC/upstream_key.pem",
-		BundleFilePath: "testdata/keys/EC/root_cert.pem",
+		CertFilePath:   testData.ECUpstreamAndIntermediateCert,
+		KeyFilePath:    testData.ECUpstreamKey,
+		BundleFilePath: testData.ECRootCert,
 	}
 
 	for _, tt := range []struct {
@@ -94,7 +92,7 @@ func TestMintX509CA(t *testing.T) {
 			csr:                     makeCSR("spiffe://example.org"),
 			expectTTL:               x509svid.DefaultUpstreamCATTL,
 			expectX509CA:            []string{"spiffe://example.org"},
-			expectedX509Authorities: []string{"spiffe://local"},
+			expectedX509Authorities: []string{"spiffe://root"},
 		},
 		{
 			test:                    "valid using intermediate",
@@ -111,7 +109,7 @@ func TestMintX509CA(t *testing.T) {
 			preferredTTL:            x509svid.DefaultUpstreamCATTL + time.Hour,
 			expectTTL:               x509svid.DefaultUpstreamCATTL + time.Hour,
 			expectX509CA:            []string{"spiffe://example.org"},
-			expectedX509Authorities: []string{"spiffe://local"},
+			expectedX509Authorities: []string{"spiffe://root"},
 		},
 		{
 			test:                    "valid with already loaded CA",
@@ -120,13 +118,13 @@ func TestMintX509CA(t *testing.T) {
 			breakConfig:             true,
 			expectTTL:               x509svid.DefaultUpstreamCATTL,
 			expectX509CA:            []string{"spiffe://example.org"},
-			expectedX509Authorities: []string{"spiffe://local"},
+			expectedX509Authorities: []string{"spiffe://root"},
 		},
 	} {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			p := New()
-			p.clock = clock
+			p.clock = testData.Clock
 
 			ua := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), ua,
@@ -161,7 +159,7 @@ func TestMintX509CA(t *testing.T) {
 					assert.True(t, isEqual, "x509CA key does not match expected key")
 				}
 				// assert ttl
-				ttl := x509CA[0].NotAfter.Sub(clock.Now())
+				ttl := x509CA[0].NotAfter.Sub(testData.Clock.Now())
 				assert.Equal(t, tt.expectTTL, ttl, "TTL does not match")
 			}
 			assert.Equal(t, tt.expectX509CA, certChainURIs(x509CA))
@@ -176,11 +174,12 @@ func TestMintX509CA(t *testing.T) {
 }
 
 func TestPublishJWTKey(t *testing.T) {
+	testData := createTestData(t)
 	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, BuiltIn(), ua,
 		plugintest.ConfigureJSON(Configuration{
-			CertFilePath: "testdata/keys/EC/cert.pem",
-			KeyFilePath:  "testdata/keys/EC/private_key.pem",
+			CertFilePath: testData.ECRootCert,
+			KeyFilePath:  testData.ECRootKey,
 		}),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
@@ -196,6 +195,8 @@ func TestPublishJWTKey(t *testing.T) {
 }
 
 func TestConfigure(t *testing.T) {
+	testData := createTestData(t)
+
 	for _, tt := range []struct {
 		test               string
 		certFilePath       string
@@ -208,82 +209,87 @@ func TestConfigure(t *testing.T) {
 	}{
 		{
 			test:         "using EC key",
-			certFilePath: "testdata/keys/EC/cert.pem",
-			keyFilePath:  "testdata/keys/EC/private_key.pem",
+			certFilePath: testData.ECRootCert,
+			keyFilePath:  testData.ECRootKeyAsEC,
 		},
 		{
 			test:         "using PKCS1 key",
-			certFilePath: "testdata/keys/PKCS1/cert.pem",
-			keyFilePath:  "testdata/keys/PKCS1/private_key.pem",
+			certFilePath: testData.RSARootCert,
+			keyFilePath:  testData.RSARootKeyAsPKCS1,
 		},
 		{
-			test:         "using PKCS8 key",
-			certFilePath: "testdata/keys/PKCS8/cert.pem",
-			keyFilePath:  "testdata/keys/PKCS8/private_key.pem",
+			test:         "using RSA key (PKCS8)",
+			certFilePath: testData.ECRootCert,
+			keyFilePath:  testData.ECRootKey,
+		},
+		{
+			test:         "using EC key (PKCS8)",
+			certFilePath: testData.ECRootCert,
+			keyFilePath:  testData.ECRootKey,
 		},
 		{
 			test:            "non matching key and cert",
-			certFilePath:    "testdata/keys/PKCS8/cert.pem",
-			keyFilePath:     "testdata/keys/PKCS1/private_key.pem",
+			certFilePath:    testData.ECRootCert,
+			keyFilePath:     testData.RSARootKey,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to load upstream CA: certificate and private key do not match",
 		},
 		{
 			test:            "empty key",
-			certFilePath:    "testdata/keys/EC/cert.pem",
-			keyFilePath:     "testdata/keys/empty/private_key.pem",
+			certFilePath:    testData.ECRootCert,
+			keyFilePath:     testData.Empty,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to load upstream CA key: no PEM blocks",
 		},
 		{
 			test:            "empty cert",
-			certFilePath:    "testdata/keys/empty/cert.pem",
-			keyFilePath:     "testdata/keys/EC/private_key.pem",
+			certFilePath:    testData.Empty,
+			keyFilePath:     testData.ECRootKey,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to load upstream CA cert: no PEM blocks",
 		},
 		{
 			test:            "unknown key",
-			certFilePath:    "testdata/keys/EC/cert.pem",
-			keyFilePath:     "testdata/keys/unknown/private_key.pem",
+			certFilePath:    testData.ECRootCert,
+			keyFilePath:     testData.Unknown,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to load upstream CA key: expected block type",
 		},
 		{
 			test:            "unknown cert",
-			certFilePath:    "testdata/keys/unknown/cert.pem",
-			keyFilePath:     "testdata/keys/EC/private_key.pem",
+			certFilePath:    testData.Unknown,
+			keyFilePath:     testData.ECRootKey,
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to load upstream CA cert: unable to parse",
+			expectMsgPrefix: "unable to load upstream CA cert: expected block type",
 		},
 		{
 			test:            "empty bundle",
-			certFilePath:    "testdata/keys/EC/cert.pem",
-			keyFilePath:     "testdata/keys/EC/private_key.pem",
-			bundleFilePath:  "testdata/keys/empty/cert.pem",
+			certFilePath:    testData.ECIntermediateCert,
+			keyFilePath:     testData.ECIntermediateKey,
+			bundleFilePath:  testData.Empty,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to load upstream CA bundle: no PEM blocks",
 		},
 		{
 			test:            "intermediate CA without root bundle",
-			certFilePath:    "testdata/keys/EC/upstream_and_intermediate.pem",
-			keyFilePath:     "testdata/keys/EC/upstream_key.pem",
+			certFilePath:    testData.ECIntermediateAndRootCerts,
+			keyFilePath:     testData.ECIntermediateKey,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "with no bundle_file_path configured only self-signed CAs are supported",
 		},
 		{
 			test:            "intermediate CA without full chain to root bundle",
-			certFilePath:    "testdata/keys/EC/upstream_cert.pem",
-			keyFilePath:     "testdata/keys/EC/upstream_key.pem",
-			bundleFilePath:  "testdata/keys/EC/root_cert.pem",
+			certFilePath:    testData.ECUpstreamCert,
+			keyFilePath:     testData.ECUpstreamKey,
+			bundleFilePath:  testData.ECRootCert,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to load upstream CA: certificate cannot be validated with the provided bundle",
 		},
 		{
 			test:           "intermediate CA with full chain to root bundle",
-			certFilePath:   "testdata/keys/EC/upstream_and_intermediate.pem",
-			keyFilePath:    "testdata/keys/EC/upstream_key.pem",
-			bundleFilePath: "testdata/keys/EC/root_cert.pem",
+			certFilePath:   testData.ECUpstreamAndIntermediateCert,
+			keyFilePath:    testData.ECUpstreamKey,
+			bundleFilePath: testData.ECRootCert,
 		},
 		{
 			test:            "malformed config",
@@ -293,8 +299,8 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:               "missing trust domain",
-			certFilePath:       "testdata/keys/EC/cert.pem",
-			keyFilePath:        "testdata/keys/EC/private_key.pem",
+			certFilePath:       testData.ECRootCert,
+			keyFilePath:        testData.ECRootKey,
 			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "trust_domain is required",
@@ -345,4 +351,121 @@ func certURI(cert *x509.Certificate) string {
 		return cert.URIs[0].String()
 	}
 	return ""
+}
+
+type TestData struct {
+	Clock                         *clock.Mock
+	ECRootKey                     string
+	ECRootKeyAsEC                 string
+	ECRootCert                    string
+	ECIntermediateKey             string
+	ECIntermediateCert            string
+	ECUpstreamKey                 string
+	ECUpstreamCert                string
+	ECUpstreamAndIntermediateCert string
+	ECIntermediateAndRootCerts    string
+	RSARootKey                    string
+	RSARootKeyAsPKCS1             string
+	RSARootCert                   string
+	Unknown                       string
+	Empty                         string
+}
+
+func createTestData(t *testing.T) TestData {
+	clk := clock.NewMock(t)
+
+	var keys testkey.Keys
+	ecRootKey := keys.NewEC256(t)
+	ecIntermediateKey := keys.NewEC256(t)
+	ecUpstreamKey := keys.NewEC256(t)
+	ecRootCert := createCACertificate(t, clk, "spiffe://root", ecRootKey, nil, nil)
+	ecIntermediateCert := createCACertificate(t, clk, "spiffe://intermediate", ecIntermediateKey, ecRootCert, ecRootKey)
+	ecUpstreamCert := createCACertificate(t, clk, "spiffe://upstream", ecUpstreamKey, ecIntermediateCert, ecIntermediateKey)
+
+	rsaRootKey := keys.NewRSA2048(t)
+	rsaRootCert := createCACertificate(t, clk, "spiffe://root", rsaRootKey, nil, nil)
+
+	base := spiretest.TempDir(t)
+
+	testData := TestData{
+		Clock:                         clk,
+		ECRootKey:                     filepath.Join(base, "ec_root_key.pem"),
+		ECRootKeyAsEC:                 filepath.Join(base, "ec_root_key_as_ec.pem"),
+		ECRootCert:                    filepath.Join(base, "ec_root_cert.pem"),
+		ECIntermediateKey:             filepath.Join(base, "ec_intermediate_key.pem"),
+		ECIntermediateCert:            filepath.Join(base, "ec_intermediate_cert.pem"),
+		ECUpstreamKey:                 filepath.Join(base, "ec_upstream_key.pem"),
+		ECUpstreamCert:                filepath.Join(base, "ec_upstream_cert.pem"),
+		ECUpstreamAndIntermediateCert: filepath.Join(base, "ec_upstream_and_intermediate_cert.pem"),
+		ECIntermediateAndRootCerts:    filepath.Join(base, "ec_intermediate_and_root.pem"),
+		RSARootKey:                    filepath.Join(base, "rsa_root_key.pem"),
+		RSARootKeyAsPKCS1:             filepath.Join(base, "rsa_root_key_as_pkcs1.pem"),
+		RSARootCert:                   filepath.Join(base, "rsa_root_cert.pem"),
+		Unknown:                       filepath.Join(base, "unknown"),
+		Empty:                         filepath.Join(base, "empty"),
+	}
+
+	writeFile(t, testData.ECRootKey, pkcs8PEM(t, ecRootKey))
+	writeFile(t, testData.ECRootKeyAsEC, ecPEM(t, ecRootKey))
+	writeFile(t, testData.ECRootCert, certPEM(ecRootCert))
+	writeFile(t, testData.ECIntermediateKey, pkcs8PEM(t, ecIntermediateKey))
+	writeFile(t, testData.ECIntermediateCert, certPEM(ecIntermediateCert))
+	writeFile(t, testData.ECUpstreamKey, pkcs8PEM(t, ecUpstreamKey))
+	writeFile(t, testData.ECUpstreamCert, certPEM(ecUpstreamCert))
+	writeFile(t, testData.ECUpstreamAndIntermediateCert, certPEM(ecUpstreamCert, ecIntermediateCert))
+	writeFile(t, testData.ECIntermediateAndRootCerts, certPEM(ecIntermediateCert, ecRootCert))
+	writeFile(t, testData.RSARootKey, pkcs8PEM(t, rsaRootKey))
+	writeFile(t, testData.RSARootKeyAsPKCS1, pkcs1PEM(t, rsaRootKey))
+	writeFile(t, testData.RSARootCert, certPEM(rsaRootCert))
+	writeFile(t, testData.Unknown, pem.EncodeToMemory(&pem.Block{Type: "UNKNOWN"}))
+	writeFile(t, testData.Empty, nil)
+	return testData
+}
+
+func createCACertificate(t *testing.T, clk clock.Clock, uri string, key crypto.Signer, parent *x509.Certificate, parentKey crypto.Signer) *x509.Certificate {
+	now := clk.Now()
+
+	u, err := url.Parse(uri)
+	require.NoError(t, err)
+
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		NotBefore:             now,
+		NotAfter:              now.Add(time.Hour * 24),
+		URIs:                  []*url.URL{u},
+	}
+	if parent == nil {
+		parent = tmpl
+		parentKey = key
+	}
+	return testca.CreateCertificate(t, tmpl, parent, key.Public(), parentKey)
+}
+
+func pkcs8PEM(t *testing.T, key crypto.Signer) []byte {
+	data, err := pemutil.EncodePKCS8PrivateKey(key)
+	require.NoError(t, err)
+	return data
+}
+
+func pkcs1PEM(t *testing.T, key *rsa.PrivateKey) []byte {
+	data, err := pemutil.EncodeRSAPrivateKey(key)
+	require.NoError(t, err)
+	return data
+}
+
+func ecPEM(t *testing.T, key *ecdsa.PrivateKey) []byte {
+	data, err := pemutil.EncodeECPrivateKey(key)
+	require.NoError(t, err)
+	return data
+}
+
+func certPEM(certs ...*x509.Certificate) []byte {
+	return pemutil.EncodeCertificates(certs)
+}
+
+func writeFile(t *testing.T, path string, data []byte) {
+	err := os.WriteFile(path, data, 0600)
+	require.NoError(t, err)
 }

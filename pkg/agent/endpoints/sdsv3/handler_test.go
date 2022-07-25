@@ -14,6 +14,7 @@ import (
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	envoy_type_v3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
+	"github.com/imdario/mergo"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -31,6 +32,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -92,6 +94,19 @@ var (
 				CustomValidatorConfig: &core_v3.TypedExtensionConfig{
 					Name:        "envoy.tls.cert_validator.spiffe",
 					TypedConfig: tdCustomValidationConfig,
+				},
+			},
+		},
+	}
+
+	tdValidationContext3 = &tls_v3.Secret{
+		Name: "ALL",
+		Type: &tls_v3.Secret_ValidationContext{
+			ValidationContext: &tls_v3.CertificateValidationContext{
+				TrustedCa: &core_v3.DataSource{
+					Specifier: &core_v3.DataSource_InlineBytes{
+						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
+					},
 				},
 			},
 		},
@@ -256,6 +271,7 @@ func TestStreamSecrets(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		req           *discovery_v3.DiscoveryRequest
+		config        Config
 		expectSecrets []*tls_v3.Secret
 		expectCode    codes.Code
 		expectMsg     string
@@ -408,9 +424,200 @@ func TestStreamSecrets(t *testing.T) {
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `workload is not authorized for the requested identities ["spiffe://domain.test/WHATEVER"]`,
 		},
+		{
+			name: "Disable custom validation",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable custom validation and set default bundle name to ALL",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"default"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			config: Config{
+				DefaultBundleName:           "ALL",
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate3},
+		},
+		{
+			name: "Disable custom validation and set default bundle name to ALL",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ALL"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			config: Config{
+				DefaultBundleName:           "ALL",
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext3},
+		},
+		{
+			name: "Disable custom validation per instance",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(true),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation per instance with string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("true"),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation set to false per instance",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(false),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation set unknown string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("test"),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("true"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config but opt-in in envoy node metadata with string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("false"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config but opt-in in envoy node metadata with bool value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(false),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and set to unknown string value in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("test"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and set to unexpected type in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewNumberValue(5),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
+			test := setupTestWithConfig(t, tt.config)
 			defer test.cleanup()
 
 			stream, err := test.handler.StreamSecrets(context.Background())
@@ -628,6 +835,7 @@ func TestFetchSecrets(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		req           *discovery_v3.DiscoveryRequest
+		config        Config
 		expectSecrets []*tls_v3.Secret
 		expectCode    codes.Code
 		expectMsg     string
@@ -742,9 +950,200 @@ func TestFetchSecrets(t *testing.T) {
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `workload is not authorized for the requested identities ["spiffe://domain.test/other"]`,
 		},
+		{
+			name: "Disable custom validation",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable custom validation and set default bundle name to ALL",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"default"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			config: Config{
+				DefaultBundleName:           "ALL",
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{workloadTLSCertificate3},
+		},
+		{
+			name: "Disable custom validation and set default bundle name to ALL",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"ALL"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+				},
+			},
+			config: Config{
+				DefaultBundleName:           "ALL",
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext3},
+		},
+		{
+			name: "Disable custom validation per instance",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(true),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation per instance with string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("true"),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation set to false per instance",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(false),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation set unknown string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("test"),
+						},
+					},
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("true"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config but opt-in in envoy node metadata with string value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("false"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config but opt-in in envoy node metadata with bool value",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewBoolValue(false),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and set to unknown string value in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewStringValue("test"),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
+		{
+			name: "Disable SPIFFE cert validation in config and set to unexpected type in envoy node metadata",
+			req: &discovery_v3.DiscoveryRequest{
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeV18,
+					Metadata: &structpb.Struct{
+						Fields: map[string]*structpb.Value{
+							disableSPIFFECertValidationKey: structpb.NewNumberValue(100500),
+						},
+					},
+				},
+			},
+			config: Config{
+				DisableSPIFFECertValidation: true,
+			},
+			expectSecrets: []*tls_v3.Secret{tdValidationContext},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t)
+			test := setupTestWithConfig(t, tt.config)
 			defer test.server.Stop()
 
 			resp, err := test.handler.FetchSecrets(context.Background(), tt.req)
@@ -775,14 +1174,21 @@ func DeltaSecretsTest(t *testing.T) {
 }
 
 func setupTest(t *testing.T) *handlerTest {
+	return setupTestWithConfig(t, Config{})
+}
+
+func setupTestWithConfig(t *testing.T, c Config) *handlerTest {
 	manager := NewFakeManager(t)
-	handler := New(Config{
-		Attestor:              FakeAttestor(workloadSelectors),
-		Manager:               manager,
-		DefaultSVIDName:       "default",
-		DefaultBundleName:     "ROOTCA",
-		DefaultAllBundlesName: "ALL",
-	})
+	defaultConfig := Config{
+		Manager:                     manager,
+		Attestor:                    FakeAttestor(workloadSelectors),
+		DefaultSVIDName:             "default",
+		DefaultBundleName:           "ROOTCA",
+		DefaultAllBundlesName:       "ALL",
+		DisableSPIFFECertValidation: false,
+	}
+	require.NoError(t, mergo.Merge(&c, defaultConfig))
+	handler := New(c)
 
 	received := make(chan struct{})
 	handler.hooks.received = received

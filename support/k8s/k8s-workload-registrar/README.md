@@ -31,28 +31,19 @@ The configuration file is a **required** by the registrar. It contains
 | `cluster`                  | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
 | `pod_label`                | string   | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
 | `pod_annotation`           | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `mode`                     | string   | optional | How to run the registrar, either using a `"webhook"`, `"reconcile`" or `"crd"`. See [Differences](#differences-between-modes) for more details. | `"webhook"` |
+| `mode`                     | string   | required | How to run the registrar, either `"reconcile"` or `"crd"`. See [Differences](#differences-between-modes) for more details. | |
 | `disabled_namespaces`      | []string | optional | Comma seperated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
-
-The following configuration directives are specific to `"webhook"` mode:
-
-| Key                        | Type    | Required? | Description                              | Default |
-| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
-| `addr`                     | string  | required | Address to bind the HTTPS listener to | `":8443"` |
-| `cert_path`                | string  | required | Path on disk to the PEM-encoded server TLS certificate | `"cert.pem"` |
-| `key_path`                 | string  | required | Path on disk to the PEM-encoded server TLS key |  `"key.pem"` |
-| `cacert_path`              | string  | required | Path on disk to the CA certificate used to verify the client (i.e. API server) | `"cacert.pem"` |
-| `insecure_skip_client_verification`  | boolean | required | If true, skips client certificate verification (in which case `cacert_path` is ignored). See [Security Considerations](#security-considerations) for more details. | `false` |
 
 The following configuration directives are specific to `"reconcile"` mode:
 
-| Key                        | Type    | Required? | Description                              | Default |
-| -------------------------- | --------| ---------| ----------------------------------------- | ------- |
-| `leader_election`          | bool    | optional | Enable/disable leader election. Enable if you have multiple registrar replicas running. | false |
-| `metrics_addr`             | string  | optional | Address to expose metrics on, use `0` to disable. | `":8080"` |
-| `controller_name`          | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
-| `add_pod_dns_names`        | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
-| `cluster_dns_zone`         | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
+| Key                             | Type    | Required? | Description                              | Default |
+| ------------------------------- | --------| ---------| ----------------------------------------- | ------- |
+| `leader_election`               | bool    | optional | Enable/disable leader election. Enable if you have multiple registrar replicas running. | false |
+| `leader_election_resource_lock` | string  | optional | Configures the type of resource to use for the leader election lock. | `"leases"` |
+| `metrics_addr`                  | string  | optional | Address to expose metrics on, use `0` to disable. | `":8080"` |
+| `controller_name`               | string  | optional | Forms part of the spiffe IDs used for parent IDs | `"spire-k8s-registrar"` |
+| `add_pod_dns_names`             | bool    | optional | Enable/disable adding k8s DNS names to pod SVIDs. | false |
+| `cluster_dns_zone`              | string  | optional | The DNS zone used for services in the k8s cluster. | `"cluster.local"` |
 
 For CRD configuration directives see [CRD Mode Configuration](mode-crd/README.md#configuration)
 
@@ -66,16 +57,15 @@ cluster = "production"
 ```
 
 ## Workload Registration
-When running in webhook, reconcile, or crd mode with `pod_controller=true` entries will be automatically created for
+When running in reconcile or crd mode with `pod_controller=true` entries will be automatically created for
 Pods. The available workload registration modes are:
 
 | Registration Mode | pod_label | pod_annotation | identity_template | Service Account Based |
 | ----------------- | --------- | -------------- | ----------------- | --------------- |
-| `webhook`   | as specified by pod_label | as specified by pod_annotation | _unavailable_ | service account |
 | `reconcile` | as specified by pod_label | as specified by pod_annotation | _unavailable_ | service account |
 | `crd`       | as specified by pod_label | as specified by pod_annotation | as specified by identity_template | _unavailable_ |
 
-If using `webhook` and `reconcile` modes with [Service Account Based SPIFFE IDs](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based SPIFFE IDs, specify only `pod_label`. If you use Annotation Based SPIFFE IDs, specify only `pod_annotation`.
+If using the `reconcile` mode with [Service Account Based SPIFFE IDs](#service-account-based-workload-registration), don't specify either `pod_label` or `pod_annotation`. If you use Label Based SPIFFE IDs, specify only `pod_label`. If you use Annotation Based SPIFFE IDs, specify only `pod_annotation`.
 
 For `crd` mode, if neither `pod_label` nor `pod_annotation`
 workload registration mode is selected,
@@ -187,41 +177,6 @@ An example can be found in `mode-reconcile/config/role.yaml`, which you would ap
 
 See [Quick Start for CRD Kubernetes Workload Registrar](mode-crd/README.md#quick-start)
 
-### Webhook Mode Configuration
-The registrar will need access to its server keypair and the CA certificate it uses to verify clients.
-
-The following K8S objects are required to set up the validating admission controller:
-* `Service` pointing to the registrar port within the spire-server container
-* `ValidatingWebhookConfiguration` configuring the registrar as a validating admission controller.
-
-Additionally, unless you disable client authentication (`insecure_skip_client_verification`), you will need:
-* `Config` with a user entry for the registrar service client containing the client certificate/key the API server should use to authenticate with the registrar.
-* `AdmissionConfiguration` describing where the API server can locate the file containing the `Config`. This file is passed to the API server via the `--admission-control-config-file` flag.
-
-For convenience, a command line utility is provided to generate authentication
-material and relevant Kubernetes configuration YAML.
-
-```
-$ go run generate-config.go
-.... YAML configuration dump ....
-```
-
-#### Webhook mode Security Considerations
-
-The registrar authenticates clients by default. This is a very important aspect
-of the overall security of the registrar since the registrar can be used to
-provide indirect access to the SPIRE server API, albeit scoped. It is *NOT*
-recommended to skip client verification (via the
-`insecure_skip_client_verification` configurable) unless you fully understand
-the risks.
-
-#### Migrating away from the webhook
-
-The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail admission. If you used the default
-configuration this can be done with:
-
-`kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook`
-
 ## DNS names
 
 Both `"reconcile"` and `"crd"` mode provide the ability to add DNS names to registration entries for pods. They
@@ -237,19 +192,11 @@ to entries. This is known to affect etcd.
 
 ## Differences between modes
 
-The `"webhook"` mode uses a Validating Admission Webhook to capture pod creation/deletion events at admission time. It
-was the first of the registrar implementations, but suffers from the following problems:
-* Race conditions between add and delete for StatefulSets will regularly lead to StatefulSets without entries;
-* Unavailability of the webhook either has to block admission entirely, or you'll end up with pods with no entries;
-* Spire server errors have to block admission entirely, or you'll end up with pods with no entries;
-* It will not clean up left behind entries for pods deleted while the webhook/spire-server was unavailable;
-* Entries are not parented to individual Nodes, all SVIDs are flooded to all agents in a cluster, which severely limits scalability.
-Use of the `"webhook"` mode is thus strongly discouraged, but it remains the default for backward compatibility reasons.
-
-The `"reconcile"` mode and `"crd"` mode both make use of reconciling controllers instead of webhooks. `"reconcile"` mode,
-and `"crd"` mode with the pod_controller enabled, have similar automated workload creation functionality to webhook, but
-they do not suffer from the same race conditions, are capable of recovering from (and cleaning up after) failure of the registrar,
-and both also ensure that automatically created entries for Pods are limited to the appropriate Nodes to prevent SVID
+The `"reconcile"` and `"crd"` modes both make use of reconciling controllers. Both modes,
+with the pod_controller enabled, have similar automated workload creation
+functionality and are capable of recovering from (and cleaning up after)
+failure of the registrar. Each also ensure that automatically created
+entries for Pods are limited to the appropriate Nodes to prevent SVID
 flooding. When used in this way, `"reconcile"` may be slightly faster to create new entries than `"crd"` mode, and requires
 less configuration.
 
@@ -257,3 +204,7 @@ less configuration.
 registrar, but may also be manually created to allow creation of arbitrary Spire Entries. If you intend to manage
 SpiffeID custom resources directly then it is strongly encouraged to run the controller with the `"crd"` mode's webhook
 enabled.
+
+### Platform support
+
+This tool is only supported on Unix systems.

@@ -3,12 +3,12 @@ package catalog
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/aws"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azure"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcp"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azuremsi"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcpiit"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/psat"
-	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8s/sat"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8spsat"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/k8ssat"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/sshpop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/x509pop"
@@ -34,12 +34,12 @@ func (repo *nodeAttestorRepository) Versions() []catalog.Version {
 
 func (repo *nodeAttestorRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
-		aws.BuiltIn(),
-		azure.BuiltIn(),
-		gcp.BuiltIn(),
+		awsiid.BuiltIn(),
+		azuremsi.BuiltIn(),
+		gcpiit.BuiltIn(),
 		jointoken.BuiltIn(),
-		psat.BuiltIn(),
-		sat.BuiltIn(),
+		k8spsat.BuiltIn(),
+		k8ssat.BuiltIn(),
 		sshpop.BuiltIn(),
 		tpmdevid.BuiltIn(),
 		x509pop.BuiltIn(),

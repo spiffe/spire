@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/zeebo/errs"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
@@ -64,19 +65,15 @@ func run(configPath string) error {
 			return err
 		}
 		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
-	case config.ListenSocketPath != "":
-		_ = os.Remove(config.ListenSocketPath)
-
-		listener, err = net.Listen("unix", config.ListenSocketPath)
+	case config.ListenSocketPath != "" || config.Experimental.ListenNamedPipeName != "":
+		listener, err = listenLocal(config)
 		if err != nil {
 			return err
 		}
-
-		if err := os.Chmod(config.ListenSocketPath, os.ModePerm); err != nil {
-			return err
-		}
-
-		log.WithField("socket", config.ListenSocketPath).Info("Serving HTTP (unix)")
+		log.WithFields(logrus.Fields{
+			telemetry.Network: listener.Addr().Network(),
+			telemetry.Address: listener.Addr().String(),
+		}).Info("Serving HTTP")
 	default:
 		listener = acmeListener(log, config)
 		log.Info("Serving HTTPS via ACME")
@@ -87,6 +84,15 @@ func run(configPath string) error {
 		log.Error(err)
 	}()
 
+	if config.HealthChecks != nil {
+		go func() {
+			log.Error(http.ListenAndServe(
+				fmt.Sprintf("localhost:%d", config.HealthChecks.BindPort),
+				NewHealthChecksHandler(source, config),
+			))
+		}()
+	}
+
 	return http.Serve(listener, handler)
 }
 
@@ -95,13 +101,17 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 	case config.ServerAPI != nil:
 		return NewServerAPISource(ServerAPISourceConfig{
 			Log:          log,
-			Address:      config.ServerAPI.Address,
+			GRPCTarget:   config.getServerAPITargetName(),
 			PollInterval: config.ServerAPI.PollInterval,
 		})
 	case config.WorkloadAPI != nil:
+		workloadAPIAddr, err := config.getWorkloadAPIAddr()
+		if err != nil {
+			return nil, errs.New(err.Error())
+		}
 		return NewWorkloadAPISource(WorkloadAPISourceConfig{
 			Log:          log,
-			SocketPath:   config.WorkloadAPI.SocketPath,
+			Addr:         workloadAPIAddr,
 			PollInterval: config.WorkloadAPI.PollInterval,
 			TrustDomain:  config.WorkloadAPI.TrustDomain,
 		})

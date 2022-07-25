@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
@@ -25,11 +26,6 @@ import (
 )
 
 const svidSyncInterval = 500 * time.Millisecond
-
-// Cache Manager errors
-var (
-	ErrNotCached = errors.New("not cached")
-)
 
 // Manager provides cache management functionalities for agents.
 type Manager interface {
@@ -91,8 +87,7 @@ type manager struct {
 	cache *cache.Cache
 	svid  svid.Rotator
 
-	svidCachePath   string
-	bundleCachePath string
+	storage storage.Storage
 
 	// synchronizeBackoff calculator for fetch interval, backing off if error is returned on
 	// fetch attempt
@@ -323,8 +318,7 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 }
 
 func (m *manager) storeSVID(svidChain []*x509.Certificate) {
-	err := StoreSVID(m.svidCachePath, svidChain)
-	if err != nil {
+	if err := m.storage.StoreSVID(svidChain); err != nil {
 		m.c.Log.WithError(err).Warn("Could not store SVID")
 	}
 }
@@ -334,14 +328,13 @@ func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
 	if bundle != nil {
 		rootCAs = bundle.RootCAs()
 	}
-	err := StoreBundle(m.bundleCachePath, rootCAs)
-	if err != nil {
+	if err := m.storage.StoreBundle(rootCAs); err != nil {
 		m.c.Log.WithError(err).Error("Could not store bundle")
 	}
 }
 
 func (m *manager) deleteSVID() {
-	if err := DeleteSVID(m.svidCachePath); err != nil {
+	if err := m.storage.DeleteSVID(); err != nil {
 		m.c.Log.WithError(err).Error("Failed to remove SVID")
 	}
 }

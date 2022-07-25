@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
-	"path/filepath"
 	"reflect"
 	"sync"
 	"testing"
@@ -21,6 +20,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
@@ -41,7 +41,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 )
@@ -59,12 +58,9 @@ var (
 )
 
 func TestNew(t *testing.T) {
-	tempdir := spiretest.TempDir(t)
-
 	ctx := context.Background()
 	tcpAddr := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0}
-	udsAddr := &net.UnixAddr{Net: "unix", Name: filepath.Join(tempdir, "sockets")}
-
+	localAddr := getLocalAddr(t)
 	svidObserver := newSVIDObserver(nil)
 
 	log, _ := test.NewNullLogger()
@@ -94,7 +90,7 @@ func TestNew(t *testing.T) {
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
-		UDSAddr:          udsAddr,
+		LocalAddr:        localAddr,
 		SVIDObserver:     svidObserver,
 		TrustDomain:      testTD,
 		Catalog:          cat,
@@ -109,7 +105,7 @@ func TestNew(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
-	assert.Equal(t, udsAddr, endpoints.UDSAddr)
+	assert.Equal(t, localAddr, endpoints.LocalAddr)
 	assert.Equal(t, svidObserver, endpoints.SVIDObserver)
 	assert.Equal(t, testTD, endpoints.TrustDomain)
 	assert.NotNil(t, endpoints.APIServers.AgentServer)
@@ -127,7 +123,7 @@ func TestNew(t *testing.T) {
 func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	ctx := context.Background()
 	tcpAddr := &net.TCPAddr{}
-	udsAddr := &net.UnixAddr{}
+	localAddr := getLocalAddr(t)
 
 	svidObserver := newSVIDObserver(nil)
 
@@ -159,7 +155,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
-		UDSAddr:          udsAddr,
+		LocalAddr:        localAddr,
 		SVIDObserver:     svidObserver,
 		TrustDomain:      testTD,
 		Catalog:          cat,
@@ -189,9 +185,6 @@ func TestListenAndServe(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, listener.Close())
 
-	dir := spiretest.TempDir(t)
-	udsPath := filepath.Join(dir, "socket")
-
 	ds := fakedatastore.New(t)
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
@@ -211,7 +204,7 @@ func TestListenAndServe(t *testing.T) {
 
 	endpoints := Endpoints{
 		TCPAddr:      listener.Addr().(*net.TCPAddr),
-		UDSAddr:      &net.UnixAddr{Name: udsPath, Net: "unix"},
+		LocalAddr:    getLocalAddr(t),
 		SVIDObserver: newSVIDObserver(serverSVID),
 		TrustDomain:  testTD,
 		DataStore:    ds,
@@ -250,16 +243,23 @@ func TestListenAndServe(t *testing.T) {
 
 	dialTCP := func(tlsConfig *tls.Config) *grpc.ClientConn {
 		conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(),
-			grpc.WithBlock(), grpc.FailOnNonTempDialError(true),
+			grpc.WithBlock(),
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
 		require.NoError(t, err)
 		return conn
 	}
 
-	udsConn, err := grpc.DialContext(ctx, "unix:"+endpoints.UDSAddr.String(), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
-	defer udsConn.Close()
+
+	t.Run("Access denied to remote caller", func(t *testing.T) {
+		testRemoteCaller(ctx, t, target)
+	})
+
+	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
+	require.NoError(t, err)
+	defer localConn.Close()
 
 	noauthConn := dialTCP(tlsconfig.TLSClientConfig(ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
 	defer noauthConn.Close()
@@ -289,25 +289,25 @@ func TestListenAndServe(t *testing.T) {
 	})
 
 	t.Run("Agent", func(t *testing.T) {
-		testAgentAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testAgentAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Debug", func(t *testing.T) {
-		testDebugAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testDebugAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Health", func(t *testing.T) {
-		testHealthAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testHealthAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Bundle", func(t *testing.T) {
-		testBundleAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testBundleAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("Entry", func(t *testing.T) {
-		testEntryAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testEntryAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("SVID", func(t *testing.T) {
-		testSVIDAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testSVIDAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 	t.Run("TrustDomain", func(t *testing.T) {
-		testTrustDomainAPI(ctx, t, udsConn, noauthConn, agentConn, adminConn, downstreamConn)
+		testTrustDomainAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
 	})
 
 	// Assert that the bundle endpoint server was called to listen and serve

@@ -6,19 +6,26 @@ package windows
 import (
 	"context"
 	"fmt"
+	"sync"
 	"syscall"
 
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/hcl"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/windows"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func builtin(p *Plugin) catalog.BuiltIn {
-	return catalog.MakeBuiltIn(pluginName, workloadattestorv1.WorkloadAttestorPluginServer(p))
+	return catalog.MakeBuiltIn(pluginName,
+		workloadattestorv1.WorkloadAttestorPluginServer(p),
+		configv1.ConfigServiceServer(p),
+	)
 }
 
 func New() *Plugin {
@@ -26,8 +33,17 @@ func New() *Plugin {
 	return p
 }
 
+type Configuration struct {
+	DiscoverWorkloadPath bool  `hcl:"discover_workload_path"`
+	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
+}
+
 type Plugin struct {
 	workloadattestorv1.UnsafeWorkloadAttestorServer
+	configv1.UnsafeConfigServer
+
+	mu     sync.Mutex
+	config *Configuration
 
 	log hclog.Logger
 	q   processQueryer
@@ -37,6 +53,7 @@ type processInfo struct {
 	pid        int32
 	user       string
 	userSID    string
+	path       string
 	groups     []string
 	groupsSIDs []string
 }
@@ -46,7 +63,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	process, err := p.newProcessInfo(req.Pid)
+	config, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	process, err := p.newProcessInfo(req.Pid, config.DiscoverWorkloadPath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get process information: %v", err)
 	}
@@ -60,12 +82,28 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "group_name", group)
 	}
 
+	// obtaining the workload process path and digest are behind a config flag
+	// since it requires the agent to have permissions that might not be
+	// available.
+	if config.DiscoverWorkloadPath {
+		selectorValues = append(selectorValues, makeSelectorValue("path", process.path))
+
+		if config.WorkloadSizeLimit >= 0 {
+			sha256Digest, err := util.GetSHA256Digest(process.path, config.WorkloadSizeLimit)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
+
+			selectorValues = append(selectorValues, makeSelectorValue("sha256", sha256Digest))
+		}
+	}
+
 	return &workloadattestorv1.AttestResponse{
 		SelectorValues: selectorValues,
 	}, nil
 }
 
-func (p *Plugin) newProcessInfo(pid int32) (*processInfo, error) {
+func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error) {
 	p.log = p.log.With(telemetry.PID, pid)
 
 	h, err := p.q.OpenProcess(pid)
@@ -129,7 +167,38 @@ func (p *Plugin) newProcessInfo(pid int32) (*processInfo, error) {
 		processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 	}
 
+	if queryPath {
+		if processInfo.path, err = p.q.GetProcessExe(h); err != nil {
+			return nil, fmt.Errorf("error getting process exe: %w", err)
+		}
+	}
+
 	return processInfo, nil
+}
+
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	config := new(Configuration)
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
+	}
+	p.setConfig(config)
+	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) getConfig() (*Configuration, error) {
+	p.mu.Lock()
+	config := p.config
+	p.mu.Unlock()
+	if config == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	return config, nil
+}
+
+func (p *Plugin) setConfig(config *Configuration) {
+	p.mu.Lock()
+	p.config = config
+	p.mu.Unlock()
 }
 
 type processQueryer interface {
@@ -160,6 +229,10 @@ type processQueryer interface {
 
 	// CloseProcessToken releases access to the specified access token.
 	CloseProcessToken(windows.Token) error
+
+	// GetProcessExe returns the executable file path relating to the
+	// specified process handle.
+	GetProcessExe(windows.Handle) (string, error)
 }
 
 type processQuery struct {
@@ -198,9 +271,20 @@ func (q *processQuery) CloseProcessToken(t windows.Token) error {
 	return t.Close()
 }
 
+func (q *processQuery) GetProcessExe(h windows.Handle) (string, error) {
+	buf := make([]uint16, syscall.MAX_LONG_PATH)
+	size := uint32(syscall.MAX_LONG_PATH)
+
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &size); err != nil {
+		return "", err
+	}
+
+	return windows.UTF16ToString(buf), nil
+}
+
 func addSelectorValueIfNotEmpty(selectorValues []string, kind, value string) []string {
 	if value != "" {
-		return append(selectorValues, fmt.Sprintf("%s:%s", kind, value))
+		return append(selectorValues, makeSelectorValue(kind, value))
 	}
 	return selectorValues
 }
@@ -217,4 +301,8 @@ func getGroupEnabledSelector(attributes uint32) string {
 		return "se_group_enabled:true"
 	}
 	return "se_group_enabled:false"
+}
+
+func makeSelectorValue(kind, value string) string {
+	return fmt.Sprintf("%s:%s", kind, value)
 }

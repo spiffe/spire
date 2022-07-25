@@ -51,6 +51,9 @@ message AttestedNode {
 
     // Node selectors
     repeated Selector selectors = 7;
+
+    // CanReattest field (can the attestation safely be deleted and recreated automatically)
+    bool can_reattest = 8;
 }
 
 /** This is a curated record that the Server uses to set up and
@@ -153,4 +156,5 @@ message AttestedNodeMask{
     bool cert_not_after = 3;
     bool new_cert_serial_number = 4;
     bool new_cert_not_after = 5;
+    bool can_reattest = 6;
 }

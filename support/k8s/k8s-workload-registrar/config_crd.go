@@ -12,34 +12,38 @@ import (
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/controllers"
 	"github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/webhook"
 	"github.com/zeebo/errs"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
-	defaultAddSvcDNSName      = true
-	defaultDNSTemplate        = "{{.Pod.Name}}"
-	defaultPodController      = true
-	defaultMetricsBindAddr    = ":8080"
-	defaultWebhookCertDir     = "/run/spire/serving-certs"
-	defaultWebhookPort        = 9443
-	defaultWebhookServiceName = "k8s-workload-registrar"
-	namespaceFile             = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	defaultAddSvcDNSName              = true
+	defaultDNSTemplate                = "{{.Pod.Name}}"
+	defaultPodController              = true
+	defaultMetricsBindAddr            = ":8080"
+	defaultWebhookCertDir             = "/run/spire/serving-certs"
+	defaultWebhookPort                = 9443
+	defaultWebhookServiceName         = "k8s-workload-registrar"
+	defaultLeaderElectionResourceLock = resourcelock.LeasesResourceLock
+	configMapsResourceLock            = "configmaps"
+	namespaceFile                     = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 type CRDMode struct {
 	CommonMode
-	AddSvcDNSName         bool              `hcl:"add_svc_dns_name"`
-	LeaderElection        bool              `hcl:"leader_election"`
-	MetricsBindAddr       string            `hcl:"metrics_bind_addr"`
-	PodController         bool              `hcl:"pod_controller"`
-	WebhookCertDir        string            `hcl:"webhook_cert_dir"`
-	WebhookEnabled        bool              `hcl:"webhook_enabled"`
-	WebhookPort           int               `hcl:"webhook_port"`
-	WebhookServiceName    string            `hcl:"webhook_service_name"`
-	IdentityTemplate      string            `hcl:"identity_template"`
-	IdentityTemplateLabel string            `hcl:"identity_template_label"`
-	DNSNameTemplates      *[]string         `hcl:"dns_name_templates"`
-	Context               map[string]string `hcl:"context"`
+	AddSvcDNSName              bool              `hcl:"add_svc_dns_name"`
+	LeaderElection             bool              `hcl:"leader_election"`
+	LeaderElectionResourceLock string            `hcl:"leader_election_resource_lock"`
+	MetricsBindAddr            string            `hcl:"metrics_bind_addr"`
+	PodController              bool              `hcl:"pod_controller"`
+	WebhookCertDir             string            `hcl:"webhook_cert_dir"`
+	WebhookEnabled             bool              `hcl:"webhook_enabled"`
+	WebhookPort                int               `hcl:"webhook_port"`
+	WebhookServiceName         string            `hcl:"webhook_service_name"`
+	IdentityTemplate           string            `hcl:"identity_template"`
+	IdentityTemplateLabel      string            `hcl:"identity_template_label"`
+	DNSNameTemplates           *[]string         `hcl:"dns_name_templates"`
+	Context                    map[string]string `hcl:"context"`
 }
 
 func (c *CRDMode) ParseConfig(hclConfig string) error {
@@ -63,6 +67,10 @@ func (c *CRDMode) ParseConfig(hclConfig string) error {
 
 	if c.WebhookServiceName == "" {
 		c.WebhookServiceName = defaultWebhookServiceName
+	}
+
+	if c.LeaderElectionResourceLock == "" {
+		c.LeaderElectionResourceLock = defaultLeaderElectionResourceLock
 	}
 
 	if c.IdentityTemplate != "" && (c.PodAnnotation != "" || c.PodLabel != "") {
@@ -97,13 +105,18 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
+	// DEPRECATED: remove this check in 1.5.0 since all those who migrate through 1.4.0 will already have moved away
+	if c.LeaderElection && c.LeaderElectionResourceLock == configMapsResourceLock {
+		return errs.New(`the "configmaps" leader election resource lock type is no longer supported`)
+	}
+
 	entryClient, err := c.EntryClient(ctx, log)
 	if err != nil {
 		return errs.New("failed to dial server: %v", err)
 	}
 	svidClient := svidv1.NewSVIDClient(c.serverAPI.serverConn)
 
-	mgr, err := controllers.NewManager(c.LeaderElection, c.MetricsBindAddr, c.WebhookCertDir, c.WebhookPort)
+	mgr, err := controllers.NewManager(c.LeaderElection, c.LeaderElectionResourceLock, c.MetricsBindAddr, c.WebhookCertDir, c.WebhookPort)
 	if err != nil {
 		return err
 	}
