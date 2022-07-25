@@ -31,4 +31,4 @@ func (repo *nodeResolverRepository) BuiltIns() []catalog.BuiltIn {
 type nodeResolverV1 struct{}
 
 func (nodeResolverV1) New() catalog.Facade { return new(noderesolver.V1) }
-func (nodeResolverV1) Deprecated() bool    { return false }
+func (nodeResolverV1) Deprecated() bool    { return true }
