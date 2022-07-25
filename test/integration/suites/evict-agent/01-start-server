@@ -1,0 +1,3 @@
+#!/bin/bash
+
+docker-up spire-server
