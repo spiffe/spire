@@ -17,9 +17,6 @@ import (
 	"sync"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -31,6 +28,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
