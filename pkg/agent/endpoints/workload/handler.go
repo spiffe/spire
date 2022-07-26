@@ -30,7 +30,7 @@ import (
 )
 
 type Manager interface {
-	SubscribeToCacheChanges(cache.Selectors) cache.Subscriber
+	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
@@ -138,7 +138,11 @@ func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream worklo
 		return err
 	}
 
-	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
+	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
+	if err != nil {
+		log.WithError(err).Error("Subscribe to cache changes failed")
+		return err
+	}
 	defer subscriber.Finish()
 
 	var previousResp *workload.JWTBundlesResponse
@@ -224,7 +228,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		return err
 	}
 
-	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
+	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
+	if err != nil {
+		log.WithError(err).Error("Subscribe to cache changes failed")
+		return err
+	}
 	defer subscriber.Finish()
 
 	for {
@@ -250,7 +258,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 		return err
 	}
 
-	subscriber := h.c.Manager.SubscribeToCacheChanges(selectors)
+	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
+	if err != nil {
+		log.WithError(err).Error("Subscribe to cache changes failed")
+		return err
+	}
 	defer subscriber.Finish()
 
 	var previousResp *workload.X509BundlesResponse

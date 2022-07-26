@@ -37,7 +37,7 @@ type Manager interface {
 
 	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	SubscribeToCacheChanges(key cache.Selectors) cache.Subscriber
+	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
@@ -144,17 +144,21 @@ func (m *manager) Run(ctx context.Context) error {
 	}
 }
 
-func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	subscriber := m.cache.SubscribeToWorkloadUpdates(selectors)
 	backoff := backoff.NewBackoff(m.clk, svidSyncInterval)
 	// block until all svids are cached and subscriber is notified
 	for {
 		if m.cache.Notify(selectors) {
-			return subscriber
+			return subscriber, nil
 		}
 		m.c.Log.WithField(telemetry.Selectors, selectors).Info("Waiting for SVID to get cached")
 
-		<-m.clk.After(backoff.NextBackOff())
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-m.clk.After(backoff.NextBackOff()):
+		}
 	}
 }
 

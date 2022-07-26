@@ -250,7 +250,8 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		[]*common.RegistrationEntry{matches[0], matches[1]})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		require.NoError(t, err)
 		u := <-sub.Updates()
 
 		if len(u.Identities) != 2 {
@@ -340,7 +341,8 @@ func TestRotationWithRSAKey(t *testing.T) {
 		[]*common.RegistrationEntry{matches[0], matches[1]})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		require.NoError(t, err)
 		u := <-sub.Updates()
 
 		if len(u.Identities) != 2 {
@@ -519,10 +521,11 @@ func TestSynchronization(t *testing.T) {
 
 	m := newManager(c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
 		{Type: "spiffe_id", Value: joinTokenID.String()},
 	})
+	require.NoError(t, err)
 	defer sub.Finish()
 
 	if err := m.Initialize(context.Background()); err != nil {
@@ -807,8 +810,8 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	m := newManager(c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
-
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	require.NoError(t, err)
 	defer initializeAndRunManager(t, m)()
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
@@ -878,7 +881,8 @@ func TestSyncSVIDs(t *testing.T) {
 	closer := runSVIDSync(waitCh, clk, 50*time.Millisecond, m, errCh)
 	defer closer()
 
-	sub1 := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	sub1, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	require.NoError(t, err)
 	// Validate the update received by subscribers
 	u1 := <-sub1.Updates()
 	if len(u1.Identities) != 2 {
@@ -888,9 +892,10 @@ func TestSyncSVIDs(t *testing.T) {
 		t.Fatal("bundles were expected to be equal")
 	}
 
-	sub2 := m.SubscribeToCacheChanges(
+	sub2, err := m.SubscribeToCacheChanges(context.Background(),
 		cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}})
 	// Validate the update received by subscribers
+	require.NoError(t, err)
 	u2 := <-sub2.Updates()
 	if len(u2.Identities) != 1 {
 		t.Fatalf("expected 1 SVID, got: %d", len(u2.Identities))
@@ -903,7 +908,7 @@ func TestSyncSVIDs(t *testing.T) {
 	sub2.Finish()
 	close(waitCh)
 
-	err := <-errCh
+	err = <-errCh
 	if err != nil {
 		t.Fatalf("syncSVIDs method failed with error %v", err)
 	}
@@ -964,7 +969,8 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	m := newManager(c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	require.NoError(t, err)
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	initialUpdate := <-updates

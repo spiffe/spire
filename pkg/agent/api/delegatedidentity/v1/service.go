@@ -120,7 +120,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 		return status.Error(codes.InvalidArgument, "could not parse provided selectors")
 	}
 
-	subscriber := s.manager.SubscribeToCacheChanges(selectors)
+	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
 	defer subscriber.Finish()
 
 	for {

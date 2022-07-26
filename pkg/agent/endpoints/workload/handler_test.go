@@ -1318,9 +1318,9 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	}, nil
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	atomic.AddInt32(&m.subscribers, 1)
-	return newFakeSubscriber(m, m.updates)
+	return newFakeSubscriber(m, m.updates), nil
 }
 
 func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
