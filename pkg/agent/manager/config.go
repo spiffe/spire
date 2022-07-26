@@ -12,7 +12,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -27,8 +29,8 @@ type Config struct {
 	Log              logrus.FieldLogger
 	Metrics          telemetry.Metrics
 	ServerAddr       string
-	SVIDCachePath    string
-	BundleCachePath  string
+	Storage          storage.Storage
+	WorkloadKeyType  workloadkey.KeyType
 	SyncInterval     time.Duration
 	RotationInterval time.Duration
 	SVIDStoreCache   *storecache.Cache
@@ -72,15 +74,14 @@ func newManager(c *Config) *manager {
 	svidRotator, client := svid.NewRotator(rotCfg)
 
 	m := &manager{
-		cache:           cache,
-		c:               c,
-		mtx:             new(sync.RWMutex),
-		svid:            svidRotator,
-		svidCachePath:   c.SVIDCachePath,
-		bundleCachePath: c.BundleCachePath,
-		client:          client,
-		clk:             c.Clk,
-		svidStoreCache:  c.SVIDStoreCache,
+		cache:          cache,
+		c:              c,
+		mtx:            new(sync.RWMutex),
+		svid:           svidRotator,
+		storage:        c.Storage,
+		client:         client,
+		clk:            c.Clk,
+		svidStoreCache: c.SVIDStoreCache,
 	}
 
 	return m

@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.3] - 2022-07-13
+
+### Security
+- Updated to Go 1.18.4 to address CVE-2022-1705, CVE-2022-32148, CVE-2022-30631, CVE-2022-30633, CVE-2022-28131, CVE-2022-30635, CVE-2022-30632, CVE-2022-30630, and CVE-2022-1962.
+
 ## [1.3.2] - 2022-07-08
 
 ### Added
@@ -50,6 +55,11 @@
 
 ### Deprecated
 - The webhook mode for the K8s Workload Register has been deprecated (#2964)
+
+## [1.2.5] - 2022-07-13
+
+### Security
+- Updated to Go 1.17.12 to address CVE-2022-1705, CVE-2022-32148, CVE-2022-30631, CVE-2022-30633, CVE-2022-28131, CVE-2022-30635, CVE-2022-30632, CVE-2022-30630, and CVE-2022-1962.
 
 ## [1.2.4] - 2022-05-12
 

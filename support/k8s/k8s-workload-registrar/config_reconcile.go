@@ -69,9 +69,9 @@ func (c *ReconcileMode) Run(ctx context.Context) error {
 	}))
 	setupLog := ctrl.Log.WithName("setup")
 
-	// DEPRECATED: remove in SPIRE 1.4
+	// DEPRECATED: remove this check in 1.5.0 since all those who migrate through 1.4.0 will already have moved away
 	if c.LeaderElection && c.LeaderElectionResourceLock == configMapsResourceLock {
-		setupLog.Info(`The "configmaps" leader election resource lock type is no longer supported in Kubernetes v1.24+; support for this lock type will be removed from the k8s-workload-registrar in a future release.`)
+		return errs.New(`the "configmaps" leader election resource lock type is no longer supported`)
 	}
 
 	// Connect to Spire Server
