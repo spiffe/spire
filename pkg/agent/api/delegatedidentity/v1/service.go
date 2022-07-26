@@ -121,6 +121,10 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	}
 
 	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
+	if err != nil {
+		log.WithError(err).Error("Subscribe to cache changes failed")
+		return err
+	}
 	defer subscriber.Finish()
 
 	for {
