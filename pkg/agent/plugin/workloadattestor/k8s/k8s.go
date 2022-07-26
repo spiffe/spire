@@ -202,7 +202,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 				continue
 			}
 
-			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
 				if attestResponse != nil {
@@ -210,7 +210,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 					return nil, status.Error(codes.Internal, "two pods found with same container Id")
 				}
 				attestResponse = &workloadattestorv1.AttestResponse{
-					SelectorValues: getSelectorValuesFromPodInfo(&item, status),
+					SelectorValues: getSelectorValuesFromPodInfo(&item, lookupStatus),
 				}
 			case containerNotInPod:
 			}
