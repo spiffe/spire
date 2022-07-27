@@ -198,7 +198,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		var attestResponse *workloadattestorv1.AttestResponse
 		for _, item := range list.Items {
 			item := item
-			if podUID != "" && isNotPod(item.UID, podUID) {
+			if isNotPod(item.UID, podUID) {
 				continue
 			}
 

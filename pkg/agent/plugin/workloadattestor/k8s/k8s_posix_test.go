@@ -22,7 +22,7 @@ import (
 const (
 	kindPodListFilePath                     = "testdata/kind_pod_list.json"
 	crioPodListFilePath                     = "testdata/crio_pod_list.json"
-	crioPodListDuplicateContainerIdFilePath = "testdata/crio_pod_list_duplicate_containerId.json"
+	crioPodListDuplicateContainerIDFilePath = "testdata/crio_pod_list_duplicate_containerId.json"
 
 	cgPidInPodFilePath        = "testdata/cgroups_pid_in_pod.txt"
 	cgPidInKindPodFilePath    = "testdata/cgroups_pid_in_kind_pod.txt"
@@ -132,7 +132,7 @@ func (s *Suite) TestAttestFailDuplicateContainerId() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
 
-	s.requireAttestFailWithDuplicateContainerId(p)
+	s.requireAttestFailWithDuplicateContainerID(p)
 }
 
 func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
@@ -183,8 +183,8 @@ func (s *Suite) requireAttestSuccessWithCrioPod(p workloadattestor.WorkloadAttes
 	s.requireAttestSuccess(p, testCrioPodSelectors)
 }
 
-func (s *Suite) requireAttestFailWithDuplicateContainerId(p workloadattestor.WorkloadAttestor) {
-	s.addPodListResponse(crioPodListDuplicateContainerIdFilePath)
+func (s *Suite) requireAttestFailWithDuplicateContainerID(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(crioPodListDuplicateContainerIDFilePath)
 	s.addCgroupsResponse(cgPidInCrioPodFilePath)
 	s.requireAttestFailure(p, codes.Internal, "two pods found with same container Id")
 }
