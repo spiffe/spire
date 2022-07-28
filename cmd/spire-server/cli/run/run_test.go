@@ -408,6 +408,16 @@ func TestMergeInput(t *testing.T) {
 				require.True(t, c.Server.AuditLogEnabled)
 			},
 		},
+		{
+			msg: "jwt_verbose_claims_enabled should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.JWTVerboseClaimsEnabled = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, true, c.Server.JWTVerboseClaimsEnabled)
+			},
+		},
 	}
 	cases = append(cases, mergeInputCasesOS(t)...)
 
@@ -916,6 +926,15 @@ func TestNewServerConfig(t *testing.T) {
 			expectError: true,
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "jwt_verbose_claims_enabled is correctly configured",
+			input: func(c *Config) {
+				c.Server.JWTVerboseClaimsEnabled = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, true, c.JWTVerboseClaimsEnabled)
 			},
 		},
 	}

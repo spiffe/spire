@@ -101,6 +101,9 @@ type Config struct {
 	// AdminIDs are a list of fixed IDs that when presented by a caller in an
 	// X509-SVID, are granted admin rights.
 	AdminIDs []spiffeid.ID
+
+	// If true, JWT-SVIDs will also contain separate Trust Domain and Workload Identifier claims
+	JWTVerboseClaimsEnabled bool
 }
 
 type ExperimentalConfig struct {

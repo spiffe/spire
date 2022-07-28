@@ -19,6 +19,9 @@ type SignerConfig struct {
 
 	// Issuer is used as the value of the issuer (iss) claim, if set.
 	Issuer string
+
+	// VerboseClaims defines whether a verbose 'trust' and 'workload' claim is added to the JWT.
+	VerboseClaims bool
 }
 
 type Signer struct {
@@ -50,12 +53,24 @@ func (s *Signer) SignToken(id spiffeid.ID, audience []string, expires time.Time,
 		return "", errors.New("kid is required")
 	}
 
+	var extraClaims []interface{}
 	claims := jwt.Claims{
 		Subject:  id.String(),
 		Issuer:   s.c.Issuer,
 		Expiry:   jwt.NewNumericDate(expires),
 		Audience: audience,
 		IssuedAt: jwt.NewNumericDate(s.c.Clock.Now()),
+	}
+
+	if s.c.VerboseClaims {
+		verboseClaims := struct {
+			TrustDomain   spiffeid.TrustDomain `json:"trust"`
+			WorkloadIdent string               `json:"workload"`
+		}{
+			TrustDomain:   id.TrustDomain(),
+			WorkloadIdent: id.Path(),
+		}
+		extraClaims = append(extraClaims, verboseClaims)
 	}
 
 	alg, err := cryptoutil.JoseAlgFromPublicKey(signer.Public())
@@ -77,7 +92,12 @@ func (s *Signer) SignToken(id spiffeid.ID, audience []string, expires time.Time,
 		return "", errs.Wrap(err)
 	}
 
-	signedToken, err := jwt.Signed(jwtSigner).Claims(claims).CompactSerialize()
+	builder := jwt.Signed(jwtSigner).Claims(claims)
+	for _, extraClaim := range extraClaims {
+		builder = builder.Claims(extraClaim)
+	}
+
+	signedToken, err := builder.CompactSerialize()
 	if err != nil {
 		return "", errs.Wrap(err)
 	}

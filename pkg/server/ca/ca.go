@@ -119,6 +119,7 @@ type Config struct {
 	Clock         clock.Clock
 	CASubject     pkix.Name
 	HealthChecker health.Checker
+	VerboseClaims bool
 }
 
 type CA struct {
@@ -145,8 +146,9 @@ func NewCA(config Config) *CA {
 	ca := &CA{
 		c: config,
 		jwtSigner: jwtsvid.NewSigner(jwtsvid.SignerConfig{
-			Clock:  config.Clock,
-			Issuer: config.JWTIssuer,
+			Clock:         config.Clock,
+			Issuer:        config.JWTIssuer,
+			VerboseClaims: config.VerboseClaims,
 		}),
 	}
 

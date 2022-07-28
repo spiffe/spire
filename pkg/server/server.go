@@ -268,6 +268,7 @@ func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) 
 		TrustDomain:   s.config.TrustDomain,
 		CASubject:     s.config.CASubject,
 		HealthChecker: healthChecker,
+		VerboseClaims: s.config.JWTVerboseClaimsEnabled,
 	})
 }
 

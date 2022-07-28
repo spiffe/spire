@@ -302,6 +302,38 @@ func (s *TokenSuite) TestValidateKeyNotFound() {
 	s.Require().Nil(claims)
 }
 
+func (s *TokenSuite) TestValidateNoVerboseClaims() {
+	token, err := s.signer.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), ec256Key, "ec256Key")
+	s.Require().NoError(err)
+	s.Require().NotEmpty(token)
+
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
+	s.Require().NoError(err)
+	s.Require().Equal(fakeSpiffeID, spiffeID)
+	s.Require().NotEmpty(claims)
+	s.Require().NotContains(claims, "trust")
+}
+
+func (s *TokenSuite) TestValidateVerboseClaims() {
+	verboseSigner := NewSigner(SignerConfig{
+		Clock:         clock.NewMock(s.T()),
+		VerboseClaims: true,
+	})
+
+	token, err := verboseSigner.SignToken(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), ec256Key, "ec256Key")
+	s.Require().NoError(err)
+	s.Require().NotEmpty(token)
+
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
+	s.Require().NoError(err)
+	s.Require().Equal(fakeSpiffeID, spiffeID)
+	s.Require().NotEmpty(claims)
+	s.Require().Contains(claims, "trust")
+	s.Require().Contains(claims, "workload")
+	s.Require().Equal(fakeSpiffeID.TrustDomain().String(), claims["trust"])
+	s.Require().Equal(fakeSpiffeID.Path(), claims["workload"])
+}
+
 func (s *TokenSuite) signToken(alg jose.SignatureAlgorithm, key interface{}, claims jwt.Claims) string {
 	signer, err := jose.NewSigner(
 		jose.SigningKey{
