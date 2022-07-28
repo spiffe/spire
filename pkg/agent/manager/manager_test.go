@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	backoff "github.com/cenkalti/backoff/v3"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
@@ -867,56 +868,93 @@ func TestSyncSVIDs(t *testing.T) {
 	}
 
 	m := newManager(c)
-	if err := m.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
+	m.subscribeBackoffFn = func() backoff.BackOff {
+		return backoff.NewConstantBackOff(svidSyncInterval)
 	}
+
+	err := m.Initialize(context.Background())
+	require.NoError(t, err)
 
 	// After Initialize, just 1 SVID should be cached
 	assert.Equal(t, 1, m.CountSVIDs())
-	waitCh := make(chan struct{})
-	errCh := make(chan error)
+	ctx := context.Background()
 
-	// Run svidSync in separate routine and advance clock.
-	// It allows SubscribeToCacheChanges to keep checking for SVID in cache as clk advances.
-	closer := runSVIDSync(waitCh, clk, 50*time.Millisecond, m, errCh)
-	defer closer()
-
-	sub1, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
-	require.NoError(t, err)
 	// Validate the update received by subscribers
-	u1 := <-sub1.Updates()
-	if len(u1.Identities) != 2 {
-		t.Fatalf("expected 2 SVIDs, got: %d", len(u1.Identities))
-	}
-	if !u1.Bundle.EqualTo(c.Bundle) {
-		t.Fatal("bundles were expected to be equal")
-	}
+	// Spawn subscriber 1 in new goroutine to allow SVID sync to run in parallel
+	sub1WaitCh := make(chan struct{}, 1)
+	sub1ErrCh := make(chan error, 1)
+	go func() {
+		sub1, err := m.subscribeToCacheChanges(ctx, cache.Selectors{{Type: "unix", Value: "uid:1111"}}, func() {
+			sub1WaitCh <- struct{}{}
+		})
+		if err != nil {
+			sub1ErrCh <- err
+			return
+		}
 
-	sub2, err := m.SubscribeToCacheChanges(context.Background(),
-		cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}})
-	// Validate the update received by subscribers
-	require.NoError(t, err)
-	u2 := <-sub2.Updates()
-	if len(u2.Identities) != 1 {
-		t.Fatalf("expected 1 SVID, got: %d", len(u2.Identities))
-	}
-	if !u2.Bundle.EqualTo(c.Bundle) {
-		t.Fatal("bundles were expected to be equal")
-	}
+		defer sub1.Finish()
+		u1 := <-sub1.Updates()
 
-	sub1.Finish()
-	sub2.Finish()
-	close(waitCh)
+		if len(u1.Identities) != 2 {
+			sub1ErrCh <- fmt.Errorf("expected 2 SVIDs, got: %d", len(u1.Identities))
+			return
+		}
+		if !u1.Bundle.EqualTo(c.Bundle) {
+			sub1ErrCh <- errors.New("bundles were expected to be equal")
+			return
+		}
 
-	err = <-errCh
-	if err != nil {
-		t.Fatalf("syncSVIDs method failed with error %v", err)
-	}
+		sub1ErrCh <- nil
+	}()
+
+	// Spawn subscriber 2 in new goroutine to allow SVID sync to run in parallel
+	sub2WaitCh := make(chan struct{}, 1)
+	sub2ErrCh := make(chan error, 1)
+	go func() {
+		sub2, err := m.subscribeToCacheChanges(ctx, cache.Selectors{{Type: "spiffe_id", Value: "spiffe://example.org/spire/agent/join_token/abcd"}}, func() {
+			sub2WaitCh <- struct{}{}
+		})
+		if err != nil {
+			sub2ErrCh <- err
+			return
+		}
+
+		defer sub2.Finish()
+		u2 := <-sub2.Updates()
+
+		if len(u2.Identities) != 1 {
+			sub2ErrCh <- fmt.Errorf("expected 1 SVID, got: %d", len(u2.Identities))
+			return
+		}
+		if !u2.Bundle.EqualTo(c.Bundle) {
+			sub2ErrCh <- errors.New("bundles were expected to be equal")
+			return
+		}
+
+		sub2ErrCh <- nil
+	}()
+
+	// Wait until subscribers have been created
+	<-sub1WaitCh
+	<-sub2WaitCh
+
+	// Sync SVIDs to populate cache
+	svidSyncErr := m.syncSVIDs(ctx)
+	require.NoError(t, svidSyncErr, "syncSVIDs method failed")
+
+	// Advance clock so subscribers can check for latest SVIDs in cache
+	clk.Add(svidSyncInterval)
+
+	sub1Err := <-sub1ErrCh
+	assert.NoError(t, sub1Err, "subscriber 1 error")
+
+	sub2Err := <-sub2ErrCh
+	assert.NoError(t, sub2Err, "subscriber 2 error")
 
 	// All 3 SVIDs should be cached
 	assert.Equal(t, 3, m.CountSVIDs())
 
-	assert.NoError(t, m.synchronize(context.Background()))
+	assert.NoError(t, m.synchronize(ctx))
 
 	// Make sure svid count is SVIDCacheMaxSize and non-active SVIDs are deleted from cache
 	assert.Equal(t, 1, m.CountSVIDs())
@@ -1186,32 +1224,6 @@ func TestStorableSVIDsSync(t *testing.T) {
 	entries = regEntriesMap["resp5"]
 	records = m.svidStoreCache.Records()
 	validateResponse(records, entries)
-}
-
-func runSVIDSync(waitCh chan struct{}, clk *clock.Mock, interval time.Duration, m *manager,
-	errCh chan<- error) (closer func()) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-waitCh:
-				errCh <- nil
-				return
-			case <-time.After(interval):
-				clk.Add(interval)
-				err := m.syncSVIDs(context.Background())
-				if err != nil {
-					errCh <- err
-					return
-				}
-			}
-		}
-	}()
-	return func() {
-		wg.Wait()
-	}
 }
 
 func makeGetAuthorizedEntriesResponse(t *testing.T, respKeys ...string) *entryv1.GetAuthorizedEntriesResponse {
