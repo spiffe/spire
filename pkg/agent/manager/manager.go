@@ -93,6 +93,7 @@ type manager struct {
 	// fetch attempt
 	synchronizeBackoff backoff.BackOff
 	svidSyncBackoff    backoff.BackOff
+	subscribeBackoffFn func() backoff.BackOff
 
 	client client.Client
 
@@ -111,6 +112,11 @@ func (m *manager) Initialize(ctx context.Context) error {
 
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, svidSyncInterval)
+	if m.subscribeBackoffFn == nil {
+		m.subscribeBackoffFn = func() backoff.BackOff {
+			return backoff.NewBackoff(m.clk, svidSyncInterval)
+		}
+	}
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
@@ -145,11 +151,19 @@ func (m *manager) Run(ctx context.Context) error {
 }
 
 func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	return m.subscribeToCacheChanges(ctx, selectors, nil)
+}
+
+func (m *manager) subscribeToCacheChanges(ctx context.Context, selectors cache.Selectors, notifyCallbackFn func()) (cache.Subscriber, error) {
 	subscriber := m.cache.SubscribeToWorkloadUpdates(selectors)
-	backoff := backoff.NewBackoff(m.clk, svidSyncInterval)
+	bo := m.subscribeBackoffFn()
 	// block until all svids are cached and subscriber is notified
 	for {
-		if m.cache.Notify(selectors) {
+		svidsInCache := m.cache.Notify(selectors)
+		if notifyCallbackFn != nil {
+			notifyCallbackFn()
+		}
+		if svidsInCache {
 			return subscriber, nil
 		}
 		m.c.Log.WithField(telemetry.Selectors, selectors).Info("Waiting for SVID to get cached")
@@ -157,7 +171,7 @@ func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.S
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-m.clk.After(backoff.NextBackOff()):
+		case <-m.clk.After(bo.NextBackOff()):
 		}
 	}
 }
