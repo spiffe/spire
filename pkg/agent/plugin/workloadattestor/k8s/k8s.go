@@ -101,6 +101,12 @@ type HCLConfig struct {
 	// authentication with the kubelet. Must be used with CertificatePath.
 	PrivateKeyPath string `hcl:"private_key_path"`
 
+	// UseAnonymousAuthentication controls whether or not communication to the
+	// kubelet over the secure port is unauthenticated. This option is mutually
+	// exclusive with other authentication configuration fields TokenPath,
+	// CertificatePath, and PrivateKeyPath.
+	UseAnonymousAuthentication bool `hcl:"use_anonymous_authentication"`
+
 	// NodeNameEnv is the environment variable used to determine the node name
 	// for contacting the kubelet. It defaults to "MY_NODE_NAME". If the
 	// environment variable is not set, and NodeName is not specified, the
@@ -118,17 +124,18 @@ type HCLConfig struct {
 
 // k8sConfig holds the configuration distilled from HCL
 type k8sConfig struct {
-	Secure                  bool
-	Port                    int
-	MaxPollAttempts         int
-	PollRetryInterval       time.Duration
-	SkipKubeletVerification bool
-	TokenPath               string
-	CertificatePath         string
-	PrivateKeyPath          string
-	KubeletCAPath           string
-	NodeName                string
-	ReloadInterval          time.Duration
+	Secure                     bool
+	Port                       int
+	MaxPollAttempts            int
+	PollRetryInterval          time.Duration
+	SkipKubeletVerification    bool
+	TokenPath                  string
+	CertificatePath            string
+	PrivateKeyPath             string
+	UseAnonymousAuthentication bool
+	KubeletCAPath              string
+	NodeName                   string
+	ReloadInterval             time.Duration
 
 	Client     *kubeletClient
 	LastReload time.Time
@@ -294,17 +301,18 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	// Configure the kubelet client
 	c := &k8sConfig{
-		Secure:                  secure,
-		Port:                    port,
-		MaxPollAttempts:         maxPollAttempts,
-		PollRetryInterval:       pollRetryInterval,
-		SkipKubeletVerification: config.SkipKubeletVerification,
-		TokenPath:               config.TokenPath,
-		CertificatePath:         config.CertificatePath,
-		PrivateKeyPath:          config.PrivateKeyPath,
-		KubeletCAPath:           config.KubeletCAPath,
-		NodeName:                nodeName,
-		ReloadInterval:          reloadInterval,
+		Secure:                     secure,
+		Port:                       port,
+		MaxPollAttempts:            maxPollAttempts,
+		PollRetryInterval:          pollRetryInterval,
+		SkipKubeletVerification:    config.SkipKubeletVerification,
+		TokenPath:                  config.TokenPath,
+		CertificatePath:            config.CertificatePath,
+		PrivateKeyPath:             config.PrivateKeyPath,
+		UseAnonymousAuthentication: config.UseAnonymousAuthentication,
+		KubeletCAPath:              config.KubeletCAPath,
+		NodeName:                   nodeName,
+		ReloadInterval:             reloadInterval,
 	}
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
@@ -408,6 +416,8 @@ func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
 
 	var token string
 	switch {
+	case config.UseAnonymousAuthentication:
+	// Don't load credentials if using anonymous authentication
 	case config.CertificatePath != "" && config.PrivateKeyPath != "":
 		kp, err := p.loadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 		if err != nil {

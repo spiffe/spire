@@ -198,7 +198,7 @@ func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 
 func (s *Suite) TestAttestOverSecurePortViaTokenAuth() {
 	// start up a secure kubelet with host networking and require token auth
-	s.startSecureKubelet(true, "default-token")
+	s.startSecureKubeletWithTokenAuth(true, "default-token")
 
 	// use the service account token for auth
 	p := s.loadSecurePlugin(``)
@@ -213,7 +213,7 @@ func (s *Suite) TestAttestOverSecurePortViaTokenAuth() {
 
 func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
 	// start up the secure kubelet with host networking and require client certs
-	s.startSecureKubelet(true, "")
+	s.startSecureKubeletWithClientCertAuth()
 
 	// use client certificate for auth
 	p := s.loadSecurePlugin(`
@@ -231,9 +231,19 @@ func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
 	s.requireAttestFailure(p, codes.Internal, "tls: bad certificate")
 }
 
+func (s *Suite) TestAttestOverSecurePortViaAnonymousAuth() {
+	s.startSecureKubeletWithAnonymousAuth()
+
+	p := s.loadSecurePlugin(`
+		use_anonymous_authentication = true
+	`)
+
+	s.requireAttestSuccessWithPod(p)
+}
+
 func (s *Suite) TestAttestReachingKubeletViaNodeName() {
 	// start up a secure kubelet with "localhost" certificate and token auth
-	s.startSecureKubelet(false, "default-token")
+	s.startSecureKubeletWithTokenAuth(false, "default-token")
 
 	// pick up the node name from the default env value
 	s.env["MY_NODE_NAME"] = "localhost"
@@ -608,7 +618,49 @@ func (s *Suite) generateCerts(nodeName string) {
 	s.writeCert(certPath, s.clientCert)
 }
 
-func (s *Suite) startSecureKubelet(hostNetworking bool, token string) {
+func (s *Suite) startSecureKubeletWithClientCertAuth() {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if len(req.TLS.VerifiedChains) == 0 {
+			http.Error(w, "client auth expected but not used", http.StatusForbidden)
+			return
+		}
+		s.serveHTTP(w, req)
+	})
+
+	s.startSecureKubeletServer(false, handler)
+}
+
+func (s *Suite) startSecureKubeletWithTokenAuth(hostNetworking bool, token string) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if len(req.TLS.VerifiedChains) > 0 {
+			http.Error(w, "client auth not expected but used", http.StatusForbidden)
+			return
+		}
+		expectedAuth := "Bearer " + token
+		auth := req.Header.Get("Authorization")
+		if auth != expectedAuth {
+			http.Error(w, fmt.Sprintf("expected %q, got %q", expectedAuth, auth), http.StatusForbidden)
+			return
+		}
+		s.serveHTTP(w, req)
+	})
+
+	s.startSecureKubeletServer(hostNetworking, handler)
+}
+
+func (s *Suite) startSecureKubeletWithAnonymousAuth() {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if len(req.TLS.VerifiedChains) > 0 {
+			http.Error(w, "client auth not expected but used", http.StatusForbidden)
+			return
+		}
+		s.serveHTTP(w, req)
+	})
+
+	s.startSecureKubeletServer(false, handler)
+}
+
+func (s *Suite) startSecureKubeletServer(hostNetworking bool, handler http.Handler) {
 	// Use "localhost" in the DNS name unless we're using host networking. This
 	// allows us to use "localhost" as the host directly when configured to
 	// connect to the node name. Otherwise, we'll connect to 127.0.0.1 and
@@ -617,32 +669,13 @@ func (s *Suite) startSecureKubelet(hostNetworking bool, token string) {
 	if hostNetworking {
 		dnsName = "this-name-should-never-be-validated"
 	}
-	s.generateCerts(dnsName)
 
+	s.generateCerts(dnsName)
 	clientCAs := x509.NewCertPool()
 	if s.clientCert != nil {
 		clientCAs.AddCert(s.clientCert)
 	}
-	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if token == "" {
-			if len(req.TLS.VerifiedChains) == 0 {
-				http.Error(w, "client auth expected but not used", http.StatusForbidden)
-				return
-			}
-		} else {
-			if len(req.TLS.VerifiedChains) > 0 {
-				http.Error(w, "client auth not expected but used", http.StatusForbidden)
-				return
-			}
-			expectedAuth := "Bearer " + token
-			auth := req.Header.Get("Authorization")
-			if auth != expectedAuth {
-				http.Error(w, fmt.Sprintf("expected %q, got %q", expectedAuth, auth), http.StatusForbidden)
-				return
-			}
-		}
-		s.serveHTTP(w, req)
-	}))
+	server := httptest.NewUnstartedServer(handler)
 	server.TLS = &tls.Config{
 		Certificates: []tls.Certificate{
 			{
