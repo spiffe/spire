@@ -62,13 +62,13 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 
 type TenantConfig struct {
 	ResourceID     string `hcl:"resource_id" json:"resource_id"`
+	UseMSI         bool   `hcl:"use_msi" json:"use_msi"`
 	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
 	AppID          string `hcl:"app_id" json:"app_id"`
 	AppSecret      string `hcl:"app_secret" json:"app_secret"`
 }
 
 type MSIAttestorConfig struct {
-	UseMSI  bool                     `hcl:"use_msi" json:"use_msi"`
 	Tenants map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
 }
 
@@ -239,29 +239,17 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 		return nil, status.Errorf(codes.InvalidArgument, err.Error())
 	}
 
-	var msiClient apiClient
 	tenants := make(map[string]*tenantConfig)
-
-	if hclConfig.UseMSI {
-		instanceMetadata, err := p.hooks.fetchInstanceMetadata(ctx, http.DefaultClient)
-		if err != nil {
-			return nil, err
-		}
-		cred, err := p.hooks.msiCredential()
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
-		}
-		msiClient, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to create client with MSI credential: %v", err)
-		}
-	}
 
 	for tenantID, tenant := range hclConfig.Tenants {
 		var client apiClient
 
 		// Use tenant-specific credentials for resolving selectors
-		if tenant.SubscriptionID != "" || tenant.AppID != "" || tenant.AppSecret != "" {
+		switch {
+		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
+			if tenant.UseMSI {
+				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: cannot use both MSI and app authentication", tenantID)
+			}
 			if tenant.SubscriptionID == "" {
 				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing subscription id", tenantID)
 			}
@@ -281,16 +269,23 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
 			}
+		case tenant.UseMSI:
+			instanceMetadata, err := p.hooks.fetchInstanceMetadata(ctx, http.DefaultClient)
+			if err != nil {
+				return nil, err
+			}
+			cred, err := p.hooks.msiCredential()
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
+			}
+			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to create client with MSI credential: %v", err)
+			}
 		}
 
-		// Fall back to MSI client (when configured) if no tenant-specific credentials provided
-		if client == nil {
-			client = msiClient
-		}
-
-		// Otherwise credentials are not configured and selectors won't be
-		// gathered.
-		// TODO: make this an error condition
+		// If credentials are not configured and selectors won't be gathered.
+		// TODO: make this an error condition in a future release
 		if client == nil {
 			p.log.Warn("No client credentials available for tenant. Selectors will not be produced by the node attestor for this node. This will be an error in a future release.",
 				"tenant", tenantID)

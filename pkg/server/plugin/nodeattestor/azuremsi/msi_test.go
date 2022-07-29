@@ -397,12 +397,11 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	s.T().Run("success with MSI", func(t *testing.T) {
 		resetClients()
 		err := doConfig(t, coreConfig, `
-		use_msi = true
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
+				use_msi = true
 			}
-			"TENANTID2" = {}
 		}
 		`)
 		require.NoError(t, err)
@@ -428,7 +427,6 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	s.T().Run("success with tenant creds mixed with msi", func(t *testing.T) {
 		resetClients()
 		err := doConfig(t, coreConfig, `
-		use_msi = true
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
@@ -436,11 +434,13 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				app_id = "APPID"
 				app_secret = "APPSECRET"
 			}
-			"TENANTID2" = {}
+			"TENANTID2" = {
+				use_msi = true
+			}
 		}
 		`)
 		require.NoError(t, err)
-		require.Equal(t, []string{"SUBSCRIPTIONID", "TENANTSUBSCRIPTIONID"}, clients)
+		require.Equal(t, []string{"TENANTSUBSCRIPTIONID", "SUBSCRIPTIONID"}, clients)
 	})
 
 	s.T().Run("failure with tenant missing subscription id", func(t *testing.T) {
@@ -561,12 +561,14 @@ func (s *MSIAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(`
-		use_msi = true
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
+				use_msi = true
 			}
-			"TENANTID2" = {}
+			"TENANTID2" = {
+				use_msi = true
+			}
 		}
 	`))
 	return v1
