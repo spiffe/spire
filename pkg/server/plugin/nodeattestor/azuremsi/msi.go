@@ -43,7 +43,6 @@ const (
 )
 
 var (
-	reAgentIDPath            = regexp.MustCompile(`^/spire/agent/azure_msi/([^/]+)/([^/]+)`)
 	reVirtualMachineID       = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Compute/virtualMachines/([^/]+)$`)
 	reNetworkSecurityGroupID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkSecurityGroups/([^/]+)$`)
 	reNetworkInterfaceID     = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkInterfaces/([^/]+)$`)
@@ -429,14 +428,6 @@ func getNetworkInterfaceSelectors(networkInterface *armnetwork.Interface) ([]str
 	}
 
 	return selectors, nil
-}
-
-func parseAgentIDPath(path string) (tenantID, principalID string, err error) {
-	m := reAgentIDPath.FindStringSubmatch(path)
-	if m == nil {
-		return "", "", status.Errorf(codes.InvalidArgument, "malformed agent ID path %q", path)
-	}
-	return m[1], m[2], nil
 }
 
 func parseVirtualMachineID(id string) (resourceGroup, name string, err error) {

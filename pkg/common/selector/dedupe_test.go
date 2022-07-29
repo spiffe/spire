@@ -10,7 +10,7 @@ import (
 )
 
 func TestDedupe(t *testing.T) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint // gosec: no need for cryptographic randomness here
 
 	aa := &common.Selector{Type: "A", Value: "A"}
 	ab := &common.Selector{Type: "A", Value: "B"}
