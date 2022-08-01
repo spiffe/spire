@@ -65,14 +65,14 @@ require (
 	github.com/zeebo/errs v1.3.0
 	go.uber.org/atomic v1.9.0
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
-	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e
+	golang.org/x/net v0.0.0-20220728211354-c7608f3a8462
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8
+	golang.org/x/sys v0.0.0-20220731174439-a90be440212d
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 	google.golang.org/api v0.90.0
-	google.golang.org/genproto v0.0.0-20220706132729-d86698d07c53
+	google.golang.org/genproto v0.0.0-20220801145646-83ce21fca29f
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.24.3
 	k8s.io/apimachinery v0.24.3

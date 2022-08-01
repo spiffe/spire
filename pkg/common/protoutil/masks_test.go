@@ -6,11 +6,11 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/stretchr/testify/assert"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 func TestAllTrueMasks(t *testing.T) {
-	assert.Equal(t, &types.AgentMask{
+	spiretest.AssertProtoEqual(t, &types.AgentMask{
 		AttestationType:      true,
 		X509SvidSerialNumber: true,
 		X509SvidExpiresAt:    true,
@@ -18,14 +18,14 @@ func TestAllTrueMasks(t *testing.T) {
 		Banned:               true,
 	}, protoutil.AllTrueAgentMask)
 
-	assert.Equal(t, &types.BundleMask{
+	spiretest.AssertProtoEqual(t, &types.BundleMask{
 		X509Authorities: true,
 		JwtAuthorities:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
 	}, protoutil.AllTrueBundleMask)
 
-	assert.Equal(t, &types.EntryMask{
+	spiretest.AssertProtoEqual(t, &types.EntryMask{
 		SpiffeId:       true,
 		ParentId:       true,
 		Selectors:      true,
@@ -39,13 +39,13 @@ func TestAllTrueMasks(t *testing.T) {
 		StoreSvid:      true,
 	}, protoutil.AllTrueEntryMask)
 
-	assert.Equal(t, &common.BundleMask{
+	spiretest.AssertProtoEqual(t, &common.BundleMask{
 		RootCas:        true,
 		JwtSigningKeys: true,
 		RefreshHint:    true,
 	}, protoutil.AllTrueCommonBundleMask)
 
-	assert.Equal(t, &common.AttestedNodeMask{
+	spiretest.AssertProtoEqual(t, &common.AttestedNodeMask{
 		AttestationDataType: true,
 		CertSerialNumber:    true,
 		CertNotAfter:        true,
@@ -54,7 +54,7 @@ func TestAllTrueMasks(t *testing.T) {
 		CanReattest:         true,
 	}, protoutil.AllTrueCommonAgentMask)
 
-	assert.Equal(t, &types.FederationRelationshipMask{
+	spiretest.AssertProtoEqual(t, &types.FederationRelationshipMask{
 		BundleEndpointUrl:     true,
 		BundleEndpointProfile: true,
 		TrustDomainBundle:     true,
