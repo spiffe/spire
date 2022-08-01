@@ -76,6 +76,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		expectedMsg    string
 		expectedReason types.PermissionDeniedDetails_Reason
 		expectedLogs   []spiretest.LogEntry
+		expectedNode   *common.AttestedNode
 	}{
 		{
 			name: "authorized",
@@ -84,6 +85,10 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber: agentSVID.SerialNumber.String(),
 			},
 			expectedCode: codes.OK,
+			expectedNode: &common.AttestedNode{
+				SpiffeId:         agentID.String(),
+				CertSerialNumber: agentSVID.SerialNumber.String(),
+			},
 		},
 		{
 			name:         "fail fetch",
@@ -186,8 +191,15 @@ func TestAgentAuthorizer(t *testing.T) {
 				SpiffeId:            agentID.String(),
 				CertSerialNumber:    "CURRENT",
 				NewCertSerialNumber: agentSVID.SerialNumber.String(),
+				CanReattest:         true,
 			},
 			expectedCode: codes.OK,
+			expectedNode: &common.AttestedNode{
+				SpiffeId:            agentID.String(),
+				CertSerialNumber:    agentSVID.SerialNumber.String(),
+				NewCertSerialNumber: "",
+				CanReattest:         true,
+			},
 		},
 		{
 			name: "failed to activate new SVID",
@@ -271,11 +283,9 @@ func TestAgentAuthorizer(t *testing.T) {
 				require.Fail(t, "unexpected error code")
 			}
 
-			// Assert the new SVID serial number (if existed) is now set as current
 			attestedNode, err := ds.FetchAttestedNode(context.Background(), tt.node.SpiffeId)
 			require.NoError(t, err)
-			require.Equal(t, agentSVID.SerialNumber.String(), attestedNode.CertSerialNumber)
-			require.Empty(t, attestedNode.NewCertSerialNumber)
+			spiretest.RequireProtoEqual(t, tt.expectedNode, attestedNode)
 		})
 	}
 }
