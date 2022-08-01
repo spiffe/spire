@@ -168,8 +168,7 @@ protos := \
 api-protos := \
 
 plugin-protos := \
-	proto/spire/common/plugin/plugin.proto \
-	proto/spire/plugin/agent/svidstore/v1unofficial/svidstore.proto \
+	proto/spire/common/plugin/plugin.proto 
 
 service-protos := \
 
