@@ -3,11 +3,21 @@ package azuremsi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -32,6 +42,13 @@ const (
 	azureOIDCIssuer       = "https://login.microsoftonline.com/common/"
 )
 
+var (
+	reVirtualMachineID       = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Compute/virtualMachines/([^/]+)$`)
+	reNetworkSecurityGroupID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkSecurityGroups/([^/]+)$`)
+	reNetworkInterfaceID     = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkInterfaces/([^/]+)$`)
+	reVirtualNetworkSubnetID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/virtualNetworks/([^/]+)/subnets/([^/]+)$`)
+)
+
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
@@ -44,12 +61,25 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 }
 
 type TenantConfig struct {
-	ResourceID string `hcl:"resource_id"`
+	ResourceID     string `hcl:"resource_id" json:"resource_id"`
+	UseMSI         bool   `hcl:"use_msi" json:"use_msi"`
+	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
+	AppID          string `hcl:"app_id" json:"app_id"`
+	AppSecret      string `hcl:"app_secret" json:"app_secret"`
 }
 
 type MSIAttestorConfig struct {
-	trustDomain string
-	Tenants     map[string]*TenantConfig `hcl:"tenants"`
+	Tenants map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
+}
+
+type tenantConfig struct {
+	resourceID string
+	client     apiClient
+}
+
+type msiAttestorConfig struct {
+	td      spiffeid.TrustDomain
+	tenants map[string]*tenantConfig
 }
 
 type MSIAttestorPlugin struct {
@@ -60,11 +90,14 @@ type MSIAttestorPlugin struct {
 	log hclog.Logger
 
 	mu     sync.RWMutex
-	config *MSIAttestorConfig
+	config *msiAttestorConfig
 
 	hooks struct {
-		now            func() time.Time
-		keySetProvider jwtutil.KeySetProvider
+		now                   func() time.Time
+		keySetProvider        jwtutil.KeySetProvider
+		newClient             func(string, azcore.TokenCredential) (apiClient, error)
+		fetchInstanceMetadata func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error)
+		msiCredential         func() (azcore.TokenCredential, error)
 	}
 }
 
@@ -74,6 +107,11 @@ func New() *MSIAttestorPlugin {
 	p := &MSIAttestorPlugin{}
 	p.hooks.now = time.Now
 	p.hooks.keySetProvider = jwtutil.NewCachingKeySetProvider(jwtutil.OIDCIssuer(azureOIDCIssuer), keySetRefreshInterval)
+	p.hooks.newClient = newAzureClient
+	p.hooks.fetchInstanceMetadata = azure.FetchInstanceMetadata
+	p.hooks.msiCredential = func() (azcore.TokenCredential, error) {
+		return azidentity.NewManagedIdentityCredential(nil)
+	}
 	return p
 }
 
@@ -130,38 +168,46 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	if err := token.Claims(&keys[0], claims); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to verify token: %v", err)
 	}
-	agentID := claims.AgentID(config.trustDomain)
+	switch {
+	case claims.TenantID == "":
+		return status.Error(codes.Internal, "token missing tenant ID claim")
+	case claims.Subject == "":
+		return status.Error(codes.Internal, "token missing subject claim")
+	}
 
+	// Before doing the work to validate the token, ensure that this MSI token
+	// has not already been used to attest an agent.
+	agentID := claims.AgentID(config.td.String())
 	if err := p.AssessTOFU(stream.Context(), agentID, p.log); err != nil {
 		return err
 	}
 
-	// make sure tenant id is present and authorized
-	if claims.TenantID == "" {
-		return status.Error(codes.Internal, "token missing tenant ID claim")
-	}
-	tenant, ok := config.Tenants[claims.TenantID]
+	tenant, ok := config.tenants[claims.TenantID]
 	if !ok {
 		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", claims.TenantID)
 	}
 
 	if err := claims.ValidateWithLeeway(jwt.Expected{
-		Audience: []string{tenant.ResourceID},
+		Audience: []string{tenant.resourceID},
 		Time:     p.hooks.now(),
 	}, tokenLeeway); err != nil {
 		return status.Errorf(codes.Internal, "unable to validate token claims: %v", err)
 	}
 
-	// make sure principal id is in subject claim
-	if claims.Subject == "" {
-		return status.Error(codes.Internal, "token missing subject claim")
+	var selectorValues []string
+	if tenant.client != nil {
+		selectorValues, err = p.resolve(stream.Context(), tenant.client, claims.Subject)
+		if err != nil {
+			return err
+		}
 	}
 
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:    agentID,
-				CanReattest: false,
+				SpiffeId:       agentID,
+				CanReattest:    false,
+				SelectorValues: selectorValues,
 			},
 		},
 	})
@@ -178,7 +224,6 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	if req.CoreConfiguration.TrustDomain == "" {
 		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
 	}
-	hclConfig.trustDomain = req.CoreConfiguration.TrustDomain
 
 	if len(hclConfig.Tenants) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one tenant")
@@ -189,11 +234,77 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 		}
 	}
 
-	p.setConfig(hclConfig)
+	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+	}
+
+	tenants := make(map[string]*tenantConfig)
+
+	for tenantID, tenant := range hclConfig.Tenants {
+		var client apiClient
+
+		// Use tenant-specific credentials for resolving selectors
+		switch {
+		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
+			if tenant.UseMSI {
+				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: cannot use both MSI and app authentication", tenantID)
+			}
+			if tenant.SubscriptionID == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing subscription id", tenantID)
+			}
+			if tenant.AppID == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing app id", tenantID)
+			}
+			if tenant.AppSecret == "" {
+				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing app secret", tenantID)
+			}
+
+			cred, err := azidentity.NewClientSecretCredential(tenantID, tenant.AppID, tenant.AppSecret, nil)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to get tenant client credential: %v", err)
+			}
+
+			client, err = p.hooks.newClient(tenant.SubscriptionID, cred)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
+			}
+		case tenant.UseMSI:
+			instanceMetadata, err := p.hooks.fetchInstanceMetadata(ctx, http.DefaultClient)
+			if err != nil {
+				return nil, err
+			}
+			cred, err := p.hooks.msiCredential()
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
+			}
+			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to create client with MSI credential: %v", err)
+			}
+		}
+
+		// If credentials are not configured then selectors won't be gathered.
+		// TODO: make this an error condition in a future release
+		if client == nil {
+			p.log.Warn("No client credentials available for tenant. Selectors will not be produced by the node attestor for this node. This will be an error in a future release.",
+				"tenant", tenantID)
+		}
+
+		tenants[tenantID] = &tenantConfig{
+			resourceID: tenant.ResourceID,
+			client:     client,
+		}
+	}
+
+	p.setConfig(&msiAttestorConfig{
+		td:      td,
+		tenants: tenants,
+	})
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
+func (p *MSIAttestorPlugin) getConfig() (*msiAttestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
@@ -202,10 +313,156 @@ func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
 	return p.config, nil
 }
 
-func (p *MSIAttestorPlugin) setConfig(config *MSIAttestorConfig) {
+func (p *MSIAttestorPlugin) setConfig(config *msiAttestorConfig) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
+}
+
+func (p *MSIAttestorPlugin) resolve(ctx context.Context, client apiClient, principalID string) ([]string, error) {
+	// Retrieve the resource belonging to the principal id.
+	vmResourceID, err := client.GetVirtualMachineResourceID(ctx, principalID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to get resource for principal %q: %v", principalID, err)
+	}
+
+	// parse out the resource group and vm name from the resource ID
+	vmResourceGroup, vmName, err := parseVirtualMachineID(vmResourceID)
+	if err != nil {
+		return nil, err
+	}
+
+	// build up a unique map of selectors. this is easier than deduping
+	// individual selectors (e.g. the virtual network for each interface)
+	selectorMap := map[string]bool{
+		selectorValue("subscription-id", client.SubscriptionID()): true,
+		selectorValue("vm-name", vmResourceGroup, vmName):         true,
+	}
+	addSelectors := func(values []string) {
+		for _, value := range values {
+			selectorMap[value] = true
+		}
+	}
+
+	// pull the VM information and gather selectors
+	vm, err := client.GetVirtualMachine(ctx, vmResourceGroup, vmName)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to get virtual machine %q: %v", resourceGroupName(vmResourceGroup, vmName), err)
+	}
+	if vm.Properties.NetworkProfile != nil {
+		networkProfileSelectors, err := getNetworkProfileSelectors(ctx, client, vm.Properties.NetworkProfile)
+		if err != nil {
+			return nil, err
+		}
+		addSelectors(networkProfileSelectors)
+	}
+
+	// sort and return selectors
+	selectorValues := make([]string, 0, len(selectorMap))
+	for selectorValue := range selectorMap {
+		selectorValues = append(selectorValues, selectorValue)
+	}
+	sort.Strings(selectorValues)
+
+	return selectorValues, nil
+}
+
+func getNetworkProfileSelectors(ctx context.Context, client apiClient, networkProfile *armcompute.NetworkProfile) ([]string, error) {
+	if networkProfile.NetworkInterfaces == nil {
+		return nil, nil
+	}
+
+	var selectors []string
+	for _, interfaceRef := range networkProfile.NetworkInterfaces {
+		if interfaceRef.ID == nil {
+			continue
+		}
+		niResourceGroup, niName, err := parseNetworkInterfaceID(*interfaceRef.ID)
+		if err != nil {
+			return nil, err
+		}
+		networkInterface, err := client.GetNetworkInterface(ctx, niResourceGroup, niName)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to get network interface %q: %v", resourceGroupName(niResourceGroup, niName), err)
+		}
+
+		networkInterfaceSelectors, err := getNetworkInterfaceSelectors(networkInterface)
+		if err != nil {
+			return nil, err
+		}
+
+		selectors = append(selectors, networkInterfaceSelectors...)
+	}
+
+	return selectors, nil
+}
+
+func getNetworkInterfaceSelectors(networkInterface *armnetwork.Interface) ([]string, error) {
+	var selectors []string
+	if nsg := networkInterface.Properties.NetworkSecurityGroup; nsg != nil && nsg.ID != nil {
+		nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*nsg.ID)
+		if err != nil {
+			return nil, err
+		}
+		selectors = append(selectors, selectorValue("network-security-group", nsgResourceGroup, nsgName))
+	}
+
+	if ipcs := networkInterface.Properties.IPConfigurations; ipcs != nil {
+		for _, ipc := range ipcs {
+			if props := ipc.Properties; props != nil {
+				if subnet := props.Subnet; subnet != nil && subnet.ID != nil {
+					subResourceGroup, subVirtualNetwork, subName, err := parseVirtualNetworkSubnetID(*subnet.ID)
+					if err != nil {
+						return nil, err
+					}
+					selectors = append(selectors, selectorValue("virtual-network", subResourceGroup, subVirtualNetwork))
+					selectors = append(selectors, selectorValue("virtual-network-subnet", subResourceGroup, subVirtualNetwork, subName))
+				}
+			}
+		}
+	}
+
+	return selectors, nil
+}
+
+func parseVirtualMachineID(id string) (resourceGroup, name string, err error) {
+	m := reVirtualMachineID.FindStringSubmatch(id)
+	if m == nil {
+		return "", "", status.Errorf(codes.Internal, "malformed virtual machine ID %q", id)
+	}
+	return m[1], m[2], nil
+}
+
+func parseNetworkSecurityGroupID(id string) (resourceGroup, name string, err error) {
+	m := reNetworkSecurityGroupID.FindStringSubmatch(id)
+	if m == nil {
+		return "", "", status.Errorf(codes.Internal, "malformed network security group ID %q", id)
+	}
+	return m[1], m[2], nil
+}
+
+func parseNetworkInterfaceID(id string) (resourceGroup, name string, err error) {
+	m := reNetworkInterfaceID.FindStringSubmatch(id)
+	if m == nil {
+		return "", "", status.Errorf(codes.Internal, "malformed network interface ID %q", id)
+	}
+	return m[1], m[2], nil
+}
+
+func parseVirtualNetworkSubnetID(id string) (resourceGroup, networkName, subnetName string, err error) {
+	m := reVirtualNetworkSubnetID.FindStringSubmatch(id)
+	if m == nil {
+		return "", "", "", status.Errorf(codes.Internal, "malformed virtual network subnet ID %q", id)
+	}
+	return m[1], m[2], m[3], nil
+}
+
+func resourceGroupName(resourceGroup, name string) string {
+	return fmt.Sprintf("%s:%s", resourceGroup, name)
+}
+
+func selectorValue(parts ...string) string {
+	return strings.Join(parts, ":")
 }
 
 func getTokenKeyID(token *jwt.JSONWebToken) (string, bool) {

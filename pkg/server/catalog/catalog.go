@@ -118,6 +118,11 @@ func (repo *Repository) Close() {
 
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	// DEPRECATE: make this an error in SPIRE 1.5
+	if len(config.PluginConfig[nodeResolverType]) > 0 {
+		config.Log.Warn("The node resolver plugin type is deprecated and will be removed from a future release")
+	}
+
+	// DEPRECATE: make this an error in SPIRE 1.5
 	if c, ok := config.PluginConfig[nodeAttestorType][jointoken.PluginName]; ok && c.IsEnabled() && c.IsExternal() {
 		config.Log.Warn("The built-in join_token node attestor cannot be overridden by an external plugin. The external plugin will be ignored; this will be a configuration error in a future release.")
 		config.PluginConfig[nodeAttestorType][jointoken.PluginName] = catalog.HCLPluginConfig{}

@@ -1,5 +1,7 @@
 # Server plugin: NodeResolver "azure_msi"
 
+*This plugin is deprecated in favor of configuring the "azure_msi" NodeAttestor to resolve selectors*
+
 *Must be used in conjunction with the server azure_msi nodeattestor plugin*
 
 The `azure_msi` plugin attests resolves nodes running in Microsoft Azure that

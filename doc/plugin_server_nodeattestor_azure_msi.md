@@ -13,41 +13,89 @@ spiffe://<trust domain>/spire/agent/azure_msi/<tenant_id>/<principal_id>
 ```
 
 The server does not need to be running in Azure in order to perform node
-attestation.
+attestation or to resolve selectors. 
 
 ## Configuration
 
-| Configuration   | Description | Default                 |
+| Configuration   | Required    | Description | Default                 |
 | --------------- | ----------- | ----------------------- |
-| `tenants`       | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. | |
+| `tenants`       | Required    | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. | |
+
 
 Each tenant in the main configuration supports the following
 
-| Configuration | Description | Default                 |
-| ------------- | ----------- | ----------------------- |
-| `resource_id` | The resource ID (or audience) for the tenant's MSI token. Tokens for a different resource ID are rejected | https://management.azure.com/ |
+| Configuration     | Required    | Description | Default                 |
+| ----------------- | ----------- | ----------------------- |
+| `resource_id`     | Optional                             | The resource ID (or audience) for the tenant's MSI token. Tokens for a different resource ID are rejected | https://management.azure.com/ |
+| `use_msi`         | [Optional](#authenticating-to-azure) | Whether or not to use MSI to authenticate to Azure services for selector resolution. | false |
+| `subscription_id` | [Optional](#authenticating-to-azure) | The subscription the tenant resides in | |
+| `app_id`          | [Optional](#authenticating-to-azure) | The application id | |
+| `app_secret`      | [Optional](#authenticating-to-azure) | The application secret | |
 
 It is important to note that the resource ID MUST be for a well known Azure
 service, or an app ID for a registered app in Azure AD. Azure will not issue an
 MSI token for resources it does not know about.
 
-A sample configuration:
+### Authenticating to Azure
+
+This plugin requires credentials to authenticate with Azure in order to inquire
+about properties of the attesting node and produce selectors.
+
+Each tenant can be configured to either authenticate with an MSI token
+(`use_msi`) or credentials for an application registered within the tenant
+(`subscription_id`, `app_id`, and `app_secret`). The SPIRE Server must reside
+in the same tenant when authenticating with an MSI token.
+
+For backwards compatability reasons the authentication configuration is *NOT*
+required, however, it will be in a future release.
+
+### Sample Configurations
+
+#### Default Resource ID and App Authentication
 
 ```
     NodeAttestor "azure_msi" {
-        enabled = true
         plugin_data {
             tenants = {
-                // Tenant configured with the default resource id (i.e. the resource manager)
-                "9E85E111-1103-48FC-A933-9533FE47DE05" = {}
-                // Tenant configured with a custom resource id
-                "DD14E835-679A-4703-B4DE-8F00A20C732E" = {
+                "00000000-1111-2222-3333-444444444444" = {
+                    subscription_id = SUBSCRIPTION_ID
+                    app_id = APP_ID
+                    app_secret = APP_SECRET
+                }
+            }
+        }
+    }
+}
+```
+
+#### Custom Reseource ID and MSI Authentication
+
+```
+    NodeAttestor "azure_msi" {
+        plugin_data {
+            tenants = {
+                "00000000-1111-2222-3333-444444444444" = {
                     resource_id = "http://example.org/app/"
+                    use_msi = true
                 }
             }
         }
     }
 ```
+
+## Selectors
+
+The plugin produces the following selectors.
+
+| Selector               | Example                                                | Description                                                |
+| ---------------------- | ------------------------------------------------------ | -----------------------------------------------------------|
+| Subscription ID        | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to |
+| Virtual Machine Name   | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)
+| Network Security Group | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`)
+| Virtual Network        | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)
+| Virtual Network Subnet | `virtual-network:frontend:vnet:default`                | The name of the virtual network subnet (e.g. `default`) qualfied by the virtual network and resource group
+
+All of the selectors have the type `azure_msi`.
 
 ## Security Considerations
 The Azure Managed Service Identity token, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
