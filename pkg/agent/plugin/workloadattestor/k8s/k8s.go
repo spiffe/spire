@@ -202,20 +202,29 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, err
 		}
 
+		var attestResponse *workloadattestorv1.AttestResponse
 		for _, item := range list.Items {
 			item := item
 			if isNotPod(item.UID, podUID) {
 				continue
 			}
 
-			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status)
 			switch lookup {
 			case containerInPod:
-				return &workloadattestorv1.AttestResponse{
-					SelectorValues: getSelectorValuesFromPodInfo(&item, status),
-				}, nil
+				if attestResponse != nil {
+					log.Warn("Two pods found with same container Id")
+					return nil, status.Error(codes.Internal, "two pods found with same container Id")
+				}
+				attestResponse = &workloadattestorv1.AttestResponse{
+					SelectorValues: getSelectorValuesFromPodInfo(&item, lookupStatus),
+				}
 			case containerNotInPod:
 			}
+		}
+
+		if attestResponse != nil {
+			return attestResponse, nil
 		}
 
 		// if the container was not located after the maximum number of attempts then the search is over.
