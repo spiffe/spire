@@ -454,6 +454,8 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 			c.staleEntries[id] = true
 		}
 	}
+	c.log.WithField(telemetry.OutdatedSVIDs, len(outdatedEntries)).
+		Debug("Updating SVIDs with outdated attributes in cache")
 
 	if bundleRemoved || len(bundleChanged) > 0 {
 		c.BundleCache.Update(c.bundles)
