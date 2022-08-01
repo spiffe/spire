@@ -14,6 +14,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -214,7 +216,7 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithDefaultResourceID() {
 		Properties: &armcompute.VirtualMachineProperties{},
 	})
 
-	// Success wit default resource ID (via TENANTID2)
+	// Success with default resource ID (via TENANTID2)
 	s.requireAttestSuccess(
 		s.signAttestPayload("KEYID", azure.DefaultMSIResourceID, "TENANTID2", "PRINCIPALID"),
 		"spiffe://example.org/spire/agent/azure_msi/TENANTID2/PRINCIPALID",
@@ -231,6 +233,18 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithCustomResourceID() {
 		s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID"),
 		"spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
 		vmSelectors)
+}
+
+func (s *MSIAttestorSuite) TestAttestSuccessWithNoClientCredentials() {
+	s.attestor = s.loadPlugin(plugintest.Configure(`
+		tenants = {
+			"TENANTID" = {}
+		}`))
+
+	s.requireAttestSuccess(
+		s.signAttestPayload("KEYID", azure.DefaultMSIResourceID, "TENANTID", "PRINCIPALID"),
+		"spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
+		nil)
 }
 
 func (s *MSIAttestorSuite) TestAttestResolutionWithVariousSelectorCombos() {
@@ -348,10 +362,12 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 
 func (s *MSIAttestorSuite) TestConfigure() {
 	var clients []string
-	resetClients := func() {
-		clients = nil
-	}
+	var logEntries []*logrus.Entry
 	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
+		// reset the clients list and log entries
+		clients = nil
+		logEntries = nil
+
 		attestor := New()
 		attestor.hooks.now = func() time.Time { return s.now }
 		attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) { return s.jwks, nil })
@@ -365,13 +381,16 @@ func (s *MSIAttestorSuite) TestConfigure() {
 			clients = append(clients, subscriptionID)
 			return s.api, nil
 		}
+		log, hook := test.NewNullLogger()
 		var err error
 		plugintest.Load(t, builtin(attestor), nil,
+			plugintest.Log(log),
 			plugintest.CaptureConfigureError(&err),
 			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(config),
 		)
+		logEntries = hook.AllEntries()
 		return err
 	}
 
@@ -394,8 +413,26 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration must have at least one tenant")
 	})
 
+	s.T().Run("success with neither MSI nor app creds", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+			}
+		}
+		`)
+		require.NoError(t, err)
+		require.ElementsMatch(t, nil, clients)
+		spiretest.AssertLogs(t, logEntries, []spiretest.LogEntry{
+			spiretest.LogEntry{
+				Level:   logrus.WarnLevel,
+				Message: "No client credentials available for tenant. Selectors will not be produced by the node attestor for this node. This will be an error in a future release.",
+				Data:    logrus.Fields{"tenant": "TENANTID"},
+			},
+		})
+	})
+
 	s.T().Run("success with MSI", func(t *testing.T) {
-		resetClients()
 		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
@@ -405,11 +442,10 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		}
 		`)
 		require.NoError(t, err)
-		require.Equal(t, []string{"SUBSCRIPTIONID"}, clients)
+		require.ElementsMatch(t, []string{"SUBSCRIPTIONID"}, clients)
 	})
 
-	s.T().Run("success with tenant creds", func(t *testing.T) {
-		resetClients()
+	s.T().Run("success with app creds", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
@@ -421,11 +457,10 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		}
 		`)
 		require.NoError(t, err)
-		require.Equal(t, []string{"TENANTSUBSCRIPTIONID"}, clients)
+		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID"}, clients)
 	})
 
-	s.T().Run("success with tenant creds mixed with msi", func(t *testing.T) {
-		resetClients()
+	s.T().Run("success with app creds mixed with msi", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
@@ -440,11 +475,28 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		}
 		`)
 		require.NoError(t, err)
-		require.Equal(t, []string{"TENANTSUBSCRIPTIONID", "SUBSCRIPTIONID"}, clients)
+		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID", "SUBSCRIPTIONID"}, clients)
+	})
+
+	s.T().Run("failure with both app creds and msi", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+				use_msi = true
+				subscription_id = "TENANTSUBSCRIPTIONID"
+				app_id = "APPID"
+				app_secret = "APPSECRET"
+			}
+			"TENANTID2" = {
+				use_msi = true
+			}
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": cannot use both MSI and app authentication`)
 	})
 
 	s.T().Run("failure with tenant missing subscription id", func(t *testing.T) {
-		resetClients()
 		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
@@ -459,7 +511,6 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("failure with tenant missing app id", func(t *testing.T) {
-		resetClients()
 		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
@@ -474,7 +525,6 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("failure with tenant missing app secret", func(t *testing.T) {
-		resetClients()
 		err := doConfig(t, coreConfig, `
 		tenants = {
 			"TENANTID" = {
@@ -554,8 +604,7 @@ func (s *MSIAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor
 	}
 
 	v1 := new(nodeattestor.V1)
-
-	plugintest.Load(s.T(), builtin(attestor), v1,
+	plugintest.Load(s.T(), builtin(attestor), v1, append([]plugintest.Option{
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
@@ -570,7 +619,8 @@ func (s *MSIAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor
 				use_msi = true
 			}
 		}
-	`))
+	`),
+	}, options...)...)
 	return v1
 }
 

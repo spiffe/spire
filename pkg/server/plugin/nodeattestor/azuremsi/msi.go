@@ -284,7 +284,7 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 			}
 		}
 
-		// If credentials are not configured and selectors won't be gathered.
+		// If credentials are not configured then selectors won't be gathered.
 		// TODO: make this an error condition in a future release
 		if client == nil {
 			p.log.Warn("No client credentials available for tenant. Selectors will not be produced by the node attestor for this node. This will be an error in a future release.",
