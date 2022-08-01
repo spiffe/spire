@@ -832,7 +832,6 @@ func TestStreamSecretsBadNonce(t *testing.T) {
 }
 
 func TestStreamSecretsErrInSubscribeToCacheChanges(t *testing.T) {
-	err := errors.New("err")
 	test := setupErrTest(t)
 	defer test.server.Stop()
 
@@ -1195,7 +1194,7 @@ func setupTest(t *testing.T) *handlerTest {
 
 func setupErrTest(t *testing.T) *handlerTest {
 	manager := NewFakeManager(t)
-	manager.err = errors.New("err")
+	manager.err = errors.New("bad-error")
 	return setupTestWithManager(t, Config{}, manager)
 }
 
