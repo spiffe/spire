@@ -90,12 +90,11 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 	}
 
 	if res.AllowIfAgent && !rpccontext.CallerIsLocal(ctx) {
-		if ctx, ok, err := isAgent(ctx, m.agentAuthorizer); err != nil {
+		if ctx, err := isAgent(ctx, m.agentAuthorizer); err != nil {
 			return ctx, false, err
-		} else if ok {
-			ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
-			return ctx, true, nil
 		}
+		ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
+		return ctx, true, nil
 	}
 
 	return ctx, false, nil
@@ -133,25 +132,22 @@ func isDownstreamViaEntries(ctx context.Context, entries []*types.Entry) (contex
 	return rpccontext.WithCallerDownstreamEntries(ctx, downstreamEntries), true
 }
 
-func isAgent(ctx context.Context, agentAuthorizer AgentAuthorizer) (context.Context, bool, error) {
+func isAgent(ctx context.Context, agentAuthorizer AgentAuthorizer) (context.Context, error) {
 	agentSVID, ok := rpccontext.CallerX509SVID(ctx)
 	if !ok {
-		return ctx, false, status.Error(codes.PermissionDenied, "caller does not have an X509-SVID")
+		return ctx, status.Error(codes.PermissionDenied, "caller does not have an X509-SVID")
 	}
 
 	agentID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return ctx, false, status.Error(codes.PermissionDenied, "caller does not have a SPIFFE ID")
+		return ctx, status.Error(codes.PermissionDenied, "caller does not have a SPIFFE ID")
 	}
 
 	if err := agentAuthorizer.AuthorizeAgent(ctx, agentID, agentSVID); err != nil {
-		if status.Convert(err).Code() != codes.PermissionDenied {
-			return ctx, false, err
-		}
-		return ctx, false, nil
+		return ctx, err
 	}
 
-	return rpccontext.WithAgentCaller(ctx), true, nil
+	return rpccontext.WithAgentCaller(ctx), nil
 }
 
 func setAuthorizationLogFields(ctx context.Context, as, via string) context.Context {
