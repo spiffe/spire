@@ -97,6 +97,7 @@ func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.C
 				SpiffeId:         attestedNode.SpiffeId,
 				CertNotAfter:     attestedNode.NewCertNotAfter,
 				CertSerialNumber: attestedNode.NewCertSerialNumber,
+				CanReattest:      attestedNode.CanReattest,
 			}, nil)
 			if err != nil {
 				log.WithFields(logrus.Fields{
