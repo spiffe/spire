@@ -53,7 +53,7 @@ require (
 	github.com/lib/pq v1.10.6
 	github.com/mattn/go-sqlite3 v1.14.14
 	github.com/mitchellh/cli v1.1.4
-	github.com/open-policy-agent/opa v0.42.2
+	github.com/open-policy-agent/opa v0.43.0
 	github.com/prometheus/client_golang v1.12.2
 	github.com/shirou/gopsutil/v3 v3.22.7
 	github.com/sirupsen/logrus v1.9.0
@@ -192,7 +192,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.5 // indirect
+	github.com/vektah/gqlparser/v2 v2.4.6 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
