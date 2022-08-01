@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -209,7 +208,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 				continue
 			}
 
-			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status)
+			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status, log)
 			switch lookup {
 			case containerInPod:
 				if attestResponse != nil {
@@ -566,7 +565,7 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.ContainerStatus, containerLookup) {
+func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog.Logger) (*corev1.ContainerStatus, containerLookup) {
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
 		// container id sufficient to know the container is not ready?
@@ -576,7 +575,9 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
+			log.With(telemetry.Error, err).
+				With(telemetry.ContainerID, status.ContainerID).
+				Error("Malformed container id")
 			continue
 		}
 
@@ -594,7 +595,9 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
+			log.With(telemetry.Error, err).
+				With(telemetry.ContainerID, status.ContainerID).
+				Error("Malformed container id")
 			continue
 		}
 
