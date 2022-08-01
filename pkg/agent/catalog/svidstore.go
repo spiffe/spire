@@ -20,7 +20,7 @@ func (repo *svidStoreRepository) Constraints() catalog.Constraints {
 }
 
 func (repo *svidStoreRepository) Versions() []catalog.Version {
-	return []catalog.Version{svidStoreV1{}, svidStoreV1Unofficial{}}
+	return []catalog.Version{svidStoreV1{}}
 }
 
 func (repo *svidStoreRepository) BuiltIns() []catalog.BuiltIn {
@@ -34,8 +34,3 @@ type svidStoreV1 struct{}
 
 func (svidStoreV1) New() catalog.Facade { return new(svidstore.V1) }
 func (svidStoreV1) Deprecated() bool    { return false }
-
-type svidStoreV1Unofficial struct{}
-
-func (svidStoreV1Unofficial) New() catalog.Facade { return new(svidstore.V1Unofficial) }
-func (svidStoreV1Unofficial) Deprecated() bool    { return true }

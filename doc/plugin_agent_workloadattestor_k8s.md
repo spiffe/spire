@@ -31,6 +31,15 @@ server name validation against the kubelet certificate.
 > mitigate this issue. A large cache ttl value is not recommended however, as
 > that can impact permission revocation.
 
+> **Note** Anonymous authentication with the kubelet requires that the
+> kubelet be started with the `--anonymous-auth` flag. It is discouraged to use anonymous
+> auth mode in production as it requires authorizing anonymous users to the `nodes/proxy`
+> resource that maps to some privileged operations, such as executing commands in
+> containers and reading pod logs.
+
+**Note** To run on Windows containers, Kubernetes v1.24+ and containerd v1.6+ are required,
+since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) container is required on the agent container.
+
 | Configuration | Description |
 | ------------- | ----------- |
 | `kubelet_read_only_port` | The kubelet read-only port. This is mutually exlusive with `kubelet_secure_port`. |
@@ -40,6 +49,7 @@ server name validation against the kubelet certificate.
 | `token_path` | The path on disk to the bearer token used for kubelet authentication. Defaults to the service account token `/run/secrets/kubernetes.io/serviceaccount/token` |
 | `certificate_path` | The path on disk to client certificate used for kubelet authentication |
 | `private_key_path` | The path on disk to client key used for kubelet authentication |
+| `use_anonymous_authentication` | If true, use anonymous authentication for kubelet communication |
 | `node_name_env` | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`. |
 | `node_name` | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`. |
 

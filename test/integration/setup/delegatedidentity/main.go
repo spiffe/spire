@@ -90,7 +90,14 @@ func run() error {
 		return fmt.Errorf("error validating SubscribeToX509Bundles response: %w", err)
 	}
 
-	streamSubscribeToX509SVIDs, err := client.SubscribeToX509SVIDs(ctx, &agent_delegatedidentityv1.SubscribeToX509SVIDsRequest{})
+	streamSubscribeToX509SVIDs, err := client.SubscribeToX509SVIDs(ctx, &agent_delegatedidentityv1.SubscribeToX509SVIDsRequest{
+		Selectors: []*types.Selector{
+			{
+				Type:  "unix",
+				Value: "uid:1002",
+			},
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("error calling SubscribeToX509SVIDs RPC: %w", err)
 	}

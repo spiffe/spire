@@ -6,6 +6,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -54,16 +55,30 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))
 	}
 
+	var deniedDetails *types.PermissionDeniedDetails
 	ctx, allow, err := m.opaAuth(ctx, req, methodName)
 	if err != nil {
-		rpccontext.Logger(ctx).WithError(err).Error("Authorization failure from OPA auth")
-		return nil, err
+		statusErr := status.Convert(err)
+		if statusErr.Code() != codes.PermissionDenied {
+			rpccontext.Logger(ctx).WithError(err).Error("Authorization failure from OPA auth")
+			return nil, err
+		}
+
+		deniedDetails = deniedDetailsFromStatus(statusErr)
 	}
 	if allow {
 		return ctx, nil
 	}
 
-	deniedErr := status.Errorf(codes.PermissionDenied, "authorization denied for method %s", methodName)
+	st := status.Newf(codes.PermissionDenied, "authorization denied for method %s", methodName)
+	if deniedDetails != nil {
+		st, err = st.WithDetails(deniedDetails)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to add denied details to error: %v", err)
+		}
+	}
+
+	deniedErr := st.Err()
 	rpccontext.Logger(ctx).WithError(deniedErr).Error("Failed to authenticate caller")
 	return nil, deniedErr
 }
@@ -78,4 +93,15 @@ func adminIDSet(ids []spiffeid.ID) map[spiffeid.ID]struct{} {
 		set[id] = struct{}{}
 	}
 	return set
+}
+
+func deniedDetailsFromStatus(s *status.Status) *types.PermissionDeniedDetails {
+	for _, detail := range s.Details() {
+		reason, ok := detail.(*types.PermissionDeniedDetails)
+		if ok {
+			return reason
+		}
+	}
+
+	return nil
 }
