@@ -10,7 +10,7 @@ X509SVIDCOUNT=$(docker-compose exec -u 1002 -T spire-agent \
 if [ "$X509SVIDCOUNT" -ne "$ENTRYCOUNT" ]; then
   fail-now "X.509-SVID check failed. Expected $ENTRYCOUNT X.509-SVIDs but received $X509SVIDCOUNT for uid 1002";
 else
-  echo "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1002";
+  log-info "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1002";
 fi
 
 X509SVIDCOUNT=$(docker-compose exec -u 1001 -T spire-agent \
@@ -20,7 +20,7 @@ X509SVIDCOUNT=$(docker-compose exec -u 1001 -T spire-agent \
 if [ "$X509SVIDCOUNT" -ne "$ENTRYCOUNT" ]; then
   fail-now "X.509-SVID check failed. Expected $ENTRYCOUNT X.509-SVIDs but received $X509SVIDCOUNT for uid 1001";
 else
-  echo "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1001";
+  log-info "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1001";
 fi
 
 # Call agent debug endpoints and check if extra X.509-SVIDs from cache are cleaned up

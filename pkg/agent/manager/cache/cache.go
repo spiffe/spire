@@ -209,7 +209,7 @@ func (c *Cache) Entries() []*common.RegistrationEntry {
 	for _, record := range c.records {
 		out = append(out, record.entry)
 	}
-	sortEntries(out)
+	sortEntriesByID(out)
 	return out
 }
 
@@ -238,9 +238,9 @@ func (c *Cache) FetchWorkloadUpdate(selectors []*common.Selector) *WorkloadUpdat
 	return c.buildWorkloadUpdate(set)
 }
 
-// SubscribeToWorkloadUpdates creates a subscriber for given selector set.
+// NewSubscriber creates a subscriber for given selector set.
 // Separately call Notify for the first time after this method is invoked to receive latest updates.
-func (c *Cache) SubscribeToWorkloadUpdates(selectors []*common.Selector) Subscriber {
+func (c *Cache) NewSubscriber(selectors []*common.Selector) Subscriber {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -420,14 +420,15 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		}
 	}
 
-	// entries with active subscribers which are not cached will be put in staleEntries map
-	activeSubsByEntryID, recordsWithLastAccessTime := c.syncSVIDs()
+	// entries with active subscribers which are not cached will be put in staleEntries map;
+	// irrespective of what svid cache size as we cannot deny identity to a subscriber
+	activeSubsByEntryID, recordsWithLastAccessTime := c.syncSVIDsWithSubscribers()
 	extraSize := len(c.svids) - c.svidCacheMaxSize
 
 	// delete svids without subscribers and which have not been accessed since svidCacheExpiryTime
 	if extraSize > 0 {
 		// sort recordsWithLastAccessTime
-		sortTimestamps(recordsWithLastAccessTime)
+		sortByTimestamps(recordsWithLastAccessTime)
 
 		for _, record := range recordsWithLastAccessTime {
 			if extraSize <= 0 {
@@ -531,7 +532,7 @@ func (c *Cache) SyncSVIDsWithSubscribers() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.syncSVIDs()
+	c.syncSVIDsWithSubscribers()
 }
 
 // Notify subscribers of selector set only if all SVIDs for corresponding selector set are cached
@@ -542,29 +543,23 @@ func (c *Cache) Notify(selectors []*common.Selector) bool {
 	defer c.mu.RUnlock()
 	set, setFree := allocSelectorSet(selectors...)
 	defer setFree()
-	if len(c.missingSVIDRecords(set)) == 0 {
+	if !c.missingSVIDRecords(set) {
 		c.notifyBySelectorSet(set)
 		return true
 	}
 	return false
 }
 
-func (c *Cache) missingSVIDRecords(set selectorSet) []*StaleEntry {
+func (c *Cache) missingSVIDRecords(set selectorSet) bool {
 	records, recordsDone := c.getRecordsForSelectors(set)
 	defer recordsDone()
 
-	if len(records) == 0 {
-		return nil
-	}
-	out := make([]*StaleEntry, 0, len(records))
 	for record := range records {
-		if _, ok := c.svids[record.entry.EntryId]; !ok {
-			out = append(out, &StaleEntry{
-				Entry: record.entry,
-			})
+		if _, exists := c.svids[record.entry.EntryId]; !exists {
+			return true
 		}
 	}
-	return out
+	return false
 }
 
 func (c *Cache) updateLastAccessTimestamp(selectors []*common.Selector) {
@@ -583,7 +578,7 @@ func (c *Cache) updateLastAccessTimestamp(selectors []*common.Selector) {
 
 // entries with active subscribers which are not cached will be put in staleEntries map
 // records which are not cached for remainder of max cache size will also be put in staleEntries map
-func (c *Cache) syncSVIDs() (map[string]struct{}, []recordAccessEvent) {
+func (c *Cache) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAccessEvent) {
 	activeSubsByEntryID := make(map[string]struct{})
 	lastAccessTimestamps := make([]recordAccessEvent, 0, len(c.records))
 
@@ -817,7 +812,7 @@ func (c *Cache) matchingEntries(set selectorSet) []*common.RegistrationEntry {
 	for record := range records {
 		out = append(out, record.entry)
 	}
-	sortEntries(out)
+	sortEntriesByID(out)
 	return out
 }
 
@@ -939,13 +934,13 @@ func sortIdentities(identities []Identity) {
 	})
 }
 
-func sortEntries(entries []*common.RegistrationEntry) {
+func sortEntriesByID(entries []*common.RegistrationEntry) {
 	sort.Slice(entries, func(a, b int) bool {
 		return entries[a].EntryId < entries[b].EntryId
 	})
 }
 
-func sortTimestamps(records []recordAccessEvent) {
+func sortByTimestamps(records []recordAccessEvent) {
 	sort.Slice(records, func(a, b int) bool {
 		return records[a].timestamp < records[b].timestamp
 	})

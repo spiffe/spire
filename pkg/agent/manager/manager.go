@@ -155,11 +155,12 @@ func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.S
 }
 
 func (m *manager) subscribeToCacheChanges(ctx context.Context, selectors cache.Selectors, notifyCallbackFn func()) (cache.Subscriber, error) {
-	subscriber := m.cache.SubscribeToWorkloadUpdates(selectors)
+	subscriber := m.cache.NewSubscriber(selectors)
 	bo := m.subscribeBackoffFn()
 	// block until all svids are cached and subscriber is notified
 	for {
 		svidsInCache := m.cache.Notify(selectors)
+		// used for testing
 		if notifyCallbackFn != nil {
 			notifyCallbackFn()
 		}

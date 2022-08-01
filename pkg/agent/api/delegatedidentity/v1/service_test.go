@@ -89,6 +89,16 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			expectMsg:  "caller not configured as an authorized delegate",
 		},
 		{
+			testName:     "subscribe to cache changes error",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+		},
+		{
 			testName:     "workload update with one identity",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
@@ -675,6 +685,9 @@ func (m *FakeManager) subscriberDone() {
 }
 
 func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	atomic.AddInt32(&m.subscribers, 1)
 	return newFakeSubscriber(m, m.updates), nil
 }

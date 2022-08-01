@@ -516,11 +516,15 @@ func TestSynchronization(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
-		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
@@ -528,11 +532,6 @@ func TestSynchronization(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer sub.Finish()
-
-	if err := m.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// Before synchronization
 	identitiesBefore := identitiesByEntryID(m.cache.Identities())
@@ -803,7 +802,6 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		RotationInterval: 1 * time.Hour,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
-		SVIDCacheMaxSize: 1,
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
@@ -811,9 +809,9 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	m := newManager(c)
 
+	defer initializeAndRunManager(t, m)()
 	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	require.NoError(t, err)
-	defer initializeAndRunManager(t, m)()
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
@@ -1001,11 +999,13 @@ func TestSurvivesCARotation(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
-		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
+	m.subscribeBackoffFn = func() backoff.BackOff {
+		return backoff.NewConstantBackOff(svidSyncInterval)
+	}
 
 	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	require.NoError(t, err)

@@ -436,7 +436,7 @@ func TestSubscriberOnlyGetsEntriesWithSVID(t *testing.T) {
 	}
 	cache.UpdateEntries(updateEntries, nil)
 
-	sub := cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	sub := cache.NewSubscriber(makeSelectors("A"))
 	defer sub.Finish()
 	assertNoWorkloadUpdate(t, sub)
 
@@ -679,7 +679,7 @@ func TestSVIDCacheExpiry(t *testing.T) {
 	for id, entry := range updateEntries.RegistrationEntries {
 		// create and close subscribers for remaining entries so that svid cache is full
 		if id != foo.EntryId && id != bar.EntryId {
-			sub := cache.SubscribeToWorkloadUpdates(entry.Selectors)
+			sub := cache.NewSubscriber(entry.Selectors)
 			sub.Finish()
 		}
 	}
@@ -693,7 +693,7 @@ func TestSVIDCacheExpiry(t *testing.T) {
 	// bar SVID should be cached as it has active subscriber
 	assert.True(t, cache.Notify(makeSelectors("B")))
 
-	subA = cache.SubscribeToWorkloadUpdates(makeSelectors("A"))
+	subA = cache.NewSubscriber(makeSelectors("A"))
 	defer subA.Finish()
 
 	cache.UpdateEntries(updateEntries, nil)
@@ -725,7 +725,7 @@ func TestMaxSVIDCacheSize(t *testing.T) {
 	foo := makeRegistrationEntry("FOO", "A")
 	updateEntries.RegistrationEntries[foo.EntryId] = foo
 
-	subA := cache.SubscribeToWorkloadUpdates(foo.Selectors)
+	subA := cache.NewSubscriber(foo.Selectors)
 	defer subA.Finish()
 
 	cache.UpdateEntries(updateEntries, nil)
@@ -757,7 +757,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	cache.UpdateEntries(updateEntries, nil)
 
 	// Create a subscriber for foo
-	subA := cache.SubscribeToWorkloadUpdates(foo.Selectors)
+	subA := cache.NewSubscriber(foo.Selectors)
 	defer subA.Finish()
 	require.Len(t, cache.GetStaleEntries(), 0)
 
@@ -823,7 +823,7 @@ func BenchmarkCacheGlobalNotification(b *testing.B) {
 	cache.UpdateEntries(updateEntries, nil)
 	for i := 0; i < numWorkloads; i++ {
 		selectors := distinctSelectors(i, selectorsPerWorkload)
-		cache.SubscribeToWorkloadUpdates(selectors)
+		cache.NewSubscriber(selectors)
 	}
 
 	runtime.GC()
@@ -987,7 +987,7 @@ func makeFederatesWith(bundles ...*Bundle) []string {
 }
 
 func subscribeToWorkloadUpdatesAndNotify(t *testing.T, cache *Cache, selectors []*common.Selector) Subscriber {
-	subscriber := cache.SubscribeToWorkloadUpdates(selectors)
+	subscriber := cache.NewSubscriber(selectors)
 	assert.True(t, cache.Notify(selectors))
 	return subscriber
 }
