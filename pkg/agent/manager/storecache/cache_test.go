@@ -350,7 +350,6 @@ func TestUpdateEntries(t *testing.T) {
 				},
 			},
 			setUpdate: func(update cache.UpdateEntries) *cache.UpdateEntries {
-				// e := update.RegistrationEntries["foh"]
 				updatedEntry := createTestEntry()
 				updatedEntry.RevisionNumber = 3
 				updatedEntry.Ttl = 1234
