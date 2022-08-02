@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.9
 	github.com/aws/aws-sdk-go-v2/service/kms v1.18.1
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.13
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.14
 	github.com/aws/aws-sdk-go-v2/service/sts v1.16.10
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
