@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -351,8 +350,7 @@ func TestUpdateEntries(t *testing.T) {
 				},
 			},
 			setUpdate: func(update cache.UpdateEntries) *cache.UpdateEntries {
-				e := update.RegistrationEntries["foh"]
-				updatedEntry := proto.Clone(e).(*common.RegistrationEntry)
+				updatedEntry := createTestEntry()
 				updatedEntry.RevisionNumber = 3
 				updatedEntry.Ttl = 1234
 

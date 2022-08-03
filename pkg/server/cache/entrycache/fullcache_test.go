@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -129,7 +130,7 @@ func TestCache(t *testing.T) {
 
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
 
-	assert.Equal(t, expected, actual)
+	spiretest.AssertProtoListEqual(t, expected, actual)
 }
 
 func TestCacheReturnsClonedEntries(t *testing.T) {
@@ -147,13 +148,13 @@ func TestCacheReturnsClonedEntries(t *testing.T) {
 	require.NoError(t, err)
 
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
-	require.Equal(t, []*types.Entry{expected}, actual)
+	spiretest.RequireProtoListEqual(t, []*types.Entry{expected}, actual)
 
 	// Now mutate the returned entry, refetch, and assert the cache copy was
 	// not altered.
 	actual[0].DnsNames = nil
 	actual = cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
-	require.Equal(t, []*types.Entry{expected}, actual)
+	spiretest.RequireProtoListEqual(t, []*types.Entry{expected}, actual)
 }
 
 func TestFullCacheNodeAliasing(t *testing.T) {
@@ -233,10 +234,22 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	cache, err := BuildFromDataStore(context.Background(), ds)
 	assert.NoError(t, err)
 
+	sortEntries := func(es []*types.Entry) {
+		sort.Slice(es, func(a, b int) bool {
+			return es[a].Id < es[b].Id
+		})
+	}
+
 	assertAuthorizedEntries := func(agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
 		expected, err := api.RegistrationEntriesToProto(entries)
 		require.NoError(t, err)
-		assert.ElementsMatch(t, expected, cache.GetAuthorizedEntries(agentID))
+
+		authorizedEntries := cache.GetAuthorizedEntries(agentID)
+
+		sortEntries(expected)
+		sortEntries(authorizedEntries)
+
+		spiretest.AssertProtoListEqual(t, expected, authorizedEntries)
 	}
 
 	assertAuthorizedEntries(agentIDs[0], append(nodeAliasEntries, workloadEntries[:2]...)...)
@@ -441,7 +454,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 
 	expectedEntry, err := api.RegistrationEntryToProto(workloadEntries[numWorkloadEntries-1])
 	require.NoError(t, err)
-	assert.Equal(t, expectedEntry, entries[0])
+	spiretest.AssertProtoEqual(t, expectedEntry, entries[0])
 }
 
 func TestBuildIteratorError(t *testing.T) {

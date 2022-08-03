@@ -9,7 +9,7 @@ import (
 	"net"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 )
 
 type adapterOS struct {
@@ -28,5 +28,5 @@ func (a *Adapter) getAddr() (net.Addr, error) {
 	if a.adapterOS.namedPipeName == "" {
 		a.adapterOS.namedPipeName = DefaultNamedPipeName
 	}
-	return util.GetNamedPipeAddr(a.namedPipeName), nil
+	return namedpipe.AddrFromName(a.namedPipeName), nil
 }

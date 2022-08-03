@@ -10,7 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -150,8 +150,8 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "\\\\.\\pipe\\foo", c.BindAddress.String())
-				require.Equal(t, "foo", c.BindAddress.(*util.NamedPipeAddr).PipeName())
-				require.Equal(t, "pipe", c.BindAddress.(*util.NamedPipeAddr).Network())
+				require.Equal(t, "foo", c.BindAddress.(*namedpipe.Addr).PipeName())
+				require.Equal(t, "pipe", c.BindAddress.(*namedpipe.Addr).Network())
 			},
 		},
 		{
