@@ -18,17 +18,21 @@ func Dedupe(selectorSets ...[]*common.Selector) []*common.Selector {
 
 func insertSelector(ss []*common.Selector, s *common.Selector) []*common.Selector {
 	// find the insertion index
-	i := sort.Search(len(ss), func(i int) bool {
+	i, found := sort.Find(len(ss), func(i int) int {
 		switch {
-		case ss[i].Type < s.Type:
-			return false
-		case ss[i].Type > s.Type:
-			return true
+		case s.Type < ss[i].Type:
+			return -1
+		case s.Type > ss[i].Type:
+			return 1
+		case s.Value < ss[i].Value:
+			return -1
+		case s.Value > ss[i].Value:
+			return 1
 		default:
-			return ss[i].Value >= s.Value
+			return 0
 		}
 	})
-	if i < len(ss) && ss[i].Type == s.Type && ss[i].Value == s.Value {
+	if found {
 		// already inserted
 		return ss
 	}

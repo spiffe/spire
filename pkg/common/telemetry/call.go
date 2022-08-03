@@ -12,12 +12,12 @@ import (
 // is intended to be scoped to a function with a defer and a named error value,
 // if applicable, like so:
 //
-// func Foo() (err error) {
-//     call := StartCall(metrics, "foo")
-//     defer call.Done(&err)
+//	func Foo() (err error) {
+//	    call := StartCall(metrics, "foo")
+//	    defer call.Done(&err)
 //
-//     call.AddLabel("food", "burgers")
-// }
+//	    call.AddLabel("food", "burgers")
+//	}
 //
 // See `Done` doc for labels automatically added.
 //

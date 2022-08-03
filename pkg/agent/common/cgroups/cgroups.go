@@ -26,8 +26,8 @@ type Cgroup struct {
 // this function will return an error if every cgroup does not meet that format.
 //
 // For more information, see:
-//  - http://man7.org/linux/man-pages/man7/cgroups.7.html
-//  - https://www.kernel.org/doc/Documentation/cgroup-v2.txt
+//   - http://man7.org/linux/man-pages/man7/cgroups.7.html
+//   - https://www.kernel.org/doc/Documentation/cgroup-v2.txt
 func GetCgroups(pid int32, fs FileSystem) ([]Cgroup, error) {
 	path := fmt.Sprintf("/proc/%v/cgroup", pid)
 	file, err := fs.Open(path)
