@@ -27,9 +27,9 @@ func (p *Addr) String() string {
 	return fmt.Sprintf(`\\%s\%s`, p.serverName, filepath.Join("pipe", p.pipeName))
 }
 
-// GetNamedPipeAddr returns a named pipe in the local
+// AddrFromName returns a named pipe in the local
 // computer with the specified pipe name
-func GetNamedPipeAddr(pipeName string) net.Addr {
+func AddrFromName(pipeName string) net.Addr {
 	return &Addr{
 		serverName: ".",
 		pipeName:   pipeName,

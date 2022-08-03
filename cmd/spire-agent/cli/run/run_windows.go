@@ -22,11 +22,11 @@ func (c *agentConfig) setPlatformDefaults() {
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
-	return namedpipe.GetNamedPipeAddr(c.Experimental.NamedPipeName), nil
+	return namedpipe.AddrFromName(c.Experimental.NamedPipeName), nil
 }
 
 func (c *agentConfig) getAdminAddr() (net.Addr, error) {
-	return namedpipe.GetNamedPipeAddr(c.Experimental.AdminNamedPipeName), nil
+	return namedpipe.AddrFromName(c.Experimental.AdminNamedPipeName), nil
 }
 
 func (c *agentConfig) hasAdminAddr() bool {

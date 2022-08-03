@@ -19,5 +19,5 @@ func (c *ConfigOS) AddOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *ConfigOS) GetAddr() (net.Addr, error) {
-	return namedpipe.GetNamedPipeAddr(c.namedPipeName), nil
+	return namedpipe.AddrFromName(c.namedPipeName), nil
 }

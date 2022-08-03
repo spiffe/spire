@@ -15,7 +15,7 @@ import (
 )
 
 func (c *Config) getWorkloadAPIAddr() (net.Addr, error) {
-	return namedpipe.GetNamedPipeAddr(c.WorkloadAPI.Experimental.NamedPipeName), nil
+	return namedpipe.AddrFromName(c.WorkloadAPI.Experimental.NamedPipeName), nil
 }
 
 func (c *Config) getServerAPITargetName() string {
@@ -52,6 +52,6 @@ func (c *Config) validateOS() (err error) {
 }
 
 func listenLocal(c *Config) (net.Listener, error) {
-	return winio.ListenPipe(namedpipe.GetNamedPipeAddr(c.Experimental.ListenNamedPipeName).String(),
+	return winio.ListenPipe(namedpipe.AddrFromName(c.Experimental.ListenNamedPipeName).String(),
 		&winio.PipeConfig{SecurityDescriptor: sddl.PrivateListener})
 }

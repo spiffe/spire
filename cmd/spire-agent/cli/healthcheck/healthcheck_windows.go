@@ -22,5 +22,5 @@ func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *healthCheckCommandOS) getAddr() (net.Addr, error) {
-	return namedpipe.GetNamedPipeAddr(c.namedPipeName), nil
+	return namedpipe.AddrFromName(c.namedPipeName), nil
 }

@@ -17,7 +17,7 @@ func (c *serverConfig) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *serverConfig) getAddr() (net.Addr, error) {
-	return namedpipe.GetNamedPipeAddr(c.Experimental.NamedPipeName), nil
+	return namedpipe.AddrFromName(c.Experimental.NamedPipeName), nil
 }
 
 func (c *serverConfig) setDefaultsIfNeeded() {

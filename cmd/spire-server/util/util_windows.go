@@ -28,5 +28,5 @@ func (a *Adapter) getAddr() (net.Addr, error) {
 	if a.adapterOS.namedPipeName == "" {
 		a.adapterOS.namedPipeName = DefaultNamedPipeName
 	}
-	return namedpipe.GetNamedPipeAddr(a.namedPipeName), nil
+	return namedpipe.AddrFromName(a.namedPipeName), nil
 }

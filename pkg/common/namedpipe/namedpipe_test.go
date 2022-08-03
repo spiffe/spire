@@ -11,7 +11,7 @@ import (
 )
 
 func TestGetNamedPipeAddr(t *testing.T) {
-	addr := namedpipe.GetNamedPipeAddr("my-pipe")
+	addr := namedpipe.AddrFromName("my-pipe")
 	require.Equal(t, "pipe", addr.Network())
 	require.Equal(t, "\\\\.\\pipe\\my-pipe", addr.String())
 }
