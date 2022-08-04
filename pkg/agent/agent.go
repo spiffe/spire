@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
@@ -141,8 +142,9 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		grpc.EnableTracing = true
 
 		server := http.Server{
-			Addr:    fmt.Sprintf("localhost:%d", a.c.ProfilingPort),
-			Handler: http.DefaultServeMux,
+			Addr:              fmt.Sprintf("localhost:%d", a.c.ProfilingPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: time.Second * 10,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
