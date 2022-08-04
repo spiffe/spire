@@ -20,7 +20,13 @@ import (
 )
 
 const (
-	defaultDialTimeout      = 30 * time.Second
+	defaultDialTimeout = 30 * time.Second
+	// TODO #2675 / #2845: For very large registration entry sets, Agent
+	// will fail to sync with Server due to default grpc max received
+	// message size of 4MB.
+	// For now, we set the maximum to 16MB as a stopgap.
+	// The long-term solution is to be discussed in the Github issues.
+	maxCallRecvMsgSize      = 16 * 1024 * 1024
 	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
@@ -69,6 +75,9 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		grpc.WithBlock(),
 		grpc.WithReturnConnectionError(),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxCallRecvMsgSize),
+		),
 	)
 	switch {
 	case err == nil:
