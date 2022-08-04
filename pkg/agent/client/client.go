@@ -29,7 +29,16 @@ var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 )
 
-const rpcTimeout = 30 * time.Second
+const (
+	// TODO #2675 / #2845: For very large registration entry sets, Agent
+	// will fail to sync with Server due to default grpc max received
+	// message size of 4MB.
+	// For now, we set the maximum to 32MB as a stopgap.
+	// The long-term solution is to be discussed in the Github issues.
+	authEntriesMaxCallRecvMsgSize = 32 * 1024 * 1024
+
+	rpcTimeout = 30 * time.Second
+)
 
 type X509SVID struct {
 	CertChain []byte
@@ -321,7 +330,8 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 			RevisionNumber: true,
 			StoreSvid:      true,
 		},
-	})
+	},
+		grpc.MaxCallRecvMsgSize(authEntriesMaxCallRecvMsgSize))
 	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
