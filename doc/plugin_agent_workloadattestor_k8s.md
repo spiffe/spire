@@ -21,7 +21,7 @@ server name validation against the kubelet certificate.
 
 > **Note** kubelet authentication via bearer token requires that the kubelet be
 > started with the `--authentication-token-webhook` flag. 
-> See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-authentication-authorization/)
+> See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/)
 > for details.
 
 > **Note** The kubelet uses the TokenReview API to validate bearer tokens. 
