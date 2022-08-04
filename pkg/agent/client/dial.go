@@ -24,9 +24,9 @@ const (
 	// TODO #2675 / #2845: For very large registration entry sets, Agent
 	// will fail to sync with Server due to default grpc max received
 	// message size of 4MB.
-	// For now, we set the maximum to 16MB as a stopgap.
+	// For now, we set the maximum to 32MB as a stopgap.
 	// The long-term solution is to be discussed in the Github issues.
-	maxCallRecvMsgSize      = 16 * 1024 * 1024
+	maxCallRecvMsgSize      = 32 * 1024 * 1024
 	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
