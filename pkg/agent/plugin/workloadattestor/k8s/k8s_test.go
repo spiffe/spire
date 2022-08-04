@@ -265,6 +265,9 @@ func (s *Suite) TestAttestReachingKubeletViaNodeName() {
 func (s *Suite) TestConfigure() {
 	s.generateCerts("")
 
+	kubeletCertPool := x509.NewCertPool()
+	kubeletCertPool.AddCert(s.kubeletCert)
+
 	s.writeFile(defaultTokenPath, "default-token")
 	s.writeFile("token", "other-token")
 	s.writeFile("bad-pem", "BAD PEM")
@@ -524,10 +527,9 @@ func (s *Suite) TestConfigure() {
 				assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)
 				assert.Nil(t, c.Client.Transport.TLSClientConfig.VerifyPeerCertificate)
 			default:
-				t.Logf("CONFIG: %#v", c.Client.Transport.TLSClientConfig)
 				if testCase.config.HasNodeName {
 					if assert.NotNil(t, c.Client.Transport.TLSClientConfig.RootCAs) {
-						assert.Len(t, c.Client.Transport.TLSClientConfig.RootCAs.Subjects(), 1) // nolint // these pools are not system pools so the use of Subjects() is ok for now
+						assert.True(t, c.Client.Transport.TLSClientConfig.RootCAs.Equal(kubeletCertPool))
 					}
 				} else {
 					assert.True(t, c.Client.Transport.TLSClientConfig.InsecureSkipVerify)

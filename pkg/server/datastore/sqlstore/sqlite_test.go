@@ -35,7 +35,7 @@ func TestEmbellishSQLite3ConnString(t *testing.T) {
 		{
 			name:     "URI with no authority and absolute path",
 			in:       "file:/home/fred/data.db",
-			expected: "file:///home/fred/data.db?_foreign_keys=ON&_journal_mode=WAL",
+			expected: "file:/home/fred/data.db?_foreign_keys=ON&_journal_mode=WAL",
 		},
 		{
 			name:     "URI with empty authority",
@@ -60,7 +60,7 @@ func TestEmbellishSQLite3ConnString(t *testing.T) {
 		{
 			name:     "URI with no authority, absolute path, and query params",
 			in:       "file:/home/fred/data.db?vfs=unix-dotfile",
-			expected: "file:///home/fred/data.db?_foreign_keys=ON&_journal_mode=WAL&vfs=unix-dotfile",
+			expected: "file:/home/fred/data.db?_foreign_keys=ON&_journal_mode=WAL&vfs=unix-dotfile",
 		},
 	}
 

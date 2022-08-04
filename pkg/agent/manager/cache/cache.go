@@ -63,9 +63,10 @@ type X509SVID struct {
 // selector sets and notifies subscribers when:
 //
 // 1) a registration entry related to the selectors:
-//   * is modified
-//   * has a new X509-SVID signed for it
-//   * federates with a federated bundle that is updated
+//   - is modified
+//   - has a new X509-SVID signed for it
+//   - federates with a federated bundle that is updated
+//
 // 2) the trust bundle for the agent trust domain is updated
 //
 // When notified, the subscriber is given a WorkloadUpdate containing

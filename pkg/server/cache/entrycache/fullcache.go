@@ -41,14 +41,15 @@ type Selector struct {
 
 // EntryIterator is used to iterate through registration entries from a data source.
 // The usage pattern of the iterator is as follows:
-//   for it.Next() {
-//       entry := it.Entry()
-//       // process entry
-//   }
 //
-//   if it.Err() {
-//       // handle error
-//   }
+//	for it.Next() {
+//	    entry := it.Entry()
+//	    // process entry
+//	}
+//
+//	if it.Err() {
+//	    // handle error
+//	}
 type EntryIterator interface {
 	// Next returns true if there are any remaining registration entries in the data source and returns false otherwise.
 	Next(ctx context.Context) bool
@@ -60,14 +61,15 @@ type EntryIterator interface {
 
 // AgentIterator is used to iterate through Agent selectors from a data source.
 // The usage pattern of the iterator is as follows:
-//   for it.Next() {
-//       agent := it.Agent()
-//       // process agent
-//   }
 //
-//   if it.Err() {
-//       // handle error
-//   }
+//	for it.Next() {
+//	    agent := it.Agent()
+//	    // process agent
+//	}
+//
+//	if it.Err() {
+//	    // handle error
+//	}
 type AgentIterator interface {
 	// Next returns true if there are any remaining agents in the data source and returns false otherwise.
 	Next(ctx context.Context) bool
