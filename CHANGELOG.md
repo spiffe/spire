@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.4.0] - 2022-08-08
+
+### Added 
+- Support anonymous authentication on k8s WorkloadAttestor (#3273)
+- Support custom key types used for Workload SVIDs (#3237)
+- Support K8S worklod attestor using windows containers (#3191)
+
+### Deprecated
+- The Node Resolver plugin type is deprecated (#3272)
+
+### Fixed
+- Ensures the can_reattest flag is propogated when the attested node record is updated (#3292)
+- A regression in Server API authentication that prevents Agents to be notified when it was evicted (#3269)
+
+### Changed
+- Merge Azure MSI Node Resover into Azure Node attestor (#3272)
+- Small documentation improvements (#3264)
+- Fail when prividing unknown configurations to Docker Workload Attestor (#3243)
+- Add special case on K8S Workload attestor when CRI-O does not provide POD ID on cgroup (#3183)
+- Consolidate agent storage information into a single JSON file (#3201)
+
+### Removed
+- Remove webhood mode from k8s-workload-registrar (#3235)
+- The configmap leader election lock is not longer supported (#3241)
+
+### Security
+- Endpoints exposed using named pipes explicitly deny access to remote callers (#3236)
+- Agent and server data directories on Windows no longer inherited permission from parent directory (#3227)
+
 ## [1.3.3] - 2022-07-13
 
 ### Security
