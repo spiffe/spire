@@ -54,7 +54,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.14
 	github.com/mitchellh/cli v1.1.4
 	github.com/open-policy-agent/opa v0.43.0
-	github.com/prometheus/client_golang v1.12.2
+	github.com/prometheus/client_golang v1.13.0
 	github.com/shirou/gopsutil/v3 v3.22.7
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3
@@ -182,8 +182,8 @@ require (
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.32.1 // indirect
-	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/common v0.37.0 // indirect
+	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
