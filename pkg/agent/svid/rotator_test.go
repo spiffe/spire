@@ -160,7 +160,7 @@ func TestRotator(t *testing.T) {
 func TestRotationFails(t *testing.T) {
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
 
-	expiredStatus := status.New(codes.PermissionDenied, "agent is expired")
+	expiredStatus := status.New(codes.PermissionDenied, "agent is not active")
 	expiredStatus, err := expiredStatus.WithDetails(&types.PermissionDeniedDetails{
 		Reason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
 	})
@@ -187,7 +187,7 @@ func TestRotationFails(t *testing.T) {
 		{
 			name:      "expired agent",
 			err:       fmt.Errorf("client fails: %w", expiredStatus.Err()),
-			expectErr: "client fails: rpc error: code = PermissionDenied desc = agent is expired",
+			expectErr: "client fails: rpc error: code = PermissionDenied desc = agent is not active",
 		},
 		{
 			name:      "banned agent",

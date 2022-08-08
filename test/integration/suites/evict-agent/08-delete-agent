@@ -6,7 +6,7 @@ docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server agent evict \
     -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 
-# Check at most 30 times (with one second in between) than agent is going shutdown
+# Check at most 30 times (with one second in between) that the agent is going to shut down
 MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
@@ -18,4 +18,4 @@ for ((i=1;i<=MAXCHECKS;i++)); do
     sleep "${CHECKINTERVAL}"
 done
 
-fail-now "timed out waiting for agent to sync down entry"
+fail-now "timed out waiting for agent to shut down"

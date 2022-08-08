@@ -31,7 +31,7 @@ func ShouldAgentReattest(err error) bool {
 	return isExpectedPermissionDenied(err, shouldReattest)
 }
 
-// ShouldAgentShutdown returns true if the Server returned an error worth shutdowning the Agent
+// ShouldAgentShutdown returns true if the Server returned an error worth shutting down the Agent
 func ShouldAgentShutdown(err error) bool {
 	return isExpectedPermissionDenied(err, shouldShutDown)
 }
