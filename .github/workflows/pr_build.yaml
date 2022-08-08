@@ -1,6 +1,10 @@
 name: PR Build
 on:
-  pull_request: {}
+  pull_request:
+    # Ignore when changes are only on documentation
+    paths-ignore:
+      - '*.md'
+      - "doc/**"
   workflow_dispatch: {}
 env:
   GO_VERSION: 1.19.0
