@@ -1,6 +1,4 @@
 run:
-  go:  '1.18'
-
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   deadline: 10m
 
