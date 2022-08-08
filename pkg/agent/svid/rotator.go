@@ -79,6 +79,9 @@ func (r *rotator) runRotation(ctx context.Context) error {
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
 			return err
+		case err != nil && nodeutil.ShouldAgentShutdown(err):
+			r.c.Log.WithError(err).Error("Could not rotate agent SVID")
+			return err
 		case err != nil:
 			// Just log the error and wait for next rotation
 			r.c.Log.WithError(err).Error("Could not rotate agent SVID")

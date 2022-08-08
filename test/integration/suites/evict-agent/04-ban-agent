@@ -11,12 +11,12 @@ docker-compose exec -T spire-server \
 MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "checking for agent is not longer able to communicate with Server ($i of $MAXCHECKS max)..."
+    log-info "checking for agent is shutting down ($i of $MAXCHECKS max)..."
     docker-compose logs spire-agent
-    if docker-compose logs spire-agent | grep "rpc error: code = PermissionDenied desc = authorization denied for method"; then
+    if docker-compose logs spire-agent | grep "Agent is banned: removing SVID and shutting down"; then
 	exit 0
     fi
     sleep "${CHECKINTERVAL}"
 done
 
-fail-now "timed out waiting for agent to sync down entry"
+fail-now "timed out waiting for agent to shutdown"

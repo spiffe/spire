@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/url"
 	"testing"
@@ -14,15 +15,19 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestRotator(t *testing.T) {
@@ -152,14 +157,93 @@ func TestRotator(t *testing.T) {
 	}
 }
 
+func TestRotationFails(t *testing.T) {
+	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+
+	expiredStatus := status.New(codes.PermissionDenied, "agent is not active")
+	expiredStatus, err := expiredStatus.WithDetails(&types.PermissionDeniedDetails{
+		Reason: types.PermissionDeniedDetails_AGENT_NOT_ACTIVE,
+	})
+	require.NoError(t, err)
+
+	bannedStatus := status.New(codes.PermissionDenied, "agent is banned")
+	bannedStatus, err = bannedStatus.WithDetails(&types.PermissionDeniedDetails{
+		Reason: types.PermissionDeniedDetails_AGENT_BANNED,
+	})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name       string
+		err        error
+		expectErr  string
+		expiration time.Duration
+	}{
+		{
+			name:       "svid is expired",
+			expiration: -time.Second,
+			err:        errors.New("oh no"),
+			expectErr:  "current SVID has already expired and rotation failed: oh no",
+		},
+		{
+			name:      "expired agent",
+			err:       fmt.Errorf("client fails: %w", expiredStatus.Err()),
+			expectErr: "client fails: rpc error: code = PermissionDenied desc = agent is not active",
+		},
+		{
+			name:      "banned agent",
+			err:       fmt.Errorf("client fails: %w", bannedStatus.Err()),
+			expectErr: "client fails: rpc error: code = PermissionDenied desc = agent is banned",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
+			clk := clock.NewMock(t)
+			log, _ := test.NewNullLogger()
+			mockClient := &fakeClient{
+				clk:      clk,
+				caCert:   caCert,
+				caKey:    caKey,
+				renewErr: tt.err,
+			}
+
+			// Create the starting SVID
+			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
+			require.NoError(t, err)
+			svid := createTestSVID(t, svidKey, caCert, caKey, clk.Now(), clk.Now().Add(tt.expiration))
+
+			// Initialize the rotator
+			rotator, _ := newRotator(&RotatorConfig{
+				SVIDKeyManager: svidKM,
+				Log:            log,
+				Metrics:        telemetry.Blackhole{},
+				TrustDomain:    spiffeid.RequireTrustDomainFromString("example.org"),
+				BundleStream:   cache.NewBundleStream(observer.NewProperty([]*x509.Certificate(nil)).Observe()),
+				Clk:            clk,
+				SVID:           svid,
+				SVIDKey:        svidKey,
+			})
+			rotator.client = mockClient
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			err = rotator.Run(ctx)
+			spiretest.RequireErrorPrefix(t, err, tt.expectErr)
+		})
+	}
+}
+
 type fakeClient struct {
 	clk          clock.Clock
 	caCert       *x509.Certificate
 	caKey        crypto.Signer
 	releaseCount int
+	renewErr     error
 }
 
 func (c *fakeClient) RenewSVID(ctx context.Context, csrBytes []byte) (*client.X509SVID, error) {
+	if c.renewErr != nil {
+		return nil, c.renewErr
+	}
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
 		return nil, err

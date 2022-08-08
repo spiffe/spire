@@ -1,0 +1,19 @@
+#!/bin/bash
+
+log-debug "starting agent again..."
+docker-up spire-agent
+
+# Check at most 30 times (with one second in between) that the agent is not able to get new 
+# workload entries.
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking that the agent is not able to start ($i of $MAXCHECKS max)..."
+    docker-compose logs spire-agent
+    if docker-compose logs spire-agent | grep "failed to fetch authorized entries:"; then
+	exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+fail-now "agent started"

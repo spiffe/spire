@@ -113,6 +113,10 @@ func (m *manager) Initialize(ctx context.Context) error {
 		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
 		m.deleteSVID()
 	}
+	if nodeutil.ShouldAgentShutdown(err) {
+		m.c.Log.WithError(err).Error("Agent is banned: removing SVID and shutting down")
+		m.deleteSVID()
+	}
 	return err
 }
 
@@ -131,6 +135,10 @@ func (m *manager) Run(ctx context.Context) error {
 		return nil
 	case nodeutil.ShouldAgentReattest(err):
 		m.c.Log.WithError(err).Warn("Agent needs to re-attest; removing SVID and shutting down")
+		m.deleteSVID()
+		return err
+	case nodeutil.ShouldAgentShutdown(err):
+		m.c.Log.WithError(err).Warn("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
 		return err
 	default:
@@ -225,6 +233,9 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		err := m.synchronize(ctx)
 		switch {
 		case err != nil && nodeutil.ShouldAgentReattest(err):
+			m.c.Log.WithError(err).Error("Synchronize failed")
+			return err
+		case nodeutil.ShouldAgentShutdown(err):
 			m.c.Log.WithError(err).Error("Synchronize failed")
 			return err
 		case err != nil:

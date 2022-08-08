@@ -1,0 +1,4 @@
+#!/bin/bash
+
+log-debug "starting agent again..."
+docker-up spire-agent
