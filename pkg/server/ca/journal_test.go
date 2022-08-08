@@ -114,7 +114,8 @@ func (s *JournalSuite) TestNew() {
 	journal, err := LoadJournal(s.journalPath())
 	s.NoError(err)
 	if s.NotNil(journal) {
-		s.Empty(journal.Entries())
+		// Verify entries is empty
+		s.AssertProtoEqual(&JournalEntries{}, journal.Entries())
 	}
 }
 

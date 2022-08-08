@@ -33,17 +33,14 @@ type handler struct {
 	server *grpc.Server
 	addr   string
 
-	bundleMtx sync.RWMutex
-	bundle    *types.Bundle
-
 	ca   *testca.CA
 	cert []*x509.Certificate
 	key  crypto.Signer
 
-	err error
-
-	// Custom downstream response
+	mtx                sync.RWMutex
+	bundle             *types.Bundle
 	downstreamResponse *svidv1.NewDownstreamX509CAResponse
+	err                error
 }
 
 type whandler struct {
@@ -153,38 +150,38 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 }
 
 func (h *handler) appendKey(key *types.JWTKey) *types.Bundle {
-	h.bundleMtx.Lock()
-	defer h.bundleMtx.Unlock()
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	h.bundle.JwtAuthorities = append(h.bundle.JwtAuthorities, key)
 	return cloneBundle(h.bundle)
 }
 
 func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle {
-	h.bundleMtx.Lock()
-	defer h.bundleMtx.Unlock()
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	h.bundle.X509Authorities = append(h.bundle.X509Authorities, rootCA)
 	return cloneBundle(h.bundle)
 }
 
 func (h *handler) getBundle() *types.Bundle {
-	h.bundleMtx.RLock()
-	defer h.bundleMtx.RUnlock()
+	h.mtx.RLock()
+	defer h.mtx.RUnlock()
 	return cloneBundle(h.bundle)
 }
 
 func (h *handler) setBundle(b *types.Bundle) {
-	h.bundleMtx.Lock()
-	defer h.bundleMtx.Unlock()
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
 	h.bundle = b
 }
 
 func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
-	if h.err != nil {
-		return nil, h.err
+	if err := h.getError(); err != nil {
+		return nil, err
 	}
 
-	if h.downstreamResponse != nil {
-		return h.downstreamResponse, nil
+	if resp := h.getDownstreamResponse(); resp != nil {
+		return resp, nil
 	}
 
 	ca := x509svid.NewUpstreamCA(
@@ -209,21 +206,45 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 }
 
 func (h *handler) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
-	if h.err != nil {
-		return nil, h.err
+	if err := h.getError(); err != nil {
+		return nil, err
 	}
 	return h.getBundle(), nil
 }
 
 func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundlev1.PublishJWTAuthorityRequest) (*bundlev1.PublishJWTAuthorityResponse, error) {
-	if h.err != nil {
-		return nil, h.err
+	if err := h.getError(); err != nil {
+		return nil, err
 	}
 
 	b := h.appendKey(req.JwtAuthority)
 	return &bundlev1.PublishJWTAuthorityResponse{
 		JwtAuthorities: b.JwtAuthorities,
 	}, nil
+}
+
+func (h *handler) setDownstreamResponse(downstreamResponse *svidv1.NewDownstreamX509CAResponse) {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
+	h.downstreamResponse = downstreamResponse
+}
+
+func (h *handler) getDownstreamResponse() *svidv1.NewDownstreamX509CAResponse {
+	h.mtx.RLock()
+	defer h.mtx.RUnlock()
+	return h.downstreamResponse
+}
+
+func (h *handler) setError(err error) {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
+	h.err = err
+}
+
+func (h *handler) getError() error {
+	h.mtx.RLock()
+	defer h.mtx.RUnlock()
+	return h.err
 }
 
 func cloneBundle(b *types.Bundle) *types.Bundle {

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -202,8 +203,9 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		grpc.EnableTracing = true
 
 		server := http.Server{
-			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
-			Handler: http.DefaultServeMux,
+			Addr:              fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: time.Second * 10,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to

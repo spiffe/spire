@@ -8,7 +8,7 @@ import (
 	"net"
 	"testing"
 
-	addr_util "github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -22,7 +22,7 @@ func configureCasesOS(t *testing.T) []configureCase {
 			serverPort:               "8081",
 			workloadAPINamedPipeName: "pipeName",
 			expectServerID:           "spiffe://example.org/spire/server",
-			expectWorkloadAPIAddr:    addr_util.GetNamedPipeAddr("pipeName"),
+			expectWorkloadAPIAddr:    namedpipe.AddrFromName("pipeName"),
 			expectServerAddr:         "localhost:8081",
 		},
 		{
@@ -46,7 +46,7 @@ func mintX509CACasesOS(t *testing.T) []mintX509CACase {
 			getCSR: func() ([]byte, crypto.PublicKey) {
 				return csr, pubKey
 			},
-			customWorkloadAPIAddr: addr_util.GetNamedPipeAddr("malformed \000 path"),
+			customWorkloadAPIAddr: namedpipe.AddrFromName("malformed \000 path"),
 			expectCode:            codes.Internal,
 			expectMsgPrefix:       `upstreamauthority(spire): unable to create X509Source: parse "passthrough:///\\\\.\\pipe\\malformed \x00 path": net/url: invalid control character in URL`,
 		},
@@ -54,5 +54,5 @@ func mintX509CACasesOS(t *testing.T) []mintX509CACase {
 }
 
 func setWorkloadAPIAddr(c *Configuration, workloadAPIAddr net.Addr) {
-	c.Experimental.WorkloadAPINamedPipeName = addr_util.GetPipeName(workloadAPIAddr.String())
+	c.Experimental.WorkloadAPINamedPipeName = namedpipe.GetPipeName(workloadAPIAddr.String())
 }

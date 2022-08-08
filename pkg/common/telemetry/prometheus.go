@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	prommetrics "github.com/armon/go-metrics/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,8 +51,9 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 
 	runner.server = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", runner.c.Host, runner.c.Port),
-		Handler: handler,
+		Addr:              fmt.Sprintf("%s:%d", runner.c.Host, runner.c.Port),
+		Handler:           handler,
+		ReadHeaderTimeout: time.Second * 10,
 	}
 
 	return runner, nil
