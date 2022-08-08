@@ -5,7 +5,7 @@
 ### Added 
 - Support for Windows workload attestation on Kubernetes (#3191)
 - Support for using RSA keys with Workload X509-SVIDs (#3237)
-- Support for anonymous authentication with the Kubelet when performing workload attestation on Kubernetes (#3273)
+- Support for anonymous authentication to the Kubelet secure port when performing workload attestation on Kubernetes (#3273)
 
 ### Deprecated
 - The Node Resolver plugin type (#3272)
@@ -17,8 +17,8 @@
 ### Changed
 - The Azure Node Attestor to optionally provide selectors (#3272)
 - The Docker Workload Attestor now fails when configured with unknown options (#3243)
-- Improved CRI-O support with Kubernetes workload attestation (#3183)
-- Agent data storage has been consolidated to a single JSON file (#3201)
+- Improved CRI-O support with Kubernetes workload attestation (#3242)
+- Agent data stored on disk has been consolidated to a single JSON file (#3201)
 - Agent and server data directories on Windows no longer inherit permissions from parent directory (#3227)
 - Endpoints exposed using named pipes explicitly deny access to remote callers (#3236)
 - Small documentation improvements (#3264)
