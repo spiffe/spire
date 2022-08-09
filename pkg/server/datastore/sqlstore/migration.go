@@ -356,7 +356,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// Place all migrations handled by the current minor release here. This
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
-	switch currVersion { // nolint: gocritic // Expected to be empty when no upgrade is required
+	switch currVersion {
 	case 18:
 		// DEPRECATED: remove this migration in 1.5.0
 		err = migrateToV19(tx)
