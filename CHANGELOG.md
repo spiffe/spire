@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.4.0] - 2022-08-08
+
+### Added 
+- Support for Windows workload attestation on Kubernetes (#3191)
+- Support for using RSA keys with Workload X509-SVIDs (#3237)
+- Support for anonymous authentication to the Kubelet secure port when performing workload attestation on Kubernetes (#3273)
+
+### Deprecated
+- The Node Resolver plugin type (#3272)
+
+### Fixed
+- Persistence of the can_reattest flag during agent SVID renewal (#3292)
+- A regression in behavior preventing an agent from re-attesting when it has been evicted (#3269)
+
+### Changed
+- The Azure Node Attestor to optionally provide selectors (#3272)
+- The Docker Workload Attestor now fails when configured with unknown options (#3243)
+- Improved CRI-O support with Kubernetes workload attestation (#3242)
+- Agent data stored on disk has been consolidated to a single JSON file (#3201)
+- Agent and server data directories on Windows no longer inherit permissions from parent directory (#3227)
+- Endpoints exposed using named pipes explicitly deny access to remote callers (#3236)
+- Small documentation improvements (#3264)
+
+### Removed
+- The deprecated webhook mode from the k8s-workload-registrar (#3235)
+- Support for the configmap leader election lock type from the k8s-workload-registrar (#3241)
+
 ## [1.3.3] - 2022-07-13
 
 ### Security
