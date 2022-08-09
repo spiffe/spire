@@ -132,6 +132,8 @@ import (
 // | v1.3.1  |        |                                                                           |
 // |---------|--------|---------------------------------------------------------------------------|
 // | v1.3.2  | 19     | Added x509_svid_ttl and jwt_svid_ttl columns to entries                   |
+// |---------|        |                                                                           |
+// | v1.3.3  |        |                                                                           |
 // |*********|        |                                                                           |
 // | v1.4.0  |        |                                                                           |
 // ================================================================================================
@@ -143,7 +145,7 @@ const (
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
 	// from the code after a minor release, this number should be updated.
-	lastMinorReleaseSchemaVersion = 19
+	lastMinorReleaseSchemaVersion = 18
 )
 
 var (
@@ -355,6 +357,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
 	switch currVersion { // nolint: gocritic // Expected to be empty when no upgrade is required
+	case 18:
+		// DEPRECATED: remove this migration in 1.5.0
+		err = migrateToV19(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -363,6 +368,13 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
+}
+
+func migrateToV19(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
