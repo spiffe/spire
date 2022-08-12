@@ -23,10 +23,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.11
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.17.14
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.52.1
-	github.com/aws/aws-sdk-go-v2/service/iam v1.18.12
+	github.com/aws/aws-sdk-go-v2/service/iam v1.18.13
 	github.com/aws/aws-sdk-go-v2/service/kms v1.18.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.15.16
-	github.com/aws/aws-sdk-go-v2/service/sts v1.16.12
+	github.com/aws/aws-sdk-go-v2/service/sts v1.16.13
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v20.10.17+incompatible
