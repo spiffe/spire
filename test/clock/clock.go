@@ -1,11 +1,11 @@
 package clock
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"go.uber.org/atomic"
 )
 
 // Clock is a clock
@@ -18,7 +18,7 @@ type Mock struct {
 	timerC      chan time.Duration
 	afterC      chan time.Duration
 	tickerC     chan time.Duration
-	tickerCount atomic.Uint32
+	tickerCount atomic.Int32
 	sleepC      chan time.Duration
 }
 
@@ -76,8 +76,8 @@ func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int, format strin
 	for {
 		select {
 		case <-m.tickerC:
-			if m.tickerCount.Load() >= uint32(count) {
-				m.tickerCount.Sub(uint32(count))
+			if m.tickerCount.Load() >= int32(count) {
+				m.tickerCount.Add(-1 * int32(count))
 				return
 			}
 		case <-deadlineChan:
@@ -120,7 +120,7 @@ func (m *Mock) After(d time.Duration) <-chan time.Time {
 // Ticker returns a new Ticker containing a channel that will send the time with a period specified by the duration argument.
 func (m *Mock) Ticker(d time.Duration) *clock.Ticker {
 	c := m.Mock.Ticker(d)
-	m.tickerCount.Inc()
+	m.tickerCount.Add(int32(1))
 	select {
 	case m.tickerC <- d:
 	default:
