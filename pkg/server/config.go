@@ -101,6 +101,10 @@ type Config struct {
 	// AdminIDs are a list of fixed IDs that when presented by a caller in an
 	// X509-SVID, are granted admin rights.
 	AdminIDs []spiffeid.ID
+
+	// OmitX509SVIDUID, if true, omits the X.500 Unique Identifier from being
+	// calculated and added to the Subject DN on X509-SVIDs.
+	OmitX509SVIDUID bool
 }
 
 type ExperimentalConfig struct {
