@@ -15,7 +15,7 @@
       }
     ],
     "spiffe_id": "SpiffeId",
-    "ttl": -5
+    "x509_svid_ttl": -5
   },
   {
     "spiffe_id": "SpiffeId"
@@ -32,7 +32,7 @@
       }
     ],
     "spiffe_id": "SpiffeId3",
-    "ttl": 2,
+    "x509_svid_ttl": 2,
     "store_svid": true
   },
   null

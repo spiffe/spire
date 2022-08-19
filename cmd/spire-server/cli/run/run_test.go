@@ -362,6 +362,26 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "default_x509_svid_ttl should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.DefaultX509SVIDTTL = "2h"
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "2h", c.Server.DefaultX509SVIDTTL)
+			},
+		},
+		{
+			msg: "default_jwt_svid_ttl should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.DefaultJwtSVIDTTL = "3h"
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "3h", c.Server.DefaultJwtSVIDTTL)
+			},
+		},
+		{
 			msg:       "trust_domain should not have a default value",
 			fileInput: func(c *Config) {},
 			cliFlags:  []string{},
@@ -623,10 +643,48 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "default_x509_svid_ttl is correctly parsed",
+			input: func(c *Config) {
+				c.Server.DefaultX509SVIDTTL = "2m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 2*time.Minute, c.X509SVIDTTL)
+			},
+		},
+		{
+			msg: "default_jwt_svid_ttl is correctly parsed",
+			input: func(c *Config) {
+				c.Server.DefaultSVIDTTL = "3m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 3*time.Minute, c.SVIDTTL)
+			},
+		},
+		{
 			msg:         "invalid default_svid_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "invalid default_x509_svid_ttl returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.DefaultX509SVIDTTL = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "invalid default_jwt_svid_ttl returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.DefaultJwtSVIDTTL = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
@@ -1385,61 +1443,185 @@ func TestHasCompatibleTTLs(t *testing.T) {
 		msg               string
 		caTTL             time.Duration
 		svidTTL           time.Duration
+		x509SvidTtl       time.Duration
+		jwtSvidTtl        time.Duration
 		hasCompatibleTTLs bool
 	}{
 		{
-			msg:               "Both values are default values",
+			msg:               "All values are default values",
 			caTTL:             0,
 			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: true,
 		},
 		{
-			msg:               "ca_ttl is large enough for the default SVID TTL",
+			msg:               "ca_ttl is large enough for all default SVID TTL",
 			caTTL:             time.Hour * 7,
 			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: true,
 		},
 		{
-			msg:               "ca_ttl is not large enough for the default SVID TTL",
+			msg:               "ca_ttl is not large enough for the default SVID TTLs",
 			caTTL:             time.Minute * 1,
 			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: false,
 		},
 		{
 			msg:               "default_svid_ttl is small enough for the default CA TTL",
 			caTTL:             0,
 			svidTTL:           time.Hour * 3,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: true,
 		},
 		{
 			msg:               "default_svid_ttl is not small enough for the default CA TTL",
 			caTTL:             0,
 			svidTTL:           time.Hour * 24,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: false,
 		},
 		{
 			msg:               "default_svid_ttl is small enough for the configured CA TTL",
 			caTTL:             time.Hour * 24,
 			svidTTL:           time.Hour * 1,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: true,
 		},
 		{
 			msg:               "default_svid_ttl is not small enough for the configured CA TTL",
 			caTTL:             time.Hour * 24,
 			svidTTL:           time.Hour * 23,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: false,
 		},
 		{
 			msg:               "default_svid_ttl is larger than the configured CA TTL",
 			caTTL:             time.Hour * 24,
 			svidTTL:           time.Hour * 25,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: false,
 		},
 		{
 			msg:               "default_svid_ttl is small enough for the configured CA TTL but larger than the max",
 			caTTL:             time.Hour * 24 * 7 * 4 * 6, // Six months
 			svidTTL:           time.Hour * 24 * 7 * 2,     // Two weeks
+			x509SvidTtl:       0,
+			jwtSvidTtl:        0,
 			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_x509_svid_ttl is small enough for the default CA TTL",
+			caTTL:             0,
+			svidTTL:           0,
+			x509SvidTtl:       time.Hour * 3,
+			jwtSvidTtl:        0,
+			hasCompatibleTTLs: true,
+		},
+		{
+			msg:               "default_x509_svid_ttl is not small enough for the default CA TTL",
+			caTTL:             0,
+			svidTTL:           0,
+			x509SvidTtl:       time.Hour * 24,
+			jwtSvidTtl:        0,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_x509_svid_ttl is small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           0,
+			x509SvidTtl:       time.Hour * 1,
+			jwtSvidTtl:        0,
+			hasCompatibleTTLs: true,
+		},
+		{
+			msg:               "default_x509_svid_ttl is not small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           0,
+			x509SvidTtl:       time.Hour * 23,
+			jwtSvidTtl:        0,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_x509_svid_ttl is larger than the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           0,
+			x509SvidTtl:       time.Hour * 25,
+			jwtSvidTtl:        0,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_x509_svid_ttl is small enough for the configured CA TTL but larger than the max",
+			caTTL:             time.Hour * 24 * 7 * 4 * 6, // Six months
+			svidTTL:           0,
+			x509SvidTtl:       time.Hour * 24 * 7 * 2, // Two weeks,
+			jwtSvidTtl:        0,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_jwt_svid_ttl is small enough for the default CA TTL",
+			caTTL:             0,
+			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        time.Hour * 3,
+			hasCompatibleTTLs: true,
+		},
+		{
+			msg:               "default_jwt_svid_ttl is not small enough for the default CA TTL",
+			caTTL:             0,
+			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        time.Hour * 24,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_jwt_svid_ttl is small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        time.Hour * 1,
+			hasCompatibleTTLs: true,
+		},
+		{
+			msg:               "default_jwt_svid_ttl is not small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        time.Hour * 23,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_jwt_svid_ttl is larger than the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        time.Hour * 25,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "default_jwt_svid_ttl is small enough for the configured CA TTL but larger than the max",
+			caTTL:             time.Hour * 24 * 7 * 4 * 6, // Six months
+			svidTTL:           0,
+			x509SvidTtl:       0,
+			jwtSvidTtl:        time.Hour * 24 * 7 * 2, // Two weeks,,
+			hasCompatibleTTLs: false,
+		},
+		{
+			msg:               "all default svid_ttls are small enough for the configured CA TTL",
+			caTTL:             time.Hour * 24,
+			svidTTL:           time.Hour * 1,
+			x509SvidTtl:       time.Hour * 1,
+			jwtSvidTtl:        time.Hour * 1,
+			hasCompatibleTTLs: true,
 		},
 	}
 
@@ -1451,9 +1633,15 @@ func TestHasCompatibleTTLs(t *testing.T) {
 		if testCase.svidTTL == 0 {
 			testCase.svidTTL = ca.DefaultX509SVIDTTL
 		}
+		if testCase.x509SvidTtl == 0 {
+			testCase.x509SvidTtl = ca.DefaultX509SVIDTTL
+		}
+		if testCase.jwtSvidTtl == 0 {
+			testCase.jwtSvidTtl = ca.DefaultJWTSVIDTTL
+		}
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			require.Equal(t, testCase.hasCompatibleTTLs, hasCompatibleTTLs(testCase.caTTL, testCase.svidTTL))
+			require.Equal(t, testCase.hasCompatibleTTLs, hasCompatibleTTLs(testCase.caTTL, testCase.svidTTL, testCase.x509SvidTtl, testCase.jwtSvidTtl))
 		})
 	}
 }
@@ -1498,39 +1686,133 @@ func TestMaxSVIDTTL(t *testing.T) {
 
 func TestMinCATTL(t *testing.T) {
 	for _, v := range []struct {
-		svidTTL time.Duration
-		expect  string
+		svidTTL     time.Duration
+		x509SvidTTL time.Duration
+		jwtSvidTTL  time.Duration
+		expect      string
 	}{
 		{
-			svidTTL: 10 * time.Second,
-			expect:  "1m",
+			svidTTL:     10 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "1m",
 		},
 		{
-			svidTTL: 15 * time.Second,
-			expect:  "1m30s",
+			svidTTL:     15 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "1m30s",
 		},
 		{
-			svidTTL: 10 * time.Minute,
-			expect:  "1h",
+			svidTTL:     10 * time.Minute,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "1h",
 		},
 		{
-			svidTTL: 22 * time.Minute,
-			expect:  "2h12m",
+			svidTTL:     22 * time.Minute,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "2h12m",
 		},
 		{
-			svidTTL: 24 * time.Hour,
-			expect:  "144h",
+			svidTTL:     24 * time.Hour,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "144h",
 		},
 		{
-			svidTTL: 0,
-			expect:  "6h",
+			svidTTL:     0,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "6h",
+		},
+
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 10 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "1m",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 15 * time.Second,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "1m30s",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 10 * time.Minute,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "1h",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 22 * time.Minute,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "2h12m",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 24 * time.Hour,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "144h",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 0,
+			jwtSvidTTL:  1 * time.Second,
+			expect:      "6h",
+		},
+
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  10 * time.Second,
+			expect:      "1m",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  15 * time.Second,
+			expect:      "1m30s",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  10 * time.Minute,
+			expect:      "1h",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  22 * time.Minute,
+			expect:      "2h12m",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  24 * time.Hour,
+			expect:      "144h",
+		},
+		{
+			svidTTL:     1 * time.Second,
+			x509SvidTTL: 1 * time.Second,
+			jwtSvidTTL:  0,
+			expect:      "30m",
 		},
 	} {
 		if v.svidTTL == 0 {
 			v.svidTTL = ca.DefaultX509SVIDTTL
 		}
+		if v.x509SvidTTL == 0 {
+			v.svidTTL = ca.DefaultX509SVIDTTL
+		}
+		if v.jwtSvidTTL == 0 {
+			v.svidTTL = ca.DefaultJWTSVIDTTL
+		}
 
-		assert.Equal(t, v.expect, printMinCATTL(v.svidTTL))
+		assert.Equal(t, v.expect, printMinCATTL(v.svidTTL, v.x509SvidTTL, v.jwtSvidTTL))
 	}
 }
 

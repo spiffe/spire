@@ -1107,11 +1107,20 @@ func MaxSVIDTTLForCATTL(caTTL time.Duration) time.Duration {
 }
 
 // MinCATTLForSVIDTTL returns the minimum CA TTL necessary to guarantee an SVID
-// TTL of the provided value. In other words, given an SVID TTL, what is the
+// TTL of the provided values. In other words, given a set of SVID TTLs, what is the
 // minimum CA TTL that will guarantee that the SVIDs lifetime won't be cut
-// artificially short by a scheduled rotation?
-func MinCATTLForSVIDTTL(svidTTL time.Duration) time.Duration {
-	return svidTTL * activationThresholdDivisor
+// artificially short by a scheduled rotation? The overall minimum CA TTL is
+// the highest of all the calculated minimums.
+func MinCATTLForSVIDTTL(svidTTLs ...time.Duration) time.Duration {
+	overallMax := time.Duration(0)
+	for _, svidTTL := range svidTTLs {
+		svidMin := svidTTL * activationThresholdDivisor
+		if svidMin > overallMax {
+			overallMax = svidMin
+		}
+	}
+
+	return overallMax
 }
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {

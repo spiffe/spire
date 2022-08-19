@@ -60,7 +60,14 @@ type Config struct {
 	AgentTTL time.Duration
 
 	// SVIDTTL is default time-to-live for SVIDs
+	// This field is deprecated in favor of X509SVIDTTL and JWTSVIDTTL
 	SVIDTTL time.Duration
+
+	// X509SVIDTTL is default time-to-live for X509-SVIDs (overrides SVIDTTL)
+	X509SVIDTTL time.Duration
+
+	// JWTSVIDTTL is default time-to-live for SVIDs (overrides SVIDTTL)
+	JWTSVIDTTL time.Duration
 
 	// CATTL is the time-to-live for the server CA. This only applies to
 	// self-signed CA certificates, otherwise it is up to the upstream CA.
