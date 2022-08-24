@@ -25,7 +25,7 @@ type csrRequest struct {
 	CurrentSVIDExpiresAt time.Time
 }
 
-type Cache interface {
+type SVIDCache interface {
 	// UpdateEntries updates entries on cache
 	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool)
 
@@ -37,10 +37,13 @@ type Cache interface {
 }
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
-	m.cache.SyncSVIDsWithSubscribers()
-	staleEntries := m.cache.GetStaleEntries()
-	if len(staleEntries) > 0 {
-		return m.updateSVIDs(ctx, staleEntries, m.cache)
+	// perform syncSVIDs only if using LRU cache
+	if m.c.SVIDCacheMaxSize > 0 {
+		m.cache.SyncSVIDsWithSubscribers()
+		staleEntries := m.cache.GetStaleEntries()
+		if len(staleEntries) > 0 {
+			return m.updateSVIDs(ctx, staleEntries, m.cache)
+		}
 	}
 	return nil
 }
@@ -66,7 +69,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c Cache) error {
+func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache) error {
 	// update the cache and build a list of CSRs that need to be processed
 	// in this interval.
 	//
@@ -117,7 +120,7 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 	return nil
 }
 
-func (m *manager) updateSVIDs(ctx context.Context, entries []*cache.StaleEntry, c Cache) error {
+func (m *manager) updateSVIDs(ctx context.Context, entries []*cache.StaleEntry, c SVIDCache) error {
 	var csrs []csrRequest
 	for _, entry := range entries {
 		// we've exceeded the CSR limit, don't make any more CSRs

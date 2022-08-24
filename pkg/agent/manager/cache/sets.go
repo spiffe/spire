@@ -30,6 +30,18 @@ var (
 			return make(recordSet)
 		},
 	}
+
+	lruCacheRecordSetPool = sync.Pool{
+		New: func() interface{} {
+			return make(lruCacheRecordSet)
+		},
+	}
+
+	lruCacheSubscriberSetPool = sync.Pool{
+		New: func() interface{} {
+			return make(lruCacheSubscriberSet)
+		},
+	}
 )
 
 // unique set of strings, allocated from a pool
@@ -145,6 +157,40 @@ func allocRecordSet() (recordSet, func()) {
 }
 
 func clearRecordSet(set recordSet) {
+	for k := range set {
+		delete(set, k)
+	}
+}
+
+// unique set of LRU cache records, allocated from a pool
+type lruCacheRecordSet map[*lruCacheRecord]struct{}
+
+func allocLRUCacheRecordSet() (lruCacheRecordSet, func()) {
+	set := lruCacheRecordSetPool.Get().(lruCacheRecordSet)
+	return set, func() {
+		clearLRUCacheRecordSet(set)
+		lruCacheRecordSetPool.Put(set)
+	}
+}
+
+func clearLRUCacheRecordSet(set lruCacheRecordSet) {
+	for k := range set {
+		delete(set, k)
+	}
+}
+
+// unique set of LRU cache subscribers, allocated from a pool
+type lruCacheSubscriberSet map[*lruCacheSubscriber]struct{}
+
+func allocLRUCacheSubscriberSet() (lruCacheSubscriberSet, func()) {
+	set := lruCacheSubscriberSetPool.Get().(lruCacheSubscriberSet)
+	return set, func() {
+		clearLRUCacheSubscriberSet(set)
+		lruCacheSubscriberSetPool.Put(set)
+	}
+}
+
+func clearLRUCacheSubscriberSet(set lruCacheSubscriberSet) {
 	for k := range set {
 		delete(set, k)
 	}

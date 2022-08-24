@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -812,5 +811,5 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 
 func newTestCache() *cache.Cache {
 	log, _ := test.NewNullLogger()
-	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{}, 0, clock.NewMock())
+	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{})
 }

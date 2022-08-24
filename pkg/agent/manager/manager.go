@@ -25,8 +25,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
-const svidSyncInterval = 500 * time.Millisecond
-
 // Manager provides cache management functionalities for agents.
 type Manager interface {
 	// Initialize initializes the manager.
@@ -78,13 +76,52 @@ type Manager interface {
 	GetBundle() *cache.Bundle
 }
 
+// Cache stores each registration entry, signed X509-SVIDs for those entries,
+// bundles, and JWT SVIDs for the agent.
+type Cache interface {
+	SVIDCache
+
+	// Bundle gets latest cached bundle
+	Bundle() *bundleutil.Bundle
+
+	// SyncSVIDsWithSubscribers syncs SVID cache
+	SyncSVIDsWithSubscribers()
+
+	// SubscribeToWorkloadUpdates creates a subscriber for given selector set.
+	SubscribeToWorkloadUpdates(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error)
+
+	// SubscribeToBundleChanges creates a stream for providing bundle changes
+	SubscribeToBundleChanges() *cache.BundleStream
+
+	// MatchingRegistrationEntries with given selectors
+	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
+
+	// CountSVIDs in cache stored
+	CountSVIDs() int
+
+	// FetchWorkloadUpdate for giveb selectors
+	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
+
+	// GetJWTSVID provides JWTSVID
+	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
+
+	// SetJWTSVID adds JWTSVID to cache
+	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
+
+	// Entries get all registration entries
+	Entries() []*common.RegistrationEntry
+
+	// Identities get all identities in cache
+	Identities() []cache.Identity
+}
+
 type manager struct {
 	c *Config
 
 	// Fields protected by mtx mutex.
 	mtx *sync.RWMutex
 
-	cache *cache.Cache
+	cache Cache
 	svid  svid.Rotator
 
 	storage storage.Storage
@@ -93,7 +130,6 @@ type manager struct {
 	// fetch attempt
 	synchronizeBackoff backoff.BackOff
 	svidSyncBackoff    backoff.BackOff
-	subscribeBackoffFn func() backoff.BackOff
 
 	client client.Client
 
@@ -111,12 +147,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeBundle(m.cache.Bundle())
 
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
-	m.svidSyncBackoff = backoff.NewBackoff(m.clk, svidSyncInterval)
-	if m.subscribeBackoffFn == nil {
-		m.subscribeBackoffFn = func() backoff.BackOff {
-			return backoff.NewBackoff(m.clk, svidSyncInterval)
-		}
-	}
+	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SvidSyncInterval)
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
@@ -151,30 +182,7 @@ func (m *manager) Run(ctx context.Context) error {
 }
 
 func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
-	return m.subscribeToCacheChanges(ctx, selectors, nil)
-}
-
-func (m *manager) subscribeToCacheChanges(ctx context.Context, selectors cache.Selectors, notifyCallbackFn func()) (cache.Subscriber, error) {
-	subscriber := m.cache.NewSubscriber(selectors)
-	bo := m.subscribeBackoffFn()
-	// block until all svids are cached and subscriber is notified
-	for {
-		svidsInCache := m.cache.Notify(selectors)
-		// used for testing
-		if notifyCallbackFn != nil {
-			notifyCallbackFn()
-		}
-		if svidsInCache {
-			return subscriber, nil
-		}
-		m.c.Log.WithField(telemetry.Selectors, selectors).Info("Waiting for SVID to get cached")
-
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-m.clk.After(bo.NextBackOff()):
-		}
-	}
+	return m.cache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
