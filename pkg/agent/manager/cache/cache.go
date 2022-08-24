@@ -477,7 +477,6 @@ func (c *Cache) Entries() []*common.RegistrationEntry {
 
 func (c *Cache) SyncSVIDsWithSubscribers() {
 	c.log.Error("SyncSVIDsWithSubscribers method is not implemented")
-	return
 }
 
 func (c *Cache) subscribeToWorkloadUpdates(selectors []*common.Selector) Subscriber {
