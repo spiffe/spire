@@ -509,7 +509,7 @@ func TestLRUCacheCheckSVIDCallback(t *testing.T) {
 func TestLRUCacheGetStaleEntries(t *testing.T) {
 	cache := newTestLRUCache()
 
-	bar := makeRegistrationEntryWithTTL("BAR", 60)
+	bar := makeRegistrationEntryWithTTL("BAR", 120)
 
 	// Create entry but don't mark it stale from checkSVID method;
 	// it will be marked stale cause it does not have SVID cached
