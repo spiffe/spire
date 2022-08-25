@@ -638,9 +638,9 @@ func TestSignIntermediate(t *testing.T) {
 
 	resp, err := client.SignIntermediate(testTTL, csr)
 	require.NoError(t, err)
+	require.NotNil(t, resp.UpstreamCACertPEM)
+	require.NotNil(t, resp.UpstreamCACertChainPEM)
 	require.NotNil(t, resp.CACertPEM)
-	require.NotNil(t, resp.CACertChainPEM)
-	require.NotNil(t, resp.CertPEM)
 }
 
 func TestSignIntermediateErrorFromEndpoint(t *testing.T) {
