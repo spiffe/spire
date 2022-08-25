@@ -147,7 +147,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeBundle(m.cache.Bundle())
 
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
-	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SvidSyncInterval)
+	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval)
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {

@@ -1043,7 +1043,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	// keep clk moving so that subscriber keeps looking for svid
 	go func(ctx context.Context) {
 		for {
-			clk.Add(cache.SvidSyncInterval)
+			clk.Add(cache.SVIDSyncInterval)
 			if ctx.Err() != nil {
 				return
 			}

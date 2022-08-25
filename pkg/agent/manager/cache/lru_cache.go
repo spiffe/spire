@@ -17,7 +17,7 @@ import (
 
 const (
 	DefaultSVIDCacheMaxSize = 1000
-	SvidSyncInterval        = 500 * time.Millisecond
+	SVIDSyncInterval        = 500 * time.Millisecond
 )
 
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
@@ -25,9 +25,10 @@ const (
 // It allows subscriptions by (workload) selector sets and notifies subscribers when:
 //
 // 1) a registration entry related to the selectors:
-//   * is modified
-//   * has a new X509-SVID signed for it
-//   * federates with a federated bundle that is updated
+//   - is modified
+//   - has a new X509-SVID signed for it
+//   - federates with a federated bundle that is updated
+//
 // 2) the trust bundle for the agent trust domain is updated
 //
 // When notified, the subscriber is given a WorkloadUpdate containing
@@ -38,13 +39,13 @@ const (
 // workloads) and registration entries that have that selector.
 //
 // The LRU-like SVID cache has configurable size limit and expiry period.
-// 1. Size limit of SVID cache is a soft limit. If SVID has a subscriber present then
-//    that SVID is never removed from cache.
-// 2. Least recently used SVIDs are removed from cache only after the cache expiry period has passed.
-//    This is done to reduce the overall cache churn.
-// 3. Last access timestamp for SVID cache entry is updated when a new subscriber is created
-// 4. When a new subscriber is created and there is a cache miss
-//    then subscriber needs to wait for next SVID sync event to receive WorkloadUpdate with newly minted SVID
+//  1. Size limit of SVID cache is a soft limit. If SVID has a subscriber present then
+//     that SVID is never removed from cache.
+//  2. Least recently used SVIDs are removed from cache only after the cache expiry period has passed.
+//     This is done to reduce the overall cache churn.
+//  3. Last access timestamp for SVID cache entry is updated when a new subscriber is created
+//  4. When a new subscriber is created and there is a cache miss
+//     then subscriber needs to wait for next SVID sync event to receive WorkloadUpdate with newly minted SVID
 //
 // The advantage of above approach is that if agent has entry count less than cache size
 // then all SVIDs are cached at all times. If agent has entry count greater than cache size then
@@ -129,7 +130,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 		svidCacheMaxSize: svidCacheMaxSize,
 		clk:              clk,
 		subscribeBackoffFn: func() backoff.BackOff {
-			return backoff.NewBackoff(clk, SvidSyncInterval)
+			return backoff.NewBackoff(clk, SVIDSyncInterval)
 		},
 	}
 }

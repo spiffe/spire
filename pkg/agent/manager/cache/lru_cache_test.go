@@ -836,7 +836,7 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	})
 	assert.Equal(t, 2, cache.CountSVIDs())
 
-	clk.Add(SvidSyncInterval * 2)
+	clk.Add(SVIDSyncInterval * 2)
 
 	sub1Err := <-sub1ErrCh
 	assert.NoError(t, sub1Err, "subscriber 1 error")
