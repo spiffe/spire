@@ -47,9 +47,8 @@ var (
 // unique set of strings, allocated from a pool
 type stringSet map[string]struct{}
 
-func allocStringSet(ss ...string) (stringSet, func()) {
+func allocStringSet() (stringSet, func()) {
 	set := stringSetPool.Get().(stringSet)
-	set.Merge(ss...)
 	return set, func() {
 		clearStringSet(set)
 		stringSetPool.Put(set)

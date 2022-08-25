@@ -509,25 +509,25 @@ func TestLRUCacheCheckSVIDCallback(t *testing.T) {
 func TestLRUCacheGetStaleEntries(t *testing.T) {
 	cache := newTestLRUCache()
 
-	foo := makeRegistrationEntryWithTTL("FOO", 60)
+	bar := makeRegistrationEntryWithTTL("BAR", 60)
 
 	// Create entry but don't mark it stale from checkSVID method;
 	// it will be marked stale cause it does not have SVID cached
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
-		RegistrationEntries: makeRegistrationEntries(foo),
+		RegistrationEntries: makeRegistrationEntries(bar),
 	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
 		return false
 	})
 
 	// Assert that the entry is returned as stale. The `ExpiresAt` field should be unset since there is no SVID.
-	expectedEntries := []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}
+	expectedEntries := []*StaleEntry{{Entry: cache.records[bar.EntryId].entry}}
 	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
 
 	// Update the SVID for the stale entry
 	svids := make(map[string]*X509SVID)
 	expiredAt := time.Now()
-	svids[foo.EntryId] = &X509SVID{
+	svids[bar.EntryId] = &X509SVID{
 		Chain: []*x509.Certificate{{NotAfter: expiredAt}},
 	}
 	cache.UpdateSVIDs(&UpdateSVIDs{
@@ -539,14 +539,14 @@ func TestLRUCacheGetStaleEntries(t *testing.T) {
 	// Update entry again and mark it as stale
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
-		RegistrationEntries: makeRegistrationEntries(foo),
+		RegistrationEntries: makeRegistrationEntries(bar),
 	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
 		return true
 	})
 
 	// Assert that the entry again returns as stale. This time the `ExpiresAt` field should be populated with the expiration of the SVID.
 	expectedEntries = []*StaleEntry{{
-		Entry:     cache.records[foo.EntryId].entry,
+		Entry:     cache.records[bar.EntryId].entry,
 		ExpiresAt: expiredAt,
 	}}
 	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
