@@ -43,8 +43,6 @@ import (
 var (
 	trustDomain    = spiffeid.RequireTrustDomainFromString("example.org")
 	badTrustDomain = spiffeid.RequireTrustDomainFromString("badexample.org")
-	reattestError  = "reattestation failed by test"
-	renewError     = "renewing SVID failed by test"
 	bundleError    = "bundle not found"
 	testTimeout    = time.Minute
 )
@@ -71,61 +69,37 @@ func TestRotator(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name              string
-		notAfter          time.Duration
-		shouldRotate      bool
-		reattest          bool
-		failReattest      bool
-		bundleTrustDomain spiffeid.TrustDomain
-		err               string
+		name         string
+		notAfter     time.Duration
+		shouldRotate bool
+		reattest     bool
 	}{
 		{
-			name:              "not expired at startup",
-			notAfter:          time.Minute,
-			shouldRotate:      false,
-			bundleTrustDomain: trustDomain,
+			name:         "not expired at startup",
+			notAfter:     time.Minute,
+			shouldRotate: false,
 		},
 		{
-			name:              "renew expired at startup",
-			notAfter:          0,
-			shouldRotate:      true,
-			bundleTrustDomain: trustDomain,
+			name:         "renew expired at startup",
+			notAfter:     0,
+			shouldRotate: true,
 		},
 		{
-			name:              "renew expires after startup",
-			notAfter:          2 * time.Minute,
-			shouldRotate:      true,
-			bundleTrustDomain: trustDomain,
+			name:         "renew expires after startup",
+			notAfter:     2 * time.Minute,
+			shouldRotate: true,
 		},
 		{
-			name:              "reattest expired at startup",
-			notAfter:          0,
-			shouldRotate:      true,
-			reattest:          true,
-			bundleTrustDomain: trustDomain,
+			name:         "reattest expired at startup",
+			notAfter:     0,
+			shouldRotate: true,
+			reattest:     true,
 		},
 		{
-			name:              "reattest expires after startup",
-			notAfter:          2 * time.Minute,
-			shouldRotate:      true,
-			reattest:          true,
-			bundleTrustDomain: trustDomain,
-		},
-		{
-			name:              "reattest failure",
-			reattest:          true,
-			shouldRotate:      true,
-			bundleTrustDomain: trustDomain,
-			failReattest:      true,
-			err:               reattestError,
-		},
-		{
-			name:              "reattest bad bundle",
-			reattest:          true,
-			shouldRotate:      true,
-			bundleTrustDomain: badTrustDomain,
-			failReattest:      true,
-			err:               bundleError,
+			name:         "reattest expires after startup",
+			notAfter:     2 * time.Minute,
+			shouldRotate: true,
+			reattest:     true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,14 +123,14 @@ func TestRotator(t *testing.T) {
 
 			// Create the bundle
 			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
-			bundle[tt.bundleTrustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
+			bundle[trustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
 
 			// Create the attestor
 			attestor := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{})
 
 			// Create the server
 			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-			agentService := &fakeAgentService{clk: clk, svidKM: svidKM, svidKey: svidKey, caCert: caCert, caKey: caKey, failReattest: tt.failReattest}
+			agentService := &fakeAgentService{clk: clk, svidKM: svidKM, svidKey: svidKey, caCert: caCert, caKey: caKey}
 			agentv1.RegisterAgentServer(server, agentService)
 
 			listener, err := net.Listen("tcp", "localhost:0")
@@ -205,12 +179,6 @@ func TestRotator(t *testing.T) {
 			select {
 			case <-clk.WaitForAfterCh():
 			case err = <-errCh:
-				if tt.failReattest {
-					cancel()
-					spiretest.RequireErrorContains(t, err, tt.err)
-					return
-				}
-
 				t.Fatalf("unexpected error during first rotation loop: %v", err)
 			case <-time.After(testTimeout):
 				if hook.LastEntry() != nil && hook.LastEntry().Level == logrus.ErrorLevel {
@@ -231,12 +199,6 @@ func TestRotator(t *testing.T) {
 				select {
 				case <-rotationDone:
 				case err = <-errCh:
-					if tt.failReattest {
-						cancel()
-						spiretest.RequireErrorContains(t, err, tt.err)
-						return
-					}
-
 					t.Fatalf("unexpected error during rotation: %v", err)
 				case <-time.After(testTimeout):
 					if hook.LastEntry() != nil && hook.LastEntry().Level == logrus.ErrorLevel {
@@ -285,6 +247,17 @@ func TestRotator(t *testing.T) {
 
 func TestRotationFails(t *testing.T) {
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+	serverCert, serverKey := testca.CreateX509Certificate(t, caCert, caKey, testca.WithID(idutil.RequireServerID(trustDomain)))
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{serverCert.Raw},
+				PrivateKey:  serverKey,
+			},
+		},
+		MinVersion: tls.VersionTLS12,
+	}
 
 	expiredStatus := status.New(codes.PermissionDenied, "agent is not active")
 	expiredStatus, err := expiredStatus.WithDetails(&types.PermissionDeniedDetails{
@@ -299,26 +272,48 @@ func TestRotationFails(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
-		name       string
-		err        error
-		expectErr  string
-		expiration time.Duration
+		name              string
+		reattest          bool
+		err               error
+		expectErr         string
+		expiration        time.Duration
+		bundleTrustDomain spiffeid.TrustDomain
 	}{
 		{
-			name:       "svid is expired",
-			expiration: -time.Second,
-			err:        errors.New("oh no"),
-			expectErr:  "current SVID has already expired and rotate agent SVID failed: oh no",
+			name:              "renew svid is expired",
+			expiration:        -time.Second,
+			bundleTrustDomain: trustDomain,
+			err:               errors.New("oh no"),
+			expectErr:         "current SVID has already expired and rotate agent SVID failed: oh no",
 		},
 		{
-			name:      "expired agent",
-			err:       fmt.Errorf("client fails: %w", expiredStatus.Err()),
-			expectErr: "client fails: rpc error: code = PermissionDenied desc = agent is not active",
+			name:              "expired agent",
+			bundleTrustDomain: trustDomain,
+			err:               fmt.Errorf("client fails: %w", expiredStatus.Err()),
+			expectErr:         "client fails: rpc error: code = PermissionDenied desc = agent is not active",
 		},
 		{
-			name:      "banned agent",
-			err:       fmt.Errorf("client fails: %w", bannedStatus.Err()),
-			expectErr: "client fails: rpc error: code = PermissionDenied desc = agent is banned",
+			name:              "banned agent",
+			bundleTrustDomain: trustDomain,
+			err:               fmt.Errorf("client fails: %w", bannedStatus.Err()),
+			expectErr:         "client fails: rpc error: code = PermissionDenied desc = agent is banned",
+		},
+		{
+			name:              "reattest svid is expired",
+			expiration:        -time.Second,
+			reattest:          true,
+			bundleTrustDomain: trustDomain,
+			err:               errors.New("reattestation failed by test"),
+			expectErr: "current SVID has already expired and reattest agent failed: failed to receive attestation response: " +
+				"rpc error: code = Unknown desc = reattestation failed by test",
+		},
+		{
+			name:              "reattest bad bundle",
+			expiration:        -time.Second,
+			reattest:          true,
+			bundleTrustDomain: badTrustDomain,
+			err:               errors.New(bundleError),
+			expectErr:         "current SVID has already expired and reattest agent failed: bundle not found",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -332,6 +327,10 @@ func TestRotationFails(t *testing.T) {
 				renewErr: tt.err,
 			}
 
+			// Create the bundle
+			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
+			bundle[tt.bundleTrustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
+
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
@@ -341,16 +340,33 @@ func TestRotationFails(t *testing.T) {
 			require.NoError(t, err)
 			svid := []*x509.Certificate{svidParsed}
 
+			// Create the attestor
+			attestor := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{})
+
+			// Create the server
+			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+			agentService := &fakeAgentService{clk: clk, svidKM: svidKM, svidKey: svidKey, caCert: caCert, caKey: caKey, reattestErr: tt.err}
+			agentv1.RegisterAgentServer(server, agentService)
+
+			listener, err := net.Listen("tcp", "localhost:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { listener.Close() })
+
+			spiretest.ServeGRPCServerOnListener(t, server, listener)
+
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
 				SVIDKeyManager: svidKM,
 				Log:            log,
 				Metrics:        telemetry.Blackhole{},
-				TrustDomain:    spiffeid.RequireTrustDomainFromString("example.org"),
-				BundleStream:   cache.NewBundleStream(observer.NewProperty([]*x509.Certificate(nil)).Observe()),
+				TrustDomain:    trustDomain,
+				BundleStream:   cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
 				Clk:            clk,
+				Reattestable:   tt.reattest,
 				SVID:           svid,
 				SVIDKey:        svidKey,
+				NodeAttestor:   attestor,
+				ServerAddr:     listener.Addr().String(),
 			})
 			rotator.client = mockClient
 
@@ -403,13 +419,13 @@ func (c *fakeClient) Release() {
 type fakeAgentService struct {
 	agentv1.AgentServer
 
-	clk          clock.Clock
-	attested     bool
-	svidKM       keymanager.SVIDKeyManager
-	svidKey      keymanager.Key
-	caCert       *x509.Certificate
-	caKey        crypto.Signer
-	failReattest bool
+	clk         clock.Clock
+	attested    bool
+	svidKM      keymanager.SVIDKeyManager
+	svidKey     keymanager.Key
+	caCert      *x509.Certificate
+	caKey       crypto.Signer
+	reattestErr error
 }
 
 func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
@@ -418,8 +434,8 @@ func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) e
 		return err
 	}
 
-	if n.failReattest {
-		return errors.New(reattestError)
+	if n.reattestErr != nil {
+		return n.reattestErr
 	}
 
 	key, err := n.svidKM.GenerateKey(context.Background(), n.svidKey)
