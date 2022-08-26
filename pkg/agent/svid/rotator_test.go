@@ -111,11 +111,8 @@ func TestRotator(t *testing.T) {
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
-			svidBytes, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
+			svid, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
 			require.NoError(t, err)
-			svidParsed, err := x509.ParseCertificate(svidBytes)
-			require.NoError(t, err)
-			svid := []*x509.Certificate{svidParsed}
 
 			// Advance the clock by one second so SVID will always be expired
 			// at startup for the "expired at startup" tests
@@ -334,11 +331,8 @@ func TestRotationFails(t *testing.T) {
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
-			svidBytes, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.expiration))
+			svid, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.expiration))
 			require.NoError(t, err)
-			svidParsed, err := x509.ParseCertificate(svidBytes)
-			require.NoError(t, err)
-			svid := []*x509.Certificate{svidParsed}
 
 			// Create the attestor
 			attestor := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{})
@@ -401,13 +395,13 @@ func (c *fakeClient) RenewSVID(ctx context.Context, csrBytes []byte) (*client.X5
 	}
 
 	notAfter := c.clk.Now().Add(time.Hour)
-	svid, err := createTestSVID(csr.PublicKey, c.caCert, c.caKey, c.clk.Now(), notAfter)
+	svidBytes, err := createTestSVIDBytes(csr.PublicKey, c.caCert, c.caKey, c.clk.Now(), notAfter)
 	if err != nil {
 		return nil, err
 	}
 
 	return &client.X509SVID{
-		CertChain: svid,
+		CertChain: svidBytes,
 		ExpiresAt: notAfter.Unix(),
 	}, nil
 }
@@ -443,7 +437,7 @@ func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) e
 		return err
 	}
 
-	svid, err := createTestSVID(key.Public(), n.caCert, n.caKey, n.clk.Now(), n.clk.Now().Add(time.Hour))
+	svidBytes, err := createTestSVIDBytes(key.Public(), n.caCert, n.caKey, n.clk.Now(), n.clk.Now().Add(time.Hour))
 	if err != nil {
 		return err
 	}
@@ -453,14 +447,26 @@ func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) e
 		Step: &agentv1.AttestAgentResponse_Result_{
 			Result: &agentv1.AttestAgentResponse_Result{
 				Svid: &types.X509SVID{
-					CertChain: [][]byte{svid},
+					CertChain: [][]byte{svidBytes},
 				},
 			},
 		},
 	})
 }
 
-func createTestSVID(svidKey crypto.PublicKey, ca *x509.Certificate, caKey crypto.Signer, notBefore, notAfter time.Time) ([]byte, error) {
+func createTestSVID(svidKey crypto.PublicKey, ca *x509.Certificate, caKey crypto.Signer, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
+	svidBytes, err := createTestSVIDBytes(svidKey, ca, caKey, notBefore, notAfter)
+	if err != nil {
+		return nil, err
+	}
+	svidParsed, err := x509.ParseCertificate(svidBytes)
+	if err != nil {
+		return nil, err
+	}
+	return []*x509.Certificate{svidParsed}, nil
+}
+
+func createTestSVIDBytes(svidKey crypto.PublicKey, ca *x509.Certificate, caKey crypto.Signer, notBefore, notAfter time.Time) ([]byte, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		NotBefore:    notBefore,
