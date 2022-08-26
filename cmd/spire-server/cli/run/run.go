@@ -82,10 +82,11 @@ type serverConfig struct {
 	LogFile         string             `hcl:"log_file"`
 	LogLevel        string             `hcl:"log_level"`
 	LogFormat       string             `hcl:"log_format"`
-	OmitX509SVIDUID *bool              `hcl:"omit_x509svid_uid"`
-	RateLimit       rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath      string             `hcl:"socket_path"`
-	TrustDomain     string             `hcl:"trust_domain"`
+	// Deprecated: remove in SPIRE 1.6.0
+	OmitX509SVIDUID *bool           `hcl:"omit_x509svid_uid"`
+	RateLimit       rateLimitConfig `hcl:"ratelimit"`
+	SocketPath      string          `hcl:"socket_path"`
+	TrustDomain     string          `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
