@@ -106,7 +106,15 @@ func TestRotator(t *testing.T) {
 			svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
 			clk := clock.NewMock(t)
 			log, hook := test.NewNullLogger()
-			mockClient := &fakeClient{clk: clk, caCert: caCert, caKey: caKey}
+			mockClient := &fakeClient{
+				clk:    clk,
+				caCert: caCert,
+				caKey:  caKey,
+			}
+
+			// Create the bundle
+			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
+			bundle[trustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
 
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
@@ -118,23 +126,18 @@ func TestRotator(t *testing.T) {
 			// at startup for the "expired at startup" tests
 			clk.Add(time.Second)
 
-			// Create the bundle
-			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
-			bundle[trustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
-
 			// Create the attestor
 			attestor := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{})
 
 			// Create the server
-			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-			agentService := &fakeAgentService{clk: clk, svidKM: svidKM, svidKey: svidKey, caCert: caCert, caKey: caKey}
-			agentv1.RegisterAgentServer(server, agentService)
-
-			listener, err := net.Listen("tcp", "localhost:0")
-			require.NoError(t, err)
-			t.Cleanup(func() { listener.Close() })
-
-			spiretest.ServeGRPCServerOnListener(t, server, listener)
+			mockAgentService := &fakeAgentService{
+				clk:     clk,
+				svidKM:  svidKM,
+				svidKey: svidKey,
+				caCert:  caCert,
+				caKey:   caKey,
+			}
+			listener := createTestListener(t, mockAgentService, tlsConfig)
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
@@ -237,7 +240,7 @@ func TestRotator(t *testing.T) {
 				assert.Equal(t, 1, mockClient.releaseCount)
 			}
 
-			assert.Equal(t, tt.reattest, agentService.attested)
+			assert.Equal(t, tt.reattest, mockAgentService.attested)
 		})
 	}
 }
@@ -338,15 +341,15 @@ func TestRotationFails(t *testing.T) {
 			attestor := fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{})
 
 			// Create the server
-			server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-			agentService := &fakeAgentService{clk: clk, svidKM: svidKM, svidKey: svidKey, caCert: caCert, caKey: caKey, reattestErr: tt.err}
-			agentv1.RegisterAgentServer(server, agentService)
-
-			listener, err := net.Listen("tcp", "localhost:0")
-			require.NoError(t, err)
-			t.Cleanup(func() { listener.Close() })
-
-			spiretest.ServeGRPCServerOnListener(t, server, listener)
+			mockAgentService := &fakeAgentService{
+				clk:         clk,
+				svidKM:      svidKM,
+				svidKey:     svidKey,
+				caCert:      caCert,
+				caKey:       caKey,
+				reattestErr: tt.err,
+			}
+			listener := createTestListener(t, mockAgentService, tlsConfig)
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
@@ -443,6 +446,7 @@ func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) e
 	}
 
 	n.attested = true
+
 	return stream.Send(&agentv1.AttestAgentResponse{
 		Step: &agentv1.AttestAgentResponse_Result_{
 			Result: &agentv1.AttestAgentResponse_Result{
@@ -454,6 +458,19 @@ func (n *fakeAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) e
 	})
 }
 
+func createTestListener(t *testing.T, agentService agentv1.AgentServer, tlsConfig *tls.Config) net.Listener {
+	server := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	agentv1.RegisterAgentServer(server, agentService)
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+
+	spiretest.ServeGRPCServerOnListener(t, server, listener)
+
+	return listener
+}
+
 func createTestSVID(svidKey crypto.PublicKey, ca *x509.Certificate, caKey crypto.Signer, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
 	svidBytes, err := createTestSVIDBytes(svidKey, ca, caKey, notBefore, notAfter)
 	if err != nil {
@@ -463,6 +480,7 @@ func createTestSVID(svidKey crypto.PublicKey, ca *x509.Certificate, caKey crypto
 	if err != nil {
 		return nil, err
 	}
+
 	return []*x509.Certificate{svidParsed}, nil
 }
 
@@ -473,5 +491,6 @@ func createTestSVIDBytes(svidKey crypto.PublicKey, ca *x509.Certificate, caKey c
 		NotAfter:     notAfter,
 		URIs:         []*url.URL{{Scheme: "spiffe", Host: trustDomain.String(), Path: "/spire/agent/test"}},
 	}
+
 	return x509.CreateCertificate(rand.Reader, tmpl, ca, svidKey, caKey)
 }
