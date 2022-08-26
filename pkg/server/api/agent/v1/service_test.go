@@ -1718,7 +1718,6 @@ func TestRenewAgent(t *testing.T) {
 		{
 			name: "no attested node",
 			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
@@ -1858,16 +1857,15 @@ func TestRenewAgent(t *testing.T) {
 			expectMsg:  "failed to sign X509 SVID: X509 CA is not available for signing",
 		},
 		{
-			name:       "failed to update attested node",
+			name:       "failed to fetch attested node",
 			createNode: cloneAttestedNode(defaultNode),
 			dsError: []error{
 				errors.New("some error"),
 			},
 			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to update agent",
+					Message: "Failed to fetch agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "some error",
 					},
@@ -1880,7 +1878,7 @@ func TestRenewAgent(t *testing.T) {
 						telemetry.Type:          "audit",
 						telemetry.Csr:           csrHash,
 						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to update agent: some error",
+						telemetry.StatusMessage: "failed to fetch agent: some error",
 					},
 				},
 			},
@@ -1890,7 +1888,7 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to update agent: some error",
+			expectMsg:  "failed to fetch agent: some error",
 		},
 	} {
 		tt := tt

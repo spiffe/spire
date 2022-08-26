@@ -23,15 +23,15 @@ var (
 type Storage interface {
 	// LoadSVID loads the SVID from storage. Returns ErrNotCached if the SVID
 	// does not exist in the cache.
-	LoadSVID() ([]*x509.Certificate, error)
+	LoadSVID() ([]*x509.Certificate, bool, error)
 
 	// StoreSVID stores the SVID.
-	StoreSVID(certs []*x509.Certificate) error
+	StoreSVID(certs []*x509.Certificate, reattestable bool) error
 
 	// DeleteSVID deletes the SVID.
 	DeleteSVID() error
 
-	// LoadBundle loads the SVID from storage. Returns ErrNotCached if the
+	// LoadBundle loads the bundle from storage. Returns ErrNotCached if the
 	// bundle does not exist in the cache.
 	LoadBundle() ([]*x509.Certificate, error)
 
@@ -117,17 +117,17 @@ func (s *storage) StoreBundle(bundle []*x509.Certificate) error {
 	return nil
 }
 
-func (s *storage) LoadSVID() ([]*x509.Certificate, error) {
+func (s *storage) LoadSVID() ([]*x509.Certificate, bool, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
 	if len(s.data.SVID) == 0 {
-		return nil, ErrNotCached
+		return nil, false, ErrNotCached
 	}
-	return s.data.SVID, nil
+	return s.data.SVID, s.data.Reattestable, nil
 }
 
-func (s *storage) StoreSVID(svid []*x509.Certificate) error {
+func (s *storage) StoreSVID(svid []*x509.Certificate, reattestable bool) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
@@ -137,6 +137,7 @@ func (s *storage) StoreSVID(svid []*x509.Certificate) error {
 
 	data := s.data
 	data.SVID = svid
+	data.Reattestable = reattestable
 
 	if err := storeData(s.dir, data); err != nil {
 		return err
@@ -156,6 +157,7 @@ func (s *storage) DeleteSVID() error {
 
 	data := s.data
 	data.SVID = nil
+	data.Reattestable = false
 	if err := storeData(s.dir, data); err != nil {
 		return err
 	}
@@ -187,13 +189,15 @@ func readFile(path string) ([]byte, time.Time, error) {
 }
 
 type storageJSON struct {
-	SVID   [][]byte `json:"svid"`
-	Bundle [][]byte `json:"bundle"`
+	SVID         [][]byte `json:"svid"`
+	Bundle       [][]byte `json:"bundle"`
+	Reattestable bool     `json:"reattestable"`
 }
 
 type storageData struct {
-	SVID   []*x509.Certificate
-	Bundle []*x509.Certificate
+	SVID         []*x509.Certificate
+	Bundle       []*x509.Certificate
+	Reattestable bool
 }
 
 func (d storageData) MarshalJSON() ([]byte, error) {
@@ -206,8 +210,9 @@ func (d storageData) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode bundle: %w", err)
 	}
 	return json.Marshal(storageJSON{
-		SVID:   svid,
-		Bundle: bundle,
+		SVID:         svid,
+		Bundle:       bundle,
+		Reattestable: d.Reattestable,
 	})
 }
 
@@ -227,6 +232,7 @@ func (d *storageData) UnmarshalJSON(b []byte) error {
 
 	d.SVID = svid
 	d.Bundle = bundle
+	d.Reattestable = j.Reattestable
 	return nil
 }
 
