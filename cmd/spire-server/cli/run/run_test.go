@@ -430,6 +430,21 @@ func TestMergeInput(t *testing.T) {
 }
 
 func TestNewServerConfig(t *testing.T) {
+	assertLogsContainEntries := func(expectedEntries []spiretest.LogEntry) func(t *testing.T) []log.Option {
+		return func(t *testing.T) []log.Option {
+			return []log.Option{
+				func(logger *log.Logger) error {
+					logger.SetOutput(io.Discard)
+					hook := test.NewLocal(logger.Logger)
+					t.Cleanup(func() {
+						spiretest.AssertLogsContainEntries(t, hook.AllEntries(), expectedEntries)
+					})
+					return nil
+				},
+			}
+		}
+	}
+
 	cases := []newServerConfigCase{
 		{
 			msg: "bind_address and bind_port should be correctly parsed",
@@ -831,25 +846,14 @@ func TestNewServerConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Server.TrustDomain = strings.Repeat("a", 256)
 			},
-			logOptions: func(t *testing.T) []log.Option {
-				return []log.Option{
-					func(logger *log.Logger) error {
-						logger.SetOutput(io.Discard)
-						hook := test.NewLocal(logger.Logger)
-						t.Cleanup(func() {
-							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
-								{
-									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
-									Level: logrus.WarnLevel,
-									Message: "Configured trust domain name should be less than 255 characters to be " +
-										"SPIFFE compliant; a longer trust domain name may impact interoperability",
-								},
-							})
-						})
-						return nil
-					},
-				}
-			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+					Level: logrus.WarnLevel,
+					Message: "Configured trust domain name should be less than 255 characters to be " +
+						"SPIFFE compliant; a longer trust domain name may impact interoperability",
+				},
+			}),
 			test: func(t *testing.T, c *server.Config) {
 				assert.NotNil(t, c)
 			},
@@ -916,6 +920,47 @@ func TestNewServerConfig(t *testing.T) {
 			expectError: true,
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "omit_x509svid_uid is unset",
+			input: func(c *Config) {
+				c.Server.OmitX509SVIDUID = nil
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.OmitX509SVIDUID)
+			},
+		},
+		{
+			msg: "omit_x509svid_uid is set to false",
+			input: func(c *Config) {
+				value := false
+				c.Server.OmitX509SVIDUID = &value
+			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "The omit_x509svid_uid flag is deprecated and will be removed from a future release",
+				},
+			}),
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.OmitX509SVIDUID)
+			},
+		},
+		{
+			msg: "omit_x509svid_uid is set to true",
+			input: func(c *Config) {
+				value := true
+				c.Server.OmitX509SVIDUID = &value
+			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "The omit_x509svid_uid flag is deprecated and will be removed from a future release",
+				},
+			}),
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.OmitX509SVIDUID)
 			},
 		},
 	}
