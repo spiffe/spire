@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -25,6 +26,8 @@ type RotatorConfig struct {
 	Metrics        telemetry.Metrics
 	TrustDomain    spiffeid.TrustDomain
 	ServerAddr     string
+	NodeAttestor   nodeattestor.NodeAttestor
+	Reattestable   bool
 
 	// Initial SVID and key
 	SVID    []*x509.Certificate
@@ -53,8 +56,9 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 	}
 
 	state := observer.NewProperty(State{
-		SVID: c.SVID,
-		Key:  c.SVIDKey,
+		SVID:         c.SVID,
+		Key:          c.SVIDKey,
+		Reattestable: c.Reattestable,
 	})
 
 	rotMtx := new(sync.RWMutex)
