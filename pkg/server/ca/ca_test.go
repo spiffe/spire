@@ -109,7 +109,7 @@ func (s *CATestSuite) TestSignX509SVID() {
 	}
 
 	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
-	s.Equal("OU=TestUnit,O=TestOrg,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531", svid.Subject.String())
+	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignX509SVIDCannotSignTrustDomainID() {
@@ -179,12 +179,12 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 	}{
 		{
 			name:     "empty subject",
-			expected: "OU=TestUnit,O=TestOrg,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
+			expected: "O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
 			subject:  pkix.Name{},
 		}, {
 			name:     "no subject but DNS",
 			dns:      dns,
-			expected: "CN=dns1,OU=TestUnit,O=TestOrg,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
+			expected: "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
 		}, {
 			name:     "subject provided",
 			expected: "CN=Common Name,O=ORG,C=EN+C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",

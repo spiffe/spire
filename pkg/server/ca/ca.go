@@ -296,24 +296,16 @@ func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams
 		return nil, err
 	}
 
-	switch {
-	// If the caller provided a subject, use it as the base subject.
-	case params.Subject.String() != "":
+	if params.Subject.String() != "" {
 		template.Subject = params.Subject
-	// Otherwise, if the new behavior has been disabled, then use the old
-	// subject value
-	case omitUID:
+	} else {
 		template.Subject = pkix.Name{
 			Country:      []string{"US"},
 			Organization: []string{"SPIRE"},
 		}
-	// Otherwise, use the CA subject (sans the common name) as a base.
-	default:
-		template.Subject = x509CA.Certificate.Subject
-		template.Subject.CommonName = ""
 	}
 
-	// Append the unique ID the the subject, unless disabled
+	// Append the unique ID to the subject, unless disabled
 	if !omitUID {
 		template.Subject.ExtraNames = append(template.Subject.ExtraNames, x509svid.UniqueIDAttribute(params.SpiffeID))
 	}
