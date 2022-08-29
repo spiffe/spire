@@ -539,6 +539,29 @@ func TestMintX509CA(t *testing.T) {
 			},
 		},
 		{
+			name: "Mint X509CA SVID against the legacy Vault(~ v1.10.x)",
+			csr:  csr.Raw,
+			config: &Configuration{
+				PKIMountPoint: "test-pki",
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
+				},
+			},
+			authMethod:              TOKEN,
+			expectX509CA:            []string{"spiffe://intermediate-vault", "spiffe://intermediate"},
+			expectedX509Authorities: []string{"spiffe://root"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testLegacySignIntermediateResponse)
+
+				return fakeServer
+			},
+		},
+		{
 			name:                    "Plugin is not configured",
 			csr:                     csr.Raw,
 			authMethod:              TOKEN,
