@@ -6,7 +6,7 @@ package common
 import (
 	"net"
 
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 )
 
 var (
@@ -20,5 +20,5 @@ var (
 )
 
 func GetAddr(addr net.Addr) string {
-	return util.GetPipeName(addr.String())
+	return namedpipe.GetPipeName(addr.String())
 }

@@ -62,12 +62,14 @@ func newContainerIDFinder(pattern string) (ContainerIDFinder, error) {
 // to describe how a container id should be extracted from a cgroup entry. The
 // given patterns MUST NOT be ambiguous and an error will be returned if multiple
 // patterns can match the same input. An example of invalid input:
-//     "/a/b/<id>"
-//     "/*/b/<id>"
+//
+// "/a/b/<id>"
+// "/*/b/<id>"
 //
 // Examples:
-//     "/docker/<id>"
-//     "/my.slice/*/<id>/*"
+//
+// "/docker/<id>"
+// "/my.slice/*/<id>/*"
 //
 // Note: The pattern provided is *not* a regular expression. It is a simplified matching
 // language that enforces a forward slash-delimited schema.

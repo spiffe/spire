@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -76,7 +77,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=SPIRE,C=US",
+			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -102,7 +103,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: customExpiresAt,
-			subject:   "O=SPIRE,C=US",
+			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
 			ttl:       10 * time.Second,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
@@ -131,7 +132,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=SPIRE,C=US",
+			subject:   "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -161,7 +162,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=ORG,C=EN+C=US",
+			subject:   "O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -193,7 +194,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=ORG,C=EN+C=US",
+			subject:   "CN=dns1,O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -1719,8 +1720,8 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				require.NotEmpty(t, certChain)
 				svid := certChain[0]
 
-				entryID := idutil.RequireIDFromProto(entry.SpiffeId)
-				require.Equal(t, []*url.URL{entryID.URL()}, svid.URIs)
+				entrySPIFFEID := idutil.RequireIDFromProto(entry.SpiffeId)
+				require.Equal(t, []*url.URL{entrySPIFFEID.URL()}, svid.URIs)
 
 				// Use entry ttl when defined
 				ttl := test.ca.X509SVIDTTL()
@@ -1734,14 +1735,16 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 
 				require.Equal(t, entry.DnsNames, svid.DNSNames)
 
-				expectedSubject := &pkix.Name{Country: []string{"US"}, Organization: []string{"SPIRE"}}
-				if len(entry.DnsNames) > 0 {
-					name := entry.DnsNames[0]
-
-					expectedSubject.CommonName = name
-					require.Equal(t, name, svid.Subject.CommonName)
+				expectedSubject := &pkix.Name{
+					Organization: []string{"SPIRE"},
+					Country:      []string{"US"},
+					Names: []pkix.AttributeTypeAndValue{
+						x509svid.UniqueIDAttribute(entrySPIFFEID),
+					},
 				}
-
+				if len(entry.DnsNames) > 0 {
+					expectedSubject.CommonName = entry.DnsNames[0]
+				}
 				require.Equal(t, expectedSubject.String(), svid.Subject.String())
 			}
 		})

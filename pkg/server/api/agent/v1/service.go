@@ -13,8 +13,11 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/errorutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
+	"github.com/spiffe/spire/pkg/common/selector"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -326,7 +329,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
 	}
 	// store augmented selectors
-	err = s.ds.SetNodeSelectors(ctx, agentID.String(), append(attestResult.Selectors, resolvedSelectors...))
+	err = s.ds.SetNodeSelectors(ctx, agentID.String(), selector.Dedupe(attestResult.Selectors, resolvedSelectors))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -356,7 +359,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// build and send response
-	response := getAttestAgentResponse(agentID, svid)
+	response := getAttestAgentResponse(agentID, svid, attestResult.CanReattest)
 
 	if p, ok := peer.FromContext(ctx); ok {
 		log = log.WithField(telemetry.Address, p.Addr.String())
@@ -385,6 +388,20 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+	}
+
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, callerID.String())
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
+	}
+
+	if attestedNode == nil {
+		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
+	}
+
+	// Agent attempted to renew when it should've been reattesting
+	if attestedNode.CanReattest && fflag.IsSet(fflag.FlagReattestToRenew) {
+		return nil, errorutil.PermissionDenied(types.PermissionDeniedDetails_AGENT_MUST_REATTEST, "agent can't renew SVID, must reattest")
 	}
 
 	log.Info("Renewing agent SVID")
@@ -658,7 +675,7 @@ func validateAttestAgentParams(params *agentv1.AttestAgentRequest_Params) error 
 	}
 }
 
-func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate) *agentv1.AttestAgentResponse {
+func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certificate, canReattest bool) *agentv1.AttestAgentResponse {
 	svid := &types.X509SVID{
 		Id:        api.ProtoFromID(spiffeID),
 		CertChain: x509util.RawCertsFromCertificates(certificates),
@@ -668,7 +685,8 @@ func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certifica
 	return &agentv1.AttestAgentResponse{
 		Step: &agentv1.AttestAgentResponse_Result_{
 			Result: &agentv1.AttestAgentResponse_Result{
-				Svid: svid,
+				Svid:         svid,
+				Reattestable: canReattest,
 			},
 		},
 	}

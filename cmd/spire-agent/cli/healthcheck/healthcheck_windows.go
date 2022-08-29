@@ -8,7 +8,7 @@ import (
 	"net"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 )
 
 // healthCheckCommandOS has windows specific implementation
@@ -22,5 +22,5 @@ func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *healthCheckCommandOS) getAddr() (net.Addr, error) {
-	return util.GetNamedPipeAddr(c.namedPipeName), nil
+	return namedpipe.AddrFromName(c.namedPipeName), nil
 }

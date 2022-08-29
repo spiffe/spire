@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -24,6 +25,7 @@ type Config struct {
 	SVID             []*x509.Certificate
 	SVIDKey          keymanager.Key
 	Bundle           *cache.Bundle
+	Reattestable     bool
 	Catalog          catalog.Catalog
 	TrustDomain      spiffeid.TrustDomain
 	Log              logrus.FieldLogger
@@ -35,6 +37,7 @@ type Config struct {
 	RotationInterval time.Duration
 	SVIDStoreCache   *storecache.Cache
 	SVIDCacheMaxSize int
+	NodeAttestor     nodeattestor.NodeAttestor
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -79,6 +82,8 @@ func newManager(c *Config) *manager {
 		TrustDomain:    c.TrustDomain,
 		Interval:       c.RotationInterval,
 		Clk:            c.Clk,
+		NodeAttestor:   c.NodeAttestor,
+		Reattestable:   c.Reattestable,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +72,7 @@ func newServerConfigCasesOS() []newServerConfigCase {
 				c.Server.Experimental.NamedPipeName = "\\foo"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, "\\foo", util.GetPipeName(c.BindLocalAddress.String()))
+				require.Equal(t, "\\foo", namedpipe.GetPipeName(c.BindLocalAddress.String()))
 				require.Equal(t, "pipe", c.BindLocalAddress.Network())
 			},
 		},

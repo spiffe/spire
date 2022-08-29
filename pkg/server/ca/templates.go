@@ -44,11 +44,6 @@ func CreateX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, tr
 		return nil, err
 	}
 
-	subject := pkix.Name{
-		Country:      []string{"US"},
-		Organization: []string{"SPIRE"},
-	}
-
 	keyID, err := x509util.GetSubjectKeyID(publicKey)
 	if err != nil {
 		return nil, err
@@ -56,7 +51,6 @@ func CreateX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, tr
 
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
-		Subject:      subject,
 		URIs:         []*url.URL{spiffeID.URL()},
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,

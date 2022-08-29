@@ -122,6 +122,8 @@ func (p *MSIResolverPlugin) Resolve(ctx context.Context, req *noderesolverv1.Res
 }
 
 func (p *MSIResolverPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	p.log.Warn("This plugin is deprecated and will be removed from a future release. Configure the azure_msi nodeattestor to resolve selectors instead.")
+
 	config := new(MSIResolverConfig)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)

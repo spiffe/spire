@@ -1718,7 +1718,6 @@ func TestRenewAgent(t *testing.T) {
 		{
 			name: "no attested node",
 			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent not found",
@@ -1858,16 +1857,15 @@ func TestRenewAgent(t *testing.T) {
 			expectMsg:  "failed to sign X509 SVID: X509 CA is not available for signing",
 		},
 		{
-			name:       "failed to update attested node",
+			name:       "failed to fetch attested node",
 			createNode: cloneAttestedNode(defaultNode),
 			dsError: []error{
 				errors.New("some error"),
 			},
 			expectLogs: []spiretest.LogEntry{
-				renewingMessage,
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to update agent",
+					Message: "Failed to fetch agent",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "some error",
 					},
@@ -1880,7 +1878,7 @@ func TestRenewAgent(t *testing.T) {
 						telemetry.Type:          "audit",
 						telemetry.Csr:           csrHash,
 						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to update agent: some error",
+						telemetry.StatusMessage: "failed to fetch agent: some error",
 					},
 				},
 			},
@@ -1890,7 +1888,7 @@ func TestRenewAgent(t *testing.T) {
 				},
 			},
 			expectCode: codes.Internal,
-			expectMsg:  "failed to update agent: some error",
+			expectMsg:  "failed to fetch agent: some error",
 		},
 	} {
 		tt := tt
@@ -2967,6 +2965,38 @@ func TestAttestAgent(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "duplicate selectors",
+			request:    getAttestAgentRequest("test_type", []byte("payload_selector_dups"), testCsr),
+			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_selector_dups"),
+			expectedSelectors: []*common.Selector{
+				{Type: "test_type", Value: "A"},
+				{Type: "test_type", Value: "B"},
+				{Type: "test_type", Value: "C"},
+				{Type: "test_type", Value: "D"},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_selector_dups",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_selector_dups",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -3118,12 +3148,14 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 			"payload_banned":                      "spiffe://example.org/spire/agent/test_type/id_banned",
 			"payload_return_server_id":            "spiffe://example.org/spire/server",
 			"payload_return_id_outside_namespace": "spiffe://example.org/id_outside_namespace",
+			"payload_selector_dups":               "spiffe://example.org/spire/agent/test_type/id_selector_dups",
 		},
 		Selectors: map[string][]string{
 			"spiffe://example.org/spire/agent/test_type/id_with_result":     {"result"},
 			"spiffe://example.org/spire/agent/test_type/id_attested_before": {"attested_before"},
 			"spiffe://example.org/spire/agent/test_type/id_with_challenge":  {"challenge"},
 			"spiffe://example.org/spire/agent/test_type/id_banned":          {"banned"},
+			"spiffe://example.org/spire/agent/test_type/id_selector_dups":   {"A", "B", "C"},
 		},
 		Challenges: map[string][]string{
 			"id_with_challenge": {"challenge_response"},
@@ -3138,6 +3170,7 @@ func (s *serviceTest) setupResolver(t *testing.T) {
 	selectors := map[string][]string{
 		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result").String():    {"resolved"},
 		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge").String(): {"resolved_too"},
+		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_selector_dups").String():  {"D", "C", "B"},
 	}
 
 	fakeNodeResolver := fakenoderesolver.New(t, "test_type", selectors)

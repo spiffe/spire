@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -202,8 +203,9 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		grpc.EnableTracing = true
 
 		server := http.Server{
-			Addr:    fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
-			Handler: http.DefaultServeMux,
+			Addr:              fmt.Sprintf("localhost:%d", s.config.ProfilingPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: time.Second * 10,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
@@ -262,12 +264,13 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 
 func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
-		Metrics:       metrics,
-		X509SVIDTTL:   s.config.SVIDTTL,
-		JWTIssuer:     s.config.JWTIssuer,
-		TrustDomain:   s.config.TrustDomain,
-		CASubject:     s.config.CASubject,
-		HealthChecker: healthChecker,
+		Metrics:         metrics,
+		X509SVIDTTL:     s.config.SVIDTTL,
+		JWTIssuer:       s.config.JWTIssuer,
+		TrustDomain:     s.config.TrustDomain,
+		CASubject:       s.config.CASubject,
+		HealthChecker:   healthChecker,
+		OmitX509SVIDUID: s.config.OmitX509SVIDUID,
 	})
 }
 

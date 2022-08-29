@@ -253,10 +253,6 @@ func TestListenAndServe(t *testing.T) {
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
 
-	t.Run("Access denied to remote caller", func(t *testing.T) {
-		testRemoteCaller(ctx, t, target)
-	})
-
 	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
 	require.NoError(t, err)
 	defer localConn.Close()
@@ -308,6 +304,10 @@ func TestListenAndServe(t *testing.T) {
 	})
 	t.Run("TrustDomain", func(t *testing.T) {
 		testTrustDomainAPI(ctx, t, localConn, noauthConn, agentConn, adminConn, downstreamConn)
+	})
+
+	t.Run("Access denied to remote caller", func(t *testing.T) {
+		testRemoteCaller(ctx, t, target)
 	})
 
 	// Assert that the bundle endpoint server was called to listen and serve

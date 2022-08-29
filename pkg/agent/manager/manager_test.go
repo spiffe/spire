@@ -147,17 +147,18 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 	sto := openStorage(t, dir)
 
 	c := &Config{
-		SVID:        baseSVID,
-		SVIDKey:     baseSVIDKey,
-		Log:         testLogger,
-		Metrics:     &telemetry.Blackhole{},
-		TrustDomain: trustDomain,
-		Storage:     sto,
-		Clk:         clk,
-		Catalog:     cat,
+		SVID:         baseSVID,
+		SVIDKey:      baseSVIDKey,
+		Reattestable: true,
+		Log:          testLogger,
+		Metrics:      &telemetry.Blackhole{},
+		TrustDomain:  trustDomain,
+		Storage:      sto,
+		Clk:          clk,
+		Catalog:      cat,
 	}
 
-	if _, err := sto.LoadSVID(); !errors.Is(err, storage.ErrNotCached) {
+	if _, _, err := sto.LoadSVID(); !errors.Is(err, storage.ErrNotCached) {
 		t.Fatalf("wanted: %v, got: %v", storage.ErrNotCached, err)
 	}
 
@@ -169,13 +170,14 @@ func TestStoreSVIDOnStartup(t *testing.T) {
 
 	// Although start failed, the SVID should have been saved, because it should be
 	// one of the first thing the manager does at initialization.
-	svid, err := sto.LoadSVID()
+	svid, reattestable, err := sto.LoadSVID()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !svidsEqual(svid, baseSVID) {
 		t.Fatal("SVID was not correctly stored.")
 	}
+	require.True(t, reattestable)
 }
 
 func TestHappyPathWithoutSyncNorRotation(t *testing.T) {

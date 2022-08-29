@@ -13,8 +13,8 @@ var (
 
 // NewSerialNumber creates a random certificate serial number according to CA/Browser forum spec
 // Section 7.1:
-//   "Effective September 30, 2016, CAs SHALL generate non-sequential Certificate serial numbers greater than
-//   zero (0) containing at least 64 bits of output from a CSPRNG"
+// "Effective September 30, 2016, CAs SHALL generate non-sequential Certificate serial numbers greater than
+// zero (0) containing at least 64 bits of output from a CSPRNG"
 func NewSerialNumber() (*big.Int, error) {
 	// Creates random integer in range [0,MaxUint128)
 	s, err := rand.Int(rand.Reader, maxUint128)

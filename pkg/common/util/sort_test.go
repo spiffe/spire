@@ -7,6 +7,7 @@ import (
 
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 func TestDedupRegistrationEntries(t *testing.T) {
@@ -98,7 +99,7 @@ func shuffleRegistrationEntries(rs []*common.RegistrationEntry) []*common.Regist
 }
 
 func assertRegistrationEntries(t *testing.T, actual, expected []*common.RegistrationEntry, msg string) {
-	if !reflect.DeepEqual(actual, expected) {
+	if !spiretest.AssertProtoListEqual(t, actual, expected) {
 		t.Logf("ACTUAL:")
 		for i, entry := range actual {
 			t.Logf("[%d] %v", i, entry)

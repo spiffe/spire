@@ -6,7 +6,7 @@ package healthcheck
 import (
 	"testing"
 
-	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc"
 )
@@ -26,5 +26,5 @@ var (
 )
 
 func startGRPCSocketServer(t *testing.T, registerFn func(srv *grpc.Server)) string {
-	return util.GetPipeName(spiretest.StartGRPCServer(t, registerFn).String())
+	return namedpipe.GetPipeName(spiretest.StartGRPCServer(t, registerFn).String())
 }

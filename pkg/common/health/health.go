@@ -77,8 +77,9 @@ func NewChecker(config Config, log logrus.FieldLogger) ServableChecker {
 		handler.HandleFunc(config.getLivePath(), c.liveHandler)
 
 		c.server = &http.Server{
-			Addr:    config.getAddress(),
-			Handler: handler,
+			Addr:              config.getAddress(),
+			Handler:           handler,
+			ReadHeaderTimeout: time.Second * 10,
 		}
 	}
 

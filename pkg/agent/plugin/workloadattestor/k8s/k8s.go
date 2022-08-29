@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -101,6 +100,12 @@ type HCLConfig struct {
 	// authentication with the kubelet. Must be used with CertificatePath.
 	PrivateKeyPath string `hcl:"private_key_path"`
 
+	// UseAnonymousAuthentication controls whether or not communication to the
+	// kubelet over the secure port is unauthenticated. This option is mutually
+	// exclusive with other authentication configuration fields TokenPath,
+	// CertificatePath, and PrivateKeyPath.
+	UseAnonymousAuthentication bool `hcl:"use_anonymous_authentication"`
+
 	// NodeNameEnv is the environment variable used to determine the node name
 	// for contacting the kubelet. It defaults to "MY_NODE_NAME". If the
 	// environment variable is not set, and NodeName is not specified, the
@@ -118,17 +123,18 @@ type HCLConfig struct {
 
 // k8sConfig holds the configuration distilled from HCL
 type k8sConfig struct {
-	Secure                  bool
-	Port                    int
-	MaxPollAttempts         int
-	PollRetryInterval       time.Duration
-	SkipKubeletVerification bool
-	TokenPath               string
-	CertificatePath         string
-	PrivateKeyPath          string
-	KubeletCAPath           string
-	NodeName                string
-	ReloadInterval          time.Duration
+	Secure                     bool
+	Port                       int
+	MaxPollAttempts            int
+	PollRetryInterval          time.Duration
+	SkipKubeletVerification    bool
+	TokenPath                  string
+	CertificatePath            string
+	PrivateKeyPath             string
+	UseAnonymousAuthentication bool
+	KubeletCAPath              string
+	NodeName                   string
+	ReloadInterval             time.Duration
 
 	Client     *kubeletClient
 	LastReload time.Time
@@ -195,20 +201,29 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, err
 		}
 
+		var attestResponse *workloadattestorv1.AttestResponse
 		for _, item := range list.Items {
 			item := item
 			if isNotPod(item.UID, podUID) {
 				continue
 			}
 
-			status, lookup := lookUpContainerInPod(containerID, item.Status)
+			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status, log)
 			switch lookup {
 			case containerInPod:
-				return &workloadattestorv1.AttestResponse{
-					SelectorValues: getSelectorValuesFromPodInfo(&item, status),
-				}, nil
+				if attestResponse != nil {
+					log.Warn("Two pods found with same container Id")
+					return nil, status.Error(codes.Internal, "two pods found with same container Id")
+				}
+				attestResponse = &workloadattestorv1.AttestResponse{
+					SelectorValues: getSelectorValuesFromPodInfo(&item, lookupStatus),
+				}
 			case containerNotInPod:
 			}
+		}
+
+		if attestResponse != nil {
+			return attestResponse, nil
 		}
 
 		// if the container was not located after the maximum number of attempts then the search is over.
@@ -294,17 +309,18 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	// Configure the kubelet client
 	c := &k8sConfig{
-		Secure:                  secure,
-		Port:                    port,
-		MaxPollAttempts:         maxPollAttempts,
-		PollRetryInterval:       pollRetryInterval,
-		SkipKubeletVerification: config.SkipKubeletVerification,
-		TokenPath:               config.TokenPath,
-		CertificatePath:         config.CertificatePath,
-		PrivateKeyPath:          config.PrivateKeyPath,
-		KubeletCAPath:           config.KubeletCAPath,
-		NodeName:                nodeName,
-		ReloadInterval:          reloadInterval,
+		Secure:                     secure,
+		Port:                       port,
+		MaxPollAttempts:            maxPollAttempts,
+		PollRetryInterval:          pollRetryInterval,
+		SkipKubeletVerification:    config.SkipKubeletVerification,
+		TokenPath:                  config.TokenPath,
+		CertificatePath:            config.CertificatePath,
+		PrivateKeyPath:             config.PrivateKeyPath,
+		UseAnonymousAuthentication: config.UseAnonymousAuthentication,
+		KubeletCAPath:              config.KubeletCAPath,
+		NodeName:                   nodeName,
+		ReloadInterval:             reloadInterval,
 	}
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
@@ -408,6 +424,8 @@ func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
 
 	var token string
 	switch {
+	case config.UseAnonymousAuthentication:
+	// Don't load credentials if using anonymous authentication
 	case config.CertificatePath != "" && config.PrivateKeyPath != "":
 		kp, err := p.loadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 		if err != nil {
@@ -547,7 +565,7 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.ContainerStatus, containerLookup) {
+func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog.Logger) (*corev1.ContainerStatus, containerLookup) {
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
 		// container id sufficient to know the container is not ready?
@@ -557,7 +575,9 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
+			log.With(telemetry.Error, err).
+				With(telemetry.ContainerID, status.ContainerID).
+				Error("Malformed container id")
 			continue
 		}
 
@@ -575,7 +595,9 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus) (*corev1.
 
 		containerURL, err := url.Parse(status.ContainerID)
 		if err != nil {
-			log.Printf("Malformed container id %q: %v", status.ContainerID, err)
+			log.With(telemetry.Error, err).
+				With(telemetry.ContainerID, status.ContainerID).
+				Error("Malformed container id")
 			continue
 		}
 

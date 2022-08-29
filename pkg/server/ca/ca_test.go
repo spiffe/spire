@@ -108,8 +108,8 @@ func (s *CATestSuite) TestSignX509SVID() {
 		s.Equal("spiffe://example.org/workload", svid.URIs[0].String())
 	}
 
-	// Subject is hard coded by the CA and should not be pulled from the CSR.
-	s.Equal("O=SPIRE,C=US", svid.Subject.String())
+	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
+	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignX509SVIDCannotSignTrustDomainID() {
@@ -179,20 +179,20 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 	}{
 		{
 			name:     "empty subject",
-			expected: "O=SPIRE,C=US",
+			expected: "O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
 			subject:  pkix.Name{},
 		}, {
 			name:     "no subject but DNS",
 			dns:      dns,
-			expected: "CN=dns1,O=SPIRE,C=US",
+			expected: "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
 		}, {
 			name:     "subject provided",
-			expected: "CN=Common Name,O=ORG,C=EN+C=US",
+			expected: "CN=Common Name,O=ORG,C=EN+C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
 			subject:  subject,
 		}, {
 			name:     "subject and dns",
 			dns:      dns,
-			expected: "CN=dns1,O=ORG,C=EN+C=US",
+			expected: "CN=dns1,O=ORG,C=EN+C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
 			subject:  subject,
 		},
 	}
@@ -334,7 +334,7 @@ func (s *CATestSuite) TestSignX509CASVID() {
 
 	// Subject is controlled exclusively by the CA and should not be pulled from
 	// the CSR. The DOWNSTREAM OU should be appended.
-	s.Equal("CN=CA,OU=DOWNSTREAM-1", svid.Subject.String())
+	s.Equal("CN=CA,OU=DOWNSTREAM-1,O=TestOrg", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
@@ -424,25 +424,61 @@ func (s *CATestSuite) createJWTSVIDParams(trustDomain spiffeid.TrustDomain, ttl 
 }
 
 func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *x509.Certificate {
+	return createCACertificate(s.T(), s.clock, cn, parent)
+}
+
+func TestOmitX509SVIDUID(t *testing.T) {
+	clk := clock.NewMock(t)
+	log, _ := test.NewNullLogger()
+
+	ca := NewCA(Config{
+		Log:         log,
+		Metrics:     telemetry.Blackhole{},
+		TrustDomain: trustDomainExample,
+		X509SVIDTTL: time.Minute,
+		Clock:       clk,
+		CASubject: pkix.Name{
+			CommonName: "TESTCA",
+		},
+		HealthChecker:   fakehealthchecker.New(),
+		OmitX509SVIDUID: true,
+	})
+	ca.SetX509CA(&X509CA{
+		Signer:      testSigner,
+		Certificate: createCACertificate(t, clk, "CA", nil),
+	})
+
+	certs, err := ca.SignX509SVID(context.Background(), X509SVIDParams{
+		SpiffeID:  spiffeid.RequireFromString("spiffe://example.org/workload"),
+		PublicKey: testSigner.Public(),
+	})
+	require.NoError(t, err)
+	require.Len(t, certs, 1)
+	require.Equal(t, "O=SPIRE,C=US", certs[0].Subject.String())
+}
+
+func createCACertificate(t *testing.T, clk clock.Clock, cn string, parent *x509.Certificate) *x509.Certificate {
 	keyID, err := x509util.GetSubjectKeyID(testSigner.Public())
-	s.Require().NoError(err)
+	require.NoError(t, err)
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(0),
 		Subject: pkix.Name{
-			CommonName: cn,
+			Organization:       []string{"TestOrg"},
+			OrganizationalUnit: []string{"TestUnit"},
+			CommonName:         cn,
 		},
 		IsCA:                  true,
 		BasicConstraintsValid: true,
-		NotAfter:              s.clock.Now().Add(10 * time.Minute),
+		NotAfter:              clk.Now().Add(10 * time.Minute),
 		SubjectKeyId:          keyID,
 	}
 	if parent == nil {
 		parent = template
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, testSigner.Public(), testSigner)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 	cert, err := x509.ParseCertificate(certDER)
-	s.Require().NoError(err)
+	require.NoError(t, err)
 	return cert
 }

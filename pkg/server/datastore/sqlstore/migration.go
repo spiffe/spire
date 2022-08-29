@@ -132,6 +132,10 @@ import (
 // | v1.3.1  |        |                                                                           |
 // |---------|--------|---------------------------------------------------------------------------|
 // | v1.3.2  | 19     | Added x509_svid_ttl and jwt_svid_ttl columns to entries                   |
+// |---------|        |                                                                           |
+// | v1.3.3  |        |                                                                           |
+// |*********|        |                                                                           |
+// | v1.4.0  |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -354,6 +358,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// break things if it isn't.
 	switch currVersion {
 	case 18:
+		// DEPRECATED: remove this migration in 1.5.0
 		err = migrateToV19(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)

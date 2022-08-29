@@ -143,7 +143,7 @@ type manager struct {
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
-	m.storeSVID(m.svid.State().SVID)
+	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
@@ -152,6 +152,10 @@ func (m *manager) Initialize(ctx context.Context) error {
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
 		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
+		m.deleteSVID()
+	}
+	if nodeutil.ShouldAgentShutdown(err) {
+		m.c.Log.WithError(err).Error("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
 	}
 	return err
@@ -173,6 +177,10 @@ func (m *manager) Run(ctx context.Context) error {
 		return nil
 	case nodeutil.ShouldAgentReattest(err):
 		m.c.Log.WithError(err).Warn("Agent needs to re-attest; removing SVID and shutting down")
+		m.deleteSVID()
+		return err
+	case nodeutil.ShouldAgentShutdown(err):
+		m.c.Log.WithError(err).Warn("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
 		return err
 	default:
@@ -269,6 +277,9 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			m.c.Log.WithError(err).Error("Synchronize failed")
 			return err
+		case nodeutil.ShouldAgentShutdown(err):
+			m.c.Log.WithError(err).Error("Synchronize failed")
+			return err
 		case err != nil:
 			// Just log the error and wait for next synchronization
 			m.c.Log.WithError(err).Error("Synchronize failed")
@@ -326,7 +337,7 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 			return nil
 		case <-svidStream.Changes():
 			s := svidStream.Next().(svid.State)
-			m.storeSVID(s.SVID)
+			m.storeSVID(s.SVID, s.Reattestable)
 		}
 	}
 }
@@ -344,8 +355,8 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 	}
 }
 
-func (m *manager) storeSVID(svidChain []*x509.Certificate) {
-	if err := m.storage.StoreSVID(svidChain); err != nil {
+func (m *manager) storeSVID(svidChain []*x509.Certificate, reattestable bool) {
+	if err := m.storage.StoreSVID(svidChain, reattestable); err != nil {
 		m.c.Log.WithError(err).Warn("Could not store SVID")
 	}
 }

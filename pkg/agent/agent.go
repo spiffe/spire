@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof" //nolint: gosec // import registers routes on DefaultServeMux
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
@@ -17,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
 	"github.com/spiffe/spire/pkg/common/diskutil"
@@ -81,14 +83,19 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
 
-	as, err := a.attest(ctx, sto, cat, metrics)
+	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
+	if a.c.JoinToken == "" {
+		nodeAttestor = cat.GetNodeAttestor()
+	}
+
+	as, err := a.attest(ctx, sto, cat, metrics, nodeAttestor)
 	if err != nil {
 		return err
 	}
 
 	svidStoreCache := a.newSVIDStoreCache()
 
-	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache)
+	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
 	}
@@ -141,8 +148,9 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		grpc.EnableTracing = true
 
 		server := http.Server{
-			Addr:    fmt.Sprintf("localhost:%d", a.c.ProfilingPort),
-			Handler: http.DefaultServeMux,
+			Addr:              fmt.Sprintf("localhost:%d", a.c.ProfilingPort),
+			Handler:           http.DefaultServeMux,
+			ReadHeaderTimeout: time.Second * 10,
 		}
 
 		// kick off a goroutine to serve the pprof endpoints and one to
@@ -186,7 +194,7 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
 		Catalog:           cat,
 		Metrics:           metrics,
@@ -197,11 +205,12 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 		Storage:           sto,
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:     a.c.ServerAddress,
+		NodeAttestor:      na,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
 
-func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache) (manager.Manager, error) {
+func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache, na nodeattestor.NodeAttestor) (manager.Manager, error) {
 	config := &manager.Config{
 		SVID:             as.SVID,
 		SVIDKey:          as.Key,
@@ -216,6 +225,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		SyncInterval:     a.c.SyncInterval,
 		SVIDCacheMaxSize: a.c.X509SVIDCacheMaxSize,
 		SVIDStoreCache:   cache,
+		NodeAttestor:     na,
 	}
 
 	mgr := manager.New(config)

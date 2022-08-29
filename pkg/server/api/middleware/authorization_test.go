@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"testing"
 
+	legacyProto "github.com/golang/protobuf/proto" // nolint:staticcheck // deprecated library needed until WithDetails can take v2
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -110,6 +111,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		authorizerErr   error
 		expectCode      codes.Code
 		expectMsg       string
+		expectDetails   []*types.PermissionDeniedDetails
 	}{
 		{
 			name:       "basic allow test",
@@ -219,6 +221,31 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			expectMsg:       fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
 		},
 		{
+			name:       "allow_if_agent non-agent caller test with details",
+			fullMethod: fakeFullMethod,
+			peer:       mtlsPeer,
+			rego: simpleRego(map[string]bool{
+				"allow_if_agent": true,
+			}),
+			agentAuthorizer: &testAgentAuthorizer{
+				isAgent: false,
+				details: []legacyProto.Message{
+					&types.PermissionDeniedDetails{
+						Reason: types.PermissionDeniedDetails_AGENT_BANNED,
+					},
+					// Add a custom details that will be ignored
+					&types.Bundle{TrustDomain: "td.com"},
+				},
+			},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  fmt.Sprintf("authorization denied for method %s", fakeFullMethod),
+			expectDetails: []*types.PermissionDeniedDetails{
+				{
+					Reason: types.PermissionDeniedDetails_AGENT_BANNED,
+				},
+			},
+		},
+		{
 			name:       "check passing of caller id positive test",
 			fullMethod: fakeFullMethod,
 			peer:       mtlsPeer,
@@ -302,6 +329,24 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			ctxOut, err := m.Preprocess(ctxIn, tt.fullMethod, tt.request)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 
+			// Get Status to validate details
+			st, ok := status.FromError(err)
+			require.True(t, ok)
+
+			var statusDetails []*types.PermissionDeniedDetails
+			for _, eachDetail := range st.Details() {
+				message, ok := eachDetail.(*types.PermissionDeniedDetails)
+				require.True(t, ok, "unexpected status detail type: %T", message)
+				statusDetails = append(statusDetails, message)
+			}
+
+			switch {
+			case len(tt.expectDetails) > 0:
+				spiretest.RequireProtoListEqual(t, tt.expectDetails, statusDetails)
+			case len(statusDetails) > 0:
+				require.Fail(t, "no status details expected")
+			}
+
 			// Assert the properties of the context returned by Preprocess.
 			if tt.expectCode != codes.OK {
 				assert.Nil(t, ctxOut, "returned context should have not been set on preprocess failure")
@@ -377,13 +422,23 @@ var (
 
 type testAgentAuthorizer struct {
 	isAgent bool
+	details []legacyProto.Message
 }
 
 func (a *testAgentAuthorizer) AuthorizeAgent(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 	if a.isAgent {
 		return nil
 	}
-	return status.Error(codes.PermissionDenied, "not agent")
+	st := status.New(codes.PermissionDenied, "not agent")
+	if a.details != nil {
+		var err error
+		st, err = st.WithDetails(a.details...)
+		if err != nil {
+			return err
+		}
+	}
+
+	return st.Err()
 }
 
 func simpleRego(m map[string]bool) string {

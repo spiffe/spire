@@ -124,7 +124,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.46.0
+golangci_lint_version = v1.48.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
@@ -168,8 +168,7 @@ protos := \
 api-protos := \
 
 plugin-protos := \
-	proto/spire/common/plugin/plugin.proto \
-	proto/spire/plugin/agent/svidstore/v1unofficial/svidstore.proto \
+	proto/spire/common/plugin/plugin.proto 
 
 service-protos := \
 

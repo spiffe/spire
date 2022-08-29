@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -62,8 +63,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	tlsConfig.MinVersion = tls.VersionTLS12
 
 	server := &http.Server{
-		Handler:   http.HandlerFunc(s.serveHTTP),
-		TLSConfig: tlsConfig,
+		Handler:           http.HandlerFunc(s.serveHTTP),
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: time.Second * 10,
 	}
 
 	errCh := make(chan error, 1)
