@@ -103,7 +103,7 @@ type manager struct {
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
-	m.storeSVID(m.svid.State().SVID)
+	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
 	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
@@ -276,7 +276,7 @@ func (m *manager) runSVIDObserver(ctx context.Context) error {
 			return nil
 		case <-svidStream.Changes():
 			s := svidStream.Next().(svid.State)
-			m.storeSVID(s.SVID)
+			m.storeSVID(s.SVID, s.Reattestable)
 		}
 	}
 }
@@ -294,8 +294,8 @@ func (m *manager) runBundleObserver(ctx context.Context) error {
 	}
 }
 
-func (m *manager) storeSVID(svidChain []*x509.Certificate) {
-	if err := m.storage.StoreSVID(svidChain); err != nil {
+func (m *manager) storeSVID(svidChain []*x509.Certificate, reattestable bool) {
+	if err := m.storage.StoreSVID(svidChain, reattestable); err != nil {
 		m.c.Log.WithError(err).Warn("Could not store SVID")
 	}
 }
