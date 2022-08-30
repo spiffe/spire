@@ -129,7 +129,7 @@ func (s *ManagerSuite) TestPersistenceFailsIfJournalLost() {
 	x509CA, jwtKey := s.currentX509CA(), s.currentJWTKey()
 
 	// wipe the journal, reinitialize, and make sure the keys differ. this
-	// simulates the the key manager having dangling keys.
+	// simulates the key manager having dangling keys.
 	s.wipeJournal()
 	s.initSelfSignedManager()
 	s.requireX509CANotEqual(x509CA, s.currentX509CA())

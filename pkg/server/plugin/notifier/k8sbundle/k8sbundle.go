@@ -573,7 +573,7 @@ func (c mutatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Obje
 	}
 	patch.Webhooks = make([]admissionv1.MutatingWebhook, len(mutatingWebhook.Webhooks))
 
-	// Step through all the the webhooks in the MutatingWebhookConfiguration
+	// Step through all the webhooks in the MutatingWebhookConfiguration
 	for i := range patch.Webhooks {
 		patch.Webhooks[i].AdmissionReviewVersions = mutatingWebhook.Webhooks[i].AdmissionReviewVersions
 		patch.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
@@ -644,7 +644,7 @@ func (c validatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Ob
 	}
 	patch.Webhooks = make([]admissionv1.ValidatingWebhook, len(validatingWebhook.Webhooks))
 
-	// Step through all the the webhooks in the ValidatingWebhookConfiguration
+	// Step through all the webhooks in the ValidatingWebhookConfiguration
 	for i := range patch.Webhooks {
 		patch.Webhooks[i].AdmissionReviewVersions = validatingWebhook.Webhooks[i].AdmissionReviewVersions
 		patch.Webhooks[i].ClientConfig.CABundle = []byte(bundleData(resp.Bundle))
