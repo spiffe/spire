@@ -25,7 +25,7 @@ type Constraints struct {
 	// zero, there is no lower bound (i.e. the plugin type is optional).
 	Min int
 
-	// Max is the the maximum number of plugins required of a specific type. If
+	// Max is the maximum number of plugins required of a specific type. If
 	// zero, there is no upper bound.
 	Max int
 }

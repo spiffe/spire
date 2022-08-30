@@ -7,7 +7,7 @@ This enables auto and manual generation of SPIFFE IDs from with Kubenretes and t
 
 There are mutiple modes of the Kubernetes Workload Registrar. The benefits of the CRD mode when compared to other modes are:
 
-* **`kubectl` integration**: Using a CRD, SPIRE is fully intergrated with Kubernetes. You can view and create SPIFFE IDs directly using `kubectl`, without having to shell into the the SPIRE server.
+* **`kubectl` integration**: Using a CRD, SPIRE is fully intergrated with Kubernetes. You can view and create SPIFFE IDs directly using `kubectl`, without having to shell into the SPIRE server.
 * **Fully event-driven design**: Using the Kubernetes CRD system, the CRD mode Kubernetes Workload Registrar is fully event-driven to minimze resource usage.
 * **Standards-based solution**: CRDs are the standard way to extend Kubernetes, with many resources online, such as [kubebuilder](https://book.kubebuilder.io/), discussing the approach. The CRD Kubernetes Worklaod Registrar follows all standards and best practices to ensure it is maintainable.
 
@@ -424,7 +424,7 @@ Entries can be created manually and automatically. For automatic generation, ent
 
 ### Finalizers
 
-[Finalizers](https://book.kubebuilder.io/reference/using-finalizers.html) are added to all SpiffeID resources, manual or automatically created. This ensures that entries on the SPIRE Server are properly cleaned up when a SpiffeID resource is deleted by blocking deletion of the resource until the SPIRE Server entry is first deleted. This important for the scenario where the the Kubernetes Workload Registrar is down when a SpiffeID resource is deleted.
+[Finalizers](https://book.kubebuilder.io/reference/using-finalizers.html) are added to all SpiffeID resources, manual or automatically created. This ensures that entries on the SPIRE Server are properly cleaned up when a SpiffeID resource is deleted by blocking deletion of the resource until the SPIRE Server entry is first deleted. This important for the scenario where the Kubernetes Workload Registrar is down when a SpiffeID resource is deleted.
 
 This has the potential side effect of blocking deletion of a namespace until all the SpiffeID resources in that namespace are first deleted.
 
