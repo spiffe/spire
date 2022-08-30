@@ -101,11 +101,11 @@ type Client struct {
 // SignCSRResponse includes certificates which are generates by Vault
 type SignCSRResponse struct {
 	// A certificate requested to sign
-	CertPEM string
-	// A certificate of CA(Vault)
 	CACertPEM string
+	// A certificate of CA(Vault)
+	UpstreamCACertPEM string
 	// Set of Upstream CA certificates
-	CACertChainPEM []string
+	UpstreamCACertChainPEM []string
 }
 
 // NewClientConfig returns a new *ClientConfig with default parameters.
@@ -374,7 +374,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected certificate data type %T but got %T", cert, certData)
 	}
-	resp.CertPEM = cert
+	resp.CACertPEM = cert
 
 	caCertData, ok := s.Data["issuing_ca"]
 	if !ok {
@@ -384,7 +384,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected issuing_ca data type %T but got %T", caCert, caCertData)
 	}
-	resp.CACertPEM = caCert
+	resp.UpstreamCACertPEM = caCert
 
 	if caChainData, ok := s.Data["ca_chain"]; !ok {
 		// empty is general use case when Vault is Root CA.
@@ -401,7 +401,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 			}
 			caChainCerts = append(caChainCerts, caChainCert)
 		}
-		resp.CACertChainPEM = caChainCerts
+		resp.UpstreamCACertChainPEM = caChainCerts
 	}
 
 	return resp, nil

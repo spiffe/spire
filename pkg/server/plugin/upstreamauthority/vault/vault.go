@@ -211,10 +211,10 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 
 	// Parse CACert in PEM format
 	var upstreamRootPEM string
-	if len(signResp.CACertChainPEM) == 0 {
-		upstreamRootPEM = signResp.CACertPEM
+	if len(signResp.UpstreamCACertChainPEM) == 0 {
+		upstreamRootPEM = signResp.UpstreamCACertPEM
 	} else {
-		upstreamRootPEM = signResp.CACertChainPEM[len(signResp.CACertChainPEM)-1]
+		upstreamRootPEM = signResp.UpstreamCACertChainPEM[len(signResp.UpstreamCACertChainPEM)-1]
 	}
 	upstreamRoot, err := pemutil.ParseCertificate([]byte(upstreamRootPEM))
 	if err != nil {
@@ -227,13 +227,18 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	}
 
 	// Parse PEM format data to get DER format data
-	certificate, err := pemutil.ParseCertificate([]byte(signResp.CertPEM))
+	certificate, err := pemutil.ParseCertificate([]byte(signResp.CACertPEM))
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to parse certificate: %v", err)
 	}
 	certChain := []*x509.Certificate{certificate}
-	for _, c := range signResp.CACertChainPEM {
+	for _, c := range signResp.UpstreamCACertChainPEM {
 		if c == upstreamRootPEM {
+			continue
+		}
+		// Since Vault v1.11.0, the signed CA certificate appears within the ca_chain
+		// https://github.com/hashicorp/vault/blob/v1.11.0/changelog/15524.txt
+		if c == signResp.CACertPEM {
 			continue
 		}
 
