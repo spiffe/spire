@@ -118,20 +118,17 @@ func (s *sigstoreImpl) SetLogger(logger hclog.Logger) {
 func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
 	ref, err := name.ParseReference(imageName)
 	if err != nil {
-		message := fmt.Errorf("error parsing image reference: %w", err)
-		return nil, message
+		return nil, fmt.Errorf("error parsing image reference: %w", err)
 	}
 
 	if _, err := s.ValidateImage(ref); err != nil {
-		message := fmt.Errorf("could not validate image reference digest: %w", err)
-		return nil, message
+		return nil, fmt.Errorf("could not validate image reference digest: %w", err)
 	}
 
 	co := s.checkOptsFunction(s.rekorURL)
 	sigs, ok, err := s.verifyFunction(ctx, ref, co)
 	if err != nil {
-		message := fmt.Errorf("error verifying signature: %w", err)
-		return nil, message
+		return nil, fmt.Errorf("error verifying signature: %w", err)
 	}
 	if !ok {
 		return nil, fmt.Errorf("bundle not verified for %q", imageName)
@@ -161,28 +158,25 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 // SelectorValuesFromSignature extracts selectors from a signature.
 // returns a list of selectors.
 func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) *SelectorsFromSignatures {
-	var selectorsFromSignatures *SelectorsFromSignatures
 	subject, err := getSignatureSubject(signature)
-
 	if err != nil {
 		s.logger.Error("Error getting signature subject", "error", err)
-		return selectorsFromSignatures
+		return nil
 	}
 
 	if subject == "" {
-		s.logger.Error("Error getting signature subject:", "error", errors.New("empty subject"))
-		return selectorsFromSignatures
+		s.logger.Error("Error getting signature subject", "error", errors.New("empty subject"))
+		return nil
 	}
 
 	if s.allowListEnabled {
 		if _, ok := s.subjectAllowList[subject]; !ok {
-			s.logger.Info("Subject not in allow-list", "subject", subject)
-			return selectorsFromSignatures
+			s.logger.Debug("Subject not in allow-list", "subject", subject)
+			return nil
 		}
 	}
 
-	selectorsFromSignatures = &SelectorsFromSignatures{}
-	selectorsFromSignatures.Subject = subject
+	selectorsFromSignatures := &SelectorsFromSignatures{Subject: subject}
 
 	bundle, err := signature.Bundle()
 	if err != nil {
@@ -192,9 +186,9 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 	sigContent, err := getBundleSignatureContent(bundle)
 	if err != nil {
 		s.logger.Error("Error getting signature content", "error", err)
-	} else {
-		selectorsFromSignatures.Content = sigContent
 	}
+	selectorsFromSignatures.Content = sigContent
+
 	if bundle.Payload.LogID != "" {
 		selectorsFromSignatures.LogID = bundle.Payload.LogID
 	}
@@ -208,7 +202,7 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 // If the image ID is found in the skip list, it returns true.
 // If the image ID is not found in the skip list, it returns false.
 func (s *sigstoreImpl) ShouldSkipImage(imageID string) (bool, error) {
-	if s.skippedImages == nil {
+	if len(s.skippedImages) == 0 {
 		return false, nil
 	}
 	if imageID == "" {
@@ -237,7 +231,7 @@ func (s *sigstoreImpl) ClearSkipList() {
 func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
 	dgst, ok := ref.(name.Digest)
 	if !ok {
-		return false, fmt.Errorf("reference %s is not a digest", ref.String())
+		return false, fmt.Errorf("reference %T is not a digest", ref)
 	}
 	desc, err := s.fetchImageManifestFunction(dgst)
 	if err != nil {
@@ -318,10 +312,10 @@ func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 		return fmt.Errorf("failed parsing rekor URI: %w", err)
 	}
 	if rekorURI.Scheme != "" && rekorURI.Scheme != "https" {
-		return fmt.Errorf("invalid rekor URL Scheme: %s", rekorURI.Scheme)
+		return fmt.Errorf("invalid rekor URL Scheme %q", rekorURI.Scheme)
 	}
 	if rekorURI.Host == "" {
-		return fmt.Errorf("invalid rekor URL Host: %s", rekorURI.Host)
+		return fmt.Errorf("host is required on rekor URL")
 	}
 	s.rekorURL = *rekorURI
 	return nil
@@ -336,8 +330,7 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = json.Unmarshal(pl, &ss)
-	if err != nil {
+	if err := json.Unmarshal(pl, &ss); err != nil {
 		return "", err
 	}
 	cert, err := signature.Cert()
@@ -345,22 +338,18 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 		return "", fmt.Errorf("failed to access signature certificate: %w", err)
 	}
 
-	subject := ""
 	if cert != nil {
-		subject = certSubject(cert)
-		return subject, nil
+		return certSubject(cert), nil
 	}
 	if len(ss.Optional) > 0 {
-		subjString, ok := ss.Optional["subject"]
-		if ok {
-			subj, ok := subjString.(string)
-			if ok {
-				subject = subj
+		if subjString, ok := ss.Optional["subject"]; ok {
+			if subj, ok := subjString.(string); ok {
+				return subj, nil
 			}
 		}
 	}
 
-	return subject, nil
+	return "", errors.New("no subject found in signature")
 }
 
 func getBundleSignatureContent(bundle *bundle.RekorBundle) (string, error) {
