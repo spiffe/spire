@@ -243,7 +243,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			switch lookup {
 			case containerInPod:
 				selectors := getSelectorValuesFromPodInfo(&item, status)
-				if p.config.EnableSigstore {
+				if p.config.sigstoreConfig != nil {
 					log.Debug("Attemping to get signature info for container", telemetry.ContainerName, status.Name)
 					sigstoreSelectors, err := p.sigstore.AttestContainerSignatures(ctx, status)
 					if err != nil {
