@@ -61,15 +61,15 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 | Sigstore options | Description |
 | ------------- | ----------- |
-| `skip_signature_verification_image_list`| The list of images, described as digest hashes, that should be skipped in signature verification. |
-| `enable_allowed_subjects_list`| Enables a list of allowed subjects that are trusted and are allowed to sign container images artificats.|
-| `allowed_subjects_list`| The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. |
-| `rekor_url` | The URL for the rekor STL Server to use with cosign.  |
+| `skip_signature_verification_image_list`| The list of images, described as digest hashes, that should be skipped in signature verification. Defaults to empty list. |
+| `enable_allowed_subjects_list`| Enables a list of allowed subjects that are trusted and are allowed to sign container images artificats. Defaults to 'false'. If true and `allowed_subjects_list` is empty, no workload will pass signature validation. |
+| `allowed_subjects_list`| The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. Defaults to empty list. |
+| `rekor_url` | The URL for the rekor STL Server to use with cosign. Defaults to 'rekor.sigstore.dev', Rekor's public instance. |
 
 
 ### Sigstore workload attestor for SPIRE
 
-The k8s workload attestor plugins has also capabilities to validate images signatures through [sigstore](https://www.sigstore.dev/)
+The k8s workload attestor plugin also has capabilities to validate images signatures through [sigstore](https://www.sigstore.dev/)
 
 Cosign supports container signing, verification, and storage in an OCI registry. Cosign aims to make signatures invisible infrastructure. For this, we’ve chosen the Sigstore ecosystem and artifacts. Digging deeper, we are using: Rekor (signature transparency log), Fulcio (signing certificate issuer and certificate transparency log) and Cosign (container image signing tool) to guarantee the authenticity of the running workload.
 
@@ -99,10 +99,10 @@ Sigstore enabled selectors (available when configured to use sigstore)
 
 | Selector | Value |
 | -------- | ----- |
-| k8s:containerID:image-signature-content | The value of the signature itself in a hash (eg. "k8s:000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=")|
-| k8s:containerID:image-signature-subject | OIDC principal that signed it​ (eg. "k8s:000000:image-signature-subject:spirex@example.com")|
-| k8s:containerID:image-signature-logid | A unique LogID for the Rekor transparency log​ (eg. "k8s:000000:image-signature-logid:samplelogID") |
-| k8s:containerID:image-signature-integrated-time | The date when the image signature was integrated into the signature transparency log​ (eg. "k8s:000000:image-signature-integrated-time:12345") |
+| k8s:${containerID}:image-signature-content | The value of the signature itself in a hash (eg. "k8s:000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=")|
+| k8s:${containerID}:image-signature-subject | OIDC principal that signed it​ (eg. "k8s:000000:image-signature-subject:spirex@example.com")|
+| k8s:${containerID}:image-signature-logid | A unique LogID for the Rekor transparency log​ (eg. "k8s:000000:image-signature-logid:samplelogID") |
+| k8s:${containerID}:image-signature-integrated-time | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log​ (eg. "k8s:000000:image-signature-integrated-time:12345") |
 | k8s:sigstore-validation   | The confirmation if the signature is valid, has value of "passed" (eg. "k8s:sigstore-validation:passed") |
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of 
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod, 

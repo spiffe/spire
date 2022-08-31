@@ -61,9 +61,9 @@ Another use case is SPIFFE interoperability between organizations, such as betwe
 
 These multiple trust domain and interoperability use cases both require a well-defined, interoperable method for a Workload in one trust domain to authenticate a Workload in a different trust domain. Trust between the different trust domains is established by first authenticating the respective bundle endpoint, followed by retrieval of the foreign trust domain bundle via the authenticated endpoint.
 
-For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE_Trust_Domain_and_Bundle.md#5-spiffe-bundle-endpoint
+For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#5-spiffe-bundle-endpoint
 
-For a tutorial on configuring Federated SPIRE, refer to: https://github.com/spiffe/spire-tutorials/tree/master/docker-compose/federation
+For a tutorial on configuring Federated SPIRE, refer to: https://github.com/spiffe/spire-tutorials/tree/main/docker-compose/federation
 
 # Interaction with External Systems
 
@@ -84,7 +84,7 @@ SPIRE has a feature to programmatically authenticate on behalf of identified wor
 The SPIRE OIDC Discovery Provider retrieves a WebPKI certificate using the ACME protocol, which it uses to secure an endpoint that serves an OIDC compatible JWKS bundle and a standard OIDC discovery document. The remote OIDC authenticated service needs then to be configured to locate the endpoint and qualify the WebPKI service.   Once this configuration is in place, the remote system’s IAM policies and roles can be set to map to specific SPIFFE IDs.  The workload, in turn, will talk to the OIDC-authenticated system by sending a JWT-SVID.  The target system then fetches a JWKS from the pre-defined URI which is served by the OIDC Discovery Provider.  The target system uses the JWKS file to validate the  JWT-SVID, and if the SPIFFE ID contained within the JWT-SVID is authorized to access the requested resource, it serves the request.  The workload is then able to access the foreign remote service without possessing any credentials provided by it.
 
 For a configuration reference on the OIDC Discovery Provider, see:
-https://github.com/spiffe/spire/tree/master/support/oidc-discovery-provider
+https://github.com/spiffe/spire/tree/main/support/oidc-discovery-provider
 
 For a detailed tutorial on configuring OIDC Federation to Amazon Web Services, refer to: https://spiffe.io/spire/try/oidc-federation-aws/
 
