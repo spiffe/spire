@@ -695,6 +695,11 @@ func TestMatchingRegistrationEntries(t *testing.T) {
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
+
+	// check empty result
+	assert.Equal(t, []*common.RegistrationEntry{},
+		cache.MatchingRegistrationEntries(makeSelectors("A", "B")))
+
 	updateEntries := &UpdateEntries{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),

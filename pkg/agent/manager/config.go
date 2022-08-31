@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	managerCache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -24,7 +24,7 @@ type Config struct {
 	// Agent SVID and key resulting from successful attestation.
 	SVID             []*x509.Certificate
 	SVIDKey          keymanager.Key
-	Bundle           *cache.Bundle
+	Bundle           *managerCache.Bundle
 	Reattestable     bool
 	Catalog          catalog.Catalog
 	TrustDomain      spiffeid.TrustDomain
@@ -61,13 +61,13 @@ func newManager(c *Config) *manager {
 		c.Clk = clock.New()
 	}
 
-	var x509SVIDCache Cache
+	var cache Cache
 	if c.SVIDCacheMaxSize > 0 {
 		// use LRU cache implementation
-		x509SVIDCache = cache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+		cache = managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
 			c.Metrics, c.SVIDCacheMaxSize, c.Clk)
 	} else {
-		x509SVIDCache = cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+		cache = managerCache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
 			c.Metrics)
 	}
 
@@ -77,7 +77,7 @@ func newManager(c *Config) *manager {
 		Metrics:        c.Metrics,
 		SVID:           c.SVID,
 		SVIDKey:        c.SVIDKey,
-		BundleStream:   x509SVIDCache.SubscribeToBundleChanges(),
+		BundleStream:   cache.SubscribeToBundleChanges(),
 		ServerAddr:     c.ServerAddr,
 		TrustDomain:    c.TrustDomain,
 		Interval:       c.RotationInterval,
@@ -88,7 +88,7 @@ func newManager(c *Config) *manager {
 	svidRotator, client := svid.NewRotator(rotCfg)
 
 	m := &manager{
-		cache:          x509SVIDCache,
+		cache:          cache,
 		c:              c,
 		mtx:            new(sync.RWMutex),
 		svid:           svidRotator,

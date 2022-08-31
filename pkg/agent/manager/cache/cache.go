@@ -449,10 +449,6 @@ func (c *Cache) MatchingRegistrationEntries(selectors []*common.Selector) []*com
 	records, recordsDone := c.getRecordsForSelectors(set)
 	defer recordsDone()
 
-	if len(records) == 0 {
-		return nil
-	}
-
 	// Return identities in ascending "entry id" order to maintain a consistent
 	// ordering.
 	// TODO: figure out how to determine the "default" identity

@@ -915,12 +915,6 @@ func newSelectorsMapIndex() *selectorsMapIndex {
 	}
 }
 
-func sortEntriesByID(entries []*common.RegistrationEntry) {
-	sort.Slice(entries, func(a, b int) bool {
-		return entries[a].EntryId < entries[b].EntryId
-	})
-}
-
 func sortByTimestamps(records []recordAccessEvent) {
 	sort.Slice(records, func(a, b int) bool {
 		return records[a].timestamp < records[b].timestamp

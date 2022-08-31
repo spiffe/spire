@@ -99,13 +99,13 @@ type Cache interface {
 	// CountSVIDs in cache stored
 	CountSVIDs() int
 
-	// FetchWorkloadUpdate for giveb selectors
+	// FetchWorkloadUpdate for given selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
 
-	// GetJWTSVID provides JWTSVID
+	// GetJWTSVID provides JWT-SVID
 	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
 
-	// SetJWTSVID adds JWTSVID to cache
+	// SetJWTSVID adds JWT-SVID to cache
 	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
 
 	// Entries get all registration entries

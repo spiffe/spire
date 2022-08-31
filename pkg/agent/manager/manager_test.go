@@ -1036,10 +1036,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	syncErrCh := make(chan error, 1)
 	// run svid sync
 	go func(ctx context.Context) {
-		if err := m.runSyncSVIDs(ctx); err != nil {
-			syncErrCh <- err
-		}
-		syncErrCh <- nil
+		syncErrCh <- m.runSyncSVIDs(ctx)
 	}(ctx)
 
 	// keep clk moving so that subscriber keeps looking for svid
