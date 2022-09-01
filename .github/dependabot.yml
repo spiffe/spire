@@ -12,7 +12,7 @@ updates:
   # go-sqlite3 v2 is not the latest release. See the repo for more information.
   - dependency-name: "github.com/mattn/go-sqlite3"
     versions: ["2.x"]
-  - dependency-name: "github.com/aws/aws-sdk-go"
+  - dependency-name: "github.com/aws/aws-sdk-go-v2*"
     update-types: ["version-update:semver-patch"]
   open-pull-requests-limit: 5
 - package-ecosystem: "github-actions"
