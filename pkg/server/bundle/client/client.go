@@ -74,12 +74,10 @@ func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
 	resp, err := c.client.Get(c.c.EndpointURL)
 	if err != nil {
 		var hostnameError *x509.HostnameError
-		if errors.As(err, &hostnameError) && c.c.SPIFFEAuth == nil {
-			id, e := spiffeid.FromString(hostnameError.Certificate.URIs[0].String())
-			if e != nil {
-				return nil, errs.New("failed to fetch bundle: %v", err)
+		if errors.As(err, &hostnameError) && c.c.SPIFFEAuth == nil && len(hostnameError.Certificate.URIs) > 0 {
+			if id, idErr := spiffeid.FromString(hostnameError.Certificate.URIs[0].String()); idErr == nil {
+				return nil, errs.New("failed to authenticate bundle endpoint using web authentication but the server certificate contains SPIFFE ID %q: maybe use https_spiffe instead of https_web: %v", id, err)
 			}
-			return nil, errs.New("failed to fetch bundle, the server certificate contains SPIFFE ID %q, should specify https_spiffe instead of https_web: %v", id, err)
 		}
 		return nil, errs.New("failed to fetch bundle: %v", err)
 	}
