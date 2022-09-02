@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.1] - 2022-09-07
+
+### Added
+- Support to node reattestation to certain Node Attestors (#3031)
+- Server now adds unique identifier to SVIDs subject (#3367)
+- Agents are shutting down when banned (#3308)
+
+### Fixed
+- Vault Upstream Authority to prevent adding duplicate certificates (#3376)
+
+### Changed
+- Small documentation improvements (#3309, #3377)
+
 ## [1.4.0] - 2022-08-08
 
 ### Added 
