@@ -3,12 +3,8 @@
 ## [1.4.1] - 2022-09-07
 
 ### Added
-- Support to node reattestation to certain Node Attestors (#3031)
-- Server now adds unique identifier to SVIDs subject (#3367)
-- Agents are shutting down when banned (#3308)
-
-### Fixed
-- Vault Upstream Authority to prevent adding duplicate certificates (#3376)
+- The X509-SVID Subject field now contains a unique ID to satisfy RFC 5280 requirements (#3367)
+- Agents now shut down when banned (#3308)
 
 ### Changed
 - Small documentation improvements (#3309, #3377)
