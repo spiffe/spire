@@ -32,6 +32,7 @@ func TestClient(t *testing.T) {
 		body           string
 		newClientErr   string
 		fetchBundleErr string
+		useWebAuth     bool
 		mutateConfig   func(*ClientConfig)
 	}{
 		{
@@ -80,6 +81,7 @@ func TestClient(t *testing.T) {
 			serverID:       serverID,
 			expectedID:     serverID,
 			fetchBundleErr: "failed to authenticate bundle endpoint using web authentication but the server certificate contains SPIFFE ID \"spiffe://domain.test/spiffe-bundle-endpoint-server\": maybe use https_spiffe instead of https_web:",
+			useWebAuth:     true,
 			mutateConfig: func(c *ClientConfig) {
 				c.SPIFFEAuth = nil
 			},
@@ -107,6 +109,15 @@ func TestClient(t *testing.T) {
 			server.StartTLS()
 			defer server.Close()
 
+			var mutateTransportHook func(*http.Transport)
+			if testCase.useWebAuth {
+				mutateTransportHook = func(transport *http.Transport) {
+					rootCAs := x509.NewCertPool()
+					rootCAs.AddCert(serverCert)
+					transport.TLSClientConfig = &tls.Config{RootCAs: rootCAs}
+				}
+			}
+
 			config := ClientConfig{
 				TrustDomain: trustDomain,
 				EndpointURL: server.URL,
@@ -114,6 +125,7 @@ func TestClient(t *testing.T) {
 					EndpointSpiffeID: testCase.expectedID,
 					RootCAs:          []*x509.Certificate{serverCert},
 				},
+				mutateTransportHook: mutateTransportHook,
 			}
 
 			if testCase.mutateConfig != nil {
