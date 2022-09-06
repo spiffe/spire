@@ -114,7 +114,7 @@ func TestClient(t *testing.T) {
 				mutateTransportHook = func(transport *http.Transport) {
 					rootCAs := x509.NewCertPool()
 					rootCAs.AddCert(serverCert)
-					transport.TLSClientConfig = &tls.Config{RootCAs: rootCAs}
+					transport.TLSClientConfig = &tls.Config{RootCAs: rootCAs, MinVersion: tls.VersionTLS12}
 				}
 			}
 
