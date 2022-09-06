@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.4] - 2022-09-06
+
+### Security
+- Updated to Go 1.18.6 to address CVE-2022-27664
+
 ## [1.3.3] - 2022-07-13
 
 ### Security
