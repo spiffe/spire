@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.1] - 2022-09-07
+## [1.4.2] - 2022-09-07
 
 ### Added
 - The X509-SVID Subject field now contains a unique ID to satisfy RFC 5280 requirements (#3367)
