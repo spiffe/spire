@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.1] - 2022-09-06
+
+### Security
+- Updated to Go 1.18.6 to address CVE-2022-27664
+
 ## [1.4.0] - 2022-08-08
 
 ### Added 
@@ -26,6 +31,11 @@
 ### Removed
 - The deprecated webhook mode from the k8s-workload-registrar (#3235)
 - Support for the configmap leader election lock type from the k8s-workload-registrar (#3241)
+
+## [1.3.4] - 2022-09-06
+
+### Security
+- Updated to Go 1.18.6 to address CVE-2022-27664
 
 ## [1.3.3] - 2022-07-13
 
