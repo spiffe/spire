@@ -52,7 +52,7 @@ require (
 	github.com/lib/pq v1.10.6
 	github.com/mattn/go-sqlite3 v1.14.15
 	github.com/mitchellh/cli v1.1.4
-	github.com/open-policy-agent/opa v0.43.0
+	github.com/open-policy-agent/opa v0.43.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/shirou/gopsutil/v3 v3.22.8
 	github.com/sirupsen/logrus v1.9.0
