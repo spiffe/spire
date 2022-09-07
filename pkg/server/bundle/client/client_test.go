@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"math/big"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,6 +32,8 @@ func TestClient(t *testing.T) {
 		body           string
 		newClientErr   string
 		fetchBundleErr string
+		useWebAuth     bool
+		mutateConfig   func(*ClientConfig)
 	}{
 		{
 			name:   "success",
@@ -73,6 +74,18 @@ func TestClient(t *testing.T) {
 			expectedID:     serverID,
 			fetchBundleErr: "failed to decode bundle",
 		},
+		{
+			name:           "hostname validation fails",
+			status:         http.StatusOK,
+			body:           "NOT JSON",
+			serverID:       serverID,
+			expectedID:     serverID,
+			fetchBundleErr: "failed to authenticate bundle endpoint using web authentication but the server certificate contains SPIFFE ID \"spiffe://domain.test/spiffe-bundle-endpoint-server\": maybe use https_spiffe instead of https_web:",
+			useWebAuth:     true,
+			mutateConfig: func(c *ClientConfig) {
+				c.SPIFFEAuth = nil
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -96,14 +109,30 @@ func TestClient(t *testing.T) {
 			server.StartTLS()
 			defer server.Close()
 
-			client, err := NewClient(ClientConfig{
+			var mutateTransportHook func(*http.Transport)
+			if testCase.useWebAuth {
+				mutateTransportHook = func(transport *http.Transport) {
+					rootCAs := x509.NewCertPool()
+					rootCAs.AddCert(serverCert)
+					transport.TLSClientConfig = &tls.Config{RootCAs: rootCAs, MinVersion: tls.VersionTLS12}
+				}
+			}
+
+			config := ClientConfig{
 				TrustDomain: trustDomain,
 				EndpointURL: server.URL,
 				SPIFFEAuth: &SPIFFEAuthConfig{
 					EndpointSpiffeID: testCase.expectedID,
 					RootCAs:          []*x509.Certificate{serverCert},
 				},
-			})
+				mutateTransportHook: mutateTransportHook,
+			}
+
+			if testCase.mutateConfig != nil {
+				testCase.mutateConfig(&config)
+			}
+
+			client, err := NewClient(config)
 			if testCase.newClientErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), testCase.newClientErr)
@@ -128,8 +157,6 @@ func TestClient(t *testing.T) {
 func createServerCertificate(t *testing.T, serverID spiffeid.ID) (*x509.Certificate, crypto.Signer) {
 	return spiretest.SelfSignCertificate(t, &x509.Certificate{
 		SerialNumber: big.NewInt(0),
-		DNSNames:     []string{"localhost"},
-		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
 		NotAfter:     time.Now().Add(time.Hour),
 		URIs:         []*url.URL{serverID.URL()},
 	})
