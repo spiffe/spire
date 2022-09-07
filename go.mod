@@ -3,6 +3,8 @@ module github.com/spiffe/spire
 go 1.19
 
 require (
+	cloud.google.com/go/iam v0.3.0
+	cloud.google.com/go/kms v1.4.0
 	cloud.google.com/go/secretmanager v1.5.0
 	cloud.google.com/go/security v1.4.1
 	cloud.google.com/go/storage v1.26.0
@@ -83,7 +85,6 @@ require (
 require (
 	cloud.google.com/go v0.102.1 // indirect
 	cloud.google.com/go/compute v1.7.0 // indirect
-	cloud.google.com/go/iam v0.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.27 // indirect
