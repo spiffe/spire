@@ -1,14 +1,59 @@
 package k8s
 
-import "github.com/spiffe/spire/pkg/common/catalog"
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/andres-erbsen/clock"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/hcl"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/agent/common/cgroups"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+)
 
 const (
-	pluginName = "k8s"
+	pluginName               = "k8s"
+	defaultMaxPollAttempts   = 60
+	defaultPollRetryInterval = time.Millisecond * 500
+	defaultSecureKubeletPort = 10250
+	defaultKubeletCAPath     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultTokenPath         = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
+	defaultNodeNameEnv       = "MY_NODE_NAME"
+	defaultReloadInterval    = time.Minute
+	maximumAmountCache       = 10
 )
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
+
+type containerLookup int
+
+const (
+	containerInPod = iota
+	containerNotInPod
+)
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
@@ -83,6 +128,31 @@ type HCLConfig struct {
 	// but the container may not be in a ready state at the time of attestation
 	// (e.g. when a postStart hook has yet to complete).
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
+
+	// Experimental enables experimental features.
+	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
+}
+
+type ExperimentalK8SConfig struct {
+
+	// Sigstore contains sigstore specific configs.
+	Sigstore *SigstoreHCLConfig `hcl:"sigstore,omitempty"`
+}
+
+// SigstoreHCLConfig holds the sigstore configuration parsed from HCL
+type SigstoreHCLConfig struct {
+
+	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
+	RekorURL string `hcl:"rekor_url"`
+
+	// SkippedImages is a list of images that should skip sigstore verification
+	SkippedImages []string `hcl:"skip_signature_verification_image_list"`
+
+	// AllowedSubjectListEnabled is a flag indicating whether signature subjects should be compared against AllowedSubjects
+	AllowedSubjectListEnabled bool `hcl:"enable_allowed_subjects_list"`
+
+	// AllowedSubjects is a list of subjects that should be allowed after verification
+	AllowedSubjects []string `hcl:"allowed_subjects_list"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -99,10 +169,19 @@ type k8sConfig struct {
 	KubeletCAPath              string
 	NodeName                   string
 	ReloadInterval             time.Duration
-	DisableContainerSelectors  bool
+
+	sigstoreConfig *sigstoreConfig
 
 	Client     *kubeletClient
 	LastReload time.Time
+}
+
+// sigstoreConfig holds the sigstore configuration distilled from HCL
+type sigstoreConfig struct {
+	RekorURL                  string
+	SkippedImages             []string
+	AllowedSubjectListEnabled bool
+	AllowedSubjects           []string
 }
 
 type ContainerHelper interface {
@@ -121,18 +200,24 @@ type Plugin struct {
 
 	mu     sync.RWMutex
 	config *k8sConfig
+
+	sigstore sigstore.Sigstore
 }
 
 func New() *Plugin {
 	return &Plugin{
-		fs:     cgroups.OSFileSystem{},
-		clock:  clock.New(),
-		getenv: os.Getenv,
+		fs:       cgroups.OSFileSystem{},
+		clock:    clock.New(),
+		getenv:   os.Getenv,
+		sigstore: nil,
 	}
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
+	if p.sigstore != nil {
+		p.sigstore.SetLogger(log)
+	}
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
@@ -145,7 +230,6 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	if err != nil {
 		return nil, err
 	}
-	podKnown := podUID != ""
 
 	// Not a Kubernetes pod
 	if containerID == "" {
@@ -170,36 +254,32 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		var attestResponse *workloadattestorv1.AttestResponse
 		for _, item := range list.Items {
 			item := item
-			if podKnown && item.UID != podUID {
-				// The pod holding the container is known. Skip unrelated pods.
+			if isNotPod(item.UID, podUID) {
 				continue
 			}
 
-			var selectorValues []string
-
-			containerStatus, containerFound := lookUpContainerInPod(containerID, item.Status, log)
-			switch {
-			case containerFound:
-				// The workload container was found in this pod. Add pod
-				// selectors. Only add workload container selectors if
-				// container selectors have not been disabled.
-				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(&item)...)
-				if !config.DisableContainerSelectors {
-					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
-				}
-			case podKnown && config.DisableContainerSelectors:
-				// The workload container was not found (i.e. not ready yet?)
-				// but the pod is known. If container selectors have been
-				// disabled, then allow the pod selectors to be used.
-				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(&item)...)
-			}
-
-			if len(selectorValues) > 0 {
+			lookupStatus, lookup := lookUpContainerInPod(containerID, item.Status, log)
+			switch lookup {
+			case containerInPod:
 				if attestResponse != nil {
 					log.Warn("Two pods found with same container Id")
 					return nil, status.Error(codes.Internal, "two pods found with same container Id")
 				}
-				attestResponse = &workloadattestorv1.AttestResponse{SelectorValues: selectorValues}
+				selectors := getSelectorValuesFromPodInfo(&item, lookupStatus)
+
+				if p.config.sigstoreConfig != nil {
+					log.Debug("Attemping to get signature info for container", telemetry.ContainerName, lookupStatus.Name)
+					sigstoreSelectors, err := p.sigstore.AttestContainerSignatures(ctx, lookupStatus)
+					if err != nil {
+						log.Error("Error retrieving signature payload", "error", err)
+					} else {
+						selectors = append(selectors, sigstoreSelectors...)
+					}
+				}
+				attestResponse = &workloadattestorv1.AttestResponse{
+					SelectorValues: selectors,
+				}
+			case containerNotInPod:
 			}
 		}
 
@@ -302,16 +382,61 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		KubeletCAPath:              config.KubeletCAPath,
 		NodeName:                   nodeName,
 		ReloadInterval:             reloadInterval,
-		DisableContainerSelectors:  config.DisableContainerSelectors,
 	}
+
+	// set experimental flags
+	if config.Experimental != nil && config.Experimental.Sigstore != nil {
+		c.sigstoreConfig = &sigstoreConfig{
+			RekorURL:                  config.Experimental.Sigstore.RekorURL,
+			SkippedImages:             config.Experimental.Sigstore.SkippedImages,
+			AllowedSubjectListEnabled: config.Experimental.Sigstore.AllowedSubjectListEnabled,
+			AllowedSubjects:           config.Experimental.Sigstore.AllowedSubjects,
+		}
+	}
+
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
+	}
+
+	if c.sigstoreConfig != nil {
+		if p.sigstore == nil {
+			newcache := sigstore.NewCache(maximumAmountCache)
+			p.sigstore = sigstore.New(newcache, nil)
+			p.sigstore.SetLogger(p.log)
+		}
+		if err := p.configureSigstore(c, p.sigstore); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set the config
 	p.setConfig(c)
 	p.setContainerHelper(containerHelper)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) configureSigstore(config *k8sConfig, sigstore sigstore.Sigstore) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Configure sigstore settings
+	sigstore.ClearSkipList()
+	imageIDList := []string{}
+	if config.sigstoreConfig.SkippedImages != nil {
+		imageIDList = append(imageIDList, config.sigstoreConfig.SkippedImages...)
+	}
+	sigstore.AddSkippedImage(imageIDList)
+	sigstore.EnableAllowSubjectList(config.sigstoreConfig.AllowedSubjectListEnabled)
+	sigstore.ClearAllowedSubjects()
+	if config.sigstoreConfig.AllowedSubjects != nil {
+		for _, subject := range config.sigstoreConfig.AllowedSubjects {
+			sigstore.AddAllowedSubject(subject)
+		}
+	}
+	if err := p.sigstore.SetRekorURL(config.sigstoreConfig.RekorURL); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to parse Rekor URL: %v", err)
+	}
+	return nil
 }
 
 func (p *Plugin) setConfig(config *k8sConfig) {
@@ -547,7 +672,7 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 	return out, nil
 }
 
-func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog.Logger) (*corev1.ContainerStatus, bool) {
+func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog.Logger) (*corev1.ContainerStatus, containerLookup) {
 	for _, status := range status.ContainerStatuses {
 		// TODO: should we be keying off of the status or is the lack of a
 		// container id sufficient to know the container is not ready?
@@ -564,7 +689,7 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog
 		}
 
 		if containerID == containerURL.Host {
-			return &status, true
+			return &status, containerInPod
 		}
 	}
 
@@ -584,16 +709,16 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog
 		}
 
 		if containerID == containerURL.Host {
-			return &status, true
+			return &status, containerInPod
 		}
 	}
 
-	return nil, false
+	return nil, containerNotInPod
 }
 
-func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[string]struct{} {
+func getPodImageIdentifiers(containerStatusArray []corev1.ContainerStatus) map[string]bool {
 	// Map is used purely to exclude duplicate selectors, value is unused.
-	podImages := make(map[string]struct{})
+	podImages := make(map[string]bool)
 	// Note that for each pod image we generate *2* matching selectors.
 	// This is to support matching against ImageID, which has a SHA
 	// docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb
@@ -602,28 +727,36 @@ func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[str
 	// while also maintaining backwards compatibility and allowing for dynamic workload registration (k8s operator)
 	// when the SHA is not yet known (e.g. before the image pull is initiated at workload creation time)
 	// More info here: https://github.com/spiffe/spire/issues/2026
-	for _, containerStatus := range containerStatuses {
-		podImages[containerStatus.ImageID] = struct{}{}
-		podImages[containerStatus.Image] = struct{}{}
+	for _, status := range containerStatusArray {
+		podImages[status.ImageID] = true
+		podImages[status.Image] = true
 	}
 	return podImages
 }
 
-func getSelectorValuesFromPodInfo(pod *corev1.Pod) []string {
+func getSelectorValuesFromPodInfo(pod *corev1.Pod, status *corev1.ContainerStatus) []string {
+	podImageIdentifiers := getPodImageIdentifiers(pod.Status.ContainerStatuses)
+	podInitImageIdentifiers := getPodImageIdentifiers(pod.Status.InitContainerStatuses)
+	containerImageIdentifiers := getPodImageIdentifiers([]corev1.ContainerStatus{*status})
+
 	selectorValues := []string{
 		fmt.Sprintf("sa:%s", pod.Spec.ServiceAccountName),
 		fmt.Sprintf("ns:%s", pod.Namespace),
 		fmt.Sprintf("node-name:%s", pod.Spec.NodeName),
 		fmt.Sprintf("pod-uid:%s", pod.UID),
 		fmt.Sprintf("pod-name:%s", pod.Name),
+		fmt.Sprintf("container-name:%s", status.Name),
 		fmt.Sprintf("pod-image-count:%s", strconv.Itoa(len(pod.Status.ContainerStatuses))),
 		fmt.Sprintf("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
 	}
 
-	for podImage := range getPodImageIdentifiers(pod.Status.ContainerStatuses...) {
+	for containerImage := range containerImageIdentifiers {
+		selectorValues = append(selectorValues, fmt.Sprintf("container-image:%s", containerImage))
+	}
+	for podImage := range podImageIdentifiers {
 		selectorValues = append(selectorValues, fmt.Sprintf("pod-image:%s", podImage))
 	}
-	for podInitImage := range getPodImageIdentifiers(pod.Status.InitContainerStatuses...) {
+	for podInitImage := range podInitImageIdentifiers {
 		selectorValues = append(selectorValues, fmt.Sprintf("pod-init-image:%s", podInitImage))
 	}
 
@@ -635,14 +768,6 @@ func getSelectorValuesFromPodInfo(pod *corev1.Pod) []string {
 		selectorValues = append(selectorValues, fmt.Sprintf("pod-owner-uid:%s:%s", ownerReference.Kind, ownerReference.UID))
 	}
 
-	return selectorValues
-}
-
-func getSelectorValuesFromWorkloadContainerStatus(status *corev1.ContainerStatus) []string {
-	selectorValues := []string{fmt.Sprintf("container-name:%s", status.Name)}
-	for containerImage := range getPodImageIdentifiers(*status) {
-		selectorValues = append(selectorValues, fmt.Sprintf("container-image:%s", containerImage))
-	}
 	return selectorValues
 }
 
