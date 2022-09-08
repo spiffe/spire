@@ -240,7 +240,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	p.entriesMtx.Lock()
 	defer p.entriesMtx.Unlock()
 	if entry, ok := p.entries[req.KeyId]; ok {
-		if err := p.enqueueDestruction(ctx, entry.cryptoKey); err != nil {
+		if err := p.enqueueDestruction(entry.cryptoKey); err != nil {
 			p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
 		}
 	}
@@ -452,7 +452,7 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 			return err
 		}
 
-		if err := p.enqueueDestruction(ctx, cryptoKey); err != nil {
+		if err := p.enqueueDestruction(cryptoKey); err != nil {
 			p.log.With(cryptoKeyNameTag, cryptoKey.Name).Error("Failed to enqueue CryptoKey for destruction", reasonTag, err)
 		}
 	}
@@ -483,7 +483,7 @@ func (p *Plugin) disposeCryptoKeysTask(ctx context.Context) {
 }
 
 // enqueueDestruction enqueues the specified CryptoKey for destruction.
-func (p *Plugin) enqueueDestruction(ctx context.Context, cryptoKey *kmspb.CryptoKey) (err error) {
+func (p *Plugin) enqueueDestruction(cryptoKey *kmspb.CryptoKey) (err error) {
 	select {
 	case p.scheduleDestroy <- cryptoKey:
 		p.log.Debug("CryptoKey enqueued for destruction", cryptoKeyVersionNameTag, cryptoKey.Name)
@@ -506,14 +506,17 @@ func (p *Plugin) getConfig() (*Config, error) {
 	return p.config, nil
 }
 
-// getCurrentIdentity gets the email of the authenticated service account that is
-// interacting with the Cloud KMS Service.
-func (p *Plugin) getCurrentIdentity(ctx context.Context) (email string, err error) {
+// getAuthenticatedServiceAccount gets the email of the authenticated service
+// account that is interacting with the Cloud KMS Service.
+func (p *Plugin) getAuthenticatedServiceAccount() (email string, err error) {
 	tokenInfo, err := p.oauth2Service.Tokeninfo().Do()
 	if err != nil {
 		return "", fmt.Errorf("could not get token information: %w", err)
 	}
 
+	if tokenInfo.Email == "" {
+		return "", errors.New("could not get email of authenticated service account; email is empty")
+	}
 	return tokenInfo.Email, nil
 }
 
@@ -580,14 +583,14 @@ func (p *Plugin) setIamPolicy(ctx context.Context, resource string) (err error) 
 		policy = customPolicy
 	} else {
 		// No custom policy defined. Build the default policy.
-		member, err := p.getCurrentIdentity(ctx)
+		serviceAccount, err := p.getAuthenticatedServiceAccount()
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to get current identity: %v", err)
 		}
 		policy.Bindings = []*iampb.Binding{
 			{
 				Role:    "roles/cloudkms.signerVerifier",
-				Members: []string{fmt.Sprintf("serviceAccount:%s", member)},
+				Members: []string{fmt.Sprintf("serviceAccount:%s", serviceAccount)},
 			},
 		}
 	}
