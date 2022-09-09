@@ -52,7 +52,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-sqlite3 v1.14.15
 	github.com/mitchellh/cli v1.1.4
-	github.com/open-policy-agent/opa v0.43.0
+	github.com/open-policy-agent/opa v0.44.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/shirou/gopsutil/v3 v3.22.8
 	github.com/sirupsen/logrus v1.9.0
@@ -99,7 +99,7 @@ require (
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/agnivade/levenshtein v1.0.1 // indirect
+	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.20 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.14 // indirect
@@ -189,10 +189,10 @@ require (
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
-	github.com/vektah/gqlparser/v2 v2.4.6 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/yashtewari/glob-intersection v0.1.0 // indirect
