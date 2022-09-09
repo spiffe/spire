@@ -44,6 +44,11 @@ const (
 	keepActiveCryptoKeysFrequency = time.Hour * 6
 	maxStaleDuration              = time.Hour * 24 * 14 // Two weeks.
 
+	cryptoKeyNamePrefix = "spire-key"
+	labelNameServerID   = "spire-server-id"
+	labelNameLastUpdate = "spire-last-update"
+	labelNameServerTD   = "spire-server-td"
+	labelNameActive     = "spire-active"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -524,19 +529,17 @@ func (p *Plugin) getAuthenticatedServiceAccount() (email string, err error) {
 // CryptoKeys that are stale but are still marked as active.
 func (p *Plugin) getDisposeCryptoKeysFilter(config *Config) string {
 	now := p.hooks.clk.Now()
-	return "labels.spire-server-td = " + config.tdHash +
-		" AND labels.spire-server-id != " + config.serverID +
-		" AND labels.spire-active = true" +
-		fmt.Sprintf(" AND labels.spire-last-update < %d", now.Add(-maxStaleDuration).Unix())
+	return fmt.Sprintf("labels.%s = %s AND labels.%s != %s AND labels.%s = true AND labels.%s < %d",
+		labelNameServerTD, config.tdHash, labelNameServerID, config.serverID, labelNameActive, labelNameLastUpdate, now.Add(-maxStaleDuration).Unix())
 }
 
 // getCryptoKeyLabels gets the labels that must be set to a new CryptoKey
 // that is being created.
 func (p *Plugin) getCryptoKeyLabels(config *Config) map[string]string {
 	return map[string]string{
-		"spire-server-td": config.tdHash,
-		"spire-server-id": config.serverID,
-		"spire-active":    "true",
+		labelNameServerTD: config.tdHash,
+		labelNameServerID: config.serverID,
+		labelNameActive:   "true",
 	}
 }
 
@@ -612,7 +615,7 @@ func (p *Plugin) keepActiveCryptoKeys(ctx context.Context) error {
 	defer p.entriesMtx.RUnlock()
 	var errs []string
 	for _, entry := range p.entries {
-		entry.cryptoKey.Labels["spire-last-update"] = fmt.Sprint(time.Now().Unix())
+		entry.cryptoKey.Labels[labelNameLastUpdate] = fmt.Sprint(time.Now().Unix())
 		_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
 			UpdateMask: &fieldmaskpb.FieldMask{
 				Paths: []string{"labels"},
@@ -837,7 +840,7 @@ func generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("spire-key-%s-%s", uniqueID, spireKeyID), nil
+	return fmt.Sprintf("%s-%s-%s", cryptoKeyNamePrefix, uniqueID, spireKeyID), nil
 }
 
 // generateUniqueID returns a randomly generated UUID.

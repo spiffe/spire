@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -34,9 +35,8 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 
 	it := kf.listCryptoKeys(ctx, kf.kmsClient, &kmspb.ListCryptoKeysRequest{
 		Parent: kf.keyRing,
-		Filter: "labels.spire-server-td = " + kf.tdHash +
-			" AND labels.spire-server-id = " + kf.serverID +
-			" AND labels.spire-active = true",
+		Filter: fmt.Sprintf("labels.%s = %s AND labels.%s = %s AND labels.%s = true",
+			labelNameServerTD, kf.tdHash, labelNameServerID, kf.serverID, labelNameActive),
 	})
 	for {
 		cryptoKey, err := it.Next()
@@ -123,12 +123,23 @@ func (kf *keyFetcher) buildKeyEntryFromCryptoKey(ctx context.Context, cryptoKey 
 // getSPIREKeyIDFromCryptoKeyName parses a CryptoKey resource name to get the
 // SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
 func (kf *keyFetcher) getSPIREKeyIDFromCryptoKeyName(cryptoKeyName string) (string, bool) {
+	// cryptoKeyName is the resource name for the CryptoKey holding the SPIRE Key
+	// in the format: projects/*/locations/*/keyRings/*/cryptoKeys/spire-key-*-*.
+	// Example: projects/project-name/locations/us-east1/keyRings/key-ring-name/cryptoKeys/spire-key-1f2e225a-91d8-4589-a4fe-f88b7bb04bac-x509-CA-A
+
+	// Get the last element of the path.
 	i := strings.LastIndex(cryptoKeyName, "/")
 	if i < 0 {
 		// All CryptoKeys are under a Key Ring; not a valid Crypto Key name.
 		return "", false
 	}
-	spireKeyIDIndex := i + len("spire-key") + 3 + 36
+
+	// The i index will indicate us where
+	// "spire-key-1f2e225a-91d8-4589-a4fe-f88b7bb04bac-x509-CA-A" starts.
+	// Now we have to get the position where the SPIRE Key ID starts.
+	// For that, we need to add the length of the CryptoKey name prefix that we
+	// are using, the UUID length, and the two "-" separators used in our format.
+	spireKeyIDIndex := i + len(cryptoKeyNamePrefix) + 39 // 39 is the UUID length plus two '-' separators
 	if spireKeyIDIndex >= len(cryptoKeyName) {
 		// The index is out of range.
 		return "", false
