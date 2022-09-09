@@ -40,10 +40,7 @@ func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 	// perform syncSVIDs only if using LRU cache
 	if m.c.SVIDCacheMaxSize > 0 {
 		m.cache.SyncSVIDsWithSubscribers()
-		staleEntries := m.cache.GetStaleEntries()
-		if len(staleEntries) > 0 {
-			return m.updateSVIDs(ctx, staleEntries, m.cache)
-		}
+		return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
 	}
 	return nil
 }
@@ -109,39 +106,41 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
 	}
 
+	return m.updateSVIDs(ctx, log, c)
+}
+
+func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVIDCache) error {
+	m.updateSVIDMu.Lock()
+	defer m.updateSVIDMu.Unlock()
+
 	staleEntries := c.GetStaleEntries()
 	if len(staleEntries) > 0 {
+		var csrs []csrRequest
 		log.WithFields(logrus.Fields{
 			telemetry.Count: len(staleEntries),
 			telemetry.Limit: limits.SignLimitPerIP,
 		}).Debug("Renewing stale entries")
-		return m.updateSVIDs(ctx, staleEntries, c)
-	}
-	return nil
-}
 
-func (m *manager) updateSVIDs(ctx context.Context, entries []*cache.StaleEntry, c SVIDCache) error {
-	var csrs []csrRequest
-	for _, entry := range entries {
-		// we've exceeded the CSR limit, don't make any more CSRs
-		if len(csrs) >= limits.SignLimitPerIP {
-			break
+		for _, entry := range staleEntries {
+			// we've exceeded the CSR limit, don't make any more CSRs
+			if len(csrs) >= limits.SignLimitPerIP {
+				break
+			}
+
+			csrs = append(csrs, csrRequest{
+				EntryID:              entry.Entry.EntryId,
+				SpiffeID:             entry.Entry.SpiffeId,
+				CurrentSVIDExpiresAt: entry.ExpiresAt,
+			})
 		}
 
-		csrs = append(csrs, csrRequest{
-			EntryID:              entry.Entry.EntryId,
-			SpiffeID:             entry.Entry.SpiffeId,
-			CurrentSVIDExpiresAt: entry.ExpiresAt,
-		})
+		update, err := m.fetchSVIDs(ctx, csrs)
+		if err != nil {
+			return err
+		}
+		// the values in `update` now belong to the cache. DO NOT MODIFY.
+		c.UpdateSVIDs(update)
 	}
-
-	update, err := m.fetchSVIDs(ctx, csrs)
-	if err != nil {
-		return err
-	}
-	// the values in `update` now belong to the cache. DO NOT MODIFY.
-	c.UpdateSVIDs(update)
-
 	return nil
 }
 

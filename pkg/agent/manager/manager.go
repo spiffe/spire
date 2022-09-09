@@ -120,6 +120,8 @@ type manager struct {
 
 	// Fields protected by mtx mutex.
 	mtx *sync.RWMutex
+	// Protects multiple goroutines from requesting SVID signings at the same time
+	updateSVIDMu sync.RWMutex
 
 	cache Cache
 	svid  svid.Rotator
