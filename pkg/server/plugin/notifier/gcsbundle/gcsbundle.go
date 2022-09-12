@@ -156,7 +156,7 @@ func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err e
 		}
 		p.log.Debug("Bundle object retrieved", telemetry.Generation, generation)
 
-		// Load bundle data from the the identity provider. The bundle has to
+		// Load bundle data from the identity provider. The bundle has to
 		// be loaded after fetching the generation so we can properly detect
 		// and correct a race updating the bundle (i.e. read-modify-write
 		// semantics).

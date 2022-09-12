@@ -18,7 +18,7 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 
 
 
-SPIRE is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF)  [as an incubation-level project](https://www.cncf.io/blog/2020/06/22/toc-approves-spiffe-and-spire-to-incubation/). If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF.
+SPIRE is a [graduated](https://www.cncf.io/projects/spire/) project of the [Cloud Native Computing Foundation](https://cncf.io) (CNCF). If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF.
 
 ## Get SPIRE
 

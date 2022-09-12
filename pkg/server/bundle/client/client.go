@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,6 +36,10 @@ type ClientConfig struct { //revive:disable-line:exported name stutter is intent
 	// using SPIFFE authentication. If unset, it is assumed that the endpoint
 	// is authenticated via Web PKI.
 	SPIFFEAuth *SPIFFEAuthConfig
+
+	// mutateTransportHook is a hook to influence the transport used during
+	// tests.
+	mutateTransportHook func(*http.Transport)
 }
 
 // Client is used to fetch a bundle and metadata from a bundle endpoint
@@ -48,7 +53,7 @@ type client struct {
 }
 
 func NewClient(config ClientConfig) (Client, error) {
-	httpClient := &http.Client{}
+	transport := newTransport()
 	if config.SPIFFEAuth != nil {
 		endpointID := config.SPIFFEAuth.EndpointSpiffeID
 		if endpointID.IsZero() {
@@ -59,19 +64,26 @@ func NewClient(config ClientConfig) (Client, error) {
 
 		authorizer := tlsconfig.AuthorizeID(endpointID)
 
-		httpClient.Transport = &http.Transport{
-			TLSClientConfig: tlsconfig.TLSClientConfig(bundle, authorizer),
-		}
+		transport.TLSClientConfig = tlsconfig.TLSClientConfig(bundle, authorizer)
+	}
+	if config.mutateTransportHook != nil {
+		config.mutateTransportHook(transport)
 	}
 	return &client{
 		c:      config,
-		client: httpClient,
+		client: &http.Client{Transport: transport},
 	}, nil
 }
 
 func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
 	resp, err := c.client.Get(c.c.EndpointURL)
 	if err != nil {
+		var hostnameError x509.HostnameError
+		if errors.As(err, &hostnameError) && c.c.SPIFFEAuth == nil && len(hostnameError.Certificate.URIs) > 0 {
+			if id, idErr := spiffeid.FromString(hostnameError.Certificate.URIs[0].String()); idErr == nil {
+				return nil, errs.New("failed to authenticate bundle endpoint using web authentication but the server certificate contains SPIFFE ID %q: maybe use https_spiffe instead of https_web: %v", id, err)
+			}
+		}
 		return nil, errs.New("failed to fetch bundle: %v", err)
 	}
 	defer resp.Body.Close()
@@ -92,4 +104,8 @@ func tryRead(r io.Reader) string {
 	b := make([]byte, 1024)
 	n, _ := r.Read(b)
 	return string(b[:n])
+}
+
+func newTransport() *http.Transport {
+	return http.DefaultTransport.(*http.Transport).Clone()
 }
