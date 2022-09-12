@@ -1,7 +1,6 @@
 package k8s
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
@@ -164,6 +162,21 @@ type Suite struct {
 	sigstoreMock                *sigstoreMock
 }
 
+type sigstoreMock struct {
+	selectors []sigstore.SelectorsFromSignatures
+
+	sigs                      []oci.Signature
+	skipSigs                  bool
+	skippedSigSelectors       []string
+	returnError               error
+	skippedImages             map[string]bool
+	allowedSubjects           map[string]bool
+	allowedSubjectListEnabled bool
+	log                       hclog.Logger
+
+	rekorURL string
+}
+
 func (s *Suite) SetupTest() {
 	s.dir = s.TempDir()
 	s.writeFile(defaultTokenPath, "default-token")
@@ -192,57 +205,6 @@ func (s *Suite) TestAttestWithPidInPod() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithPod(p)
-}
-
-func (s *Suite) TestAttestWithSigstoreSignatures() {
-	s.startInsecureKubelet()
-	s.setSigstoreSelectors([]sigstore.SelectorsFromSignatures{
-		{
-			Subject: "sigstore-subject",
-		},
-	})
-	p := s.loadInsecurePluginWithSigstore()
-	s.requireAttestSuccessWithPodAndSignature(p)
-}
-
-func (s *Suite) TestAttestWithSigstoreSkippedImage() {
-	s.startInsecureKubelet()
-	// Skip the image
-	s.setSigstoreSkipSigs(true)
-	s.setSigstoreSkippedSigSelectors([]string{"sigstore-validation:passed"})
-	p := s.loadInsecurePluginWithSigstore()
-	s.requireAttestSuccessWithPodAndSkippedImage(p)
-}
-
-func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
-	s.startInsecureKubelet()
-
-	p := s.newPlugin()
-
-	v1 := new(workloadattestor.V1)
-	plugintest.Load(s.T(), builtin(p), v1,
-		plugintest.Configure(fmt.Sprintf(`
-	kubelet_read_only_port = %d
-	max_poll_attempts = 5
-	poll_retry_interval = "1s"
-	experimental {
-		sigstore {}
-	}
-	`, s.kubeletPort())),
-	)
-
-	buf := bytes.Buffer{}
-	newLog := hclog.New(&hclog.LoggerOptions{
-		Output: &buf,
-	})
-
-	p.SetLogger(newLog)
-
-	s.sigstoreMock.returnError = errors.New("sigstore error 123")
-
-	s.requireAttestSuccessWithPod(v1)
-	s.Require().Contains(buf.String(), "Error retrieving signature payload")
-	s.Require().Contains(buf.String(), "sigstore error 123")
 }
 
 func (s *Suite) TestAttestWithPidInPodAfterRetry() {
@@ -845,50 +807,20 @@ func (s *Suite) TestConfigure() {
 	}
 }
 
-type signature struct {
-	oci.Signature
-
-	payload []byte
-	cert    *x509.Certificate
+func (s *sigstoreMock) AddAllowedSubject(subject string) {
+	if s.allowedSubjects == nil {
+		s.allowedSubjects = make(map[string]bool)
+	}
+	s.allowedSubjects[subject] = true
 }
 
-func (signature) Annotations() (map[string]string, error) {
-	return nil, nil
-}
-
-func (s signature) Payload() ([]byte, error) {
-	return s.payload, nil
-}
-
-func (signature) Base64Signature() (string, error) {
-	return "", nil
-}
-
-func (s signature) Cert() (*x509.Certificate, error) {
-	return s.cert, nil
-}
-
-func (signature) Chain() ([]*x509.Certificate, error) {
-	return nil, nil
-}
-
-func (signature) Bundle() (*bundle.RekorBundle, error) {
-	return nil, nil
-}
-
-type sigstoreMock struct {
-	selectors []sigstore.SelectorsFromSignatures
-
-	sigs                      []oci.Signature
-	skipSigs                  bool
-	skippedSigSelectors       []string
-	returnError               error
-	skippedImages             map[string]bool
-	allowedSubjects           map[string]bool
-	allowedSubjectListEnabled bool
-	log                       hclog.Logger
-
-	rekorURL string
+func (s *sigstoreMock) AddSkippedImage(images []string) {
+	if s.skippedImages == nil {
+		s.skippedImages = make(map[string]bool)
+	}
+	for _, imageID := range images {
+		s.skippedImages[imageID] = true
+	}
 }
 
 // SetLogger implements sigstore.Sigstore
@@ -912,23 +844,8 @@ func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
 	return s.skipSigs, s.returnError
 }
 
-func (s *sigstoreMock) AddSkippedImage(images []string) {
-	if s.skippedImages == nil {
-		s.skippedImages = make(map[string]bool)
-	}
-	for _, imageID := range images {
-		s.skippedImages[imageID] = true
-	}
-}
 func (s *sigstoreMock) ClearSkipList() {
 	s.skippedImages = nil
-}
-
-func (s *sigstoreMock) AddAllowedSubject(subject string) {
-	if s.allowedSubjects == nil {
-		s.allowedSubjects = make(map[string]bool)
-	}
-	s.allowedSubjects[subject] = true
 }
 
 func (s *sigstoreMock) ClearAllowedSubjects() {
@@ -998,28 +915,6 @@ func (s *Suite) setServer(server *httptest.Server) {
 		s.server.Close()
 	}
 	s.server = server
-}
-
-func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignatures) {
-	s.sigstoreSelectors = selectors
-	if s.sigstoreSelectors == nil {
-		s.sigstoreSigs = nil
-		return
-	}
-	s.sigstoreSigs = []oci.Signature{
-		signature{
-			payload: []byte("payload"),
-			cert:    &x509.Certificate{},
-		},
-	}
-}
-
-func (s *Suite) setSigstoreSkipSigs(skip bool) {
-	s.sigstoreSkipSigs = skip
-}
-
-func (s *Suite) setSigstoreSkippedSigSelectors(selectors []string) {
-	s.sigstoreSkippedSigSelectors = selectors
 }
 
 func (s *Suite) writeFile(path, data string) {
@@ -1226,18 +1121,6 @@ func (s *Suite) writeKey(path string, key *ecdsa.PrivateKey) {
 func (s *Suite) requireAttestSuccessWithPod(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
-}
-
-func (s *Suite) requireAttestSuccessWithPodAndSignature(p workloadattestor.WorkloadAttestor) {
-	s.addPodListResponse(podListFilePath)
-	s.addCgroupsResponse(cgPidInPodFilePath)
-	s.requireAttestSuccess(p, testSigstoreSelectors)
-}
-
-func (s *Suite) requireAttestSuccessWithPodAndSkippedImage(p workloadattestor.WorkloadAttestor) {
-	s.addPodListResponse(podListFilePath)
-	s.addCgroupsResponse(cgPidInPodFilePath)
-	s.requireAttestSuccess(p, testSigstoreSkippedSelectors)
 }
 
 func (s *Suite) requireAttestSuccess(p workloadattestor.WorkloadAttestor, expectedSelectors []*common.Selector) {
