@@ -250,7 +250,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-				//
 			},
 			want:    nil,
 			wantErr: true,
