@@ -45,18 +45,6 @@ type Sigstore interface {
 	SetLogger(logger hclog.Logger)
 }
 
-type sigstoreImpl struct {
-	verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
-	fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
-	skippedImages              map[string]bool
-	allowListEnabled           bool
-	subjectAllowList           map[string]bool
-	rekorURL                   url.URL
-	checkOptsFunction          func(url.URL) *cosign.CheckOpts
-	logger                     hclog.Logger
-	sigstorecache              Cache
-}
-
 // The following structs are used to go through the payload json objects
 type BundleSignature struct {
 	Content   string            `json:"content"`
@@ -107,6 +95,18 @@ func DefaultCheckOpts(rekorURL url.URL) *cosign.CheckOpts {
 	co.RootCerts = fulcio.GetRoots()
 
 	return co
+}
+
+type sigstoreImpl struct {
+	verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
+	fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
+	skippedImages              map[string]bool
+	allowListEnabled           bool
+	subjectAllowList           map[string]bool
+	rekorURL                   url.URL
+	checkOptsFunction          func(url.URL) *cosign.CheckOpts
+	logger                     hclog.Logger
+	sigstorecache              Cache
 }
 
 func (s *sigstoreImpl) SetLogger(logger hclog.Logger) {
