@@ -257,15 +257,14 @@ func (s *Suite) setSigstoreSkippedSigSelectors(selectors []string) {
 
 func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignatures) {
 	s.sigstoreSelectors = selectors
-	if s.sigstoreSelectors == nil {
-		s.sigstoreSigs = nil
-		return
-	}
-	s.sigstoreSigs = []oci.Signature{
-		signature{
-			payload: []byte("payload"),
-			cert:    &x509.Certificate{},
-		},
+	s.sigstoreSigs = nil
+	if s.sigstoreSelectors != nil {
+		s.sigstoreSigs = []oci.Signature{
+			signature{
+				payload: []byte("payload"),
+				cert:    &x509.Certificate{},
+			},
+		}
 	}
 }
 

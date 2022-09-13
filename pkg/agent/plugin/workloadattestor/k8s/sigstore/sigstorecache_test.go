@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -12,7 +14,6 @@ var (
 		Key: "signature1",
 		Value: []SelectorsFromSignatures{
 			{
-
 				Subject:        "spirex1@example.com",
 				Content:        "content1",
 				LogID:          "1111111111111111",
@@ -25,7 +26,6 @@ var (
 		Key: "signature2",
 		Value: []SelectorsFromSignatures{
 			{
-
 				Subject:        "spirex2@example.com",
 				Content:        "content2",
 				LogID:          "2222222222222222",
@@ -200,10 +200,7 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 			if !present {
 				t.Errorf("Key put but not found: %v", tt.wantKey)
 			}
-
-			if !reflect.DeepEqual(gotItem.item, tt.wantValue) {
-				t.Errorf("Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
-			}
+			require.Equal(t, gotItem.item, tt.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
 		})
 	}
 }
