@@ -24,6 +24,7 @@ import (
 	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -589,32 +590,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 	}
 }
 
-type noCertSignature signature
-
-func (noCertSignature) Annotations() (map[string]string, error) {
-	return nil, nil
-}
-
-func (s noCertSignature) Payload() ([]byte, error) {
-	return s.payload, nil
-}
-
-func (noCertSignature) Base64Signature() (string, error) {
-	return "", nil
-}
-
-func (noCertSignature) Cert() (*x509.Certificate, error) {
-	return nil, errors.New("no cert test")
-}
-
-func (noCertSignature) Chain() ([]*x509.Certificate, error) {
-	return nil, nil
-}
-
-func (noCertSignature) Bundle() (*bundle.RekorBundle, error) {
-	return nil, nil
-}
-
 type noPayloadSignature signature
 
 func (noPayloadSignature) Annotations() (map[string]string, error) {
@@ -747,7 +722,7 @@ func Test_certSubject(t *testing.T) {
 	}
 }
 
-func TestSigstoreimpl_SkipImage(t *testing.T) {
+func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 	type fields struct {
 		skippedImages map[string](bool)
 	}
@@ -840,9 +815,7 @@ func TestSigstoreimpl_SkipImage(t *testing.T) {
 				t.Errorf("sigstoreImpl.SkipImage() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("sigstoreImpl.SkipImage() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, got, tt.want, "sigstoreImpl.SkipImage() = %v, want %v", got, tt.want)
 		})
 	}
 }
@@ -922,11 +895,6 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 	}{
 		{
 			name: "add skipped image to empty map",
-			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
-				skippedImages:              nil,
-			},
 			args: args{
 				imageID: []string{"sha256:sampleimagehash"},
 			},
@@ -937,8 +905,6 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 		{
 			name: "add skipped image",
 			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
 				skippedImages: map[string]bool{
 					"sha256:sampleimagehash1": true,
 				},
@@ -953,11 +919,6 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 		},
 		{
 			name: "add a list of skipped images to empty map",
-			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
-				skippedImages:              nil,
-			},
 			args: args{
 				imageID: []string{"sha256:sampleimagehash", "sha256:sampleimagehash1"},
 			},
@@ -969,8 +930,6 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 		{
 			name: "add a list of skipped images to a existing map",
 			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
 				skippedImages: map[string]bool{
 					"sha256:sampleimagehash": true,
 				},
@@ -993,9 +952,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 				skippedImages:              tt.fields.skippedImages,
 			}
 			sigstore.AddSkippedImage(tt.args.imageID)
-			if !reflect.DeepEqual(sigstore.skippedImages, tt.want) {
-				t.Errorf("sigstore.skippedImages = %v, want %v", sigstore.skippedImages, tt.want)
-			}
+			require.Equal(t, sigstore.skippedImages, tt.want, "sigstore.skippedImages = %v, want %v", sigstore.skippedImages, tt.want)
 		})
 	}
 }
@@ -1147,9 +1104,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				t.Errorf("sigstoreImpl.ValidateImage() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want {
-				t.Errorf("sigstoreImpl.ValidateImage() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, got, tt.want, "sigstoreImpl.ValidateImage() = %v, want %v", got, tt.want)
 		})
 	}
 }
@@ -1241,9 +1196,7 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 				subjectAllowList: tt.fields.subjectAllowList,
 			}
 			sigstore.AddAllowedSubject(tt.args.subject)
-			if !reflect.DeepEqual(sigstore.subjectAllowList, tt.want) {
-				t.Errorf("sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
-			}
+			require.Equal(t, sigstore.subjectAllowList, tt.want, "sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
 		})
 	}
 }
@@ -1818,9 +1771,33 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 			if err := sigstore.SetRekorURL(tt.args.rekorURL); (err != nil) != tt.wantErr {
 				t.Errorf("sigstoreImpl.SetRekorURL() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			if !reflect.DeepEqual(sigstore.rekorURL, tt.want) {
-				t.Errorf("sigstoreImpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
-			}
+			require.Equal(t, sigstore.rekorURL, tt.want, "sigstoreImpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
 		})
 	}
+}
+
+type noCertSignature signature
+
+func (noCertSignature) Annotations() (map[string]string, error) {
+	return nil, nil
+}
+
+func (s noCertSignature) Payload() ([]byte, error) {
+	return s.payload, nil
+}
+
+func (noCertSignature) Base64Signature() (string, error) {
+	return "", nil
+}
+
+func (noCertSignature) Cert() (*x509.Certificate, error) {
+	return nil, errors.New("no cert test")
+}
+
+func (noCertSignature) Chain() ([]*x509.Certificate, error) {
+	return nil, nil
+}
+
+func (noCertSignature) Bundle() (*bundle.RekorBundle, error) {
+	return nil, nil
 }

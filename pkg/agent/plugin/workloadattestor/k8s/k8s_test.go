@@ -747,7 +747,10 @@ func (s *sigstoreMock) SetLogger(logger hclog.Logger) {
 }
 
 func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
-	return s.sigs, s.returnError
+	if s.returnError != nil {
+		return nil, s.returnError
+	}
+	return s.sigs, nil
 }
 
 func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) *sigstore.SelectorsFromSignatures {
