@@ -552,7 +552,7 @@ func NewFakeManager(t *testing.T) *FakeManager {
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	require.Equal(m.t, workloadSelectors, selectors)
 
 	updch := make(chan *cache.WorkloadUpdate, 1)
@@ -568,7 +568,7 @@ func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.S
 	return NewFakeSubscriber(updch, func() {
 		delete(m.subs, key)
 		close(updch)
-	})
+	}), nil
 }
 
 func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {

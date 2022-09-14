@@ -56,6 +56,7 @@ func TestFetchX509SVID(t *testing.T) {
 		name       string
 		updates    []*cache.WorkloadUpdate
 		attestErr  error
+		managerErr error
 		asPID      int
 		expectCode codes.Code
 		expectMsg  string
@@ -99,6 +100,23 @@ func TestFetchX509SVID(t *testing.T) {
 						"service":       "WorkloadAPI",
 						"method":        "FetchX509SVID",
 						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "subscribe to cache changes error",
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Subscribe to cache changes failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509SVID",
+						logrus.ErrorKey: "err",
 					},
 				},
 			},
@@ -167,6 +185,7 @@ func TestFetchX509SVID(t *testing.T) {
 				AttestErr:  tt.attestErr,
 				ExpectLogs: tt.expectLogs,
 				AsPID:      tt.asPID,
+				ManagerErr: tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -195,6 +214,7 @@ func TestFetchX509Bundles(t *testing.T) {
 		testName                      string
 		updates                       []*cache.WorkloadUpdate
 		attestErr                     error
+		managerErr                    error
 		expectCode                    codes.Code
 		expectMsg                     string
 		expectResp                    *workloadPB.X509BundlesResponse
@@ -231,6 +251,23 @@ func TestFetchX509Bundles(t *testing.T) {
 						"service":       "WorkloadAPI",
 						"method":        "FetchX509Bundles",
 						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			testName:   "subscribe to cache changes error",
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Subscribe to cache changes failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchX509Bundles",
+						logrus.ErrorKey: "err",
 					},
 				},
 			},
@@ -307,6 +344,7 @@ func TestFetchX509Bundles(t *testing.T) {
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
 				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
+				ManagerErr:                    tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -665,6 +703,7 @@ func TestFetchJWTBundles(t *testing.T) {
 		name                          string
 		updates                       []*cache.WorkloadUpdate
 		attestErr                     error
+		managerErr                    error
 		expectCode                    codes.Code
 		expectMsg                     string
 		expectResp                    *workloadPB.JWTBundlesResponse
@@ -701,6 +740,23 @@ func TestFetchJWTBundles(t *testing.T) {
 						"service":       "WorkloadAPI",
 						"method":        "FetchJWTBundles",
 						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "subscribe to cache changes error",
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Subscribe to cache changes failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTBundles",
+						logrus.ErrorKey: "err",
 					},
 				},
 			},
@@ -777,6 +833,7 @@ func TestFetchJWTBundles(t *testing.T) {
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
 				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
+				ManagerErr:                    tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -1300,8 +1357,12 @@ type FakeManager struct {
 	err         error
 }
 
-func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
-	return m.identities
+func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+	out := make([]*common.RegistrationEntry, 0, len(m.identities))
+	for _, identity := range m.identities {
+		out = append(out, identity.Entry)
+	}
+	return out
 }
 
 func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
@@ -1314,9 +1375,12 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	}, nil
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	atomic.AddInt32(&m.subscribers, 1)
-	return newFakeSubscriber(m, m.updates)
+	return newFakeSubscriber(m, m.updates), nil
 }
 
 func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {

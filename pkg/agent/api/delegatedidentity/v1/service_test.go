@@ -88,6 +88,16 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			expectMsg:  "caller not configured as an authorized delegate",
 		},
 		{
+			testName:     "subscribe to cache changes error",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identityFromX509SVID(x509SVID1),
+			},
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+		},
+		{
 			testName:     "workload update with one identity",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
@@ -653,10 +663,6 @@ func (fa FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
-func (m *FakeManager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
-	return m.identities
-}
-
 type FakeManager struct {
 	manager.Manager
 
@@ -677,9 +683,12 @@ func (m *FakeManager) subscriberDone() {
 	atomic.AddInt32(&m.subscribers, -1)
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	atomic.AddInt32(&m.subscribers, 1)
-	return newFakeSubscriber(m, m.updates)
+	return newFakeSubscriber(m, m.updates), nil
 }
 
 func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
@@ -690,6 +699,14 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	return &client.JWTSVID{
 		Token: svid.Marshal(),
 	}, nil
+}
+
+func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+	out := make([]*common.RegistrationEntry, 0, len(m.identities))
+	for _, identity := range m.identities {
+		out = append(out, identity.Entry)
+	}
+	return out
 }
 
 type fakeSubscriber struct {

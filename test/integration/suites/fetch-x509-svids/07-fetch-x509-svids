@@ -1,0 +1,27 @@
+#!/bin/bash
+
+CACHESIZE=8
+ENTRYCOUNT=10
+
+X509SVIDCOUNT=$(docker-compose exec -u 1002 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch x509 \
+  -socketPath /opt/spire/sockets/workload_api.sock | grep -i "spiffe://domain.test" | wc -l || fail-now "X.509-SVID check failed")
+
+if [ "$X509SVIDCOUNT" -ne "$ENTRYCOUNT" ]; then
+  fail-now "X.509-SVID check failed. Expected $ENTRYCOUNT X.509-SVIDs but received $X509SVIDCOUNT for uid 1002";
+else
+  log-info "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1002";
+fi
+
+X509SVIDCOUNT=$(docker-compose exec -u 1001 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch x509 \
+  -socketPath /opt/spire/sockets/workload_api.sock | grep -i "spiffe://domain.test" | wc -l || fail-now "X.509-SVID check failed")
+
+if [ "$X509SVIDCOUNT" -ne "$ENTRYCOUNT" ]; then
+  fail-now "X.509-SVID check failed. Expected $ENTRYCOUNT X.509-SVIDs but received $X509SVIDCOUNT for uid 1001";
+else
+  log-info "Expected $ENTRYCOUNT X.509-SVIDs and received $X509SVIDCOUNT for uid 1001";
+fi
+
+# Call agent debug endpoints and check if extra X.509-SVIDs from cache are cleaned up
+check-x509-svid-count "spire-agent" $CACHESIZE

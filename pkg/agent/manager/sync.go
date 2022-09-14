@@ -25,7 +25,7 @@ type csrRequest struct {
 	CurrentSVIDExpiresAt time.Time
 }
 
-type Cache interface {
+type SVIDCache interface {
 	// UpdateEntries updates entries on cache
 	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool)
 
@@ -34,6 +34,15 @@ type Cache interface {
 
 	// GetStaleEntries gets a list of records that need update SVIDs
 	GetStaleEntries() []*cache.StaleEntry
+}
+
+func (m *manager) syncSVIDs(ctx context.Context) (err error) {
+	// perform syncSVIDs only if using LRU cache
+	if m.c.SVIDCacheMaxSize > 0 {
+		m.cache.SyncSVIDsWithSubscribers()
+		return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
+	}
+	return nil
 }
 
 // synchronize fetches the authorized entries from the server, updates the
@@ -57,12 +66,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c Cache) error {
+func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache) error {
 	// update the cache and build a list of CSRs that need to be processed
 	// in this interval.
 	//
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
-	var csrs []csrRequest
 	var expiring int
 	var outdated int
 	c.UpdateEntries(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) bool {
@@ -98,22 +106,31 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
 	}
 
+	return m.updateSVIDs(ctx, log, c)
+}
+
+func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVIDCache) error {
+	m.updateSVIDMu.Lock()
+	defer m.updateSVIDMu.Unlock()
+
 	staleEntries := c.GetStaleEntries()
 	if len(staleEntries) > 0 {
+		var csrs []csrRequest
 		log.WithFields(logrus.Fields{
 			telemetry.Count: len(staleEntries),
 			telemetry.Limit: limits.SignLimitPerIP,
 		}).Debug("Renewing stale entries")
-		for _, staleEntry := range staleEntries {
+
+		for _, entry := range staleEntries {
 			// we've exceeded the CSR limit, don't make any more CSRs
 			if len(csrs) >= limits.SignLimitPerIP {
 				break
 			}
 
 			csrs = append(csrs, csrRequest{
-				EntryID:              staleEntry.Entry.EntryId,
-				SpiffeID:             staleEntry.Entry.SpiffeId,
-				CurrentSVIDExpiresAt: staleEntry.ExpiresAt,
+				EntryID:              entry.Entry.EntryId,
+				SpiffeID:             entry.Entry.SpiffeId,
+				CurrentSVIDExpiresAt: entry.ExpiresAt,
 			})
 		}
 
@@ -124,7 +141,6 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 		// the values in `update` now belong to the cache. DO NOT MODIFY.
 		c.UpdateSVIDs(update)
 	}
-
 	return nil
 }
 
