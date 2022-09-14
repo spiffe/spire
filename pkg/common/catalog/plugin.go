@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
 )
@@ -40,6 +41,12 @@ func newPlugin(ctx context.Context, conn grpc.ClientConnInterface, info PluginIn
 	if err != nil {
 		return nil, err
 	}
+
+	closers = append(closers, closerFunc(func() {
+		if err := private.Deinit(ctx, conn); err != nil {
+			log.WithError(err).Error("Failed to deinitialize plugin")
+		}
+	}))
 
 	return &pluginImpl{
 		conn:             conn,

@@ -295,7 +295,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 }
 
 func testLoad(t *testing.T, pluginPath string, tt loadTest) {
-	log, _ := log_test.NewNullLogger()
+	log, hook := log_test.NewNullLogger()
 	config := catalog.Config{
 		Log:        log,
 		CoreConfig: coreConfig,
@@ -356,7 +356,16 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 
 	closer, err := catalog.Load(context.Background(), config, repo)
 	if closer != nil {
-		defer closer.Close()
+		defer func() {
+			closer.Close()
+			if tt.expectPluginClient {
+				// Assert that the plugin io.Closer was invoked by looking at
+				// the logs. It's hard to use the full log entry since there
+				// is a bunch of unrelated, per-test-run type stuff in there,
+				// so just inspect the log messages.
+				assertContainsLogMessage(t, hook.AllEntries(), "CLOSED")
+			}
+		}()
 	}
 
 	if tt.expectErr != "" {
@@ -556,3 +565,11 @@ func (badFacade) GRPCServiceName() string                              { return 
 func (badFacade) InitClient(conn grpc.ClientConnInterface) interface{} { return nil }
 func (badFacade) InitInfo(info catalog.PluginInfo)                     {}
 func (badFacade) InitLog(log logrus.FieldLogger)                       {}
+
+func assertContainsLogMessage(t *testing.T, entries []*logrus.Entry, message string) {
+	messages := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		messages = append(messages, entry.Message)
+	}
+	assert.Contains(t, messages, message)
+}

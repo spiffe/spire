@@ -75,6 +75,11 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	return &configv1.ConfigureResponse{}, nil
 }
 
+func (p *Plugin) Close() error {
+	p.log.Info("CLOSED")
+	return nil
+}
+
 type SomeHostService struct {
 	test.UnimplementedSomeHostServiceServer
 }
