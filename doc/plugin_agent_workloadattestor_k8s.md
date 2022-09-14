@@ -53,7 +53,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `use_anonymous_authentication` | If true, use anonymous authentication for kubelet communication |
 | `node_name_env` | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`. |
 | `node_name` | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`. |
-| `experimental` | experimental options, described below. Currently only contain sigstore options. Defaults to empty. |
+| `experimental` |  The experimental options that are subject to change or removal. |
 
 | Experimental options | Description |
 | ------------- | ----------- |
