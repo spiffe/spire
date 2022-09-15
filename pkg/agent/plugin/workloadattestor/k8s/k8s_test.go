@@ -114,21 +114,6 @@ type Suite struct {
 	sigstoreMock                *sigstoreMock
 }
 
-type sigstoreMock struct {
-	selectors []sigstore.SelectorsFromSignatures
-
-	sigs                      []oci.Signature
-	skipSigs                  bool
-	skippedSigSelectors       []string
-	returnError               error
-	skippedImages             map[string]bool
-	allowedSubjects           map[string]bool
-	allowedSubjectListEnabled bool
-	log                       hclog.Logger
-
-	rekorURL string
-}
-
 func (s *Suite) SetupTest() {
 	s.dir = s.TempDir()
 	s.writeFile(defaultTokenPath, "default-token")
@@ -725,20 +710,19 @@ func (s *Suite) TestConfigure() {
 	}
 }
 
-func (s *sigstoreMock) AddAllowedSubject(subject string) {
-	if s.allowedSubjects == nil {
-		s.allowedSubjects = make(map[string]bool)
-	}
-	s.allowedSubjects[subject] = true
-}
+type sigstoreMock struct {
+	selectors []sigstore.SelectorsFromSignatures
 
-func (s *sigstoreMock) AddSkippedImage(images []string) {
-	if s.skippedImages == nil {
-		s.skippedImages = make(map[string]bool)
-	}
-	for _, imageID := range images {
-		s.skippedImages[imageID] = true
-	}
+	sigs                      []oci.Signature
+	skipSigs                  bool
+	skippedSigSelectors       []string
+	returnError               error
+	skippedImages             map[string]bool
+	allowedSubjects           map[string]bool
+	allowedSubjectListEnabled bool
+	log                       hclog.Logger
+
+	rekorURL string
 }
 
 // SetLogger implements sigstore.Sigstore
@@ -1066,4 +1050,20 @@ type testFS string
 
 func (fs testFS) Open(path string) (io.ReadCloser, error) {
 	return os.Open(filepath.Join(string(fs), path))
+}
+
+func (s *sigstoreMock) AddAllowedSubject(subject string) {
+	if s.allowedSubjects == nil {
+		s.allowedSubjects = make(map[string]bool)
+	}
+	s.allowedSubjects[subject] = true
+}
+
+func (s *sigstoreMock) AddSkippedImage(images []string) {
+	if s.skippedImages == nil {
+		s.skippedImages = make(map[string]bool)
+	}
+	for _, imageID := range images {
+		s.skippedImages[imageID] = true
+	}
 }

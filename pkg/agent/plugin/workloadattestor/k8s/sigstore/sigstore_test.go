@@ -583,9 +583,8 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				verifyFunction: tt.fields.verifyFunction,
 				logger:         hclog.Default(),
 			}
-			if got := s.ExtractSelectorsFromSignatures(tt.args.signatures, tt.containerID); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
-			}
+			got := s.ExtractSelectorsFromSignatures(tt.args.signatures, tt.containerID)
+			require.Equal(t, got, tt.want, "sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
 		})
 	}
 }
@@ -1441,9 +1440,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				subjectAllowList: tt.fields.subjectAllowList,
 				logger:           hclog.Default(),
 			}
-			if got := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
-			}
+			got := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
+			require.Equal(t, got, tt.want, "sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
 		})
 	}
 }
@@ -1677,9 +1675,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				t.Errorf("sigstoreImpl.AttestContainerSignatures() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("sigstoreImpl.AttestContainerSignatures() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, got, tt.want, "sigstoreImpl.AttestContainerSignatures() = %v, want %v", got, tt.want)
 		})
 	}
 }

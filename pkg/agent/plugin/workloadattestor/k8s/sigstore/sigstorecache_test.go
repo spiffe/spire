@@ -125,9 +125,8 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := cacheInstance.GetSignature(tt.key); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("%v Got: %v Want: %v", tt.errorMessage, got, tt.want)
-			}
+			got := cacheInstance.GetSignature(tt.key)
+			require.Equal(t, got, tt.want, "%v Got: %v Want: %v", tt.errorMessage, got, tt.want)
 		})
 	}
 }
@@ -187,14 +186,12 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 		},
 	}
 
-	putKeys := 0
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cacheInstance.PutSignature(*tt.item)
-			putKeys++
 			gotLen := cacheInstance.items.Len()
 			if gotLen != tt.wantLength {
-				t.Errorf("Item count should be %v after putting %v keys", tt.wantLength, putKeys)
+				t.Errorf("Item count should be %v in test case %q", tt.wantLength, tt.name)
 			}
 			gotItem, present := m[tt.wantKey]
 			if !present {
