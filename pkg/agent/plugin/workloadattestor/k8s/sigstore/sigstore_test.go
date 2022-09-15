@@ -1050,7 +1050,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 						Manifest: []byte(`sometext`),
 					}, nil
 				},
-				skippedImages: nil,
 			},
 			args: args{
 				ref: func(d name.Digest, err error) name.Digest { return d }(name.NewDigest("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505")),
@@ -1065,7 +1064,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				fetchImageManifestFunction: func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
 					return nil, errors.New("fetch error")
 				},
-				skippedImages: nil,
 			},
 			args: args{
 				ref: func(d name.Digest, err error) name.Digest { return d }(name.NewDigest("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505")),
@@ -1082,7 +1080,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 						Manifest: nil,
 					}, nil
 				},
-				skippedImages: nil,
 			},
 			args: args{
 				ref: func(d name.Digest, err error) name.Digest { return d }(name.NewDigest("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505")),
@@ -1648,7 +1645,6 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 						Manifest: []byte("sometext"),
 					}, nil
 				},
-				skippedImages: nil,
 			},
 			status: corev1.ContainerStatus{
 				Image:       "spire-agent-sigstore-3",
