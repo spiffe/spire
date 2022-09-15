@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
@@ -212,10 +211,6 @@ type signature struct {
 	cert    *x509.Certificate
 }
 
-func (signature) Annotations() (map[string]string, error) {
-	return nil, nil
-}
-
 func (s signature) Payload() ([]byte, error) {
 	return s.payload, nil
 }
@@ -226,14 +221,6 @@ func (signature) Base64Signature() (string, error) {
 
 func (s signature) Cert() (*x509.Certificate, error) {
 	return s.cert, nil
-}
-
-func (signature) Chain() ([]*x509.Certificate, error) {
-	return nil, nil
-}
-
-func (signature) Bundle() (*bundle.RekorBundle, error) {
-	return nil, nil
 }
 
 func (s *Suite) TestAttestWithSigstoreSignatures() {
