@@ -65,6 +65,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `allowed_subjects_list`| The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. Defaults to empty list. |
 | `rekor_url` | The URL for the rekor STL Server to use with cosign. Defaults to 'rekor.sigstore.dev', Rekor's public instance. |
 
+**Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at rekor.sigstore.dev, cosign defaults to using the public instance.
 
 ### Sigstore workload attestor for SPIRE
 
