@@ -562,7 +562,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			},
 			expectDeleteSecretInput: &secretsmanager.DeleteSecretInput{
 				SecretId:             aws.String("secret1-arn"),
-				RecoveryWindowInDays: 7,
+				RecoveryWindowInDays: aws.Int64(7),
 			},
 		},
 		{
@@ -574,7 +574,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			},
 			expectDeleteSecretInput: &secretsmanager.DeleteSecretInput{
 				SecretId:             aws.String("arn-secret1-arn"),
-				RecoveryWindowInDays: 7,
+				RecoveryWindowInDays: aws.Int64(7),
 			},
 		},
 		{
