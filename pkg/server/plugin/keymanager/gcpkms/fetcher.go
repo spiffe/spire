@@ -48,7 +48,8 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 		}
 		spireKeyID, ok := kf.getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name)
 		if !ok {
-			return nil, status.Errorf(codes.Internal, "could not get SPIRE Key ID from CryptoKey %q", cryptoKey.Name)
+			kf.log.Warn("Could not get SPIRE Key ID from CryptoKey", cryptoKeyNameTag, cryptoKey.Name)
+			continue
 		}
 
 		// Trigger a goroutine to get the details of the key

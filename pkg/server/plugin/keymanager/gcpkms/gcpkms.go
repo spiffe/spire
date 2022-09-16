@@ -83,6 +83,12 @@ type pluginHooks struct {
 	scheduleDestroySignal      chan error
 }
 
+type pluginData struct {
+	customPolicy *iam.Policy3
+	serverID     string
+	tdHash       string
+}
+
 // Plugin is the main representation of this keymanager plugin.
 type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
@@ -95,6 +101,9 @@ type Plugin struct {
 
 	entries    map[string]keyEntry
 	entriesMtx sync.RWMutex
+
+	pd    *pluginData
+	pdMtx sync.RWMutex
 
 	hooks           pluginHooks
 	kmsClient       kmsClient
@@ -120,10 +129,6 @@ type Config struct {
 	// API. If not specified, the value of the GOOGLE_APPLICATION_CREDENTIALS
 	// environment variable is used.
 	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
-
-	keyPolicy *string
-	tdHash    string
-	serverID  string
 }
 
 // New returns an instantiated plugin.
@@ -160,21 +165,30 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 	p.log.Debug("Loaded server ID", "server_id", serverID)
-	config.serverID = serverID
-
+	var customPolicy *iam.Policy3
 	if config.KeyPolicyFile != "" {
 		policyBytes, err := os.ReadFile(config.KeyPolicyFile)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to read file configured in 'key_policy_file': %v", err)
 		}
-		policyStr := string(policyBytes)
-		config.keyPolicy = &policyStr
+		policy := &iam.Policy3{}
+		if err := json.Unmarshal(policyBytes, policy); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to parse custom JSON policy: %v", err)
+		}
+		customPolicy = policy
 	}
 
 	// Label values do not allow "." and have a maximum length of 63 characters.
 	// https://cloud.google.com/kms/docs/creating-managing-labels#requirements
 	// Hash the trust domain name to avoid restrictions.
-	tdHash := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain)) //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid label restrictions
+	tdHashBytes := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain)) //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid label restrictions
+	tdHashString := hex.EncodeToString(tdHashBytes[:])
+
+	p.setPluginData(&pluginData{
+		customPolicy: customPolicy,
+		serverID:     serverID,
+		tdHash:       tdHashString,
+	})
 
 	var opts []option.ClientOption
 	if config.ServiceAccountFile != "" {
@@ -190,14 +204,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.Internal, "failed to create Google Cloud KMS client: %v", err)
 	}
 
-	config.tdHash = hex.EncodeToString(tdHash[:])
 	fetcher := &keyFetcher{
 		keyRing:        config.KeyRing,
 		kmsClient:      kc,
 		listCryptoKeys: p.hooks.listCryptoKeys,
 		log:            p.log,
 		serverID:       serverID,
-		tdHash:         config.tdHash,
+		tdHash:         tdHashString,
 	}
 	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", config.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -380,9 +393,14 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
+	cryptoKeyLabels, err := p.getCryptoKeyLabels()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not get CryptoKey labels: %v", err)
+	}
+
 	cryptoKey, err := p.kmsClient.CreateCryptoKey(ctx, &kmspb.CreateCryptoKeyRequest{
 		CryptoKey: &kmspb.CryptoKey{
-			Labels:  p.getCryptoKeyLabels(config),
+			Labels:  cryptoKeyLabels,
 			Purpose: kmspb.CryptoKey_ASYMMETRIC_SIGN,
 			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{
 				Algorithm: algorithm,
@@ -399,7 +417,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	log.Debug("CryptoKey created", algorithmTag, algorithm)
 
 	if err := p.setIamPolicy(ctx, cryptoKey.Name); err != nil {
-		p.log.With(cryptoKeyNameTag, cryptoKey.Name).Debug("Failed to set IAM policy")
+		log.Debug("Failed to set IAM policy")
 		return nil, status.Errorf(codes.Internal, "failed to set IAM policy: %v", err)
 	}
 
@@ -438,9 +456,14 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	disposeCryptoKeysFilter, err := p.getDisposeCryptoKeysFilter()
+	if err != nil {
+		return err
+	}
 	it := p.hooks.listCryptoKeys(ctx, p.kmsClient, &kmspb.ListCryptoKeysRequest{
 		Parent: config.KeyRing,
-		Filter: p.getDisposeCryptoKeysFilter(config),
+		Filter: disposeCryptoKeysFilter,
 	})
 
 	for {
@@ -499,18 +522,6 @@ func (p *Plugin) enqueueDestruction(cryptoKey *kmspb.CryptoKey) (err error) {
 	return nil
 }
 
-// getConfig gets the configuration of the plugin.
-func (p *Plugin) getConfig() (*Config, error) {
-	p.configMtx.RLock()
-	defer p.configMtx.RUnlock()
-
-	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
-	}
-
-	return p.config, nil
-}
-
 // getAuthenticatedServiceAccount gets the email of the authenticated service
 // account that is interacting with the Cloud KMS Service.
 func (p *Plugin) getAuthenticatedServiceAccount() (email string, err error) {
@@ -525,36 +536,62 @@ func (p *Plugin) getAuthenticatedServiceAccount() (email string, err error) {
 	return tokenInfo.Email, nil
 }
 
+// getConfig gets the configuration of the plugin.
+func (p *Plugin) getConfig() (*Config, error) {
+	p.configMtx.RLock()
+	defer p.configMtx.RUnlock()
+
+	if p.config == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+
+	return p.config, nil
+}
+
 // getDisposeCryptoKeysFilter gets the filter to be used to get the list of
 // CryptoKeys that are stale but are still marked as active.
-func (p *Plugin) getDisposeCryptoKeysFilter(config *Config) string {
+func (p *Plugin) getDisposeCryptoKeysFilter() (string, error) {
 	now := p.hooks.clk.Now()
+	pd, err := p.getPluginData()
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("labels.%s = %s AND labels.%s != %s AND labels.%s = true AND labels.%s < %d",
-		labelNameServerTD, config.tdHash, labelNameServerID, config.serverID, labelNameActive, labelNameLastUpdate, now.Add(-maxStaleDuration).Unix())
+		labelNameServerTD, pd.tdHash, labelNameServerID, pd.serverID, labelNameActive, labelNameLastUpdate, now.Add(-maxStaleDuration).Unix()), nil
 }
 
 // getCryptoKeyLabels gets the labels that must be set to a new CryptoKey
 // that is being created.
-func (p *Plugin) getCryptoKeyLabels(config *Config) map[string]string {
-	return map[string]string{
-		labelNameServerTD: config.tdHash,
-		labelNameServerID: config.serverID,
-		labelNameActive:   "true",
+func (p *Plugin) getCryptoKeyLabels() (map[string]string, error) {
+	pd, err := p.getPluginData()
+	if err != nil {
+		return nil, err
 	}
+	return map[string]string{
+		labelNameServerTD: pd.tdHash,
+		labelNameServerID: pd.serverID,
+		labelNameActive:   "true",
+	}, nil
+}
+
+func (p *Plugin) getPluginData() (*pluginData, error) {
+	p.pdMtx.RLock()
+	defer p.pdMtx.RUnlock()
+
+	if p.pd == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plugin data not yet initialized")
+	}
+	return p.pd, nil
 }
 
 // setIamPolicy sets the IAM policy specified in the KeyPolicyFile to the given
 // resource. If there is no KeyPolicyFile specified, a default policy is constructed
 // and set to the resource.
-func (p *Plugin) setIamPolicy(ctx context.Context, resource string) (err error) {
-	config, err := p.getConfig()
-	if err != nil {
-		return err
-	}
-	log := p.log.With("resource", resource)
+func (p *Plugin) setIamPolicy(ctx context.Context, cryptoKeyName string) (err error) {
+	log := p.log.With(cryptoKeyNameTag, cryptoKeyName)
 
 	// Get the policy of the created CryptoKey.
-	h := p.kmsClient.ResourceIAM(resource)
+	h := p.kmsClient.ResourceIAM(cryptoKeyName)
 	if h == nil {
 		return status.Error(codes.Internal, "could not get Cloud KMS Handle")
 	}
@@ -573,37 +610,46 @@ func (p *Plugin) setIamPolicy(ctx context.Context, resource string) (err error) 
 	// We expect the policy to be empty.
 	if len(policy.Bindings) > 0 {
 		// The policy is not empty, log the situation and do not replace it.
-		log.Warn("The CryptoKey already has a policy. No policy will be set.", cryptoKeyNameTag, resource)
+		log.Warn("The CryptoKey already has a policy. No policy will be set.")
 		return nil
 	}
-	if config.keyPolicy != nil {
-		// There is a custom policy defined, parse it.
-		customPolicy := &iam.Policy3{}
-		err := json.Unmarshal([]byte(*config.keyPolicy), customPolicy)
-		if err != nil {
-			return fmt.Errorf("failed to parse JSON policy: %w", err)
-		}
-		policy = customPolicy
-	} else {
-		// No custom policy defined. Build the default policy.
-		serviceAccount, err := p.getAuthenticatedServiceAccount()
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to get current identity: %v", err)
-		}
-		policy.Bindings = []*iampb.Binding{
-			{
-				Role:    "roles/cloudkms.signerVerifier",
-				Members: []string{fmt.Sprintf("serviceAccount:%s", serviceAccount)},
-			},
-		}
-	}
-	err = h3.SetPolicy(ctx, policy)
+	pd, err := p.getPluginData()
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to set IAM policy: %v", err)
+		return err
 	}
 
-	log.Debug("IAM policy updated to use the default policy")
+	if pd.customPolicy != nil {
+		// There is a custom policy defined.
+		if err := h3.SetPolicy(ctx, pd.customPolicy); err != nil {
+			return status.Errorf(codes.Internal, "failed to set custom IAM policy: %v", err)
+		}
+		log.Debug("IAM policy updated to use custom policy")
+		return nil
+	}
+
+	// No custom policy defined. Build the default policy.
+	serviceAccount, err := p.getAuthenticatedServiceAccount()
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to get current identity: %v", err)
+	}
+	policy.Bindings = []*iampb.Binding{
+		{
+			Role:    "roles/cloudkms.signerVerifier",
+			Members: []string{fmt.Sprintf("serviceAccount:%s", serviceAccount)},
+		},
+	}
+	if err := h3.SetPolicy(ctx, policy); err != nil {
+		return status.Errorf(codes.Internal, "failed to set default IAM policy: %v", err)
+	}
+	log.Debug("IAM policy updated to use default policy")
 	return nil
+}
+
+func (p *Plugin) setPluginData(pd *pluginData) {
+	p.pdMtx.Lock()
+	defer p.pdMtx.Unlock()
+
+	p.pd = pd
 }
 
 // keepActiveCryptoKeys keeps CryptoKeys managed by this plugin active updating
@@ -623,13 +669,13 @@ func (p *Plugin) keepActiveCryptoKeys(ctx context.Context) error {
 			CryptoKey: entry.cryptoKey,
 		})
 		if err != nil {
-			p.log.Error("Failed to update CryptoKey", cryptoKeyVersionNameTag, entry.cryptoKeyVersion.Name, reasonTag, err)
+			p.log.Error("Failed to update CryptoKey", cryptoKeyNameTag, entry.cryptoKey.Name, reasonTag, err)
 			errs = append(errs, err.Error())
 		}
 	}
 
 	if errs != nil {
-		return fmt.Errorf(strings.Join(errs, ": "))
+		return fmt.Errorf(strings.Join(errs, "; "))
 	}
 	return nil
 }
@@ -673,7 +719,7 @@ func (p *Plugin) notifyKeepActiveCryptoKeys(err error) {
 	}
 }
 
-// scheduleDestroyTask ia a long running task that schedules the destruction
+// scheduleDestroyTask is a long running task that schedules the destruction
 // of inactive CryptoKeyVersions and sets the corresponding CryptoKey as inactive.
 func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 	backoffMin := 1 * time.Second
@@ -738,7 +784,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 					// The GetCryptoKeyVersion call failed. Log this and re-enqueue
 					// the CryptoKey for destruction. Hopefully, this is a
 					// recoverable error.
-					log.Error("Could not get the CryptoKeyVersion while trying to schedule it for destruction")
+					log.Error("Could not get the CryptoKeyVersion while trying to schedule it for destruction", reasonTag, err)
 				}
 
 				select {
