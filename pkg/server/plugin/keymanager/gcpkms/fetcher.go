@@ -18,12 +18,13 @@ import (
 )
 
 type keyFetcher struct {
-	keyRing        string
-	kmsClient      kmsClient
-	listCryptoKeys listCryptoKeysFn
-	log            hclog.Logger
-	serverID       string
-	tdHash         string
+	keyRing               string
+	kmsClient             kmsClient
+	listCryptoKeys        listCryptoKeysFn
+	listCryptoKeyVersions listCryptoKeyVersionsFn
+	log                   hclog.Logger
+	serverID              string
+	tdHash                string
 }
 
 // fetchKeyEntries requests Cloud KMS to get the list of CryptoKeys that are
@@ -54,16 +55,16 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 
 		// Trigger a goroutine to get the details of the key
 		g.Go(func() error {
-			entry, err := kf.buildKeyEntryFromCryptoKey(ctx, cryptoKey, spireKeyID)
+			entries, err := kf.getKeyEntriesFromCryptoKey(ctx, cryptoKey, spireKeyID)
 			if err != nil {
 				return err
 			}
-			if entry == nil {
+			if entries == nil {
 				return nil
 			}
 
 			keyEntriesMutex.Lock()
-			keyEntries = append(keyEntries, entry)
+			keyEntries = append(keyEntries, entries...)
 			keyEntriesMutex.Unlock()
 			return nil
 		})
@@ -78,47 +79,53 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	return keyEntries, nil
 }
 
-// buildKeyEntryFromCryptoKey builds a keyEntry from the provided CryptoKey.
-// In order to do that, Cloud KMS is requested to get the first CryptoKeyVersion
-// of the CryptoKey. The public key of the CryptoKeyVersion is also retrieved to
-// construct the returned keyEntry.
-func (kf *keyFetcher) buildKeyEntryFromCryptoKey(ctx context.Context, cryptoKey *kmspb.CryptoKey, spireKeyID string) (*keyEntry, error) {
+// getKeyEntriesFromCryptoKey builds an array of keyEntry values from the provided
+// CryptoKey. In order to do that, Cloud KMS is requested to list the
+// CryptoKeyVersions of the CryptoKey. The public key of the CryptoKeyVersion is
+// also retrieved from each CryptoKey to construct each keyEntry.
+func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey *kmspb.CryptoKey, spireKeyID string) (keyEntries []*keyEntry, err error) {
 	if cryptoKey == nil {
 		return nil, status.Error(codes.Internal, "cryptoKey is nil")
 	}
 
-	cryptoKeyVersion, err := kf.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
-		Name: cryptoKey.Name + "/cryptoKeyVersions/1",
+	it := kf.listCryptoKeyVersions(ctx, kf.kmsClient, &kmspb.ListCryptoKeyVersionsRequest{
+		Parent: cryptoKey.Name,
+		Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
 	})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get CryptoKeyVersion: %v", err)
+	for {
+		cryptoKeyVersion, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		}
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failure listing CryptoKeyVersions: %v", err)
+		}
+		keyType, ok := keyTypeFromCryptoKeyVersionAlgorithm(cryptoKeyVersion.Algorithm)
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "unsupported CryptoKeyVersionAlgorithm: %v", cryptoKeyVersion.Algorithm)
+		}
+
+		kmsPublicKey, err := kf.kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersion.Name})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
+		}
+		pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
+
+		keyEntry := &keyEntry{
+			cryptoKey:        cryptoKey,
+			cryptoKeyVersion: cryptoKeyVersion,
+			publicKey: &keymanagerv1.PublicKey{
+				Id:          spireKeyID,
+				Type:        keyType,
+				PkixData:    pemBlock.Bytes,
+				Fingerprint: makeFingerprint(pemBlock.Bytes),
+			},
+		}
+
+		keyEntries = append(keyEntries, keyEntry)
 	}
 
-	if cryptoKeyVersion.State != kmspb.CryptoKeyVersion_ENABLED {
-		return nil, nil
-	}
-
-	keyType, ok := keyTypeFromCryptoKeyVersionAlgorithm(cryptoKeyVersion.Algorithm)
-	if !ok {
-		return nil, status.Errorf(codes.Internal, "unsupported CryptoKeyVersionAlgorithm: %v", cryptoKeyVersion.Algorithm)
-	}
-
-	kmsPublicKey, err := kf.kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersion.Name})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
-	}
-	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
-
-	return &keyEntry{
-		cryptoKey:        cryptoKey,
-		cryptoKeyVersion: cryptoKeyVersion,
-		publicKey: &keymanagerv1.PublicKey{
-			Id:          spireKeyID,
-			Type:        keyType,
-			PkixData:    pemBlock.Bytes,
-			Fingerprint: makeFingerprint(pemBlock.Bytes),
-		},
-	}, nil
+	return keyEntries, nil
 }
 
 // getSPIREKeyIDFromCryptoKeyName parses a CryptoKey resource name to get the

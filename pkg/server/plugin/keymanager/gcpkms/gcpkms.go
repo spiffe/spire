@@ -70,10 +70,13 @@ type keyEntry struct {
 
 type listCryptoKeysFn func(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator
 
+type listCryptoKeyVersionsFn func(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator
+
 type pluginHooks struct {
-	newKMSClient     func(context.Context, ...option.ClientOption) (kmsClient, error)
-	newOauth2Service func(context.Context, ...option.ClientOption) (oauth2Service, error)
-	listCryptoKeys   listCryptoKeysFn
+	newKMSClient          func(context.Context, ...option.ClientOption) (kmsClient, error)
+	newOauth2Service      func(context.Context, ...option.ClientOption) (oauth2Service, error)
+	listCryptoKeys        listCryptoKeysFn
+	listCryptoKeyVersions listCryptoKeyVersionsFn
 
 	clk clock.Clock
 
@@ -109,7 +112,7 @@ type Plugin struct {
 	kmsClient       kmsClient
 	log             hclog.Logger
 	oauth2Service   oauth2Service
-	scheduleDestroy chan *kmspb.CryptoKey
+	scheduleDestroy chan *kmspb.CryptoKeyVersion
 }
 
 // Config provides configuration context for the plugin.
@@ -133,23 +136,26 @@ type Config struct {
 
 // New returns an instantiated plugin.
 func New() *Plugin {
-	return newPlugin(newKMSClient, newOauth2Service, listCryptoKeys)
+	return newPlugin(newKMSClient, newOauth2Service, listCryptoKeys, listCryptoKeyVersions)
 }
 
 // newPlugin returns a new plugin instance.
 func newPlugin(
 	newKMSClient func(context.Context, ...option.ClientOption) (kmsClient, error),
 	newOauth2Service func(context.Context, ...option.ClientOption) (oauth2Service, error),
-	listCryptoKeys listCryptoKeysFn) *Plugin {
+	listCryptoKeys listCryptoKeysFn,
+	listCryptoKeyVersions listCryptoKeyVersionsFn,
+) *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
-			newKMSClient:     newKMSClient,
-			newOauth2Service: newOauth2Service,
-			listCryptoKeys:   listCryptoKeys,
-			clk:              clock.New(),
+			newKMSClient:          newKMSClient,
+			newOauth2Service:      newOauth2Service,
+			listCryptoKeys:        listCryptoKeys,
+			listCryptoKeyVersions: listCryptoKeyVersions,
+			clk:                   clock.New(),
 		},
-		scheduleDestroy: make(chan *kmspb.CryptoKey, 120),
+		scheduleDestroy: make(chan *kmspb.CryptoKeyVersion, 120),
 	}
 }
 
@@ -205,12 +211,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	fetcher := &keyFetcher{
-		keyRing:        config.KeyRing,
-		kmsClient:      kc,
-		listCryptoKeys: p.hooks.listCryptoKeys,
-		log:            p.log,
-		serverID:       serverID,
-		tdHash:         tdHashString,
+		keyRing:               config.KeyRing,
+		kmsClient:             kc,
+		listCryptoKeys:        p.hooks.listCryptoKeys,
+		listCryptoKeyVersions: p.hooks.listCryptoKeyVersions,
+		log:                   p.log,
+		serverID:              serverID,
+		tdHash:                tdHashString,
 	}
 	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", config.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -254,16 +261,6 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	if err != nil {
 		return nil, err
 	}
-
-	p.entriesMtx.Lock()
-	defer p.entriesMtx.Unlock()
-	if entry, ok := p.entries[req.KeyId]; ok {
-		if err := p.enqueueDestruction(entry.cryptoKey); err != nil {
-			p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
-		}
-	}
-
-	p.entries[req.KeyId] = *newKeyEntry
 
 	return &keymanagerv1.GenerateKeyResponse{
 		PublicKey: newKeyEntry.publicKey,
@@ -378,24 +375,64 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 // to get the public key of the created CryptoKeyVersion. A keyEntry is returned
 // with the CryptoKey, CryptoKeyVersion and public key.
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
+
+	if entry, ok := p.entries[spireKeyID]; ok {
+		cryptoKeyVersion, err := p.kmsClient.CreateCryptoKeyVersion(ctx, &kmspb.CreateCryptoKeyVersionRequest{
+			Parent: entry.cryptoKey.Name,
+			CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+				State: kmspb.CryptoKeyVersion_ENABLED,
+			},
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create CryptoKeyVersion: %v", err)
+		}
+		p.log.Debug("CryptoKeyVersion added", cryptoKeyNameTag, entry.cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
+
+		pubKey, err := p.getPublicKeyFromCryptoKeyVersion(ctx, cryptoKeyVersion.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		newKeyEntry := keyEntry{
+			cryptoKey:        entry.cryptoKey,
+			cryptoKeyVersion: cryptoKeyVersion,
+			publicKey: &keymanagerv1.PublicKey{
+				Id:          spireKeyID,
+				Type:        keyType,
+				PkixData:    pubKey,
+				Fingerprint: makeFingerprint(pubKey),
+			},
+		}
+
+		p.entries[spireKeyID] = newKeyEntry
+
+		if err := p.enqueueDestruction(entry.cryptoKeyVersion); err != nil {
+			p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
+		}
+
+		return &newKeyEntry, nil
+	}
+
 	algorithm, err := cryptoKeyVersionAlgorithmFromKeyType(keyType)
 	if err != nil {
 		return nil, err
 	}
 
-	cryptoKeyID, err := generateCryptoKeyID(spireKeyID)
+	cryptoKeyID, err := p.generateCryptoKeyID(spireKeyID)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate CryptoKeyID: %w", err)
-	}
-
-	config, err := p.getConfig()
-	if err != nil {
-		return nil, err
 	}
 
 	cryptoKeyLabels, err := p.getCryptoKeyLabels()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not get CryptoKey labels: %v", err)
+	}
+
+	config, err := p.getConfig()
+	if err != nil {
+		return nil, err
 	}
 
 	cryptoKey, err := p.kmsClient.CreateCryptoKey(ctx, &kmspb.CreateCryptoKeyRequest{
@@ -427,23 +464,25 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get CryptoKeyVersion: %v", err)
 	}
+	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
-	kmsPublicKey, err := p.kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersion.Name})
+	pubKey, err := p.getPublicKeyFromCryptoKeyVersion(ctx, cryptoKeyVersion.Name)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
+		return nil, err
 	}
-	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
-
-	return &keyEntry{
+	newKeyEntry := keyEntry{
 		cryptoKey:        cryptoKey,
 		cryptoKeyVersion: cryptoKeyVersion,
 		publicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
-			PkixData:    pemBlock.Bytes,
-			Fingerprint: makeFingerprint(pemBlock.Bytes),
+			PkixData:    pubKey,
+			Fingerprint: makeFingerprint(pubKey),
 		},
-	}, nil
+	}
+
+	p.entries[spireKeyID] = newKeyEntry
+	return &newKeyEntry, nil
 }
 
 // disposeCryptoKeys looks for active CryptoKeys that haven't been updated
@@ -461,27 +500,51 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	it := p.hooks.listCryptoKeys(ctx, p.kmsClient, &kmspb.ListCryptoKeysRequest{
+	itCryptoKeys := p.hooks.listCryptoKeys(ctx, p.kmsClient, &kmspb.ListCryptoKeysRequest{
 		Parent: config.KeyRing,
 		Filter: disposeCryptoKeysFilter,
 	})
 
 	for {
-		cryptoKey, err := it.Next()
+		cryptoKey, err := itCryptoKeys.Next()
 		if errors.Is(err, iterator.Done) {
 			break
 		}
-		switch {
-		case err != nil:
+		if err != nil {
 			p.log.Error("Failure listing CryptoKeys to dispose", reasonTag, err)
-			return err
-		case cryptoKey == nil:
-			p.log.Error("Failure listing CryptoKeys to dispose: nil response")
 			return err
 		}
 
-		if err := p.enqueueDestruction(cryptoKey); err != nil {
-			p.log.With(cryptoKeyNameTag, cryptoKey.Name).Error("Failed to enqueue CryptoKey for destruction", reasonTag, err)
+		itCryptoKeyVersions := p.hooks.listCryptoKeyVersions(ctx, p.kmsClient, &kmspb.ListCryptoKeyVersionsRequest{
+			Parent: cryptoKey.Name,
+			Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
+		})
+
+		// If the CryptoKey doesn't have any enabled CryptoKeyVersion, mark it
+		// as inactive so it's not returned future calls.
+		cryptoKeyVersion, err := itCryptoKeyVersions.Next()
+		if errors.Is(err, iterator.Done) {
+			p.setInactive(ctx, cryptoKey)
+			continue
+		}
+
+		for {
+			if err != nil {
+				p.log.Error("Failure listing CryptoKeyVersios", reasonTag, err)
+				return err
+			}
+
+			if err := p.enqueueDestruction(cryptoKeyVersion); err != nil {
+				p.log.With(cryptoKeyNameTag, cryptoKey.Name).Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
+			}
+
+			cryptoKeyVersion, err = itCryptoKeyVersions.Next()
+			if errors.Is(err, iterator.Done) {
+				// No more enabled CryptoKeyVersions in this CryptoKey.
+				// Set the CryptoKey so it's not returned future calls.
+				p.setInactive(ctx, cryptoKey)
+				break
+			}
 		}
 	}
 	return nil
@@ -510,13 +573,13 @@ func (p *Plugin) disposeCryptoKeysTask(ctx context.Context) {
 	}
 }
 
-// enqueueDestruction enqueues the specified CryptoKey for destruction.
-func (p *Plugin) enqueueDestruction(cryptoKey *kmspb.CryptoKey) (err error) {
+// enqueueDestruction enqueues the specified CryptoKeyVersion for destruction.
+func (p *Plugin) enqueueDestruction(cryptoKeyVersion *kmspb.CryptoKeyVersion) (err error) {
 	select {
-	case p.scheduleDestroy <- cryptoKey:
-		p.log.Debug("CryptoKey enqueued for destruction", cryptoKeyVersionNameTag, cryptoKey.Name)
+	case p.scheduleDestroy <- cryptoKeyVersion:
+		p.log.Debug("CryptoKeyVersion enqueued for destruction", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 	default:
-		return fmt.Errorf("could not enqueue CryptoKey %q for destruction", cryptoKey.Name)
+		return fmt.Errorf("could not enqueue CryptoKeyVersion %q for destruction", cryptoKeyVersion.Name)
 	}
 
 	return nil
@@ -548,18 +611,6 @@ func (p *Plugin) getConfig() (*Config, error) {
 	return p.config, nil
 }
 
-// getDisposeCryptoKeysFilter gets the filter to be used to get the list of
-// CryptoKeys that are stale but are still marked as active.
-func (p *Plugin) getDisposeCryptoKeysFilter() (string, error) {
-	now := p.hooks.clk.Now()
-	pd, err := p.getPluginData()
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("labels.%s = %s AND labels.%s != %s AND labels.%s = true AND labels.%s < %d",
-		labelNameServerTD, pd.tdHash, labelNameServerID, pd.serverID, labelNameActive, labelNameLastUpdate, now.Add(-maxStaleDuration).Unix()), nil
-}
-
 // getCryptoKeyLabels gets the labels that must be set to a new CryptoKey
 // that is being created.
 func (p *Plugin) getCryptoKeyLabels() (map[string]string, error) {
@@ -574,6 +625,19 @@ func (p *Plugin) getCryptoKeyLabels() (map[string]string, error) {
 	}, nil
 }
 
+// getDisposeCryptoKeysFilter gets the filter to be used to get the list of
+// CryptoKeys that are stale but are still marked as active.
+func (p *Plugin) getDisposeCryptoKeysFilter() (string, error) {
+	now := p.hooks.clk.Now()
+	pd, err := p.getPluginData()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("labels.%s = %s AND labels.%s != %s AND labels.%s = true AND labels.%s < %d",
+		labelNameServerTD, pd.tdHash, labelNameServerID, pd.serverID, labelNameActive, labelNameLastUpdate, now.Add(-maxStaleDuration).Unix()), nil
+}
+
+// getPluginData gets the pluginData structure maintained by the plugin.
 func (p *Plugin) getPluginData() (*pluginData, error) {
 	p.pdMtx.RLock()
 	defer p.pdMtx.RUnlock()
@@ -582,6 +646,17 @@ func (p *Plugin) getPluginData() (*pluginData, error) {
 		return nil, status.Error(codes.FailedPrecondition, "plugin data not yet initialized")
 	}
 	return p.pd, nil
+}
+
+// getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
+// of the specified CryptoKeyVersion.
+func (p *Plugin) getPublicKeyFromCryptoKeyVersion(ctx context.Context, cryptoKeyVersionName string) (pubKey []byte, err error) {
+	kmsPublicKey, err := p.kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
+	}
+	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
+	return pemBlock.Bytes, nil
 }
 
 // setIamPolicy sets the IAM policy specified in the KeyPolicyFile to the given
@@ -645,6 +720,7 @@ func (p *Plugin) setIamPolicy(ctx context.Context, cryptoKeyName string) (err er
 	return nil
 }
 
+// setPluginData sets the pluginData structure maintained by the plugin.
 func (p *Plugin) setPluginData(pd *pluginData) {
 	p.pdMtx.Lock()
 	defer p.pdMtx.Unlock()
@@ -730,23 +806,20 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case cryptoKey := <-p.scheduleDestroy:
-			cryptoKeyVersionName := getFirstCryptoKeyVersionName(cryptoKey.Name)
-			log := p.log.With(cryptoKeyNameTag, cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersionName)
+		case cryptoKeyVersion := <-p.scheduleDestroy:
+			log := p.log.With(cryptoKeyNameTag, cryptoKeyVersion.Name)
 			destroyedCryptoKeyVersion, err := p.kmsClient.DestroyCryptoKeyVersion(ctx, &kmspb.DestroyCryptoKeyVersionRequest{
-				Name: cryptoKeyVersionName,
+				Name: cryptoKeyVersion.Name,
 			})
 			switch status.Code(err) {
 			case codes.NotFound:
 				// CryptoKeyVersion is not found, no CryptoKeyVersion to destroy
 				log.Warn("CryptoKeyVersion not found")
-				p.setInactive(ctx, cryptoKey)
 				backoff = backoffMin
 				p.notifyDestroy(err)
 				continue
 			case codes.OK:
 				log.Debug("CryptoKeyVersion scheduled for destruction", "destroy_time", destroyedCryptoKeyVersion.DestroyTime.AsTime())
-				p.setInactive(ctx, cryptoKey)
 				backoff = backoffMin
 				p.notifyDestroy(nil)
 				continue
@@ -757,7 +830,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 				// Try to get the CryptoKeyVersion to know the state of the
 				// CryptoKeyVersion and if we need to re-enqueue.
 				cryptoKeyVersion, err := p.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
-					Name: cryptoKeyVersionName,
+					Name: cryptoKeyVersion.Name,
 				})
 				switch status.Code(err) {
 				case codes.NotFound:
@@ -765,7 +838,6 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 					// because this should have been captured during the
 					// DestroyCryptoKeyVersion call that was just performed.
 					log.Warn("CryptoKeyVersion not found")
-					p.setInactive(ctx, cryptoKey)
 					backoff = backoffMin
 					p.notifyDestroy(err)
 					continue
@@ -775,7 +847,6 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 						// of the CryptoKeyVersion. Do not try to schedule it for
 						// destruction.
 						log.Warn("CryptoKeyVersion is not enabled, will not be scheduled for destruction", "crypto_key_version_state", cryptoKeyVersion.State.String())
-						p.setInactive(ctx, cryptoKey)
 						backoff = backoffMin
 						p.notifyDestroy(err)
 						continue
@@ -788,7 +859,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 				}
 
 				select {
-				case p.scheduleDestroy <- cryptoKey:
+				case p.scheduleDestroy <- cryptoKeyVersion:
 					log.Debug("CryptoKeyVersion re-enqueued for destruction")
 				default:
 					log.Error("Failed to re-enqueue CryptoKeyVersion for destruction")
@@ -880,13 +951,12 @@ func cryptoKeyVersionAlgorithmFromKeyType(keyType keymanagerv1.KeyType) (kmspb.C
 // The returned identifier has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
 // where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
 // through the spireKeyID paramenter.
-func generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err error) {
-	uniqueID, err := generateUniqueID()
+func (p *Plugin) generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err error) {
+	pd, err := p.getPluginData()
 	if err != nil {
 		return "", err
 	}
-
-	return fmt.Sprintf("%s-%s-%s", cryptoKeyNamePrefix, uniqueID, spireKeyID), nil
+	return fmt.Sprintf("%s-%s-%s", cryptoKeyNamePrefix, pd.serverID, spireKeyID), nil
 }
 
 // generateUniqueID returns a randomly generated UUID.
@@ -897,12 +967,6 @@ func generateUniqueID() (id string, err error) {
 	}
 
 	return u.String(), nil
-}
-
-// getFirstCryptoKeyVersionName returns the first CryptoKeyVersion corresponding
-// to the provided CryptoKeyName.
-func getFirstCryptoKeyVersionName(cryptoKeyName string) string {
-	return fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName)
 }
 
 // getOrCreateServerID gets the server ID from the specified file path or creates

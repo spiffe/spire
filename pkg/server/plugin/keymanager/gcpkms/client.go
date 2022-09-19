@@ -15,6 +15,7 @@ import (
 type kmsClient interface {
 	AsymmetricSign(context.Context, *kmspb.AsymmetricSignRequest, ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error)
 	CreateCryptoKey(context.Context, *kmspb.CreateCryptoKeyRequest, ...gax.CallOption) (*kmspb.CryptoKey, error)
+	CreateCryptoKeyVersion(context.Context, *kmspb.CreateCryptoKeyVersionRequest, ...gax.CallOption) (*kmspb.CryptoKeyVersion, error)
 	DestroyCryptoKeyVersion(context.Context, *kmspb.DestroyCryptoKeyVersionRequest, ...gax.CallOption) (*kmspb.CryptoKeyVersion, error)
 	GetCryptoKeyVersion(context.Context, *kmspb.GetCryptoKeyVersionRequest, ...gax.CallOption) (*kmspb.CryptoKeyVersion, error)
 	GetPublicKey(context.Context, *kmspb.GetPublicKeyRequest, ...gax.CallOption) (*kmspb.PublicKey, error)
@@ -27,6 +28,10 @@ type cryptoKeyIterator interface {
 	Next() (*kmspb.CryptoKey, error)
 }
 
+type cryptoKeyVersionIterator interface {
+	Next() (*kmspb.CryptoKeyVersion, error)
+}
+
 func newKMSClient(ctx context.Context, opts ...option.ClientOption) (kmsClient, error) {
 	return kms.NewKeyManagementClient(ctx, opts...)
 }
@@ -34,6 +39,11 @@ func newKMSClient(ctx context.Context, opts ...option.ClientOption) (kmsClient, 
 func listCryptoKeys(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator {
 	kmc := kmsClient.(*kms.KeyManagementClient)
 	return kmc.ListCryptoKeys(ctx, req, opts...)
+}
+
+func listCryptoKeyVersions(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator {
+	kmc := kmsClient.(*kms.KeyManagementClient)
+	return kmc.ListCryptoKeyVersions(ctx, req, opts...)
 }
 
 type oauth2Service interface {

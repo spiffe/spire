@@ -18,7 +18,9 @@ The plugin uses the Application Default Credentials to authenticate with the Goo
 
 ### Use of key versions
 
-In Cloud KMS, the cryptographic key material that is used to sign data is stored in a key version (CryptoKeyVersion). A key (CryptoKey) can have zero or more key versions. This plugin always uses a single version for each CryptoKey.
+In Cloud KMS, the cryptographic key material that is used to sign data is stored in a key version (CryptoKeyVersion). A key (CryptoKey) can have zero or more key versions.
+
+For each SPIRE Key ID that the server manages, this plugin maintains a CryptoKey. When a key is rotated, a new CryptoKeyVersion is added to the CryptoKey and the rotated CryptoKeyVersion is scheduled for destruction.
 
 ### Management of keys
 
