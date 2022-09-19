@@ -112,8 +112,8 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 		pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
 
 		keyEntry := &keyEntry{
-			cryptoKey:        cryptoKey,
-			cryptoKeyVersion: cryptoKeyVersion,
+			cryptoKey:            cryptoKey,
+			cryptoKeyVersionName: cryptoKeyVersion.Name,
 			publicKey: &keymanagerv1.PublicKey{
 				Id:          spireKeyID,
 				Type:        keyType,

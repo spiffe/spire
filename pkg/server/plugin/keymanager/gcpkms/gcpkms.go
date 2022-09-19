@@ -63,9 +63,9 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type keyEntry struct {
-	cryptoKey        *kmspb.CryptoKey
-	cryptoKeyVersion *kmspb.CryptoKeyVersion
-	publicKey        *keymanagerv1.PublicKey
+	cryptoKey            *kmspb.CryptoKey
+	cryptoKeyVersionName string
+	publicKey            *keymanagerv1.PublicKey
 }
 
 type listCryptoKeysFn func(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator
@@ -112,7 +112,7 @@ type Plugin struct {
 	kmsClient       kmsClient
 	log             hclog.Logger
 	oauth2Service   oauth2Service
-	scheduleDestroy chan *kmspb.CryptoKeyVersion
+	scheduleDestroy chan string
 }
 
 // Config provides configuration context for the plugin.
@@ -155,7 +155,7 @@ func newPlugin(
 			listCryptoKeyVersions: listCryptoKeyVersions,
 			clk:                   clock.New(),
 		},
-		scheduleDestroy: make(chan *kmspb.CryptoKeyVersion, 120),
+		scheduleDestroy: make(chan string, 120),
 	}
 }
 
@@ -355,7 +355,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}
 
 	signResp, err := p.kmsClient.AsymmetricSign(ctx, &kmspb.AsymmetricSignRequest{
-		Name:   keyEntry.cryptoKeyVersion.Name,
+		Name:   keyEntry.cryptoKeyVersionName,
 		Digest: digest,
 	})
 	if err != nil {
@@ -396,8 +396,8 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		}
 
 		newKeyEntry := keyEntry{
-			cryptoKey:        entry.cryptoKey,
-			cryptoKeyVersion: cryptoKeyVersion,
+			cryptoKey:            entry.cryptoKey,
+			cryptoKeyVersionName: cryptoKeyVersion.Name,
 			publicKey: &keymanagerv1.PublicKey{
 				Id:          spireKeyID,
 				Type:        keyType,
@@ -408,7 +408,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 
 		p.entries[spireKeyID] = newKeyEntry
 
-		if err := p.enqueueDestruction(entry.cryptoKeyVersion); err != nil {
+		if err := p.enqueueDestruction(entry.cryptoKeyVersionName); err != nil {
 			p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
 		}
 
@@ -458,21 +458,16 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, status.Errorf(codes.Internal, "failed to set IAM policy: %v", err)
 	}
 
-	cryptoKeyVersion, err := p.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
-		Name: cryptoKey.Name + "/cryptoKeyVersions/1",
-	})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get CryptoKeyVersion: %v", err)
-	}
-	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
+	cryptoKeyVersionName := cryptoKey.Name + "/cryptoKeyVersions/1"
+	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 
-	pubKey, err := p.getPublicKeyFromCryptoKeyVersion(ctx, cryptoKeyVersion.Name)
+	pubKey, err := p.getPublicKeyFromCryptoKeyVersion(ctx, cryptoKeyVersionName)
 	if err != nil {
 		return nil, err
 	}
 	newKeyEntry := keyEntry{
-		cryptoKey:        cryptoKey,
-		cryptoKeyVersion: cryptoKeyVersion,
+		cryptoKey:            cryptoKey,
+		cryptoKeyVersionName: cryptoKeyVersionName,
 		publicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
@@ -534,7 +529,7 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 				return err
 			}
 
-			if err := p.enqueueDestruction(cryptoKeyVersion); err != nil {
+			if err := p.enqueueDestruction(cryptoKeyVersion.Name); err != nil {
 				p.log.With(cryptoKeyNameTag, cryptoKey.Name).Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
 			}
 
@@ -574,12 +569,12 @@ func (p *Plugin) disposeCryptoKeysTask(ctx context.Context) {
 }
 
 // enqueueDestruction enqueues the specified CryptoKeyVersion for destruction.
-func (p *Plugin) enqueueDestruction(cryptoKeyVersion *kmspb.CryptoKeyVersion) (err error) {
+func (p *Plugin) enqueueDestruction(cryptoKeyVersionName string) (err error) {
 	select {
-	case p.scheduleDestroy <- cryptoKeyVersion:
-		p.log.Debug("CryptoKeyVersion enqueued for destruction", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
+	case p.scheduleDestroy <- cryptoKeyVersionName:
+		p.log.Debug("CryptoKeyVersion enqueued for destruction", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 	default:
-		return fmt.Errorf("could not enqueue CryptoKeyVersion %q for destruction", cryptoKeyVersion.Name)
+		return fmt.Errorf("could not enqueue CryptoKeyVersion %q for destruction", cryptoKeyVersionName)
 	}
 
 	return nil
@@ -806,10 +801,10 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case cryptoKeyVersion := <-p.scheduleDestroy:
-			log := p.log.With(cryptoKeyNameTag, cryptoKeyVersion.Name)
+		case cryptoKeyVersionName := <-p.scheduleDestroy:
+			log := p.log.With(cryptoKeyNameTag, cryptoKeyVersionName)
 			destroyedCryptoKeyVersion, err := p.kmsClient.DestroyCryptoKeyVersion(ctx, &kmspb.DestroyCryptoKeyVersionRequest{
-				Name: cryptoKeyVersion.Name,
+				Name: cryptoKeyVersionName,
 			})
 			switch status.Code(err) {
 			case codes.NotFound:
@@ -830,7 +825,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 				// Try to get the CryptoKeyVersion to know the state of the
 				// CryptoKeyVersion and if we need to re-enqueue.
 				cryptoKeyVersion, err := p.kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
-					Name: cryptoKeyVersion.Name,
+					Name: cryptoKeyVersionName,
 				})
 				switch status.Code(err) {
 				case codes.NotFound:
@@ -859,7 +854,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 				}
 
 				select {
-				case p.scheduleDestroy <- cryptoKeyVersion:
+				case p.scheduleDestroy <- cryptoKeyVersionName:
 					log.Debug("CryptoKeyVersion re-enqueued for destruction")
 				default:
 					log.Error("Failed to re-enqueue CryptoKeyVersion for destruction")
@@ -900,7 +895,7 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 
 	for _, e := range keyEntries {
 		p.entries[e.publicKey.Id] = *e
-		p.log.Debug("Cloud KMS key loaded", cryptoKeyVersionNameTag, e.cryptoKeyVersion.Name, algorithmTag, e.cryptoKeyVersion.Algorithm)
+		p.log.Debug("Cloud KMS key loaded", cryptoKeyVersionNameTag, e.cryptoKeyVersionName, algorithmTag, e.cryptoKey.VersionTemplate.Algorithm)
 	}
 }
 
