@@ -45,7 +45,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.5
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/hashicorp/vault/api v1.7.2
-	github.com/hashicorp/vault/sdk v0.5.3
+	github.com/hashicorp/vault/sdk v0.6.0
 	github.com/imdario/mergo v0.3.13
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
@@ -72,9 +72,9 @@ require (
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.25.0
-	k8s.io/apimachinery v0.25.0
-	k8s.io/client-go v0.25.0
+	k8s.io/api v0.25.1
+	k8s.io/apimachinery v0.25.1
+	k8s.io/client-go v0.25.1
 	k8s.io/kube-aggregator v0.23.3
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
 	sigs.k8s.io/controller-runtime v0.12.3
