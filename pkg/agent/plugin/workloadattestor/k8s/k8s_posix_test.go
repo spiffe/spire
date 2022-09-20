@@ -290,9 +290,9 @@ func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
 
 	s.sigstoreMock.returnError = errors.New("sigstore error 123")
 
-	s.requireAttestSuccessWithPod(v1)
+	s.requireAttestFailureWithPod(v1, codes.Internal, fmt.Sprintf("error retrieving signature payload: %v", "sigstore error 123"))
 	s.Require().Contains(buf.String(), "Error retrieving signature payload")
-	s.Require().Contains(buf.String(), "sigstore error 123")
+	s.Require().Contains(buf.String(), fmt.Sprintf("error=%q", "sigstore error 123"))
 }
 
 func (s *Suite) TestLogger() {
@@ -362,6 +362,12 @@ func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.Wor
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) requireAttestFailureWithPod(p workloadattestor.WorkloadAttestor, code codes.Code, contains string) {
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestFailure(p, code, contains)
 }
 
 func TestGetContainerIDFromCGroups(t *testing.T) {
