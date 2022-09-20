@@ -585,21 +585,7 @@ func (s *Suite) TestConfigure() {
 			sigstoreEnabled: true,
 		},
 		{
-			name: "secure defaults with empty rekor URL",
-			hcl: `
-				experimental = {
-					sigstore = {
-						rekor_url = ""
-					}
-				}
-			`,
-			sigstoreError: errors.New("rekor URL is empty"),
-			config:        nil,
-			errCode:       codes.InvalidArgument,
-			errMsg:        "failed to parse Rekor URL: rekor URL is empty",
-		},
-		{
-			name: "secure defaults for failed parsing rekor URI",
+			name: "secure defaults, failed parsing rekor URI",
 			hcl: `
 				experimental = {
 					sigstore = {
@@ -611,34 +597,6 @@ func (s *Suite) TestConfigure() {
 			config:        nil,
 			errCode:       codes.InvalidArgument,
 			errMsg:        "failed to parse Rekor URL: failed parsing rekor URI",
-		},
-		{
-			name: "secure defaults for invalid rekor URL Scheme",
-			hcl: `
-				experimental = {
-					sigstore = {
-						rekor_url = "htttp://rekor.example.com"
-					}
-				}
-			`,
-			sigstoreError: errors.New("invalid rekor URL Scheme"),
-			config:        nil,
-			errCode:       codes.InvalidArgument,
-			errMsg:        "failed to parse Rekor URL: invalid rekor URL Scheme",
-		},
-		{
-			name: "secure defaults for invalid rekor URL Host",
-			hcl: `
-				experimental = {
-					sigstore = {
-						rekor_url = "invalid;.com"
-					}
-				}
-			`,
-			sigstoreError: errors.New("invalid rekor URL Host"),
-			config:        nil,
-			errCode:       codes.InvalidArgument,
-			errMsg:        "failed to parse Rekor URL: invalid rekor URL Host",
 		},
 	}
 
