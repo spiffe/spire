@@ -2291,7 +2291,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		EntryExpiry:   1000,
 		DnsNames:      []string{"dns2"},
 		Downstream:    false,
-		StoreSvid:     false,
+		StoreSvid:     true,
 	}
 	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
@@ -2368,7 +2368,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
 			result: func(e *common.RegistrationEntry) {}},
 		{name: "Update Selectors, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{Selectors: false},
+			mask:   &common.RegistrationEntryMask{Selectors: true},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
 			err:    errors.New("invalid registration entry: missing selector list")},
 		{name: "Update Selectors, Bad Data, Mask False",
@@ -2462,7 +2462,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, updateEntry, tt.mask)
 
 			if tt.err != nil {
-				s.Require().Error(tt.err)
+				s.Require().ErrorContains(err, tt.err.Error())
 				return
 			}
 
