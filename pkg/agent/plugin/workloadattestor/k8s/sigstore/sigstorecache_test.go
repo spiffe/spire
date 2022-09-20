@@ -2,7 +2,6 @@ package sigstore
 
 import (
 	"container/list"
-	"reflect"
 	"sync"
 	"testing"
 
@@ -57,30 +56,29 @@ var (
 			},
 		},
 	}
-)
 
-func TestNewCache(t *testing.T) {
-	tests := []struct {
-		name string
-		want Cache
-	}{
-		{
-			name: "New",
-			want: &cacheImpl{
-				size:     3,
-				items:    list.New(),
-				mutex:    sync.RWMutex{},
-				itemsMap: make(map[string]MapItem),
+	selectors2Updated = Item{
+		Key: "signature2",
+		Value: []SelectorsFromSignatures{
+			{
+				Subject:        "spirex2@example.com",
+				Content:        "content5",
+				LogID:          "5555555555555555",
+				IntegratedTime: "5555555555555555",
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := NewCache(3); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewCache() = %v, want %v", got, tt.want)
-			}
-		})
+)
+
+func TestNewCache(t *testing.T) {
+	want := &cacheImpl{
+		size:     3,
+		items:    list.New(),
+		mutex:    sync.RWMutex{},
+		itemsMap: make(map[string]MapItem),
 	}
+	got := NewCache(3)
+	require.Equal(t, want, got, "NewCache() = %v, want %v", got, want)
 }
 
 func TestCacheimpl_GetSignature(t *testing.T) {
@@ -124,10 +122,8 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := cacheInstance.GetSignature(tt.key)
-			require.Equal(t, got, tt.want, "%v Got: %v Want: %v", tt.errorMessage, got, tt.want)
-		})
+		got := cacheInstance.GetSignature(tt.key)
+		require.Equal(t, got, tt.want, "%v Got: %v Want: %v", tt.errorMessage, got, tt.want)
 	}
 }
 
@@ -187,17 +183,259 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cacheInstance.PutSignature(*tt.item)
-			gotLen := cacheInstance.items.Len()
-			if gotLen != tt.wantLength {
-				t.Errorf("Item count should be %v in test case %q", tt.wantLength, tt.name)
-			}
-			gotItem, present := m[tt.wantKey]
-			if !present {
-				t.Errorf("Key put but not found: %v", tt.wantKey)
-			}
-			require.Equal(t, gotItem.item, tt.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
-		})
+		cacheInstance.PutSignature(*tt.item)
+		gotLen := cacheInstance.items.Len()
+		if gotLen != tt.wantLength {
+			t.Errorf("Item count should be %v in test case %q", tt.wantLength, tt.name)
+		}
+		gotItem, present := m[tt.wantKey]
+		if !present {
+			t.Errorf("Key put but not found: %v", tt.wantKey)
+		}
+		require.Equal(t, gotItem.item, tt.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
+	}
+}
+
+func TestCacheimpl_CheckOverflowAndUpdates(t *testing.T) {
+	m := make(map[string]MapItem)
+	items := list.New()
+
+	cacheInstance := &cacheImpl{
+		size:     2,
+		items:    items,
+		mutex:    sync.RWMutex{},
+		itemsMap: m,
+	}
+
+	putSteps1 := []struct {
+		name        string
+		item        *Item
+		wantLength  int
+		wantKey     string
+		wantValue   *Item
+		wantHeadKey string
+	}{
+		{
+			name:        "Put first element",
+			item:        &selectors1,
+			wantLength:  1,
+			wantKey:     selectors1.Key,
+			wantValue:   &selectors1,
+			wantHeadKey: selectors1.Key,
+		},
+		{
+			name:        "Put first element again",
+			item:        &selectors1,
+			wantLength:  1,
+			wantKey:     selectors1.Key,
+			wantValue:   &selectors1,
+			wantHeadKey: selectors1.Key,
+		},
+		{
+			name:        "Put second element",
+			item:        &selectors2,
+			wantLength:  2,
+			wantKey:     selectors2.Key,
+			wantValue:   &selectors2,
+			wantHeadKey: selectors2.Key,
+		},
+		{
+			name:        "Put third element, Overflow cache",
+			item:        &selectors3,
+			wantLength:  2,
+			wantKey:     selectors3.Key,
+			wantValue:   &selectors3,
+			wantHeadKey: selectors3.Key,
+		},
+		{
+			name:        "Update entry",
+			item:        &selectors3Updated,
+			wantLength:  2,
+			wantKey:     selectors3.Key,
+			wantValue:   &selectors3Updated,
+			wantHeadKey: selectors3.Key,
+		},
+		{
+			name:        "Put second element, again",
+			item:        &selectors2,
+			wantLength:  2,
+			wantKey:     selectors2.Key,
+			wantValue:   &selectors2,
+			wantHeadKey: selectors2.Key,
+		},
+	}
+	getSteps1 := []struct {
+		name        string
+		key         string
+		item        *Item
+		wantLength  int
+		wantValue   *Item
+		wantHeadKey string
+	}{
+		{
+			name:        "Get first element",
+			key:         selectors1.Key,
+			item:        nil,
+			wantLength:  2,
+			wantHeadKey: selectors2.Key,
+		},
+		{
+			name:        "Get third element",
+			key:         selectors3.Key,
+			item:        &selectors3Updated,
+			wantLength:  2,
+			wantHeadKey: selectors3.Key,
+		},
+		{
+			name:        "Get first element, after third element was accessed",
+			key:         selectors1.Key,
+			item:        nil,
+			wantLength:  2,
+			wantHeadKey: selectors3.Key,
+		},
+		{
+			name:        "Get second element",
+			key:         selectors2.Key,
+			item:        &selectors2,
+			wantLength:  2,
+			wantValue:   &selectors2,
+			wantHeadKey: selectors2.Key,
+		},
+	}
+
+	putSteps2 := []struct {
+		name        string
+		item        *Item
+		wantLength  int
+		wantKey     string
+		wantValue   *Item
+		wantHeadKey string
+	}{
+		{
+			name:        "Put first element again, overflow cache",
+			item:        &selectors1,
+			wantLength:  2,
+			wantKey:     selectors1.Key,
+			wantValue:   &selectors1,
+			wantHeadKey: selectors1.Key,
+		},
+		{
+			name:        "Put second element updated",
+			item:        &selectors2Updated,
+			wantLength:  2,
+			wantKey:     selectors2.Key,
+			wantValue:   &selectors2Updated,
+			wantHeadKey: selectors2.Key,
+		},
+		{
+			name:        "Put third element again, overflow cache",
+			item:        &selectors3Updated,
+			wantLength:  2,
+			wantKey:     selectors3.Key,
+			wantValue:   &selectors3Updated,
+			wantHeadKey: selectors3.Key,
+		},
+		{
+			name:        "Revert third entry",
+			item:        &selectors3,
+			wantLength:  2,
+			wantKey:     selectors3.Key,
+			wantValue:   &selectors3,
+			wantHeadKey: selectors3.Key,
+		},
+		{
+			name:        "Pull second element to front",
+			item:        &selectors2Updated,
+			wantLength:  2,
+			wantKey:     selectors2.Key,
+			wantValue:   &selectors2Updated,
+			wantHeadKey: selectors2.Key,
+		},
+		{
+			name:        "Put first element for the last time, overflow cache",
+			item:        &selectors1,
+			wantLength:  2,
+			wantKey:     selectors1.Key,
+			wantValue:   &selectors1,
+			wantHeadKey: selectors1.Key,
+		},
+	}
+
+	getSteps2 := []struct {
+		name        string
+		key         string
+		item        *Item
+		wantLength  int
+		wantValue   *Item
+		wantHeadKey string
+	}{
+		{
+			name:        "Get third element, should fail",
+			key:         selectors3.Key,
+			item:        nil,
+			wantLength:  2,
+			wantHeadKey: selectors1.Key,
+		},
+		{
+			name:        "Get third element again, should not change head",
+			key:         selectors3.Key,
+			item:        nil,
+			wantLength:  2,
+			wantHeadKey: selectors1.Key,
+		},
+		{
+			name:        "Get first element",
+			key:         selectors1.Key,
+			item:        &selectors1,
+			wantLength:  2,
+			wantHeadKey: selectors1.Key,
+		},
+		{
+			name:        "Get second element",
+			key:         selectors2.Key,
+			item:        &selectors2Updated,
+			wantLength:  2,
+			wantHeadKey: selectors2.Key,
+		},
+		{
+			name:        "Get third element again, should have new head from last get",
+			key:         selectors3.Key,
+			item:        nil,
+			wantLength:  2,
+			wantHeadKey: selectors2.Key,
+		},
+	}
+
+	for _, step := range putSteps1 {
+		cacheInstance.PutSignature(*step.item)
+		require.Contains(t, m, step.wantKey, "Key %q should be in the map after step %q", step.wantKey, step.name)
+		gotItem := m[step.wantKey].item
+
+		require.Equal(t, gotItem, step.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem, step.wantValue)
+		require.Equal(t, items.Len(), step.wantLength, "Item count should be %v after step %q", step.wantLength, step.name)
+		require.Equal(t, items.Front().Value, step.wantHeadKey, "First element is %v should be %v after step %q", items.Front().Value, step.wantHeadKey, step.name)
+	}
+	for _, step := range getSteps1 {
+		gotItem := cacheInstance.GetSignature(step.key)
+
+		require.Equal(t, gotItem, step.item, "Value different than expected. \nGot: %v \nWant:%v", gotItem, step.item)
+		require.Equal(t, items.Len(), step.wantLength, "Item count should be %v after step %q", step.wantLength, step.name)
+		require.Equal(t, items.Front().Value, step.wantHeadKey, "First element is %v should be %v after step %q", items.Front().Value, step.wantHeadKey, step.name)
+	}
+	for _, step := range putSteps2 {
+		cacheInstance.PutSignature(*step.item)
+		require.Contains(t, m, step.wantKey, "Key %q should be in the map after step %q", step.wantKey, step.name)
+		gotItem := m[step.wantKey].item
+
+		require.Equal(t, gotItem, step.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem, step.wantValue)
+		require.Equal(t, items.Len(), step.wantLength, "Item count should be %v after step %q", step.wantLength, step.name)
+		require.Equal(t, items.Front().Value, step.wantHeadKey, "First element is %v should be %v after step %q", items.Front().Value, step.wantHeadKey, step.name)
+	}
+	for _, step := range getSteps2 {
+		gotItem := cacheInstance.GetSignature(step.key)
+
+		require.Equal(t, gotItem, step.item, "Value different than expected. \nGot: %v \nWant:%v", gotItem, step.item)
+		require.Equal(t, items.Len(), step.wantLength, "Item count should be %v after step %q", step.wantLength, step.name)
+		require.Equal(t, items.Front().Value, step.wantHeadKey, "First element is %v should be %v after step %q", items.Front().Value, step.wantHeadKey, step.name)
 	}
 }
