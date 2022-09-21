@@ -131,3 +131,7 @@ WorkloadAttestor "k8s" {
 ### Platform support
 
 This plugin is only supported on Unix systems.
+
+### Known issues
+
+* This plugin may fail to correctly attest workloads in pods that use lifecycle hooks to alter pod start behavior. This includes Istio workloads when the `holdApplicationUntilProxyStarts` configurable is set to true. Please see [#3092](https://github.com/spiffe/spire/issues/3092) for more information.
