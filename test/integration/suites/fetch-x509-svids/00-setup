@@ -1,0 +1,6 @@
+#!/bin/bash
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+"${ROOTDIR}/setup/debugserver/build.sh" "${RUNDIR}/conf/server/debugclient"
+"${ROOTDIR}/setup/debugagent/build.sh" "${RUNDIR}/conf/agent/debugclient"

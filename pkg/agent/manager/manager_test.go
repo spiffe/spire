@@ -230,9 +230,9 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
-	matches := m.MatchingIdentities(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	matches := m.MatchingRegistrationEntries(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	if len(matches) != 2 {
-		t.Fatal("expected 2 identities")
+		t.Fatal("expected 2 registration entries")
 	}
 
 	// Verify bundle
@@ -246,10 +246,11 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		[]*common.RegistrationEntry{matches[0].Entry, matches[1].Entry})
+		[]*common.RegistrationEntry{matches[0], matches[1]})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		require.NoError(t, err)
 		u := <-sub.Updates()
 
 		if len(u.Identities) != 2 {
@@ -320,9 +321,9 @@ func TestRotationWithRSAKey(t *testing.T) {
 		t.Fatal("PrivateKey is not equals to configured one")
 	}
 
-	matches := m.MatchingIdentities(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	matches := m.MatchingRegistrationEntries(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	if len(matches) != 2 {
-		t.Fatal("expected 2 identities")
+		t.Fatal("expected 2 registration entries")
 	}
 
 	// Verify bundle
@@ -336,10 +337,11 @@ func TestRotationWithRSAKey(t *testing.T) {
 
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		[]*common.RegistrationEntry{matches[0].Entry, matches[1].Entry})
+		[]*common.RegistrationEntry{matches[0], matches[1]})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		require.NoError(t, err)
 		u := <-sub.Updates()
 
 		if len(u.Identities) != 2 {
@@ -516,10 +518,11 @@ func TestSynchronization(t *testing.T) {
 
 	m := newManager(c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
 		{Type: "spiffe_id", Value: joinTokenID.String()},
 	})
+	require.NoError(t, err)
 	defer sub.Finish()
 
 	if err := m.Initialize(context.Background()); err != nil {
@@ -675,7 +678,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// entries.
 	compareRegistrationEntries(t,
 		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
-		regEntriesFromIdentities(m.cache.Identities()))
+		m.cache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -685,7 +688,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// now the cache should have entries from resp2 removed
 	compareRegistrationEntries(t,
 		regEntriesMap["resp1"],
-		regEntriesFromIdentities(m.cache.Identities()))
+		m.cache.Entries())
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
@@ -747,7 +750,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// after initialization, the cache should contain resp2 entries
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		regEntriesFromIdentities(m.cache.Identities()))
+		m.cache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -757,7 +760,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// now the cache should have the updated entries from resp3
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
-		regEntriesFromIdentities(m.cache.Identities()))
+		m.cache.Entries())
 }
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
@@ -801,9 +804,9 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 
 	m := newManager(c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
-
 	defer initializeAndRunManager(t, m)()
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	require.NoError(t, err)
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
@@ -815,6 +818,248 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 			t.Fatal("bundles were expected to be equal")
 		}
 	})
+}
+
+func TestSynchronizationWithLRUCache(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	ttl := 3
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: ttl,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		RotationInterval: time.Hour,
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDCacheMaxSize: 10,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+	}
+
+	m := newManager(c)
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
+		{Type: "unix", Value: "uid:1111"},
+		{Type: "spiffe_id", Value: joinTokenID.String()},
+	})
+	require.NoError(t, err)
+	defer sub.Finish()
+
+	// Before synchronization
+	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	if len(identitiesBefore) != 3 {
+		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
+	}
+
+	// This is the initial update based on the selector set
+	u := <-sub.Updates()
+	if len(u.Identities) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
+	}
+
+	if len(u.Bundle.RootCAs()) != 1 {
+		t.Fatal("expected 1 bundle root CA")
+	}
+
+	if !u.Bundle.EqualTo(api.bundle) {
+		t.Fatal("received bundle should be equals to the server bundle")
+	}
+
+	for key, eu := range identitiesByEntryID(u.Identities) {
+		eb, ok := identitiesBefore[key]
+		if !ok {
+			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
+		}
+		require.Equal(t, eb, eu, "identity received does not match identity on cache")
+	}
+
+	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	// SVIDs expire after 3 seconds, so we shouldn't expect any updates after
+	// 1 second has elapsed.
+	clk.Add(time.Second)
+	require.NoError(t, m.synchronize(context.Background()))
+	select {
+	case <-sub.Updates():
+		t.Fatal("update unexpected after 1 second")
+	default:
+	}
+
+	// After advancing another second, the SVIDs should have been refreshed,
+	// since the half-time has been exceeded.
+	clk.Add(time.Second)
+	require.NoError(t, m.synchronize(context.Background()))
+	select {
+	case u = <-sub.Updates():
+	default:
+		t.Fatal("update expected after 2 seconds")
+	}
+
+	// Make sure the update contains the updated entries and that the cache
+	// has a consistent view.
+	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	if len(identitiesAfter) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
+	}
+
+	for key, eb := range identitiesBefore {
+		ea, ok := identitiesAfter[key]
+		if !ok {
+			t.Fatalf("expected identity with EntryId=%v after synchronization", key)
+		}
+		require.NotEqual(t, eb, ea, "there is at least one identity that was not refreshed: %v", ea)
+	}
+
+	if len(u.Identities) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
+	}
+
+	if len(u.Bundle.RootCAs()) != 1 {
+		t.Fatal("expected 1 bundle root CA")
+	}
+
+	if !u.Bundle.EqualTo(api.bundle) {
+		t.Fatal("received bundle should be equals to the server bundle")
+	}
+
+	for key, eu := range identitiesByEntryID(u.Identities) {
+		ea, ok := identitiesAfter[key]
+		if !ok {
+			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
+		}
+		require.Equal(t, eu, ea, "entry received does not match entry on cache")
+	}
+
+	require.Equal(t, clk.Now(), m.GetLastSync())
+}
+
+func TestSyncSVIDsWithLRUCache(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(h *mockAPI, count int32, _ *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			switch count {
+			case 1:
+				return makeGetAuthorizedEntriesResponse(t, "resp2"), nil
+			case 2:
+				return makeGetAuthorizedEntriesResponse(t, "resp2"), nil
+			default:
+				return nil, fmt.Errorf("unexpected getAuthorizedEntries call count: %d", count)
+			}
+		},
+		batchNewX509SVIDEntries: func(h *mockAPI, count int32) []*common.RegistrationEntry {
+			switch count {
+			case 1:
+				return makeBatchNewX509SVIDEntries("resp2")
+			case 2:
+				return makeBatchNewX509SVIDEntries("resp2")
+			default:
+				return nil
+			}
+		},
+		svidTTL: 3,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDCacheMaxSize: 1,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+	}
+
+	m := newManager(c)
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	subErrCh := make(chan error, 1)
+	go func(ctx context.Context) {
+		sub, err := m.SubscribeToCacheChanges(ctx, cache.Selectors{
+			{Type: "unix", Value: "uid:1111"},
+		})
+		if err != nil {
+			subErrCh <- err
+			return
+		}
+		defer sub.Finish()
+		subErrCh <- nil
+	}(ctx)
+
+	syncErrCh := make(chan error, 1)
+	// run svid sync
+	go func(ctx context.Context) {
+		syncErrCh <- m.runSyncSVIDs(ctx)
+	}(ctx)
+
+	// keep clk moving so that subscriber keeps looking for svid
+	go func(ctx context.Context) {
+		for {
+			clk.Add(cache.SVIDSyncInterval)
+			if ctx.Err() != nil {
+				return
+			}
+		}
+	}(ctx)
+
+	subErr := <-subErrCh
+	assert.NoError(t, subErr, "subscriber error")
+
+	// ensure 2 SVIDs corresponding to selectors are cached.
+	assert.Equal(t, 2, m.cache.CountSVIDs())
+
+	// cancel the ctx to stop go routines
+	cancel()
+
+	syncErr := <-syncErrCh
+	assert.NoError(t, syncErr, "svid sync error")
 }
 
 func TestSurvivesCARotation(t *testing.T) {
@@ -863,7 +1108,8 @@ func TestSurvivesCARotation(t *testing.T) {
 
 	m := newManager(c)
 
-	sub := m.SubscribeToCacheChanges(cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	require.NoError(t, err)
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	initialUpdate := <-updates
@@ -1123,13 +1369,6 @@ func identitiesByEntryID(ces []cache.Identity) (result map[string]cache.Identity
 	result = map[string]cache.Identity{}
 	for _, ce := range ces {
 		result[ce.Entry.EntryId] = ce
-	}
-	return result
-}
-
-func regEntriesFromIdentities(ces []cache.Identity) (result []*common.RegistrationEntry) {
-	for _, ce := range ces {
-		result = append(result, ce.Entry)
 	}
 	return result
 }

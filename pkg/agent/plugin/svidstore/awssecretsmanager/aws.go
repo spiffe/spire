@@ -206,7 +206,7 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 
 	resp, err := p.smClient.DeleteSecret(ctx, &secretsmanager.DeleteSecretInput{
 		SecretId:             secretDesc.ARN,
-		RecoveryWindowInDays: 7,
+		RecoveryWindowInDays: aws.Int64(7),
 	})
 
 	if err != nil {

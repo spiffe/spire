@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -86,14 +87,20 @@ func run(configPath string) error {
 
 	if config.HealthChecks != nil {
 		go func() {
-			log.Error(http.ListenAndServe(
-				fmt.Sprintf("localhost:%d", config.HealthChecks.BindPort),
-				NewHealthChecksHandler(source, config),
-			))
+			server := &http.Server{
+				Addr:              fmt.Sprintf("localhost:%d", config.HealthChecks.BindPort),
+				Handler:           NewHealthChecksHandler(source, config),
+				ReadHeaderTimeout: 10 * time.Second,
+			}
+			log.Error(server.ListenAndServe())
 		}()
 	}
 
-	return http.Serve(listener, handler)
+	server := &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	return server.Serve(listener)
 }
 
 func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {

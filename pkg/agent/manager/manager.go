@@ -35,7 +35,7 @@ type Manager interface {
 
 	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	SubscribeToCacheChanges(key cache.Selectors) cache.Subscriber
+	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
@@ -55,9 +55,9 @@ type Manager interface {
 	// SetRotationFinishedHook sets a hook that will be called when a rotation finished
 	SetRotationFinishedHook(func())
 
-	// MatchingIdentities returns all of the cached identities whose
-	// registration entry selectors are a subset of the passed selectors.
-	MatchingIdentities(selectors []*common.Selector) []cache.Identity
+	// MatchingRegistrationEntries returns all of the cached registration entries whose
+	// selectors are a subset of the passed selectors.
+	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
@@ -76,20 +76,62 @@ type Manager interface {
 	GetBundle() *cache.Bundle
 }
 
+// Cache stores each registration entry, signed X509-SVIDs for those entries,
+// bundles, and JWT SVIDs for the agent.
+type Cache interface {
+	SVIDCache
+
+	// Bundle gets latest cached bundle
+	Bundle() *bundleutil.Bundle
+
+	// SyncSVIDsWithSubscribers syncs SVID cache
+	SyncSVIDsWithSubscribers()
+
+	// SubscribeToWorkloadUpdates creates a subscriber for given selector set.
+	SubscribeToWorkloadUpdates(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error)
+
+	// SubscribeToBundleChanges creates a stream for providing bundle changes
+	SubscribeToBundleChanges() *cache.BundleStream
+
+	// MatchingRegistrationEntries with given selectors
+	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
+
+	// CountSVIDs in cache stored
+	CountSVIDs() int
+
+	// FetchWorkloadUpdate for given selectors
+	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
+
+	// GetJWTSVID provides JWT-SVID
+	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
+
+	// SetJWTSVID adds JWT-SVID to cache
+	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
+
+	// Entries get all registration entries
+	Entries() []*common.RegistrationEntry
+
+	// Identities get all identities in cache
+	Identities() []cache.Identity
+}
+
 type manager struct {
 	c *Config
 
 	// Fields protected by mtx mutex.
 	mtx *sync.RWMutex
+	// Protects multiple goroutines from requesting SVID signings at the same time
+	updateSVIDMu sync.RWMutex
 
-	cache *cache.Cache
+	cache Cache
 	svid  svid.Rotator
 
 	storage storage.Storage
 
-	// backoff calculator for fetch interval, backing off if error is returned on
+	// synchronizeBackoff calculator for fetch interval, backing off if error is returned on
 	// fetch attempt
-	backoff backoff.BackOff
+	synchronizeBackoff backoff.BackOff
+	svidSyncBackoff    backoff.BackOff
 
 	client client.Client
 
@@ -106,7 +148,8 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
-	m.backoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
+	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
+	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval)
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
@@ -125,6 +168,7 @@ func (m *manager) Run(ctx context.Context) error {
 
 	err := util.RunTasks(ctx,
 		m.runSynchronizer,
+		m.runSyncSVIDs,
 		m.runSVIDObserver,
 		m.runBundleObserver,
 		m.svid.Run)
@@ -147,8 +191,8 @@ func (m *manager) Run(ctx context.Context) error {
 	}
 }
 
-func (m *manager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
-	return m.cache.SubscribeToWorkloadUpdates(selectors)
+func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	return m.cache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
@@ -171,8 +215,8 @@ func (m *manager) SetRotationFinishedHook(f func()) {
 	m.svid.SetRotationFinishedHook(f)
 }
 
-func (m *manager) MatchingIdentities(selectors []*common.Selector) []cache.Identity {
-	return m.cache.MatchingIdentities(selectors)
+func (m *manager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+	return m.cache.MatchingRegistrationEntries(selectors)
 }
 
 func (m *manager) CountSVIDs() int {
@@ -214,9 +258,9 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 }
 
 func (m *manager) getEntryID(spiffeID string) string {
-	for _, identity := range m.cache.Identities() {
-		if identity.Entry.SpiffeId == spiffeID {
-			return identity.Entry.EntryId
+	for _, entry := range m.cache.Entries() {
+		if entry.SpiffeId == spiffeID {
+			return entry.EntryId
 		}
 	}
 	return ""
@@ -225,7 +269,7 @@ func (m *manager) getEntryID(spiffeID string) string {
 func (m *manager) runSynchronizer(ctx context.Context) error {
 	for {
 		select {
-		case <-m.clk.After(m.backoff.NextBackOff()):
+		case <-m.clk.After(m.synchronizeBackoff.NextBackOff()):
 		case <-ctx.Done():
 			return nil
 		}
@@ -242,7 +286,26 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			// Just log the error and wait for next synchronization
 			m.c.Log.WithError(err).Error("Synchronize failed")
 		default:
-			m.backoff.Reset()
+			m.synchronizeBackoff.Reset()
+		}
+	}
+}
+
+func (m *manager) runSyncSVIDs(ctx context.Context) error {
+	for {
+		select {
+		case <-m.clk.After(m.svidSyncBackoff.NextBackOff()):
+		case <-ctx.Done():
+			return nil
+		}
+
+		err := m.syncSVIDs(ctx)
+		switch {
+		case err != nil:
+			// Just log the error and wait for next synchronization
+			m.c.Log.WithError(err).Error("SVID sync failed")
+		default:
+			m.svidSyncBackoff.Reset()
 		}
 	}
 }

@@ -831,6 +831,21 @@ func TestStreamSecretsBadNonce(t *testing.T) {
 	requireSecrets(t, resp, workloadTLSCertificate2)
 }
 
+func TestStreamSecretsErrInSubscribeToCacheChanges(t *testing.T) {
+	test := setupErrTest(t)
+	defer test.server.Stop()
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	resp, err := stream.Recv()
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
+
 func TestFetchSecrets(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
@@ -1174,11 +1189,16 @@ func DeltaSecretsTest(t *testing.T) {
 }
 
 func setupTest(t *testing.T) *handlerTest {
-	return setupTestWithConfig(t, Config{})
+	return setupTestWithManager(t, Config{}, NewFakeManager(t))
 }
 
-func setupTestWithConfig(t *testing.T, c Config) *handlerTest {
+func setupErrTest(t *testing.T) *handlerTest {
 	manager := NewFakeManager(t)
+	manager.err = errors.New("bad-error")
+	return setupTestWithManager(t, Config{}, manager)
+}
+
+func setupTestWithManager(t *testing.T, c Config, manager *FakeManager) *handlerTest {
 	defaultConfig := Config{
 		Manager:                     manager,
 		Attestor:                    FakeAttestor(workloadSelectors),
@@ -1218,6 +1238,11 @@ func setupTestWithConfig(t *testing.T, c Config) *handlerTest {
 	test.setWorkloadUpdate(workloadCert1)
 
 	return test
+}
+
+func setupTestWithConfig(t *testing.T, c Config) *handlerTest {
+	manager := NewFakeManager(t)
+	return setupTestWithManager(t, c, manager)
 }
 
 type handlerTest struct {
@@ -1279,6 +1304,7 @@ type FakeManager struct {
 	upd  *cache.WorkloadUpdate
 	next int
 	subs map[int]chan *cache.WorkloadUpdate
+	err  error
 }
 
 func NewFakeManager(t *testing.T) *FakeManager {
@@ -1288,7 +1314,10 @@ func NewFakeManager(t *testing.T) *FakeManager {
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.Subscriber {
+func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	require.Equal(m.t, workloadSelectors, selectors)
 
 	updch := make(chan *cache.WorkloadUpdate, 1)
@@ -1304,7 +1333,7 @@ func (m *FakeManager) SubscribeToCacheChanges(selectors cache.Selectors) cache.S
 	return NewFakeSubscriber(updch, func() {
 		delete(m.subs, key)
 		close(updch)
-	})
+	}), nil
 }
 
 func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {

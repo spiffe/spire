@@ -38,6 +38,8 @@ func run() error {
 
 	var err error
 	switch *testCaseFlag {
+	case "printDebugPage":
+		err = printDebugPage(ctx)
 	case "agentEndpoints":
 		err = agentEndpoints(ctx)
 	case "serverWithWorkload":
@@ -52,26 +54,43 @@ func run() error {
 }
 
 func agentEndpoints(ctx context.Context) error {
+	s, err := retrieveDebugPage(ctx)
+	if err != nil {
+		return err
+	}
+	log.Printf("Debug info: %s", s)
+	return nil
+}
+
+// printDebugPage allows integration tests to easily parse debug page with jq
+func printDebugPage(ctx context.Context) error {
+	s, err := retrieveDebugPage(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(s)
+	return nil
+}
+
+func retrieveDebugPage(ctx context.Context) (string, error) {
 	conn, err := grpc.Dial(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("failed to connect server: %w", err)
+		return "", fmt.Errorf("failed to connect server: %w", err)
 	}
 	defer conn.Close()
 
 	client := agent_debugv1.NewDebugClient(conn)
 	resp, err := client.GetInfo(ctx, &agent_debugv1.GetInfoRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to get info: %w", err)
+		return "", fmt.Errorf("failed to get info: %w", err)
 	}
 
 	m := protojson.MarshalOptions{Indent: " "}
 	s, err := m.Marshal(resp)
 	if err != nil {
-		return fmt.Errorf("failed to parse proto: %w", err)
+		return "", fmt.Errorf("failed to parse proto: %w", err)
 	}
-
-	log.Printf("Debug info: %s", string(s))
-	return nil
+	return string(s), nil
 }
 
 func serverWithWorkload(ctx context.Context) error {

@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
-	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	managerCache "github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -24,7 +24,7 @@ type Config struct {
 	// Agent SVID and key resulting from successful attestation.
 	SVID             []*x509.Certificate
 	SVIDKey          keymanager.Key
-	Bundle           *cache.Bundle
+	Bundle           *managerCache.Bundle
 	Reattestable     bool
 	Catalog          catalog.Catalog
 	TrustDomain      spiffeid.TrustDomain
@@ -36,6 +36,7 @@ type Config struct {
 	SyncInterval     time.Duration
 	RotationInterval time.Duration
 	SVIDStoreCache   *storecache.Cache
+	SVIDCacheMaxSize int
 	NodeAttestor     nodeattestor.NodeAttestor
 
 	// Clk is the clock the manager will use to get time
@@ -60,7 +61,15 @@ func newManager(c *Config) *manager {
 		c.Clk = clock.New()
 	}
 
-	cache := cache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle, c.Metrics)
+	var cache Cache
+	if c.SVIDCacheMaxSize > 0 {
+		// use LRU cache implementation
+		cache = managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+			c.Metrics, c.SVIDCacheMaxSize, c.Clk)
+	} else {
+		cache = managerCache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+			c.Metrics)
+	}
 
 	rotCfg := &svid.RotatorConfig{
 		SVIDKeyManager: keymanager.ForSVID(c.Catalog.GetKeyManager()),
