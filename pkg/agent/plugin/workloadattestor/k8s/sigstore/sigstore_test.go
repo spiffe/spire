@@ -116,7 +116,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 		imageName string
 	}
 
-	defaultCheckOpts := DefaultCheckOpts(rekorDefaultUrl())
+	defaultCheckOpts := DefaultCheckOpts(rekorDefaultURL())
 	emptyURLCheckOpts := DefaultCheckOpts(url.URL{})
 
 	tests := []struct {
@@ -142,7 +142,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -160,7 +160,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			wantedCheckOptsArguments: checkOptsFunctionArguments{
 				called: true,
-				url:    rekorDefaultUrl(),
+				url:    rekorDefaultURL(),
 			},
 			want: []oci.Signature{
 				signature{
@@ -184,7 +184,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -202,7 +202,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			wantedCheckOptsArguments: checkOptsFunctionArguments{
 				called: true,
-				url:    rekorDefaultUrl(),
+				url:    rekorDefaultURL(),
 			},
 			want: []oci.Signature{
 				signature{
@@ -222,7 +222,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -240,7 +240,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			wantedCheckOptsArguments: checkOptsFunctionArguments{
 				called: true,
-				url:    rekorDefaultUrl(),
+				url:    rekorDefaultURL(),
 			},
 			want:      nil,
 			wantErr:   true,
@@ -254,7 +254,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -272,7 +272,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			wantedCheckOptsArguments: checkOptsFunctionArguments{
 				called: true,
-				url:    rekorDefaultUrl(),
+				url:    rekorDefaultURL(),
 			},
 			want:      nil,
 			wantErr:   false,
@@ -290,7 +290,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -308,7 +308,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			wantedCheckOptsArguments: checkOptsFunctionArguments{
 				called: true,
-				url:    rekorDefaultUrl(),
+				url:    rekorDefaultURL(),
 			},
 			want:      nil,
 			wantErr:   true,
@@ -326,7 +326,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -344,7 +344,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			},
 			wantedCheckOptsArguments: checkOptsFunctionArguments{
 				called: true,
-				url:    rekorDefaultUrl(),
+				url:    rekorDefaultURL(),
 			},
 			want:      nil,
 			wantErr:   true,
@@ -358,7 +358,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createNilFetchFunction(),
 					checkOptsBinding: createNilCheckOptsFunction(),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "invali|].url.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -415,7 +415,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 					fetchBinding:     createFetchFunction(&remote.Descriptor{Manifest: []byte("sometext")}, nil),
 					checkOptsBinding: createNilCheckOptsFunction(),
 				},
-				rekorURL: rekorDefaultUrl(),
+				rekorURL: rekorDefaultURL(),
 			},
 			args: args{
 				imageName: "docker-registry.com/some/image@sha256:4fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
@@ -434,7 +434,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			fetchArguments := &fetchFunctionArguments{}
 			verifyArguments := &verifyFunctionArguments{}
 			checkOptsArguments := &checkOptsFunctionArguments{}
@@ -465,7 +464,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 			require.Equal(t, tt.wantedCheckOptsArguments, *checkOptsArguments, "sigstoreImpl.FetchImageSignatures() checkOptsArguments = %v, want %v", *checkOptsArguments, tt.wantedCheckOptsArguments)
 
 			require.Equal(t, tt.wantedVerifyArguments, *verifyArguments, "sigstoreImpl.FetchImageSignatures() verifyArguments = %v, want %v", *verifyArguments, tt.wantedVerifyArguments)
-
 		})
 	}
 }
@@ -2054,7 +2052,7 @@ func createEmptyCheckOptsFunction(co *cosign.CheckOpts) func(url.URL) *cosign.Ch
 	return emptyCheckOptsFunction
 }
 
-func rekorDefaultUrl() url.URL {
+func rekorDefaultURL() url.URL {
 	return url.URL{
 		Scheme: rekor.DefaultSchemes[0],
 		Host:   rekor.DefaultHost,

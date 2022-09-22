@@ -204,13 +204,6 @@ func (s *Suite) TestAttestAgainstNodeOverride() {
 	s.Require().Empty(selectors)
 }
 
-type signature struct {
-	oci.Signature
-
-	payload []byte
-	cert    *x509.Certificate
-}
-
 func (s signature) Payload() ([]byte, error) {
 	return s.payload, nil
 }
@@ -580,9 +573,6 @@ func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 	}
 }
 
-type osConfig struct {
-}
-
 func (o *osConfig) getContainerHelper() ContainerHelper {
 	return nil
 }
@@ -612,4 +602,14 @@ func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttest
 			sigstore {}
 		}
 `, s.kubeletPort()))
+}
+
+type signature struct {
+	oci.Signature
+
+	payload []byte
+	cert    *x509.Certificate
+}
+
+type osConfig struct {
 }
