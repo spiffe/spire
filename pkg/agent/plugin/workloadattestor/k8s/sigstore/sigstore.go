@@ -72,9 +72,11 @@ type SelectorsFromSignatures struct {
 
 func New(cache Cache, logger hclog.Logger) Sigstore {
 	return &sigstoreImpl{
-		verifyFunction:             cosign.VerifyImageSignatures,
-		fetchImageManifestFunction: remote.Get,
-		checkOptsFunction:          DefaultCheckOpts,
+		functionHooks: sigstoreFunctionHooks{
+			verifyFunction:             cosign.VerifyImageSignatures,
+			fetchImageManifestFunction: remote.Get,
+			checkOptsFunction:          DefaultCheckOpts,
+		},
 
 		rekorURL: url.URL{
 			Scheme: rekor.DefaultSchemes[0],
@@ -98,15 +100,13 @@ func DefaultCheckOpts(rekorURL url.URL) *cosign.CheckOpts {
 }
 
 type sigstoreImpl struct {
-	verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
-	fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
-	skippedImages              map[string]bool
-	allowListEnabled           bool
-	subjectAllowList           map[string]bool
-	rekorURL                   url.URL
-	checkOptsFunction          func(url.URL) *cosign.CheckOpts
-	logger                     hclog.Logger
-	sigstorecache              Cache
+	functionHooks    sigstoreFunctionHooks
+	skippedImages    map[string]bool
+	allowListEnabled bool
+	subjectAllowList map[string]bool
+	rekorURL         url.URL
+	logger           hclog.Logger
+	sigstorecache    Cache
 }
 
 func (s *sigstoreImpl) SetLogger(logger hclog.Logger) {
@@ -125,8 +125,8 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 		return nil, fmt.Errorf("could not validate image reference digest: %w", err)
 	}
 
-	co := s.checkOptsFunction(s.rekorURL)
-	sigs, ok, err := s.verifyFunction(ctx, ref, co)
+	co := s.functionHooks.checkOptsFunction(s.rekorURL)
+	sigs, ok, err := s.functionHooks.verifyFunction(ctx, ref, co)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying signature: %w", err)
 	}
@@ -233,7 +233,7 @@ func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("reference %T is not a digest", ref)
 	}
-	desc, err := s.fetchImageManifestFunction(dgst)
+	desc, err := s.functionHooks.fetchImageManifestFunction(dgst)
 	if err != nil {
 		return false, err
 	}
@@ -412,4 +412,16 @@ func validateRefDigest(dgst name.Digest, digest string) (bool, error) {
 		return true, nil
 	}
 	return false, fmt.Errorf("digest %s does not match %s", digest, dgst.DigestStr())
+}
+
+type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
+
+type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
+
+type checkOptsFunctionType func(url.URL) *cosign.CheckOpts
+
+type sigstoreFunctionHooks struct {
+	verifyFunction             verifyFunctionType
+	fetchImageManifestFunction fetchImageManifestFunctionType
+	checkOptsFunction          checkOptsFunctionType
 }
