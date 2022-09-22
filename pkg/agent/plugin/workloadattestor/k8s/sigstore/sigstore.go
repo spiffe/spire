@@ -264,7 +264,10 @@ func (s *sigstoreImpl) EnableAllowSubjectList(flag bool) {
 }
 
 func (s *sigstoreImpl) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
-	skip, _ := s.ShouldSkipImage(status.ImageID)
+	skip, err := s.ShouldSkipImage(status.ImageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed attesting container signature: %w", err)
+	}
 	if skip {
 		return []string{signatureVerifiedSelector}, nil
 	}
@@ -273,7 +276,7 @@ func (s *sigstoreImpl) AttestContainerSignatures(ctx context.Context, status *co
 
 	cachedSignature := s.sigstorecache.GetSignature(imageID)
 	if cachedSignature != nil {
-		s.logger.Debug("Found cached signature", "imageId", imageID)
+		s.logger.Debug("Found cached signature", "image_id", imageID)
 	} else {
 		signatures, err := s.FetchImageSignatures(ctx, imageID)
 		if err != nil {
@@ -287,7 +290,7 @@ func (s *sigstoreImpl) AttestContainerSignatures(ctx context.Context, status *co
 			Value: selectors,
 		}
 
-		s.logger.Debug("Caching signature", "imageID", imageID)
+		s.logger.Debug("Caching signature", "image_id", imageID)
 		s.sigstorecache.PutSignature(*cachedSignature)
 	}
 
@@ -358,7 +361,8 @@ func getBundleSignatureContent(bundle *bundle.RekorBundle) (string, error) {
 	}
 	body64, ok := bundle.Payload.Body.(string)
 	if !ok {
-		return "", errors.New("payload body is not a string")
+		returnedType := fmt.Sprintf("Expected payload body to be a string but got %T instead", body64)
+		return "", errors.New(returnedType)
 	}
 	body, err := base64.StdEncoding.DecodeString(body64)
 	if err != nil {
