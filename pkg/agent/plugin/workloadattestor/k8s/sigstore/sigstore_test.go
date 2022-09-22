@@ -101,12 +101,6 @@ func TestNew(t *testing.T) {
 	}
 }
 
-type sigstoreFunctionBindings struct {
-	verifyBinding    verifyFunctionBinding
-	fetchBinding     fetchFunctionBinding
-	checkOptsBinding checkOptsFunctionBinding
-}
-
 func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 	type fields struct {
 		functionBindings sigstoreFunctionBindings
@@ -481,13 +475,9 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		args        args
 		containerID string
 		want        []SelectorsFromSignatures
-		wantError   bool
 	}{
 		{
 			name: "extract selector from single image signature array",
-			fields: fields{
-				verifyFunction: nil,
-			},
 			args: args{
 				signatures: []oci.Signature{
 					signature{
@@ -514,9 +504,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from image signature array with multiple entries",
-			fields: fields{
-				verifyFunction: nil,
-			},
 			args: args{
 				signatures: []oci.Signature{
 					signature{
@@ -558,14 +545,11 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			},
 		},
 		{
-			name: "with invalid payload",
-			fields: fields{
-				verifyFunction: nil,
-			},
+			name: "with nil payload",
 			args: args{
 				signatures: []oci.Signature{
 					signature{
-						payload: []byte{},
+						payload: nil,
 					},
 				},
 			},
@@ -574,9 +558,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from image signature with subject certificate",
-			fields: fields{
-				verifyFunction: nil,
-			},
 			args: args{
 				signatures: []oci.Signature{
 					signature{
@@ -609,9 +590,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from image signature with URI certificate",
-			fields: fields{
-				verifyFunction: nil,
-			},
 			args: args{
 				signatures: []oci.Signature{
 					signature{
@@ -652,9 +630,6 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from empty array",
-			fields: fields{
-				verifyFunction: nil,
-			},
 			args: args{
 				signatures: []oci.Signature{},
 			},
@@ -663,13 +638,29 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from nil array",
-			fields: fields{
-				verifyFunction: nil,
-			},
 			args: args{
 				signatures: nil,
 			},
 			containerID: "666666",
+			want:        nil,
+		},
+		{
+			name: "invalid payload",
+			args: args{
+				signatures: []oci.Signature{
+					signature{
+						payload: []byte(`{"critical": {}}`),
+						bundle: &bundle.RekorBundle{
+							Payload: bundle.RekorPayload{
+								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+								LogID:          "samplelogID",
+								IntegratedTime: 12345,
+							},
+						},
+					},
+				},
+			},
+			containerID: "777777",
 			want:        nil,
 		},
 	}
@@ -1893,14 +1884,6 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 	}
 }
 
-type signature struct {
-	oci.Signature
-
-	payload []byte
-	cert    *x509.Certificate
-	bundle  *bundle.RekorBundle
-}
-
 func (s signature) Payload() ([]byte, error) {
 	return s.payload, nil
 }
@@ -1977,14 +1960,6 @@ func createNilVerifyFunction() verifyFunctionBinding {
 	return bindVerifyArgumentsFunction
 }
 
-type fetchFunctionArguments struct {
-	called  bool
-	ref     name.Reference
-	options []remote.Option
-}
-
-type fetchFunctionBinding func(require.TestingT, *fetchFunctionArguments) fetchImageManifestFunctionType
-
 func createFetchFunction(returnDescriptor *remote.Descriptor, returnError error) fetchFunctionBinding {
 	bindFetchArgumentsFunction := func(t require.TestingT, fetchArguments *fetchFunctionArguments) fetchImageManifestFunctionType {
 		newFetchFunction := func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error) {
@@ -2008,13 +1983,6 @@ func createNilFetchFunction() fetchFunctionBinding {
 	}
 	return bindFetchArgumentsFunction
 }
-
-type checkOptsFunctionArguments struct {
-	called bool
-	url    url.URL
-}
-
-type checkOptsFunctionBinding func(require.TestingT, *checkOptsFunctionArguments) checkOptsFunctionType
 
 func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts) checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
@@ -2059,3 +2027,32 @@ func rekorDefaultURL() url.URL {
 		Path:   rekor.DefaultBasePath,
 	}
 }
+
+type signature struct {
+	oci.Signature
+
+	payload []byte
+	cert    *x509.Certificate
+	bundle  *bundle.RekorBundle
+}
+
+type sigstoreFunctionBindings struct {
+	verifyBinding    verifyFunctionBinding
+	fetchBinding     fetchFunctionBinding
+	checkOptsBinding checkOptsFunctionBinding
+}
+
+type checkOptsFunctionArguments struct {
+	called bool
+	url    url.URL
+}
+
+type checkOptsFunctionBinding func(require.TestingT, *checkOptsFunctionArguments) checkOptsFunctionType
+
+type fetchFunctionArguments struct {
+	called  bool
+	ref     name.Reference
+	options []remote.Option
+}
+
+type fetchFunctionBinding func(require.TestingT, *fetchFunctionArguments) fetchImageManifestFunctionType
