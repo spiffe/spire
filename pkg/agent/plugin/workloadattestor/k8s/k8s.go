@@ -127,14 +127,12 @@ type HCLConfig struct {
 }
 
 type ExperimentalK8SConfig struct {
-
 	// Sigstore contains sigstore specific configs.
 	Sigstore *SigstoreHCLConfig `hcl:"sigstore,omitempty"`
 }
 
 // SigstoreHCLConfig holds the sigstore configuration parsed from HCL
 type SigstoreHCLConfig struct {
-
 	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
 	RekorURL string `hcl:"rekor_url"`
 

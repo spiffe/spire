@@ -82,36 +82,8 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 	}
 )
 
-type attestResult struct {
-	selectors []*common.Selector
-	err       error
-}
-
 func TestPlugin(t *testing.T) {
 	spiretest.Run(t, new(Suite))
-}
-
-type Suite struct {
-	spiretest.Suite
-
-	dir   string
-	clock *clock.Mock
-
-	podList [][]byte
-	env     map[string]string
-
-	// kubelet stuff
-	server      *httptest.Server
-	kubeletCert *x509.Certificate
-	clientCert  *x509.Certificate
-
-	oc                          *osConfig
-	sigstoreSelectors           []sigstore.SelectorsFromSignatures
-	sigstoreSigs                []oci.Signature
-	sigstoreSkipSigs            bool
-	sigstoreSkippedSigSelectors []string
-	sigstoreReturnError         error
-	sigstoreMock                *sigstoreMock
 }
 
 func (s *Suite) SetupTest() {
@@ -668,21 +640,6 @@ func (s *Suite) TestConfigure() {
 	}
 }
 
-type sigstoreMock struct {
-	selectors []sigstore.SelectorsFromSignatures
-
-	sigs                      []oci.Signature
-	skipSigs                  bool
-	skippedSigSelectors       []string
-	returnError               error
-	skippedImages             map[string]bool
-	allowedSubjects           map[string]bool
-	allowedSubjectListEnabled bool
-	log                       hclog.Logger
-
-	rekorURL string
-}
-
 // SetLogger implements sigstore.Sigstore
 func (s *sigstoreMock) SetLogger(logger hclog.Logger) {
 	s.log = logger
@@ -696,7 +653,10 @@ func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName strin
 }
 
 func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) *sigstore.SelectorsFromSignatures {
-	return &s.selectors[0]
+	if len(s.selectors) != 0 {
+		return &s.selectors[0]
+	}
+	return nil
 }
 
 func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
@@ -1004,8 +964,6 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	s.podList = append(s.podList, podList)
 }
 
-type testFS string
-
 func (fs testFS) Open(path string) (io.ReadCloser, error) {
 	return os.Open(filepath.Join(string(fs), path))
 }
@@ -1025,3 +983,48 @@ func (s *sigstoreMock) AddSkippedImage(images []string) {
 		s.skippedImages[imageID] = true
 	}
 }
+
+type Suite struct {
+	spiretest.Suite
+
+	dir   string
+	clock *clock.Mock
+
+	podList [][]byte
+	env     map[string]string
+
+	// kubelet stuff
+	server      *httptest.Server
+	kubeletCert *x509.Certificate
+	clientCert  *x509.Certificate
+
+	oc                          *osConfig
+	sigstoreSelectors           []sigstore.SelectorsFromSignatures
+	sigstoreSigs                []oci.Signature
+	sigstoreSkipSigs            bool
+	sigstoreSkippedSigSelectors []string
+	sigstoreReturnError         error
+	sigstoreMock                *sigstoreMock
+}
+
+type sigstoreMock struct {
+	selectors []sigstore.SelectorsFromSignatures
+
+	sigs                      []oci.Signature
+	skipSigs                  bool
+	skippedSigSelectors       []string
+	returnError               error
+	skippedImages             map[string]bool
+	allowedSubjects           map[string]bool
+	allowedSubjectListEnabled bool
+	log                       hclog.Logger
+
+	rekorURL string
+}
+
+type attestResult struct {
+	selectors []*common.Selector
+	err       error
+}
+
+type testFS string
