@@ -1478,10 +1478,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "444444",
-			want: &SelectorsFromSignatures{
-				Subject:        "spirex@example.com",
-				LogID:          "samplelogID",
-				IntegratedTime: "12345"},
+			want:        nil,
 		},
 		{
 			name: "selector from signature, no bundle",
@@ -1495,9 +1492,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				},
 			},
 			containerID: "555555",
-			want: &SelectorsFromSignatures{
-				Subject: "spirex@example.com",
-			},
+			want:        nil,
 		},
 	}
 	for _, tt := range tests {
