@@ -192,7 +192,7 @@ func (s *Suite) requireAttestFailWithDuplicateContainerID(p workloadattestor.Wor
 func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
-	s.requireAttestSuccess(p, testPodSelectors)
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 }
 
 func TestGetContainerIDFromCGroups(t *testing.T) {
