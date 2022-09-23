@@ -5,7 +5,7 @@ go 1.19
 require (
 	cloud.google.com/go/secretmanager v1.6.0
 	cloud.google.com/go/security v1.8.0
-	cloud.google.com/go/storage v1.26.0
+	cloud.google.com/go/storage v1.27.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
