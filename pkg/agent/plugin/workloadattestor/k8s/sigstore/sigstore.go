@@ -75,7 +75,7 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 		functionHooks: sigstoreFunctionHooks{
 			verifyFunction:             cosign.VerifyImageSignatures,
 			fetchImageManifestFunction: remote.Get,
-			checkOptsFunction:          DefaultCheckOpts,
+			checkOptsFunction:          defaultCheckOptsFunction,
 		},
 
 		rekorURL: url.URL{
@@ -88,7 +88,17 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 	}
 }
 
-func DefaultCheckOpts(rekorURL url.URL) *cosign.CheckOpts {
+func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
+	if rekorURL.Host == "" {
+		return nil, errors.New("rekor URL host is empty")
+	}
+	if rekorURL.Scheme == "" {
+		return nil, errors.New("rekor URL scheme is empty")
+	}
+	if rekorURL.Path == "" {
+		return nil, errors.New("rekor URL path is empty")
+	}
+
 	co := &cosign.CheckOpts{}
 
 	// Set the rekor client
@@ -96,7 +106,7 @@ func DefaultCheckOpts(rekorURL url.URL) *cosign.CheckOpts {
 
 	co.RootCerts = fulcio.GetRoots()
 
-	return co
+	return co, nil
 }
 
 type sigstoreImpl struct {
@@ -125,7 +135,10 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 		return nil, fmt.Errorf("could not validate image reference digest: %w", err)
 	}
 
-	co := s.functionHooks.checkOptsFunction(s.rekorURL)
+	co, err := s.functionHooks.checkOptsFunction(s.rekorURL)
+	if err != nil {
+		return nil, fmt.Errorf("could not create cosign check options: %w", err)
+	}
 	sigs, ok, err := s.functionHooks.verifyFunction(ctx, ref, co)
 	if err != nil {
 		return nil, fmt.Errorf("error verifying signature: %w", err)
@@ -422,7 +435,7 @@ type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts)
 
 type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
 
-type checkOptsFunctionType func(url.URL) *cosign.CheckOpts
+type checkOptsFunctionType func(url.URL) (*cosign.CheckOpts, error)
 
 type sigstoreFunctionHooks struct {
 	verifyFunction             verifyFunctionType
