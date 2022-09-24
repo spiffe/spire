@@ -54,8 +54,8 @@ cloud.google.com/go/pubsub v1.0.1/go.mod h1:R0Gpsv3s54REJCy4fxDixWD93lHJMoZTyQ2k
 cloud.google.com/go/pubsub v1.1.0/go.mod h1:EwwdRX2sKPjnvnqCa270oGRyludottCI76h+R3AArQw=
 cloud.google.com/go/pubsub v1.2.0/go.mod h1:jhfEVHT8odbXTkndysNHCcx0awwzvfOlguIAii9o8iA=
 cloud.google.com/go/pubsub v1.3.1/go.mod h1:i+ucay31+CNRpDW4Lu78I4xXG+O1r/MAHgjpRVR+TSU=
-cloud.google.com/go/secretmanager v1.6.0 h1:5v0zegRMlytVnN7J+bg5Ipqah3I2RZ67ysy00mvA+lA=
-cloud.google.com/go/secretmanager v1.6.0/go.mod h1:awVa/OXF6IiyaU1wQ34inzQNc4ISIDIrId8qE5QGgKA=
+cloud.google.com/go/secretmanager v1.7.0 h1:EAPaaxMs1gtdyxK5UN8KfD5tnDBZiFoSroRfjV3EgQU=
+cloud.google.com/go/secretmanager v1.7.0/go.mod h1:20dYAPbj+H4+pXdBRN2z77yugQJJ30UF2kL9OWPs+L0=
 cloud.google.com/go/security v1.8.0 h1:linnRc3/gJYDfKbAtNixVQ52+66DpOx5MmCz0NNxal8=
 cloud.google.com/go/security v1.8.0/go.mod h1:hAQOwgmaHhztFhiQ41CjDODdWP0+AE1B3sX4OFlq+GU=
 cloud.google.com/go/storage v1.0.0/go.mod h1:IhtSnM/ZTZV8YYJWCY8RULGVqBDmpoyjwiyrjsg+URw=
