@@ -703,17 +703,25 @@ func (s *Suite) TestConfigure() {
 				assert.NotNil(t, c.sigstoreConfig)
 
 				assert.Equal(t, testCase.config.SkippedImages, c.sigstoreConfig.SkippedImages)
+				skippedImagesMap := make(map[string]bool)
 				for _, sImage := range testCase.config.SkippedImages {
-					assert.Contains(t, p.sigstore.(*sigstoreMock).skippedImages, sImage)
+					skippedImagesMap[sImage] = true
 				}
+				assert.Equal(t, skippedImagesMap, s.sigstoreMock.skippedImages)
 
 				assert.Equal(t, testCase.config.AllowedSubjectListEnabled, c.sigstoreConfig.AllowedSubjectListEnabled)
-				assert.Equal(t, testCase.config.AllowedSubjectListEnabled, p.sigstore.(*sigstoreMock).allowedSubjectListEnabled)
+				assert.Equal(t, testCase.config.AllowedSubjectListEnabled, s.sigstoreMock.allowedSubjectListEnabled)
 
 				assert.Equal(t, testCase.config.AllowedSubjects, c.sigstoreConfig.AllowedSubjects)
-				for _, sSubject := range testCase.config.AllowedSubjects {
-					assert.Contains(t, p.sigstore.(*sigstoreMock).allowedSubjects, sSubject)
+				var allowedSubjectsMap map[string]bool = nil
+				if len(testCase.config.AllowedSubjects) > 0 {
+					allowedSubjectsMap = make(map[string]bool)
+					for _, subject := range testCase.config.AllowedSubjects {
+						allowedSubjectsMap[subject] = true
+					}
 				}
+				assert.Equal(t, allowedSubjectsMap, s.sigstoreMock.allowedSubjects)
+
 				assert.Equal(t, testCase.config.RekorURL, c.sigstoreConfig.RekorURL)
 			} else {
 				assert.Nil(t, c.sigstoreConfig)
