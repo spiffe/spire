@@ -22,7 +22,6 @@ import (
 	"github.com/sigstore/cosign/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -34,7 +33,7 @@ const (
 type Sigstore interface {
 	AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error)
 	FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error)
-	SelectorValuesFromSignature(oci.Signature, string) *SelectorsFromSignatures
+	SelectorValuesFromSignature(oci.Signature, string) (*SelectorsFromSignatures, error)
 	ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures
 	ShouldSkipImage(imageID string) (bool, error)
 	AddSkippedImage(imageID []string)
@@ -161,7 +160,10 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 	var selectors []SelectorsFromSignatures
 	for _, sig := range signatures {
 		// verify which subject
-		sigSelectors := s.SelectorValuesFromSignature(sig, containerID)
+		sigSelectors, err := s.SelectorValuesFromSignature(sig, containerID)
+		if err != nil {
+			s.logger.Error("error extracting selectors from signature", "error", err)
+		}
 		if sigSelectors != nil {
 			selectors = append(selectors, *sigSelectors)
 		}
@@ -171,22 +173,19 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 
 // SelectorValuesFromSignature extracts selectors from a signature.
 // returns a list of selectors.
-func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) *SelectorsFromSignatures {
+func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) (*SelectorsFromSignatures, error) {
 	subject, err := getSignatureSubject(signature)
 	if err != nil {
-		s.logger.Error("Error getting signature subject", "error", err, telemetry.ContainerID, containerID)
-		return nil
+		return nil, fmt.Errorf("error getting signature subject: %w", err)
 	}
 
 	if subject == "" {
-		s.logger.Error("Error getting signature subject", "error", errors.New("empty subject"), telemetry.ContainerID, containerID)
-		return nil
+		return nil, fmt.Errorf("error getting signature subject: %w", errors.New("empty subject"))
 	}
 
 	if s.allowListEnabled {
 		if _, ok := s.subjectAllowList[subject]; !ok {
-			s.logger.Debug("Subject not in allow-list", "subject", subject, telemetry.ContainerID, containerID)
-			return nil
+			return nil, fmt.Errorf("subject %q not in allow-list", subject)
 		}
 	}
 
@@ -194,28 +193,24 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 
 	bundle, err := signature.Bundle()
 	if err != nil {
-		s.logger.Error("Error getting signature bundle", "error", err, telemetry.ContainerID, containerID)
-		return nil
+		return nil, fmt.Errorf("error getting signature bundle: %w", err)
 	}
 	sigContent, err := getBundleSignatureContent(bundle)
 	if err != nil {
-		s.logger.Error("Error getting signature content", "error", err, telemetry.ContainerID, containerID)
-		return nil
+		return nil, fmt.Errorf("error getting signature content: %w", err)
 	}
 	selectorsFromSignatures.Content = sigContent
 
 	if bundle.Payload.LogID == "" {
-		s.logger.Error("Error getting signature log ID", "error", errors.New("empty log ID"), telemetry.ContainerID, containerID)
-		return nil
+		return nil, fmt.Errorf("error getting signature log ID: %w", errors.New("empty log ID"))
 	}
 	selectorsFromSignatures.LogID = bundle.Payload.LogID
 
 	if bundle.Payload.IntegratedTime == 0 {
-		s.logger.Error("Error getting signature integrated time", "error", errors.New("integrated time is 0"), telemetry.ContainerID, containerID)
-		return nil
+		return nil, fmt.Errorf("error getting signature integrated time: %w", errors.New("integrated time is 0"))
 	}
 	selectorsFromSignatures.IntegratedTime = strconv.FormatInt(bundle.Payload.IntegratedTime, 10)
-	return selectorsFromSignatures
+	return selectorsFromSignatures, nil
 }
 
 // ShouldSkipImage checks the skip list for the image ID in the container status.
@@ -381,7 +376,7 @@ func getBundleSignatureContent(bundle *bundle.RekorBundle) (string, error) {
 	}
 	body64, ok := bundle.Payload.Body.(string)
 	if !ok {
-		returnedType := fmt.Sprintf("Expected payload body to be a string but got %T instead", body64)
+		returnedType := fmt.Sprintf("expected payload body to be a string but got %T instead", bundle.Payload.Body)
 		return "", errors.New(returnedType)
 	}
 	body, err := base64.StdEncoding.DecodeString(body64)

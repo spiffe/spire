@@ -1226,6 +1226,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		args        args
 		containerID string
 		want        *SelectorsFromSignatures
+		wantErr     bool
+		wantedErr   error
 	}{
 		{
 			name: "selector from signature",
@@ -1252,6 +1254,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				LogID:          "samplelogID",
 				IntegratedTime: "12345",
 			},
+			wantErr: false,
 		},
 		{
 			name: "selector from signature, empty subject",
@@ -1273,6 +1276,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			},
 			containerID: "111111",
 			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature subject: empty subject"),
 		},
 		{
 			name: "selector from signature, not in allowlist",
@@ -1289,6 +1294,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			},
 			containerID: "222222",
 			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("subject %q not in allow-list", "spirex1@example.com"),
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist",
@@ -1317,6 +1324,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				LogID:          "samplelogID",
 				IntegratedTime: "12345",
 			},
+			wantErr: false,
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist, empty content",
@@ -1340,6 +1348,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			},
 			containerID: "444444",
 			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature content: bundle payload body has no signature content"),
 		},
 		{
 			name: "selector from signature, nil bundle",
@@ -1354,6 +1364,183 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			},
 			containerID: "555555",
 			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature bundle: no bundle test"),
+		},
+		{
+			name: "selector from signature, bundle payload body is not a string",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           42,
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature content: expected payload body to be a string but got int instead"),
+		},
+		{
+			name: "selector from signature, bundle payload body is not valid base64",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "abc..........def",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature content: illegal base64 data at input byte 3"),
+		},
+		{
+			name: "selector from signature, bundle payload body has no signature content",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICJzaWduYXR1cmUiOiB7CiAgICAgIH0KICAgIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature content: bundle payload body has no signature content"),
+		},
+		{
+			name: "selector from signature, bundle payload body signature content is empty",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICAgInNpZ25hdHVyZSI6IHsKICAgICAgICAiY29udGVudCI6ICIiCiAgICAgICAgfQogICAgfQp9",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature content: bundle payload body has no signature content"),
+		},
+		{
+			name: "selector from signature, bundle payload body is not a valid JSON",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjosLCB7CiAgICAic2lnbmF0dXJlIjogewogICAgICAiY29udGVudCI6ICJNRVVDSVFDeWVtOEdjcjBzUEZNUDdmVFhhekNONTdOY041K01qeEp3OU9vMHgyZU0rQUlnZGdCUDk2Qk8xVGUvTmRiakhiVWViMEJVeWU2ZGVSZ1Z0UUV2NU5vNXNtQT0iCiAgICB9CiAgfQp9",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature content: failed to parse bundle body: invalid character ',' looking for beginning of value"),
+		},
+		{
+			name: "selector from signature, empty signature array",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: nil,
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature subject: signature is nil"),
+		},
+		{
+			name: "selector from signature, single image signature, no payload",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: noPayloadSignature{},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature subject: no payload test"),
+		},
+		{
+			name: "selector from signature, single image signature, no certs",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: &noCertSignature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature subject: failed to access signature certificate: no cert test"),
+		},
+		{
+			name: "selector from signature, single image signature,garbled subject in signature",
+			fields: fields{
+				allowListEnabled: false,
+				subjectAllowList: nil,
+			},
+			args: args{
+				signature: &signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "s\\\\||as\0\0aasdasd/....???/.>wd12<><,,,><{}{pirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				},
+			},
+			containerID: "000000",
+			want:        nil,
+			wantErr:     true,
+			wantedErr:   fmt.Errorf("error getting signature subject: invalid character '0' in string escape code"),
 		},
 		{
 			name: "selector from signature, bundle payload body is not a string",
@@ -1513,6 +1700,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			want:        nil,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := &sigstoreImpl{
@@ -1520,7 +1708,15 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				subjectAllowList: tt.fields.subjectAllowList,
 				logger:           hclog.Default(),
 			}
-			got := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
+			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
+			if err != nil {
+				if !tt.wantErr {
+					t.Errorf("sigstoreImpl.SelectorValuesFromSignature() has error, wantErr %v", tt.wantErr)
+				}
+				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.SelectorValuesFromSignature() error = %v, wantedErr = %v", err, tt.wantedErr)
+			} else if tt.wantErr {
+				t.Errorf("sigstoreImpl.SelectorValuesFromSignature() no error, wantErr = %v, wantedErr %v", tt.wantErr, tt.wantedErr)
+			}
 			require.Equal(t, got, tt.want, "sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
 		})
 	}

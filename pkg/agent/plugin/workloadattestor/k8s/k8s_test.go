@@ -742,11 +742,11 @@ func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName strin
 	return s.sigs, nil
 }
 
-func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) *sigstore.SelectorsFromSignatures {
+func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) (*sigstore.SelectorsFromSignatures, error) {
 	if len(s.selectors) != 0 {
-		return &s.selectors[0]
+		return &s.selectors[0], nil
 	}
-	return nil
+	return nil, s.returnError
 }
 
 func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
