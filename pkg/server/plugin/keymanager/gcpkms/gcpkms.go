@@ -159,6 +159,11 @@ func newPlugin(
 	}
 }
 
+func (p *Plugin) Close() error {
+	p.log.Debug("Closing the connection to the Cloud KMS API service")
+	return p.kmsClient.Close()
+}
+
 // Configure sets up the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config, err := parseAndValidateConfig(req.HclConfiguration)
