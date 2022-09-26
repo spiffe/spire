@@ -131,7 +131,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateAndDeleteSpiffeID() {
 	s.Require().NoError(err)
 
 	// Check that the entry was deleted on SPIRE Server
-	entry, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
+	_, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
 		Id: *createdSpiffeID.Status.EntryId,
 	})
 	s.Require().Contains(err.Error(), "not found")
@@ -195,7 +195,7 @@ func (s *SpiffeIDControllerTestSuite) TestCreateAndDeleteSpiffeIDWithNoEntryID()
 	s.Require().NoError(err)
 
 	// Check that the entry was deleted on SPIRE Server
-	entry, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
+	_, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
 		Id: *entryID,
 	})
 	s.Require().Contains(err.Error(), "not found")
