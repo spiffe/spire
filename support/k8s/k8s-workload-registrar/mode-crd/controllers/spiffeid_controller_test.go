@@ -49,7 +49,7 @@ func (s *SpiffeIDControllerTestSuite) SetupSuite() {
 	s.CommonControllerTestSuite = NewCommonControllerTestSuite(s.T())
 }
 
-func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
+func (s *SpiffeIDControllerTestSuite) TestCreateAndDeleteSpiffeID() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -123,6 +123,82 @@ func (s *SpiffeIDControllerTestSuite) TestCreateSpiffeID() {
 	s.Require().Equal(createdSpiffeID.Spec.ParentId, stringFromID(entry.ParentId))
 	s.Require().False(createdSpiffeID.Spec.Downstream)
 	s.Require().Equal(createdSpiffeID.Spec.Selector.PodName, "test")
+
+	// Delete SPIFFE ID
+	err = s.k8sClient.Delete(ctx, createdSpiffeID)
+	s.Require().NoError(err)
+	_, err = s.r.Reconcile(ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	s.Require().NoError(err)
+
+	// Check that the entry was deleted on SPIRE Server
+	entry, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
+		Id: *createdSpiffeID.Status.EntryId,
+	})
+	s.Require().Contains(err.Error(), "not found")
+}
+
+func (s *SpiffeIDControllerTestSuite) TestCreateAndDeleteSpiffeIDWithNoEntryID() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create the SPIFFE ID
+	spiffeID := &spiffeidv1beta1.SpiffeID{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "spiffeid.spiffe.io/v1beta1",
+			Kind:       "SpiffeID",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      SpiffeIDName,
+			Namespace: SpiffeIDNamespace,
+		},
+		Spec: spiffeidv1beta1.SpiffeIDSpec{
+			SpiffeId: makeID(s.trustDomain, "%s", SpiffeIDName),
+			ParentId: makeID(s.trustDomain, "%s/%s", "spire", "server"),
+			Selector: spiffeidv1beta1.Selector{
+				Namespace: SpiffeIDNamespace,
+			},
+			Downstream: true,
+		},
+	}
+	err := s.k8sClient.Create(ctx, spiffeID)
+	s.Require().NoError(err)
+	spiffeIDLookupKey := types.NamespacedName{Name: SpiffeIDName, Namespace: SpiffeIDNamespace}
+
+	_, err = s.r.Reconcile(ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	s.Require().NoError(err)
+
+	// Verify the Entry ID got set
+	createdSpiffeID := &spiffeidv1beta1.SpiffeID{}
+	err = s.k8sClient.Get(ctx, spiffeIDLookupKey, createdSpiffeID)
+	s.Require().NoError(err)
+	s.Require().NotNil(createdSpiffeID.Status.EntryId)
+
+	// Clear the Entry ID
+	entryID := createdSpiffeID.Status.EntryId
+	createdSpiffeID.Status.EntryId = nil
+	err = s.k8sClient.Update(ctx, createdSpiffeID)
+	s.Require().NoError(err)
+
+	// Check that the SPIFFE ID was created on the SPIRE server
+	entry, err := s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
+		Id: *entryID,
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry)
+	s.Require().True(entry.Downstream)
+	s.Require().Equal(makeID(s.trustDomain, "%s", SpiffeIDName), stringFromID(entry.SpiffeId))
+
+	// Delete SPIFFE ID
+	err = s.k8sClient.Delete(ctx, createdSpiffeID)
+	s.Require().NoError(err)
+	_, err = s.r.Reconcile(ctx, ctrl.Request{NamespacedName: spiffeIDLookupKey})
+	s.Require().NoError(err)
+
+	// Check that the entry was deleted on SPIRE Server
+	entry, err = s.entryClient.GetEntry(ctx, &entryv1.GetEntryRequest{
+		Id: *entryID,
+	})
+	s.Require().Contains(err.Error(), "not found")
 }
 
 func (s *SpiffeIDControllerTestSuite) TestSpiffeIDEqual() {

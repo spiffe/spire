@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -199,15 +200,46 @@ func (r *SpiffeIDReconciler) updateOrCreateSpiffeID(ctx context.Context, spiffeI
 
 // deleteSpiffeID deletes the specified entry on the SPIRE Server
 func (r *SpiffeIDReconciler) deleteSpiffeID(ctx context.Context, spiffeID *spiffeidv1beta1.SpiffeID) error {
+	var entries []*types.Entry
+
+	entry, err := entryFromCRD(spiffeID)
+	if err != nil {
+		return err
+	}
+
 	if spiffeID.Status.EntryId != nil {
-		err := deleteRegistrationEntry(ctx, r.c.E, *spiffeID.Status.EntryId)
+		entries = append(entries, entry)
+	} else {
+		resp, err := r.c.E.ListEntries(ctx, &entryv1.ListEntriesRequest{
+			Filter: &entryv1.ListEntriesRequest_Filter{
+				BySpiffeId: entry.SpiffeId,
+				ByParentId: entry.ParentId,
+				BySelectors: &types.SelectorMatch{
+					Match:     types.SelectorMatch_MATCH_EXACT,
+					Selectors: entry.Selectors,
+				},
+			},
+		})
 		if err != nil {
 			return err
 		}
 
+		entries = append(entries, resp.Entries...)
+	}
+
+	for _, entryToDelete := range entries {
+		err := deleteRegistrationEntry(ctx, r.c.E, entryToDelete.Id)
+		if err != nil {
+			return err
+		}
+
+		spiffeID, err := idutil.IDProtoString(entryToDelete.SpiffeId)
+		if err != nil {
+			return err
+		}
 		r.c.Log.WithFields(logrus.Fields{
-			"entryID":  *spiffeID.Status.EntryId,
-			"spiffeID": spiffeID.Spec.SpiffeId,
+			"entryID":  entryToDelete.Id,
+			"spiffeID": spiffeID,
 		}).Info("Deleted entry")
 	}
 
@@ -276,7 +308,12 @@ func entryFromCRD(crd *spiffeidv1beta1.SpiffeID) (*types.Entry, error) {
 	if err != nil {
 		return nil, errs.New("malformed CRD SPIFFE ID: %v", err)
 	}
+	var id string
+	if crd.Status.EntryId != nil {
+		id = *crd.Status.EntryId
+	}
 	return &types.Entry{
+		Id:            id,
 		ParentId:      parentID,
 		SpiffeId:      spiffeID,
 		Selectors:     crd.TypesSelector(),
