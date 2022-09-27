@@ -992,6 +992,26 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 			wantErr:   true,
 			wantedErr: errors.New("manifest is empty"),
 		},
+		{
+			name: "validate hash manifest",
+			fields: fields{
+				verifyFunction: createNilVerifyFunction(),
+				fetchImageManifestFunction: createFetchFunction(&remote.Descriptor{
+					Manifest: []byte("f0c62edf734ff52ee830c9eeef2ceefad94f7f089706d170f8d9dc64befb57cc"),
+				}, nil),
+			},
+			args: args{
+				ref: name.MustParseReference("example.com/sampleimage@sha256:f037cc8ec4cd38f95478773741fdecd48d721a527d19013031692edbf95fae69"),
+			},
+			wantedFetchArguments: fetchFunctionArguments{
+				called:  true,
+				ref:     name.MustParseReference("example.com/sampleimage@sha256:f037cc8ec4cd38f95478773741fdecd48d721a527d19013031692edbf95fae69"),
+				options: nil,
+			},
+			wantedVerifyArguments: verifyFunctionArguments{},
+			want:                  true,
+			wantErr:               false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1541,163 +1561,6 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			want:        nil,
 			wantErr:     true,
 			wantedErr:   fmt.Errorf("error getting signature subject: invalid character '0' in string escape code"),
-		},
-		{
-			name: "selector from signature, bundle payload body is not a string",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           42,
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
-					},
-				},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, bundle payload body is not valid base64",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "abc..........def",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
-					},
-				},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, bundle payload body has no signature content",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICJzaWduYXR1cmUiOiB7CiAgICAgIH0KICAgIH0KfQ==",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
-					},
-				},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, bundle payload body signature content is empty",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICAgInNpZ25hdHVyZSI6IHsKICAgICAgICAiY29udGVudCI6ICIiCiAgICAgICAgfQogICAgfQp9",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
-					},
-				},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, bundle payload body is not a valid JSON",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICJzcGVjIjosLCB7CiAgICAic2lnbmF0dXJlIjogewogICAgICAiY29udGVudCI6ICJNRVVDSVFDeWVtOEdjcjBzUEZNUDdmVFhhekNONTdOY041K01qeEp3OU9vMHgyZU0rQUlnZGdCUDk2Qk8xVGUvTmRiakhiVWViMEJVeWU2ZGVSZ1Z0UUV2NU5vNXNtQT0iCiAgICB9CiAgfQp9",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
-					},
-				},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, empty signature array",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: nil,
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, single image signature, no payload",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: noPayloadSignature{},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, single image signature, no certs",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: &noCertSignature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-				},
-			},
-			containerID: "000000",
-			want:        nil,
-		},
-		{
-			name: "selector from signature, single image signature,garbled subject in signature",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
-			args: args{
-				signature: &signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "s\\\\||as\0\0aasdasd/....???/.>wd12<><,,,><{}{pirex@example.com","key2": "value 2","key3": "value 3"}}`),
-				},
-			},
-			containerID: "000000",
-			want:        nil,
 		},
 	}
 
