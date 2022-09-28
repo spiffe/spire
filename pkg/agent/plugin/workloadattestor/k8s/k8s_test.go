@@ -713,7 +713,7 @@ func (s *Suite) TestConfigure() {
 				assert.Equal(t, testCase.config.AllowedSubjectListEnabled, s.sigstoreMock.allowedSubjectListEnabled)
 
 				assert.Equal(t, testCase.config.AllowedSubjects, c.sigstoreConfig.AllowedSubjects)
-				var allowedSubjectsMap map[string]bool = nil
+				var allowedSubjectsMap map[string]bool
 				if len(testCase.config.AllowedSubjects) > 0 {
 					allowedSubjectsMap = make(map[string]bool)
 					for _, subject := range testCase.config.AllowedSubjects {
