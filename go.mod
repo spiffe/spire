@@ -3,9 +3,9 @@ module github.com/spiffe/spire
 go 1.19
 
 require (
-	cloud.google.com/go/secretmanager v1.6.0
+	cloud.google.com/go/secretmanager v1.7.0
 	cloud.google.com/go/security v1.8.0
-	cloud.google.com/go/storage v1.26.0
+	cloud.google.com/go/storage v1.27.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.3
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -14,7 +14,7 @@ require (
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.32.0
 	github.com/InVisionApp/go-health/v2 v2.1.2
 	github.com/InVisionApp/go-logger v1.0.1
-	github.com/Microsoft/go-winio v0.5.2
+	github.com/Microsoft/go-winio v0.6.0
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.16.16
@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.17
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.14
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.18.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.58.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.60.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.16
 	github.com/aws/aws-sdk-go-v2/service/kms v1.18.8
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.16.0
@@ -67,7 +67,7 @@ require (
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/sys v0.0.0-20220907062415-87db552b00fd
 	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9
-	google.golang.org/api v0.96.0
+	google.golang.org/api v0.97.0
 	google.golang.org/genproto v0.0.0-20220920201722-2b89144ce006
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
@@ -202,9 +202,11 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/tools v0.1.12 // indirect
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
