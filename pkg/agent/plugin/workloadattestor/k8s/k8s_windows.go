@@ -45,7 +45,3 @@ func (p *Plugin) defaultTokenPath() string {
 	mountPoint := p.getenv(containerMountPointEnvVar)
 	return filepath.Join(mountPoint, defaultTokenPath)
 }
-
-func isNotPod(itemPodUID, podUID types.UID) bool {
-	return false
-}
