@@ -273,14 +273,6 @@ func (s *Suite) TestAttestWhenContainerReadyButContainerSelectorsDisabled() {
 	s.requireAttestSuccess(p, testPodSelectors)
 }
 
-func (s *Suite) TestAttestWhenContainerNotReadyButContainerSelectorsDisabled() {
-	s.startInsecureKubelet()
-	p := s.loadInsecurePluginWithExtra("disable_container_selectors = true")
-	s.addPodListResponse(podListNotRunningFilePath)
-	s.addGetContainerResponsePidInPod()
-	s.requireAttestSuccess(p, testPodSelectors)
-}
-
 func (s *Suite) TestConfigure() {
 	s.generateCerts("")
 
