@@ -8,7 +8,7 @@ env:
 jobs:
   cache-deps:
     name: cache-deps (linux)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -26,7 +26,7 @@ jobs:
 
   lint:
     name: lint (linux)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: cache-deps
     steps:
       - name: Checkout
@@ -59,7 +59,7 @@ jobs:
   unit-test:
     strategy:
       matrix:
-        OS: [ubuntu-18.04, macos-latest]
+        OS: [ubuntu-20.04, macos-latest]
     runs-on: ${{ matrix.OS }}
     needs: cache-deps
     steps:
@@ -79,7 +79,7 @@ jobs:
 
   unit-test-race-detector:
     name: unit-test (linux with race detection)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: cache-deps
     steps:
       - name: Checkout
@@ -98,7 +98,7 @@ jobs:
 
   artifacts:
     name: artifacts (linux)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [cache-deps]
     steps:
       - name: Checkout
@@ -129,7 +129,7 @@ jobs:
 
   images:
     name: images (linux)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [cache-deps]
     steps:
       - name: Checkout
@@ -185,7 +185,7 @@ jobs:
           path: images-windows.tar.gz
 
   scratch-images:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [cache-deps]
     steps:
       - name: Checkout
@@ -218,7 +218,7 @@ jobs:
 
   integration:
     name: integration (linux)
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [cache-deps, images, scratch-images]
     strategy:
       fail-fast: false
@@ -384,9 +384,9 @@ jobs:
           update: true
           install: >-
             git
-            base-devel 
-            mingw-w64-x86_64-toolchain 
-            unzip 
+            base-devel
+            mingw-w64-x86_64-toolchain
+            unzip
       - name: Lint
         run: make lint
       - name: Tidy check
@@ -420,12 +420,12 @@ jobs:
           update: true
           install: >-
             git
-            base-devel 
-            mingw-w64-x86_64-toolchain 
-            unzip 
+            base-devel
+            mingw-w64-x86_64-toolchain
+            unzip
       - name: Run unit tests
         run: ./.github/workflows/scripts/run_unit_tests.sh
-          
+
   artifact-windows:
     name: artifact (windows)
     runs-on: windows-2022
@@ -459,10 +459,10 @@ jobs:
           update: true
           install: >-
             git
-            base-devel 
-            mingw-w64-x86_64-toolchain 
+            base-devel
+            mingw-w64-x86_64-toolchain
             zip
-            unzip 
+            unzip
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh
       - name: Archive binaries
@@ -477,7 +477,7 @@ jobs:
           path: ./artifacts/
 
   publish-artifacts:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration,
             lint-windows, unit-test-windows, artifact-windows, integration-windows]
     steps:
@@ -495,13 +495,13 @@ jobs:
           # set GH_REPO to the repository to create the release in.
           #
           # See https://github.com/cli/cli/issues/3556
-          GH_REPO: ${{ github.repository }} 
+          GH_REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Create the release using the version number as the title
         run: gh release create "${GITHUB_REF#refs/tags/}" ./artifacts/*.zip ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
 
   publish-images:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration]
     steps:
       - name: Checkout
