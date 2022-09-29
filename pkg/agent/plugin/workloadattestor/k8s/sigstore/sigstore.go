@@ -99,12 +99,16 @@ func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
 		return nil, errors.New("rekor URL path is empty")
 	}
 
-	co := &cosign.CheckOpts{}
+	rootCerts, err := fulcio.GetRoots()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
+	}
 
-	// Set the rekor client
-	co.RekorClient = rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host))
-
-	co.RootCerts = fulcio.GetRoots()
+	co := &cosign.CheckOpts{
+		// Set the rekor client
+		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
+		RootCerts:   rootCerts,
+	}
 
 	return co, nil
 }

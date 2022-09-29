@@ -175,7 +175,3 @@ func canonicalizePodUID(uid string) types.UID {
 		return r
 	}, uid))
 }
-
-func isNotPod(itemPodUID, podUID types.UID) bool {
-	return podUID != "" && itemPodUID != podUID
-}
