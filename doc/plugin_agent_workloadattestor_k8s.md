@@ -42,6 +42,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 | Configuration | Description |
 | ------------- | ----------- |
+| `disable_container_selectors` | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation. |
 | `kubelet_read_only_port` | The kubelet read-only port. This is mutually exlusive with `kubelet_secure_port`. |
 | `kubelet_secure_port` | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set. |
 | `kubelet_ca_path` | The path on disk to a file containing CA certificates used to verify the kubelet certificate. Required unless `skip_kubelet_verification` is set. Defaults to the cluster CA bundle `/run/secrets/kubernetes.io/serviceaccount/ca.crt`. |
@@ -134,4 +135,4 @@ This plugin is only supported on Unix systems.
 
 ### Known issues
 
-* This plugin may fail to correctly attest workloads in pods that use lifecycle hooks to alter pod start behavior. This includes Istio workloads when the `holdApplicationUntilProxyStarts` configurable is set to true. Please see [#3092](https://github.com/spiffe/spire/issues/3092) for more information.
+* This plugin may fail to correctly attest workloads in pods that use lifecycle hooks to alter pod start behavior. This includes Istio workloads when the `holdApplicationUntilProxyStarts` configurable is set to true. Please see [#3092](https://github.com/spiffe/spire/issues/3092) for more information. The `disable_container_selectors` configurable can be used to successfully attest workloads in this situation, albeit with reduced selector granularity (i.e. pod selectors only).
