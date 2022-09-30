@@ -57,18 +57,18 @@ This may be useful for templating configuration files, for example across differ
 | `audit_log_enabled`         | If true, enables audit logging                                                                                                 | false                                                          |
 | `bind_address`              | IP address or DNS name of the SPIRE server                                                                                     | 0.0.0.0                                                        |
 | `bind_port`                 | HTTP Port number of the SPIRE server                                                                                           | 8081                                                           |
-| `ca_key_type`               | The key type used for the server CA (both X509 and JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                              | ec-p256 (the JWT key type can be overridden by `jwt_key_type`) |
+| `ca_key_type`               | The key type used for the server CA (both X509 and JWT), &lt;rsa-2048&vert;rsa-4096&vert;ec-p256&vert;ec-p384&gt;                              | ec-p256 (the JWT key type can be overridden by `jwt_key_type`) |
 | `ca_subject`                | The Subject that CA certificates should use (see below)                                                                        |                                                                |
 | `ca_ttl`                    | The default CA/signing key TTL                                                                                                 | 24h                                                            |
 | `data_dir`                  | A directory the server can use for its runtime                                                                                 |                                                                |
 | `default_svid_ttl`          | The default SVID TTL                                                                                                           | 1h                                                             |
 | `experimental`              | The experimental options that are subject to change or removal (see below)                                                     |                                                                |
 | `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)                                        |                                                                |
-| `jwt_key_type`              | The key type used for the server CA (JWT), \<rsa-2048\|rsa-4096\|ec-p256\|ec-p384\>                                            | The value of `ca_key_type` or ec-p256 if not defined           |
+| `jwt_key_type`              | The key type used for the server CA (JWT), &lt;rsa-2048&vert;rsa-4096&vert;ec-p256&vert;ec-p384&gt;                                            | The value of `ca_key_type` or ec-p256 if not defined           |
 | `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                                                   |                                                                |
 | `log_file`                  | File to write logs to                                                                                                          |                                                                |
-| `log_level`                 | Sets the logging level \<DEBUG\|INFO\|WARN\|ERROR\>                                                                            | INFO                                                           |
-| `log_format`                | Format of logs, \<text\|json\>                                                                                                 | text                                                           |
+| `log_level`                 | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                            | INFO                                                           |
+| `log_format`                | Format of logs, &lt;text&vert;json&gt;                                                                                                 | text                                                           |
 | `omit_x509svid_uid`         | If true, the subject on X509-SVIDs will not contain the unique ID attribute (deprecated)                                       | false                                                          |
 | `profiling_enabled`         | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                                                          |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                  |
@@ -204,7 +204,7 @@ The optional `federates_with` section is a map of bundle endpoint profile config
 | Configuration   | Description                                                                                                                       | Default                                              |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------| ---------------------------------------------------- |
 | bundle_endpoint_url | URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with. Must use the HTTPS protocol. | |
-| bundle_endpoint_profile "\<https_web\|https_spiffe\>" | Configuration of the SPIFFE endpoint profile type. | |
+| bundle_endpoint_profile "&lt;https_web&vert;https_spiffe&gt;" | Configuration of the SPIFFE endpoint profile type. | |
 
 SPIRE supports the `https_web` and `https_spiffe` bundle endpoint profiles.
 
@@ -245,7 +245,7 @@ Most of the configuration file above options have identical command-line counter
 | `-dataDir` | Directory to store runtime data to | |
 | `-expandEnv` | Expand environment $VARIABLES in the config file | |
 | `-logFile` | File to write logs to | |
-| `-logFormat` | Format of logs, \<text\|json\> | |
+| `-logFormat` | Format of logs, &lt;text&vert;json&gt; | |
 | `-logLevel` | DEBUG, INFO, WARN or ERROR | |
 | `-serverPort` | Port number of the SPIRE server | |
 | `-socketPath` | Path to bind the SPIRE Server API socket to | |
