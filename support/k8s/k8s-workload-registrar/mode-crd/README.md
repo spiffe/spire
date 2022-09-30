@@ -1,7 +1,7 @@
 # SPIRE Kubernetes Workload Registrar (CRD Mode)
 
-The CRD mode of the SPIRE Kubernetes Workload Registrar uses a Kuberntes Custom Resource Definition (CRD) to integrate SPIRE and Kubernetes.
-This enables auto and manual generation of SPIFFE IDs from with Kubenretes and the `kubectl` CLI.
+The CRD mode of the SPIRE Kubernetes Workload Registrar uses a Kubernetes Custom Resource Definition (CRD) to integrate SPIRE and Kubernetes.
+This enables auto and manual generation of SPIFFE IDs from with Kubernetes and the `kubectl` CLI.
 
 ## Benefits of CRD Kubernetes Workload Registrar
 
