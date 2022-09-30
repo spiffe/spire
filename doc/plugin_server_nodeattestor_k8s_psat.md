@@ -31,7 +31,7 @@ Each cluster in the main configuration requires the following configuration:
 | `allowed_node_label_keys` | Node label keys considered for selectors | |
 | `allowed_pod_label_keys` | Pod label keys considered for selectors | |
 
-A sample configuration for SPIRE server running inside of a kubernetes cluster:
+A sample configuration for SPIRE server running inside of a Kubernetes cluster:
 
 ```
     NodeAttestor "k8s_psat" {
@@ -44,7 +44,7 @@ A sample configuration for SPIRE server running inside of a kubernetes cluster:
     }
 ```
 
-A sample configuration for SPIRE server running outside of a kubernetes cluster:
+A sample configuration for SPIRE server running outside of a Kubernetes cluster:
 
 ```
     NodeAttestor "k8s_psat" {
