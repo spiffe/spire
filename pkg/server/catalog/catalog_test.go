@@ -30,12 +30,7 @@ func Test(t *testing.T) {
 					PluginCmd: filepath.Join(dir, "does-not-exist"),
 				}
 			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "The built-in join_token node attestor cannot be overridden by an external plugin. The external plugin will be ignored; this will be a configuration error in a future release.",
-				},
-			},
+			expectErr: "the built-in join_token node attestor cannot be overridden by an external plugin",
 		},
 		{
 			desc: "warn for deprecated node resolver",
