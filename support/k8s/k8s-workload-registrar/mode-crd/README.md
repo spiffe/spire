@@ -287,7 +287,7 @@ in addition to the following Pod-specific arguments:
 
 For example if the registrar was configured with the following:
 ```
-identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.pod_name}}"
+identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.Name}}"
 context {
   Region = "US-NORTH"
   ClusterName = "MYCLUSTER"
