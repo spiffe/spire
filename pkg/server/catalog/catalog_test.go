@@ -37,20 +37,6 @@ func Test(t *testing.T) {
 				},
 			},
 		},
-		{
-			desc: "warn for deprecated node resolver",
-			prepareConfig: func(dir string, config *catalog.Config) {
-				config.PluginConfig["NodeResolver"]["azure_msi"] = catalog.HCLPluginConfig{}
-			},
-			// We don't actually care if the plugin successfully loads; just want to ensure we warn as expected.
-			expectErr: "failed to configure plugin \"azure_msi\": rpc error: code = InvalidArgument desc = trust domain is missing",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "The node resolver plugin type is deprecated and will be removed from a future release",
-				},
-			},
-		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			dir := t.TempDir()
@@ -74,7 +60,6 @@ func Test(t *testing.T) {
 					"NodeAttestor": {
 						"join_token": {},
 					},
-					"NodeResolver":      {},
 					"Notifier":          {},
 					"UpstreamAuthority": {},
 				},

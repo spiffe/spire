@@ -4,7 +4,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 )
@@ -17,7 +16,6 @@ type Catalog struct {
 	dataStoreRepository
 	keyManagerRepository
 	nodeAttestorRepository
-	nodeResolverRepository
 	notifierRepository
 	upstreamAuthorityRepository
 }
@@ -27,6 +25,5 @@ type Catalog struct {
 type dataStoreRepository struct{ datastore.Repository }
 type keyManagerRepository struct{ keymanager.Repository }
 type nodeAttestorRepository struct{ nodeattestor.Repository }
-type nodeResolverRepository struct{ noderesolver.Repository }
 type notifierRepository struct{ notifier.Repository }
 type upstreamAuthorityRepository struct{ upstreamauthority.Repository }
