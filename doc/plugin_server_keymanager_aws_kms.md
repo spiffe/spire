@@ -6,13 +6,13 @@ The `aws_kms` key manager plugin leverages the AWS Key Management Service (KMS) 
 
 The plugin accepts the following configuration options:
 
-| Key               | Type   | Required                              | Description                                             | Default                                                    |
-| ----------------- | ------ | ------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------- |
-| access_key_id     | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS           | Value of the AWS_ACCESS_KEY_ID environment variable        |
-| secret_access_key | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS       | Value of the AWS_SECRET_ACCESS_KEY environment variable    |
-| region            | string | yes                                   | The region where the keys will be stored                |                                                            |
-| key_metadata_file | string | yes                                   | A file path location where information about generated keys will be persisted    |                                   |
-| key_policy_file   | string | no                                    | A file path location to a custom key policy in JSON format                       | ""                                |
+| Key               | Type   | Required                              | Description                                                                   | Default                                                 |
+|-------------------|--------|---------------------------------------|-------------------------------------------------------------------------------|---------------------------------------------------------|
+| access_key_id     | string | see [AWS KMS Access](#aws-kms-access) | The Access Key Id used to authenticate to KMS                                 | Value of the AWS_ACCESS_KEY_ID environment variable     |
+| secret_access_key | string | see [AWS KMS Access](#aws-kms-access) | The Secret Access Key used to authenticate to KMS                             | Value of the AWS_SECRET_ACCESS_KEY environment variable |
+| region            | string | yes                                   | The region where the keys will be stored                                      |                                                         |
+| key_metadata_file | string | yes                                   | A file path location where information about generated keys will be persisted |                                                         |
+| key_policy_file   | string | no                                    | A file path location to a custom key policy in JSON format                    | ""                                                      |
 
 
 ### Alias and Key Management

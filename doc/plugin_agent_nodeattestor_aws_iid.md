@@ -14,9 +14,9 @@ Generally no plugin data is needed in AWS, and this configuration should be used
     }
 ```
 
-| Configuration          | Description                                        |
-| ---------------------- | -------------------------------------------------- |
-| ec2_metadata_endpoint  | Endpoint for AWS SDK to retrieve instance metadata |
+| Configuration         | Description                                        |
+|-----------------------|----------------------------------------------------|
+| ec2_metadata_endpoint | Endpoint for AWS SDK to retrieve instance metadata |
 
 
 For testing or non-standard AWS environments, you may need to specify the

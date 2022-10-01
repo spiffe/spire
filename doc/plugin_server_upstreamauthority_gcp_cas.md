@@ -10,13 +10,13 @@ The plugin has a mandatory root_cert_spec section. It is used to specify which C
 
 "root_cert_spec" requires the following attributes:
 
-| Configuration                 | Description                                                       |
-| ----------------------------- | ----------------------------------------------------------------- |
-| project_name   | Project in GCP that has the root CA certificate                   |
-| region_name    | The name of the region within GCP                                 |
-| ca_pool        | The name of the CA Pool that has the root CA certificate          |
-| label_key      | Label key - value pair is used to filter and select the relevant certificate  |
-| label_value    | Label key - value pair is used to filter and select the relevant certificate  |
+| Configuration | Description                                                                  |
+|---------------|------------------------------------------------------------------------------|
+| project_name  | Project in GCP that has the root CA certificate                              |
+| region_name   | The name of the region within GCP                                            |
+| ca_pool       | The name of the CA Pool that has the root CA certificate                     |
+| label_key     | Label key - value pair is used to filter and select the relevant certificate |
+| label_value   | Label key - value pair is used to filter and select the relevant certificate |
 
 ##Sample configuration:
 

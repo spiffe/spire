@@ -28,13 +28,13 @@ if running a custom approver.
 This plugin requests certificates from the configured
 [cert-manager](https://cert-manager.io/docs/configuration/) issuer.
 
-| Configuration             | Description                                                       |
-| ------------------------- | ----------------------------------------------------------------- |
-| kube_config_file          | (Optional) Path to the kubeconfig used to connect to the Kubernetes cluster. Empty path will attempt to use an in-cluster config. |
-| namespace                 | The namespace to create CertificateRequests for signing.          |
-| issuer_name               | The name of the issuer to reference in CertificateRequests.       |
-| issuer_kind               | (Optional) The kind of the issuer to reference in CertificateRequests. Defaults to "Issuer" if empty. |
-| issuer_group              | (Optional) The group of the issuer to reference in CertificateRequests. Defaults to "cert-manager.io" if empty. |
+| Configuration    | Description                                                                                                                       |
+|------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| kube_config_file | (Optional) Path to the kubeconfig used to connect to the Kubernetes cluster. Empty path will attempt to use an in-cluster config. |
+| namespace        | The namespace to create CertificateRequests for signing.                                                                          |
+| issuer_name      | The name of the issuer to reference in CertificateRequests.                                                                       |
+| issuer_kind      | (Optional) The kind of the issuer to reference in CertificateRequests. Defaults to "Issuer" if empty.                             |
+| issuer_group     | (Optional) The group of the issuer to reference in CertificateRequests. Defaults to "cert-manager.io" if empty.                   |
 
 
 ```hcl
