@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.3] - 2022-10-04
+
+### Security
+- Updated minimum TLS version to 1.2 for the k8s-workload-registrar CRD mode webhook and the oidc-discovery-provider when using ACME
+
 ## [1.4.2] - 2022-09-07
 
 ### Added
@@ -40,6 +45,11 @@
 ### Removed
 - The deprecated webhook mode from the k8s-workload-registrar (#3235)
 - Support for the configmap leader election lock type from the k8s-workload-registrar (#3241)
+
+## [1.3.5] - 2022-10-04
+
+### Security
+- Updated minimum TLS version to 1.2 for the k8s-workload-registrar CRD mode webhook and the oidc-discovery-provider when using ACME
 
 ## [1.3.4] - 2022-09-06
 
