@@ -11,17 +11,25 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/zeebo/errs"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 var (
-	configFlag = flag.String("config", "oidc-discovery-provider.conf", "configuration file")
+	versionFlag = flag.Bool("version", false, "print version")
+	configFlag  = flag.String("config", "oidc-discovery-provider.conf", "configuration file")
 )
 
 func main() {
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println(version.Version())
+		os.Exit(0)
+	}
+
 	if err := run(*configFlag); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
