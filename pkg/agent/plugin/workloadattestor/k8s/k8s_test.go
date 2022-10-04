@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -19,10 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -32,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -99,11 +94,6 @@ func (s *Suite) SetupTest() {
 	s.podList = nil
 	s.env = map[string]string{}
 
-	s.sigstoreSelectors = nil
-	s.sigstoreSigs = nil
-	s.sigstoreReturnError = nil
-	s.sigstoreSkipSigs = false
-	s.sigstoreSkippedSigSelectors = nil
 	s.oc = createOSConfig()
 }
 
@@ -289,14 +279,12 @@ func (s *Suite) TestConfigure() {
 	}
 
 	testCases := []struct {
-		name            string
-		raw             string
-		hcl             string
-		config          *config
-		errCode         codes.Code
-		errMsg          string
-		sigstoreError   error
-		sigstoreEnabled bool
+		name    string
+		raw     string
+		hcl     string
+		config  *config
+		errCode codes.Code
+		errMsg  string
 	}{
 		{
 			name: "insecure defaults",
@@ -502,92 +490,12 @@ func (s *Suite) TestConfigure() {
 			errCode: codes.InvalidArgument,
 			errMsg:  "unable to load private key",
 		},
-		{
-			name: "secure defaults with skipped images for sigstore",
-			hcl: `
-				experimental = {
-					sigstore = {
-						skip_signature_verification_image_list = ["sha:image1hash","sha:image2hash"]
-					}
-				}
-			`,
-			config: &config{
-				VerifyKubelet:     true,
-				Token:             "default-token",
-				KubeletURL:        "https://127.0.0.1:10250",
-				MaxPollAttempts:   defaultMaxPollAttempts,
-				PollRetryInterval: defaultPollRetryInterval,
-				ReloadInterval:    defaultReloadInterval,
-				SkippedImages: []string{
-					"sha:image1hash",
-					"sha:image2hash",
-				},
-			},
-			sigstoreEnabled: true,
-		},
-		{
-			name: "secure defaults with allowed subjects for sigstore",
-			hcl: `
-				experimental = {
-					sigstore {
-						enable_allowed_subjects_list = true,
-						allowed_subjects_list = ["spirex@example.com","spirex1@example.com"]
-					}
-				}
-			`,
-			config: &config{
-				VerifyKubelet:             true,
-				Token:                     "default-token",
-				KubeletURL:                "https://127.0.0.1:10250",
-				MaxPollAttempts:           defaultMaxPollAttempts,
-				PollRetryInterval:         defaultPollRetryInterval,
-				ReloadInterval:            defaultReloadInterval,
-				AllowedSubjectListEnabled: true,
-				AllowedSubjects:           []string{"spirex@example.com", "spirex1@example.com"},
-			},
-			sigstoreEnabled: true,
-		},
-		{
-			name: "secure defaults with rekor URL",
-			hcl: `
-				experimental = {
-					sigstore = {
-						rekor_url = "https://rekor.example.com"
-					}
-				}
-			`,
-			config: &config{
-				VerifyKubelet:     true,
-				Token:             "default-token",
-				KubeletURL:        "https://127.0.0.1:10250",
-				MaxPollAttempts:   defaultMaxPollAttempts,
-				PollRetryInterval: defaultPollRetryInterval,
-				ReloadInterval:    defaultReloadInterval,
-				RekorURL:          "https://rekor.example.com",
-			},
-			sigstoreEnabled: true,
-		},
-		{
-			name: "secure defaults, failed parsing rekor URI",
-			hcl: `
-				experimental = {
-					sigstore = {
-						rekor_url = "inva{{{lid}"
-					}
-				}
-			`,
-			sigstoreError: errors.New("failed parsing rekor URI"),
-			config:        nil,
-			errCode:       codes.InvalidArgument,
-			errMsg:        "failed to parse Rekor URL: failed parsing rekor URI",
-		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
-			s.sigstoreMock.returnError = testCase.sigstoreError
 
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
@@ -627,109 +535,8 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
-
-			if testCase.sigstoreEnabled {
-				assert.NotNil(t, c.sigstoreConfig)
-
-				assert.Equal(t, testCase.config.SkippedImages, c.sigstoreConfig.SkippedImages)
-				skippedImagesMap := make(map[string]bool)
-				for _, sImage := range testCase.config.SkippedImages {
-					skippedImagesMap[sImage] = true
-				}
-				assert.Equal(t, skippedImagesMap, s.sigstoreMock.skippedImages)
-
-				assert.Equal(t, testCase.config.AllowedSubjectListEnabled, c.sigstoreConfig.AllowedSubjectListEnabled)
-				assert.Equal(t, testCase.config.AllowedSubjectListEnabled, s.sigstoreMock.allowedSubjectListEnabled)
-
-				assert.Equal(t, testCase.config.AllowedSubjects, c.sigstoreConfig.AllowedSubjects)
-				var allowedSubjectsMap map[string]bool
-				if len(testCase.config.AllowedSubjects) > 0 {
-					allowedSubjectsMap = make(map[string]bool)
-					for _, subject := range testCase.config.AllowedSubjects {
-						allowedSubjectsMap[subject] = true
-					}
-				}
-				assert.Equal(t, allowedSubjectsMap, s.sigstoreMock.allowedSubjects)
-
-				assert.Equal(t, testCase.config.RekorURL, c.sigstoreConfig.RekorURL)
-			} else {
-				assert.Nil(t, c.sigstoreConfig)
-			}
 		})
 	}
-}
-
-// SetLogger implements sigstore.Sigstore
-func (s *sigstoreMock) SetLogger(logger hclog.Logger) {
-	s.log = logger
-}
-
-func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
-	if s.returnError != nil {
-		return nil, s.returnError
-	}
-	return s.sigs, nil
-}
-
-func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) (*sigstore.SelectorsFromSignatures, error) {
-	if len(s.selectors) != 0 {
-		return &s.selectors[0], nil
-	}
-	return nil, s.returnError
-}
-
-func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
-	return s.selectors
-}
-
-func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
-	return s.skipSigs, s.returnError
-}
-
-func (s *sigstoreMock) ClearSkipList() {
-	s.skippedImages = nil
-}
-
-func (s *sigstoreMock) ClearAllowedSubjects() {
-	s.allowedSubjects = nil
-}
-
-func (s *sigstoreMock) EnableAllowSubjectList(flag bool) {
-	s.allowedSubjectListEnabled = flag
-}
-
-func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
-	if s.skipSigs {
-		return s.skippedSigSelectors, nil
-	}
-	if s.returnError != nil {
-		return nil, s.returnError
-	}
-	var selectorsString []string
-	for _, selector := range s.selectors {
-		if selector.Subject != "" {
-			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-subject:%s", status.ContainerID, selector.Subject))
-		}
-		if selector.Content != "" {
-			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-content:%s", status.ContainerID, selector.Content))
-		}
-		if selector.LogID != "" {
-			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-logid:%s", status.ContainerID, selector.LogID))
-		}
-		if selector.IntegratedTime != "" {
-			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-integrated-time:%s", status.ContainerID, selector.IntegratedTime))
-		}
-		selectorsString = append(selectorsString, "sigstore-validation:passed")
-	}
-	return selectorsString, nil
-}
-
-func (s *sigstoreMock) SetRekorURL(url string) error {
-	if s.returnError != nil {
-		return s.returnError
-	}
-	s.rekorURL = url
-	return s.returnError
 }
 
 func (s *Suite) newPlugin() *Plugin {
@@ -740,15 +547,6 @@ func (s *Suite) newPlugin() *Plugin {
 		return s.env[key]
 	}
 
-	s.sigstoreMock = &sigstoreMock{
-		selectors:           s.sigstoreSelectors,
-		sigs:                s.sigstoreSigs,
-		skipSigs:            s.sigstoreSkipSigs,
-		skippedSigSelectors: s.sigstoreSkippedSigSelectors,
-		returnError:         s.sigstoreReturnError,
-	}
-
-	p.sigstore = s.sigstoreMock
 	return p
 }
 
@@ -790,7 +588,7 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 		plugintest.Configure(configuration),
 	)
 
-	if cHelper := s.oc.getContainerHelper(); cHelper != nil {
+	if cHelper := s.oc.getContainerHelper(p); cHelper != nil {
 		p.setContainerHelper(cHelper)
 	}
 	return v1
@@ -995,26 +793,6 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	s.podList = append(s.podList, podList)
 }
 
-func (fs testFS) Open(path string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(fs), path))
-}
-
-func (s *sigstoreMock) AddAllowedSubject(subject string) {
-	if s.allowedSubjects == nil {
-		s.allowedSubjects = make(map[string]bool)
-	}
-	s.allowedSubjects[subject] = true
-}
-
-func (s *sigstoreMock) AddSkippedImage(images []string) {
-	if s.skippedImages == nil {
-		s.skippedImages = make(map[string]bool)
-	}
-	for _, imageID := range images {
-		s.skippedImages[imageID] = true
-	}
-}
-
 type Suite struct {
 	spiretest.Suite
 
@@ -1029,28 +807,7 @@ type Suite struct {
 	kubeletCert *x509.Certificate
 	clientCert  *x509.Certificate
 
-	oc                          *osConfig
-	sigstoreSelectors           []sigstore.SelectorsFromSignatures
-	sigstoreSigs                []oci.Signature
-	sigstoreSkipSigs            bool
-	sigstoreSkippedSigSelectors []string
-	sigstoreReturnError         error
-	sigstoreMock                *sigstoreMock
-}
-
-type sigstoreMock struct {
-	selectors []sigstore.SelectorsFromSignatures
-
-	sigs                      []oci.Signature
-	skipSigs                  bool
-	skippedSigSelectors       []string
-	returnError               error
-	skippedImages             map[string]bool
-	allowedSubjects           map[string]bool
-	allowedSubjectListEnabled bool
-	log                       hclog.Logger
-
-	rekorURL string
+	oc *osConfig
 }
 
 type attestResult struct {
@@ -1059,3 +816,7 @@ type attestResult struct {
 }
 
 type testFS string
+
+func (fs testFS) Open(path string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(string(fs), path))
+}

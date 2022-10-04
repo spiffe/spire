@@ -6,7 +6,6 @@ package k8s
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
@@ -22,7 +21,9 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -204,56 +205,128 @@ func (s *Suite) TestAttestAgainstNodeOverride() {
 	s.Require().Empty(selectors)
 }
 
-func (s signature) Payload() ([]byte, error) {
-	return s.payload, nil
+func (s *Suite) TestFailedToCreateHelperFormConfigure() {
+	t := s.T()
+	p := s.newPlugin()
+
+	var err error
+	plugintest.Load(t, builtin(p), nil,
+		plugintest.Configure(`
+			experimental = {
+				sigstore = {
+					rekor_url = "inva{{{lid}"
+				}
+			}
+			`),
+		plugintest.CaptureConfigureError(&err))
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "failed to parse Rekor URL: host is required on rekor URL")
 }
 
-func (signature) Base64Signature() (string, error) {
-	return "", nil
-}
+func (s *Suite) TestHelperConfigure() {
+	for _, tt := range []struct {
+		name      string
+		config    *HCLConfig
+		errCode   codes.Code
+		errMsg    string
+		clientErr error
 
-func (s signature) Cert() (*x509.Certificate, error) {
-	return s.cert, nil
+		expectSkippedImages   map[string]struct{}
+		expectRekoURL         string
+		expectSubjectsEnabled bool
+		expectSubjects        map[string]struct{}
+	}{
+		{
+			name: "sigstore is configured",
+			config: &HCLConfig{
+				Experimental: &ExperimentalK8SConfig{
+					Sigstore: &SigstoreHCLConfig{
+						RekorURL:                  "https://rekor.example.com",
+						SkippedImages:             []string{"sha:image1hash", "sha:image2hash"},
+						AllowedSubjectListEnabled: true,
+						AllowedSubjects:           []string{"spirex@example.com", "spirex1@example.com"},
+					},
+				},
+			},
+			expectRekoURL: "https://rekor.example.com",
+			expectSkippedImages: map[string]struct{}{
+				"sha:image1hash": {},
+				"sha:image2hash": {},
+			},
+			expectSubjectsEnabled: true,
+			expectSubjects: map[string]struct{}{
+				"spirex@example.com":  {},
+				"spirex1@example.com": {},
+			},
+		},
+		{
+			name: "only reko url",
+			config: &HCLConfig{
+				Experimental: &ExperimentalK8SConfig{
+					Sigstore: &SigstoreHCLConfig{
+						RekorURL: "https://rekor.example.com",
+					},
+				},
+			},
+			expectRekoURL: "https://rekor.example.com",
+		},
+		{
+			name: "failed to set url",
+			config: &HCLConfig{
+				Experimental: &ExperimentalK8SConfig{
+					Sigstore: &SigstoreHCLConfig{
+						RekorURL: "invalid url",
+					},
+				},
+			},
+			clientErr: errors.New("oh no"),
+			errCode:   codes.InvalidArgument,
+			errMsg:    "failed to parse Rekor URL: oh no",
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			fakeClient := &sigstoreMock{
+				returnError: tt.clientErr,
+			}
+			h := &containerHelper{
+				sigstoreClient: fakeClient,
+			}
+
+			err := h.Configure(tt.config, hclog.NewNullLogger())
+
+			if tt.errMsg != "" {
+				spiretest.RequireGRPCStatus(t, err, tt.errCode, tt.errMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, h.sigstoreClient)
+
+			require.Equal(t, tt.expectSkippedImages, fakeClient.skippedImages)
+			require.Equal(t, tt.expectRekoURL, fakeClient.rekorURL)
+			require.Equal(t, tt.expectSubjectsEnabled, fakeClient.allowedSubjectListEnabled)
+			require.Equal(t, tt.expectSubjects, fakeClient.allowedSubjects)
+		})
+	}
 }
 
 func (s *Suite) TestAttestWithSigstoreSignatures() {
 	s.startInsecureKubelet()
-	s.setSigstoreSelectors([]sigstore.SelectorsFromSignatures{
+	s.oc.fakeClient.selectors = []sigstore.SelectorsFromSignatures{
 		{
 			Subject: "sigstore-subject",
 		},
-	})
-	p := s.loadInsecurePluginWithSigstore()
-	s.requireAttestSuccessWithPodAndSignature(p)
-}
-
-func (s *Suite) setSigstoreSkipSigs(skip bool) {
-	s.sigstoreSkipSigs = skip
-}
-
-func (s *Suite) setSigstoreSkippedSigSelectors(selectors []string) {
-	s.sigstoreSkippedSigSelectors = selectors
-}
-
-func (s *Suite) setSigstoreSelectors(selectors []sigstore.SelectorsFromSignatures) {
-	s.sigstoreSelectors = selectors
-	s.sigstoreSigs = nil
-	if s.sigstoreSelectors != nil {
-		s.sigstoreSigs = []oci.Signature{
-			signature{
-				payload: []byte("payload"),
-				cert:    &x509.Certificate{},
-			},
-		}
 	}
+	p := s.loadInsecurePlugin()
+	s.requireAttestSuccessWithPodAndSignature(p)
 }
 
 func (s *Suite) TestAttestWithSigstoreSkippedImage() {
 	s.startInsecureKubelet()
 	// Skip the image
-	s.setSigstoreSkipSigs(true)
-	s.setSigstoreSkippedSigSelectors([]string{"sigstore-validation:passed"})
-	p := s.loadInsecurePluginWithSigstore()
+	s.oc.fakeClient.rekorURL = "reo"
+	s.oc.fakeClient.skipSigs = true
+	s.oc.fakeClient.skippedSigSelectors = []string{"sigstore-validation:passed"}
+	p := s.loadInsecurePlugin()
 	s.requireAttestSuccessWithPodAndSkippedImage(p)
 }
 
@@ -268,11 +341,12 @@ func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
 	kubelet_read_only_port = %d
 	max_poll_attempts = 5
 	poll_retry_interval = "1s"
-	experimental {
-		sigstore {}
-	}
 	`, s.kubeletPort())),
 	)
+
+	if cHelper := s.oc.getContainerHelper(p); cHelper != nil {
+		p.setContainerHelper(cHelper)
+	}
 
 	buf := bytes.Buffer{}
 	newLog := hclog.New(&hclog.LoggerOptions{
@@ -281,7 +355,7 @@ func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
 
 	p.SetLogger(newLog)
 
-	s.sigstoreMock.returnError = errors.New("sigstore error 123")
+	s.oc.fakeClient.returnError = errors.New("sigstore error 123")
 
 	s.requireAttestFailureWithPod(v1, codes.Internal, fmt.Sprintf("error retrieving signature payload: %v", "sigstore error 123"))
 	s.Require().Contains(buf.String(), "Error retrieving signature payload")
@@ -573,14 +647,6 @@ func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 	}
 }
 
-func (o *osConfig) getContainerHelper() ContainerHelper {
-	return nil
-}
-
-func createOSConfig() *osConfig {
-	return &osConfig{}
-}
-
 func (s *Suite) requireAttestSuccessWithPodAndSignature(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgPidInPodFilePath)
@@ -593,23 +659,123 @@ func (s *Suite) requireAttestSuccessWithPodAndSkippedImage(p workloadattestor.Wo
 	s.requireAttestSuccess(p, testSigstoreSkippedSelectors)
 }
 
-func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttestor {
-	return s.loadPlugin(fmt.Sprintf(`
-		kubelet_read_only_port = %d
-		max_poll_attempts = 5
-		poll_retry_interval = "1s"
-		experimental {
-			sigstore {}
-		}
-`, s.kubeletPort()))
-}
-
-type signature struct {
-	oci.Signature
-
-	payload []byte
-	cert    *x509.Certificate
-}
-
 type osConfig struct {
+	fakeClient *sigstoreMock
+}
+
+func (o *osConfig) getContainerHelper(p *Plugin) ContainerHelper {
+	return &containerHelper{
+		fs:             p.fs,
+		sigstoreClient: o.fakeClient,
+	}
+}
+
+func createOSConfig() *osConfig {
+	return &osConfig{
+		fakeClient: &sigstoreMock{},
+	}
+}
+
+type sigstoreMock struct {
+	selectors []sigstore.SelectorsFromSignatures
+
+	sigs                      []oci.Signature
+	skipSigs                  bool
+	skippedSigSelectors       []string
+	returnError               error
+	skippedImages             map[string]struct{}
+	allowedSubjects           map[string]struct{}
+	allowedSubjectListEnabled bool
+	log                       hclog.Logger
+
+	rekorURL string
+}
+
+// SetLogger implements sigstore.Sigstore
+func (s *sigstoreMock) SetLogger(logger hclog.Logger) {
+	s.log = logger
+}
+
+func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
+	if s.returnError != nil {
+		return nil, s.returnError
+	}
+	return s.sigs, nil
+}
+
+func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature, containerID string) (*sigstore.SelectorsFromSignatures, error) {
+	if len(s.selectors) != 0 {
+		return &s.selectors[0], nil
+	}
+	return nil, s.returnError
+}
+
+func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
+	return s.selectors
+}
+
+func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
+	return s.skipSigs, s.returnError
+}
+
+func (s *sigstoreMock) ClearSkipList() {
+	s.skippedImages = nil
+}
+
+func (s *sigstoreMock) ClearAllowedSubjects() {
+	s.allowedSubjects = nil
+}
+
+func (s *sigstoreMock) EnableAllowSubjectList(flag bool) {
+	s.allowedSubjectListEnabled = flag
+}
+
+func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
+	if s.skipSigs {
+		return s.skippedSigSelectors, nil
+	}
+	if s.returnError != nil {
+		return nil, s.returnError
+	}
+	var selectorsString []string
+	for _, selector := range s.selectors {
+		if selector.Subject != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-subject:%s", status.ContainerID, selector.Subject))
+		}
+		if selector.Content != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-content:%s", status.ContainerID, selector.Content))
+		}
+		if selector.LogID != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-logid:%s", status.ContainerID, selector.LogID))
+		}
+		if selector.IntegratedTime != "" {
+			selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-integrated-time:%s", status.ContainerID, selector.IntegratedTime))
+		}
+		selectorsString = append(selectorsString, "sigstore-validation:passed")
+	}
+	return selectorsString, nil
+}
+
+func (s *sigstoreMock) SetRekorURL(url string) error {
+	if s.returnError != nil {
+		return s.returnError
+	}
+	s.rekorURL = url
+	return s.returnError
+}
+
+func (s *sigstoreMock) AddAllowedSubject(subject string) {
+	if s.allowedSubjects == nil {
+		s.allowedSubjects = make(map[string]struct{})
+	}
+	s.allowedSubjects[subject] = struct{}{}
+}
+
+func (s *sigstoreMock) AddSkippedImage(images []string) {
+	if s.skippedImages == nil {
+		s.skippedImages = make(map[string]struct{})
+	}
+	for _, imageID := range images {
+		s.skippedImages[imageID] = struct{}{}
+	}
 }
