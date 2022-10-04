@@ -32,6 +32,7 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 func NewManager(leaderElection bool, leaderElectionResourceLock string, metricsBindAddr, webhookCertDir string, webhookPort int) (ctrl.Manager, error) {
@@ -46,13 +47,16 @@ func NewManager(leaderElection bool, leaderElectionResourceLock string, metricsB
 	}
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
-		CertDir:                    webhookCertDir,
 		LeaderElection:             leaderElection,
 		LeaderElectionID:           "spire-k8s-registrar-leader-election",
 		LeaderElectionResourceLock: leaderElectionResourceLock,
 		MetricsBindAddress:         metricsBindAddr,
-		Port:                       webhookPort,
 		Scheme:                     scheme,
+		WebhookServer: &webhook.Server{
+			Port:          webhookPort,
+			CertDir:       webhookCertDir,
+			TLSMinVersion: "1.2",
+		},
 	})
 	if err != nil {
 		return nil, err
