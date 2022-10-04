@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.3.5] - 2022-10-04
+
+### Security
+- Updated minimum TLS version to 1.2 for the k8s-workload-registrar CRD mode webhook and the oidc-discovery-provider when using ACME
+
 ## [1.3.4] - 2022-09-06
 
 ### Security
