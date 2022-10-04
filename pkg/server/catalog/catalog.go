@@ -27,7 +27,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
-	"github.com/spiffe/spire/pkg/server/plugin/noderesolver"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 )
@@ -36,7 +35,6 @@ const (
 	dataStoreType         = "DataStore"
 	keyManagerType        = "KeyManager"
 	nodeAttestorType      = "NodeAttestor"
-	nodeResolverType      = "NodeResolver"
 	notifierType          = "Notifier"
 	upstreamAuthorityType = "UpstreamAuthority"
 )
@@ -44,7 +42,6 @@ const (
 type Catalog interface {
 	GetDataStore() datastore.DataStore
 	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
-	GetNodeResolverNamed(name string) (noderesolver.NodeResolver, bool)
 	GetKeyManager() keymanager.KeyManager
 	GetNotifiers() []notifier.Notifier
 	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
@@ -71,7 +68,6 @@ type Repository struct {
 	datastoreRepository
 	keyManagerRepository
 	nodeAttestorRepository
-	nodeResolverRepository
 	notifierRepository
 	upstreamAuthorityRepository
 
@@ -84,7 +80,6 @@ func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
 	return map[string]catalog.PluginRepo{
 		keyManagerType:        &repo.keyManagerRepository,
 		nodeAttestorType:      &repo.nodeAttestorRepository,
-		nodeResolverType:      &repo.nodeResolverRepository,
 		notifierType:          &repo.notifierRepository,
 		upstreamAuthorityType: &repo.upstreamAuthorityRepository,
 	}
@@ -117,11 +112,6 @@ func (repo *Repository) Close() {
 }
 
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
-	// DEPRECATE: make this an error in SPIRE 1.5
-	if len(config.PluginConfig[nodeResolverType]) > 0 {
-		config.Log.Warn("The node resolver plugin type is deprecated and will be removed from a future release")
-	}
-
 	if c, ok := config.PluginConfig[nodeAttestorType][jointoken.PluginName]; ok && c.IsEnabled() && c.IsExternal() {
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}

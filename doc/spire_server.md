@@ -9,7 +9,6 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | DataStore      | Provides persistent storage and HA features. **Note:** Pluggability for the DataStore is no longer supported. Only the built-in SQL plugin can be used. |
 | KeyManager     | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations. |
 | NodeAttestor   | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type. |
-| NodeResolver   | A plugin capable of discovering platform-specific metadata of nodes which have been successfully attested. Discovered metadata is stored as selectors and can be used when creating registration entries. |
 | UpstreamAuthority     | Allows SPIRE server to integrate with existing PKI systems. |
 | Notifier       | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
 
@@ -30,7 +29,6 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
 | NodeAttestor | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md) | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate |
 | NodeAttestor | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
-| NodeResolver | [azure_msi](/doc/plugin_server_noderesolver_azure_msi.md) | A node resolver which extends the [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md) node attestor plugin to support selecting nodes based on additional properties (such as Network Security Group). |
 | Notifier   | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md) | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage. |
 | Notifier   | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md) | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap. |
 | UpstreamAuthority | [disk](/doc/plugin_server_upstreamauthority_disk.md) | Uses a CA loaded from disk to sign SPIRE server intermediate certificates. |

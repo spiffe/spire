@@ -323,13 +323,8 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		return err
 	}
 
-	// augment selectors with resolver
-	resolvedSelectors, err := s.resolveSelectors(ctx, agentID, params.Data.Type)
-	if err != nil {
-		return api.MakeErr(log, codes.Internal, "failed to resolve selectors", err)
-	}
-	// store augmented selectors
-	err = s.ds.SetNodeSelectors(ctx, agentID.String(), selector.Dedupe(attestResult.Selectors, resolvedSelectors))
+	// dedupe and store node selectors
+	err = s.ds.SetNodeSelectors(ctx, agentID.String(), selector.Dedupe(attestResult.Selectors))
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
@@ -622,13 +617,6 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 		return nil, api.MakeErr(log, st.Code(), st.Message(), nil)
 	}
 	return result, nil
-}
-
-func (s *Service) resolveSelectors(ctx context.Context, agentID spiffeid.ID, attestationType string) ([]*common.Selector, error) {
-	if nodeResolver, ok := s.cat.GetNodeResolverNamed(attestationType); ok {
-		return nodeResolver.Resolve(ctx, agentID.String())
-	}
-	return nil, nil
 }
 
 func applyMask(a *types.Agent, mask *types.AgentMask) {
