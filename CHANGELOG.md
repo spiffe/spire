@@ -3,11 +3,11 @@
 ## [1.4.4] - 2022-10-05
 
 ### Added
-- Experimental support to configure the maximum number of SVIDs to keep in the agent's cache (#3181)
-- Support for k8s workload attestation when it is not possible to get the container ID (#3460)
+- Experimental support for limiting the number of SVIDs in the agent's cache (#3181)
+- Support for attesting Envoy proxy workloads when Istio is configured with holdApplicationUntilProxyStarts (#3460)
 
 ### Changed
-- Detect remote bundle endpoint misconfigurations (#3395)
+- Improved bundle endpoint misconfiguration diagnostics (#3395)
 - OIDC Discovery Provider endpoint now has a timeout to read request headers (#3435)
 - Small documentation improvements (#3443)
 
