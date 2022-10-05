@@ -369,7 +369,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", c.Server.BindAddress, c.Server.BindPort))
 	if err != nil {
-		return nil, fmt.Errorf(`could not resolve TCP address "%q:%d": %w`, c.Server.BindAddress, c.Server.BindPort, err)
+		return nil, fmt.Errorf(`could not resolve TCP address "%s:%d": %w`, c.Server.BindAddress, c.Server.BindPort, err)
 	}
 	sc.BindAddress = tcpAddr
 	c.Server.setDefaultsIfNeeded()
