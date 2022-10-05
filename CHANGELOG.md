@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.4] - 2022-10-05
+
+### Added
+- Experimental support to configure the maximum number of SVIDs to keep in the agent's cache (#3181)
+- Support for k8s workload attestation when it is not possible to get the container ID (#3460)
+
+### Changed
+- Detect remote bundle endpoint misconfigurations (#3395)
+- OIDC Discovery Provider endpoint now has a timeout to read request headers (#3435)
+- Small documentation improvements (#3443)
+
 ## [1.4.3] - 2022-10-04
 
 ### Security
