@@ -468,6 +468,17 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:         "invalid bind_port should return an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.BindAddress = "localhost"
+				c.Server.BindPort = -1337
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "data_dir should be correctly configured",
 			input: func(c *Config) {
 				c.Server.DataDir = "foo"
