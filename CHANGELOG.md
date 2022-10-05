@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.4] - 2022-10-05
+
+### Added
+- Experimental support for limiting the number of SVIDs in the agent's cache (#3181)
+- Support for attesting Envoy proxy workloads when Istio is configured with holdApplicationUntilProxyStarts (#3460)
+
+### Changed
+- Improved bundle endpoint misconfiguration diagnostics (#3395)
+- OIDC Discovery Provider endpoint now has a timeout to read request headers (#3435)
+- Small documentation improvements (#3443)
+
 ## [1.4.3] - 2022-10-04
 
 ### Security
