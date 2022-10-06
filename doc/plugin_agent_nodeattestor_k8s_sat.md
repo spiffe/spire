@@ -16,10 +16,10 @@ spiffe://<trust domain>/spire/agent/k8s_sat/<cluster>/<UUID>
 
 The main configuration accepts the following values:
 
-| Configuration   | Description | Default                 |
-| --------------- | ----------- | ----------------------- |
-| `cluster`       | Name of the cluster. It must correspond to a cluster configured in the server plugin. |
-| `token_path`      | Path to the service account token on disk | "/var/run/secrets/kubernetes.io/serviceaccount/token" |
+| Configuration | Description                                                                           | Default                                               |
+|---------------|---------------------------------------------------------------------------------------|-------------------------------------------------------|
+| `cluster`     | Name of the cluster. It must correspond to a cluster configured in the server plugin. |
+| `token_path`  | Path to the service account token on disk                                             | "/var/run/secrets/kubernetes.io/serviceaccount/token" |
 
 The token path defaults to the default location Kubernetes uses to place the token and should not need to be overridden in most cases.
 

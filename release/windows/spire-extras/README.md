@@ -7,7 +7,7 @@ purposes only and are **NOT** production ready.
 
 == Contents
 
-| Path                                                        | Description                                              |
-| ----------------------------------------------------------- | -------------------------------------------------------- |
-| `bin/oidc-discovery-provider.exe`                           | SPIRE OIDC Discovery Provider executable                 |
-| `conf/oidc-discovery-provider/oidc-discovery-provider.conf` | Sample SPIRE OIDC Discovery Provider configuration       |
+| Path                                                        | Description                                        |
+|-------------------------------------------------------------|----------------------------------------------------|
+| `bin/oidc-discovery-provider.exe`                           | SPIRE OIDC Discovery Provider executable           |
+| `conf/oidc-discovery-provider/oidc-discovery-provider.conf` | Sample SPIRE OIDC Discovery Provider configuration |

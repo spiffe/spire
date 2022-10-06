@@ -3,7 +3,7 @@
 The `unix` plugin generates unix-based selectors for workloads calling the agent.
 
 | Configuration            | Description                                                                                                                                                | Default |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `discover_workload_path` | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                       | false   |
 | `workload_size_limit`    | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash. | 0       |
 
@@ -20,7 +20,7 @@ sufficient permissions.
 General selectors:
 
 | Selector                   | Value                                                                                                                          |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+|----------------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `unix:uid`                 | The user ID of the workload (e.g. `unix:uid:1000`)                                                                             |
 | `unix:user`                | The user name of the workload (e.g. `unix:user:nginx`)                                                                         |
 | `unix:gid`                 | The group ID of the workload (e.g. `unix:gid:1000`)                                                                            |
@@ -31,7 +31,7 @@ General selectors:
 Workload path enabled selectors (available when configured with `discover_workload_path = true`):
 
 | Selector      | Value                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `unix:path`   | The path to the workload binary (e.g. `unix:path:/usr/bin/nginx`)                                                              |
 | `unix:sha256` | The SHA256 digest of the workload binary (e.g. `unix:sha256:3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7`) |
 

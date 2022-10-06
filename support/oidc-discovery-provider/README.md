@@ -7,7 +7,7 @@ exposing a JSON Web Key Set (JWKS) for JSON Web Token (JWT) validation.
 It provides the following endpoints:
 
 | Verb  | Path                                | Description                                                                                                             |
-| ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+|-------|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
 | `GET` | `/.well-known/openid-configuration` | Returns the OIDC discovery document                                                                                     |
 | `GET` | `/keys`                             | Returns the JWKS for JWT validation                                                                                     |
 | `GET` | `/ready`                            | Returns http.OK (200) as soon as requests can be served. (disabled by default)                                          |
@@ -23,7 +23,7 @@ serve the documents securely.
 The provider has the following command line flags:
 
 | Flag      | Description                                                      | Default                        |
-| --------- | ---------------------------------------------------------------- | ------------------------------ |
+|-----------|------------------------------------------------------------------|--------------------------------|
 | `-config` | Path on disk to the [HCL Configuration](#hcl-configuration) file | `oidc-discovery-provider.conf` |
 
 ### HCL Configuration
@@ -32,7 +32,7 @@ The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
 | Key                     | Type    | Required?      | Description                                                            | Default  |
-| ----------------------- | ------- | -------------- | ---------------------------------------------------------------------- | -------- |
+|-------------------------|---------|----------------|------------------------------------------------------------------------|----------|
 | `acme`                  | section | required[1]    | Provides the ACME configuration.                                       |          |
 | `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.                      | `false`  |
 | `domains`               | strings | required       | One or more domains the provider is being served from.                 |          |
@@ -49,7 +49,7 @@ The configuration file is **required** by the provider. It contains
 | `health_checks`         | section | optional       | Enable and configure health check endpoints                            |          |
 
 | experimental             | Type   | Required?      | Description                                          | Default |
-| ------------------------ | ------ | -------------- | ---------------------------------------------------- | ------- |
+|--------------------------|--------|----------------|------------------------------------------------------|---------|
 | `listen_named_pipe_name` | string | required[1][3] | Pipe name to listen with a named pipe. Windows only. |         |
 
 #### Considerations for Unix platforms
@@ -78,7 +78,7 @@ will terminate if another domain is requested.
 #### ACME Section
 
 | Key             | Type   | Required? | Description                                                                                               | Default                                            |
-| --------------- | ------ | --------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+|-----------------|--------|-----------|-----------------------------------------------------------------------------------------------------------|----------------------------------------------------|
 | `cache_dir`     | string | optional  | The directory used to cache the ACME-obtained credentials. Disabled if explicitly set to the empty string | `"./.acme-cache"`                                  |
 | `directory_url` | string | optional  | The ACME directory URL to use. Uses Let's Encrypt if unset.                                               | `"https://acme-v01.api.letsencrypt.org/directory"` |
 | `email`         | string | required  | The email address used to register with the ACME service                                                  |                                                    |
@@ -87,26 +87,26 @@ will terminate if another domain is requested.
 #### Server API Section
 
 | Key             | Type     | Required? | Description                                                                                                                                                    | Default |
-| --------------- | -------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+|-----------------|----------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `address`       | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See https://github.com/grpc/grpc/blob/master/doc/naming.md. Unix platforms only. |         |
 | `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                                                                                |         |
 | `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                                                                                      | `"10s"` |
 
 | experimental      | Type   | Required? | Description                                                 | Default |
-| :---------------- | ------ | --------- | ----------------------------------------------------------- | ------- |
+|:------------------|--------|-----------|-------------------------------------------------------------|---------|
 | `named_pipe_name` | string | required  | Pipe name of the SPIRE Server API named pipe. Windows only. |         |
 
 #### Workload API Section
 
 | Key             | Type     | Required? | Description                                                                                     | Default |
-| --------------- | -------- | --------- | ----------------------------------------------------------------------------------------------- | ------- |
+|-----------------|----------|-----------|-------------------------------------------------------------------------------------------------|---------|
 | `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                 |         |
 | `socket_path`   | string   | required  | Path on disk to the Workload API Unix Domain socket. Unix platforms only.                       |         |
 | `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                       | `"10s"` |
 | `trust_domain`  | string   | required  | Trust domain of the workload. This is used to pick the bundle out of the Workload API response. |         |
 
 | experimental      | Description                                             | Default |
-| :---------------- | ------------------------------------------------------- | ------- |
+|:------------------|---------------------------------------------------------|---------|
 | `named_pipe_name` | Pipe name of the Workload API named pipe. Windows only. |         |
 
 #### Health Checks Section
@@ -121,7 +121,7 @@ The threshold interval is currently set to 5 times the workload/server APIs poll
 Both states respond with a 200 OK status code for success or 500 Internal Server Error for failure.
 
 | Key          | Type   | Required? | Description                         | Default    |
-| ------------ | ------ | --------- | ----------------------------------- | ---------- |
+|--------------|--------|-----------|-------------------------------------|------------|
 | `bind_port`  | string | optional  | override default listener bind port | `"8008"`   |
 | `ready_path` | string | optional  | override default ready path         | `"/ready"` |
 | `live_path`  | string | optional  | override default live path          | `"/live"`  |

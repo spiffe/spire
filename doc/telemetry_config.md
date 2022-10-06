@@ -15,45 +15,45 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ### Telemetry configuration syntax
 
-| Configuration          | Type                     | Description                        | Default |
-| ----------------       | ------------------------ | ---------------------------------- | ------- |
-| `InMem`                | `InMem`                  | In-memory configuration            | running |
-| `Prometheus`           | `Prometheus`             | Prometheus configuration           | |
-| `DogStatsd`            | `[]DogStatsd`            | List of DogStatsd configurations   | |
-| `Statsd`               | `[]Statsd`               | List of Statsd configurations      | |
-| `M3`                   | `[]M3`                   | List of M3 configurations          | |
-| `AllowedPrefixes`      | `[]string`               | A list of metric prefixes to allow, with '.' as the separator| |
-| `BlockedPrefixes`      | `[]string`               | A list of metric prefixes to block, with '.' as the separator| |
-| `AllowedLabels`        | `[]string`               | A list of metric labels to allow, with '.' as the separator  | |
-| `BlockedLabels`        | `[]string`               | A list of metric labels to block, with '.' as the separator  | |
+| Configuration     | Type          | Description                                                   | Default |
+|-------------------|---------------|---------------------------------------------------------------|---------|
+| `InMem`           | `InMem`       | In-memory configuration                                       | running |
+| `Prometheus`      | `Prometheus`  | Prometheus configuration                                      |         |
+| `DogStatsd`       | `[]DogStatsd` | List of DogStatsd configurations                              |         |
+| `Statsd`          | `[]Statsd`    | List of Statsd configurations                                 |         |
+| `M3`              | `[]M3`        | List of M3 configurations                                     |         |
+| `AllowedPrefixes` | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |         |
+| `BlockedPrefixes` | `[]string`    | A list of metric prefixes to block, with '.' as the separator |         |
+| `AllowedLabels`   | `[]string`    | A list of metric labels to allow, with '.' as the separator   |         |
+| `BlockedLabels`   | `[]string`    | A list of metric labels to block, with '.' as the separator   |         |
 
 #### `Prometheus`
 
-| Configuration    | Type          | Description |
-| ---------------- | ------------- | ----------- |
-| `host`           | `string`      | Prometheus server host |
-| `port`           | `int`         | Prometheus server port |
+| Configuration | Type     | Description            |
+|---------------|----------|------------------------|
+| `host`        | `string` | Prometheus server host |
+| `port`        | `int`    | Prometheus server port |
 
 #### `DogStatsd`
-| Configuration    | Type          | Description |
-| ---------------- | ------------- | ----------- |
-| `address`        | `string`      | DogStatsd address |
+| Configuration | Type     | Description       |
+|---------------|----------|-------------------|
+| `address`     | `string` | DogStatsd address |
 
 #### `Statsd`
-| Configuration    | Type          | Description |
-| ---------------- | ------------- | ----------- |
-| `address`        | `string`      | Statsd address |
+| Configuration | Type     | Description    |
+|---------------|----------|----------------|
+| `address`     | `string` | Statsd address |
 
 #### `M3`
-| Configuration    | Type          | Description |
-| ---------------- | ------------- | ----------- |
-| `address`        | `string`      | M3 address |
-| `env`            | `string`      | M3 environment, e.g. `production`, `staging` |
+| Configuration | Type     | Description                                  |
+|---------------|----------|----------------------------------------------|
+| `address`     | `string` | M3 address                                   |
+| `env`         | `string` | M3 environment, e.g. `production`, `staging` |
 
 #### `In-Mem`
-| Configuration    | Type          | Description | Default |
-| ---------------- | ------------- | ----------- | ------- |
-| `enabled`        | `bool`        | Enable this collector | `true` |
+| Configuration | Type   | Description           | Default |
+|---------------|--------|-----------------------|---------|
+| `enabled`     | `bool` | Enable this collector | `true`  |
 
 Here is a sample configuration:
 
