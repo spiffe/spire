@@ -32,9 +32,9 @@ Please note that this plugin does not require permission to read secret payloads
 
 ### Configuration
 
-| Configuration        | Description | DEFAULT        | 
-| -------------------- | ----------- | -------------- | 
-| service_account_file | (Optional) Path to the service account file used to authenticate with the Google Compute Engine API. By default credentails are retrieved from environment. | Value of `GOOGLE_APPLICATION_CREDENTIALS ` environment variable | 
+| Configuration        | Description                                                                                                                                                 | DEFAULT                                                         |
+|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| service_account_file | (Optional) Path to the service account file used to authenticate with the Google Compute Engine API. By default credentails are retrieved from environment. | Value of `GOOGLE_APPLICATION_CREDENTIALS ` environment variable |
 
 A sample configuration:
 
@@ -63,10 +63,10 @@ bindings:
 
 Selectors are used on `storable` entries to describre metadata that is needed by `gcp_secretmanager` in order to store secrets in Google Cloud Secret manager. In case that a `required` selector is not provided, the plugin will return an error at execution time. 
 
-| Selector                      | Example                                    | Required | Description                                    |
-| ----------------------------- | ------------------------------------------ | -------- | --------------------------------------------   |
-| `gcp_secretmanager:name`      | `gcp_secretmanager:secretname:some-name`   | x        | The secret name where SVID will be stored      |
-| `gcp_secretmanager:projectid` | `gcp_secretmanager:projectid:some-project` | x        | The Google Cloud project ID which the plugin will use Secret Manager |
-| `gcp_secretmanager:role`     | `gcp_secretmanager:role:roles/secretmanager.viewer` | -        | The Google Cloud role id for IAM policy (serviceaccount required when set) |
-| `gcp_secretmanager:serviceaccount` | `gcp_secretmanager:serviceaccount:test-secret@test-proj.iam.gserviceaccount.com` | -        | The Google Cloud Service account for IAM policy (role required when set) |
+| Selector                           | Example                                                                          | Required | Description                                                                |
+|------------------------------------|----------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------|
+| `gcp_secretmanager:name`           | `gcp_secretmanager:secretname:some-name`                                         | x        | The secret name where SVID will be stored                                  |
+| `gcp_secretmanager:projectid`      | `gcp_secretmanager:projectid:some-project`                                       | x        | The Google Cloud project ID which the plugin will use Secret Manager       |
+| `gcp_secretmanager:role`           | `gcp_secretmanager:role:roles/secretmanager.viewer`                              | -        | The Google Cloud role id for IAM policy (serviceaccount required when set) |
+| `gcp_secretmanager:serviceaccount` | `gcp_secretmanager:serviceaccount:test-secret@test-proj.iam.gserviceaccount.com` | -        | The Google Cloud Service account for IAM policy (role required when set)   |
 

@@ -16,11 +16,11 @@ the identity certificate. The SPIFFE ID has the form:
 spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 ```
 
-| Configuration | Description | Default                 |
-| ------------- | ----------- | ----------------------- |
-| `ca_bundle_path` | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. | |
-| `ca_bundle_paths` | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |
-| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format. | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
+| Configuration         | Description                                                                                                                                                                                                                                    | Default                                 |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
+| `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                         |
+| `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                         |
+| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
 
 A sample configuration:
 
@@ -37,10 +37,10 @@ A sample configuration:
 
 ## Selectors
 
-| Selector            | Example                                                   | Description                                                           |
-| ------------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
-| Common Name         | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)             |
-| SHA1 Fingerprint    | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.  |
+| Selector         | Example                                                           | Description                                                                              |
+|------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Common Name      | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)                                |
+| SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf. |
 
 ## Agent Path Template
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
@@ -48,10 +48,10 @@ The template formatter is using Golang text/template conventions, it can referen
 
 Some useful values are:
 
-| Value                 | Description                                                  |
-| ----------------------| ------------------------------------------------------------ |
-| .PluginName           | The name of the plugin                                       |
-| .Fingerprint          | The SHA1 fingerprint of the agent's x509 certificate         |
-| .TrustDomain          | The configured trust domain                                  |
-| .Subject.CommonName   | The common name field of the agent's x509 certificate        |
-| .Subject.SerialNumber | The serial number field of the agent's x509 certificate      |
+| Value                 | Description                                             |
+|-----------------------|---------------------------------------------------------|
+| .PluginName           | The name of the plugin                                  |
+| .Fingerprint          | The SHA1 fingerprint of the agent's x509 certificate    |
+| .TrustDomain          | The configured trust domain                             |
+| .Subject.CommonName   | The common name field of the agent's x509 certificate   |
+| .Subject.SerialNumber | The serial number field of the agent's x509 certificate |
