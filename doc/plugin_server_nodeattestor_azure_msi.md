@@ -17,22 +17,22 @@ attestation or to resolve selectors.
 
 ## Configuration
 
-| Configuration | Required | Description                                                                                                             | Default |
-|---------------|----------|-------------------------------------------------------------------------------------------------------------------------|---------|
-| `tenants`              | Required | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. |         |
+| Configuration         | Required | Description                                                                                                             | Default                                                   |
+|-----------------------|----------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `tenants`             | Required | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. |                                                           |
 | `agent_path_template` | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                       | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}"` |
 
 
 
 Each tenant in the main configuration supports the following
 
-| Configuration     | Required    | Description | Default                       |
-| ----------------- | ----------- | ----------------------- |-------------------------------|
+| Configuration     | Required                             | Description                                                                                               | Default                       |
+|-------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------------------------|
 | `resource_id`     | Optional                             | The resource ID (or audience) for the tenant's MSI token. Tokens for a different resource ID are rejected | https://management.azure.com/ |
-| `use_msi`         | [Optional](#authenticating-to-azure) | Whether or not to use MSI to authenticate to Azure services for selector resolution. | false                         |
-| `subscription_id` | [Optional](#authenticating-to-azure) | The subscription the tenant resides in |                               |
-| `app_id`          | [Optional](#authenticating-to-azure) | The application id |                               |
-| `app_secret`      | [Optional](#authenticating-to-azure) | The application secret |                               |
+| `use_msi`         | [Optional](#authenticating-to-azure) | Whether or not to use MSI to authenticate to Azure services for selector resolution.                      | false                         |
+| `subscription_id` | [Optional](#authenticating-to-azure) | The subscription the tenant resides in                                                                    |                               |
+| `app_id`          | [Optional](#authenticating-to-azure) | The application id                                                                                        |                               |
+| `app_secret`      | [Optional](#authenticating-to-azure) | The application secret                                                                                    |                               |
 
 It is important to note that the resource ID MUST be for a well known Azure
 service, or an app ID for a registered app in Azure AD. Azure will not issue an
