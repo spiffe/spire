@@ -15,10 +15,10 @@ spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node UID>
 
 The main configuration accepts the following values:
 
-| Configuration   | Description | Default                 |
-| --------------- | ----------- | ----------------------- |
-| `cluster`       | Name of the cluster. It must correspond to a cluster configured in the server plugin. | |
-| `token_path`    | Path to the projected service account token on disk | "/var/run/secrets/tokens/spire-agent" |
+| Configuration | Description                                                                           | Default                               |
+|---------------|---------------------------------------------------------------------------------------|---------------------------------------|
+| `cluster`     | Name of the cluster. It must correspond to a cluster configured in the server plugin. |                                       |
+| `token_path`  | Path to the projected service account token on disk                                   | "/var/run/secrets/tokens/spire-agent" |
 
 
 A sample configuration with the default token path:

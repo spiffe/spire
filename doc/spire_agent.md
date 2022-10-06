@@ -4,32 +4,32 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 
 ## Plugin types
 
-| Type             | Description |
-| ---------------- | ----------- |
-| KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc. |
+| Type             | Description                                                                                                                    |
+|------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| KeyManager       | Generates and stores the agent's private key. Useful for binding keys to hardware, etc.                                        |
 | NodeAttestor     | Gathers information used to attest the agent's identity to the server. Generally paired with a server plugin of the same type. |
-| WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it. |
-| SVIDStore        | Stores X509-SVIDs (Private key, leaf certificate and intermediates if any), bundle, and federated bundles into a trust store. |
+| WorkloadAttestor | Introspects a workload to determine its properties, generating a set of selectors associated with it.                          |
+| SVIDStore        | Stores X509-SVIDs (Private key, leaf certificate and intermediates if any), bundle, and federated bundles into a trust store.  |
 
 ## Built-in plugins
 
-| Type             | Name | Description |
-| ---------------- | ---- | ----------- |
-| KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md) | A key manager which writes the private key to disk |
-| KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md) | An in-memory key manager which does not persist private keys (must re-attest after restarts) |
-| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md) | A node attestor which attests agent identity using an AWS Instance Identity Document |
-| NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md) | A node attestor which attests agent identity using an Azure MSI token |
-| NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md) | A node attestor which attests agent identity using a GCP Instance Identity Token |
-| NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md) | A node attestor which uses a server-generated join token |
-| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) | A node attestor which attests agent identity using a Kubernetes Service Account token |
-| NodeAttestor     | [k8s_psat](/doc/plugin_agent_nodeattestor_k8s_psat.md) | A node attestor which attests agent identity using a Kubernetes Projected Service Account token |
-| NodeAttestor     | [sshpop](/doc/plugin_agent_nodeattestor_sshpop.md) | A node attestor which attests agent identity using an existing ssh certificate |
-| NodeAttestor     | [x509pop](/doc/plugin_agent_nodeattestor_x509pop.md) | A node attestor which attests agent identity using an existing X.509 certificate |
-| WorkloadAttestor | [docker](/doc/plugin_agent_workloadattestor_docker.md) | A workload attestor which allows selectors based on docker constructs such `label` and `image_id`|
-| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md) | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)|
-| WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md) | A workload attestor which generates unix-based selectors like `uid` and `gid` |
-| SVIDStore        | [aws_secretsmanager](/doc/plugin_agent_svidstore_aws_secretsmanager.md) | An SVIDstore which stores secrets in the AWS secrets manager with the resulting X509-SVIDs of the entries that the agent is entitled to. |
-| SVIDStore        | [gcp_secretmanager](/doc/plugin_agent_svidstore_gcp_secretmanager.md) | An SVIDStore which stores secrets in the Google Cloud Secret Manager with the resulting X509-SVIDs of the entries that the agent is entitled to. |
+| Type             | Name                                                                    | Description                                                                                                                                      |
+|------------------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md)                            | A key manager which writes the private key to disk                                                                                               |
+| KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md)                        | An in-memory key manager which does not persist private keys (must re-attest after restarts)                                                     |
+| NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md)                    | A node attestor which attests agent identity using an AWS Instance Identity Document                                                             |
+| NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md)                | A node attestor which attests agent identity using an Azure MSI token                                                                            |
+| NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md)                    | A node attestor which attests agent identity using a GCP Instance Identity Token                                                                 |
+| NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md)               | A node attestor which uses a server-generated join token                                                                                         |
+| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md)                    | A node attestor which attests agent identity using a Kubernetes Service Account token                                                            |
+| NodeAttestor     | [k8s_psat](/doc/plugin_agent_nodeattestor_k8s_psat.md)                  | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                                                  |
+| NodeAttestor     | [sshpop](/doc/plugin_agent_nodeattestor_sshpop.md)                      | A node attestor which attests agent identity using an existing ssh certificate                                                                   |
+| NodeAttestor     | [x509pop](/doc/plugin_agent_nodeattestor_x509pop.md)                    | A node attestor which attests agent identity using an existing X.509 certificate                                                                 |
+| WorkloadAttestor | [docker](/doc/plugin_agent_workloadattestor_docker.md)                  | A workload attestor which allows selectors based on docker constructs such `label` and `image_id`                                                |
+| WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md)                        | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)                       |
+| WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md)                      | A workload attestor which generates unix-based selectors like `uid` and `gid`                                                                    |
+| SVIDStore        | [aws_secretsmanager](/doc/plugin_agent_svidstore_aws_secretsmanager.md) | An SVIDstore which stores secrets in the AWS secrets manager with the resulting X509-SVIDs of the entries that the agent is entitled to.         |
+| SVIDStore        | [gcp_secretmanager](/doc/plugin_agent_svidstore_gcp_secretmanager.md)   | An SVIDStore which stores secrets in the Google Cloud Secret Manager with the resulting X509-SVIDs of the entries that the agent is entitled to. |
 
 ## Agent configuration file
 
@@ -41,7 +41,7 @@ If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style en
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like join tokens.
 
 | Configuration                     | Description                                                                                                                    | Default                          |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+|-----------------------------------|--------------------------------------------------------------------------------------------------------------------------------|----------------------------------|
 | `admin_socket_path`               | Location to bind the admin API socket (disabled as default)                                                                    |                                  |
 | `allow_unauthenticated_verifiers` | Allow agent to release trust bundles to unauthenticated verifiers                                                              | false                            |
 | `allowed_foreign_jwt_claims`      | List of trusted claims to be returned when validating foreign JWTSVIDs                                                         |                                  |
@@ -51,8 +51,8 @@ This may be useful for templating configuration files, for example across differ
 | `insecure_bootstrap`              | If true, the agent bootstraps without verifying the server's identity                                                          | false                            |
 | `join_token`                      | An optional token which has been generated by the SPIRE server                                                                 |                                  |
 | `log_file`                        | File to write logs to                                                                                                          |                                  |
-| `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                            | INFO                             |
-| `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                                 | Text                             |
+| `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                            | INFO                             |
+| `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                         | Text                             |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                            |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                  |
 | `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)              |                                  |
@@ -64,7 +64,7 @@ This may be useful for templating configuration files, for example across differ
 | `trust_bundle_path`               | Path to the SPIRE server CA bundle                                                                                             |                                  |
 | `trust_bundle_url`                | URL to download the initial SPIRE server trust bundle                                                                          |                                  |
 | `trust_domain`                    | The trust domain that this agent belongs to (should be no more than 255 characters)                                            |                                  |
-| `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&gt;                                                                           | ec-p256                          |
+| `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&gt;                                                                  | ec-p256                          |
 
 | experimental      | Description                                                     | Default                 |
 |:------------------|-----------------------------------------------------------------|-------------------------|
@@ -81,12 +81,12 @@ Only one of these three options may be set at a time.
 
 ### SDS Configuration
 
-| Configuration                    | Description                                                                                      | Default           |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------- |
-| `default_svid_name`              | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                | default           |
-| `default_bundle_name`            | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA            |
-| `default_all_bundles_name`       | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL               |
-| `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                              | false             |
+| Configuration                    | Description                                                                                      | Default |
+|----------------------------------|--------------------------------------------------------------------------------------------------|---------|
+| `default_svid_name`              | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                | default |
+| `default_bundle_name`            | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA  |
+| `default_all_bundles_name`       | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL     |
+| `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                              | false   |
 
 ### Profiling Names
 These are the available profiles that can be set in the `profiling_freq` configuration value:
@@ -115,12 +115,12 @@ plugins {
 
 The following configuration options are available to configure a plugin:
 
-| Configuration   | Description                              |
-| --------------- | ---------------------------------------- |
+| Configuration   | Description                                                                   |
+|-----------------|-------------------------------------------------------------------------------|
 | plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
 | plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
-| enabled         | Enable or disable the plugin (enabled by default)            |
-| plugin_data     | Plugin-specific data                     |
+| enabled         | Enable or disable the plugin (enabled by default)                             |
+| plugin_data     | Plugin-specific data                                                          |
 
 Please see the [built-in plugins](#built-in-plugins) section for information on plugins that are available out-of-the-box.
 
@@ -149,84 +149,84 @@ health_checks {
 All of the configuration file above options have identical command-line counterparts. In addition,
 the following flags are available:
 
-| Command          | Action                      | Default                 |
-| ---------------- | --------------------------- | ----------------------- |
-| `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers | |
-| `-config` | Path to a SPIRE config file | conf/agent/agent.conf |
-| `-dataDir` | A directory the agent can use for its runtime data | |
-| `-expandEnv` | Expand environment $VARIABLES in the config file | |
-| `-joinToken` | An optional token which has been generated by the SPIRE server | |
-| `-logFile` | File to write logs to | |
-| `-logFormat` | Format of logs, &lt;text&vert;json&gt; | |
-| `-logLevel` | DEBUG, INFO, WARN or ERROR | |
-| `-serverAddress` | IP address or DNS name of the SPIRE server | |
-| `-serverPort` | Port number of the SPIRE server | |
-| `-socketPath` | Location to bind the workload API socket | |
-| `-trustBundle` | Path to the SPIRE server CA bundle | |
-| `-trustBundleUrl` | URL to download the SPIRE server CA bundle | |
-| `-trustDomain` | The trust domain that this agent belongs to (should be no more than 255 characters) | |
+| Command                          | Action                                                                              | Default               |
+|----------------------------------|-------------------------------------------------------------------------------------|-----------------------|
+| `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers                   |                       |
+| `-config`                        | Path to a SPIRE config file                                                         | conf/agent/agent.conf |
+| `-dataDir`                       | A directory the agent can use for its runtime data                                  |                       |
+| `-expandEnv`                     | Expand environment $VARIABLES in the config file                                    |                       |
+| `-joinToken`                     | An optional token which has been generated by the SPIRE server                      |                       |
+| `-logFile`                       | File to write logs to                                                               |                       |
+| `-logFormat`                     | Format of logs, &lt;text&vert;json&gt;                                              |                       |
+| `-logLevel`                      | DEBUG, INFO, WARN or ERROR                                                          |                       |
+| `-serverAddress`                 | IP address or DNS name of the SPIRE server                                          |                       |
+| `-serverPort`                    | Port number of the SPIRE server                                                     |                       |
+| `-socketPath`                    | Location to bind the workload API socket                                            |                       |
+| `-trustBundle`                   | Path to the SPIRE server CA bundle                                                  |                       |
+| `-trustBundleUrl`                | URL to download the SPIRE server CA bundle                                          |                       |
+| `-trustDomain`                   | The trust domain that this agent belongs to (should be no more than 255 characters) |                       |
 
 ### `spire-agent api fetch`
 
 Calls the workload API to fetch an X509-SVID. This command is aliased to `spire-agent api fetch x509`.
 
-| Command          | Action                      | Default                 |
-| ---------------- | --------------------------- | ----------------------- |
-| `-silent` | Suppress stdout | |
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
-| `-timeout` | Time to wait for a response | 1s |
-| `-write` | Write SVID data to the specified path | |
+| Command       | Action                                | Default                          |
+|---------------|---------------------------------------|----------------------------------|
+| `-silent`     | Suppress stdout                       |                                  |
+| `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
+| `-timeout`    | Time to wait for a response           | 1s                               |
+| `-write`      | Write SVID data to the specified path |                                  |
 
 ### `spire-agent api fetch jwt`
 
 Calls the workload API to fetch a JWT-SVID.
 
-| Command          | Action                      | Default                 |
-| ---------------- | --------------------------- | ----------------------- |
-| `-audience` | A comma separated list of audience values | |
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
-| `-spiffeID` | The SPIFFE ID of the JWT being requested (optional) | |
-| `-timeout` | Time to wait for a response | 1s |
+| Command       | Action                                              | Default                          |
+|---------------|-----------------------------------------------------|----------------------------------|
+| `-audience`   | A comma separated list of audience values           |                                  |
+| `-socketPath` | Path to the SPIRE Agent API socket                  | /tmp/spire-agent/public/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the JWT being requested (optional) |                                  |
+| `-timeout`    | Time to wait for a response                         | 1s                               |
 
 ### `spire-agent api fetch x509`
 
 Calls the workload API to fetch a x.509-SVID.
 
-| Command          | Action                      | Default                 |
-| ---------------- | --------------------------- | ----------------------- |
-| `-silent` | Suppress stdout | |
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
-| `-timeout` | Time to wait for a response | 1s |
-| `-write` | Write SVID data to the specified path | |
+| Command       | Action                                | Default                          |
+|---------------|---------------------------------------|----------------------------------|
+| `-silent`     | Suppress stdout                       |                                  |
+| `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
+| `-timeout`    | Time to wait for a response           | 1s                               |
+| `-write`      | Write SVID data to the specified path |                                  |
 
 ### `spire-agent api validate jwt`
 
 Calls the workload API to validate the supplied JWT-SVID.
 
-| Command          | Action                      | Default                 |
-| ---------------- | --------------------------- | ----------------------- |
-| `-audience` | A comma separated list of audience values | |
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
-| `-svid` | The JWT-SVID to be validated | |
-| `-timeout` | Time to wait for a response | 1s |
+| Command       | Action                                    | Default                          |
+|---------------|-------------------------------------------|----------------------------------|
+| `-audience`   | A comma separated list of audience values |                                  |
+| `-socketPath` | Path to the SPIRE Agent API socket        | /tmp/spire-agent/public/api.sock |
+| `-svid`       | The JWT-SVID to be validated              |                                  |
+| `-timeout`    | Time to wait for a response               | 1s                               |
 
 ### `spire-agent api watch`
 
 Attaches to the workload API and watches for X509-SVID updates, printing details when updates are received.
 
-| Command          | Action                      | Default                 |
-| ---------------- | --------------------------- | ----------------------- |
+| Command       | Action                             | Default                          |
+|---------------|------------------------------------|----------------------------------|
 | `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 
 ### `spire-agent healthcheck`
 
 Checks SPIRE agent's health.
 
-| Command       | Action                                                             | Default        |
-|:--------------|:-------------------------------------------------------------------|:---------------|
-| `-shallow` | Perform a less stringent health check | |
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
-| `-verbose` | Print verbose information | |
+| Command       | Action                                | Default                          |
+|:--------------|:--------------------------------------|:---------------------------------|
+| `-shallow`    | Perform a less stringent health check |                                  |
+| `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
+| `-verbose`    | Print verbose information             |                                  |
 
 ### `spire-agent validate`
 

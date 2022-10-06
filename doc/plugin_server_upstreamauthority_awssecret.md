@@ -7,23 +7,23 @@ the ServerCA plugin.
 
 The plugin accepts the following configuration options:
 
-| Configuration           | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| region                  | AWS Region that the AWS Secrets Manager is running in |
-| cert_file_arn           | ARN of the "upstream" CA certificate         |
-| key_file_arn            | ARN of the "upstream" CA key file            |
-| access_key_id           | AWS access key ID                            |
-| secret_access_key       | AWS secret access key                        |
-| secret_token            | AWS secret token                             |
-| assume_role_arn         | ARN of role to assume                        |
+| Configuration     | Description                                           |
+|-------------------|-------------------------------------------------------|
+| region            | AWS Region that the AWS Secrets Manager is running in |
+| cert_file_arn     | ARN of the "upstream" CA certificate                  |
+| key_file_arn      | ARN of the "upstream" CA key file                     |
+| access_key_id     | AWS access key ID                                     |
+| secret_access_key | AWS secret access key                                 |
+| secret_token      | AWS secret token                                      |
+| assume_role_arn   | ARN of role to assume                                 |
 
 Only the region, cert_file_arn, and key_file_arn must be configured. You optionally configure the remaining fields depending on how you choose to give SPIRE Server access to the ARNs.
 
-| If SPIRE Server Accesses the ARNs	| then these additional fields are mandatory |
-| --------------------------------- | ------------------------------------------ |
-| by providing an access key id and secret access key | `access_key_id`, `secret_access_key` |
-| by using temporary credentials for an IAM account (*NOTE:* It is the server user's responsibility to provide a new valid token whenever the server is started) | `access_key_id`, `secret_access_key`, `secret_token` |
-| via an EC2 instance that has an attached role with read access to the ARNs | none |
+| If SPIRE Server Accesses the ARNs	                                                                                                                                                                                                                                                                    | then these additional fields are mandatory                              |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| by providing an access key id and secret access key                                                                                                                                                                                                                                                   | `access_key_id`, `secret_access_key`                                    |
+| by using temporary credentials for an IAM account (*NOTE:* It is the server user's responsibility to provide a new valid token whenever the server is started)                                                                                                                                        | `access_key_id`, `secret_access_key`, `secret_token`                    |
+| via an EC2 instance that has an attached role with read access to the ARNs                                                                                                                                                                                                                            | none                                                                    |
 | by configuring the UpstreamAuthority plugin to assume another IAM role that has access to the secrets (*NOTE:* The IAM user for which the access key id and secret access key must have permissions to assume the other IAM role, or the role attached to the EC2 instance must have this capability. | `access_key_id`, `secret_access_key`, `secret_token`, `assume_role_arn` |
 
 Because the plugin fetches the secrets from the AWS secrets manager only at startup, automatic rotation of secrets is not advised.

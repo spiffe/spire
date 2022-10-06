@@ -9,13 +9,13 @@ attested by the aws_iid attestor will be issued a SPIFFE ID like
 this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors.
 
 ## Configuration
-| Configuration       | Description | Default                 |
-| --------------------| ----------- | ----------------------- |
-| `access_key_id`     | AWS access key id     | Value of `AWS_ACCESS_KEY_ID` environment variable |
-| `secret_access_key` | AWS secret access key | Value of `AWS_SECRET_ACCESS_KEY` environment variable |
-| `skip_block_device` | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation. | false |
-| `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false |
-| `assume_role`       | The role to assume | Empty string, Optional parameter.
+| Configuration                        | Description                                                                                                                                                   | Default                                               |
+|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| `access_key_id`                      | AWS access key id                                                                                                                                             | Value of `AWS_ACCESS_KEY_ID` environment variable     |
+| `secret_access_key`                  | AWS secret access key                                                                                                                                         | Value of `AWS_SECRET_ACCESS_KEY` environment variable |
+| `skip_block_device`                  | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation.                           | false                                                 |
+| `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
+| `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
 
 A sample configuration:
 
@@ -72,12 +72,12 @@ For more information on security credentials, see https://docs.aws.amazon.com/ge
 ## Supported Selectors
 This plugin generates the following selectors related to the instance where the agent is running:
 
-| Selector            | Example                                           | Description                                                      |
-| ------------------- | ------------------------------------------------- | ---------------------------------------------------------------- |
-| Instance Tag        | `aws_iid:tag:name:blog`                                   | The key (e.g. `name`) and value (e.g. `blog`) of an instance tag |
-| Security Group ID   | `aws_iid:sg:id:sg-01234567`                               | The id of the security group the instance belongs to             |
-| Security Group Name | `aws_iid:sg:name:blog`                                    | The name of the security group the instance belongs to           |
-| IAM role            | `aws_iid:iamrole:arn:aws:iam::123456789012:role/Blog`     | An IAM role within the instance profile for the instance         |
+| Selector            | Example                                               | Description                                                      |
+|---------------------|-------------------------------------------------------|------------------------------------------------------------------|
+| Instance Tag        | `aws_iid:tag:name:blog`                               | The key (e.g. `name`) and value (e.g. `blog`) of an instance tag |
+| Security Group ID   | `aws_iid:sg:id:sg-01234567`                           | The id of the security group the instance belongs to             |
+| Security Group Name | `aws_iid:sg:name:blog`                                | The name of the security group the instance belongs to           |
+| IAM role            | `aws_iid:iamrole:arn:aws:iam::123456789012:role/Blog` | An IAM role within the instance profile for the instance         |
 
 All of the selectors have the type `aws_iid`.
 

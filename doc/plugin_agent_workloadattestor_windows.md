@@ -4,20 +4,20 @@ The `windows` plugin generates Windows-based selectors for workloads calling the
 It does so by opening an access token associated with the workload process. The system is then interrogated to retrieve user and group account information from that access token.
 
 | Configuration            | Description                                                                                                                                                | Default |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `discover_workload_path` | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                       | false   |
 | `workload_size_limit`    | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash. | 0       |
 
 ### Workload Selectors
 
-| Selector | Value |
-| -------- | ----- |
-| `windows:user_sid` | The security identifier (SID) that identifies the user running the workload (e.g. `windows:user_sid:S-1-5-21-759542327-988462579-1707944338-1003`) |
-| `windows:user_name` | The user name of the user running the workload (e.g. `windows:user_name:computer-or-domain\myuser`) |
-| `windows:group_sid:se_group_enabled:true` | The security identifier (SID) that identifies an enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:true:S-1-5-21-759542327-988462579-1707944338-1004`) |
-| `windows:group_sid:se_group_enabled:false` | The security identifier (SID) that identifies a not enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:false:S-1-5-32-544`) |
-| `windows:group_name:se_group_enabled:true` | The group name of an enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:true:computer-or-domain\mygroup`) |
-| `windows:group_name:se_group_enabled:false` | The group name of a not enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:false:computer-or-domain\mygroup`) |
+| Selector                                    | Value                                                                                                                                                                                                                   |
+|---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `windows:user_sid`                          | The security identifier (SID) that identifies the user running the workload (e.g. `windows:user_sid:S-1-5-21-759542327-988462579-1707944338-1003`)                                                                      |
+| `windows:user_name`                         | The user name of the user running the workload (e.g. `windows:user_name:computer-or-domain\myuser`)                                                                                                                     |
+| `windows:group_sid:se_group_enabled:true`   | The security identifier (SID) that identifies an enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:true:S-1-5-21-759542327-988462579-1707944338-1004`) |
+| `windows:group_sid:se_group_enabled:false`  | The security identifier (SID) that identifies a not enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:false:S-1-5-32-544`)                             |
+| `windows:group_name:se_group_enabled:true`  | The group name of an enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:true:computer-or-domain\mygroup`)                                              |
+| `windows:group_name:se_group_enabled:false` | The group name of a not enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:false:computer-or-domain\mygroup`)                                          |
 
 Workload path enabled selectors (available when configured with `discover_workload_path = true`):
 

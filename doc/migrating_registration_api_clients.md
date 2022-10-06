@@ -9,31 +9,31 @@ the old registration API.
 
 ## Replacement RPCs
 
-| Registration RPC          | Replacement RPC                     | Notes
-| ------------------------- | ----------------------------------- | -------------------------------
-| `CreateEntry`             | `Entry.BatchCreateEntry`            |
-| `CreateEntryIfNotExists`  | `Entry.BatchCreateEntry`            | The result code for the entry is ALREADY_EXISTS when the entry is preexisting.
-| `DeleteEntry`             | `Entry.BatchDeleteEntry`            |
-| `FetchEntry`              | `Entry.GetEntry`                    |
-| `FetchEntries`            | `Entry.ListEntries`                 |
-| `UpdateEntry`             | `Entry.BatchUpdateEntry`            |
-| `ListByParentID`          | `Entry.ListEntries`                 | See the `by_parent_id` filter.
-| `ListBySelector`          | `Entry.ListEntries`                 | See the `by_selectors` filter.
-| `ListBySelectors`         | `Entry.ListEntries`                 | See the `by_selectors` filter.
-| `ListBySpiffeID`          | `Entry.ListEntries`                 | See the `by_spiffe_id` filter.
-| `ListAllEntriesWithPages` | `Entry.ListEntries`                 | See the `page_size` / `page_token` fields.
-| `CreateFederatedBundle`   | `Bundle.BatchCreateFederatedBundle` | Alternatively, `Bundle.BatchSetFederatedBundle` can be used to "upsert" the federated bundle.
-| `FetchFederatedBundle`    | `Bundle.GetFederatedBundle`         |
-| `ListFederatedBundles`    | `Bundle.ListFederatedBundles`       |
-| `UpdateFederatedBundle`   | `Bundle.BatchUpdateFederatedBundle` | Alternatively, `Bundle.BatchSetFederatedBundle` can be used to "upsert" the federated bundle.
-| `DeleteFederatedBundle`   | `Bundle.BatchDeleteFederatedBundle` |
-| `CreateJoinToken`         | `Agent.CreateJoinToken`             |
-| `FetchBundle`             | `Bundle.GetBundle`                  |
-| `EvictAgent`              | `Agent.DeleteAgent`                 | See the `Agent.BanAgent` RPC for a similar but distinct operation.
-| `ListAgents`              | `Agent.ListAgents`                  | Implementors must assume the RPC can page results arbitrarily, as deemed necessary by the server.
-| `MintX509SVID`            | `SVID.MintX509SVID`                 |
-| `MintJWTSVID`             | `SVID.MintJWTSVID`                  |
-| `GetNodeSelectors`        | `Agent.GetAgent`                    | Selectors are included in the agent information, unless explicitly filtered.
+| Registration RPC          | Replacement RPC                     | Notes                                                                                             |
+|---------------------------|-------------------------------------|---------------------------------------------------------------------------------------------------|
+| `CreateEntry`             | `Entry.BatchCreateEntry`            |                                                                                                   |
+| `CreateEntryIfNotExists`  | `Entry.BatchCreateEntry`            | The result code for the entry is ALREADY_EXISTS when the entry is preexisting.                    |
+| `DeleteEntry`             | `Entry.BatchDeleteEntry`            |                                                                                                   |
+| `FetchEntry`              | `Entry.GetEntry`                    |                                                                                                   |
+| `FetchEntries`            | `Entry.ListEntries`                 |                                                                                                   |
+| `UpdateEntry`             | `Entry.BatchUpdateEntry`            |                                                                                                   |
+| `ListByParentID`          | `Entry.ListEntries`                 | See the `by_parent_id` filter.                                                                    |
+| `ListBySelector`          | `Entry.ListEntries`                 | See the `by_selectors` filter.                                                                    |
+| `ListBySelectors`         | `Entry.ListEntries`                 | See the `by_selectors` filter.                                                                    |
+| `ListBySpiffeID`          | `Entry.ListEntries`                 | See the `by_spiffe_id` filter.                                                                    |
+| `ListAllEntriesWithPages` | `Entry.ListEntries`                 | See the `page_size` / `page_token` fields.                                                        |
+| `CreateFederatedBundle`   | `Bundle.BatchCreateFederatedBundle` | Alternatively, `Bundle.BatchSetFederatedBundle` can be used to "upsert" the federated bundle.     |
+| `FetchFederatedBundle`    | `Bundle.GetFederatedBundle`         |                                                                                                   |
+| `ListFederatedBundles`    | `Bundle.ListFederatedBundles`       |                                                                                                   |
+| `UpdateFederatedBundle`   | `Bundle.BatchUpdateFederatedBundle` | Alternatively, `Bundle.BatchSetFederatedBundle` can be used to "upsert" the federated bundle.     |
+| `DeleteFederatedBundle`   | `Bundle.BatchDeleteFederatedBundle` |                                                                                                   |
+| `CreateJoinToken`         | `Agent.CreateJoinToken`             |                                                                                                   |
+| `FetchBundle`             | `Bundle.GetBundle`                  |                                                                                                   |
+| `EvictAgent`              | `Agent.DeleteAgent`                 | See the `Agent.BanAgent` RPC for a similar but distinct operation.                                |
+| `ListAgents`              | `Agent.ListAgents`                  | Implementors must assume the RPC can page results arbitrarily, as deemed necessary by the server. |
+| `MintX509SVID`            | `SVID.MintX509SVID`                 |                                                                                                   |
+| `MintJWTSVID`             | `SVID.MintJWTSVID`                  |                                                                                                   |
+| `GetNodeSelectors`        | `Agent.GetAgent`                    | Selectors are included in the agent information, unless explicitly filtered.                      |
 
 ## List Operations
 

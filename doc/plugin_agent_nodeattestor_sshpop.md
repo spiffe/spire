@@ -14,9 +14,9 @@ which is an unpadded url-safe base64 encoded sha256 hash of the certificate in o
 spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
 ```
 
-| Configuration | Description | Default                 |
-| ------------- | ----------- | ----------------------- |
-| `host_key_path` | The path to the private key on disk in openssh format. | `"/etc/ssh/ssh_host_rsa_key"` |
+| Configuration    | Description                                            | Default                                |
+|------------------|--------------------------------------------------------|----------------------------------------|
+| `host_key_path`  | The path to the private key on disk in openssh format. | `"/etc/ssh/ssh_host_rsa_key"`          |
 | `host_cert_path` | The path to the certificate on disk in openssh format. | `"/etc/ssh/ssh_host_rsa_key-cert.pub"` |
 
 A sample configuration:
