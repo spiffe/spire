@@ -8,19 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2/jwt"
-)
+	"github.com/stretchr/testify/assert"
 
-func TestMSITokenClaims(t *testing.T) {
-	claims := MSITokenClaims{
-		Claims: jwt.Claims{
-			Subject: "PRINCIPALID",
-		},
-		TenantID: "TENANTID",
-	}
-	require.Equal(t, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID", claims.AgentID("example.org"))
-}
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
+	"gopkg.in/square/go-jose.v2/jwt"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestFetchMSIToken(t *testing.T) {
 	ctx := context.Background()
@@ -112,6 +107,63 @@ func TestFetchInstanceMetadata(t *testing.T) {
 		}}`))
 	require.NoError(t, err)
 	require.Equal(t, expected, metadata)
+}
+
+func TestMakeAgentID(t *testing.T) {
+	type args struct {
+		td                string
+		agentPathTemplate string
+		claims            *MSITokenClaims
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "successfully applies template",
+			args: args{
+				"example.org",
+				"/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}",
+				&MSITokenClaims{
+					Claims:      jwt.Claims{},
+					TenantID:    "TENANTID",
+					PrincipalID: "PRINCIPALID",
+				},
+			},
+			want:    "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
+			wantErr: false,
+		},
+		{
+			name: "error applying template",
+			args: args{
+				"example.org",
+				"/{{ .PluginName }}/{{ .TenantID }}/{{ .NonExistent }}",
+				&MSITokenClaims{
+					Claims:      jwt.Claims{},
+					TenantID:    "TENANTID",
+					PrincipalID: "PRINCIPALID",
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			td, _ := spiffeid.TrustDomainFromString(test.args.td)
+			agentPathTemplate, _ := agentpathtemplate.Parse(test.args.agentPathTemplate)
+			got, err := MakeAgentID(td, agentPathTemplate, test.args.claims)
+			if test.wantErr {
+				require.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.want, got.String())
+		})
+	}
 }
 
 func fakeTokenHTTPClient(statusCode int, body string) HTTPClient {
