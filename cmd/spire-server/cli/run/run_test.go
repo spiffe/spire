@@ -458,10 +458,31 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "bind_address with hostname value should be correctly parsed",
+			input: func(c *Config) {
+				c.Server.BindAddress = "localhost"
+				c.Server.BindPort = 1337
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "127.0.0.1", c.BindAddress.IP.String())
+			},
+		},
+		{
 			msg:         "invalid bind_address should return an error",
 			expectError: true,
 			input: func(c *Config) {
 				c.Server.BindAddress = "this-is-not-an-ip-address"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "invalid bind_port should return an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.BindAddress = "localhost"
+				c.Server.BindPort = -1337
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)

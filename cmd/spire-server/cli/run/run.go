@@ -367,15 +367,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
 
-	ip := net.ParseIP(c.Server.BindAddress)
-	if ip == nil {
-		return nil, fmt.Errorf("could not parse bind_address %q", c.Server.BindAddress)
+	bindAddress, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", c.Server.BindAddress, c.Server.BindPort))
+	if err != nil {
+		return nil, fmt.Errorf(`could not resolve bind address "%s:%d": %w`, c.Server.BindAddress, c.Server.BindPort, err)
 	}
-	sc.BindAddress = &net.TCPAddr{
-		IP:   ip,
-		Port: c.Server.BindPort,
-	}
-
+	sc.BindAddress = bindAddress
 	c.Server.setDefaultsIfNeeded()
 
 	addr, err := c.Server.getAddr()
