@@ -12,7 +12,12 @@ import (
 	iampb "google.golang.org/genproto/googleapis/iam/v1"
 )
 
-type kmsClient interface {
+type kmsClient struct {
+	client        *kms.KeyManagementClient
+	oauth2Service *oauth2.Service
+}
+
+type cloudKeyManagementService interface {
 	AsymmetricSign(context.Context, *kmspb.AsymmetricSignRequest, ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error)
 	Close() error
 	CreateCryptoKey(context.Context, *kmspb.CreateCryptoKeyRequest, ...gax.CallOption) (*kmspb.CryptoKey, error)
@@ -20,9 +25,65 @@ type kmsClient interface {
 	DestroyCryptoKeyVersion(context.Context, *kmspb.DestroyCryptoKeyVersionRequest, ...gax.CallOption) (*kmspb.CryptoKeyVersion, error)
 	GetCryptoKeyVersion(context.Context, *kmspb.GetCryptoKeyVersionRequest, ...gax.CallOption) (*kmspb.CryptoKeyVersion, error)
 	GetPublicKey(context.Context, *kmspb.GetPublicKeyRequest, ...gax.CallOption) (*kmspb.PublicKey, error)
-	ResourceIAM(string) *iam.Handle
+	GetTokeninfo() (*oauth2.Tokeninfo, error)
+	ListCryptoKeys(context.Context, *kmspb.ListCryptoKeysRequest, ...gax.CallOption) cryptoKeyIterator
+	ListCryptoKeyVersions(context.Context, *kmspb.ListCryptoKeyVersionsRequest, ...gax.CallOption) cryptoKeyVersionIterator
+	ResourceIAM(string) iamHandler
 	SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error)
 	UpdateCryptoKey(context.Context, *kmspb.UpdateCryptoKeyRequest, ...gax.CallOption) (*kmspb.CryptoKey, error)
+}
+
+func (c *kmsClient) AsymmetricSign(ctx context.Context, req *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
+	return c.client.AsymmetricSign(ctx, req, opts...)
+}
+
+func (c *kmsClient) Close() error {
+	return c.client.Close()
+}
+
+func (c *kmsClient) CreateCryptoKey(ctx context.Context, req *kmspb.CreateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
+	return c.client.CreateCryptoKey(ctx, req, opts...)
+}
+
+func (c *kmsClient) CreateCryptoKeyVersion(ctx context.Context, req *kmspb.CreateCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+	return c.client.CreateCryptoKeyVersion(ctx, req, opts...)
+}
+
+func (c *kmsClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.DestroyCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+	return c.client.DestroyCryptoKeyVersion(ctx, req, opts...)
+}
+
+func (c *kmsClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+	return c.client.GetCryptoKeyVersion(ctx, req, opts...)
+}
+
+func (c *kmsClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
+	return c.client.GetPublicKey(ctx, req, opts...)
+}
+
+func (c *kmsClient) GetTokeninfo() (*oauth2.Tokeninfo, error) {
+	return c.oauth2Service.Tokeninfo().Do()
+}
+
+func (c *kmsClient) ListCryptoKeys(ctx context.Context, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator {
+	return c.client.ListCryptoKeys(ctx, req, opts...)
+}
+
+func (c *kmsClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator {
+	return c.client.ListCryptoKeyVersions(ctx, req, opts...)
+}
+
+func (c *kmsClient) ResourceIAM(resourcePath string) iamHandler {
+	var h interface{} = c.client.ResourceIAM(resourcePath)
+	return h.(iamHandler)
+}
+
+func (c *kmsClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
+	return c.client.SetIamPolicy(ctx, req, opts...)
+}
+
+func (c *kmsClient) UpdateCryptoKey(ctx context.Context, req *kmspb.UpdateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
+	return c.client.UpdateCryptoKey(ctx, req, opts...)
 }
 
 type cryptoKeyIterator interface {
@@ -33,24 +94,28 @@ type cryptoKeyVersionIterator interface {
 	Next() (*kmspb.CryptoKeyVersion, error)
 }
 
-func newKMSClient(ctx context.Context, opts ...option.ClientOption) (kmsClient, error) {
-	return kms.NewKeyManagementClient(ctx, opts...)
+type iamHandler interface {
+	V3() iamHandler3
 }
 
-func listCryptoKeys(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator {
-	kmc := kmsClient.(*kms.KeyManagementClient)
-	return kmc.ListCryptoKeys(ctx, req, opts...)
+type iamHandler3 interface {
+	Policy(context.Context) (*iam.Policy3, error)
+	SetPolicy(context.Context, *iam.Policy3) error
 }
 
-func listCryptoKeyVersions(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator {
-	kmc := kmsClient.(*kms.KeyManagementClient)
-	return kmc.ListCryptoKeyVersions(ctx, req, opts...)
-}
+func newKMSClient(ctx context.Context, opts ...option.ClientOption) (cloudKeyManagementService, error) {
+	client, err := kms.NewKeyManagementClient(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
 
-type oauth2Service interface {
-	Tokeninfo() *oauth2.TokeninfoCall
-}
+	oauth2Service, err := oauth2.NewService(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-func newOauth2Service(ctx context.Context, opts ...option.ClientOption) (oauth2Service, error) {
-	return oauth2.NewService(ctx)
+	return &kmsClient{
+		client:        client,
+		oauth2Service: oauth2Service,
+	}, nil
 }

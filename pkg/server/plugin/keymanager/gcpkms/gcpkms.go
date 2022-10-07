@@ -17,7 +17,6 @@ import (
 	"cloud.google.com/go/iam"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid"
-	"github.com/googleapis/gax-go/v2"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
@@ -68,15 +67,8 @@ type keyEntry struct {
 	publicKey            *keymanagerv1.PublicKey
 }
 
-type listCryptoKeysFn func(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator
-
-type listCryptoKeyVersionsFn func(ctx context.Context, kmsClient kmsClient, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator
-
 type pluginHooks struct {
-	newKMSClient          func(context.Context, ...option.ClientOption) (kmsClient, error)
-	newOauth2Service      func(context.Context, ...option.ClientOption) (oauth2Service, error)
-	listCryptoKeys        listCryptoKeysFn
-	listCryptoKeyVersions listCryptoKeyVersionsFn
+	newKMSClient func(context.Context, ...option.ClientOption) (cloudKeyManagementService, error)
 
 	clk clock.Clock
 
@@ -109,9 +101,8 @@ type Plugin struct {
 	pdMtx sync.RWMutex
 
 	hooks           pluginHooks
-	kmsClient       kmsClient
+	kmsClient       cloudKeyManagementService
 	log             hclog.Logger
-	oauth2Service   oauth2Service
 	scheduleDestroy chan string
 }
 
@@ -136,24 +127,18 @@ type Config struct {
 
 // New returns an instantiated plugin.
 func New() *Plugin {
-	return newPlugin(newKMSClient, newOauth2Service, listCryptoKeys, listCryptoKeyVersions)
+	return newPlugin(newKMSClient)
 }
 
 // newPlugin returns a new plugin instance.
 func newPlugin(
-	newKMSClient func(context.Context, ...option.ClientOption) (kmsClient, error),
-	newOauth2Service func(context.Context, ...option.ClientOption) (oauth2Service, error),
-	listCryptoKeys listCryptoKeysFn,
-	listCryptoKeyVersions listCryptoKeyVersionsFn,
+	newKMSClient func(context.Context, ...option.ClientOption) (cloudKeyManagementService, error),
 ) *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
-			newKMSClient:          newKMSClient,
-			newOauth2Service:      newOauth2Service,
-			listCryptoKeys:        listCryptoKeys,
-			listCryptoKeyVersions: listCryptoKeyVersions,
-			clk:                   clock.New(),
+			newKMSClient: newKMSClient,
+			clk:          clock.New(),
 		},
 		scheduleDestroy: make(chan string, 120),
 	}
@@ -205,10 +190,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if config.ServiceAccountFile != "" {
 		opts = append(opts, option.WithCredentialsFile(config.ServiceAccountFile))
 	}
-	oauth2Service, err := p.hooks.newOauth2Service(ctx, opts...)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create Google OAuth2 client: %v", err)
-	}
 
 	kc, err := p.hooks.newKMSClient(ctx, opts...)
 	if err != nil {
@@ -216,13 +197,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	fetcher := &keyFetcher{
-		keyRing:               config.KeyRing,
-		kmsClient:             kc,
-		listCryptoKeys:        p.hooks.listCryptoKeys,
-		listCryptoKeyVersions: p.hooks.listCryptoKeyVersions,
-		log:                   p.log,
-		serverID:              serverID,
-		tdHash:                tdHashString,
+		keyRing:   config.KeyRing,
+		kmsClient: kc,
+		log:       p.log,
+		serverID:  serverID,
+		tdHash:    tdHashString,
 	}
 	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", config.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -232,7 +211,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	p.setCache(keyEntries)
 	p.kmsClient = kc
-	p.oauth2Service = oauth2Service
 
 	// Cancel previous tasks in case of re configure.
 	if p.cancelTasks != nil {
@@ -256,7 +234,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 // it is updated.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
-		return nil, status.Error(codes.InvalidArgument, "key ID is required")
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 	if req.KeyType == keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE {
 		return nil, status.Error(codes.InvalidArgument, "key type is required")
@@ -275,7 +253,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 // GetPublicKey returns the public key for a given key
 func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
-		return nil, status.Error(codes.InvalidArgument, "key ID is required")
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 
 	p.entriesMtx.RLock()
@@ -311,7 +289,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 // SignData creates a digital signature for the data to be signed.
 func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
 	if req.KeyId == "" {
-		return nil, status.Error(codes.InvalidArgument, "key ID is required")
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 	if req.SignerOpts == nil {
 		return nil, status.Error(codes.InvalidArgument, "signer opts is required")
@@ -383,7 +361,22 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	p.entriesMtx.Lock()
 	defer p.entriesMtx.Unlock()
 
+	algorithm, err := cryptoKeyVersionAlgorithmFromKeyType(keyType)
+	if err != nil {
+		return nil, err
+	}
+
 	if entry, ok := p.entries[spireKeyID]; ok {
+		// Check if the algorithm has changed and update if needed
+		if entry.cryptoKey.VersionTemplate.Algorithm != algorithm {
+			entry.cryptoKey.VersionTemplate.Algorithm = algorithm
+			_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
+				CryptoKey: entry.cryptoKey,
+			})
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to update CryptoKey with updated algorithm: %v", err)
+			}
+		}
 		cryptoKeyVersion, err := p.kmsClient.CreateCryptoKeyVersion(ctx, &kmspb.CreateCryptoKeyVersionRequest{
 			Parent: entry.cryptoKey.Name,
 			CryptoKeyVersion: &kmspb.CryptoKeyVersion{
@@ -418,11 +411,6 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		}
 
 		return &newKeyEntry, nil
-	}
-
-	algorithm, err := cryptoKeyVersionAlgorithmFromKeyType(keyType)
-	if err != nil {
-		return nil, err
 	}
 
 	cryptoKeyID, err := p.generateCryptoKeyID(spireKeyID)
@@ -500,7 +488,7 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	itCryptoKeys := p.hooks.listCryptoKeys(ctx, p.kmsClient, &kmspb.ListCryptoKeysRequest{
+	itCryptoKeys := p.kmsClient.ListCryptoKeys(ctx, &kmspb.ListCryptoKeysRequest{
 		Parent: config.KeyRing,
 		Filter: disposeCryptoKeysFilter,
 	})
@@ -515,7 +503,7 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 			return err
 		}
 
-		itCryptoKeyVersions := p.hooks.listCryptoKeyVersions(ctx, p.kmsClient, &kmspb.ListCryptoKeyVersionsRequest{
+		itCryptoKeyVersions := p.kmsClient.ListCryptoKeyVersions(ctx, &kmspb.ListCryptoKeyVersionsRequest{
 			Parent: cryptoKey.Name,
 			Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
 		})
@@ -588,7 +576,7 @@ func (p *Plugin) enqueueDestruction(cryptoKeyVersionName string) (err error) {
 // getAuthenticatedServiceAccount gets the email of the authenticated service
 // account that is interacting with the Cloud KMS Service.
 func (p *Plugin) getAuthenticatedServiceAccount() (email string, err error) {
-	tokenInfo, err := p.oauth2Service.Tokeninfo().Do()
+	tokenInfo, err := p.kmsClient.GetTokeninfo()
 	if err != nil {
 		return "", fmt.Errorf("could not get token information: %w", err)
 	}
@@ -665,17 +653,19 @@ func (p *Plugin) getPublicKeyFromCryptoKeyVersion(ctx context.Context, cryptoKey
 func (p *Plugin) setIamPolicy(ctx context.Context, cryptoKeyName string) (err error) {
 	log := p.log.With(cryptoKeyNameTag, cryptoKeyName)
 
-	// Get the policy of the created CryptoKey.
+	// Get the handle to be able to inspect and change the policy of the
+	// CryptoKey.
 	h := p.kmsClient.ResourceIAM(cryptoKeyName)
 	if h == nil {
-		return status.Error(codes.Internal, "could not get Cloud KMS Handle")
+		return errors.New("could not get Cloud KMS Handle")
 	}
 
 	// We use V3 for policies.
 	h3 := h.V3()
-	if h == nil {
-		return status.Error(codes.Internal, "could not get Cloud KMS Handle3")
+	if h3 == nil {
+		return errors.New("could not get Cloud KMS Handle3")
 	}
+
 	// Get the policy.
 	policy, err := h3.Policy(ctx)
 	if err != nil {
@@ -696,7 +686,7 @@ func (p *Plugin) setIamPolicy(ctx context.Context, cryptoKeyName string) (err er
 	if pd.customPolicy != nil {
 		// There is a custom policy defined.
 		if err := h3.SetPolicy(ctx, pd.customPolicy); err != nil {
-			return status.Errorf(codes.Internal, "failed to set custom IAM policy: %v", err)
+			return fmt.Errorf("failed to set custom IAM policy: %w", err)
 		}
 		log.Debug("IAM policy updated to use custom policy")
 		return nil
@@ -714,7 +704,7 @@ func (p *Plugin) setIamPolicy(ctx context.Context, cryptoKeyName string) (err er
 		},
 	}
 	if err := h3.SetPolicy(ctx, policy); err != nil {
-		return status.Errorf(codes.Internal, "failed to set default IAM policy: %v", err)
+		return fmt.Errorf("failed to set default IAM policy: %w", err)
 	}
 	log.Debug("IAM policy updated to use default policy")
 	return nil

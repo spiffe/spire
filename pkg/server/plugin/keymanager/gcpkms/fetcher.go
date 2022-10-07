@@ -18,13 +18,11 @@ import (
 )
 
 type keyFetcher struct {
-	keyRing               string
-	kmsClient             kmsClient
-	listCryptoKeys        listCryptoKeysFn
-	listCryptoKeyVersions listCryptoKeyVersionsFn
-	log                   hclog.Logger
-	serverID              string
-	tdHash                string
+	keyRing   string
+	kmsClient cloudKeyManagementService
+	log       hclog.Logger
+	serverID  string
+	tdHash    string
 }
 
 // fetchKeyEntries requests Cloud KMS to get the list of CryptoKeys that are
@@ -34,7 +32,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	var keyEntriesMutex sync.Mutex
 	g, ctx := errgroup.WithContext(ctx)
 
-	it := kf.listCryptoKeys(ctx, kf.kmsClient, &kmspb.ListCryptoKeysRequest{
+	it := kf.kmsClient.ListCryptoKeys(ctx, &kmspb.ListCryptoKeysRequest{
 		Parent: kf.keyRing,
 		Filter: fmt.Sprintf("labels.%s = %s AND labels.%s = %s AND labels.%s = true",
 			labelNameServerTD, kf.tdHash, labelNameServerID, kf.serverID, labelNameActive),
@@ -88,7 +86,7 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 		return nil, status.Error(codes.Internal, "cryptoKey is nil")
 	}
 
-	it := kf.listCryptoKeyVersions(ctx, kf.kmsClient, &kmspb.ListCryptoKeyVersionsRequest{
+	it := kf.kmsClient.ListCryptoKeyVersions(ctx, &kmspb.ListCryptoKeyVersionsRequest{
 		Parent: cryptoKey.Name,
 		Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
 	})
@@ -110,6 +108,9 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 			return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 		}
 		pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
+		if pemBlock == nil {
+			return nil, status.Error(codes.Internal, "no PEM data found in public key")
+		}
 
 		keyEntry := &keyEntry{
 			cryptoKey:            cryptoKey,
