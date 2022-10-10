@@ -359,7 +359,7 @@ func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
 
 	s.requireAttestFailureWithPod(v1, codes.Internal, "error retrieving signature payload: sigstore error 123")
 	s.Require().Contains(buf.String(), "Error retrieving signature payload")
-	s.Require().Contains(buf.String(), fmt.Sprintf("error=%q", "sigstore error 123"))
+	s.Require().Contains(buf.String(), "error=\"sigstore error 123\"")
 }
 
 func (s *Suite) TestLogger() {
