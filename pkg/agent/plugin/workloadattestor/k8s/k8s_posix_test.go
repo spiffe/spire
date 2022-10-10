@@ -205,7 +205,7 @@ func (s *Suite) TestAttestAgainstNodeOverride() {
 	s.Require().Empty(selectors)
 }
 
-func (s *Suite) TestFailedToCreateHelperFormConfigure() {
+func (s *Suite) TestFailedToCreateHelperFromConfigure() {
 	t := s.T()
 	p := s.newPlugin()
 
