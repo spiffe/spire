@@ -51,8 +51,8 @@ You may use all, some, or none of the collectors. The following collectors suppo
 | `env`         | `string` | M3 environment, e.g. `production`, `staging` |
 
 #### `In-Mem`
-| Configuration | Type   | Description           | Default |
-|---------------|--------|-----------------------|---------|
+| Configuration | Type   | Description                                                                                                                                                                    | Default |
+|---------------|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `enabled`     | `bool` | Enable this collector. This flag is deprecated and will be removed in a future release. To disable in-memory telemetry collection omit the InMem configuration block entirely. | `false` |
 
 Here is a sample configuration:
