@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -86,7 +87,7 @@ func TestCommand_Run(t *testing.T) {
 			osTarget: "linux",
 			args: args{
 				args: []string{
-					"-config", "../../../../conf/agent/agent.conf",
+					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
 					"-trustBundle", "../../../../conf/agent/dummy_root_ca.crt",
 					"-socketPath", fmt.Sprintf("%s/spire-agent/api.sock", testTempDir),
 				},
@@ -120,6 +121,8 @@ func TestCommand_Run(t *testing.T) {
 
 				if testCase.want.expectAgentUdsDirCreated {
 					assert.Nilf(t, agentSocketDirErr, "spire-agent uds dir should have been created")
+					currentUmask := syscall.Umask(0)
+					assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
 				} else {
 					assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not have been created")
 				}
