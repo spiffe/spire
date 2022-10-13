@@ -1,162 +1,116 @@
 package telemetry
 
 import (
-	"context"
-	"os"
-	"runtime"
 	"testing"
-	"time"
 
-	"github.com/armon/go-metrics"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/test/util"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewInmemRunner(t *testing.T) {
-	config := testInmemConfig()
-	_, err := newInmemRunner(config)
-	assert.Nil(t, err)
-}
+func TestInMem(t *testing.T) {
+	enabled := true
+	disabled := false
 
-func TestDefaultEnabledNewInmemRunner(t *testing.T) {
-	t.Run("enabled when block undeclared", func(t *testing.T) {
-		runner, err := newInmemRunner(testInmemConfig())
-		assert.Nil(t, err)
-		assert.True(t, runner.isConfigured())
-	})
-
-	t.Run("enabled flag undeclared", func(t *testing.T) {
-		config := testInmemConfig()
-		config.FileConfig = FileConfig{
-			InMem: &InMem{},
-		}
-		runner, err := newInmemRunner(config)
-		assert.Nil(t, err)
-		assert.True(t, runner.isConfigured())
-	})
-
-	t.Run("enabled flag declared", func(t *testing.T) {
-		enabledFlag := true
-
-		config := testInmemConfig()
-		config.FileConfig = FileConfig{
-			InMem: &InMem{
-				Enabled: &enabledFlag,
-			},
-		}
-		runner, err := newInmemRunner(config)
-		assert.Nil(t, err)
-		assert.True(t, runner.isConfigured())
-	})
-}
-
-func TestDisabledNewInmemRunner(t *testing.T) {
-	enabledFlag := false
-
-	config := &MetricsConfig{
-		ServiceName: "foo",
-		FileConfig: FileConfig{
-			InMem: &InMem{
-				Enabled: &enabledFlag,
+	for _, tt := range []struct {
+		test               string
+		inMemConfig        *InMem
+		removeLoggerWriter bool
+		expectErr          string
+		expectEnabled      bool
+		expectLogs         []spiretest.LogEntry
+	}{
+		{
+			test:          "disabled when InMem block undeclared",
+			inMemConfig:   nil,
+			expectEnabled: false,
+		},
+		{
+			test:          "enabled when InMem block declared but deprecated enabled flag unset",
+			inMemConfig:   &InMem{},
+			expectEnabled: true,
+		},
+		{
+			test:          "enabled when InMem block declared and deprecated enabled flag set to true",
+			inMemConfig:   &InMem{DeprecatedEnabled: &enabled},
+			expectEnabled: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "The enabled flag is deprecated in the InMem configuration and will be removed in a future release; omit the InMem block to disable in-memory telemetry",
+				},
 			},
 		},
-	}
-	runner, err := newInmemRunner(config)
-	assert.Nil(t, err)
-	assert.False(t, runner.isConfigured())
-}
+		{
+			test:          "disabled when InMem block declared and deprecated enabled flag set to false",
+			inMemConfig:   &InMem{DeprecatedEnabled: &disabled},
+			expectEnabled: false,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "The enabled flag is deprecated in the InMem configuration and will be removed in a future release; omit the InMem block to disable in-memory telemetry",
+				},
+			},
+		},
+		{
+			test:               "disabled when unexpected logger passed",
+			inMemConfig:        &InMem{},
+			removeLoggerWriter: true,
+			expectEnabled:      false,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Unknown logging subsystem; disabling telemetry signaling",
+				},
+			},
+		},
+	} {
+		t.Run(tt.test, func(t *testing.T) {
+			var logger logrus.FieldLogger
+			var hook *test.Hook
+			logger, hook = test.NewNullLogger()
+			if tt.removeLoggerWriter {
+				logger = noWriterLogger(logger)
+			}
 
-func TestWarnOnFutureDisable(t *testing.T) {
-	// It is not possible to send signals to process on windows except for kill
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
-	logger, hook := test.NewNullLogger()
-
-	// Get a real logrus.Entry
-	logger.SetLevel(logrus.DebugLevel)
-	c := &MetricsConfig{
-		Logger:      logger,
-		ServiceName: "foo",
-	}
-
-	ir, err := newInmemRunner(c)
-	require.Nil(t, err)
-	require.Equal(t, 1, len(ir.sinks()))
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- ir.run(ctx)
-	}()
-
-	// Send signal, wait for signal handling + logging
-	util.RunWithTimeout(t, time.Minute, func() {
-		for {
-			p, err := os.FindProcess(os.Getpid())
-			require.NoError(t, err)
-			require.NoError(t, p.Signal(metrics.DefaultSignal))
-
-			require.NoError(t, ctx.Err())
-
-			if entry := hook.LastEntry(); entry != nil {
-				assert.Equal(t, "The in-memory telemetry sink will be disabled by default in a future release."+
-					" If you wish to continue using it, please enable it in the telemetry configuration", entry.Message)
+			runner, err := newInmemRunner(&MetricsConfig{
+				Logger:      logger,
+				ServiceName: "foo",
+				FileConfig:  FileConfig{InMem: tt.inMemConfig},
+			})
+			if tt.expectErr != "" {
+				require.EqualError(t, err, tt.expectErr)
+				assert.Nil(t, runner)
 				return
 			}
-		}
-	})
 
-	cancel()
-	require.NoError(t, <-errCh)
-}
+			require.NoError(t, err)
+			if tt.expectEnabled {
+				assert.True(t, runner.isConfigured())
+				assert.Len(t, runner.sinks(), 1)
+			} else {
+				assert.False(t, runner.isConfigured())
+				assert.Len(t, runner.sinks(), 0)
+			}
 
-func TestInmemSinks(t *testing.T) {
-	ir, err := newInmemRunner(testUnknownInmemConfig())
-	require.Nil(t, err)
-	assert.Equal(t, 0, len(ir.sinks()))
-
-	ir, err = newInmemRunner(testInmemConfig())
-	require.Nil(t, err)
-	assert.Equal(t, 1, len(ir.sinks()))
-}
-
-func TestInmemIsConfigured(t *testing.T) {
-	ir, err := newInmemRunner(testInmemConfig())
-	require.Nil(t, err)
-	assert.True(t, ir.isConfigured())
-
-	ir, err = newInmemRunner(testUnknownInmemConfig())
-	require.Nil(t, err)
-	assert.False(t, ir.isConfigured())
+			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
+		})
+	}
 }
 
 func testInmemConfig() *MetricsConfig {
-	l, _ := test.NewNullLogger()
+	logger, _ := test.NewNullLogger()
 	return &MetricsConfig{
-		Logger:      l,
+		Logger:      logger,
 		ServiceName: "foo",
+		FileConfig:  FileConfig{InMem: &InMem{}},
 	}
 }
 
-func testUnknownInmemConfig() *MetricsConfig {
-	l, _ := test.NewNullLogger()
-
-	// unknownLogger only provides logrus.FieldLogger interface and does not give
-	// access to the underlying writer via the Writer() method.
-	unknownLogger := struct {
-		logrus.FieldLogger
-	}{
-		FieldLogger: l,
-	}
-
-	return &MetricsConfig{
-		Logger:      unknownLogger,
-		ServiceName: "foo",
-	}
+func noWriterLogger(logger logrus.FieldLogger) logrus.FieldLogger {
+	// Hide the type of the underlying logger to hide the io.Writer
+	// implementation
+	return struct{ logrus.FieldLogger }{FieldLogger: logger}
 }
