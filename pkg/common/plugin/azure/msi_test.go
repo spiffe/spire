@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -116,48 +117,60 @@ func TestMakeAgentID(t *testing.T) {
 		claims            *MSITokenClaims
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
+		name      string
+		args      args
+		want      string
+		errWanted error
 	}{
 		{
 			name: "successfully applies template",
 			args: args{
-				"example.org",
-				"/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}",
-				&MSITokenClaims{
+				td:                "example.org",
+				agentPathTemplate: "/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}",
+				claims: &MSITokenClaims{
 					Claims:      jwt.Claims{},
 					TenantID:    "TENANTID",
 					PrincipalID: "PRINCIPALID",
 				},
 			},
-			want:    "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
-			wantErr: false,
+			want:      "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
+			errWanted: nil,
 		},
 		{
-			name: "error applying template",
+			name: "error applying template with non-existent field",
 			args: args{
-				"example.org",
-				"/{{ .PluginName }}/{{ .TenantID }}/{{ .NonExistent }}",
-				&MSITokenClaims{
+				td:                "example.org",
+				agentPathTemplate: "/{{ .PluginName }}/{{ .TenantID }}/{{ .NonExistent }}",
+				claims: &MSITokenClaims{
 					Claims:      jwt.Claims{},
 					TenantID:    "TENANTID",
 					PrincipalID: "PRINCIPALID",
 				},
 			},
-			want:    "",
-			wantErr: true,
+			want:      "",
+			errWanted: errors.New("template: agent-path:1:38: executing \"agent-path\" at <.NonExistent>: can't evaluate field NonExistent in type azure.agentPathTemplateData"),
+		},
+		{
+			name: "error building agent ID with invalid path",
+			args: args{
+				td:                "example.org",
+				agentPathTemplate: "/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}",
+				claims: &MSITokenClaims{
+					Claims: jwt.Claims{},
+				},
+			},
+			want:      "",
+			errWanted: errors.New("invalid agent path suffix \"/azure_msi//\": path cannot contain empty segments"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			td, _ := spiffeid.TrustDomainFromString(test.args.td)
+			td := spiffeid.RequireTrustDomainFromString(test.args.td)
 			agentPathTemplate, _ := agentpathtemplate.Parse(test.args.agentPathTemplate)
 			got, err := MakeAgentID(td, agentPathTemplate, test.args.claims)
-			if test.wantErr {
-				require.Error(t, err)
+			if test.errWanted != nil {
+				require.EqualError(t, err, test.errWanted.Error())
 				return
 			}
 			assert.NoError(t, err)

@@ -242,8 +242,7 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 
 	payload := s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID")
 
-	var selectorValues []string
-	selectorValues = append(selectorValues, vmSelectors...)
+	selectorValues := append([]string{}, vmSelectors...)
 	sort.Strings(selectorValues)
 
 	var expected []*common.Selector
