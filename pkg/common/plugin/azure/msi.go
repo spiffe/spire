@@ -131,7 +131,7 @@ type agentPathTemplateData struct {
 func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, claims *MSITokenClaims) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		MSITokenClaims: *claims,
-		PluginName: PluginName,
+		PluginName:     PluginName,
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
