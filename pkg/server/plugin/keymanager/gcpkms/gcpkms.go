@@ -34,10 +34,12 @@ import (
 const (
 	pluginName = "gcp_kms"
 
-	algorithmTag            = "algorithm"
-	cryptoKeyNameTag        = "crypto_key_name"
-	cryptoKeyVersionNameTag = "crypto_key_version_name"
-	reasonTag               = "reason"
+	algorithmTag             = "algorithm"
+	cryptoKeyNameTag         = "crypto_key_name"
+	cryptoKeyVersionNameTag  = "crypto_key_version_name"
+	cryptoKeyVersionStateTag = "crypto_key_version_state"
+	scheduledDestroyTimeTag  = "scheduled_destroy_time"
+	reasonTag                = "reason"
 
 	disposeCryptoKeysFrequency    = time.Hour * 48
 	keepActiveCryptoKeysFrequency = time.Hour * 6
@@ -163,15 +165,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.log.Debug("Loaded server ID", "server_id", serverID)
 	var customPolicy *iam.Policy3
 	if config.KeyPolicyFile != "" {
-		policyBytes, err := os.ReadFile(config.KeyPolicyFile)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to read file configured in 'key_policy_file': %v", err)
+		if customPolicy, err = parsePolicyFile(config.KeyPolicyFile); err != nil {
+			return nil, status.Errorf(codes.Internal, "could not parse policy file: %v", err)
 		}
-		policy := &iam.Policy3{}
-		if err := json.Unmarshal(policyBytes, policy); err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to parse custom JSON policy: %v", err)
-		}
-		customPolicy = policy
 	}
 
 	// Label values do not allow "." and have a maximum length of 63 characters.
@@ -314,9 +310,9 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		// RSASSA-PSS is not supported by this plugin.
 		// See the comment in cryptoKeyVersionAlgorithmFromKeyType function for
 		// more details.
-		return nil, errors.New("the only RSA signature scheme supported is RSASSA-PKCS1-v1_5")
+		return nil, status.Error(codes.InvalidArgument, "the only RSA signature scheme supported is RSASSA-PKCS1-v1_5")
 	default:
-		return nil, fmt.Errorf("unsupported signer opts type %T", opts)
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported signer opts type %T", opts)
 	}
 	switch {
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
@@ -328,10 +324,6 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	case hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
 		digest = &kmspb.Digest{
 			Digest: &kmspb.Digest_Sha384{Sha384: req.Data},
-		}
-	case hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		digest = &kmspb.Digest{
-			Digest: &kmspb.Digest_Sha512{Sha512: req.Data},
 		}
 	default:
 		return nil, status.Error(codes.InvalidArgument, "hash algorithm not supported")
@@ -797,7 +789,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case cryptoKeyVersionName := <-p.scheduleDestroy:
-			log := p.log.With(cryptoKeyNameTag, cryptoKeyVersionName)
+			log := p.log.With(cryptoKeyVersionNameTag, cryptoKeyVersionName)
 			destroyedCryptoKeyVersion, err := p.kmsClient.DestroyCryptoKeyVersion(ctx, &kmspb.DestroyCryptoKeyVersionRequest{
 				Name: cryptoKeyVersionName,
 			})
@@ -809,7 +801,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 				p.notifyDestroy(err)
 				continue
 			case codes.OK:
-				log.Debug("CryptoKeyVersion scheduled for destruction", "destroy_time", destroyedCryptoKeyVersion.DestroyTime.AsTime())
+				log.Debug("CryptoKeyVersion scheduled for destruction", scheduledDestroyTimeTag, destroyedCryptoKeyVersion.DestroyTime.AsTime())
 				backoff = backoffMin
 				p.notifyDestroy(nil)
 				continue
@@ -836,7 +828,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 						// Something external to the plugin modified the state
 						// of the CryptoKeyVersion. Do not try to schedule it for
 						// destruction.
-						log.Warn("CryptoKeyVersion is not enabled, will not be scheduled for destruction", "crypto_key_version_state", cryptoKeyVersion.State.String())
+						log.Warn("CryptoKeyVersion is not enabled, will not be scheduled for destruction", cryptoKeyVersionStateTag, cryptoKeyVersion.State.String())
 						backoff = backoffMin
 						p.notifyDestroy(err)
 						continue
@@ -1008,4 +1000,19 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+// parsePolicyFile parses a file containing iam.Policy3 data in JSON format.
+func parsePolicyFile(policyFile string) (*iam.Policy3, error) {
+	policyBytes, err := os.ReadFile(policyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	policy := &iam.Policy3{}
+	if err := json.Unmarshal(policyBytes, policy); err != nil {
+		return nil, fmt.Errorf("failed to parse custom JSON policy: %w", err)
+	}
+
+	return policy, nil
 }

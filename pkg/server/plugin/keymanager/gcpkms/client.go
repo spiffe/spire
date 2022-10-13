@@ -29,7 +29,6 @@ type cloudKeyManagementService interface {
 	ListCryptoKeys(context.Context, *kmspb.ListCryptoKeysRequest, ...gax.CallOption) cryptoKeyIterator
 	ListCryptoKeyVersions(context.Context, *kmspb.ListCryptoKeyVersionsRequest, ...gax.CallOption) cryptoKeyVersionIterator
 	ResourceIAM(string) iamHandler
-	SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error)
 	UpdateCryptoKey(context.Context, *kmspb.UpdateCryptoKeyRequest, ...gax.CallOption) (*kmspb.CryptoKey, error)
 }
 
@@ -74,8 +73,9 @@ func (c *kmsClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.ListCr
 }
 
 func (c *kmsClient) ResourceIAM(resourcePath string) iamHandler {
-	var h interface{} = c.client.ResourceIAM(resourcePath)
-	return h.(iamHandler)
+	return &iamHandle{
+		h: c.client.ResourceIAM(resourcePath),
+	}
 }
 
 func (c *kmsClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
@@ -101,6 +101,14 @@ type iamHandler interface {
 type iamHandler3 interface {
 	Policy(context.Context) (*iam.Policy3, error)
 	SetPolicy(context.Context, *iam.Policy3) error
+}
+
+type iamHandle struct {
+	h *iam.Handle
+}
+
+func (i *iamHandle) V3() iamHandler3 {
+	return i.h.V3()
 }
 
 func newKMSClient(ctx context.Context, opts ...option.ClientOption) (cloudKeyManagementService, error) {

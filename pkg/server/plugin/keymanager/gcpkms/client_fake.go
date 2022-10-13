@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"reflect"
 	"testing"
 
 	"cloud.google.com/go/iam"
@@ -111,34 +112,41 @@ func (fs *fakeStore) putCryptoKeyVersion(parent string, fakeCryptoKeyVersion *fa
 }
 
 type fakeIAMHandle struct {
+	expectedPolicy *iam.Policy3
+
 	policyErr    error
 	setPolicyErr error
-
-	policyBindings []*iampb.Binding
 }
 
 func (h *fakeIAMHandle) V3() iamHandler3 {
 	return &fakeIAMHandle3{
-		policy3: &iam.Policy3{
-			Bindings: h.policyBindings,
-		},
-		policyErr:    h.policyErr,
-		setPolicyErr: h.setPolicyErr,
+		expectedPolicy: h.expectedPolicy,
+		policyErr:      h.policyErr,
+		setPolicyErr:   h.setPolicyErr,
 	}
 }
 
 type fakeIAMHandle3 struct {
+	expectedPolicy *iam.Policy3
+
 	policyErr    error
 	setPolicyErr error
-
-	policy3 *iam.Policy3
 }
 
 func (h3 *fakeIAMHandle3) Policy(context.Context) (*iam.Policy3, error) {
-	return h3.policy3, h3.policyErr
+	if h3.policyErr != nil {
+		return nil, h3.policyErr
+	}
+	return &iam.Policy3{}, nil
 }
 
-func (h3 *fakeIAMHandle3) SetPolicy(context.Context, *iam.Policy3) error {
+func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) error {
+	if h3.expectedPolicy != nil {
+		if !reflect.DeepEqual(h3.expectedPolicy, policy) {
+			return fmt.Errorf("unexpected policy: %v", policy)
+		}
+	}
+
 	return h3.setPolicyErr
 }
 
@@ -152,13 +160,17 @@ type fakeKMSClient struct {
 	getTokeninfoErr            error
 	listCryptoKeysErr          error
 	listCryptoKeyVersionsErr   error
+	updateCryptoKeyErr         error
+
+	destroyTime    *timestamppb.Timestamp
+	serviceAccount string
 
 	store fakeStore
 
-	h         iamHandler
-	t         *testing.T
-	tokeninfo *oauth2.Tokeninfo
-	testKeys  testkey.Keys
+	fakeIAMHandle *fakeIAMHandle
+	t             *testing.T
+	tokeninfo     *oauth2.Tokeninfo
+	testKeys      testkey.Keys
 }
 
 func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
@@ -279,8 +291,14 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 		return nil, err
 	}
 
+	var destroyTime *timestamppb.Timestamp
+	if k.destroyTime != nil {
+		destroyTime = k.destroyTime
+	} else {
+		destroyTime = timestamppb.Now()
+	}
 	return &kmspb.CryptoKeyVersion{
-		DestroyTime: timestamppb.Now(),
+		DestroyTime: destroyTime,
 		Name:        fakeCryptoKeyVersion.Name,
 		State:       kmspb.CryptoKeyVersion_DESTROY_SCHEDULED,
 	}, nil
@@ -296,9 +314,7 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 		return nil, err
 	}
 
-	return &kmspb.CryptoKeyVersion{
-		Name: fakeCryptoKeyVersion.Name,
-	}, nil
+	return fakeCryptoKeyVersion.CryptoKeyVersion, nil
 }
 
 func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
@@ -350,17 +366,20 @@ func (k *fakeKMSClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.Li
 }
 
 func (k *fakeKMSClient) ResourceIAM(string) iamHandler {
-	return k.h
-}
-
-func (k *fakeKMSClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
-	// TODO
-	return nil, nil
+	return k.fakeIAMHandle
 }
 
 func (k *fakeKMSClient) UpdateCryptoKey(ctx context.Context, req *kmspb.UpdateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
-	// TODO
-	return nil, nil
+	if k.updateCryptoKeyErr != nil {
+		return nil, k.updateCryptoKeyErr
+	}
+
+	fck, ok := k.store.fakeCryptoKeys[req.CryptoKey.Name]
+	if !ok {
+		return nil, fmt.Errorf("cryptoKey %q not found", req.CryptoKey.Name)
+	}
+	fck.CryptoKey = req.CryptoKey
+	return fck.CryptoKey, nil
 }
 
 func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, version string) (*fakeCryptoKeyVersion, error) {
@@ -403,6 +422,17 @@ func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, v
 	}, nil
 }
 
+func (k *fakeKMSClient) getDefaultPolicy() *iam.Policy3 {
+	policy := new(iam.Policy3)
+	policy.Bindings = []*iampb.Binding{
+		{
+			Role:    "roles/cloudkms.signerVerifier",
+			Members: []string{fmt.Sprintf("serviceAccount:%s", k.tokeninfo.Email)},
+		},
+	}
+	return policy
+}
+
 func (k *fakeKMSClient) putFakeCryptoKeys(fakeCryptoKeys []fakeCryptoKey) {
 	for _, fakeCryptoKey := range fakeCryptoKeys {
 		newFakeCryptoKey := fakeCryptoKey
@@ -412,9 +442,9 @@ func (k *fakeKMSClient) putFakeCryptoKeys(fakeCryptoKeys []fakeCryptoKey) {
 
 func newKMSClientFake(t *testing.T, c *clock.Mock) *fakeKMSClient {
 	return &fakeKMSClient{
-		h:     &fakeIAMHandle{},
-		store: newFakeStore(c),
-		t:     t,
+		fakeIAMHandle: &fakeIAMHandle{},
+		store:         newFakeStore(c),
+		t:             t,
 		tokeninfo: &oauth2.Tokeninfo{
 			Email: "email@example.org",
 		},

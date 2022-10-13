@@ -2,17 +2,21 @@ package gcpkms
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
+	"time"
 
+	"cloud.google.com/go/iam"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
@@ -23,22 +27,24 @@ import (
 	"google.golang.org/api/option"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
 	customPolicy = `
-	{
-		"bindings": [
-			{
-				"role": "projects/test-project/roles/role-name",
-				"members": [
-					"serviceAccount:sa@test-project.iam.gserviceaccount.com"
-				]
-			}
-		],
-		"version": 3
-	}	
-	`
+{
+	"bindings": [
+		{
+			"role": "projects/test-project/roles/role-name",
+			"members": [
+				"serviceAccount:test-sa@example.com"
+			]
+		}
+	],
+	"version": 3
+}
+`
 	pemCert = `-----BEGIN CERTIFICATE-----
 MIIBKjCB0aADAgECAgEBMAoGCCqGSM49BAMCMAAwIhgPMDAwMTAxMDEwMDAwMDBa
 GA85OTk5MTIzMTIzNTk1OVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABHyv
@@ -49,6 +55,11 @@ makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA
 dZglS5kKnYigmwDh+/U=
 -----END CERTIFICATE-----
 `
+	cryptoKeyName1    = "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-spireKeyID-1"
+	cryptoKeyName2    = "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-spireKeyID-2"
+	spireKeyID1       = "spireKeyID-1"
+	spireKeyID2       = "spireKeyID-2"
+	testTimeout       = 60 * time.Second
 	validPolicyFile   = "custom_policy_file.json"
 	validServerID     = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 	validServerIDFile = "test-server-id"
@@ -56,8 +67,8 @@ dZglS5kKnYigmwDh+/U=
 )
 
 var (
-	ctx       = context.Background()
-	isWindows = runtime.GOOS == "windows"
+	ctx      = context.Background()
+	fakeTime = timestamppb.Now()
 )
 
 type pluginTest struct {
@@ -109,7 +120,7 @@ func TestConfigure(t *testing.T) {
 			fakeCryptoKeys: []fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k1",
+						Name:            cryptoKeyName1,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -117,13 +128,14 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{Pem: pemCert},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k1/cryptoKeyVersions/1"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							},
 						},
 					},
 				},
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k1",
+						Name:            cryptoKeyName1,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -131,13 +143,14 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{Pem: pemCert},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k1/cryptoKeyVersions/2"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName1),
+							},
 						},
 					},
 				},
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k2",
+						Name:            cryptoKeyName2,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -145,13 +158,14 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{Pem: pemCert},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k2/cryptoKeyVersions/1"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
+							},
 						},
 					},
 				},
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k2",
+						Name:            cryptoKeyName2,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -159,13 +173,14 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{Pem: pemCert},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-31c2defd-15e2-4df9-abd4-6da9ee900b71-k2/cryptoKeyVersions/2"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName2),
+							},
 						},
 					},
 				},
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1",
+						Name:            cryptoKeyName1,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -173,13 +188,14 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{Pem: pemCert},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1/cryptoKeyVersions/1"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							},
 						},
 					},
 				},
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1",
+						Name:            cryptoKeyName1,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -187,7 +203,8 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{Pem: pemCert},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1/cryptoKeyVersions/2"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName1),
+							},
 						},
 					},
 				},
@@ -199,33 +216,33 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "no service account file",
-			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), "", validKeyRing),
+			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), "", validKeyRing, "service_account_file"),
 		},
 		{
 			name:             "missing key ring",
-			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), "", ""),
+			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), "", "", ""),
 			expectMsg:        "configuration is missing the key ring",
 			expectCode:       codes.InvalidArgument,
 		},
 		{
 			name:             "missing server id file path",
-			configureRequest: configureRequestWithVars("", "", validKeyRing),
+			configureRequest: configureRequestWithVars("", "", validKeyRing, "service_account_file"),
 			expectMsg:        "configuration is missing server ID file path",
 			expectCode:       codes.InvalidArgument,
 		},
 		{
 			name:             "custom policy file does not exist",
-			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), "non-existent-file.json", validKeyRing),
-			expectMsg:        fmt.Sprintf("failed to read file configured in 'key_policy_file': open non-existent-file.json: %s", spiretest.FileNotFound()),
+			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), "non-existent-file.json", validKeyRing, "service_account_file"),
+			expectMsg:        fmt.Sprintf("could not parse policy file: failed to read file: open non-existent-file.json: %s", spiretest.FileNotFound()),
 			expectCode:       codes.Internal,
 		},
 		{
 			name:             "use custom policy file",
-			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing),
+			configureRequest: configureRequestWithVars(getKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
 		},
 		{
 			name:             "new server id file path",
-			configureRequest: configureRequestWithVars(getEmptyKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing),
+			configureRequest: configureRequestWithVars(getEmptyKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
 		},
 		{
 			name:             "decode error",
@@ -248,7 +265,7 @@ func TestConfigure(t *testing.T) {
 			fakeCryptoKeys: []fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
-						Name:            "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1",
+						Name:            cryptoKeyName1,
 						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_GOOGLE_SYMMETRIC_ENCRYPTION},
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -256,7 +273,8 @@ func TestConfigure(t *testing.T) {
 							publicKey: &kmspb.PublicKey{},
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_GOOGLE_SYMMETRIC_ENCRYPTION,
-								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1/cryptoKeyVersions/1"},
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							},
 						},
 					},
 				},
@@ -305,9 +323,374 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+func TestGenerateKey(t *testing.T) {
+	for _, tt := range []struct {
+		expectCode     codes.Code
+		expectMsg      string
+		destroyTime    *timestamp.Timestamp
+		fakeCryptoKeys []fakeCryptoKey
+		name           string
+		logs           []spiretest.LogEntry
+		request        *keymanagerv1.GenerateKeyRequest
+		waitForDelete  bool
+
+		createKeyErr               error
+		destroyCryptoKeyVersionErr error
+		getCryptoKeyVersionErr     error
+		getPublicKeyErr            error
+		getTokenInfoErr            error
+		updateCryptoKeyErr         error
+
+		serviceAccount    string
+		expectedIAMPolicy *iam.Policy3
+		configureReq      *configv1.ConfigureRequest
+	}{
+		{
+			name: "success: non existing key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "success: non existing key with special characters",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   "bundle-acme-foo.bar+rsa",
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "success: non existing key with default policy",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			configureReq:   configureRequestWithVars(getEmptyKeyMetadataFile(t), "", validKeyRing, "service_account_file"),
+			serviceAccount: "example-sa",
+		},
+		{
+			name: "success: non existing key with custom policy",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			configureReq:   configureRequestWithVars(getEmptyKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
+			serviceAccount: "example-sa",
+		},
+		{
+			name: "success: replace old key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+			waitForDelete: true,
+			destroyTime:   fakeTime,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "CryptoKeyVersion scheduled for destruction",
+					Data: logrus.Fields{
+						cryptoKeyVersionNameTag: fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+						scheduledDestroyTimeTag: fakeTime.AsTime().String(),
+					},
+				},
+			},
+		},
+		{
+			name: "success: EC 384",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P384,
+			},
+		},
+		{
+			name: "success: RSA 2048",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_RSA_2048,
+			},
+		},
+		{
+			name: "success: RSA 4096",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_RSA_4096,
+			},
+		},
+		{
+			name: "missing key id",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   "",
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			expectMsg:  "key id is required",
+			expectCode: codes.InvalidArgument,
+		},
+		{
+			name: "missing key type",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
+			},
+			expectMsg:  "key type is required",
+			expectCode: codes.InvalidArgument,
+		},
+		{
+			name:         "create CryptoKey error",
+			expectMsg:    "failed to create CryptoKey: error creating CryptoKey",
+			expectCode:   codes.Internal,
+			createKeyErr: errors.New("error creating CryptoKey"),
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name:            "get public key error",
+			expectMsg:       "failed to get public key: public key error",
+			expectCode:      codes.Internal,
+			getPublicKeyErr: errors.New("public key error"),
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "cryptoKeyVersion not found when scheduling for destruction",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			destroyCryptoKeyVersionErr: status.Error(codes.NotFound, ""),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							},
+						},
+					},
+				},
+			},
+			waitForDelete: true,
+			destroyTime:   fakeTime,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "CryptoKeyVersion not found",
+					Data: logrus.Fields{
+						cryptoKeyVersionNameTag: fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+					},
+				},
+			},
+		},
+		{
+			name: "schedule destroy error",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			destroyCryptoKeyVersionErr: errors.New("error scheduling CryptoKeyVersion for destruction"),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+								State:     kmspb.CryptoKeyVersion_ENABLED,
+							},
+						},
+					},
+				},
+			},
+			waitForDelete: true,
+			destroyTime:   fakeTime,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "It was not possible to schedule CryptoKeyVersion for destruction",
+					Data: logrus.Fields{
+						cryptoKeyVersionNameTag: fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+						reasonTag:               "error scheduling CryptoKeyVersion for destruction",
+					},
+				},
+			},
+		},
+		{
+			name: "cryptoKeyVersion to destroy not enabled",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			destroyCryptoKeyVersionErr: errors.New("error scheduling CryptoKeyVersion for destruction"),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+								State:     kmspb.CryptoKeyVersion_DISABLED,
+							},
+						},
+					},
+				},
+			},
+			waitForDelete: true,
+			destroyTime:   fakeTime,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "CryptoKeyVersion is not enabled, will not be scheduled for destruction",
+					Data: logrus.Fields{
+						cryptoKeyVersionNameTag:  fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+						cryptoKeyVersionStateTag: kmspb.CryptoKeyVersion_DISABLED.String(),
+					},
+				},
+			},
+		},
+		{
+			name: "error getting CryptoKeyVersion",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			destroyCryptoKeyVersionErr: errors.New("error scheduling CryptoKeyVersion for destruction"),
+			getCryptoKeyVersionErr:     errors.New("error getting CryptoKeyVersion"),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							},
+						},
+					},
+				},
+			},
+			waitForDelete: true,
+			destroyTime:   fakeTime,
+			logs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not get the CryptoKeyVersion while trying to schedule it for destruction",
+					Data: logrus.Fields{
+						cryptoKeyVersionNameTag: fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+						reasonTag:               "error getting CryptoKeyVersion",
+					},
+				},
+			},
+		},
+		{
+			name:       "error getting token info",
+			expectCode: codes.Internal,
+			expectMsg:  "could not get token information: error getting token info",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P384,
+			},
+			getTokenInfoErr: errors.New("error getting token info"),
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.destroyTime = fakeTime
+			ts.fakeKMSClient.serviceAccount = tt.serviceAccount
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+			ts.fakeKMSClient.createCryptoKeyErr = tt.createKeyErr
+			ts.fakeKMSClient.getCryptoKeyVersionErr = tt.getCryptoKeyVersionErr
+			ts.fakeKMSClient.getTokeninfoErr = tt.getTokenInfoErr
+			ts.fakeKMSClient.updateCryptoKeyErr = tt.updateCryptoKeyErr
+			ts.fakeKMSClient.destroyCryptoKeyVersionErr = tt.destroyCryptoKeyVersionErr
+			destroySignal := make(chan error)
+			ts.plugin.hooks.scheduleDestroySignal = destroySignal
+
+			configureReq := tt.configureReq
+			if configureReq == nil {
+				configureReq = configureRequestWithDefaults(t)
+			}
+			_, err := ts.plugin.Configure(ctx, configureReq)
+			require.NoError(t, err)
+
+			ts.fakeKMSClient.getPublicKeyErr = tt.getPublicKeyErr
+
+			resp, err := ts.plugin.GenerateKey(ctx, tt.request)
+			if tt.expectMsg != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			_, err = ts.plugin.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{
+				KeyId: tt.request.KeyId,
+			})
+			require.NoError(t, err)
+
+			if !tt.waitForDelete {
+				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
+				return
+			}
+
+			select {
+			case <-destroySignal:
+				// The logs emitted by the deletion goroutine and those that
+				// enqueue deletion can be intermixed, so we cannot depend
+				// on the exact order of the logs, so we just assert that
+				// the expected log lines are present somewhere.
+				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
+			case <-time.After(testTimeout):
+				t.Fail()
+			}
+		})
+	}
+}
+
 func TestKeyManagerContract(t *testing.T) {
 	create := func(t *testing.T) keymanager.KeyManager {
-		dir := spiretest.TempDir(t)
+		dir := t.TempDir()
 		c := clock.NewMock(t)
 		fakeKMSClient := newKMSClientFake(t, c)
 		p := newPlugin(
@@ -316,10 +699,7 @@ func TestKeyManagerContract(t *testing.T) {
 			},
 		)
 		km := new(keymanager.V1)
-		keyMetadataFile := filepath.Join(dir, "metadata.json")
-		if isWindows {
-			keyMetadataFile = filepath.ToSlash(keyMetadataFile)
-		}
+		keyMetadataFile := filepath.ToSlash(filepath.Join(dir, "metadata.json"))
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
         key_metadata_file = %q
         key_ring = "projects/project-id/locations/location/keyRings/keyring"
@@ -339,6 +719,274 @@ func TestKeyManagerContract(t *testing.T) {
 	})
 }
 
+func TestSetIAMPolicy(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		policyErr       error
+		setPolicyErr    error
+		expectError     string
+		useCustomPolicy bool
+	}{
+		{
+			name: "set default policy",
+		},
+		{
+			name:         "set default policy - error",
+			expectError:  "failed to set default IAM policy: error setting default policy",
+			setPolicyErr: errors.New("error setting default policy"),
+		},
+		{
+			name:            "set custom policy",
+			useCustomPolicy: true,
+		},
+		{
+			name:            "set custom policy - error",
+			expectError:     "failed to set default IAM policy: error setting custom policy",
+			setPolicyErr:    errors.New("error setting custom policy"),
+			useCustomPolicy: true,
+		},
+		{
+			name:            "get policy error",
+			expectError:     "failed to retrieve IAM policy: error getting policy",
+			policyErr:       errors.New("error getting policy"),
+			useCustomPolicy: true,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.fakeIAMHandle.policyErr = tt.policyErr
+			ts.fakeKMSClient.fakeIAMHandle.setPolicyErr = tt.setPolicyErr
+
+			var configureReq *configv1.ConfigureRequest
+			if tt.useCustomPolicy {
+				customPolicyFile := getCustomPolicyFile(t)
+				configureReq = configureRequestWithVars(getKeyMetadataFile(t), customPolicyFile, validKeyRing, "service_account_file")
+				expectedPolicy, err := parsePolicyFile(customPolicyFile)
+				require.NoError(t, err)
+				ts.fakeKMSClient.fakeIAMHandle.expectedPolicy = expectedPolicy
+			} else {
+				ts.fakeKMSClient.fakeIAMHandle.expectedPolicy = ts.fakeKMSClient.getDefaultPolicy()
+				configureReq = configureRequestWithDefaults(t)
+			}
+			_, err := ts.plugin.Configure(ctx, configureReq)
+			require.NoError(t, err)
+
+			err = ts.plugin.setIamPolicy(ctx, cryptoKeyName1)
+			if tt.expectError != "" {
+				require.Error(t, err, tt.expectError)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSignData(t *testing.T) {
+	sum256 := sha256.Sum256(nil)
+	sum384 := sha512.Sum384(nil)
+
+	for _, tt := range []struct {
+		name              string
+		asymmetricSignErr error
+		expectMsg         string
+		expectCode        codes.Code
+		generateKeyReq    *keymanagerv1.GenerateKeyRequest
+		signDataReq       *keymanagerv1.SignDataRequest
+	}{
+		{
+			name: "pass EC SHA256",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+		{
+			name: "pass EC SHA384",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P384,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum384[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA384,
+				},
+			},
+		},
+		{
+			name: "pass RSA 2048 SHA 256",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_RSA_2048,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+		{
+			name: "pass RSA 4096 SHA 256",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_RSA_4096,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+		{
+			name: "pass RSA 2048 SHA 256",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_RSA_2048,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+		{
+			name:       "missing key id",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "key id is required",
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: "",
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+		{
+			name:       "missing key signer opts",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "signer opts is required",
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+			},
+		},
+		{
+			name:       "missing hash algorithm",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "hash algorithm is required",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM,
+				},
+			},
+		},
+		{
+			name:       "usupported hash algorithm",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "hash algorithm not supported",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: 100,
+				},
+			},
+		},
+		{
+			name:       "non existing key",
+			expectCode: codes.NotFound,
+			expectMsg:  "key \"does_not_exists\" not found",
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: "does_not_exists",
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+		{
+			name:       "pss not supported",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "the only RSA signature scheme supported is RSASSA-PKCS1-v1_5",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_RSA_2048,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_PssOptions{
+					PssOptions: &keymanagerv1.SignDataRequest_PSSOptions{
+						HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+						SaltLength:    256,
+					},
+				},
+			},
+		},
+		{
+			name:              "sign error",
+			asymmetricSignErr: errors.New("error signing"),
+			expectCode:        codes.Internal,
+			expectMsg:         "failed to sign: error signing",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.asymmetricSignErr = tt.asymmetricSignErr
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+			require.NoError(t, err)
+			if tt.generateKeyReq != nil {
+				_, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
+				require.NoError(t, err)
+			}
+
+			resp, err := ts.plugin.SignData(ctx, tt.signDataReq)
+			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
+			if tt.expectCode != codes.OK {
+				return
+			}
+			require.NotNil(t, resp)
+		})
+	}
+}
+
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		HclConfiguration:  serializedConfiguration(getKeyMetadataFile(t), validKeyRing),
@@ -352,51 +1000,44 @@ func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	}
 }
 
-func configureRequestWithVars(keyMetadataFile, keyPolicyFile, keyRing string) *configv1.ConfigureRequest {
+func configureRequestWithVars(keyMetadataFile, keyPolicyFile, keyRing, serviceAccountFile string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		HclConfiguration: fmt.Sprintf(`{
 			"key_metadata_file":"%s",
 			"key_policy_file":"%s",
 			"key_ring":"%s"
+			"service_account_file":"%s"
 			}`,
 			keyMetadataFile,
 			keyPolicyFile,
-			keyRing),
+			keyRing,
+			serviceAccountFile),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }
 
 func getKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
-	tempFilePath := path.Join(tempDir, validServerIDFile)
+	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validServerIDFile))
 	err := os.WriteFile(tempFilePath, []byte(validServerID), 0600)
 	if err != nil {
 		t.Error(err)
-	}
-	if isWindows {
-		tempFilePath = filepath.ToSlash(tempFilePath)
 	}
 	return tempFilePath
 }
 
 func getEmptyKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
-	keyMetadataFile := path.Join(tempDir, validServerIDFile)
-	if isWindows {
-		keyMetadataFile = filepath.ToSlash(keyMetadataFile)
-	}
+	keyMetadataFile := filepath.ToSlash(filepath.Join(tempDir, validServerIDFile))
 	return keyMetadataFile
 }
 
 func getCustomPolicyFile(t *testing.T) string {
 	tempDir := t.TempDir()
-	tempFilePath := path.Join(tempDir, validPolicyFile)
+	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validPolicyFile))
 	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0600)
 	if err != nil {
 		t.Error(err)
-	}
-	if isWindows {
-		tempFilePath = filepath.ToSlash(tempFilePath)
 	}
 	return tempFilePath
 }
