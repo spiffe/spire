@@ -2,7 +2,6 @@ package gcpkms
 
 import (
 	"context"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"strings"
@@ -103,13 +102,9 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 			return nil, status.Errorf(codes.Internal, "unsupported CryptoKeyVersionAlgorithm: %v", cryptoKeyVersion.Algorithm)
 		}
 
-		kmsPublicKey, err := kf.kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersion.Name})
+		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, kf.kmsClient, cryptoKeyVersion.Name)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
-		}
-		pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
-		if pemBlock == nil {
-			return nil, status.Error(codes.Internal, "no PEM data found in public key")
+			return nil, status.Errorf(codes.Internal, "error getting public key: %v", err)
 		}
 
 		keyEntry := &keyEntry{
@@ -118,8 +113,8 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 			publicKey: &keymanagerv1.PublicKey{
 				Id:          spireKeyID,
 				Type:        keyType,
-				PkixData:    pemBlock.Bytes,
-				Fingerprint: makeFingerprint(pemBlock.Bytes),
+				PkixData:    pubKey,
+				Fingerprint: makeFingerprint(pubKey),
 			},
 		}
 

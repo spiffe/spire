@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type fakeCryptoKeyIterator struct {
@@ -151,25 +152,25 @@ func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) er
 }
 
 type fakeKMSClient struct {
+	t *testing.T
+
 	asymmetricSignErr          error
 	closeErr                   error
 	createCryptoKeyErr         error
 	destroyCryptoKeyVersionErr error
+	destroyTime                *timestamppb.Timestamp
+	fakeIAMHandle              *fakeIAMHandle
 	getCryptoKeyVersionErr     error
 	getPublicKeyErr            error
 	getTokeninfoErr            error
 	listCryptoKeysErr          error
 	listCryptoKeyVersionsErr   error
+	pemCrc32C                  *wrapperspb.Int64Value
+	signatureCrc32C            *wrapperspb.Int64Value
+	store                      fakeStore
+	testKeys                   testkey.Keys
+	tokeninfo                  *oauth2.Tokeninfo
 	updateCryptoKeyErr         error
-
-	destroyTime *timestamppb.Timestamp
-
-	store fakeStore
-
-	fakeIAMHandle *fakeIAMHandle
-	t             *testing.T
-	tokeninfo     *oauth2.Tokeninfo
-	testKeys      testkey.Keys
 }
 
 func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
@@ -221,9 +222,16 @@ func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.Asymm
 		return nil, status.Errorf(codes.Internal, "unable to sign digest: %v", err)
 	}
 
+	signatureCrc32C := &wrapperspb.Int64Value{Value: int64(crc32Checksum(signature))}
+	if k.signatureCrc32C != nil {
+		// Override the SignatureCrc32C value
+		signatureCrc32C = k.signatureCrc32C
+	}
+
 	return &kmspb.AsymmetricSignResponse{
-		Signature: signature,
-		Name:      signReq.Name,
+		Signature:       signature,
+		SignatureCrc32C: signatureCrc32C,
+		Name:            signReq.Name,
 	}, nil
 }
 
@@ -326,6 +334,11 @@ func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKe
 		return nil, err
 	}
 
+	if k.pemCrc32C != nil {
+		// Override pemCrc32C
+		fakeCryptoKeyVersion.publicKey.PemCrc32C = k.pemCrc32C
+	}
+
 	return fakeCryptoKeyVersion.publicKey, nil
 }
 
@@ -409,10 +422,10 @@ func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, v
 	}
 
 	return &fakeCryptoKeyVersion{
-
 		privateKey: privateKey,
 		publicKey: &kmspb.PublicKey{
-			Pem: pemCert.String(),
+			Pem:       pemCert.String(),
+			PemCrc32C: &wrapperspb.Int64Value{Value: int64(crc32Checksum(pemCert.Bytes()))},
 		},
 		CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 			Name:      path.Join(cryptoKey.Name, "cryptoKeyVersions", version),

@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"os"
 	"strings"
 	"sync"
@@ -337,6 +338,11 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
 	}
 
+	// Perform integrity verification.
+	if int64(crc32Checksum(signResp.Signature)) != signResp.SignatureCrc32C.Value {
+		return nil, status.Error(codes.Internal, "error signing: response corrupted in-transit")
+	}
+
 	return &keymanagerv1.SignDataResponse{
 		Signature:      signResp.Signature,
 		KeyFingerprint: keyEntry.publicKey.Fingerprint,
@@ -380,9 +386,9 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		}
 		p.log.Debug("CryptoKeyVersion added", cryptoKeyNameTag, entry.cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
-		pubKey, err := p.getPublicKeyFromCryptoKeyVersion(ctx, cryptoKeyVersion.Name)
+		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersion.Name)
 		if err != nil {
-			return nil, err
+			return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 		}
 
 		newKeyEntry := keyEntry{
@@ -446,9 +452,9 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	cryptoKeyVersionName := cryptoKey.Name + "/cryptoKeyVersions/1"
 	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 
-	pubKey, err := p.getPublicKeyFromCryptoKeyVersion(ctx, cryptoKeyVersionName)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersionName)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
 	newKeyEntry := keyEntry{
 		cryptoKey:            cryptoKey,
@@ -626,17 +632,6 @@ func (p *Plugin) getPluginData() (*pluginData, error) {
 		return nil, status.Error(codes.FailedPrecondition, "plugin data not yet initialized")
 	}
 	return p.pd, nil
-}
-
-// getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
-// of the specified CryptoKeyVersion.
-func (p *Plugin) getPublicKeyFromCryptoKeyVersion(ctx context.Context, cryptoKeyVersionName string) (pubKey []byte, err error) {
-	kmsPublicKey, err := p.kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
-	}
-	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
-	return pemBlock.Bytes, nil
 }
 
 // setIamPolicy sets the IAM policy specified in the KeyPolicyFile to the given
@@ -941,6 +936,16 @@ func (p *Plugin) generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err
 	return fmt.Sprintf("%s-%s-%s", cryptoKeyNamePrefix, pd.serverID, spireKeyID), nil
 }
 
+// crc32Checksum returns the CRC-32 checksum of data using the polynomial
+// represented by the  table constructed from the specified data.
+// This is used to perform integrity verification of the result when that's
+// available in the Cloud Key Management Service API.
+// https://cloud.google.com/kms/docs/data-integrity-guidelines
+func crc32Checksum(data []byte) uint32 {
+	t := crc32.MakeTable(crc32.Castagnoli)
+	return crc32.Checksum(data, t)
+}
+
 // generateUniqueID returns a randomly generated UUID.
 func generateUniqueID() (id string, err error) {
 	u, err := uuid.NewV4()
@@ -967,6 +972,23 @@ func getOrCreateServerID(idPath string) (string, error) {
 		return "", status.Errorf(codes.Internal, "failed to parse server ID from path: %v", err)
 	}
 	return serverID.String(), nil
+}
+
+// getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
+// of the specified CryptoKeyVersion.
+func getPublicKeyFromCryptoKeyVersion(ctx context.Context, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) (pubKey []byte, err error) {
+	kmsPublicKey, err := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform integrity verification.
+	if int64(crc32Checksum([]byte(kmsPublicKey.Pem))) != kmsPublicKey.PemCrc32C.Value {
+		return nil, fmt.Errorf("response corrupted in-transit")
+	}
+
+	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
+	return pemBlock.Bytes, nil
 }
 
 func makeFingerprint(pkixData []byte) string {

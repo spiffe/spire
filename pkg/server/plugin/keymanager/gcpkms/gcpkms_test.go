@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -69,6 +70,11 @@ var (
 	ctx       = context.Background()
 	fakeTime  = timestamppb.Now()
 	unixEpoch = time.Unix(0, 0)
+
+	pubKey = &kmspb.PublicKey{
+		Pem:       pemCert,
+		PemCrc32C: &wrapperspb.Int64Value{Value: int64(crc32Checksum([]byte(pemCert)))},
+	}
 )
 
 type pluginTest struct {
@@ -126,7 +132,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -141,7 +147,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"2": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName1),
@@ -156,7 +162,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
@@ -171,7 +177,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"2": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName2),
@@ -186,7 +192,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -201,7 +207,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"2": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName1),
@@ -283,7 +289,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "get public key error",
-			expectMsg:        "failed to fetch entries: failed to get public key: get public key error",
+			expectMsg:        "failed to fetch entries: error getting public key: get public key error",
 			expectCode:       codes.Internal,
 			configureRequest: configureRequestWithDefaults(t),
 			fakeCryptoKeys: []fakeCryptoKey{
@@ -294,7 +300,7 @@ func TestConfigure(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      "projects/test-project/locations/us-east1/keyRings/test-key-ring/cryptoKeys/test-crypto-key/spire-key-eb0feec5-8526-482e-a42d-094c19b7ef5d-k1/cryptoKeyVersions/1"},
@@ -344,7 +350,7 @@ func TestDisposeCryptoKeys(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -359,7 +365,7 @@ func TestDisposeCryptoKeys(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
@@ -382,7 +388,7 @@ func TestDisposeCryptoKeys(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -496,7 +502,7 @@ func TestGenerateKey(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -591,7 +597,7 @@ func TestGenerateKey(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -627,7 +633,7 @@ func TestGenerateKey(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -665,7 +671,7 @@ func TestGenerateKey(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -704,7 +710,7 @@ func TestGenerateKey(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -792,160 +798,6 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
-func TestGetPublicKey(t *testing.T) {
-	for _, tt := range []struct {
-		name           string
-		expectCode     codes.Code
-		expectMsg      string
-		fakeCryptoKeys []fakeCryptoKey
-
-		keyID string
-	}{
-		{
-			name: "existing key",
-			fakeCryptoKeys: []fakeCryptoKey{
-				{
-					CryptoKey: &kmspb.CryptoKey{
-						Name:            cryptoKeyName1,
-						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-					},
-					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
-							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
-							}},
-					},
-				},
-			},
-			keyID: spireKeyID1,
-		},
-		{
-			name:       "non existing key",
-			expectMsg:  fmt.Sprintf("key %q not found", spireKeyID1),
-			expectCode: codes.NotFound,
-			keyID:      spireKeyID1,
-		},
-		{
-			name:       "missing key id",
-			expectMsg:  "key id is required",
-			expectCode: codes.InvalidArgument,
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ts := setupTest(t)
-			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
-
-			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
-			require.NoError(t, err)
-
-			resp, err := ts.plugin.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{
-				KeyId: tt.keyID,
-			})
-			if tt.expectMsg != "" {
-				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
-				return
-			}
-			require.NotNil(t, resp)
-			require.NoError(t, err)
-			require.Equal(t, tt.keyID, resp.PublicKey.Id)
-			require.Equal(t, ts.plugin.entries[tt.keyID].publicKey, resp.PublicKey)
-		})
-	}
-}
-
-func TestGetPublicKeys(t *testing.T) {
-	for _, tt := range []struct {
-		name           string
-		err            string
-		fakeCryptoKeys []fakeCryptoKey
-	}{
-		{
-			name: "one key",
-			fakeCryptoKeys: []fakeCryptoKey{
-				{
-					CryptoKey: &kmspb.CryptoKey{
-						Name:            cryptoKeyName1,
-						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-					},
-					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
-							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
-							}},
-					},
-				},
-			},
-		},
-		{
-			name: "multiple keys",
-			fakeCryptoKeys: []fakeCryptoKey{
-				{
-					CryptoKey: &kmspb.CryptoKey{
-						Name:            cryptoKeyName1,
-						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-					},
-					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
-							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
-							}},
-					},
-				},
-				{
-					CryptoKey: &kmspb.CryptoKey{
-						Name:            cryptoKeyName2,
-						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-					},
-					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
-							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
-							}},
-					},
-				},
-			},
-		},
-		{
-			name: "non existing keys",
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ts := setupTest(t)
-			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
-			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
-			require.NoError(t, err)
-
-			resp, err := ts.plugin.GetPublicKeys(ctx, &keymanagerv1.GetPublicKeysRequest{})
-
-			if tt.err != "" {
-				require.Error(t, err)
-				require.Equal(t, err.Error(), tt.err)
-				return
-			}
-
-			require.NotNil(t, resp)
-			require.NoError(t, err)
-			for i, fck := range tt.fakeCryptoKeys {
-				for _, fckv := range fck.fakeCryptoKeyVersions {
-					pubKey, err := ts.plugin.getPublicKeyFromCryptoKeyVersion(ctx, fckv.CryptoKeyVersion.Name)
-					require.NoError(t, err)
-					require.Equal(t, pubKey, resp.PublicKeys[i].PkixData)
-				}
-			}
-		})
-	}
-}
-
 func TestKeepActiveCryptoKeys(t *testing.T) {
 	for _, tt := range []struct {
 		configureRequest   *configv1.ConfigureRequest
@@ -968,7 +820,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -989,7 +841,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
@@ -1004,7 +856,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 					},
 					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
 						"1": {
-							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							publicKey: pubKey,
 							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
@@ -1045,6 +897,190 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 			for _, cryptoKey := range ts.fakeKMSClient.store.fakeCryptoKeys {
 				require.EqualValues(t, cryptoKey.Labels[labelNameLastUpdate], fmt.Sprint(currentTime.Unix()), cryptoKey.CryptoKey.Name)
 			}
+		})
+	}
+}
+
+func TestGetPublicKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		err            string
+		fakeCryptoKeys []fakeCryptoKey
+	}{
+		{
+			name: "one key",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple keys",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName2,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
+							}},
+					},
+				},
+			},
+		},
+		{
+			name: "non existing keys",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+			require.NoError(t, err)
+
+			resp, err := ts.plugin.GetPublicKeys(ctx, &keymanagerv1.GetPublicKeysRequest{})
+
+			if tt.err != "" {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), tt.err)
+				return
+			}
+
+			require.NotNil(t, resp)
+			require.NoError(t, err)
+			for i, fck := range tt.fakeCryptoKeys {
+				for _, fckv := range fck.fakeCryptoKeyVersions {
+					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
+					require.NoError(t, err)
+					require.Equal(t, pubKey, resp.PublicKeys[i].PkixData)
+				}
+			}
+		})
+	}
+}
+
+func TestGetPublicKey(t *testing.T) {
+	for _, tt := range []struct {
+		name                   string
+		expectCodeConfigure    codes.Code
+		expectMsgConfigure     string
+		expectCodeGetPublicKey codes.Code
+		expectMsgGetPublicKey  string
+		fakeCryptoKeys         []fakeCryptoKey
+		keyID                  string
+		pemCrc32C              *wrapperspb.Int64Value
+	}{
+		{
+			name: "existing key",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+			keyID: spireKeyID1,
+		},
+		{
+			name:                "integrity verification error",
+			expectCodeConfigure: codes.Internal,
+			expectMsgConfigure:  "failed to fetch entries: error getting public key: response corrupted in-transit",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+			keyID:     spireKeyID1,
+			pemCrc32C: &wrapperspb.Int64Value{Value: 1},
+		},
+		{
+			name:                   "non existing key",
+			expectMsgGetPublicKey:  fmt.Sprintf("key %q not found", spireKeyID1),
+			expectCodeGetPublicKey: codes.NotFound,
+			keyID:                  spireKeyID1,
+		},
+		{
+			name:                   "missing key id",
+			expectMsgGetPublicKey:  "key id is required",
+			expectCodeGetPublicKey: codes.InvalidArgument,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.pemCrc32C = tt.pemCrc32C
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+			if tt.expectMsgConfigure != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.expectCodeConfigure, tt.expectMsgConfigure)
+				return
+			}
+
+			require.NoError(t, err)
+			resp, err := ts.plugin.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{
+				KeyId: tt.keyID,
+			})
+			if tt.expectMsgGetPublicKey != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.expectCodeGetPublicKey, tt.expectMsgGetPublicKey)
+				return
+			}
+			require.NotNil(t, resp)
+			require.NoError(t, err)
+			require.Equal(t, tt.keyID, resp.PublicKey.Id)
+			require.Equal(t, ts.plugin.entries[tt.keyID].publicKey, resp.PublicKey)
 		})
 	}
 }
@@ -1154,6 +1190,7 @@ func TestSignData(t *testing.T) {
 		expectCode        codes.Code
 		generateKeyReq    *keymanagerv1.GenerateKeyRequest
 		signDataReq       *keymanagerv1.SignDataRequest
+		signatureCrc32C   *wrapperspb.Int64Value
 	}{
 		{
 			name: "pass EC SHA256",
@@ -1326,11 +1363,29 @@ func TestSignData(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "integrity verification error",
+			expectCode: codes.Internal,
+			expectMsg:  "error signing: response corrupted in-transit",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			signDataReq: &keymanagerv1.SignDataRequest{
+				KeyId: spireKeyID1,
+				Data:  sum256[:],
+				SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+					HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+				},
+			},
+			signatureCrc32C: &wrapperspb.Int64Value{Value: 1},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.asymmetricSignErr = tt.asymmetricSignErr
+			ts.fakeKMSClient.signatureCrc32C = tt.signatureCrc32C
 			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
 			require.NoError(t, err)
 			if tt.generateKeyReq != nil {
