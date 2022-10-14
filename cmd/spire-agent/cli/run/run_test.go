@@ -104,6 +104,45 @@ func TestCommand_Run(t *testing.T) {
 				expectAgentUdsDirCreated: true,
 			},
 		},
+		{
+			name:     "successfully load config using named pipe",
+			osTarget: "windows",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/agent_run_windows.conf",
+					"-namedPipeName", "\\spire-agent\\public\\api",
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				returnValue:              1,
+				expectAgentUdsDirCreated: false,
+			},
+		},
+		{
+			name:     "error loading config",
+			osTarget: "windows",
+			args: args{
+				args: []string{},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				returnValue:              1,
+				expectAgentUdsDirCreated: false,
+			},
+		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {

@@ -62,7 +62,7 @@ func TestCommand_Run(t *testing.T) {
 		want         int
 	}{
 		{
-			name:     "error loading config settings",
+			name:     "error loading config settings on linux",
 			osTarget: "linux",
 			args: args{
 				args: []string{},
@@ -78,11 +78,45 @@ func TestCommand_Run(t *testing.T) {
 			want:         1,
 		},
 		{
-			name:     "success loading config settings",
+			name:     "success loading config settings on linux",
 			osTarget: "linux",
 			args: args{
 				args: []string{
 					"-config", "../../../../test/fixture/config/server_run_posix.conf",
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: true,
+			want:         1,
+		},
+		{
+			name:     "error loading config settings on windows",
+			osTarget: "windows",
+			args: args{
+				args: []string{},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: false,
+			want:         1,
+		},
+		{
+			name:     "success loading config settings on windows",
+			osTarget: "windows",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/server_run_windows.conf",
 				},
 			},
 			fields: fields{
