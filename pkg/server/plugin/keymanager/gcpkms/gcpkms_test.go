@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"cloud.google.com/go/iam"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -67,8 +66,9 @@ dZglS5kKnYigmwDh+/U=
 )
 
 var (
-	ctx      = context.Background()
-	fakeTime = timestamppb.Now()
+	ctx       = context.Background()
+	fakeTime  = timestamppb.Now()
+	unixEpoch = time.Unix(0, 0)
 )
 
 type pluginTest struct {
@@ -83,6 +83,7 @@ func setupTest(t *testing.T) *pluginTest {
 	log.Level = logrus.DebugLevel
 
 	c := clock.NewMock(t)
+	c.Set(unixEpoch)
 	fakeKMSClient := newKMSClientFake(t, c)
 	p := newPlugin(
 		func(context.Context, ...option.ClientOption) (cloudKeyManagementService, error) {
@@ -323,15 +324,125 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+func TestDisposeCryptoKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		configureRequest  *configv1.ConfigureRequest
+		err               string
+		fakeCryptoKeys    []fakeCryptoKey
+		listCryptoKeysErr error
+	}{
+		{
+			name:             "dispose CryptoKeys succeeds",
+			configureRequest: configureRequestWithDefaults(t),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						Labels:          make(map[string]string),
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName2,
+						Labels:          make(map[string]string),
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
+							}},
+					},
+				},
+			},
+		},
+		{
+			name:              "list CryptoKeys error",
+			configureRequest:  configureRequestWithDefaults(t),
+			err:               "list keys failure",
+			listCryptoKeysErr: errors.New("list keys failure"),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						Labels:          make(map[string]string),
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+
+			// This is so dispose aliases blocks on init and allows to test dispose keys isolated
+			ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
+			disposeCryptoKeysSignal := make(chan error)
+			ts.plugin.hooks.disposeCryptoKeysSignal = disposeCryptoKeysSignal
+			scheduleDestroySignal := make(chan error)
+			ts.plugin.hooks.scheduleDestroySignal = scheduleDestroySignal
+
+			// exercise
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+			require.NoError(t, err)
+
+			ts.fakeKMSClient.listCryptoKeysErr = tt.listCryptoKeysErr
+
+			// wait for dispose keys task to be initialized
+			_ = waitForSignal(t, disposeCryptoKeysSignal)
+			// move the clock forward so the task is run
+			ts.clockHook.Add(48 * time.Hour)
+			// wait for dispose keys to be run
+			err = waitForSignal(t, disposeCryptoKeysSignal)
+			// assert errors
+			if tt.err != "" {
+				require.NotNil(t, err)
+				require.Equal(t, tt.err, err.Error())
+				return
+			}
+			// wait for schedule delete to be run
+			_ = waitForSignal(t, scheduleDestroySignal)
+
+			// assert
+			for _, cryptoKey := range ts.fakeKMSClient.store.fakeCryptoKeys {
+				require.Equal(t, cryptoKey.Labels[labelNameActive], "false")
+			}
+		})
+	}
+}
+
 func TestGenerateKey(t *testing.T) {
 	for _, tt := range []struct {
+		configureReq   *configv1.ConfigureRequest
 		expectCode     codes.Code
 		expectMsg      string
 		destroyTime    *timestamp.Timestamp
 		fakeCryptoKeys []fakeCryptoKey
-		name           string
+		generateKeyReq *keymanagerv1.GenerateKeyRequest
 		logs           []spiretest.LogEntry
-		request        *keymanagerv1.GenerateKeyRequest
+		name           string
 		waitForDelete  bool
 
 		createKeyErr               error
@@ -340,46 +451,40 @@ func TestGenerateKey(t *testing.T) {
 		getPublicKeyErr            error
 		getTokenInfoErr            error
 		updateCryptoKeyErr         error
-
-		serviceAccount    string
-		expectedIAMPolicy *iam.Policy3
-		configureReq      *configv1.ConfigureRequest
 	}{
 		{
 			name: "success: non existing key",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "success: non existing key with special characters",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   "bundle-acme-foo.bar+rsa",
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "success: non existing key with default policy",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:   configureRequestWithVars(getEmptyKeyMetadataFile(t), "", validKeyRing, "service_account_file"),
-			serviceAccount: "example-sa",
+			configureReq: configureRequestWithVars(getEmptyKeyMetadataFile(t), "", validKeyRing, "service_account_file"),
 		},
 		{
 			name: "success: non existing key with custom policy",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:   configureRequestWithVars(getEmptyKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
-			serviceAccount: "example-sa",
+			configureReq: configureRequestWithVars(getEmptyKeyMetadataFile(t), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
 		},
 		{
 			name: "success: replace old key",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -414,28 +519,28 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "success: EC 384",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P384,
 			},
 		},
 		{
 			name: "success: RSA 2048",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_RSA_2048,
 			},
 		},
 		{
 			name: "success: RSA 4096",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_RSA_4096,
 			},
 		},
 		{
 			name: "missing key id",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   "",
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -444,7 +549,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "missing key type",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
 			},
@@ -456,7 +561,7 @@ func TestGenerateKey(t *testing.T) {
 			expectMsg:    "failed to create CryptoKey: error creating CryptoKey",
 			expectCode:   codes.Internal,
 			createKeyErr: errors.New("error creating CryptoKey"),
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -466,14 +571,14 @@ func TestGenerateKey(t *testing.T) {
 			expectMsg:       "failed to get public key: public key error",
 			expectCode:      codes.Internal,
 			getPublicKeyErr: errors.New("public key error"),
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 		},
 		{
 			name: "cryptoKeyVersion not found when scheduling for destruction",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -509,7 +614,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "schedule destroy error",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -547,7 +652,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "cryptoKeyVersion to destroy not enabled",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -585,7 +690,7 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name: "error getting CryptoKeyVersion",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
@@ -625,7 +730,7 @@ func TestGenerateKey(t *testing.T) {
 			name:       "error getting token info",
 			expectCode: codes.Internal,
 			expectMsg:  "could not get token information: error getting token info",
-			request: &keymanagerv1.GenerateKeyRequest{
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P384,
 			},
@@ -636,7 +741,6 @@ func TestGenerateKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.destroyTime = fakeTime
-			ts.fakeKMSClient.serviceAccount = tt.serviceAccount
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
 			ts.fakeKMSClient.createCryptoKeyErr = tt.createKeyErr
 			ts.fakeKMSClient.getCryptoKeyVersionErr = tt.getCryptoKeyVersionErr
@@ -655,7 +759,7 @@ func TestGenerateKey(t *testing.T) {
 
 			ts.fakeKMSClient.getPublicKeyErr = tt.getPublicKeyErr
 
-			resp, err := ts.plugin.GenerateKey(ctx, tt.request)
+			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 				return
@@ -665,7 +769,7 @@ func TestGenerateKey(t *testing.T) {
 			require.NotNil(t, resp)
 
 			_, err = ts.plugin.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{
-				KeyId: tt.request.KeyId,
+				KeyId: tt.generateKeyReq.KeyId,
 			})
 			require.NoError(t, err)
 
@@ -683,6 +787,263 @@ func TestGenerateKey(t *testing.T) {
 				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
 			case <-time.After(testTimeout):
 				t.Fail()
+			}
+		})
+	}
+}
+
+func TestGetPublicKey(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		expectCode     codes.Code
+		expectMsg      string
+		fakeCryptoKeys []fakeCryptoKey
+
+		keyID string
+	}{
+		{
+			name: "existing key",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+			keyID: spireKeyID1,
+		},
+		{
+			name:       "non existing key",
+			expectMsg:  fmt.Sprintf("key %q not found", spireKeyID1),
+			expectCode: codes.NotFound,
+			keyID:      spireKeyID1,
+		},
+		{
+			name:       "missing key id",
+			expectMsg:  "key id is required",
+			expectCode: codes.InvalidArgument,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+			require.NoError(t, err)
+
+			resp, err := ts.plugin.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{
+				KeyId: tt.keyID,
+			})
+			if tt.expectMsg != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
+				return
+			}
+			require.NotNil(t, resp)
+			require.NoError(t, err)
+			require.Equal(t, tt.keyID, resp.PublicKey.Id)
+			require.Equal(t, ts.plugin.entries[tt.keyID].publicKey, resp.PublicKey)
+		})
+	}
+}
+
+func TestGetPublicKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		err            string
+		fakeCryptoKeys []fakeCryptoKey
+	}{
+		{
+			name: "one key",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple keys",
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName2,
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
+							}},
+					},
+				},
+			},
+		},
+		{
+			name: "non existing keys",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+			require.NoError(t, err)
+
+			resp, err := ts.plugin.GetPublicKeys(ctx, &keymanagerv1.GetPublicKeysRequest{})
+
+			if tt.err != "" {
+				require.Error(t, err)
+				require.Equal(t, err.Error(), tt.err)
+				return
+			}
+
+			require.NotNil(t, resp)
+			require.NoError(t, err)
+			for i, fck := range tt.fakeCryptoKeys {
+				for _, fckv := range fck.fakeCryptoKeyVersions {
+					pubKey, err := ts.plugin.getPublicKeyFromCryptoKeyVersion(ctx, fckv.CryptoKeyVersion.Name)
+					require.NoError(t, err)
+					require.Equal(t, pubKey, resp.PublicKeys[i].PkixData)
+				}
+			}
+		})
+	}
+}
+
+func TestKeepActiveCryptoKeys(t *testing.T) {
+	for _, tt := range []struct {
+		configureRequest   *configv1.ConfigureRequest
+		expectError        string
+		fakeCryptoKeys     []fakeCryptoKey
+		name               string
+		updateCryptoKeyErr error
+	}{
+		{
+			name:               "keep active CryptoKeys error",
+			configureRequest:   configureRequestWithDefaults(t),
+			expectError:        "error updating CryptoKey",
+			updateCryptoKeyErr: errors.New("error updating CryptoKey"),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						Labels:          make(map[string]string),
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+			},
+		},
+		{
+			name:             "keep active CryptoKeys succeeds",
+			configureRequest: configureRequestWithDefaults(t),
+			fakeCryptoKeys: []fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName1,
+						Labels:          make(map[string]string),
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+							}},
+					},
+				},
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            cryptoKeyName2,
+						Labels:          make(map[string]string),
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: &kmspb.PublicKey{Pem: pemCert},
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
+							}},
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+			ts.fakeKMSClient.updateCryptoKeyErr = tt.updateCryptoKeyErr
+			keepActiveCryptoKeysSignal := make(chan error)
+			ts.plugin.hooks.keepActiveCryptoKeysSignal = keepActiveCryptoKeysSignal
+
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+			require.NoError(t, err)
+
+			// Wait for keepActiveCryptoKeys task to be initialized.
+			_ = waitForSignal(t, keepActiveCryptoKeysSignal)
+
+			// Move the clock forward so the task is run.
+			currentTime := unixEpoch.Add(6 * time.Hour)
+			ts.clockHook.Set(currentTime)
+
+			// Wait for keepActiveCryptoKeys to be run.
+			err = waitForSignal(t, keepActiveCryptoKeysSignal)
+
+			if tt.updateCryptoKeyErr != nil {
+				require.NotNil(t, err)
+				require.Equal(t, tt.expectError, err.Error())
+				return
+			}
+			require.NoError(t, err)
+
+			for _, cryptoKey := range ts.fakeKMSClient.store.fakeCryptoKeys {
+				require.EqualValues(t, cryptoKey.Labels[labelNameLastUpdate], fmt.Sprint(currentTime.Unix()), cryptoKey.CryptoKey.Name)
 			}
 		})
 	}
@@ -1049,4 +1410,14 @@ func serializedConfiguration(keyMetadataFile, keyRing string) string {
 		}`,
 		keyMetadataFile,
 		keyRing)
+}
+
+func waitForSignal(t *testing.T, ch chan error) error {
+	select {
+	case err := <-ch:
+		return err
+	case <-time.After(testTimeout):
+		t.Fail()
+	}
+	return nil
 }

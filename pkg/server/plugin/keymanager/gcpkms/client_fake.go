@@ -162,8 +162,7 @@ type fakeKMSClient struct {
 	listCryptoKeyVersionsErr   error
 	updateCryptoKeyErr         error
 
-	destroyTime    *timestamppb.Timestamp
-	serviceAccount string
+	destroyTime *timestamppb.Timestamp
 
 	store fakeStore
 

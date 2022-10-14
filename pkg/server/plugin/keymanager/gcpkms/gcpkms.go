@@ -75,7 +75,7 @@ type pluginHooks struct {
 	clk clock.Clock
 
 	// Used for testing only.
-	disposeKeysSignal          chan error
+	disposeCryptoKeysSignal    chan error
 	keepActiveCryptoKeysSignal chan error
 	scheduleDestroySignal      chan error
 }
@@ -719,7 +719,7 @@ func (p *Plugin) keepActiveCryptoKeys(ctx context.Context) error {
 	defer p.entriesMtx.RUnlock()
 	var errs []string
 	for _, entry := range p.entries {
-		entry.cryptoKey.Labels[labelNameLastUpdate] = fmt.Sprint(time.Now().Unix())
+		entry.cryptoKey.Labels[labelNameLastUpdate] = fmt.Sprint(p.hooks.clk.Now().Unix())
 		_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
 			UpdateMask: &fieldmaskpb.FieldMask{
 				Paths: []string{"labels"},
@@ -766,8 +766,8 @@ func (p *Plugin) notifyDestroy(err error) {
 }
 
 func (p *Plugin) notifyDisposeCryptoKeys(err error) {
-	if p.hooks.disposeKeysSignal != nil {
-		p.hooks.disposeKeysSignal <- err
+	if p.hooks.disposeCryptoKeysSignal != nil {
+		p.hooks.disposeCryptoKeysSignal <- err
 	}
 }
 
