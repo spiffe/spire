@@ -413,7 +413,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 	return rest.InClusterConfig()
 }
 
-// kubeClient encapsulates the Kubenetes API for config maps, validating webhooks, and mutating webhooks
+// kubeClient encapsulates the Kubernetes API for config maps, validating webhooks, and mutating webhooks
 type informerCallback func(kubeClient, runtime.Object)
 
 type kubeClient interface {
@@ -424,7 +424,7 @@ type kubeClient interface {
 	Informer(callback informerCallback) cache.SharedIndexInformer
 }
 
-// configMapClient encapsulates the Kubenetes API for updating the CA Bundle in a config map
+// configMapClient encapsulates the Kubernetes API for updating the CA Bundle in a config map
 type configMapClient struct {
 	*kubernetes.Clientset
 	namespace    string

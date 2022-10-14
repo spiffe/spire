@@ -8,11 +8,11 @@ The certificates in the object can be used to bootstrap SPIRE agents.
 
 The plugin accepts the following configuration options:
 
-| Configuration          | Description                                  | Default         |
-| ---------------------- | -------------------------------------------- | --------------- |
-| `bucket`               | The bucket containing the object             |                 |
-| `object_path`          | The path to the object within the bucket     |                 |
-| `service_account_file` | Path to the service account credentials file |                 |
+| Configuration          | Description                                  | Default |
+|------------------------|----------------------------------------------|---------|
+| `bucket`               | The bucket containing the object             |         |
+| `object_path`          | The path to the object within the bucket     |         |
+| `service_account_file` | Path to the service account credentials file |         |
 
 ## Authenticating with Google Cloud Storage
 
