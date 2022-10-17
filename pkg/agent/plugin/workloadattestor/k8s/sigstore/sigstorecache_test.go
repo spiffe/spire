@@ -104,29 +104,60 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 		itemsMap: m,
 	}
 
+	caseInOrderList := list.New()
+	caseInOrderList.PushFront(selectors1.Key)
+	caseInOrderList.PushFront(selectors2.Key)
+
+	caseReorderList := list.New()
+	caseReorderList.PushFront(selectors2.Key)
+	caseReorderList.PushFront(selectors1.Key)
+
 	tests := []struct {
 		name         string
 		want         *Item
 		key          string
 		errorMessage string
+		wantedMap    map[string]MapItem
+		wantedList   *list.List
 	}{
 		{
 			name:         "Non existing entry",
 			want:         nil,
 			key:          selectors3.Key,
 			errorMessage: "A non-existing item's key should return a nil item.",
+			wantedMap: map[string]MapItem{
+				"signature1": {item: &selectors1, element: m[selectors1.Key].element},
+				"signature2": {item: &selectors2, element: m[selectors2.Key].element},
+			},
+			wantedList: caseInOrderList,
 		},
 		{
-			name:         "Existing entry",
-			want:         &selectors1,
-			key:          selectors1.Key,
-			errorMessage: "An existing items key's should return the existing item",
+			name: "Existing entry",
+			want: &selectors2,
+			key:  selectors2.Key,
+			wantedMap: map[string]MapItem{
+				"signature1": {item: &selectors1, element: m[selectors1.Key].element},
+				"signature2": {item: &selectors2, element: m[selectors2.Key].element},
+			},
+			wantedList: caseInOrderList,
+		},
+		{
+			name: "Existing entry, reorder on get",
+			want: &selectors1,
+			key:  selectors1.Key,
+			wantedMap: map[string]MapItem{
+				"signature1": {item: &selectors1, element: m[selectors1.Key].element},
+				"signature2": {item: &selectors2, element: m[selectors2.Key].element},
+			},
+			wantedList: caseReorderList,
 		},
 	}
 
 	for _, tt := range tests {
 		got := cacheInstance.GetSignature(tt.key)
 		require.Equal(t, got, tt.want, "%v Got: %v Want: %v", tt.errorMessage, got, tt.want)
+		require.Equal(t, tt.wantedList, cacheInstance.items, "Lists are different Got: %v Want: %v", cacheInstance.items, tt.wantedList)
+		require.Equal(t, tt.wantedMap, cacheInstance.itemsMap, "Maps are different Got: %v Want: %v", cacheInstance.itemsMap, tt.wantedMap)
 	}
 }
 
