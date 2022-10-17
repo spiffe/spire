@@ -192,9 +192,7 @@ func TestCacheimpl_PutSignature(t *testing.T) {
 			t.Errorf("Item count should be %v in test case %q", tt.wantLength, tt.name)
 		}
 		gotItem, present := m[tt.wantKey]
-		if !present {
-			t.Errorf("Key put but not found: %v", tt.wantKey)
-		}
+		require.True(t, present, "key not found")
 		require.Equal(t, gotItem.item, tt.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
 	}
 }
