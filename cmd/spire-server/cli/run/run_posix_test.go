@@ -86,7 +86,6 @@ func TestCommand_Run(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			os.RemoveAll(testDataDir)
 
 			cmd := &Command{
