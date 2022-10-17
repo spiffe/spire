@@ -111,9 +111,10 @@ func TestContainerHelper(t *testing.T) {
 	})
 
 	t.Run("configure fails when sigstore is enabled", func(t *testing.T) {
+		rekorURL := "https://test.org"
 		config := &HCLConfig{
 			Experimental: &ExperimentalK8SConfig{
-				Sigstore: &SigstoreHCLConfig{RekorURL: "https://test.org"},
+				Sigstore: &SigstoreHCLConfig{RekorURL: &rekorURL},
 			},
 		}
 		err := cHelper.Configure(config, hclog.NewNullLogger())

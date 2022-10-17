@@ -133,7 +133,7 @@ type ExperimentalK8SConfig struct {
 // SigstoreHCLConfig holds the sigstore configuration parsed from HCL
 type SigstoreHCLConfig struct {
 	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
-	RekorURL string `hcl:"rekor_url"`
+	RekorURL *string `hcl:"rekor_url,omitempty"`
 
 	// SkippedImages is a list of images that should skip sigstore verification
 	SkippedImages []string `hcl:"skip_signature_verification_image_list"`
