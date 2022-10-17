@@ -1,16 +1,13 @@
 package run
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -18,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -39,137 +35,6 @@ type newAgentConfigCase struct {
 	input       func(*Config)
 	logOptions  func(t *testing.T) []log.Option
 	test        func(*testing.T, *agent.Config)
-}
-
-func TestCommand_Run(t *testing.T) {
-	testTempDir := t.TempDir()
-	testAgentSocketDir := fmt.Sprintf("%s/spire-agent", testTempDir)
-
-	type fields struct {
-		logOptions         []log.Option
-		env                *commoncli.Env
-		allowUnknownConfig bool
-	}
-	type args struct {
-		args []string
-	}
-	type want struct {
-		returnValue              int
-		expectAgentUdsDirCreated bool
-	}
-	tests := []struct {
-		name     string
-		osTarget string
-		fields   fields
-		args     args
-		want     want
-	}{
-		{
-			name:     "don't create spire-agent uds dir when error loading config",
-			osTarget: "linux",
-			args: args{
-				args: []string{},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			want: want{
-				returnValue:              1,
-				expectAgentUdsDirCreated: false,
-			},
-		},
-		{
-			name:     "creates spire-agent uds dir",
-			osTarget: "linux",
-			args: args{
-				args: []string{
-					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
-					"-trustBundle", "../../../../conf/agent/dummy_root_ca.crt",
-					"-socketPath", fmt.Sprintf("%s/spire-agent/api.sock", testTempDir),
-				},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			want: want{
-				returnValue:              1,
-				expectAgentUdsDirCreated: true,
-			},
-		},
-		{
-			name:     "successfully load config using named pipe",
-			osTarget: "windows",
-			args: args{
-				args: []string{
-					"-config", "../../../../test/fixture/config/agent_run_windows.conf",
-					"-namedPipeName", "\\spire-agent\\public\\api",
-				},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			want: want{
-				returnValue:              1,
-				expectAgentUdsDirCreated: false,
-			},
-		},
-		{
-			name:     "error loading config",
-			osTarget: "windows",
-			args: args{
-				args: []string{},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			want: want{
-				returnValue:              1,
-				expectAgentUdsDirCreated: false,
-			},
-		},
-	}
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			cmd := &Command{
-				logOptions:         testCase.fields.logOptions,
-				env:                testCase.fields.env,
-				allowUnknownConfig: testCase.fields.allowUnknownConfig,
-			}
-
-			if runtime.GOOS == testCase.osTarget {
-				result := cmd.Run(testCase.args.args)
-				assert.Equal(t, testCase.want.returnValue, result)
-
-				_, agentSocketDirErr := os.Stat(testAgentSocketDir)
-
-				if testCase.want.expectAgentUdsDirCreated {
-					assert.Nilf(t, agentSocketDirErr, "spire-agent uds dir should have been created")
-					currentUmask := syscall.Umask(0)
-					assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
-				} else {
-					assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not have been created")
-				}
-			} else {
-				t.Skip("skipping testCase since it is not supported on this OS")
-			}
-		})
-	}
 }
 
 func TestDownloadTrustBundle(t *testing.T) {

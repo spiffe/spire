@@ -5,15 +5,103 @@ package run
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"testing"
 
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCommand_Run(t *testing.T) {
+	testTempDir := t.TempDir()
+	testDataDir := fmt.Sprintf("%s/data", testTempDir)
+	testAgentSocketDir := fmt.Sprintf("%s/spire-agent", testTempDir)
+
+	type fields struct {
+		logOptions         []log.Option
+		env                *commoncli.Env
+		allowUnknownConfig bool
+	}
+	type args struct {
+		args []string
+	}
+	type want struct {
+		returnValue            int
+		expectedDataDirCreated bool
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   want
+	}{
+		{
+			name: "don't create any dir when error loading config",
+			args: args{
+				args: []string{},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				returnValue:            1,
+				expectedDataDirCreated: false,
+			},
+		},
+		{
+			name: "create data dir using named pipe",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/agent_run_windows.conf",
+					"-dataDir", testDataDir,
+					"-namedPipeName", "\\spire-agent\\public\\api",
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				returnValue:            1,
+				expectedDataDirCreated: true,
+			},
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			os.RemoveAll(testDataDir)
+			os.RemoveAll(testAgentSocketDir)
+
+			cmd := &Command{
+				logOptions:         testCase.fields.logOptions,
+				env:                testCase.fields.env,
+				allowUnknownConfig: testCase.fields.allowUnknownConfig,
+			}
+			result := cmd.Run(testCase.args.args)
+
+			assert.Equal(t, testCase.want.returnValue, result)
+			if testCase.want.expectedDataDirCreated {
+				assert.DirExistsf(t, testDataDir, "expected data directory to be created")
+			} else {
+				assert.NoDirExistsf(t, testDataDir, "expected data directory to not be created")
+			}
+		})
+	}
+}
 
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{

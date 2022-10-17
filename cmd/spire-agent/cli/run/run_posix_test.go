@@ -14,6 +14,106 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCommand_Run(t *testing.T) {
+	testTempDir := t.TempDir()
+	testDataDir := fmt.Sprintf("%s/data", testTempDir)
+	testAgentSocketDir := fmt.Sprintf("%s/spire-agent", testTempDir)
+
+	type fields struct {
+		logOptions         []log.Option
+		env                *commoncli.Env
+		allowUnknownConfig bool
+	}
+	type args struct {
+		args []string
+	}
+	type want struct {
+		returnValue              int
+		expectedDataDirCreated   bool
+		expectAgentUdsDirCreated bool
+	}
+	tests := []struct {
+		name     string
+		osTarget string
+		fields   fields
+		args     args
+		want     want
+	}{
+		{
+			name:     "don't create any dir when error loading config",
+			osTarget: "linux",
+			args: args{
+				args: []string{},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				returnValue:              1,
+				expectAgentUdsDirCreated: false,
+				expectedDataDirCreated:   false,
+			},
+		},
+		{
+			name:     "creates spire-agent uds and data dirs",
+			osTarget: "linux",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
+					"-trustBundle", "../../../../conf/agent/dummy_root_ca.crt",
+					"-socketPath", fmt.Sprintf("%s/spire-agent/api.sock", testTempDir),
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				returnValue:              1,
+				expectAgentUdsDirCreated: true,
+				expectedDataDirCreated:   true,
+			},
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			os.RemoveAll(testDataDir)
+			os.RemoveAll(testAgentSocketDir)
+
+			cmd := &Command{
+				logOptions:         testCase.fields.logOptions,
+				env:                testCase.fields.env,
+				allowUnknownConfig: testCase.fields.allowUnknownConfig,
+			}
+
+			result := cmd.Run(testCase.args.args)
+			assert.Equal(t, testCase.want.returnValue, result)
+
+			_, agentSocketDirErr := os.Stat(testAgentSocketDir)
+
+			if testCase.want.expectAgentUdsDirCreated {
+				assert.Nilf(t, agentSocketDirErr, "spire-agent uds dir should have been created")
+				currentUmask := syscall.Umask(0)
+				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
+			} else {
+				assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not have been created")
+			}
+			if testCase.want.expectedDataDirCreated {
+				assert.DirExistsf(t, testDataDir, "expected data directory to be created")
+			} else {
+				assert.NoDirExistsf(t, testDataDir, "expected data directory to not be created")
+			}
+		})
+	}
+}
+
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
 		"-dataDir=.",
