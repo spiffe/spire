@@ -33,7 +33,7 @@ func TestCommand_Run(t *testing.T) {
 		args []string
 	}
 	type want struct {
-		returnValue            int
+		code                   int
 		expectedDataDirCreated bool
 	}
 	tests := []struct {
@@ -55,7 +55,7 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: false,
 			},
 			want: want{
-				returnValue:            1,
+				code:                   1,
 				expectedDataDirCreated: false,
 			},
 		},
@@ -76,7 +76,7 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: false,
 			},
 			want: want{
-				returnValue:            1,
+				code:                   1,
 				expectedDataDirCreated: true,
 			},
 		},
@@ -93,7 +93,7 @@ func TestCommand_Run(t *testing.T) {
 			}
 			result := cmd.Run(testCase.args.args)
 
-			assert.Equal(t, testCase.want.returnValue, result)
+			assert.Equal(t, testCase.want.code, result)
 			if testCase.want.expectedDataDirCreated {
 				assert.DirExistsf(t, testDataDir, "expected data directory to be created")
 			} else {

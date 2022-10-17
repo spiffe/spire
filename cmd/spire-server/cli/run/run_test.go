@@ -6,9 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -18,7 +16,6 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -42,111 +39,6 @@ type newServerConfigCase struct {
 	input       func(*Config)
 	logOptions  func(t *testing.T) []log.Option
 	test        func(*testing.T, *server.Config)
-}
-
-func TestCommand_Run(t *testing.T) {
-	type fields struct {
-		logOptions         []log.Option
-		env                *commoncli.Env
-		allowUnknownConfig bool
-	}
-	type args struct {
-		args []string
-	}
-	tests := []struct {
-		name         string
-		osTarget     string
-		fields       fields
-		args         args
-		configLoaded bool
-		want         int
-	}{
-		{
-			name:     "error loading config settings on linux",
-			osTarget: "linux",
-			args: args{
-				args: []string{},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			configLoaded: false,
-			want:         1,
-		},
-		{
-			name:     "success loading config settings on linux",
-			osTarget: "linux",
-			args: args{
-				args: []string{
-					"-config", "../../../../test/fixture/config/server_run_posix.conf",
-				},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			configLoaded: true,
-			want:         1,
-		},
-		{
-			name:     "error loading config settings on windows",
-			osTarget: "windows",
-			args: args{
-				args: []string{},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			configLoaded: false,
-			want:         1,
-		},
-		{
-			name:     "success loading config settings on windows",
-			osTarget: "windows",
-			args: args{
-				args: []string{
-					"-config", "../../../../test/fixture/config/server_run_windows.conf",
-				},
-			},
-			fields: fields{
-				logOptions: []log.Option{},
-				env: &commoncli.Env{
-					Stderr: io.Discard,
-				},
-				allowUnknownConfig: false,
-			},
-			configLoaded: true,
-			want:         1,
-		},
-	}
-	for _, testCase := range tests {
-		if runtime.GOOS == testCase.osTarget {
-			cmd := &Command{
-				logOptions:         testCase.fields.logOptions,
-				env:                testCase.fields.env,
-				allowUnknownConfig: testCase.fields.allowUnknownConfig,
-			}
-
-			assert.Equalf(t, testCase.want, cmd.Run(testCase.args.args), "Run(%v)", testCase.args.args)
-			if testCase.configLoaded {
-				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
-			}
-		} else {
-			t.Skip("skipping testCase since it is not supported on this OS")
-		}
-	}
 }
 
 func TestParseConfigGood(t *testing.T) {

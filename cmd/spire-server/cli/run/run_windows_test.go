@@ -17,6 +17,94 @@ const (
 	configFile = "../../../../test/fixture/config/server_good_windows.conf"
 )
 
+func TestCommand_Run(t *testing.T) {
+	testTempDir := t.TempDir()
+	testDataDir := fmt.Sprintf("%s/data", testTempDir)
+
+	type fields struct {
+		logOptions         []log.Option
+		env                *commoncli.Env
+		allowUnknownConfig bool
+	}
+	type args struct {
+		args []string
+	}
+	type want struct {
+		code                     int
+		expectAgentUdsDirCreated bool
+	}
+	tests := []struct {
+		name         string
+		fields       fields
+		args         args
+		configLoaded bool
+		want         want
+	}{
+		{
+			name: "error loading config settings on linux",
+			args: args{
+				args: []string{},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: false,
+			want: want{
+				code:                     1,
+				expectAgentUdsDirCreated: false,
+			},
+		},
+		{
+			name: "success loading config settings on linux",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/server_run_posix.conf",
+					"-dataDir", testDataDir,
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: io.Discard,
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: true,
+			want: want{
+				code:                     1,
+				expectAgentUdsDirCreated: true,
+			},
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+
+			os.RemoveAll(testDataDir)
+
+			cmd := &Command{
+				logOptions:         testCase.fields.logOptions,
+				env:                testCase.fields.env,
+				allowUnknownConfig: testCase.fields.allowUnknownConfig,
+			}
+
+			assert.Equalf(t, testCase.want.code, cmd.Run(testCase.args.args), "Run(%v)", testCase.args.args)
+			if testCase.configLoaded {
+				currentUmask := syscall.Umask(0)
+				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
+			}
+			if testCase.want.expectAgentUdsDirCreated {
+				assert.DirExistsf(t, testDataDir, "data directory should have been created")
+			} else {
+				assert.NoDirExistsf(t, testDataDir, "data directory should not have been created")
+			}
+		})
+	}
+}
+
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
 		"-bindAddress=127.0.0.1",

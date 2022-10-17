@@ -33,7 +33,7 @@ func TestCommand_Run(t *testing.T) {
 		args []string
 	}
 	type want struct {
-		returnValue              int
+		code                     int
 		expectedDataDirCreated   bool
 		expectAgentUdsDirCreated bool
 	}
@@ -58,7 +58,7 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: false,
 			},
 			want: want{
-				returnValue:              1,
+				code:                     1,
 				expectAgentUdsDirCreated: false,
 				expectedDataDirCreated:   false,
 			},
@@ -82,7 +82,7 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: false,
 			},
 			want: want{
-				returnValue:              1,
+				code:                     1,
 				expectAgentUdsDirCreated: true,
 				expectedDataDirCreated:   true,
 			},
@@ -100,7 +100,7 @@ func TestCommand_Run(t *testing.T) {
 			}
 
 			result := cmd.Run(testCase.args.args)
-			assert.Equal(t, testCase.want.returnValue, result)
+			assert.Equal(t, testCase.want.code, result)
 
 			_, agentSocketDirErr := os.Stat(testAgentSocketDir)
 
