@@ -33,9 +33,9 @@ func TestCommand_Run(t *testing.T) {
 		args []string
 	}
 	type want struct {
-		code                     int
-		expectedDataDirCreated   bool
-		expectAgentUdsDirCreated bool
+		code               int
+		dataDirCreated     bool
+		agentUdsDirCreated bool
 	}
 	tests := []struct {
 		name     string
@@ -58,9 +58,9 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: false,
 			},
 			want: want{
-				code:                     1,
-				expectAgentUdsDirCreated: false,
-				expectedDataDirCreated:   false,
+				code:               1,
+				agentUdsDirCreated: false,
+				dataDirCreated:     false,
 			},
 		},
 		{
@@ -82,9 +82,9 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: false,
 			},
 			want: want{
-				code:                     1,
-				expectAgentUdsDirCreated: true,
-				expectedDataDirCreated:   true,
+				code:               1,
+				agentUdsDirCreated: true,
+				dataDirCreated:     true,
 			},
 		},
 	}
@@ -104,14 +104,14 @@ func TestCommand_Run(t *testing.T) {
 
 			_, agentSocketDirErr := os.Stat(testAgentSocketDir)
 
-			if testCase.want.expectAgentUdsDirCreated {
-				assert.Nilf(t, agentSocketDirErr, "spire-agent uds dir should have been created")
+			if testCase.want.agentUdsDirCreated {
+				assert.Nilf(t, agentSocketDirErr, "spire-agent uds dir should be created")
 				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
+				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should be created with 0027 umask")
 			} else {
-				assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not have been created")
+				assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not be created")
 			}
-			if testCase.want.expectedDataDirCreated {
+			if testCase.want.dataDirCreated {
 				assert.DirExistsf(t, testDataDir, "expected data directory to be created")
 			} else {
 				assert.NoDirExistsf(t, testDataDir, "expected data directory to not be created")

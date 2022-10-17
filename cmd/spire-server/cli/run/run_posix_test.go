@@ -34,8 +34,8 @@ func TestCommand_Run(t *testing.T) {
 		args []string
 	}
 	type want struct {
-		code                     int
-		expectAgentUdsDirCreated bool
+		code           int
+		dataDirCreated bool
 	}
 	tests := []struct {
 		name         string
@@ -58,8 +58,8 @@ func TestCommand_Run(t *testing.T) {
 			},
 			configLoaded: false,
 			want: want{
-				code:                     1,
-				expectAgentUdsDirCreated: false,
+				code:           1,
+				dataDirCreated: false,
 			},
 		},
 		{
@@ -79,8 +79,8 @@ func TestCommand_Run(t *testing.T) {
 			},
 			configLoaded: true,
 			want: want{
-				code:                     1,
-				expectAgentUdsDirCreated: true,
+				code:           1,
+				dataDirCreated: true,
 			},
 		},
 	}
@@ -100,10 +100,10 @@ func TestCommand_Run(t *testing.T) {
 				currentUmask := syscall.Umask(0)
 				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
 			}
-			if testCase.want.expectAgentUdsDirCreated {
-				assert.DirExistsf(t, testDataDir, "data directory should have been created")
+			if testCase.want.dataDirCreated {
+				assert.DirExistsf(t, testDataDir, "data directory should be created")
 			} else {
-				assert.NoDirExistsf(t, testDataDir, "data directory should not have been created")
+				assert.NoDirExistsf(t, testDataDir, "data directory should not be created")
 			}
 		})
 	}
