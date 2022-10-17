@@ -107,7 +107,7 @@ func TestCommand_Run(t *testing.T) {
 			if testCase.want.agentUdsDirCreated {
 				assert.Nilf(t, agentSocketDirErr, "spire-agent uds dir should be created")
 				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should be created with 0027 umask")
+				assert.Equalf(t, currentUmask, 0027, "spire-agent process should be created with 0027 umask")
 			} else {
 				assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not be created")
 			}

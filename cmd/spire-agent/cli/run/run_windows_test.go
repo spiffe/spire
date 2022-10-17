@@ -60,7 +60,7 @@ func TestCommand_Run(t *testing.T) {
 			},
 		},
 		{
-			name: "create data dir using named pipe",
+			name: "create data dir and uses named pipe",
 			args: args{
 				args: []string{
 					"-config", "../../../../test/fixture/config/agent_run_windows.conf",

@@ -45,7 +45,7 @@ func TestCommand_Run(t *testing.T) {
 		want         want
 	}{
 		{
-			name: "error loading config settings on linux",
+			name: "don't create any dir when error loading config",
 			args: args{
 				args: []string{},
 			},
@@ -63,7 +63,7 @@ func TestCommand_Run(t *testing.T) {
 			},
 		},
 		{
-			name: "success loading config settings on linux",
+			name: "create data dir when config is loaded",
 			args: args{
 				args: []string{
 					"-config", "../../../../test/fixture/config/server_run_posix.conf",
@@ -97,7 +97,7 @@ func TestCommand_Run(t *testing.T) {
 			assert.Equalf(t, testCase.want.code, cmd.Run(testCase.args.args), "Run(%v)", testCase.args.args)
 			if testCase.configLoaded {
 				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-agent processes should have been created with 0027 umask")
+				assert.Equalf(t, currentUmask, 0027, "spire-server process should have been created with 0027 umask")
 			}
 			if testCase.want.dataDirCreated {
 				assert.DirExistsf(t, testDataDir, "data directory should be created")

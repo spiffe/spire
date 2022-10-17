@@ -44,7 +44,7 @@ func TestCommand_Run(t *testing.T) {
 		want   want
 	}{
 		{
-			name: "error loading config settings",
+			name: "don't create data dir when error loading config",
 			args: args{
 				args: []string{},
 			},
@@ -61,7 +61,7 @@ func TestCommand_Run(t *testing.T) {
 			},
 		},
 		{
-			name: "success loading config settings",
+			name: "create data dir when config is loaded",
 			args: args{
 				args: []string{
 					"-config", "../../../../test/fixture/config/server_run_windows.conf",
