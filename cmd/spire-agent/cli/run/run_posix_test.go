@@ -5,11 +5,16 @@ package run
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
+	"syscall"
 	"testing"
 
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,6 +70,7 @@ func TestCommand_Run(t *testing.T) {
 				args: []string{
 					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
 					"-trustBundle", "../../../../conf/agent/dummy_root_ca.crt",
+					"-dataDir", testDataDir,
 					"-socketPath", fmt.Sprintf("%s/spire-agent/api.sock", testTempDir),
 				},
 			},
