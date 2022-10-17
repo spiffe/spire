@@ -471,3 +471,97 @@ func TestCacheimpl_CheckOverflowAndUpdates(t *testing.T) {
 		require.Equal(t, items.Front().Value, step.wantHeadKey, "First element is %v should be %v after step %q", items.Front().Value, step.wantHeadKey, step.name)
 	}
 }
+
+func TestCacheimpl_CheckOverflow(t *testing.T) {
+	listNoOverflow := list.New()
+	mapNoOverflow := make(map[string]MapItem)
+	mapNoOverflow[selectors1.Key] = MapItem{
+		item:    &selectors1,
+		element: listNoOverflow.PushFront(selectors1.Key),
+	}
+	mapNoOverflow[selectors2.Key] = MapItem{
+		item:    &selectors2,
+		element: listNoOverflow.PushFront(selectors2.Key),
+	}
+	mapNoOverflow[selectors3.Key] = MapItem{
+		item:    &selectors3,
+		element: listNoOverflow.PushFront(selectors3.Key),
+	}
+
+	listOverflow := list.New()
+	mapOverflow := make(map[string]MapItem)
+	mapOverflow[selectors2.Key] = MapItem{
+		item:    &selectors2,
+		element: listOverflow.PushFront(selectors2.Key),
+	}
+	mapOverflow[selectors3.Key] = MapItem{
+		item:    &selectors3,
+		element: listOverflow.PushFront(selectors3.Key),
+	}
+
+	listReorder := list.New()
+	mapReorder := make(map[string]MapItem)
+	mapReorder[selectors2.Key] = MapItem{
+		item:    &selectors2,
+		element: listReorder.PushFront(selectors2.Key),
+	}
+	mapReorder[selectors1.Key] = MapItem{
+		item:    &selectors1,
+		element: listReorder.PushFront(selectors1.Key),
+	}
+
+	testCases := []struct {
+		name       string
+		item       *Item
+		wantLength int
+		wantedList *list.List
+		wantedMap  map[string]MapItem
+		maxLength  int
+	}{
+		{
+			name:       "Put third element, no overflow",
+			item:       &selectors3,
+			wantedList: listNoOverflow,
+			wantedMap:  mapNoOverflow,
+			maxLength:  3,
+		},
+		{
+			name:       "Put existing element no overflow",
+			item:       &selectors1,
+			wantedList: listReorder,
+			wantedMap:  mapReorder,
+			maxLength:  2,
+		},
+		{
+			name:       "Put third element, overflow",
+			item:       &selectors3,
+			wantedList: listOverflow,
+			wantedMap:  mapOverflow,
+			maxLength:  2,
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			m := make(map[string]MapItem)
+			items := list.New()
+			m[selectors1.Key] = MapItem{
+				item:    &selectors1,
+				element: items.PushFront(selectors1.Key),
+			}
+			m[selectors2.Key] = MapItem{
+				item:    &selectors2,
+				element: items.PushFront(selectors2.Key),
+			}
+			cacheInstance := &cacheImpl{
+				size:     testCase.maxLength,
+				items:    items,
+				mutex:    sync.RWMutex{},
+				itemsMap: m,
+			}
+			cacheInstance.PutSignature(*testCase.item)
+			require.Equal(t, testCase.wantedList, cacheInstance.items, "List different than expected. \nGot: %v \nWant:%v", cacheInstance.items, testCase.wantedList)
+			require.Equal(t, testCase.wantedMap, cacheInstance.itemsMap, "Map different than expected. \nGot: %v \nWant:%v", cacheInstance.itemsMap, testCase.wantedMap)
+		})
+	}
+}
