@@ -56,17 +56,21 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `experimental` |  The experimental options that are subject to change or removal. |
 
 | Experimental options | Description |
-| ------------- | ----------- |
-| `sigstore`| Sigstore options. Options described below. |
+| -------------------- | ----------- |
+| `sigstore` | Sigstore options. Options described below. |
 
 | Sigstore options | Description |
-| ------------- | ----------- |
-| `skip_signature_verification_image_list`| The list of images, described as digest hashes, that should be skipped in signature verification. Defaults to empty list. |
-| `enable_allowed_subjects_list`| Enables a list of allowed subjects that are trusted and are allowed to sign container images artificats. Defaults to 'false'. If true and `allowed_subjects_list` is empty, no workload will pass signature validation. |
-| `allowed_subjects_list`| The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. Defaults to empty list. |
-| `rekor_url` | The URL for the rekor STL Server to use with cosign. Defaults to 'rekor.sigstore.dev', Rekor's public instance. |
+| ---------------- | ----------- |
+| `skip_signature_verification_image_list` | The list of images, described as digest hashes, that should be skipped in signature verification. Defaults to empty list. |
+| `enable_allowed_subjects_list` | Enables a list of allowed subjects that are trusted and are allowed to sign container images artificats. Defaults to 'false'. If true and `allowed_subjects_list` is empty, no workload will pass signature validation. |
+| `allowed_subjects_list` | The list of allowed subjects enabled by `enable_allowed_subjects_list` each entry represents subject e-mail. Defaults to empty list. |
+| `rekor_url` | The URL for the rekor STL Server to use with cosign. Defaults to 'http://rekor.sigstore.dev/', Rekor's public instance. |
 
-**Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at rekor.sigstore.dev, cosign defaults to using the public instance.
+> **Note** Cosign discourages the use of image tags for referencing docker images, and this plugin does not support attestation of sigstore selectors for workloads running on containers using tag-referenced images, which will then fail attestation for both sigstore and k8s selectors. In cases where this is necessary, add the digest string for the image in the `skip_signature_verification_image_list` setting (eg. `"sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"`). Note that sigstore signature attestation will still not be performed, but this will allow k8s selectors to be returned, along with the `"k8s:sigstore-validation:passed"` selector.  
+
+> **Note** Since the Spire Agent can also go through workload attestation, it will also need to be included in the skip list if either its image is not signed or has a digest reference string.  
+
+> **Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at rekor.sigstore.dev, and cosign defaults to using the public instance.
 
 ### Sigstore workload attestor for SPIRE
 
