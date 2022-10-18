@@ -85,18 +85,7 @@ func TestNewCache(t *testing.T) {
 }
 
 func TestCacheimpl_GetSignature(t *testing.T) {
-	m := make(map[string]MapItem)
-	items := list.New()
-
-	m[selectors1.Key] = MapItem{
-		item:    &selectors1,
-		element: items.PushFront(selectors1.Key),
-	}
-	m[selectors2.Key] = MapItem{
-		item:    &selectors2,
-		element: items.PushFront(selectors2.Key),
-	}
-
+	m, items := makeMapAndList(&selectors1, &selectors2)
 	cacheInstance := &cacheImpl{
 		size:     3,
 		items:    items,
@@ -162,69 +151,76 @@ func TestCacheimpl_GetSignature(t *testing.T) {
 }
 
 func TestCacheimpl_PutSignature(t *testing.T) {
-	m := make(map[string]MapItem)
-	items := list.New()
-
-	cacheInstance := &cacheImpl{
-		size:     2,
-		items:    items,
-		mutex:    sync.RWMutex{},
-		itemsMap: m,
-	}
-
+	mapReorder, listReorder := makeMapAndList(&selectors2, &selectors3)
+	mapAddNew, listAddNew := makeMapAndList(&selectors3, &selectors2, &selectors1)
+	mapUpdate, listUpdate := makeMapAndList(&selectors3, &selectors2Updated)
+	mapReorderUpdate, listReorderUpdate := makeMapAndList(&selectors2, &selectors3Updated)
 	tests := []struct {
 		name       string
 		item       *Item
 		wantLength int
 		wantKey    string
 		wantValue  *Item
+		wantMap    map[string]MapItem
+		wantList   *list.List
 	}{
 		{
-			name:       "Put first element",
-			item:       &selectors1,
-			wantLength: 1,
-			wantKey:    selectors1.Key,
-			wantValue:  &selectors1,
-		},
-		{
-			name:       "Put first element again",
-			item:       &selectors1,
-			wantLength: 1,
-			wantKey:    selectors1.Key,
-			wantValue:  &selectors1,
-		},
-		{
-			name:       "Put second element",
-			item:       &selectors2,
-			wantLength: 2,
-			wantKey:    selectors2.Key,
-			wantValue:  &selectors2,
-		},
-		{
-			name:       "Overflow cache",
+			name:       "Put existing element",
 			item:       &selectors3,
 			wantLength: 2,
 			wantKey:    selectors3.Key,
 			wantValue:  &selectors3,
+			wantMap:    mapReorder,
+			wantList:   listReorder,
+		},
+		{
+			name:       "Put new element",
+			item:       &selectors1,
+			wantLength: 3,
+			wantKey:    selectors1.Key,
+			wantValue:  &selectors1,
+			wantMap:    mapAddNew,
+			wantList:   listAddNew,
 		},
 		{
 			name:       "Update entry",
+			item:       &selectors2Updated,
+			wantLength: 2,
+			wantKey:    selectors2.Key,
+			wantValue:  &selectors2Updated,
+			wantMap:    mapUpdate,
+			wantList:   listUpdate,
+		},
+		{
+			name:       "Update entry, reorder",
 			item:       &selectors3Updated,
 			wantLength: 2,
 			wantKey:    selectors3.Key,
 			wantValue:  &selectors3Updated,
+			wantMap:    mapReorderUpdate,
+			wantList:   listReorderUpdate,
 		},
 	}
 
 	for _, tt := range tests {
-		cacheInstance.PutSignature(*tt.item)
-		gotLen := cacheInstance.items.Len()
-		if gotLen != tt.wantLength {
-			t.Errorf("Item count should be %v in test case %q", tt.wantLength, tt.name)
-		}
-		gotItem, present := m[tt.wantKey]
-		require.True(t, present, "key not found")
-		require.Equal(t, gotItem.item, tt.wantValue, "Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			testMap, testItems := makeMapAndList(&selectors3, &selectors2)
+			cacheInstance := cacheImpl{
+				size:     10,
+				items:    testItems,
+				mutex:    sync.RWMutex{},
+				itemsMap: testMap,
+			}
+			cacheInstance.PutSignature(*tt.item)
+
+			gotItem, present := testMap[tt.wantKey]
+			require.True(t, present, "key not found")
+			require.Equal(t, tt.wantValue, gotItem.item, "Value different than expected. \nGot: %v \nWant:%v", gotItem.item, tt.wantValue)
+			require.Equal(t, tt.wantLength, testItems.Len(), "List length different than expected. \nGot: %v \nWant:%v", testItems.Len(), tt.wantLength)
+			require.Equal(t, tt.wantList, testItems, "Lists are different Got: %v Want: %v", testItems, tt.wantList)
+			require.Equal(t, tt.wantMap, testMap, "Maps are different Got: %v Want: %v", testMap, tt.wantMap)
+		})
 	}
 }
 
@@ -473,42 +469,9 @@ func TestCacheimpl_CheckOverflowAndUpdates(t *testing.T) {
 }
 
 func TestCacheimpl_CheckOverflow(t *testing.T) {
-	listNoOverflow := list.New()
-	mapNoOverflow := make(map[string]MapItem)
-	mapNoOverflow[selectors1.Key] = MapItem{
-		item:    &selectors1,
-		element: listNoOverflow.PushFront(selectors1.Key),
-	}
-	mapNoOverflow[selectors2.Key] = MapItem{
-		item:    &selectors2,
-		element: listNoOverflow.PushFront(selectors2.Key),
-	}
-	mapNoOverflow[selectors3.Key] = MapItem{
-		item:    &selectors3,
-		element: listNoOverflow.PushFront(selectors3.Key),
-	}
-
-	listOverflow := list.New()
-	mapOverflow := make(map[string]MapItem)
-	mapOverflow[selectors2.Key] = MapItem{
-		item:    &selectors2,
-		element: listOverflow.PushFront(selectors2.Key),
-	}
-	mapOverflow[selectors3.Key] = MapItem{
-		item:    &selectors3,
-		element: listOverflow.PushFront(selectors3.Key),
-	}
-
-	listReorder := list.New()
-	mapReorder := make(map[string]MapItem)
-	mapReorder[selectors2.Key] = MapItem{
-		item:    &selectors2,
-		element: listReorder.PushFront(selectors2.Key),
-	}
-	mapReorder[selectors1.Key] = MapItem{
-		item:    &selectors1,
-		element: listReorder.PushFront(selectors1.Key),
-	}
+	mapNoOverflow, listNoOverflow := makeMapAndList(&selectors1, &selectors2, &selectors3)
+	mapOverflow, listOverflow := makeMapAndList(&selectors2, &selectors3)
+	mapReorder, listReorder := makeMapAndList(&selectors2, &selectors1)
 
 	testCases := []struct {
 		name       string
@@ -564,4 +527,16 @@ func TestCacheimpl_CheckOverflow(t *testing.T) {
 			require.Equal(t, testCase.wantedMap, cacheInstance.itemsMap, "Map different than expected. \nGot: %v \nWant:%v", cacheInstance.itemsMap, testCase.wantedMap)
 		})
 	}
+}
+
+func makeMapAndList(items ...*Item) (map[string]MapItem, *list.List) {
+	mp := make(map[string]MapItem)
+	ls := list.New()
+	for _, item := range items {
+		mp[item.Key] = MapItem{
+			item:    item,
+			element: ls.PushFront(item.Key),
+		}
+	}
+	return mp, ls
 }
