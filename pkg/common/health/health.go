@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
@@ -63,9 +64,10 @@ func NewChecker(config Config, log logrus.FieldLogger) ServableChecker {
 	l := log.WithField(telemetry.SubsystemName, "health")
 
 	c := &checker{
-		config:        config,
-		log:           l,
-		currentStatus: make(map[string]*CheckState),
+		config: config,
+		log:    l,
+
+		cache: NewCache(l, clock.New()),
 	}
 
 	// Start HTTP server if ListenerEnabled is true
@@ -90,32 +92,24 @@ type checker struct {
 
 	server *http.Server
 
-	allowedChecks map[string]Checkable
-	mutex         sync.Mutex // Mutex protects non-threadsafe
+	mutex sync.Mutex // Mutex protects non-threadsafe
 
-	currentStatus map[string]*CheckState
-	statusMutex   sync.Mutex
-
-	log logrus.FieldLogger
+	log   logrus.FieldLogger
+	cache *Cache
 }
 
-// TODO: AddChek no longer require an error
 func (c *checker) AddCheck(name string, checkable Checkable) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if c.allowedChecks == nil {
-		c.allowedChecks = make(map[string]Checkable)
-	}
 
-	c.allowedChecks[name] = checkable
-	return nil
+	return c.cache.AddCheck(name, checkable)
 }
 
 func (c *checker) ListenAndServe(ctx context.Context) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	if err := c.startChecks(ctx); err != nil {
+	if err := c.cache.Start(ctx); err != nil {
 		return err
 	}
 
@@ -136,7 +130,7 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 		defer wg.Done()
 		<-ctx.Done()
 		if c.server != nil {
-			c.server.Close()
+			_ = c.server.Close()
 		}
 	}()
 
@@ -167,7 +161,7 @@ func WaitForTestDial(ctx context.Context, addr net.Addr) {
 		return
 	}
 
-	conn.Close()
+	_ = conn.Close()
 }
 
 // LiveState returns the global live state and details.
@@ -189,7 +183,7 @@ func (c *checker) checkStates() (bool, bool, interface{}, interface{}) {
 
 	liveDetails := make(map[string]interface{})
 	readyDetails := make(map[string]interface{})
-	for subsystemName, subsystemState := range c.getAllStatus() {
+	for subsystemName, subsystemState := range c.cache.GetStatuses() {
 		state := subsystemState.Details
 		if !state.Live {
 			isLive = false
@@ -230,139 +224,4 @@ func (c *checker) readyHandler(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	_ = json.NewEncoder(w).Encode(details)
-}
-
-func (c *checker) startChecks(ctx context.Context) error {
-	if len(c.allowedChecks) < 1 {
-		return errors.New("no health checks defined")
-	}
-
-	for name, check := range c.allowedChecks {
-		c.startRunner(ctx, name, check)
-	}
-	return nil
-}
-
-func (c *checker) startRunner(ctx context.Context, name string, check Checkable) {
-	log := c.log.WithField("name", name)
-	log.Debug("Starting checker")
-
-	checkFunc := func() {
-		state, err := verifyStatus(check, log)
-
-		checkState := &CheckState{
-			Status:    "ok",
-			Details:   state,
-			CheckTime: time.Now(),
-		}
-		if err != nil {
-			log.WithError(err).Error("healthcheck has failed")
-			checkState.Err = err.Error()
-			checkState.Status = "failed"
-		}
-
-		c.setStatus(name, checkState)
-	}
-
-	ticker := time.NewTicker(readyCheckInterval)
-
-	go func() {
-		defer func() {
-			log.Debug("Checker exiting")
-			ticker.Stop()
-		}()
-		for {
-			checkFunc()
-
-			select {
-			case <-ticker.C:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-}
-
-func (c *checker) setStatus(name string, state *CheckState) {
-	c.handleStatusListener(name, state)
-
-	c.statusMutex.Lock()
-	defer c.statusMutex.Unlock()
-
-	c.currentStatus[name] = state
-}
-
-func (c *checker) handleStatusListener(name string, state *CheckState) {
-	// get the previous state
-	c.statusMutex.Lock()
-	prevState := c.currentStatus[name]
-	c.statusMutex.Unlock()
-
-	// state is failure
-	if state.Status == "failed" {
-		if prevState == nil || prevState.Status == "ok" {
-			// new failure: previous state was ok
-			c.log.WithField("check", name).
-				WithField("details", state.Details).
-				WithField("error", state.Err).
-				Warn("Health check failed")
-
-				// TODO: add mock
-			state.TimeOfFirstFailure = time.Now()
-		} else {
-			// carry the time of first failure from the previous state
-			state.TimeOfFirstFailure = prevState.TimeOfFirstFailure
-		}
-		state.ContiguousFailures = prevState.ContiguousFailures + 1
-	} else if prevState != nil && prevState.Status == "failed" {
-		// recovery, previous state was failure
-		failureSeconds := time.Now().Sub(prevState.TimeOfFirstFailure).Seconds()
-
-		c.log.WithField("check", name).
-			WithField("details", state.Details).
-			WithField("error", state.Err).
-			WithField("failures", prevState.ContiguousFailures).
-			WithField("duration", failureSeconds).
-			Info("Health check recovered")
-	}
-}
-
-func (c *checker) getAllStatus() map[string]*CheckState {
-	c.statusMutex.Lock()
-	defer c.statusMutex.Unlock()
-
-	return c.currentStatus
-}
-
-func verifyStatus(check Checkable, log logrus.FieldLogger) (State, error) {
-	state := check.CheckHealth()
-	var err error
-	switch {
-	case state.Ready && state.Live:
-	case state.Ready && !state.Live:
-		err = errors.New("subsystem is not live")
-	case !state.Ready && state.Live:
-		err = errors.New("subsystem is not ready")
-	case !state.Ready && !state.Live:
-		err = errors.New("subsystem is not live or ready")
-	}
-	return state, err
-}
-
-type CheckState struct {
-	// Status of the health check state ("ok" or "failed")
-	Status string
-
-	// Err is the error returned from a failed health check
-	Err string
-
-	// Details contains more contextual detail about a
-	// failing health check.
-	Details State
-
-	// CheckTime is the time of the last health check
-	CheckTime time.Time
-
-	ContiguousFailures int64     `json:"num_failures"`     // the number of failures that occurred in a row
-	TimeOfFirstFailure time.Time `json:"first_failure_at"` // the time of the initial transitional failure for any given health check
 }
