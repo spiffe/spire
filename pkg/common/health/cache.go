@@ -46,7 +46,14 @@ type Cache struct {
 	mutex         sync.Mutex
 	clk           clock.Clock
 
-	log logrus.FieldLogger
+	log   logrus.FieldLogger
+	hooks struct {
+		statusUpdated chan struct{}
+	}
+}
+
+func (c *Cache) SetStatusUpdatedHook(statusUpdated chan struct{}) {
+	c.hooks.statusUpdated = statusUpdated
 }
 
 func (c *Cache) AddCheck(name string, checkable Checkable) error {
@@ -61,17 +68,6 @@ func (c *Cache) AddCheck(name string, checkable Checkable) error {
 	return nil
 }
 
-func (c *Cache) Start(ctx context.Context) error {
-	if len(c.allowedChecks) < 1 {
-		return errors.New("no health checks defined")
-	}
-
-	for name, check := range c.allowedChecks {
-		c.startRunner(ctx, name, check)
-	}
-	return nil
-}
-
 func (c *Cache) GetStatuses() map[string]CheckState {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -79,30 +75,44 @@ func (c *Cache) GetStatuses() map[string]CheckState {
 	return c.currentStatus
 }
 
-func (c *Cache) startRunner(ctx context.Context, name string, check Checkable) {
-	log := c.log.WithField("check", name)
-	log.Debug("Starting checker")
+func (c *Cache) Start(ctx context.Context) error {
+	if len(c.allowedChecks) < 1 {
+		return errors.New("no health checks defined")
+	}
 
+	c.startRunner(ctx)
+	return nil
+}
+
+func (c *Cache) startRunner(ctx context.Context) {
+	c.log.Debug("Initializing health checkers")
 	checkFunc := func() {
-		state, err := verifyStatus(check)
+		for name, check := range c.allowedChecks {
+			state, err := verifyStatus(check)
 
-		checkState := CheckState{
-			Details:   state,
-			CheckTime: c.clk.Now(),
-		}
-		if err != nil {
-			log.WithError(err).Error("healthcheck has failed")
-			checkState.Err = err
-		}
+			checkState := CheckState{
+				Details:   state,
+				CheckTime: c.clk.Now(),
+			}
+			if err != nil {
+				c.log.WithField("check", name).
+					WithError(err).
+					Error("healthcheck has failed")
+				checkState.Err = err
+			}
 
-		c.setStatus(name, checkState)
+			c.setStatus(name, checkState)
+		}
+		if c.hooks.statusUpdated != nil {
+			c.hooks.statusUpdated <- struct{}{}
+		}
 	}
 
 	ticker := c.clk.Ticker(readyCheckInterval)
 
 	go func() {
 		defer func() {
-			log.Debug("Checker exiting")
+			c.log.Debug("Finishing health checker")
 			ticker.Stop()
 		}()
 		for {
@@ -118,7 +128,7 @@ func (c *Cache) startRunner(ctx context.Context, name string, check Checkable) {
 }
 
 func (c *Cache) setStatus(name string, state CheckState) {
-	c.embellishState(name, state)
+	c.embellishState(name, &state)
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -126,7 +136,7 @@ func (c *Cache) setStatus(name string, state CheckState) {
 	c.currentStatus[name] = state
 }
 
-func (c *Cache) embellishState(name string, state CheckState) {
+func (c *Cache) embellishState(name string, state *CheckState) {
 	// get the previous state
 	c.mutex.Lock()
 	prevState := c.currentStatus[name]
@@ -153,7 +163,7 @@ func (c *Cache) embellishState(name string, state CheckState) {
 		failureSeconds := c.clk.Now().Sub(prevState.TimeOfFirstFailure).Seconds()
 		c.log.WithField("check", name).
 			WithField("details", state.Details).
-			WithField("error", state.Err.Error()).
+			WithField("error", prevState.Err.Error()).
 			WithField("failures", prevState.ContiguousFailures).
 			WithField("duration", failureSeconds).
 			Info("Health check recovered")
