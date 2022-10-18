@@ -221,10 +221,8 @@ func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log
 	client.EnableAllowSubjectList(c.AllowedSubjectListEnabled)
 	client.SetLogger(log)
 	client.ClearAllowedSubjects()
-	if c.AllowedSubjects != nil {
-		for _, subject := range c.AllowedSubjects {
-			client.AddAllowedSubject(subject)
-		}
+	for _, subject := range c.AllowedSubjects {
+		client.AddAllowedSubject(subject)
 	}
 	rekorURL := "http://rekor.sigstore.dev/" // default rekor url
 	if c.RekorURL != nil {
