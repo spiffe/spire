@@ -9,6 +9,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 type checkState struct {
@@ -64,6 +65,17 @@ func (c *cache) addCheck(name string, checkable Checkable) error {
 	return nil
 }
 
+func (c *cache) getAllowedChecks() map[string]Checkable {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	allowedChecks := make(map[string]Checkable, len(c.currentStatus))
+	for k, v := range c.allowedChecks {
+		allowedChecks[k] = v
+	}
+	return allowedChecks
+}
+
 func (c *cache) getStatuses() map[string]checkState {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
@@ -91,7 +103,7 @@ func (c *cache) start(ctx context.Context) error {
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	checkFunc := func() {
-		for name, check := range c.allowedChecks {
+		for name, check := range c.getAllowedChecks() {
 			state, err := verifyStatus(check)
 
 			checkState := checkState{
@@ -147,31 +159,33 @@ func (c *cache) embellishState(name string, state *checkState) {
 	c.mtx.RUnlock()
 
 	switch {
+	case state.err == nil && prevState.err == nil:
+	// All fine continue
 	case state.err != nil && prevState.err == nil:
 		// State start to fail, add log and set failures tracking
 		c.log.WithFields(logrus.Fields{
-			"check":   name,
-			"details": state.details,
-			"error":   state.err.Error(),
+			telemetry.Check:   name,
+			telemetry.Details: state.details,
+			telemetry.Error:   state.err.Error(),
 		}).Warn("Health check failed")
 
 		state.timeOfFirstFailure = c.clk.Now()
 		state.contiguousFailures = 1
 
-	case state.err != nil:
+	case state.err != nil && prevState.err != nil:
 		// Error still happening, carry the time of first failure from the previous state
 		state.timeOfFirstFailure = prevState.timeOfFirstFailure
 		state.contiguousFailures = prevState.contiguousFailures + 1
 
-	case prevState.err != nil:
+	case state.err == nil && prevState.err != nil:
 		// Current state has no error, notify about error recovering
 		failureSeconds := c.clk.Now().Sub(prevState.timeOfFirstFailure).Seconds()
 		c.log.WithFields(logrus.Fields{
-			"check":    name,
-			"details":  state.details,
-			"error":    prevState.err.Error(),
-			"failures": prevState.contiguousFailures,
-			"duration": failureSeconds,
+			telemetry.Check:    name,
+			telemetry.Details:  state.details,
+			telemetry.Error:    prevState.err.Error(),
+			telemetry.Failures: prevState.contiguousFailures,
+			telemetry.Duration: failureSeconds,
 		}).Info("Health check recovered")
 	}
 }

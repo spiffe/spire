@@ -86,7 +86,7 @@ func TestCheckerListeners(t *testing.T) {
 
 		actual, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
+		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
 	})
 
 	t.Run("success live", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestCheckerListeners(t *testing.T) {
 
 		actual, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
+		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
 	})
 
 	fooCheker.state.Live = false
@@ -123,7 +123,7 @@ func TestCheckerListeners(t *testing.T) {
 
 		actual, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "{\"bar\":{},\"foo\":{\"err\":\"live fails\"}}\n", string(actual))
+		require.JSONEq(t, "{\"bar\":{},\"foo\":{\"err\":\"live fails\"}}\n", string(actual))
 	})
 
 	t.Run("ready fails", func(t *testing.T) {
@@ -135,6 +135,6 @@ func TestCheckerListeners(t *testing.T) {
 
 		actual, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
-		require.Equal(t, "{\"bar\":{\"err\":\"ready fails\"},\"foo\":{}}\n", string(actual))
+		require.JSONEq(t, "{\"bar\":{\"err\":\"ready fails\"},\"foo\":{}}\n", string(actual))
 	})
 }

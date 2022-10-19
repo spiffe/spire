@@ -9,6 +9,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -174,17 +175,17 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Level:   logrus.ErrorLevel,
 				Message: "Health check has failed",
 				Data: logrus.Fields{
-					"check": "foo",
-					"error": "subsystem is not live or ready",
+					telemetry.Check: "foo",
+					telemetry.Error: "subsystem is not live or ready",
 				},
 			},
 			{
 				Level:   logrus.WarnLevel,
 				Message: "Health check failed",
 				Data: logrus.Fields{
-					"check":   "foo",
-					"details": "{false false {live is failing} {ready is failing}}",
-					"error":   "subsystem is not live or ready",
+					telemetry.Check:   "foo",
+					telemetry.Details: "{false false {live is failing} {ready is failing}}",
+					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
 		}
@@ -236,8 +237,8 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Level:   logrus.ErrorLevel,
 				Message: "Health check has failed",
 				Data: logrus.Fields{
-					"check": "foo",
-					"error": "subsystem is not live or ready",
+					telemetry.Check: "foo",
+					telemetry.Error: "subsystem is not live or ready",
 				},
 			},
 		}
@@ -293,11 +294,11 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Level:   logrus.InfoLevel,
 				Message: "Health check recovered",
 				Data: logrus.Fields{
-					"check":    "foo",
-					"details":  "{true true {} {}}",
-					"duration": "120",
-					"error":    "subsystem is not live or ready",
-					"failures": "2",
+					telemetry.Check:    "foo",
+					telemetry.Details:  "{true true {} {}}",
+					telemetry.Duration: "120",
+					telemetry.Error:    "subsystem is not live or ready",
+					telemetry.Failures: "2",
 				},
 			},
 		}
