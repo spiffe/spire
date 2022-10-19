@@ -70,15 +70,18 @@ func (c *cache) addCheck(name string, checkable Checkable) error {
 	return nil
 }
 
-func (c *cache) getCheckables() map[string]Checkable {
+func (c *cache) getCheckerSubsystems() map[string]*checkerSubsystem {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	checkables := make(map[string]Checkable, len(c.checkerSubsystems))
+	checkerSubsystems := make(map[string]*checkerSubsystem, len(c.checkerSubsystems))
 	for k, v := range c.checkerSubsystems {
-		checkables[k] = v.checkable
+		checkerSubsystems[k] = &checkerSubsystem{
+			checkable: v.checkable,
+			state:     v.state,
+		}
 	}
-	return checkables
+	return checkerSubsystems
 }
 
 func (c *cache) getStatuses() map[string]checkState {
@@ -108,8 +111,8 @@ func (c *cache) start(ctx context.Context) error {
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	checkFunc := func() {
-		for name, check := range c.getCheckables() {
-			state, err := verifyStatus(check)
+		for name, checker := range c.getCheckerSubsystems() {
+			state, err := verifyStatus(checker.checkable)
 
 			checkState := checkState{
 				details:   state,
@@ -122,7 +125,7 @@ func (c *cache) startRunner(ctx context.Context) {
 				checkState.err = err
 			}
 
-			c.setStatus(name, checkState)
+			c.setStatus(name, checker.state, checkState)
 		}
 		if c.hooks.statusUpdated != nil {
 			c.hooks.statusUpdated <- struct{}{}
@@ -148,8 +151,8 @@ func (c *cache) startRunner(ctx context.Context) {
 	}()
 }
 
-func (c *cache) setStatus(name string, state checkState) {
-	c.embellishState(name, &state)
+func (c *cache) setStatus(name string, prevState checkState, state checkState) {
+	c.embellishState(name, &prevState, &state)
 
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -159,12 +162,7 @@ func (c *cache) setStatus(name string, state checkState) {
 	c.checkerSubsystems[name].state = state
 }
 
-func (c *cache) embellishState(name string, state *checkState) {
-	// get the previous state
-	c.mtx.RLock()
-	prevState := c.checkerSubsystems[name].state
-	c.mtx.RUnlock()
-
+func (c *cache) embellishState(name string, prevState, state *checkState) {
 	switch {
 	case state.err == nil && prevState.err == nil:
 	// All fine continue
