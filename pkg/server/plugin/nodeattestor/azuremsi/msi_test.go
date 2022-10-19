@@ -235,6 +235,44 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithCustomResourceID() {
 		vmSelectors)
 }
 
+func (s *MSIAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
+	s.setVirtualMachine(&armcompute.VirtualMachine{
+		Properties: &armcompute.VirtualMachineProperties{},
+	})
+
+	payload := s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID")
+
+	selectorValues := append([]string{}, vmSelectors...)
+	sort.Strings(selectorValues)
+
+	var expected []*common.Selector
+	for _, selectorValue := range selectorValues {
+		expected = append(expected, &common.Selector{
+			Type:  "azure_msi",
+			Value: selectorValue,
+		})
+	}
+
+	attestorWithCustomAgentTemplate := s.loadPluginWithConfig(
+		`
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+				use_msi = true
+			}
+			"TENANTID2" = {
+				use_msi = true
+			}
+		}
+		agent_path_template = "/{{ .PluginName }}/{{ .TenantID }}"
+	`)
+	resp, err := attestorWithCustomAgentTemplate.Attest(context.Background(), payload, expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Equal("spiffe://example.org/spire/agent/azure_msi/TENANTID", resp.AgentID)
+	s.RequireProtoListEqual(expected, resp.Selectors)
+}
+
 func (s *MSIAttestorSuite) TestAttestSuccessWithNoClientCredentials() {
 	s.attestor = s.loadPlugin(plugintest.Configure(`
 		tenants = {
@@ -586,6 +624,20 @@ func (s *MSIAttestorSuite) signAttestPayload(keyID, audience, tenantID, principa
 }
 
 func (s *MSIAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {
+	return s.loadPluginWithConfig(`
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+				use_msi = true
+			}
+			"TENANTID2" = {
+				use_msi = true
+			}
+		}
+	`, options...)
+}
+
+func (s *MSIAttestorSuite) loadPluginWithConfig(config string, options ...plugintest.Option) nodeattestor.NodeAttestor {
 	attestor := New()
 	attestor.hooks.now = func() time.Time {
 		return s.now
@@ -609,17 +661,7 @@ func (s *MSIAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
-		plugintest.Configure(`
-		tenants = {
-			"TENANTID" = {
-				resource_id = "https://example.org/app/"
-				use_msi = true
-			}
-			"TENANTID2" = {
-				use_msi = true
-			}
-		}
-	`),
+		plugintest.Configure(config),
 	}, options...)...)
 	return v1
 }
