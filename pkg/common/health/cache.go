@@ -11,39 +11,39 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type CheckState struct {
-	// Err is the error returned from a failed health check
-	Err error
+type checkState struct {
+	// err is the error returned from a failed health check
+	err error
 
-	// Details contains more contextual detail about a
+	// details contains more contextual detail about a
 	// failing health check.
-	Details State
+	details State
 
-	// CheckTime is the time of the last health check
-	CheckTime time.Time
+	// checkTime is the time of the last health check
+	checkTime time.Time
 
-	// ContiguousFailures the number of failures that occurred in a row
-	ContiguousFailures int64
+	// contiguousFailures the number of failures that occurred in a row
+	contiguousFailures int64
 
-	// TimeOfFirstFailure the time of the initial transitional failure for
+	// timeOfFirstFailure the time of the initial transitional failure for
 	// any given health check
-	TimeOfFirstFailure time.Time
+	timeOfFirstFailure time.Time
 }
 
-func NewCache(log logrus.FieldLogger, clock clock.Clock) *Cache {
-	return &Cache{
+func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
+	return &cache{
 		allowedChecks: make(map[string]Checkable),
-		currentStatus: make(map[string]CheckState),
+		currentStatus: make(map[string]checkState),
 		log:           log,
 		clk:           clock,
 	}
 }
 
-type Cache struct {
+type cache struct {
 	allowedChecks map[string]Checkable
 
-	currentStatus map[string]CheckState
-	mutex         sync.Mutex
+	currentStatus map[string]checkState
+	mtx           sync.RWMutex
 	clk           clock.Clock
 
 	log   logrus.FieldLogger
@@ -52,13 +52,9 @@ type Cache struct {
 	}
 }
 
-func (c *Cache) SetStatusUpdatedHook(statusUpdated chan struct{}) {
-	c.hooks.statusUpdated = statusUpdated
-}
-
-func (c *Cache) AddCheck(name string, checkable Checkable) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+func (c *cache) addCheck(name string, checkable Checkable) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	if _, ok := c.allowedChecks[name]; ok {
 		return fmt.Errorf("check %q has already been added", name)
@@ -68,14 +64,22 @@ func (c *Cache) AddCheck(name string, checkable Checkable) error {
 	return nil
 }
 
-func (c *Cache) GetStatuses() map[string]CheckState {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+func (c *cache) getStatuses() map[string]checkState {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 
-	return c.currentStatus
+	statuses := make(map[string]checkState, len(c.currentStatus))
+	for k, v := range c.currentStatus {
+		statuses[k] = v
+	}
+
+	return statuses
 }
 
-func (c *Cache) Start(ctx context.Context) error {
+func (c *cache) start(ctx context.Context) error {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
 	if len(c.allowedChecks) < 1 {
 		return errors.New("no health checks defined")
 	}
@@ -84,21 +88,21 @@ func (c *Cache) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *Cache) startRunner(ctx context.Context) {
+func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	checkFunc := func() {
 		for name, check := range c.allowedChecks {
 			state, err := verifyStatus(check)
 
-			checkState := CheckState{
-				Details:   state,
-				CheckTime: c.clk.Now(),
+			checkState := checkState{
+				details:   state,
+				checkTime: c.clk.Now(),
 			}
 			if err != nil {
 				c.log.WithField("check", name).
 					WithError(err).
-					Error("healthcheck has failed")
-				checkState.Err = err
+					Error("Health check has failed")
+				checkState.err = err
 			}
 
 			c.setStatus(name, checkState)
@@ -127,46 +131,48 @@ func (c *Cache) startRunner(ctx context.Context) {
 	}()
 }
 
-func (c *Cache) setStatus(name string, state CheckState) {
+func (c *cache) setStatus(name string, state checkState) {
 	c.embellishState(name, &state)
 
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
 
 	c.currentStatus[name] = state
 }
 
-func (c *Cache) embellishState(name string, state *CheckState) {
+func (c *cache) embellishState(name string, state *checkState) {
 	// get the previous state
-	c.mutex.Lock()
+	c.mtx.RLock()
 	prevState := c.currentStatus[name]
-	c.mutex.Unlock()
+	c.mtx.RUnlock()
 
 	switch {
-	case state.Err != nil && prevState.Err == nil:
+	case state.err != nil && prevState.err == nil:
 		// State start to fail, add log and set failures tracking
-		c.log.WithField("check", name).
-			WithField("details", state.Details).
-			WithField("error", state.Err.Error()).
-			Warn("Health check failed")
+		c.log.WithFields(logrus.Fields{
+			"check":   name,
+			"details": state.details,
+			"error":   state.err.Error(),
+		}).Warn("Health check failed")
 
-		state.TimeOfFirstFailure = c.clk.Now()
-		state.ContiguousFailures = 1
+		state.timeOfFirstFailure = c.clk.Now()
+		state.contiguousFailures = 1
 
-	case state.Err != nil:
+	case state.err != nil:
 		// Error still happening, carry the time of first failure from the previous state
-		state.TimeOfFirstFailure = prevState.TimeOfFirstFailure
-		state.ContiguousFailures = prevState.ContiguousFailures + 1
+		state.timeOfFirstFailure = prevState.timeOfFirstFailure
+		state.contiguousFailures = prevState.contiguousFailures + 1
 
-	case prevState.Err != nil:
+	case prevState.err != nil:
 		// Current state has no error, notify about error recovering
-		failureSeconds := c.clk.Now().Sub(prevState.TimeOfFirstFailure).Seconds()
-		c.log.WithField("check", name).
-			WithField("details", state.Details).
-			WithField("error", prevState.Err.Error()).
-			WithField("failures", prevState.ContiguousFailures).
-			WithField("duration", failureSeconds).
-			Info("Health check recovered")
+		failureSeconds := c.clk.Now().Sub(prevState.timeOfFirstFailure).Seconds()
+		c.log.WithFields(logrus.Fields{
+			"check":    name,
+			"details":  state.details,
+			"error":    prevState.err.Error(),
+			"failures": prevState.contiguousFailures,
+			"duration": failureSeconds,
+		}).Info("Health check recovered")
 	}
 }
 

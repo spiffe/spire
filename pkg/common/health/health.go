@@ -67,7 +67,7 @@ func NewChecker(config Config, log logrus.FieldLogger) ServableChecker {
 		config: config,
 		log:    l,
 
-		cache: NewCache(l, clock.New()),
+		cache: newCache(l, clock.New()),
 	}
 
 	// Start HTTP server if ListenerEnabled is true
@@ -95,21 +95,21 @@ type checker struct {
 	mutex sync.Mutex // Mutex protects non-threadsafe
 
 	log   logrus.FieldLogger
-	cache *Cache
+	cache *cache
 }
 
 func (c *checker) AddCheck(name string, checkable Checkable) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return c.cache.AddCheck(name, checkable)
+	return c.cache.addCheck(name, checkable)
 }
 
 func (c *checker) ListenAndServe(ctx context.Context) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	if err := c.cache.Start(ctx); err != nil {
+	if err := c.cache.start(ctx); err != nil {
 		return err
 	}
 
@@ -183,8 +183,8 @@ func (c *checker) checkStates() (bool, bool, interface{}, interface{}) {
 
 	liveDetails := make(map[string]interface{})
 	readyDetails := make(map[string]interface{})
-	for subsystemName, subsystemState := range c.cache.GetStatuses() {
-		state := subsystemState.Details
+	for subsystemName, subsystemState := range c.cache.getStatuses() {
+		state := subsystemState.details
 		if !state.Live {
 			isLive = false
 		}

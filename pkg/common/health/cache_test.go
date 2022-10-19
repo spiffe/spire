@@ -16,20 +16,20 @@ import (
 func TestAddCheck(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	t.Run("add check no error", func(t *testing.T) {
-		cache := NewCache(log, clock.New())
-		err := cache.AddCheck("foh", &fakeCheckable{})
+		c := newCache(log, clock.New())
+		err := c.addCheck("foh", &fakeCheckable{})
 		require.NoError(t, err)
 	})
 
 	t.Run("add duplicated checker", func(t *testing.T) {
-		cache := NewCache(log, clock.New())
-		err := cache.AddCheck("foo", &fakeCheckable{})
+		c := newCache(log, clock.New())
+		err := c.addCheck("foo", &fakeCheckable{})
 		require.NoError(t, err)
 
-		err = cache.AddCheck("bar", &fakeCheckable{})
+		err = c.addCheck("bar", &fakeCheckable{})
 		require.NoError(t, err)
 
-		err = cache.AddCheck("foo", &fakeCheckable{})
+		err = c.addCheck("foo", &fakeCheckable{})
 		require.EqualError(t, err, `check "foo" has already been added`)
 	})
 }
@@ -40,9 +40,9 @@ func TestStartNoCheckerSet(t *testing.T) {
 	log, hook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 
-	cache := NewCache(log, clockMock)
+	c := newCache(log, clockMock)
 
-	err := cache.Start(context.Background())
+	err := c.start(context.Background())
 	require.EqualError(t, err, "no health checks defined")
 	require.Empty(t, hook.Entries)
 }
@@ -53,8 +53,8 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock()
 
-	cache := NewCache(log, clockMock)
-	cache.SetStatusUpdatedHook(waitFor)
+	c := newCache(log, clockMock)
+	c.hooks.statusUpdated = waitFor
 
 	fooChecker := &fakeCheckable{
 		state: State{
@@ -73,16 +73,16 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		},
 	}
 
-	err := cache.AddCheck("foo", fooChecker)
+	err := c.addCheck("foo", fooChecker)
 	require.NoError(t, err)
 
-	err = cache.AddCheck("bar", barChecker)
+	err = c.addCheck("bar", barChecker)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	err = cache.Start(ctx)
+	err = c.start(ctx)
 	require.NoError(t, err)
 
 	t.Run("start successfully", func(t *testing.T) {
@@ -98,29 +98,29 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Initializing health checkers",
 			},
 		}
-		expectStatus := map[string]CheckState{
+		expectStatus := map[string]checkState{
 			"foo": {
-				Details: State{
+				details: State{
 					Live:         true,
 					Ready:        true,
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				CheckTime: clockMock.Now(),
+				checkTime: clockMock.Now(),
 			},
 			"bar": {
-				Details: State{
+				details: State{
 					Live:         true,
 					Ready:        true,
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				CheckTime: clockMock.Now(),
+				checkTime: clockMock.Now(),
 			},
 		}
 
 		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, cache.GetStatuses())
+		require.Equal(t, expectStatus, c.getStatuses())
 	})
 
 	// Clean logs
@@ -145,34 +145,34 @@ func TestHealthFailsAndRecover(t *testing.T) {
 			require.Fail(t, "unable to get updates because context is finished")
 		}
 
-		expectStatus := map[string]CheckState{
+		expectStatus := map[string]checkState{
 			"foo": {
-				Details: State{
+				details: State{
 					Live:         false,
 					Ready:        false,
 					LiveDetails:  healthDetails{Err: "live is failing"},
 					ReadyDetails: healthDetails{Err: "ready is failing"},
 				},
-				CheckTime:          clockMock.Now(),
-				Err:                errors.New("subsystem is not live or ready"),
-				ContiguousFailures: 1,
-				TimeOfFirstFailure: clockMock.Now(),
+				checkTime:          clockMock.Now(),
+				err:                errors.New("subsystem is not live or ready"),
+				contiguousFailures: 1,
+				timeOfFirstFailure: clockMock.Now(),
 			},
 			"bar": {
-				Details: State{
+				details: State{
 					Live:         true,
 					Ready:        true,
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				CheckTime: clockMock.Now(),
+				checkTime: clockMock.Now(),
 			},
 		}
 
 		expectLogs := []spiretest.LogEntry{
 			{
 				Level:   logrus.ErrorLevel,
-				Message: "healthcheck has failed",
+				Message: "Health check has failed",
 				Data: logrus.Fields{
 					"check": "foo",
 					"error": "subsystem is not live or ready",
@@ -190,7 +190,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		}
 
 		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, cache.GetStatuses())
+		require.Equal(t, expectStatus, c.getStatuses())
 	})
 
 	t.Run("health still failing", func(t *testing.T) {
@@ -207,34 +207,34 @@ func TestHealthFailsAndRecover(t *testing.T) {
 			require.Fail(t, "unable to get updates because context is finished")
 		}
 
-		expectStatus := map[string]CheckState{
+		expectStatus := map[string]checkState{
 			"foo": {
-				Details: State{
+				details: State{
 					Live:         false,
 					Ready:        false,
 					LiveDetails:  healthDetails{Err: "live is failing"},
 					ReadyDetails: healthDetails{Err: "ready is failing"},
 				},
-				CheckTime:          clockMock.Now(),
-				Err:                errors.New("subsystem is not live or ready"),
-				ContiguousFailures: 2,
-				TimeOfFirstFailure: previousFailureDate,
+				checkTime:          clockMock.Now(),
+				err:                errors.New("subsystem is not live or ready"),
+				contiguousFailures: 2,
+				timeOfFirstFailure: previousFailureDate,
 			},
 			"bar": {
-				Details: State{
+				details: State{
 					Live:         true,
 					Ready:        true,
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				CheckTime: clockMock.Now(),
+				checkTime: clockMock.Now(),
 			},
 		}
 
 		expectLogs := []spiretest.LogEntry{
 			{
 				Level:   logrus.ErrorLevel,
-				Message: "healthcheck has failed",
+				Message: "Health check has failed",
 				Data: logrus.Fields{
 					"check": "foo",
 					"error": "subsystem is not live or ready",
@@ -243,10 +243,10 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		}
 
 		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, cache.GetStatuses())
+		require.Equal(t, expectStatus, c.getStatuses())
 	})
 
-	// Health start to fail
+	// Health start to recover
 	fooChecker.state = State{
 		Live:         true,
 		Ready:        true,
@@ -267,24 +267,24 @@ func TestHealthFailsAndRecover(t *testing.T) {
 			require.Fail(t, "unable to get updates because context is finished")
 		}
 
-		expectStatus := map[string]CheckState{
+		expectStatus := map[string]checkState{
 			"foo": {
-				Details: State{
+				details: State{
 					Live:         true,
 					Ready:        true,
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				CheckTime: clockMock.Now(),
+				checkTime: clockMock.Now(),
 			},
 			"bar": {
-				Details: State{
+				details: State{
 					Live:         true,
 					Ready:        true,
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				CheckTime: clockMock.Now(),
+				checkTime: clockMock.Now(),
 			},
 		}
 
@@ -303,7 +303,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		}
 
 		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, cache.GetStatuses())
+		require.Equal(t, expectStatus, c.getStatuses())
 	})
 }
 

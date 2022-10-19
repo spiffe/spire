@@ -30,7 +30,6 @@ func TestServerEnabled(t *testing.T) {
 
 func TestCheckerListeners(t *testing.T) {
 	log, _ := test.NewNullLogger()
-	// log.Level = logrus.DebugLevel
 	config := Config{
 		ListenerEnabled: true,
 		BindAddress:     "localhost",
@@ -61,15 +60,15 @@ func TestCheckerListeners(t *testing.T) {
 	err = servableChecker.AddCheck("bar", barChecker)
 	require.NoError(t, err)
 
-	// Get chage to set a chan in order to wait until sync is done
-	finalCheker, ok := servableChecker.(*checker)
+	// Get checker to set a chan in order to wait until sync is done
+	finalChecker, ok := servableChecker.(*checker)
 	require.True(t, ok)
 
 	clk := clock.NewMock()
-	finalCheker.cache.clk = clk
+	finalChecker.cache.clk = clk
 
 	waitFor := make(chan struct{}, 1)
-	finalCheker.cache.hooks.statusUpdated = waitFor
+	finalChecker.cache.hooks.statusUpdated = waitFor
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
