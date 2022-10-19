@@ -31,21 +31,24 @@ type checkState struct {
 	timeOfFirstFailure time.Time
 }
 
+type checkerSubsystem struct {
+	state     checkState
+	checkable Checkable
+}
+
 func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
 	return &cache{
-		allowedChecks: make(map[string]Checkable),
-		currentStatus: make(map[string]checkState),
-		log:           log,
-		clk:           clock,
+		checkerSubsystems: make(map[string]*checkerSubsystem),
+		log:               log,
+		clk:               clock,
 	}
 }
 
 type cache struct {
-	allowedChecks map[string]Checkable
+	checkerSubsystems map[string]*checkerSubsystem
 
-	currentStatus map[string]checkState
-	mtx           sync.RWMutex
-	clk           clock.Clock
+	mtx sync.RWMutex
+	clk clock.Clock
 
 	log   logrus.FieldLogger
 	hooks struct {
@@ -57,32 +60,34 @@ func (c *cache) addCheck(name string, checkable Checkable) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if _, ok := c.allowedChecks[name]; ok {
+	if _, ok := c.checkerSubsystems[name]; ok {
 		return fmt.Errorf("check %q has already been added", name)
 	}
 
-	c.allowedChecks[name] = checkable
+	c.checkerSubsystems[name] = &checkerSubsystem{
+		checkable: checkable,
+	}
 	return nil
 }
 
-func (c *cache) getAllowedChecks() map[string]Checkable {
+func (c *cache) getCheckables() map[string]Checkable {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	allowedChecks := make(map[string]Checkable, len(c.currentStatus))
-	for k, v := range c.allowedChecks {
-		allowedChecks[k] = v
+	checkables := make(map[string]Checkable, len(c.checkerSubsystems))
+	for k, v := range c.checkerSubsystems {
+		checkables[k] = v.checkable
 	}
-	return allowedChecks
+	return checkables
 }
 
 func (c *cache) getStatuses() map[string]checkState {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	statuses := make(map[string]checkState, len(c.currentStatus))
-	for k, v := range c.currentStatus {
-		statuses[k] = v
+	statuses := make(map[string]checkState, len(c.checkerSubsystems))
+	for k, v := range c.checkerSubsystems {
+		statuses[k] = v.state
 	}
 
 	return statuses
@@ -92,7 +97,7 @@ func (c *cache) start(ctx context.Context) error {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
-	if len(c.allowedChecks) < 1 {
+	if len(c.checkerSubsystems) < 1 {
 		return errors.New("no health checks defined")
 	}
 
@@ -103,7 +108,7 @@ func (c *cache) start(ctx context.Context) error {
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	checkFunc := func() {
-		for name, check := range c.getAllowedChecks() {
+		for name, check := range c.getCheckables() {
 			state, err := verifyStatus(check)
 
 			checkState := checkState{
@@ -149,13 +154,15 @@ func (c *cache) setStatus(name string, state checkState) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	c.currentStatus[name] = state
+	// We are sure that checker exist in this plase, to be able to check
+	// status of a subsytem we must call the checker inside this map
+	c.checkerSubsystems[name].state = state
 }
 
 func (c *cache) embellishState(name string, state *checkState) {
 	// get the previous state
 	c.mtx.RLock()
-	prevState := c.currentStatus[name]
+	prevState := c.checkerSubsystems[name].state
 	c.mtx.RUnlock()
 
 	switch {
