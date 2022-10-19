@@ -6,7 +6,6 @@ package run
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"syscall"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,24 +36,23 @@ func TestCommand_Run(t *testing.T) {
 		code               int
 		dataDirCreated     bool
 		agentUdsDirCreated bool
+		stderrContent      string
 	}
 	tests := []struct {
-		name     string
-		osTarget string
-		fields   fields
-		args     args
-		want     want
+		name   string
+		fields fields
+		args   args
+		want   want
 	}{
 		{
-			name:     "don't create any dir when error loading config",
-			osTarget: "linux",
+			name: "don't create any dir when error loading nonexistent config",
 			args: args{
 				args: []string{},
 			},
 			fields: fields{
 				logOptions: []log.Option{},
 				env: &commoncli.Env{
-					Stderr: io.Discard,
+					Stderr: new(bytes.Buffer),
 				},
 				allowUnknownConfig: false,
 			},
@@ -61,11 +60,33 @@ func TestCommand_Run(t *testing.T) {
 				code:               1,
 				agentUdsDirCreated: false,
 				dataDirCreated:     false,
+				stderrContent:      "could not find config file",
 			},
 		},
 		{
-			name:     "creates spire-agent uds and data dirs",
-			osTarget: "linux",
+			name: "don't create any dir when error loading invalid config",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
+					"-namedPipeName", "\\spire-agent\\public\\api",
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			want: want{
+				code:               1,
+				agentUdsDirCreated: false,
+				dataDirCreated:     false,
+				stderrContent:      "flag provided but not defined: -namedPipeName",
+			},
+		},
+		{
+			name: "creates spire-agent uds and data dirs",
 			args: args{
 				args: []string{
 					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
@@ -77,7 +98,7 @@ func TestCommand_Run(t *testing.T) {
 			fields: fields{
 				logOptions: []log.Option{},
 				env: &commoncli.Env{
-					Stderr: io.Discard,
+					Stderr: new(bytes.Buffer),
 				},
 				allowUnknownConfig: false,
 			},
@@ -90,8 +111,8 @@ func TestCommand_Run(t *testing.T) {
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
+			_ = fflag.Unload()
 			os.RemoveAll(testDataDir)
-			os.RemoveAll(testAgentSocketDir)
 
 			cmd := &Command{
 				logOptions:         testCase.fields.logOptions,
@@ -99,17 +120,20 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: testCase.fields.allowUnknownConfig,
 			}
 
-			result := cmd.Run(testCase.args.args)
-			assert.Equal(t, testCase.want.code, result)
+			code := cmd.Run(testCase.args.args)
 
-			_, agentSocketDirErr := os.Stat(testAgentSocketDir)
-
+			assert.Equal(t, testCase.want.code, code)
+			if testCase.want.stderrContent == "" {
+				assert.Empty(t, testCase.fields.env.Stderr.(*bytes.Buffer).String())
+			} else {
+				assert.Contains(t, testCase.fields.env.Stderr.(*bytes.Buffer).String(), testCase.want.stderrContent)
+			}
 			if testCase.want.agentUdsDirCreated {
-				assert.NoError(t, agentSocketDirErr, "spire-agent uds dir should be created")
+				assert.DirExistsf(t, testAgentSocketDir, "spire-agent uds dir should be created")
 				currentUmask := syscall.Umask(0)
 				assert.Equalf(t, currentUmask, 0027, "spire-agent process should be created with 0027 umask")
 			} else {
-				assert.Truef(t, os.IsNotExist(agentSocketDirErr), "spire-agent uds dir should not be created")
+				assert.NoDirExistsf(t, testAgentSocketDir, "spire-agent uds dir should not be created")
 			}
 			if testCase.want.dataDirCreated {
 				assert.DirExistsf(t, testDataDir, "expected data directory to be created")
@@ -269,7 +293,7 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 			},
 		},
 		{
-			msg: "admin_socket_path configured with similar folther that socket_path",
+			msg: "admin_socket_path configured with similar folder that socket_path",
 			input: func(c *Config) {
 				c.Agent.SocketPath = "/tmp/workload/workload.sock"
 				c.Agent.AdminSocketPath = "/tmp/workload-admin/admin.sock"

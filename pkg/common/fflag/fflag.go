@@ -91,6 +91,23 @@ func Load(rc RawConfig) error {
 	return nil
 }
 
+// Unload resets the feature flags states to its default values.
+func Unload() error {
+	singleton.mtx.Lock()
+	defer singleton.mtx.Unlock()
+
+	if !singleton.loaded {
+		return errors.New("feature flags has not been loaded")
+	}
+
+	for f := range singleton.flags {
+		singleton.flags[f] = false
+	}
+
+	singleton.loaded = false
+	return nil
+}
+
 // IsSet can be used to determine whether or not a particular feature flag is
 // set.
 func IsSet(f Flag) bool {

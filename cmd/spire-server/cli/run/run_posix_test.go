@@ -4,13 +4,15 @@
 package run
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/stretchr/testify/assert"
@@ -18,13 +20,11 @@ import (
 )
 
 const (
-	configFile = "../../../../test/fixture/config/server_good_posix.conf"
+	configFile  = "../../../../test/fixture/config/server_good_posix.conf"
+	testTempDir = "/tmp/spire-server-test"
 )
 
 func TestCommand_Run(t *testing.T) {
-	testTempDir := t.TempDir()
-	testDataDir := fmt.Sprintf("%s/data", testTempDir)
-
 	type fields struct {
 		logOptions         []log.Option
 		env                *commoncli.Env
@@ -35,7 +35,8 @@ func TestCommand_Run(t *testing.T) {
 	}
 	type want struct {
 		code           int
-		dataDirCreated bool
+		dataDirCreated string
+		stderrContent  string
 	}
 	tests := []struct {
 		name         string
@@ -45,48 +46,92 @@ func TestCommand_Run(t *testing.T) {
 		want         want
 	}{
 		{
-			name: "don't create any dir when error loading config",
+			name: "don't create any dir when error loading nonexistent config",
 			args: args{
 				args: []string{},
 			},
 			fields: fields{
 				logOptions: []log.Option{},
 				env: &commoncli.Env{
-					Stderr: io.Discard,
+					Stderr: new(bytes.Buffer),
 				},
 				allowUnknownConfig: false,
 			},
 			configLoaded: false,
 			want: want{
-				code:           1,
-				dataDirCreated: false,
+				code:          1,
+				stderrContent: "could not find config file",
 			},
 		},
 		{
-			name: "create data dir when config is loaded",
+			name: "don't create any dir when error loading invalid config",
 			args: args{
 				args: []string{
-					"-config", "../../../../test/fixture/config/server_run_posix.conf",
-					"-dataDir", testDataDir,
+					"-config", "../../../../test/fixture/config/agent_run_posix.conf",
+					"-namedPipeName", "\\spire-agent\\public\\api",
 				},
 			},
 			fields: fields{
 				logOptions: []log.Option{},
 				env: &commoncli.Env{
-					Stderr: io.Discard,
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: false,
+			want: want{
+				code:          1,
+				stderrContent: "flag provided but not defined: -namedPipeName",
+			},
+		},
+		{
+			name: "create data dir when config is loaded and server crashes",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/server_run_posix.conf",
+					"-dataDir", fmt.Sprintf("%s/wrong/data/dir", testTempDir),
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
 				},
 				allowUnknownConfig: false,
 			},
 			configLoaded: true,
 			want: want{
 				code:           1,
-				dataDirCreated: true,
+				dataDirCreated: fmt.Sprintf("%s/wrong/data/dir", testTempDir),
+			},
+		},
+		{
+			name: "create data dir when config is loaded and server stops",
+			args: args{
+				args: []string{
+					"-config", "../../../../test/fixture/config/server_run_posix.conf",
+					"-dataDir", fmt.Sprintf("%s/data", testTempDir),
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: true,
+			want: want{
+				code:           0,
+				dataDirCreated: fmt.Sprintf("%s/data", testTempDir),
 			},
 		},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			os.RemoveAll(testDataDir)
+			_ = fflag.Unload()
+			os.RemoveAll(testTempDir)
+			defer os.RemoveAll(testTempDir)
 
 			cmd := &Command{
 				logOptions:         testCase.fields.logOptions,
@@ -94,15 +139,30 @@ func TestCommand_Run(t *testing.T) {
 				allowUnknownConfig: testCase.fields.allowUnknownConfig,
 			}
 
-			assert.Equalf(t, testCase.want.code, cmd.Run(testCase.args.args), "Run(%v)", testCase.args.args)
+			go func() {
+				time.Sleep(1 * time.Second)
+				err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+				if err != nil {
+					t.Errorf("Failed to kill process: %v", err)
+				}
+			}()
+
+			code := cmd.Run(testCase.args.args)
+
+			assert.Equal(t, testCase.want.code, code)
+			if testCase.want.stderrContent == "" {
+				assert.Empty(t, testCase.fields.env.Stderr.(*bytes.Buffer).String())
+			} else {
+				assert.Contains(t, testCase.fields.env.Stderr.(*bytes.Buffer).String(), testCase.want.stderrContent)
+			}
 			if testCase.configLoaded {
 				currentUmask := syscall.Umask(0)
 				assert.Equalf(t, currentUmask, 0027, "spire-server process should have been created with 0027 umask")
 			}
-			if testCase.want.dataDirCreated {
-				assert.DirExistsf(t, testDataDir, "data directory should be created")
+			if testCase.want.dataDirCreated != "" {
+				assert.DirExistsf(t, testCase.want.dataDirCreated, "data directory should be created")
 			} else {
-				assert.NoDirExistsf(t, testDataDir, "data directory should not be created")
+				assert.NoDirExistsf(t, testCase.want.dataDirCreated, "data directory should not be created")
 			}
 		})
 	}
