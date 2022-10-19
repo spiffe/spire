@@ -155,12 +155,10 @@ func TestCommand_Run(t *testing.T) {
 			} else {
 				assert.Contains(t, testCase.fields.env.Stderr.(*bytes.Buffer).String(), testCase.want.stderrContent)
 			}
-			if testCase.configLoaded {
-				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-server process should have been created with 0027 umask")
-			}
 			if testCase.want.dataDirCreated != "" {
 				assert.DirExistsf(t, testCase.want.dataDirCreated, "data directory should be created")
+				currentUmask := syscall.Umask(0)
+				assert.Equalf(t, currentUmask, 0027, "spire-server process should have been created with 0027 umask")
 			} else {
 				assert.NoDirExistsf(t, testCase.want.dataDirCreated, "data directory should not be created")
 			}
