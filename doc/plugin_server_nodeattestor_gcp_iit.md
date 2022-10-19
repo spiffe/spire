@@ -8,14 +8,15 @@ This plugin requires an allow list of ProjectID from which nodes can be attested
 
 ## Configuration
 
-| Configuration             | Description                                                                                                                             | Default |
-|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `projectid_allow_list`    | List of ProjectIDs from which nodes can be attested.                                                                                    |         |
-| `use_instance_metadata`   | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false   |
-| `service_account_file`    | Path to the service account file used to authenticate with the Google Compute Engine API                                                |         |
-| `allowed_label_keys`      | Instance label keys considered for selectors                                                                                            |         |
-| `allowed_metadata_keys`   | Instance metadata keys considered for selectors                                                                                         |         |
-| `max_metadata_value_size` | Sets the maximum metadata value size considered by the plugin for selectors                                                             | 128     |
+| Configuration             | Description                                                                                                                             | Default                                                   |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `projectid_allow_list`    | List of ProjectIDs from which nodes can be attested.                                                                                    |                                                           |
+| `use_instance_metadata`   | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false                                                     |
+| `service_account_file`    | Path to the service account file used to authenticate with the Google Compute Engine API                                                |                                                           |
+| `allowed_label_keys`      | Instance label keys considered for selectors                                                                                            |                                                           |
+| `allowed_metadata_keys`   | Instance metadata keys considered for selectors                                                                                         |                                                           |
+| `max_metadata_value_size` | Sets the maximum metadata value size considered by the plugin for selectors                                                             | 128                                                       |
+| `agent_path_template`     | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                       | `"/{{ .PluginName }}/{{ .ProjectID }}/{{ .InstanceID }}"` |
 
 A sample configuration:
 
@@ -31,11 +32,11 @@ A sample configuration:
 
 This plugin generates the following selectors based on information contained in the Instance Identity Token:
 
-| Selector                   | Example                                                      | Description                               |
-| -------------------------- | ------------------------------------------------------------ | ----------------------------------------- |
-| `gcp_iit:project-id`       | `gcp_iit:project-id:big-kahuna-123456`                       | ID of the project containing the instance |
-| `gcp_iit:zone`             | `gcp_iit:zone:us-west1-b`                                    | Zone containing the instance              |
-| `gcp_iit:instance-name`    | `gcp_iit:instance-name:blog-server`                          | Name of the instance                      |
+| Selector                | Example                                | Description                               |
+|-------------------------|----------------------------------------|-------------------------------------------|
+| `gcp_iit:project-id`    | `gcp_iit:project-id:big-kahuna-123456` | ID of the project containing the instance |
+| `gcp_iit:zone`          | `gcp_iit:zone:us-west1-b`              | Zone containing the instance              |
+| `gcp_iit:instance-name` | `gcp_iit:instance-name:blog-server`    | Name of the instance                      |
 
 If `use_instance_metadata` is true, then the Google Compute Engine API is queried for instance metadata which is used to populate these additional selectors:
 
@@ -66,6 +67,22 @@ The plugin uses the Application Default Credentials to authenticate with the Goo
 
 The service account must have IAM permissions and Authorization Scopes granting access to the following APIs:
 * [compute.instances.get](https://cloud.google.com/compute/docs/reference/rest/v1/instances/get)
+
+## Agent Path Template
+The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
+The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [Compute Engine identity token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload).
+
+Some useful values are:
+
+| Value                      | Description                                                      |
+|----------------------------|------------------------------------------------------------------|
+| .PluginName                | The name of the plugin                                           |
+| .ProjectID                 | The ID for the project where the instance was created            |
+| .InstanceID                | The unique ID for the instance to which this token belongs.      |
+| .ProjectNumber             | The unique number for the project where you created the instance |
+| .Zone                      | The zone where the instance is located                           |
+| .InstanceCreationTimestamp | A Unix timestamp indicating when you created the instance.       |
+
 
 ## Security Considerations
 The Instance Identity Token, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
