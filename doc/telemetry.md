@@ -80,3 +80,17 @@ The following metrics are emitted:
 | Gauge        | `uptime_in_ms`                             |            | The uptime of the Agent in milliseconds.                                  |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the metric once ingested could vary depending on the metric collector. E.g. once in StatsD, the metric emitted when rotating an Agent SVID (`agent_svid`, `rotate`) can be found as `spire_agent_agent_svid_rotate_internal_host-agent-0`, where `host-agent-0` is the hostname and `spire-agent` is the service name.
+
+## Call Counters
+
+Call counters are aggregate metric types that emit several metrics related to the issuance of a "call" to a method or RPC. The following metrics are produced for a call counter:
+- A counter representing the number of calls using the call counter key
+- A sample of the elapsed time for the call using the call counter key+`".elapsed_time"`
+
+Additionally, the metrics emitted above each carry a `status` label (in addition to any other labels for specific to the individual call counter) that holds the gRPC status of the call.
+
+For example, a successful invocation of the SPIRE Server `AttestAgent` RPC would produce the following metrics:
+```
+spire_server.rpc.agent.v1.agent.attest_agent:1|c|#status:OK
+spire_server.rpc.agent.v1.agent.attest_agent.elapsed_time:1.045773|ms|#status:OK
+```
