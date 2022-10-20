@@ -3,11 +3,14 @@ package disk_test
 import (
 	"context"
 	"crypto/x509"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	keymanagerbase "github.com/spiffe/spire/pkg/agent/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/disk"
 	keymanagertest "github.com/spiffe/spire/pkg/agent/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
@@ -15,6 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
+
+func init() {
+	keymanagerbase.RandSource = rand.New(rand.NewSource(time.Now().Unix()))
+}
 
 func TestKeyManagerContract(t *testing.T) {
 	keymanagertest.Test(t, keymanagertest.Config{

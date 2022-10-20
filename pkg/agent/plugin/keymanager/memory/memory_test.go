@@ -1,13 +1,20 @@
 package memory_test
 
 import (
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	keymanagerbase "github.com/spiffe/spire/pkg/agent/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager/memory"
 	keymanagertest "github.com/spiffe/spire/pkg/agent/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
 )
+
+func init() {
+	keymanagerbase.RandSource = rand.New(rand.NewSource(time.Now().Unix()))
+}
 
 func TestKeyManagerContract(t *testing.T) {
 	keymanagertest.Test(t, keymanagertest.Config{

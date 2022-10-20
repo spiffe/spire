@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 
@@ -19,6 +20,11 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
+
+// RandSource is the random source, defaulting to the random source from the
+// crypto package. Tests override this source to be non-cryptographic so that
+// we aren't negatively impacted by a lack of randomness on CI/CD runners.
+var RandSource io.Reader = rand.Reader
 
 // KeyEntry is an entry maintained by the key manager
 type KeyEntry struct {
@@ -193,7 +199,7 @@ func (m *Base) signData(req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDa
 		return nil, status.Errorf(codes.NotFound, "no such key %q", req.KeyId)
 	}
 
-	signature, err := privateKey.Sign(rand.Reader, req.Data, signerOpts)
+	signature, err := privateKey.Sign(RandSource, req.Data, signerOpts)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "keypair %q signing operation failed: %v", req.KeyId, err)
 	}
@@ -300,19 +306,19 @@ func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanagerv1.KeyType, error) {
 }
 
 func generateRSA2048Key() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, 2048)
+	return rsa.GenerateKey(RandSource, 2048)
 }
 
 func generateRSA4096Key() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, 4096)
+	return rsa.GenerateKey(RandSource, 4096)
 }
 
 func generateEC256Key() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	return ecdsa.GenerateKey(elliptic.P256(), RandSource)
 }
 
 func generateEC384Key() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	return ecdsa.GenerateKey(elliptic.P384(), RandSource)
 }
 
 func entriesSliceFromMap(entriesMap map[string]*KeyEntry) (entriesSlice []*KeyEntry) {
