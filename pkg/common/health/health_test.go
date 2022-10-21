@@ -79,16 +79,16 @@ func TestCheckerListeners(t *testing.T) {
 
 	t.Run("success ready", func(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
-			firstResp, err := http.Get("http://localhost:12345/ready")
+			resp, err := http.Get("http://localhost:12345/ready")
 			if err != nil {
 				return false
 			}
-			defer firstResp.Body.Close()
+			defer resp.Body.Close()
 
-			actual, err := io.ReadAll(firstResp.Body)
+			actual, err := io.ReadAll(resp.Body)
 
 			return err == nil &&
-				firstResp.StatusCode == http.StatusOK &&
+				resp.StatusCode == http.StatusOK &&
 				string(actual) == "{\"bar\":{},\"foo\":{}}\n"
 		}, time.Second*5, time.Millisecond*50, "server didn't got ready in the required time")
 	})
