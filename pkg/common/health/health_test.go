@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -76,6 +77,11 @@ func TestCheckerListeners(t *testing.T) {
 	go func() {
 		_ = servableChecker.ListenAndServe(ctx)
 	}()
+
+	require.Eventuallyf(t, func() bool {
+		_, err := net.Dial("tcp", "localhost:12345")
+		return err == nil
+	}, time.Minute, 50*time.Millisecond, "server didn't started in the required time")
 
 	t.Run("success ready", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/ready")
