@@ -185,36 +185,6 @@ func TestConfigure(t *testing.T) {
 						},
 					},
 				},
-				{
-					CryptoKey: &kmspb.CryptoKey{
-						Name:            cryptoKeyName1,
-						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-					},
-					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-						"1": {
-							publicKey: pubKey,
-							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
-							},
-						},
-					},
-				},
-				{
-					CryptoKey: &kmspb.CryptoKey{
-						Name:            cryptoKeyName1,
-						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-					},
-					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-						"2": {
-							publicKey: pubKey,
-							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-								Name:      fmt.Sprintf("%s/cryptoKeyVersions/2", cryptoKeyName1),
-							},
-						},
-					},
-				},
 			},
 		},
 		{
@@ -403,37 +373,39 @@ func TestDisposeCryptoKeys(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
 
-			// This is so dispose aliases blocks on init and allows to test dispose keys isolated
 			ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
 			disposeCryptoKeysSignal := make(chan error)
 			ts.plugin.hooks.disposeCryptoKeysSignal = disposeCryptoKeysSignal
 			scheduleDestroySignal := make(chan error)
 			ts.plugin.hooks.scheduleDestroySignal = scheduleDestroySignal
 
-			// exercise
 			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
 			require.NoError(t, err)
 
 			ts.fakeKMSClient.listCryptoKeysErr = tt.listCryptoKeysErr
 
-			// wait for dispose keys task to be initialized
+			// Wait for dispose CryptoKeys task to be initialized.
 			_ = waitForSignal(t, disposeCryptoKeysSignal)
-			// move the clock forward so the task is run
+
+			// Move the clock forward so the task disposeCryptoKeysTask is run.
 			ts.clockHook.Add(48 * time.Hour)
-			// wait for dispose keys to be run
+
+			// Wait for the dispose CryptoKeys notification.
 			err = waitForSignal(t, disposeCryptoKeysSignal)
-			// assert errors
+
 			if tt.err != "" {
 				require.NotNil(t, err)
 				require.Equal(t, tt.err, err.Error())
 				return
 			}
-			// wait for schedule delete to be run
-			_ = waitForSignal(t, scheduleDestroySignal)
 
-			// assert
-			for _, cryptoKey := range ts.fakeKMSClient.store.fakeCryptoKeys {
-				require.Equal(t, cryptoKey.Labels[labelNameActive], "false")
+			for _, fck := range ts.fakeKMSClient.store.fakeCryptoKeys {
+				// Wait for the schedule destroy notification.
+				_ = waitForSignal(t, scheduleDestroySignal)
+
+				for _, fckv := range fck.fakeCryptoKeyVersions {
+					require.Equal(t, kmspb.CryptoKeyVersion_DESTROY_SCHEDULED, fckv.State, fckv.Name)
+				}
 			}
 		})
 	}

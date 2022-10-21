@@ -237,13 +237,13 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		return nil, status.Error(codes.InvalidArgument, "key type is required")
 	}
 
-	newKeyEntry, err := p.createKey(ctx, req.KeyId, req.KeyType)
+	pubKey, err := p.createKey(ctx, req.KeyId, req.KeyType)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to generate key: %v", err)
 	}
 
 	return &keymanagerv1.GenerateKeyResponse{
-		PublicKey: newKeyEntry.publicKey,
+		PublicKey: pubKey,
 	}, nil
 }
 
@@ -253,10 +253,7 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKe
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 
-	p.entriesMtx.RLock()
-	defer p.entriesMtx.RUnlock()
-
-	entry, ok := p.entries[req.KeyId]
+	entry, ok := p.getKeyEntry(req.KeyId)
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
 	}
@@ -292,10 +289,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Error(codes.InvalidArgument, "signer opts is required")
 	}
 
-	p.entriesMtx.RLock()
-	defer p.entriesMtx.RUnlock()
-
-	keyEntry, hasKey := p.entries[req.KeyId]
+	keyEntry, hasKey := p.getKeyEntry(req.KeyId)
 	if !hasKey {
 		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
 	}
@@ -349,66 +343,27 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}, nil
 }
 
-// createKey creates a new CryptoKey with a new CryptoKeyVersion.
+// createKey creates a new CryptoKey with a new CryptoKeyVersion in Cloud KMS
+// if there is not already a cached entry with the specified SPIRE Key ID.
+// If the cache already has an entry with this SPIRE Key ID, a new
+// CryptoKeyVersion is added to the corresponding CryptoKey in Cloud KMS and the
+// old CryptoKeyVersion is enqueued for destruction.
 // If there is a specified IAM policy through the KeyPolicyFile configuration,
 // that policy is set to the created CryptoKey. If there is no IAM policy specified,
 // a default policy is constructed and attached. This function requests Cloud KMS
 // to get the public key of the created CryptoKeyVersion. A keyEntry is returned
 // with the CryptoKey, CryptoKeyVersion and public key.
-func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
-	p.entriesMtx.Lock()
-	defer p.entriesMtx.Unlock()
+func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keymanagerv1.PublicKey, error) {
+	// If we already have this SPIRE Key ID cached, a new CryptoKeyVersion is
+	// added to the existing CryptoKey and the cache is updated. The old
+	// CryptoKeyVersion is enqueued for destruction.
+	if entry, ok := p.getKeyEntry(spireKeyID); ok {
+		return p.addCryptoKeyVersionToCachedEntry(ctx, entry, spireKeyID, keyType)
+	}
 
 	algorithm, err := cryptoKeyVersionAlgorithmFromKeyType(keyType)
 	if err != nil {
 		return nil, err
-	}
-
-	if entry, ok := p.entries[spireKeyID]; ok {
-		// Check if the algorithm has changed and update if needed
-		if entry.cryptoKey.VersionTemplate.Algorithm != algorithm {
-			entry.cryptoKey.VersionTemplate.Algorithm = algorithm
-			_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
-				CryptoKey: entry.cryptoKey,
-			})
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "failed to update CryptoKey with updated algorithm: %v", err)
-			}
-		}
-		cryptoKeyVersion, err := p.kmsClient.CreateCryptoKeyVersion(ctx, &kmspb.CreateCryptoKeyVersionRequest{
-			Parent: entry.cryptoKey.Name,
-			CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-				State: kmspb.CryptoKeyVersion_ENABLED,
-			},
-		})
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create CryptoKeyVersion: %v", err)
-		}
-		p.log.Debug("CryptoKeyVersion added", cryptoKeyNameTag, entry.cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
-
-		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersion.Name)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
-		}
-
-		newKeyEntry := keyEntry{
-			cryptoKey:            entry.cryptoKey,
-			cryptoKeyVersionName: cryptoKeyVersion.Name,
-			publicKey: &keymanagerv1.PublicKey{
-				Id:          spireKeyID,
-				Type:        keyType,
-				PkixData:    pubKey,
-				Fingerprint: makeFingerprint(pubKey),
-			},
-		}
-
-		p.entries[spireKeyID] = newKeyEntry
-
-		if err := p.enqueueDestruction(entry.cryptoKeyVersionName); err != nil {
-			p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
-		}
-
-		return &newKeyEntry, nil
 	}
 
 	cryptoKeyID, err := p.generateCryptoKeyID(spireKeyID)
@@ -467,8 +422,62 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		},
 	}
 
-	p.entries[spireKeyID] = newKeyEntry
-	return &newKeyEntry, nil
+	p.setKeyEntry(spireKeyID, newKeyEntry)
+	return newKeyEntry.publicKey, nil
+}
+
+// addCryptoKeyVersionToCachedEntry adds a new CryptoKeyVersion to an existing
+// CryptoKey, updating the cached entries.
+func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry keyEntry, spireKeyID string, keyType keymanagerv1.KeyType) (*keymanagerv1.PublicKey, error) {
+	algorithm, err := cryptoKeyVersionAlgorithmFromKeyType(keyType)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the algorithm has changed and update if needed.
+	if entry.cryptoKey.VersionTemplate.Algorithm != algorithm {
+		entry.cryptoKey.VersionTemplate.Algorithm = algorithm
+		_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
+			CryptoKey: entry.cryptoKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update CryptoKey with updated algorithm: %w", err)
+		}
+	}
+	cryptoKeyVersion, err := p.kmsClient.CreateCryptoKeyVersion(ctx, &kmspb.CreateCryptoKeyVersionRequest{
+		Parent: entry.cryptoKey.Name,
+		CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+			State: kmspb.CryptoKeyVersion_ENABLED,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CryptoKeyVersion: %w", err)
+	}
+	p.log.Debug("CryptoKeyVersion added", cryptoKeyNameTag, entry.cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
+
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersion.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+
+	newKeyEntry := keyEntry{
+		cryptoKey:            entry.cryptoKey,
+		cryptoKeyVersionName: cryptoKeyVersion.Name,
+		publicKey: &keymanagerv1.PublicKey{
+			Id:          spireKeyID,
+			Type:        keyType,
+			PkixData:    pubKey,
+			Fingerprint: makeFingerprint(pubKey),
+		},
+	}
+
+	p.setKeyEntry(spireKeyID, newKeyEntry)
+
+	if err := p.enqueueDestruction(entry.cryptoKeyVersionName); err != nil {
+		p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
+	}
+
+	return newKeyEntry.publicKey, nil
 }
 
 // disposeCryptoKeys looks for active CryptoKeys that haven't been updated
@@ -527,8 +536,6 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 			cryptoKeyVersion, err = itCryptoKeyVersions.Next()
 			if errors.Is(err, iterator.Done) {
 				// No more enabled CryptoKeyVersions in this CryptoKey.
-				// Set the CryptoKey so it's not returned future calls.
-				p.setInactive(ctx, cryptoKey)
 				break
 			}
 		}
@@ -623,6 +630,16 @@ func (p *Plugin) getDisposeCryptoKeysFilter() (string, error) {
 		labelNameServerTD, pd.tdHash, labelNameServerID, pd.serverID, labelNameActive, labelNameLastUpdate, now.Add(-maxStaleDuration).Unix()), nil
 }
 
+// getKeyEntry gets the entry from the cache that matches the provided
+// SPIRE Key ID
+func (p *Plugin) getKeyEntry(keyID string) (ke keyEntry, ok bool) {
+	p.entriesMtx.RLock()
+	defer p.entriesMtx.RUnlock()
+
+	ke, ok = p.entries[keyID]
+	return ke, ok
+}
+
 // getPluginData gets the pluginData structure maintained by the plugin.
 func (p *Plugin) getPluginData() (*pluginData, error) {
 	p.pdMtx.RLock()
@@ -697,6 +714,15 @@ func (p *Plugin) setIamPolicy(ctx context.Context, cryptoKeyName string) (err er
 	return nil
 }
 
+// setKeyEntry gets the entry from the cache that matches the provided
+// SPIRE Key ID
+func (p *Plugin) setKeyEntry(keyID string, ke keyEntry) {
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
+
+	p.entries[keyID] = ke
+}
+
 // setPluginData sets the pluginData structure maintained by the plugin.
 func (p *Plugin) setPluginData(pd *pluginData) {
 	p.pdMtx.Lock()
@@ -710,8 +736,8 @@ func (p *Plugin) setPluginData(pd *pluginData) {
 func (p *Plugin) keepActiveCryptoKeys(ctx context.Context) error {
 	p.log.Debug("Keeping CryptoKeys managed by this server active")
 
-	p.entriesMtx.RLock()
-	defer p.entriesMtx.RUnlock()
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
 	var errs []string
 	for _, entry := range p.entries {
 		entry.cryptoKey.Labels[labelNameLastUpdate] = fmt.Sprint(p.hooks.clk.Now().Unix())

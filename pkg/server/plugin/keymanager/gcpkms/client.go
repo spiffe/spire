@@ -12,11 +12,6 @@ import (
 	iampb "google.golang.org/genproto/googleapis/iam/v1"
 )
 
-type kmsClient struct {
-	client        *kms.KeyManagementClient
-	oauth2Service *oauth2.Service
-}
-
 type cloudKeyManagementService interface {
 	AsymmetricSign(context.Context, *kmspb.AsymmetricSignRequest, ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error)
 	Close() error
@@ -30,6 +25,11 @@ type cloudKeyManagementService interface {
 	ListCryptoKeyVersions(context.Context, *kmspb.ListCryptoKeyVersionsRequest, ...gax.CallOption) cryptoKeyVersionIterator
 	ResourceIAM(string) iamHandler
 	UpdateCryptoKey(context.Context, *kmspb.UpdateCryptoKeyRequest, ...gax.CallOption) (*kmspb.CryptoKey, error)
+}
+
+type kmsClient struct {
+	client        *kms.KeyManagementClient
+	oauth2Service *oauth2.Service
 }
 
 func (c *kmsClient) AsymmetricSign(ctx context.Context, req *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {

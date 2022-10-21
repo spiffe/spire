@@ -87,6 +87,8 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 
 	it := kf.kmsClient.ListCryptoKeyVersions(ctx, &kmspb.ListCryptoKeyVersionsRequest{
 		Parent: cryptoKey.Name,
+		// Filter by state, so only enabled keys are returned. This will leave
+		// out all the versions that have been rotated.
 		Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
 	})
 	for {

@@ -77,9 +77,10 @@ type fakeCryptoKey struct {
 }
 
 type fakeCryptoKeyVersion struct {
+	*kmspb.CryptoKeyVersion
+
 	privateKey crypto.Signer
 	publicKey  *kmspb.PublicKey
-	*kmspb.CryptoKeyVersion
 }
 
 type fakeStore struct {
@@ -92,7 +93,7 @@ func (fs *fakeStore) fetchCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, 
 	parent := path.Dir(path.Dir(name))
 	fakeCryptoKey, ok := fs.fakeCryptoKeys[parent]
 	if !ok {
-		return &fakeCryptoKeyVersion{}, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", name)
+		return nil, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", name)
 	}
 
 	version := path.Base(name)
@@ -101,7 +102,7 @@ func (fs *fakeStore) fetchCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, 
 		return fakeCryptokeyVersion, nil
 	}
 
-	return &fakeCryptoKeyVersion{}, fmt.Errorf("could not find CryptoKeyVersion %q", version)
+	return nil, fmt.Errorf("could not find CryptoKeyVersion %q", version)
 }
 
 func (fs *fakeStore) putCryptoKey(fakeCryptoKey *fakeCryptoKey) {
@@ -293,7 +294,7 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 		return nil, k.destroyCryptoKeyVersionErr
 	}
 
-	fakeCryptoKeyVersion, err := k.store.fetchCryptoKeyVersion(req.Name)
+	fckv, err := k.store.fetchCryptoKeyVersion(req.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -304,11 +305,16 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 	} else {
 		destroyTime = timestamppb.Now()
 	}
-	return &kmspb.CryptoKeyVersion{
+
+	cryptoKeyVersion := &kmspb.CryptoKeyVersion{
 		DestroyTime: destroyTime,
-		Name:        fakeCryptoKeyVersion.Name,
+		Name:        fckv.Name,
 		State:       kmspb.CryptoKeyVersion_DESTROY_SCHEDULED,
-	}, nil
+	}
+	fckv.CryptoKeyVersion = cryptoKeyVersion
+	k.store.putCryptoKeyVersion(path.Dir(path.Dir(fckv.CryptoKeyVersion.Name)), fckv)
+
+	return cryptoKeyVersion, nil
 }
 
 func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
