@@ -78,15 +78,19 @@ func TestCheckerListeners(t *testing.T) {
 	}()
 
 	t.Run("success ready", func(t *testing.T) {
-		resp, err := http.Get("http://localhost:12345/ready")
-		require.NoError(t, err)
-		defer resp.Body.Close()
+		require.Eventuallyf(t, func() bool {
+			firstResp, err := http.Get("http://localhost:12345/ready")
+			if err != nil {
+				return false
+			}
+			defer firstResp.Body.Close()
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+			actual, err := io.ReadAll(firstResp.Body)
 
-		actual, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
+			return err == nil &&
+				firstResp.StatusCode == http.StatusOK &&
+				string(actual) == "{\"bar\":{},\"foo\":{}}\n"
+		}, time.Second*5, time.Millisecond*50, "server didn't got ready in the required time")
 	})
 
 	t.Run("success live", func(t *testing.T) {
