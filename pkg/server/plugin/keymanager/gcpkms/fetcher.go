@@ -44,7 +44,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to list SPIRE Server keys in Cloud KMS: %v", err)
 		}
-		spireKeyID, ok := kf.getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name)
+		spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name)
 		if !ok {
 			kf.log.Warn("Could not get SPIRE Key ID from CryptoKey", cryptoKeyNameTag, cryptoKey.Name)
 			continue
@@ -128,7 +128,7 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 
 // getSPIREKeyIDFromCryptoKeyName parses a CryptoKey resource name to get the
 // SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
-func (kf *keyFetcher) getSPIREKeyIDFromCryptoKeyName(cryptoKeyName string) (string, bool) {
+func getSPIREKeyIDFromCryptoKeyName(cryptoKeyName string) (string, bool) {
 	// cryptoKeyName is the resource name for the CryptoKey holding the SPIRE Key
 	// in the format: projects/*/locations/*/keyRings/*/cryptoKeys/spire-key-*-*.
 	// Example: projects/project-name/locations/us-east1/keyRings/key-ring-name/cryptoKeys/spire-key-1f2e225a-91d8-4589-a4fe-f88b7bb04bac-x509-CA-A
