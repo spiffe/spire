@@ -7,14 +7,12 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/cliprinter"
-
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/server/api"
-
 	"golang.org/x/net/context"
 )
 
@@ -26,12 +24,12 @@ type showCommand struct {
 
 // NewShowCommand creates a new "show" subcommand for "agent" command.
 func NewShowCommand() cli.Command {
-	return NewShowCommandWithEnv(common_cli.DefaultEnv)
+	return NewShowCommandWithEnv(commoncli.DefaultEnv)
 }
 
 // NewShowCommandWithEnv creates a new "show" subcommand for "agent" command
 // using the environment specified
-func NewShowCommandWithEnv(env *common_cli.Env) cli.Command {
+func NewShowCommandWithEnv(env *commoncli.Env) cli.Command {
 	return util.AdaptCommand(env, new(showCommand))
 }
 
@@ -44,7 +42,7 @@ func (showCommand) Synopsis() string {
 }
 
 // Run shows an agent given its SPIFFE ID
-func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}

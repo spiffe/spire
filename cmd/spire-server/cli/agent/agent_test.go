@@ -7,18 +7,17 @@ import (
 	"os"
 	"testing"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/mitchellh/cli"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -53,6 +52,25 @@ type agentTest struct {
 	server *fakeAgentServer
 
 	client cli.Command
+}
+
+func (a *agentTest) runCapturingOutput(t *testing.T, f func()) {
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	f()
+
+	err = w.Close()
+	require.NoError(t, err)
+	os.Stdout = old
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, r)
+	require.NoError(t, err)
+
+	a.stdout = buf
 }
 
 func TestBanHelp(t *testing.T) {
@@ -103,10 +121,10 @@ func TestBan(t *testing.T) {
 			test := setupTest(t, agent.NewBanCommandWithEnv)
 			test.server.err = tt.serverErr
 			var returnCode int
-			stdoutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
-			require.Equal(t, tt.expectStdoutPretty, stdoutContent)
+			require.Equal(t, tt.expectStdoutPretty, test.stdout.String())
 			require.Equal(t, tt.expectStderr, test.stderr.String())
 			require.Equal(t, tt.expectReturnCode, returnCode)
 		})
@@ -115,11 +133,11 @@ func TestBan(t *testing.T) {
 			test.server.err = tt.serverErr
 			test.args = append(test.args, "-format", "json")
 			var returnCode int
-			stdoutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
 			if tt.expectStdoutJSON != "" {
-				require.JSONEq(t, tt.expectStdoutJSON, stdoutContent)
+				require.JSONEq(t, tt.expectStdoutJSON, test.stdout.String())
 			}
 			require.Equal(t, tt.expectStderr, test.stderr.String())
 			require.Equal(t, tt.expectReturnCode, returnCode)
@@ -175,10 +193,10 @@ func TestEvict(t *testing.T) {
 			test := setupTest(t, agent.NewEvictCommandWithEnv)
 			test.server.err = tt.serverErr
 			var returnCode int
-			stdoutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
-			require.Equal(t, tt.expectedStdoutPretty, stdoutContent)
+			require.Equal(t, tt.expectedStdoutPretty, test.stdout.String())
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -187,11 +205,11 @@ func TestEvict(t *testing.T) {
 			test.server.err = tt.serverErr
 			test.args = append(test.args, "-format", "json")
 			var returnCode int
-			stdoutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
 			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, stdoutContent)
+				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
 			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
@@ -249,10 +267,10 @@ func TestCount(t *testing.T) {
 			test.server.agents = tt.existentAgents
 			test.server.err = tt.serverErr
 			var returnCode int
-			stdOutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
-			require.Contains(t, stdOutContent, tt.expectedStdoutPretty)
+			require.Contains(t, test.stdout.String(), tt.expectedStdoutPretty)
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -263,11 +281,11 @@ func TestCount(t *testing.T) {
 			test.server.err = tt.serverErr
 			test.args = append(test.args, "-format", "json")
 			var returnCode int
-			stdOutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
 			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, stdOutContent)
+				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
 			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
@@ -446,12 +464,12 @@ func TestList(t *testing.T) {
 			test.server.err = tt.serverErr
 
 			var returnCode int
-			stdOutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
 
 			spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
-			require.Contains(t, stdOutContent, tt.expectedStdoutPretty)
+			require.Contains(t, test.stdout.String(), tt.expectedStdoutPretty)
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -462,13 +480,13 @@ func TestList(t *testing.T) {
 			test.args = append(test.args, "-format", "json")
 
 			var returnCode int
-			stdOutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
 
 			spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
 			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, stdOutContent)
+				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
 			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
@@ -545,10 +563,10 @@ func TestShow(t *testing.T) {
 			test.server.agents = tt.existentAgents
 
 			var returnCode int
-			stdoutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
-			require.Contains(t, stdoutContent, tt.expectedStdoutPretty)
+			require.Contains(t, test.stdout.String(), tt.expectedStdoutPretty)
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -559,11 +577,11 @@ func TestShow(t *testing.T) {
 			test.args = append(test.args, "-format", "json")
 
 			var returnCode int
-			stdoutContent := captureStdout(func() {
+			test.runCapturingOutput(t, func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
 			})
 			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, stdoutContent)
+				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
 			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
@@ -571,7 +589,7 @@ func TestShow(t *testing.T) {
 	}
 }
 
-func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agentTest {
+func setupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *agentTest {
 	server := &fakeAgentServer{}
 
 	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
@@ -582,7 +600,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 
-	client := newClient(&common_cli.Env{
+	client := newClient(&commoncli.Env{
 		Stdin:  stdin,
 		Stdout: stdout,
 		Stderr: stderr,
@@ -598,21 +616,6 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 	}
 
 	return test
-}
-
-func captureStdout(f func()) string {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	f()
-
-	w.Close()
-	os.Stdout = old
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	return buf.String()
 }
 
 type fakeAgentServer struct {

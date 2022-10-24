@@ -7,14 +7,12 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/pkg/common/cliprinter"
-
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
-
 	"golang.org/x/net/context"
 )
 
@@ -47,7 +45,7 @@ func (listCommand) Synopsis() string {
 }
 
 // Run lists attested agents
-func (c *listCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	filter := &agentv1.ListAgentsRequest_Filter{}
 	if len(c.selectors) > 0 {
 		matchBehavior, err := parseToSelectorMatch(c.matchSelectorsOn)

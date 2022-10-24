@@ -7,13 +7,11 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/cliprinter"
-
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/server/api"
-
 	"golang.org/x/net/context"
 )
 
@@ -25,12 +23,12 @@ type evictCommand struct {
 
 // NewEvictCommand creates a new "evict" subcommand for "agent" command.
 func NewEvictCommand() cli.Command {
-	return NewEvictCommandWithEnv(common_cli.DefaultEnv)
+	return NewEvictCommandWithEnv(commoncli.DefaultEnv)
 }
 
 // NewEvictCommandWithEnv creates a new "evict" subcommand for "agent" command
 // using the environment specified
-func NewEvictCommandWithEnv(env *common_cli.Env) cli.Command {
+func NewEvictCommandWithEnv(env *commoncli.Env) cli.Command {
 	return util.AdaptCommand(env, new(evictCommand))
 }
 
@@ -43,7 +41,7 @@ func (evictCommand) Synopsis() string {
 }
 
 // Run evicts an agent given its SPIFFE ID
-func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *evictCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}

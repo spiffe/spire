@@ -5,12 +5,10 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/pkg/common/cliprinter"
-
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
-
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"golang.org/x/net/context"
 )
 
@@ -20,12 +18,12 @@ type countCommand struct {
 
 // NewCountCommand creates a new "count" subcommand for "agent" command.
 func NewCountCommand() cli.Command {
-	return NewCountCommandWithEnv(common_cli.DefaultEnv)
+	return NewCountCommandWithEnv(commoncli.DefaultEnv)
 }
 
 // NewCountCommandWithEnv creates a new "count" subcommand for "agent" command
 // using the environment specified.
-func NewCountCommandWithEnv(env *common_cli.Env) cli.Command {
+func NewCountCommandWithEnv(env *commoncli.Env) cli.Command {
 	return util.AdaptCommand(env, new(countCommand))
 }
 
@@ -38,7 +36,7 @@ func (countCommand) Synopsis() string {
 }
 
 // Run counts attested agents
-func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	agentClient := serverClient.NewAgentClient()
 	countResponse, err := agentClient.CountAgents(ctx, &agentv1.CountAgentsRequest{})
 	if err != nil {

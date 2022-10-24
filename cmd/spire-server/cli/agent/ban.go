@@ -10,7 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/server/api"
 )
@@ -23,12 +23,12 @@ type banCommand struct {
 
 // NewBanCommand creates a new "ban" subcommand for "agent" command.
 func NewBanCommand() cli.Command {
-	return NewBanCommandWithEnv(common_cli.DefaultEnv)
+	return NewBanCommandWithEnv(commoncli.DefaultEnv)
 }
 
 // NewBanCommandWithEnv creates a new "ban" subcommand for "agent" command
 // using the environment specified
-func NewBanCommandWithEnv(env *common_cli.Env) cli.Command {
+func NewBanCommandWithEnv(env *commoncli.Env) cli.Command {
 	return util.AdaptCommand(env, new(banCommand))
 }
 
@@ -41,7 +41,7 @@ func (*banCommand) Synopsis() string {
 }
 
 // Run ban an agent given its SPIFFE ID
-func (c *banCommand) Run(ctx context.Context, _ *common_cli.Env, serverClient util.ServerClient) error {
+func (c *banCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}
