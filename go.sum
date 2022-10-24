@@ -156,8 +156,9 @@ github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgI
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a/go.mod h1:lB+ZfQJz7igIIfQNfa7Ml4HSf2uFQQRzpGGRXenZAgY=
 github.com/aws/aws-sdk-go-v2 v1.16.13/go.mod h1:xSyvSnzh0KLs5H4HJGeIEsNYemUWdNIl0b/rP6SIsLU=
 github.com/aws/aws-sdk-go-v2 v1.16.15/go.mod h1:SwiyXi/1zTUZ6KIAmLK5V5ll8SiURNUYOqTerZPaF9k=
-github.com/aws/aws-sdk-go-v2 v1.16.16 h1:M1fj4FE2lB4NzRb9Y0xdWsn2P0+2UHVxwKyOa4YJNjk=
 github.com/aws/aws-sdk-go-v2 v1.16.16/go.mod h1:SwiyXi/1zTUZ6KIAmLK5V5ll8SiURNUYOqTerZPaF9k=
+github.com/aws/aws-sdk-go-v2 v1.17.0 h1:kWm8OZGx0Zvd6PsOfjFtwbw7+uWYp65DK8suo7WVznw=
+github.com/aws/aws-sdk-go-v2 v1.17.0/go.mod h1:SwiyXi/1zTUZ6KIAmLK5V5ll8SiURNUYOqTerZPaF9k=
 github.com/aws/aws-sdk-go-v2/config v1.17.4 h1:9HY1wbShqObySCHP2Z07blfrSWVX+nVxCZmUuLZKcG8=
 github.com/aws/aws-sdk-go-v2/config v1.17.4/go.mod h1:ul+ru+huVpfduF9XRmGUq82T8T3K+nIFQuF6F+L+548=
 github.com/aws/aws-sdk-go-v2/credentials v1.12.17 h1:htUjIJOQcvIUR0jC4eLkdis1DfaLL4EUbIKUFqh2WFA=
