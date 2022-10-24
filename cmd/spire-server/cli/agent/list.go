@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/idutil"
 
 	"golang.org/x/net/context"
@@ -20,20 +21,20 @@ import (
 type listCommand struct {
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	selectors common_cli.StringsFlag
-
+	selectors commoncli.StringsFlag
 	// Match used when filtering agents by selectors
 	matchSelectorsOn string
+	printer          cliprinter.Printer
 }
 
 // NewListCommand creates a new "list" subcommand for "agent" command.
 func NewListCommand() cli.Command {
-	return NewListCommandWithEnv(common_cli.DefaultEnv)
+	return NewListCommandWithEnv(commoncli.DefaultEnv)
 }
 
 // NewListCommandWithEnv creates a new "list" subcommand for "agent" command
 // using the environment specified
-func NewListCommandWithEnv(env *common_cli.Env) cli.Command {
+func NewListCommandWithEnv(env *commoncli.Env) cli.Command {
 	return util.AdaptCommand(env, new(listCommand))
 }
 
@@ -46,7 +47,7 @@ func (listCommand) Synopsis() string {
 }
 
 // Run lists attested agents
-func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *listCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	filter := &agentv1.ListAgentsRequest_Filter{}
 	if len(c.selectors) > 0 {
 		matchBehavior, err := parseToSelectorMatch(c.matchSelectorsOn)
@@ -71,7 +72,7 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	agentClient := serverClient.NewAgentClient()
 
 	pageToken := ""
-	var agents []*types.Agent
+	response := new(agentv1.ListAgentsResponse)
 	for {
 		listResponse, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{
 			PageSize:  1000, // comfortably under the (4 MB/theoretical maximum size of 1 agent in MB)
@@ -81,57 +82,55 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		if err != nil {
 			return err
 		}
-		agents = append(agents, listResponse.Agents...)
+		response.Agents = append(response.Agents, listResponse.Agents...)
 		if pageToken = listResponse.NextPageToken; pageToken == "" {
 			break
 		}
 	}
 
-	if len(agents) == 0 {
-		return env.Printf("No attested agents found\n")
-	}
+	c.printer.MustPrintProto(response)
 
-	msg := fmt.Sprintf("Found %d attested ", len(agents))
-	msg = util.Pluralizer(msg, "agent", "agents", len(agents))
-	env.Printf(msg + ":\n\n")
-
-	return printAgents(env, agents...)
+	return nil
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
 	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.prettyPrintAgents)
 }
 
-func printAgents(env *common_cli.Env, agents ...*types.Agent) error {
+func (c *listCommand) prettyPrintAgents(results ...interface{}) error {
+	agents := results[0].(*agentv1.ListAgentsResponse).Agents
+
+	msg := fmt.Sprintf("Found %d attested ", len(agents))
+	msg = util.Pluralizer(msg, "agent", "agents", len(agents))
+	fmt.Printf("%s:\n\n", msg)
+	return printAgents(agents...)
+}
+
+func printAgents(agents ...*types.Agent) error {
+	if len(agents) == 0 {
+		fmt.Printf("No attested agents found\n")
+		return nil
+	}
+
 	for _, agent := range agents {
 		id, err := idutil.IDFromProto(agent.Id)
 		if err != nil {
 			return err
 		}
 
-		if err := env.Printf("SPIFFE ID         : %s\n", id.String()); err != nil {
-			return err
-		}
-		if err := env.Printf("Attestation type  : %s\n", agent.AttestationType); err != nil {
-			return err
-		}
-		if err := env.Printf("Expiration time   : %s\n", time.Unix(agent.X509SvidExpiresAt, 0)); err != nil {
-			return err
-		}
+		fmt.Printf("SPIFFE ID         : %s\n", id.String())
+		fmt.Printf("Attestation type  : %s\n", agent.AttestationType)
+		fmt.Printf("Expiration time   : %s\n", time.Unix(agent.X509SvidExpiresAt, 0))
+
 		// Banned agents will have an empty serial number
 		if agent.Banned {
-			if err := env.Printf("Banned            : %t\n", agent.Banned); err != nil {
-				return err
-			}
+			fmt.Printf("Banned            : %t\n", agent.Banned)
 		} else {
-			if err := env.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber); err != nil {
-				return err
-			}
+			fmt.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber)
 		}
-		if err := env.Println(); err != nil {
-			return err
-		}
+		fmt.Println()
 	}
 
 	return nil

@@ -3,6 +3,8 @@ package agent_test
 import (
 	"bytes"
 	"context"
+	"io"
+	"os"
 	"testing"
 
 	"google.golang.org/grpc/codes"
@@ -51,13 +53,6 @@ type agentTest struct {
 	server *fakeAgentServer
 
 	client cli.Command
-}
-
-func (s *agentTest) afterTest(t *testing.T) {
-	t.Logf("TEST:%s", t.Name())
-	t.Logf("STDOUT:\n%s", s.stdout.String())
-	t.Logf("STDIN:\n%s", s.stdin.String())
-	t.Logf("STDERR:\n%s", s.stderr.String())
 }
 
 func TestBanHelp(t *testing.T) {
@@ -237,20 +232,23 @@ func TestListHelp(t *testing.T) {
 
 func TestList(t *testing.T) {
 	for _, tt := range []struct {
-		name               string
-		args               []string
-		expectedReturnCode int
-		expectedStdout     string
-		expectedStderr     string
-		expectReq          *agentv1.ListAgentsRequest
-		existentAgents     []*types.Agent
-		serverErr          error
+		name                 string
+		args                 []string
+		expectedReturnCode   int
+		expectedStdoutPretty string
+		expectedStdoutJSON   string
+		expectedStderr       string
+		expectReq            *agentv1.ListAgentsRequest
+		existentAgents       []*types.Agent
+		expectedFormat       string
+		serverErr            error
 	}{
 		{
-			name:               "1 agent",
-			expectedReturnCode: 0,
-			existentAgents:     testAgents,
-			expectedStdout:     "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			name:                 "1 agent",
+			expectedReturnCode:   0,
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
 			expectReq: &agentv1.ListAgentsRequest{
 				Filter:   &agentv1.ListAgentsRequest_Filter{},
 				PageSize: 1000,
@@ -259,6 +257,7 @@ func TestList(t *testing.T) {
 		{
 			name:               "no agents",
 			expectedReturnCode: 0,
+			expectedStdoutJSON: "{}",
 			expectReq: &agentv1.ListAgentsRequest{
 				Filter:   &agentv1.ListAgentsRequest_Filter{},
 				PageSize: 1000,
@@ -289,8 +288,9 @@ func TestList(t *testing.T) {
 				},
 				PageSize: 1000,
 			},
-			existentAgents: testAgents,
-			expectedStdout: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
 		},
 		{
 			name: "by selector: any matcher",
@@ -307,8 +307,9 @@ func TestList(t *testing.T) {
 				},
 				PageSize: 1000,
 			},
-			existentAgents: testAgents,
-			expectedStdout: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
 		},
 		{
 			name: "by selector: exact matcher",
@@ -325,8 +326,9 @@ func TestList(t *testing.T) {
 				},
 				PageSize: 1000,
 			},
-			existentAgents: testAgents,
-			expectedStdout: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
 		},
 		{
 			name: "by selector: superset matcher",
@@ -343,8 +345,9 @@ func TestList(t *testing.T) {
 				},
 				PageSize: 1000,
 			},
-			existentAgents: testAgents,
-			expectedStdout: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
 		},
 		{
 			name: "by selector: subset matcher",
@@ -361,8 +364,9 @@ func TestList(t *testing.T) {
 				},
 				PageSize: 1000,
 			},
-			existentAgents: testAgents,
-			expectedStdout: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
 		},
 		{
 			name:               "List by selectors: Invalid matcher",
@@ -384,14 +388,38 @@ func TestList(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
 			test := setupTest(t, agent.NewListCommandWithEnv)
 			test.server.agents = tt.existentAgents
 			test.server.err = tt.serverErr
-			returnCode := test.client.Run(append(test.args, tt.args...))
+
+			// Testing with pretty format
+			var returnCode int
+			stdOutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
 
 			spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
-			require.Contains(t, test.stdout.String(), tt.expectedStdout)
+			require.Contains(t, stdOutContent, tt.expectedStdoutPretty)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
+			require.Equal(t, tt.expectedReturnCode, returnCode)
+		})
+		t.Run(tt.name+" using json format", func(t *testing.T) {
+			test := setupTest(t, agent.NewListCommandWithEnv)
+			test.server.agents = tt.existentAgents
+			test.server.err = tt.serverErr
+
+			// Testing with pretty format
+			test.args = append(test.args, "-format", "json")
+			var returnCode int
+			stdOutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+
+			spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
+			if tt.expectedStdoutJSON != "" {
+				require.JSONEq(t, tt.expectedStdoutJSON, stdOutContent)
+			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -499,11 +527,22 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *agent
 		client: client,
 	}
 
-	t.Cleanup(func() {
-		test.afterTest(t)
-	})
-
 	return test
+}
+
+func captureStdout(f func()) string {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
 }
 
 type fakeAgentServer struct {

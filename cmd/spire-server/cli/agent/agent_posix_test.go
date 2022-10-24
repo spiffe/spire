@@ -5,6 +5,8 @@ package agent_test
 
 var (
 	listUsage = `Usage of agent list:
+  -format value
+    	Desired output format (pretty, json)
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -selector value

@@ -58,7 +58,7 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	env.Printf("Found an attested agent given its SPIFFE ID\n\n")
 
-	if err := printAgents(env, agent); err != nil {
+	if err := printAgents(agent); err != nil {
 		return err
 	}
 
