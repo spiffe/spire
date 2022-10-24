@@ -167,14 +167,14 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		storeSVID = e.StoreSvid
 	}
 
-	var x509SvidTtl int32
+	var x509SvidTTL int32
 	if mask.X509SvidTtl {
-		x509SvidTtl = e.X509SvidTtl
+		x509SvidTTL = e.X509SvidTtl
 	}
 
-	var jwtSvidTtl int32
+	var jwtSvidTTL int32
 	if mask.JwtSvidTtl {
-		jwtSvidTtl = e.JwtSvidTtl
+		jwtSvidTTL = e.JwtSvidTtl
 	}
 
 	return &common.RegistrationEntry{
@@ -189,7 +189,7 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		Selectors:      selectors,
 		RevisionNumber: revisionNumber,
 		StoreSvid:      storeSVID,
-		X509SvidTtl:    x509SvidTtl,
-		JwtSvidTtl:     jwtSvidTtl,
+		X509SvidTtl:    x509SvidTTL,
+		JwtSvidTtl:     jwtSvidTTL,
 	}, nil
 }

@@ -3,6 +3,7 @@ package entry
 import (
 	"errors"
 	"flag"
+
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -39,15 +40,15 @@ type createCommand struct {
 	spiffeID string
 
 	// TTL for x509 and JWT SVIDs issued to this workload, unless type specific TTLs are set.
-	// This field is deprecated in favor of the x509SvidTtl and jwtSvidTtl fields and will be
+	// This field is deprecated in favor of the x509SVIDTTL and jwtSVIDTTL fields and will be
 	// removed in a future release.
 	ttl int
 
 	// TTL for x509 SVIDs issued to this workload
-	x509SvidTtl int
+	x509SVIDTTL int
 
 	// TTL for JWT SVIDs issued to this workload
-	jwtSvidTtl int
+	jwtSVIDTTL int
 
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	federatesWith StringsFlag
@@ -82,9 +83,9 @@ func (*createCommand) Synopsis() string {
 func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.parentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry. This field is deprecated in favor of x509SvidTtl and jwtSvidTtl and will be removed in a future version")
-	f.IntVar(&c.x509SvidTtl, "x509SvidTtl", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl field")
-	f.IntVar(&c.jwtSvidTtl, "jwtSvidTtl", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl field")
+	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry. This field is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version")
+	f.IntVar(&c.x509SVIDTTL, "x509SVIDTTL", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl field")
+	f.IntVar(&c.jwtSVIDTTL, "jwtSVIDTTL", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl field")
 	f.StringVar(&c.path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
@@ -165,16 +166,16 @@ func (c *createCommand) validate() (err error) {
 		return errors.New("a positive TTL is required")
 	}
 
-	if c.x509SvidTtl < 0 {
+	if c.x509SVIDTTL < 0 {
 		return errors.New("a positive x509-SVID TTL is required")
 	}
 
-	if c.jwtSvidTtl < 0 {
+	if c.jwtSVIDTTL < 0 {
 		return errors.New("a positive JWT-SVID TTL is required")
 	}
 
-	if c.ttl > 0 && (c.x509SvidTtl > 0 || c.jwtSvidTtl > 0) {
-		return errors.New("use x509SvidTtl and jwtSvidTtl fields or the deprecated ttl field")
+	if c.ttl > 0 && (c.x509SVIDTTL > 0 || c.jwtSVIDTTL > 0) {
+		return errors.New("use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field")
 	}
 
 	return nil
@@ -199,12 +200,12 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		ExpiresAt:   c.entryExpiry,
 		DnsNames:    c.dnsNames,
 		StoreSvid:   c.storeSVID,
-		X509SvidTtl: int32(c.x509SvidTtl),
-		JwtSvidTtl:  int32(c.jwtSvidTtl),
+		X509SvidTtl: int32(c.x509SVIDTTL),
+		JwtSvidTtl:  int32(c.jwtSVIDTTL),
 	}
 
 	// c.ttl is deprecated but usable if the new c.x509Svid field is not used.
-	// c.ttl should not be used to set the jwtSvidTtl value because the previous
+	// c.ttl should not be used to set the jwtSVIDTTL value because the previous
 	// behavior was to have a hard-coded 5 minute JWT TTL no matter what the value
 	// of ttl was set to.
 	// validate(...) ensures that either the new fields or the deprecated field is

@@ -66,8 +66,6 @@ If you don't already have Docker installed, please follow these [installation in
            trust_domain = "example.org"
            data_dir = "./.data"
            log_level = "DEBUG"
-           default_x509_svid_ttl = "1h"
-           default_jwt_svid_ttl = "5m"
            ca_subject {
                country = ["US"]
                organization = ["SPIFFE"]

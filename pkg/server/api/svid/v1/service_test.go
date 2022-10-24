@@ -1784,8 +1784,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 
 				// Use entry ttl when defined
 				ttl := test.ca.X509SVIDTTL()
-				switch {
-				case entry.X509SvidTtl != 0:
+				if entry.X509SvidTtl != 0 {
 					ttl = time.Duration(entry.X509SvidTtl) * time.Second
 				}
 				expiresAt := now.Add(ttl)

@@ -24,9 +24,8 @@ var (
 	bundleV3           = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{3}})
 	otherBundleV1      = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte{4}})
 	otherBundleV2      = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte{5}})
-	defaultTTL         = int32(600)
-	defaultX509SvidTTL = int32(700)
-	defaultJwtSvidTTL  = int32(800)
+	defaultX509SVIDTTL = int32(700)
+	defaultJwtSVIDTTL  = int32(800)
 )
 
 func TestFetchWorkloadUpdate(t *testing.T) {
@@ -489,7 +488,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 		return false
 	})
 
-	foo := makeRegistrationEntryWithTTL("FOO", 60, 70, 80)
+	foo := makeRegistrationEntryWithTTL("FOO", 70, 80)
 
 	// called once for FOO with no SVID
 	callCount := 0
@@ -538,7 +537,7 @@ func TestCheckSVIDCallback(t *testing.T) {
 func TestGetStaleEntries(t *testing.T) {
 	cache := newTestCache()
 
-	foo := makeRegistrationEntryWithTTL("FOO", 60, 70, 80)
+	foo := makeRegistrationEntryWithTTL("FOO", 70, 80)
 
 	// Create entry but don't mark it stale
 	cache.UpdateEntries(&UpdateEntries{
@@ -793,19 +792,19 @@ func makeRegistrationEntry(id string, selectors ...string) *common.RegistrationE
 		SpiffeId:    "spiffe://domain.test/" + id,
 		Selectors:   makeSelectors(selectors...),
 		DnsNames:    []string{fmt.Sprintf("name-%s", id)},
-		X509SvidTtl: defaultX509SvidTTL,
-		JwtSvidTtl:  defaultJwtSvidTTL,
+		X509SvidTtl: defaultX509SVIDTTL,
+		JwtSvidTtl:  defaultJwtSVIDTTL,
 	}
 }
 
-func makeRegistrationEntryWithTTL(id string, ttl int32, x509SvidTtl int32, jwtSvidTtl int32, selectors ...string) *common.RegistrationEntry {
+func makeRegistrationEntryWithTTL(id string, x509SVIDTTL int32, jwtSVIDTTL int32, selectors ...string) *common.RegistrationEntry {
 	return &common.RegistrationEntry{
 		EntryId:     id,
 		SpiffeId:    "spiffe://domain.test/" + id,
 		Selectors:   makeSelectors(selectors...),
 		DnsNames:    []string{fmt.Sprintf("name-%s", id)},
-		X509SvidTtl: x509SvidTtl,
-		JwtSvidTtl:  jwtSvidTtl,
+		X509SvidTtl: x509SVIDTTL,
+		JwtSvidTtl:  jwtSVIDTTL,
 	}
 }
 

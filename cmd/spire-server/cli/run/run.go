@@ -76,7 +76,7 @@ type serverConfig struct {
 	DataDir            string             `hcl:"data_dir"`
 	DefaultSVIDTTL     string             `hcl:"default_svid_ttl"`
 	DefaultX509SVIDTTL string             `hcl:"default_x509_svid_ttl"`
-	DefaultJwtSVIDTTL  string             `hcl:"default_jwt_svid_ttl"`
+	DefaultJWTSVIDTTL  string             `hcl:"default_jwt_svid_ttl"`
 	Experimental       experimentalConfig `hcl:"experimental"`
 	Federation         *federationConfig  `hcl:"federation"`
 	JWTIssuer          string             `hcl:"jwt_issuer"`
@@ -469,18 +469,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.AgentTTL = ttl
 	}
 
-	if c.Server.DefaultSVIDTTL != "" {
-		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse default SVID ttl %q: %w", c.Server.DefaultSVIDTTL, err)
-		}
-		sc.SVIDTTL = ttl
-
-		if sc.SVIDTTL != 0 {
-			logger.Warn("field default_svid_ttl is deprecated; consider using default_x509_svid_ttl and default_jwt_svid_ttl instead")
-		}
-	}
-
 	if c.Server.DefaultX509SVIDTTL != "" {
 		ttl, err := time.ParseDuration(c.Server.DefaultX509SVIDTTL)
 		if err != nil {
@@ -488,20 +476,28 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.X509SVIDTTL = ttl
 
-		if sc.X509SVIDTTL != 0 && sc.SVIDTTL != 0 {
+		if sc.X509SVIDTTL != 0 && c.Server.DefaultSVIDTTL != "" {
 			logger.Warnf("both default_x509_svid_ttl and default_svid_ttl are configured; default_x509_svid_ttl (%s) will be used for X509-SVIDs", c.Server.DefaultX509SVIDTTL)
 		}
+	} else if c.Server.DefaultSVIDTTL != "" {
+		logger.Warn("field default_svid_ttl is deprecated; consider using default_x509_svid_ttl and default_jwt_svid_ttl instead")
+
+		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse default SVID ttl %q: %w", c.Server.DefaultSVIDTTL, err)
+		}
+		sc.X509SVIDTTL = ttl
 	}
 
-	if c.Server.DefaultJwtSVIDTTL != "" {
-		ttl, err := time.ParseDuration(c.Server.DefaultJwtSVIDTTL)
+	if c.Server.DefaultJWTSVIDTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.DefaultJWTSVIDTTL)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse default JWT SVID ttl %q: %w", c.Server.DefaultJwtSVIDTTL, err)
+			return nil, fmt.Errorf("could not parse default JWT SVID ttl %q: %w", c.Server.DefaultJWTSVIDTTL, err)
 		}
 		sc.JWTSVIDTTL = ttl
 
-		if sc.JWTSVIDTTL != 0 && sc.SVIDTTL != 0 {
-			logger.Warnf("both default_jwt_svid_ttl and default_svid_ttl are configured; default_jwt_svid_ttl (%s) will be used for JWT-SVIDs", c.Server.DefaultJwtSVIDTTL)
+		if sc.JWTSVIDTTL != 0 && c.Server.DefaultSVIDTTL != "" {
+			logger.Warnf("both default_jwt_svid_ttl and default_svid_ttl are configured; default_jwt_svid_ttl (%s) will be used for JWT-SVIDs", c.Server.DefaultJWTSVIDTTL)
 		}
 	}
 
@@ -515,57 +511,57 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	// If the configured TTLs can lead to surprises, then do our best to log an
 	// accurate message and guide the user to resolution
-	if !hasCompatibleTTLs(sc.CATTL, sc.SVIDTTL, sc.X509SVIDTTL, sc.JWTSVIDTTL) {
-		msgCATTLTooSmall := fmt.Sprintf(
-			"One of default_svid_ttl, default_x509_svid_ttl, "+
-				"or default_jwt_svid_ttl is too high for the "+
-				"configured ca_ttl value. SVIDs with shorter "+
-				"lifetimes may be issued. Please set all of "+
-				"default_svid_ttl, default_x509_svid_ttl, or "+
-				"default_jwt_svid_ttl to %v or less, or the ca_ttl "+
-				"to %v or more, to guarantee the full default_svid_ttl, "+
-				"default_x509_svid_ttl, or default_jwt_svid_ttl "+
-				"lifetimes when CA rotations are scheduled.",
-			printMaxSVIDTTL(sc.CATTL), printMinCATTL(sc.SVIDTTL),
-		)
-		msgSVIDTTLTooLargeAndCATTLTooSmall := fmt.Sprintf(
-			"One of default_svid_ttl, default_x509_svid_ttl, "+
-				"or default_jwt_svid_ttl is too high and the ca_ttl "+
-				"is too low. SVIDs with shorter lifetimes may be "+
-				"issued. Please set all of default_svid_ttl, "+
-				"default_x509_svid_ttl, or default_jwt_svid_ttl "+
-				"to %v or less, and the ca_ttl to %v or more, to "+
-				"guarantee the full default_svid_ttl, "+
-				"default_x509_svid_ttl, or default_jwt_svid_ttl "+
-				"lifetimes when CA rotations are scheduled.",
-			printDuration(ca.MaxSVIDTTL()), printMinCATTL(ca.MaxSVIDTTL()),
-		)
-		msgSVIDTTLTooLarge := fmt.Sprintf(
-			"One of default_svid_ttl, default_x509_svid_ttl, "+
-				"or default_jwt_svid_ttl is too high. SVIDs with "+
-				"shorter lifetimes may be issued. Please set all of "+
-				"default_svid_ttl, default_x509_svid_ttl, or "+
-				"default_jwt_svid_ttl to %v or less to guarantee the "+
-				"full default_svid_ttl, default_x509_svid_ttl, or "+
-				"default_jwt_svid_ttl lifetimes when CA rotations are "+
-				"scheduled.",
-			printMaxSVIDTTL(sc.CATTL),
-		)
+	ttlChecks := []struct {
+		name string
+		ttl  time.Duration
+	}{
+		{
+			name: "default_x509_svid_ttl (or deprecated default_svid_ttl)",
+			ttl:  sc.X509SVIDTTL,
+		},
+		{
+			name: "default_jwt_svid_ttl",
+			ttl:  sc.JWTSVIDTTL,
+		},
+	}
 
-		switch {
-		case sc.SVIDTTL < ca.MaxSVIDTTL() || sc.X509SVIDTTL < ca.MaxSVIDTTL() || sc.JWTSVIDTTL < ca.MaxSVIDTTL():
-			// One of the SVID TTLs is smaller than our cap, but the CA TTL
-			// is not large enough to accommodate it
-			sc.Log.Warn(msgCATTLTooSmall)
-		case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()):
-			// One of the SVID TTLs is larger than our cap, it needs to be
-			// decreased no matter what. Additionally, the CA TTL is
-			// too small to accommodate the maximum SVID TTL.
-			sc.Log.Warn(msgSVIDTTLTooLargeAndCATTLTooSmall)
-		default:
-			// One of the SVID TTLs is larger than our cap and needs to be
-			// decreased.
-			sc.Log.Warn(msgSVIDTTLTooLarge)
+	for _, ttlCheck := range ttlChecks {
+		if !hasCompatibleTTL(sc.CATTL, ttlCheck.ttl) {
+			var message string
+
+			switch {
+			case ttlCheck.ttl < ca.MaxSVIDTTL():
+				// TTL is smaller than our cap, but the CA TTL
+				// is not large enough to accommodate it
+				message = fmt.Sprintf("%s is too high for the configured "+
+					"ca_ttl value. SVIDs with shorter lifetimes may "+
+					"be issued. Please set %s to %v or less, or the ca_ttl "+
+					"to %v or more, to guarantee the full %s lifetime "+
+					"when CA rotations are scheduled.",
+					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL), printMinCATTL(ttlCheck.ttl), ttlCheck.name,
+				)
+			case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()):
+				// TTL is larger than our cap, it needs to be
+				// decreased no matter what. Additionally, the CA TTL is
+				// too small to accommodate the maximum SVID TTL.
+				message = fmt.Sprintf("%s is too high and "+
+					"the ca_ttl is too low. SVIDs with shorter lifetimes "+
+					"may be issued. Please set %s to %v or less, and the "+
+					"ca_ttl to %v or more, to guarantee the full %s "+
+					"lifetime when CA rotations are scheduled.",
+					ttlCheck.name, ttlCheck.name, printDuration(ca.MaxSVIDTTL()), printMinCATTL(ca.MaxSVIDTTL()), ttlCheck.name,
+				)
+			default:
+				// TTL is larger than our cap and needs to be
+				// decreased.
+				message = fmt.Sprintf("%s is too high. SVIDs with shorter "+
+					"lifetimes may be issued. Please set %s to %v or less "+
+					"to guarantee the full %s lifetime when CA rotations "+
+					"are scheduled.",
+					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL), ttlCheck.name,
+				)
+			}
+			sc.Log.Warn(message)
 		}
 	}
 
@@ -840,9 +836,8 @@ func defaultConfig() *Config {
 			CATTL:              ca.DefaultCATTL.String(),
 			LogLevel:           defaultLogLevel,
 			LogFormat:          log.DefaultFormat,
-			DefaultSVIDTTL:     ca.DefaultX509SVIDTTL.String(),
 			DefaultX509SVIDTTL: ca.DefaultX509SVIDTTL.String(),
-			DefaultJwtSVIDTTL:  ca.DefaultJWTSVIDTTL.String(),
+			DefaultJWTSVIDTTL:  ca.DefaultJWTSVIDTTL.String(),
 			Experimental:       experimentalConfig{},
 		},
 	}
@@ -863,18 +858,12 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 	}
 }
 
-// hasCompatibleTTLs checks if we can guarantee the configured SVID TTLs given the
-// configurd CA TTL. If we detect that a new SVIDs TTL may be cut short due to
-// a scheduled CA rotation, this function will return false.
-func hasCompatibleTTLs(caTTL time.Duration, svidTTLs ...time.Duration) bool {
-	maxSvidTtl := ca.MaxSVIDTTLForCATTL(caTTL)
-	for _, svidTTL := range svidTTLs {
-		if maxSvidTtl < svidTTL {
-			return false
-		}
-	}
-
-	return true
+// hasCompatibleTTL checks if we can guarantee the configured SVID TTL given the
+// configurd CA TTL. If we detect that a new SVID TTL may be cut short due to
+// a scheduled CA rotation, this function will return false. This method should
+// be called for each SVID TTL we may use
+func hasCompatibleTTL(caTTL time.Duration, svidTTL time.Duration) bool {
+	return svidTTL <= ca.MaxSVIDTTLForCATTL(caTTL)
 }
 
 // printMaxSVIDTTL calculates the display string for a sufficiently short SVID TTL
@@ -883,8 +872,8 @@ func printMaxSVIDTTL(caTTL time.Duration) string {
 }
 
 // printMinCATTL calculates the display string for a sufficiently large CA TTL
-func printMinCATTL(svidTTLs ...time.Duration) string {
-	return printDuration(ca.MinCATTLForSVIDTTL(svidTTLs...))
+func printMinCATTL(svidTTL time.Duration) string {
+	return printDuration(ca.MinCATTLForSVIDTTL(svidTTL))
 }
 
 func printDuration(d time.Duration) string {

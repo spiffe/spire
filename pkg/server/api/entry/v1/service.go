@@ -468,11 +468,11 @@ func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *ty
 	}
 
 	if inputMask == nil || inputMask.X509SvidTtl {
-		fields[telemetry.X509TTL] = proto.X509SvidTtl
+		fields[telemetry.X509SVIDTTL] = proto.X509SvidTtl
 	}
 
 	if inputMask == nil || inputMask.JwtSvidTtl {
-		fields[telemetry.JWTTTL] = proto.JwtSvidTtl
+		fields[telemetry.JWTSVIDTTL] = proto.JwtSvidTtl
 	}
 
 	if inputMask == nil || inputMask.FederatesWith {

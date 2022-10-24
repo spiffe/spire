@@ -188,18 +188,18 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:   "Invalid TTL and X509SvidTtl",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SvidTtl", "20"},
-			expErr: "Error: use x509SvidTtl and jwtSvidTtl fields or the deprecated ttl field\n",
+			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field\n",
 		},
 		{
 			name:   "Invalid TTL and JwtSvidTtl",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSvidTtl", "20"},
-			expErr: "Error: use x509SvidTtl and jwtSvidTtl fields or the deprecated ttl field\n",
+			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field\n",
 		},
 		{
 			name:   "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SvidTtl", "20", "-jwtSvidTtl", "30"},
-			expErr: "Error: use x509SvidTtl and jwtSvidTtl fields or the deprecated ttl field\n",
+			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field\n",
 		},
 		{
 			name: "Server error",
@@ -223,8 +223,8 @@ func TestUpdate(t *testing.T) {
 				"-parentID", "spiffe://example.org/parent",
 				"-selector", "zebra:zebra:2000",
 				"-selector", "alpha:alpha:2000",
-				"-x509SvidTtl", "60",
-				"-jwtSvidTtl", "30",
+				"-x509SVIDTTL", "60",
+				"-jwtSVIDTTL", "30",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
@@ -242,8 +242,8 @@ SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
 Downstream       : true
-X509SvidTTL      : 60
-JwtSvidTTL       : 30
+X509-SVID TTL    : 60
+JWT-SVID TTL     : 30
 Expiration time  : %s
 Selector         : zebra:zebra:2000
 Selector         : alpha:alpha:2000
@@ -281,8 +281,8 @@ SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
 Downstream       : true
-X509SvidTTL      : 60
-JwtSvidTTL       : 30
+X509-SVID TTL    : 60
+JWT-SVID TTL     : 30
 Expiration time  : %s
 Selector         : zebra:zebra:2000
 Selector         : alpha:alpha:2000
@@ -302,8 +302,8 @@ Admin            : true
 				"-parentID", "spiffe://example.org/parent",
 				"-selector", "type:key1:value",
 				"-selector", "type:key2:value",
-				"-x509SvidTtl", "60",
-				"-jwtSvidTtl", "30",
+				"-x509SVIDTTL", "60",
+				"-jwtSVIDTTL", "30",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-entryExpiry", "1552410266",
@@ -329,8 +329,8 @@ Admin            : true
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
-X509SvidTTL      : 60
-JwtSvidTTL       : 30
+X509-SVID TTL    : 60
+JWT-SVID TTL     : 30
 Expiration time  : %s
 Selector         : type:key1:value
 Selector         : type:key2:value
@@ -355,8 +355,8 @@ StoreSvid        : true
 SPIFFE ID        : spiffe://example.org/Blog
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision         : 0
-X509SvidTTL      : 200
-JwtSvidTTL       : 300
+X509-SVID TTL    : 200
+JWT-SVID TTL     : 300
 Selector         : unix:uid:1111
 Admin            : true
 
@@ -364,16 +364,16 @@ Entry ID         : entry-id-2
 SPIFFE ID        : spiffe://example.org/Database
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
 Revision         : 0
-X509SvidTTL      : 200
-JwtSvidTTL       : 300
+X509-SVID TTL    : 200
+JWT-SVID TTL     : 300
 Selector         : unix:uid:1111
 
 Entry ID         : entry-id-3
 SPIFFE ID        : spiffe://example.org/Storesvid
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
 Revision         : 0
-X509SvidTTL      : 200
-JwtSvidTTL       : 300
+X509-SVID TTL    : 200
+JWT-SVID TTL     : 300
 Selector         : type:key1:value
 Selector         : type:key2:value
 StoreSvid        : true
@@ -397,8 +397,8 @@ Entry ID         : non-existent-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
-X509SvidTTL      : default
-JwtSvidTTL       : default
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
 Selector         : unix:uid:1
 
 Error: failed to update one or more entries

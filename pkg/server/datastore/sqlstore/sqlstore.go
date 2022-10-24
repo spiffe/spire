@@ -3690,9 +3690,9 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 	}
 
 	// Determine appropriate X509 TTL
-	x509SvidTtl := model.X509SvidTTL
-	if x509SvidTtl <= 0 {
-		x509SvidTtl = model.TTL
+	x509SvidTTL := model.X509SvidTTL
+	if x509SvidTTL <= 0 {
+		x509SvidTTL = model.TTL
 	}
 
 	return &common.RegistrationEntry{
@@ -3700,7 +3700,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Selectors:      selectors,
 		SpiffeId:       model.SpiffeID,
 		ParentId:       model.ParentID,
-		X509SvidTtl:    x509SvidTtl,
+		X509SvidTtl:    x509SvidTTL,
 		FederatesWith:  federatesWith,
 		Admin:          model.Admin,
 		Downstream:     model.Downstream,

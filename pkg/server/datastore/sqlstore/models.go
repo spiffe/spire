@@ -78,7 +78,7 @@ type RegisteredEntry struct {
 	ParentID string `gorm:"index"`
 	// TTL of identities derived from this entry. This field is deprecated in favor of
 	// X509SvidTTL and JWTSvidTTL and will be removed in a future version.
-	// DEPRECATED: remove this in 1.6.0
+	// Deprecated: remove this in 1.6.0
 	TTL           int32
 	Selectors     []Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
