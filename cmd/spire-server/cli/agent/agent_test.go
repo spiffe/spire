@@ -59,26 +59,25 @@ func TestBanHelp(t *testing.T) {
 	test := setupTest(t, agent.NewBanCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent ban:`+common.AddrUsage+
-		`  -spiffeID string
-    	The SPIFFE ID of the agent to ban (agent identity)
-`, test.stderr.String())
+	require.Equal(t, banUsage, test.stderr.String())
 }
 
 func TestBan(t *testing.T) {
 	for _, tt := range []struct {
-		name             string
-		args             []string
-		expectReturnCode int
-		expectStdout     string
-		expectStderr     string
-		serverErr        error
+		name               string
+		args               []string
+		expectReturnCode   int
+		expectStdoutPretty string
+		expectStdoutJSON   string
+		expectStderr       string
+		serverErr          error
 	}{
 		{
-			name:             "success",
-			args:             []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
-			expectReturnCode: 0,
-			expectStdout:     "Agent banned successfully\n",
+			name:               "success",
+			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
+			expectReturnCode:   0,
+			expectStdoutPretty: "Agent banned successfully\n",
+			expectStdoutJSON:   "{}",
 		},
 		{
 			name:             "no spiffe id",
@@ -100,12 +99,28 @@ func TestBan(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
 			test := setupTest(t, agent.NewBanCommandWithEnv)
 			test.server.err = tt.serverErr
-
-			returnCode := test.client.Run(append(test.args, tt.args...))
-			require.Equal(t, tt.expectStdout, test.stdout.String())
+			var returnCode int
+			stdoutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			require.Equal(t, tt.expectStdoutPretty, stdoutContent)
+			require.Equal(t, tt.expectStderr, test.stderr.String())
+			require.Equal(t, tt.expectReturnCode, returnCode)
+		})
+		t.Run(tt.name+" using JSON format", func(t *testing.T) {
+			test := setupTest(t, agent.NewBanCommandWithEnv)
+			test.server.err = tt.serverErr
+			test.args = append(test.args, "-format", "json")
+			var returnCode int
+			stdoutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			if tt.expectStdoutJSON != "" {
+				require.JSONEq(t, tt.expectStdoutJSON, stdoutContent)
+			}
 			require.Equal(t, tt.expectStderr, test.stderr.String())
 			require.Equal(t, tt.expectReturnCode, returnCode)
 		})
@@ -116,26 +131,25 @@ func TestEvictHelp(t *testing.T) {
 	test := setupTest(t, agent.NewEvictCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent evict:`+common.AddrUsage+
-		`  -spiffeID string
-    	The SPIFFE ID of the agent to evict (agent identity)
-`, test.stderr.String())
+	require.Equal(t, evictUsage, test.stderr.String())
 }
 
 func TestEvict(t *testing.T) {
 	for _, tt := range []struct {
-		name               string
-		args               []string
-		expectedReturnCode int
-		expectedStdout     string
-		expectedStderr     string
-		serverErr          error
+		name                 string
+		args                 []string
+		expectedReturnCode   int
+		expectedStdoutPretty string
+		expectedStdoutJSON   string
+		expectedStderr       string
+		serverErr            error
 	}{
 		{
-			name:               "success",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
-			expectedReturnCode: 0,
-			expectedStdout:     "Agent evicted successfully\n",
+			name:                 "success",
+			args:                 []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
+			expectedReturnCode:   0,
+			expectedStdoutPretty: "Agent evicted successfully\n",
+			expectedStdoutJSON:   "{}",
 		},
 		{
 			name:               "no spiffe id",
@@ -157,12 +171,28 @@ func TestEvict(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
 			test := setupTest(t, agent.NewEvictCommandWithEnv)
 			test.server.err = tt.serverErr
-
-			returnCode := test.client.Run(append(test.args, tt.args...))
-			require.Equal(t, tt.expectedStdout, test.stdout.String())
+			var returnCode int
+			stdoutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			require.Equal(t, tt.expectedStdoutPretty, stdoutContent)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
+			require.Equal(t, tt.expectedReturnCode, returnCode)
+		})
+		t.Run(tt.name+" using JSON format", func(t *testing.T) {
+			test := setupTest(t, agent.NewEvictCommandWithEnv)
+			test.server.err = tt.serverErr
+			test.args = append(test.args, "-format", "json")
+			var returnCode int
+			stdoutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			if tt.expectedStdoutJSON != "" {
+				require.JSONEq(t, tt.expectedStdoutJSON, stdoutContent)
+			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -173,7 +203,7 @@ func TestCountHelp(t *testing.T) {
 	test := setupTest(t, agent.NewCountCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent count:`+common.AddrUsage, test.stderr.String())
+	require.Equal(t, countUsage, test.stderr.String())
 }
 
 func TestCount(t *testing.T) {
@@ -191,7 +221,7 @@ func TestCount(t *testing.T) {
 			name:                 "0 agents",
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "0 attested agents",
-			expectedStdoutJSON:   "{\"count\":0}",
+			expectedStdoutJSON:   "{}",
 		},
 		{
 			name:                 "count 1 agent",
@@ -205,14 +235,12 @@ func TestCount(t *testing.T) {
 			expectedReturnCode: 1,
 			serverErr:          status.Error(codes.Internal, "internal server error"),
 			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
-			expectedStdoutJSON: "{\"count\":0}",
 		},
 		{
 			name:               "wrong UDS path",
 			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
 			expectedStderr:     common.AddrError,
-			expectedStdoutJSON: "{\"count\":0}",
 		},
 	} {
 		tt := tt
@@ -452,10 +480,7 @@ func TestShowHelp(t *testing.T) {
 	test := setupTest(t, agent.NewShowCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, `Usage of agent show:`+common.AddrUsage+
-		`  -spiffeID string
-    	The SPIFFE ID of the agent to show (agent identity)
-`, test.stderr.String())
+	require.Equal(t, showUsage, test.stderr.String())
 }
 
 func TestShow(t *testing.T) {

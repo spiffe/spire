@@ -3,9 +3,11 @@ package agent
 import (
 	"errors"
 	"flag"
+	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
@@ -18,6 +20,7 @@ import (
 type evictCommand struct {
 	// SPIFFE ID of the agent being evicted
 	spiffeID string
+	printer  cliprinter.Printer
 }
 
 // NewEvictCommand creates a new "evict" subcommand for "agent" command.
@@ -51,14 +54,21 @@ func (c *evictCommand) Run(ctx context.Context, env *common_cli.Env, serverClien
 	}
 
 	agentClient := serverClient.NewAgentClient()
-	_, err = agentClient.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{Id: api.ProtoFromID(id)})
+	delAgentResponse, err := agentClient.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{Id: api.ProtoFromID(id)})
 	if err != nil {
 		return err
 	}
+	c.printer.MustPrintProto(delAgentResponse)
 
-	return env.Println("Agent evicted successfully")
+	return nil
 }
 
 func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (agent identity)")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintEvictResult)
+}
+
+func prettyPrintEvictResult(_ ...interface{}) error {
+	fmt.Println("Agent evicted successfully")
+	return nil
 }
