@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
@@ -166,6 +167,7 @@ type fakeKMSClient struct {
 	getTokeninfoErr            error
 	listCryptoKeysErr          error
 	listCryptoKeyVersionsErr   error
+	opts                       []option.ClientOption
 	pemCrc32C                  *wrapperspb.Int64Value
 	signatureCrc32C            *wrapperspb.Int64Value
 	store                      fakeStore
