@@ -3,6 +3,7 @@ package agent_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -41,6 +42,7 @@ var (
 			},
 		},
 	}
+	availableFormats = []string{"pretty", "json"}
 )
 
 type agentTest struct {
@@ -117,31 +119,22 @@ func TestBan(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
-			test := setupTest(t, agent.NewBanCommandWithEnv)
-			test.server.err = tt.serverErr
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, agent.NewBanCommandWithEnv)
+				test.server.err = tt.serverErr
+				tt.args = append(tt.args, "-format", format)
+				var returnCode int
+
+				test.runCapturingOutput(t, func() {
+					returnCode = test.client.Run(append(test.args, tt.args...))
+				})
+
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				require.Equal(t, tt.expectStderr, test.stderr.String())
+				require.Equal(t, tt.expectReturnCode, returnCode)
 			})
-			require.Equal(t, tt.expectStdoutPretty, test.stdout.String())
-			require.Equal(t, tt.expectStderr, test.stderr.String())
-			require.Equal(t, tt.expectReturnCode, returnCode)
-		})
-		t.Run(tt.name+" using JSON format", func(t *testing.T) {
-			test := setupTest(t, agent.NewBanCommandWithEnv)
-			test.server.err = tt.serverErr
-			test.args = append(test.args, "-format", "json")
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
-			})
-			if tt.expectStdoutJSON != "" {
-				require.JSONEq(t, tt.expectStdoutJSON, test.stdout.String())
-			}
-			require.Equal(t, tt.expectStderr, test.stderr.String())
-			require.Equal(t, tt.expectReturnCode, returnCode)
-		})
+		}
 	}
 }
 
@@ -189,31 +182,22 @@ func TestEvict(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
-			test := setupTest(t, agent.NewEvictCommandWithEnv)
-			test.server.err = tt.serverErr
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, agent.NewEvictCommandWithEnv)
+				test.server.err = tt.serverErr
+				tt.args = append(tt.args, "-format", format)
+				var returnCode int
+
+				test.runCapturingOutput(t, func() {
+					returnCode = test.client.Run(append(test.args, tt.args...))
+				})
+
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
-			require.Equal(t, tt.expectedStdoutPretty, test.stdout.String())
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
-		t.Run(tt.name+" using JSON format", func(t *testing.T) {
-			test := setupTest(t, agent.NewEvictCommandWithEnv)
-			test.server.err = tt.serverErr
-			test.args = append(test.args, "-format", "json")
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
-			})
-			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
-			}
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
+		}
 	}
 }
 
@@ -245,7 +229,7 @@ func TestCount(t *testing.T) {
 			name:                 "count 1 agent",
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "1 attested agent",
-			expectedStdoutJSON:   "{\"count\":1}",
+			expectedStdoutJSON:   `{"count":1}`,
 			existentAgents:       testAgents,
 		},
 		{
@@ -262,34 +246,23 @@ func TestCount(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
-			test := setupTest(t, agent.NewCountCommandWithEnv)
-			test.server.agents = tt.existentAgents
-			test.server.err = tt.serverErr
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
-			})
-			require.Contains(t, test.stdout.String(), tt.expectedStdoutPretty)
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, agent.NewCountCommandWithEnv)
+				test.server.agents = tt.existentAgents
+				test.server.err = tt.serverErr
+				tt.args = append(tt.args, "-format", format)
+				var returnCode int
 
-		t.Run(tt.name+" using JSON format", func(t *testing.T) {
-			test := setupTest(t, agent.NewCountCommandWithEnv)
-			test.server.agents = tt.existentAgents
-			test.server.err = tt.serverErr
-			test.args = append(test.args, "-format", "json")
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
+				test.runCapturingOutput(t, func() {
+					returnCode = test.client.Run(append(test.args, tt.args...))
+				})
+
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
-			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
-			}
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
+		}
 	}
 }
 
@@ -318,7 +291,7 @@ func TestList(t *testing.T) {
 			expectedReturnCode:   0,
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
 			expectReq: &agentv1.ListAgentsRequest{
 				Filter:   &agentv1.ListAgentsRequest_Filter{},
 				PageSize: 1000,
@@ -360,7 +333,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
 		},
 		{
 			name: "by selector: any matcher",
@@ -379,7 +352,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
 		},
 		{
 			name: "by selector: exact matcher",
@@ -398,7 +371,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
 		},
 		{
 			name: "by selector: superset matcher",
@@ -417,7 +390,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
 		},
 		{
 			name: "by selector: subset matcher",
@@ -436,7 +409,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"agents\":[{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}]}",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
 		},
 		{
 			name:               "List by selectors: Invalid matcher",
@@ -458,39 +431,24 @@ func TestList(t *testing.T) {
 		},
 	} {
 		tt := tt
-		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
-			test := setupTest(t, agent.NewListCommandWithEnv)
-			test.server.agents = tt.existentAgents
-			test.server.err = tt.serverErr
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, agent.NewListCommandWithEnv)
+				test.server.agents = tt.existentAgents
+				test.server.err = tt.serverErr
+				tt.args = append(tt.args, "-format", format)
+				var returnCode int
 
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
+				test.runCapturingOutput(t, func() {
+					returnCode = test.client.Run(append(test.args, tt.args...))
+				})
+
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
-
-			spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
-			require.Contains(t, test.stdout.String(), tt.expectedStdoutPretty)
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
-		t.Run(tt.name+" using JSON format", func(t *testing.T) {
-			test := setupTest(t, agent.NewListCommandWithEnv)
-			test.server.agents = tt.existentAgents
-			test.server.err = tt.serverErr
-			test.args = append(test.args, "-format", "json")
-
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
-			})
-
-			spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
-			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
-			}
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
+		}
 	}
 }
 
@@ -518,7 +476,7 @@ func TestShow(t *testing.T) {
 			expectedReturnCode:   0,
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found an attested agent given its SPIFFE ID\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   "{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}",
+			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}`,
 		},
 		{
 			name:               "no spiffe id",
@@ -545,7 +503,7 @@ func TestShow(t *testing.T) {
 			existentAgents:       testAgentsWithSelectors,
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "Selectors         : k8s_psat:agent_ns:spire\nSelectors         : k8s_psat:agent_sa:spire-agent\nSelectors         : k8s_psat:cluster:demo-cluster",
-			expectedStdoutJSON:   "{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent2\"},\"selectors\":[{\"type\":\"k8s_psat\",\"value\":\"agent_ns:spire\"},{\"type\":\"k8s_psat\",\"value\":\"agent_sa:spire-agent\"},{\"type\":\"k8s_psat\",\"value\":\"cluster:demo-cluster\"}]}",
+			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/agent2"},"selectors":[{"type":"k8s_psat","value":"agent_ns:spire"},{"type":"k8s_psat","value":"agent_sa:spire-agent"},{"type":"k8s_psat","value":"cluster:demo-cluster"}]}`,
 		},
 		{
 			name:                 "show banned",
@@ -553,39 +511,27 @@ func TestShow(t *testing.T) {
 			existentAgents:       testAgentsWithBanned,
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "Banned            : true",
-			expectedStdoutJSON:   "{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/banned\"},\"banned\":true}",
+			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/banned"},"banned":true}`,
 		},
 	} {
 		tt := tt
-		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
-			test := setupTest(t, agent.NewShowCommandWithEnv)
-			test.server.err = tt.serverErr
-			test.server.agents = tt.existentAgents
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, agent.NewShowCommandWithEnv)
+				test.server.err = tt.serverErr
+				test.server.agents = tt.existentAgents
+				tt.args = append(tt.args, "-format", format)
+				var returnCode int
 
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
-			})
-			require.Contains(t, test.stdout.String(), tt.expectedStdoutPretty)
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
-		t.Run(tt.name+" using JSON format", func(t *testing.T) {
-			test := setupTest(t, agent.NewShowCommandWithEnv)
-			test.server.err = tt.serverErr
-			test.server.agents = tt.existentAgents
-			test.args = append(test.args, "-format", "json")
+				test.runCapturingOutput(t, func() {
+					returnCode = test.client.Run(append(test.args, tt.args...))
+				})
 
-			var returnCode int
-			test.runCapturingOutput(t, func() {
-				returnCode = test.client.Run(append(test.args, tt.args...))
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				require.Equal(t, tt.expectedStderr, test.stderr.String())
+				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
-			if tt.expectedStdoutJSON != "" {
-				require.JSONEq(t, tt.expectedStdoutJSON, test.stdout.String())
-			}
-			require.Equal(t, tt.expectedStderr, test.stderr.String())
-			require.Equal(t, tt.expectedReturnCode, returnCode)
-		})
+		}
 	}
 }
 
@@ -653,4 +599,15 @@ func (s *fakeAgentServer) GetAgent(ctx context.Context, req *agentv1.GetAgentReq
 	}
 
 	return nil, s.err
+}
+
+func assertOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+	switch format {
+	case "pretty":
+		require.Contains(t, stdoutString, expectedStdoutPretty)
+	case "json":
+		if expectedStdoutJSON != "" {
+			require.JSONEq(t, expectedStdoutJSON, stdoutString)
+		}
+	}
 }
