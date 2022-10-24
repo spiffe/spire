@@ -652,9 +652,7 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name:         "clusters only missing kube_config_file_path",
-			expectedErr:  "cluster configuration is missing kube_config_file_path",
-			expectedCode: codes.InvalidArgument,
+			name: "clusters with missing kube_config_file_path should not fail",
 			configuration: `
 			clusters  = [
 			{
@@ -668,6 +666,63 @@ func TestConfigure(t *testing.T) {
 			},
 			]
 			`,
+			expectedConfig: &pluginConfig{
+				Clusters: []cluster{
+					{
+						Namespace:    "cluster1",
+						ConfigMap:    "cluster1_config_map",
+						ConfigMapKey: "bundle.crt",
+					},
+					{
+						Namespace:          "cluster2",
+						ConfigMap:          "cluster2_config_map",
+						ConfigMapKey:       "bundle.crt",
+						KubeConfigFilePath: "/cluster2/file/path",
+					},
+				},
+			},
+		},
+		{
+			name: "at max one cluster can be configured without kube_config_file_path",
+			configuration: `
+			clusters  = [
+			{
+				namespace = "cluster1"
+				config_map = "cluster1_config_map"														
+			},
+			{
+				namespace = "cluster2"
+				config_map = "cluster2_config_map"				
+				kube_config_file_path = "/cluster2/file/path"				
+			},
+			{
+				namespace = "cluster3"
+				config_map = "cluster3_config_map"														
+			},
+			]
+			`,
+			expectedErr:  "at max one cluster can be configured without kube_config_file_path, total in-clusters configured: 2",
+			expectedCode: codes.InvalidArgument,
+			expectedConfig: &pluginConfig{
+				Clusters: []cluster{
+					{
+						Namespace:    "cluster1",
+						ConfigMap:    "cluster1_config_map",
+						ConfigMapKey: "bundle.crt",
+					},
+					{
+						Namespace:          "cluster2",
+						ConfigMap:          "cluster2_config_map",
+						ConfigMapKey:       "bundle.crt",
+						KubeConfigFilePath: "/cluster2/file/path",
+					},
+					{
+						Namespace:    "cluster3",
+						ConfigMap:    "cluster3_config_map",
+						ConfigMapKey: "bundle.crt",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt

@@ -133,11 +133,18 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if hasRootCluster(&config.cluster) || !hasRootCluster(&config.cluster) && !hasMultipleClusters(config.Clusters) {
 		setDefaultValues(&config.cluster)
 	}
+
+	totalInClusters := 0
 	for i := range config.Clusters {
 		if config.Clusters[i].KubeConfigFilePath == "" {
-			return nil, status.Error(codes.InvalidArgument, "cluster configuration is missing kube_config_file_path")
+			p.log.Warn("kube_config_file_path is not set, will be falling back to in-cluster credentials")
+			totalInClusters++
 		}
 		setDefaultValues(&config.Clusters[i])
+	}
+
+	if totalInClusters > 1 {
+		return nil, status.Errorf(codes.InvalidArgument, "at max one cluster can be configured without kube_config_file_path, total in-clusters configured: %d", totalInClusters)
 	}
 
 	clients, err := p.hooks.newKubeClients(config)
