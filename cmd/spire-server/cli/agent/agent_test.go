@@ -178,45 +178,69 @@ func TestCountHelp(t *testing.T) {
 
 func TestCount(t *testing.T) {
 	for _, tt := range []struct {
-		name               string
-		args               []string
-		expectedReturnCode int
-		expectedStdout     string
-		expectedStderr     string
-		existentAgents     []*types.Agent
-		serverErr          error
+		name                 string
+		args                 []string
+		expectedReturnCode   int
+		expectedStdoutPretty string
+		expectedStdoutJSON   string
+		expectedStderr       string
+		existentAgents       []*types.Agent
+		serverErr            error
 	}{
 		{
-			name:               "0 agents",
-			expectedReturnCode: 0,
-			expectedStdout:     "0 attested agents",
+			name:                 "0 agents",
+			expectedReturnCode:   0,
+			expectedStdoutPretty: "0 attested agents",
+			expectedStdoutJSON:   "{\"count\":0}",
 		},
 		{
-			name:               "count 1 agent",
-			expectedReturnCode: 0,
-			expectedStdout:     "1 attested agent",
-			existentAgents:     testAgents,
+			name:                 "count 1 agent",
+			expectedReturnCode:   0,
+			expectedStdoutPretty: "1 attested agent",
+			expectedStdoutJSON:   "{\"count\":1}",
+			existentAgents:       testAgents,
 		},
 		{
 			name:               "server error",
 			expectedReturnCode: 1,
 			serverErr:          status.Error(codes.Internal, "internal server error"),
 			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
+			expectedStdoutJSON: "{\"count\":0}",
 		},
 		{
 			name:               "wrong UDS path",
 			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
 			expectedStderr:     common.AddrError,
+			expectedStdoutJSON: "{\"count\":0}",
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
 			test := setupTest(t, agent.NewCountCommandWithEnv)
 			test.server.agents = tt.existentAgents
 			test.server.err = tt.serverErr
-			returnCode := test.client.Run(append(test.args, tt.args...))
-			require.Contains(t, test.stdout.String(), tt.expectedStdout)
+			var returnCode int
+			stdOutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			require.Contains(t, stdOutContent, tt.expectedStdoutPretty)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
+			require.Equal(t, tt.expectedReturnCode, returnCode)
+		})
+
+		t.Run(tt.name+" using JSON format", func(t *testing.T) {
+			test := setupTest(t, agent.NewCountCommandWithEnv)
+			test.server.agents = tt.existentAgents
+			test.server.err = tt.serverErr
+			test.args = append(test.args, "-format", "json")
+			var returnCode int
+			stdOutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			if tt.expectedStdoutJSON != "" {
+				require.JSONEq(t, tt.expectedStdoutJSON, stdOutContent)
+			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
@@ -393,7 +417,6 @@ func TestList(t *testing.T) {
 			test.server.agents = tt.existentAgents
 			test.server.err = tt.serverErr
 
-			// Testing with pretty format
 			var returnCode int
 			stdOutContent := captureStdout(func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
@@ -404,13 +427,12 @@ func TestList(t *testing.T) {
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})
-		t.Run(tt.name+" using json format", func(t *testing.T) {
+		t.Run(tt.name+" using JSON format", func(t *testing.T) {
 			test := setupTest(t, agent.NewListCommandWithEnv)
 			test.server.agents = tt.existentAgents
 			test.server.err = tt.serverErr
-
-			// Testing with pretty format
 			test.args = append(test.args, "-format", "json")
+
 			var returnCode int
 			stdOutContent := captureStdout(func() {
 				returnCode = test.client.Run(append(test.args, tt.args...))
@@ -438,20 +460,22 @@ func TestShowHelp(t *testing.T) {
 
 func TestShow(t *testing.T) {
 	for _, tt := range []struct {
-		name               string
-		args               []string
-		expectedReturnCode int
-		expectedStdout     string
-		expectedStderr     string
-		existentAgents     []*types.Agent
-		serverErr          error
+		name                 string
+		args                 []string
+		expectedReturnCode   int
+		expectedStdoutPretty string
+		expectedStdoutJSON   string
+		expectedStderr       string
+		existentAgents       []*types.Agent
+		serverErr            error
 	}{
 		{
-			name:               "success",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
-			expectedReturnCode: 0,
-			existentAgents:     testAgents,
-			expectedStdout:     "Found an attested agent given its SPIFFE ID\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			name:                 "success",
+			args:                 []string{"-spiffeID", "spiffe://example.org/spire/agent/agent1"},
+			expectedReturnCode:   0,
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found an attested agent given its SPIFFE ID\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   "{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent1\"}}",
 		},
 		{
 			name:               "no spiffe id",
@@ -473,28 +497,49 @@ func TestShow(t *testing.T) {
 			expectedStderr:     common.AddrError,
 		},
 		{
-			name:               "show selectors",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/agent2"},
-			existentAgents:     testAgentsWithSelectors,
-			expectedReturnCode: 0,
-			expectedStdout:     "Selectors         : k8s_psat:agent_ns:spire\nSelectors         : k8s_psat:agent_sa:spire-agent\nSelectors         : k8s_psat:cluster:demo-cluster",
+			name:                 "show selectors",
+			args:                 []string{"-spiffeID", "spiffe://example.org/spire/agent/agent2"},
+			existentAgents:       testAgentsWithSelectors,
+			expectedReturnCode:   0,
+			expectedStdoutPretty: "Selectors         : k8s_psat:agent_ns:spire\nSelectors         : k8s_psat:agent_sa:spire-agent\nSelectors         : k8s_psat:cluster:demo-cluster",
+			expectedStdoutJSON:   "{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/agent2\"},\"selectors\":[{\"type\":\"k8s_psat\",\"value\":\"agent_ns:spire\"},{\"type\":\"k8s_psat\",\"value\":\"agent_sa:spire-agent\"},{\"type\":\"k8s_psat\",\"value\":\"cluster:demo-cluster\"}]}",
 		},
 		{
-			name:               "show banned",
-			args:               []string{"-spiffeID", "spiffe://example.org/spire/agent/banned"},
-			existentAgents:     testAgentsWithBanned,
-			expectedReturnCode: 0,
-			expectedStdout:     "Banned            : true",
+			name:                 "show banned",
+			args:                 []string{"-spiffeID", "spiffe://example.org/spire/agent/banned"},
+			existentAgents:       testAgentsWithBanned,
+			expectedReturnCode:   0,
+			expectedStdoutPretty: "Banned            : true",
+			expectedStdoutJSON:   "{\"id\":{\"trust_domain\":\"example.org\",\"path\":\"/spire/agent/banned\"},\"banned\":true}",
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" using default (pretty) format", func(t *testing.T) {
 			test := setupTest(t, agent.NewShowCommandWithEnv)
 			test.server.err = tt.serverErr
 			test.server.agents = tt.existentAgents
 
-			returnCode := test.client.Run(append(test.args, tt.args...))
-			require.Contains(t, test.stdout.String(), tt.expectedStdout)
+			var returnCode int
+			stdoutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			require.Contains(t, stdoutContent, tt.expectedStdoutPretty)
+			require.Equal(t, tt.expectedStderr, test.stderr.String())
+			require.Equal(t, tt.expectedReturnCode, returnCode)
+		})
+		t.Run(tt.name+" using JSON format", func(t *testing.T) {
+			test := setupTest(t, agent.NewShowCommandWithEnv)
+			test.server.err = tt.serverErr
+			test.server.agents = tt.existentAgents
+			test.args = append(test.args, "-format", "json")
+
+			var returnCode int
+			stdoutContent := captureStdout(func() {
+				returnCode = test.client.Run(append(test.args, tt.args...))
+			})
+			if tt.expectedStdoutJSON != "" {
+				require.JSONEq(t, tt.expectedStdoutJSON, stdoutContent)
+			}
 			require.Equal(t, tt.expectedStderr, test.stderr.String())
 			require.Equal(t, tt.expectedReturnCode, returnCode)
 		})

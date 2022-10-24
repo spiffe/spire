@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
@@ -13,7 +14,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-type countCommand struct{}
+type countCommand struct {
+	printer cliprinter.Printer
+}
 
 // NewCountCommand creates a new "count" subcommand for "agent" command.
 func NewCountCommand() cli.Command {
@@ -41,14 +44,20 @@ func (c *countCommand) Run(ctx context.Context, env *common_cli.Env, serverClien
 	if err != nil {
 		return err
 	}
-
-	count := int(countResponse.Count)
-	msg := fmt.Sprintf("%d attested ", count)
-	msg = util.Pluralizer(msg, "agent", "agents", count)
-	_ = env.Println(msg)
+	c.printer.MustPrintProto(countResponse)
 
 	return nil
 }
 
 func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintCount)
+}
+
+func prettyPrintCount(results ...interface{}) error {
+	countResponse := results[0].(*agentv1.CountAgentsResponse)
+	count := int(countResponse.Count)
+	msg := fmt.Sprintf("%d attested ", count)
+	msg = util.Pluralizer(msg, "agent", "agents", count)
+	fmt.Println(msg)
+	return nil
 }
