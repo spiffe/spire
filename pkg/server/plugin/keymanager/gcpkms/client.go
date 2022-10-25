@@ -117,7 +117,7 @@ func newKMSClient(ctx context.Context, opts ...option.ClientOption) (cloudKeyMan
 		return nil, err
 	}
 
-	oauth2Service, err := oauth2.NewService(ctx)
+	oauth2Service, err := oauth2.NewService(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
