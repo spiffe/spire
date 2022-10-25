@@ -57,7 +57,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20220608195902-84fd618158c9
 	github.com/spiffe/spire-plugin-sdk v1.4.1-0.20220912221658-c42ab2d657f6
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/uber-go/tally/v4 v4.1.3
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
