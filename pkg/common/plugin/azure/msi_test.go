@@ -2,25 +2,19 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
-
-func TestMSITokenClaims(t *testing.T) {
-	claims := MSITokenClaims{
-		Claims: jwt.Claims{
-			Subject: "PRINCIPALID",
-		},
-		TenantID: "TENANTID",
-	}
-	require.Equal(t, "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID", claims.AgentID("example.org"))
-}
 
 func TestFetchMSIToken(t *testing.T) {
 	ctx := context.Background()
@@ -112,6 +106,75 @@ func TestFetchInstanceMetadata(t *testing.T) {
 		}}`))
 	require.NoError(t, err)
 	require.Equal(t, expected, metadata)
+}
+
+func TestMakeAgentID(t *testing.T) {
+	type args struct {
+		td                string
+		agentPathTemplate string
+		claims            *MSITokenClaims
+	}
+	tests := []struct {
+		name      string
+		args      args
+		want      string
+		errWanted error
+	}{
+		{
+			name: "successfully applies template",
+			args: args{
+				td:                "example.org",
+				agentPathTemplate: "/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}",
+				claims: &MSITokenClaims{
+					Claims:      jwt.Claims{},
+					TenantID:    "TENANTID",
+					PrincipalID: "PRINCIPALID",
+				},
+			},
+			want:      "spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
+			errWanted: nil,
+		},
+		{
+			name: "error applying template with non-existent field",
+			args: args{
+				td:                "example.org",
+				agentPathTemplate: "/{{ .PluginName }}/{{ .TenantID }}/{{ .NonExistent }}",
+				claims: &MSITokenClaims{
+					Claims:      jwt.Claims{},
+					TenantID:    "TENANTID",
+					PrincipalID: "PRINCIPALID",
+				},
+			},
+			want:      "",
+			errWanted: errors.New("template: agent-path:1:38: executing \"agent-path\" at <.NonExistent>: can't evaluate field NonExistent in type azure.agentPathTemplateData"),
+		},
+		{
+			name: "error building agent ID with invalid path",
+			args: args{
+				td:                "example.org",
+				agentPathTemplate: "/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}",
+				claims: &MSITokenClaims{
+					Claims: jwt.Claims{},
+				},
+			},
+			want:      "",
+			errWanted: errors.New("invalid agent path suffix \"/azure_msi//\": path cannot contain empty segments"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			td := spiffeid.RequireTrustDomainFromString(test.args.td)
+			agentPathTemplate, _ := agentpathtemplate.Parse(test.args.agentPathTemplate)
+			got, err := MakeAgentID(td, agentPathTemplate, test.args.claims)
+			if test.errWanted != nil {
+				require.EqualError(t, err, test.errWanted.Error())
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, test.want, got.String())
+		})
+	}
 }
 
 func fakeTokenHTTPClient(statusCode int, body string) HTTPClient {

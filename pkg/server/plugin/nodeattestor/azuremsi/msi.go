@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -69,7 +70,8 @@ type TenantConfig struct {
 }
 
 type MSIAttestorConfig struct {
-	Tenants map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
+	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
+	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template"`
 }
 
 type tenantConfig struct {
@@ -78,8 +80,9 @@ type tenantConfig struct {
 }
 
 type msiAttestorConfig struct {
-	td      spiffeid.TrustDomain
-	tenants map[string]*tenantConfig
+	td             spiffeid.TrustDomain
+	tenants        map[string]*tenantConfig
+	idPathTemplate *agentpathtemplate.Template
 }
 
 type MSIAttestorPlugin struct {
@@ -168,17 +171,22 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	if err := token.Claims(&keys[0], claims); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to verify token: %v", err)
 	}
+
 	switch {
 	case claims.TenantID == "":
 		return status.Error(codes.Internal, "token missing tenant ID claim")
-	case claims.Subject == "":
+	case claims.PrincipalID == "":
 		return status.Error(codes.Internal, "token missing subject claim")
 	}
 
 	// Before doing the work to validate the token, ensure that this MSI token
 	// has not already been used to attest an agent.
-	agentID := claims.AgentID(config.td.String())
-	if err := p.AssessTOFU(stream.Context(), agentID, p.log); err != nil {
+	agentID, err := azure.MakeAgentID(config.td, config.idPathTemplate, claims)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to make agent ID: %v", err)
+	}
+
+	if err := p.AssessTOFU(stream.Context(), agentID.String(), p.log); err != nil {
 		return err
 	}
 
@@ -196,7 +204,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 
 	var selectorValues []string
 	if tenant.client != nil {
-		selectorValues, err = p.resolve(stream.Context(), tenant.client, claims.Subject)
+		selectorValues, err = p.resolve(stream.Context(), tenant.client, claims.PrincipalID)
 		if err != nil {
 			return err
 		}
@@ -205,7 +213,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:       agentID,
+				SpiffeId:       agentID.String(),
 				CanReattest:    false,
 				SelectorValues: selectorValues,
 			},
@@ -297,9 +305,19 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 		}
 	}
 
+	tmpl := azure.DefaultAgentPathTemplate
+	if len(hclConfig.AgentPathTemplate) > 0 {
+		var err error
+		tmpl, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent path template: %q", hclConfig.AgentPathTemplate)
+		}
+	}
+
 	p.setConfig(&msiAttestorConfig{
-		td:      td,
-		tenants: tenants,
+		td:             td,
+		tenants:        tenants,
+		idPathTemplate: tmpl,
 	})
 	return &configv1.ConfigureResponse{}, nil
 }
