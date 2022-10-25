@@ -79,6 +79,7 @@ type pluginHooks struct {
 	disposeCryptoKeysSignal    chan error
 	keepActiveCryptoKeysSignal chan error
 	scheduleDestroySignal      chan error
+	setInactiveSignal          chan error
 }
 
 type pluginData struct {
@@ -792,6 +793,12 @@ func (p *Plugin) notifyDisposeCryptoKeys(err error) {
 	}
 }
 
+func (p *Plugin) notifySetInactive(err error) {
+	if p.hooks.setInactiveSignal != nil {
+		p.hooks.setInactiveSignal <- err
+	}
+}
+
 func (p *Plugin) notifyKeepActiveCryptoKeys(err error) {
 	if p.hooks.keepActiveCryptoKeysSignal != nil {
 		p.hooks.keepActiveCryptoKeysSignal <- err
@@ -880,7 +887,7 @@ func (p *Plugin) scheduleDestroyTask(ctx context.Context) {
 func (p *Plugin) setInactive(ctx context.Context, cryptoKey *kmspb.CryptoKey) {
 	log := p.log.With(cryptoKeyNameTag, cryptoKey.Name)
 
-	cryptoKey.Labels["spire-active"] = "false"
+	cryptoKey.Labels[labelNameActive] = "false"
 	_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
 		UpdateMask: &fieldmaskpb.FieldMask{
 			Paths: []string{"labels"},
@@ -892,6 +899,7 @@ func (p *Plugin) setInactive(ctx context.Context, cryptoKey *kmspb.CryptoKey) {
 	}
 
 	log.Debug("CryptoKey updated as inactive", cryptoKeyNameTag, cryptoKey.Name)
+	p.notifySetInactive(err)
 }
 
 // setCache sets the cached entries with the provided entries.

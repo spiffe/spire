@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"strings"
 	"testing"
 
 	"cloud.google.com/go/iam"
@@ -361,6 +362,27 @@ func (k *fakeKMSClient) ListCryptoKeys(ctx context.Context, req *kmspb.ListCrypt
 	var cryptoKeys []*kmspb.CryptoKey
 
 	for _, fck := range k.store.fakeCryptoKeys {
+		// Make sure that it's within the same Key Ring.
+		// The Key Ring name es specified in req.Parent.
+		// The Key Ring name is three levels up from the CryptoKey name.
+		if req.Parent != path.Dir(path.Dir(path.Dir(fck.Name))) {
+			// Key Ring doesn't match.
+			continue
+		}
+
+		// We Have a simplified filtering logic in this fake implementation,
+		// where we only care about the spire-active label.
+		if req.Filter != "" {
+			if !strings.Contains(req.Filter, "labels.spire-active = true") {
+				{
+					k.t.Fatal("Unsupported filter in ListCryptoKeys request")
+				}
+				if fck.Labels[labelNameActive] != "true" {
+					continue
+				}
+			}
+		}
+
 		cryptoKeys = append(cryptoKeys, fck.CryptoKey)
 	}
 
@@ -379,6 +401,16 @@ func (k *fakeKMSClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.Li
 	}
 
 	for _, fckv := range fck.fakeCryptoKeyVersions {
+		// We Have a simplified filtering logic in this fake implementation,
+		// where we only support filtering by enabled status.
+		if req.Filter != "" {
+			if req.Filter != "state = "+kmspb.CryptoKeyVersion_ENABLED.String() {
+				k.t.Fatal("Unsupported filter in ListCryptoKeyVersions request")
+			}
+			if fckv.State != kmspb.CryptoKeyVersion_ENABLED {
+				continue
+			}
+		}
 		cryptoKeyVersions = append(cryptoKeyVersions, fckv.CryptoKeyVersion)
 	}
 
