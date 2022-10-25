@@ -105,6 +105,8 @@ func (c *CRDMode) Run(ctx context.Context) error {
 	}
 	defer log.Close()
 
+	log.Warn("The k8s-workload-registrar is deprecated and no longer maintained. Please migrate to the SPIRE Controller Manager (https://github.com/spiffe/spire-controller-manager).")
+
 	// DEPRECATED: remove this check in 1.5.0 since all those who migrate through 1.4.0 will already have moved away
 	if c.LeaderElection && c.LeaderElectionResourceLock == configMapsResourceLock {
 		return errs.New(`the "configmaps" leader election resource lock type is no longer supported`)
