@@ -55,8 +55,8 @@ func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *
 func (c *fetchJWTCommand) appendFlags(fs *flag.FlagSet) {
 	fs.Var(&c.audience, "audience", "comma separated list of audience values")
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID subject (optional)")
-
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, printPrettyResult)
+	outputValue := cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, printPrettyResult)
+	fs.Var(outputValue, "format", "deprecated; use -output")
 }
 
 func (c *fetchJWTCommand) fetchJWTSVID(ctx context.Context, client *workloadClient) (*workload.JWTSVIDResponse, error) {
