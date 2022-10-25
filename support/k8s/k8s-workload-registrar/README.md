@@ -1,5 +1,7 @@
 # SPIRE Kubernetes Workload Registrar
 
+** The SPIRE Kubernetes Workload Registrar is deprecated and no longer maintained. Please migrate to the [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager). **
+
 The SPIRE Kubernetes Workload Registrar implements a Kubernetes
 ValidatingAdmissionWebhook that facilitates automatic workload registration
 within Kubernetes.
