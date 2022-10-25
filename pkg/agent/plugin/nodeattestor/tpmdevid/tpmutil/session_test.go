@@ -1,3 +1,6 @@
+//go:build !darwin
+// +build !darwin
+
 package tpmutil_test
 
 import (
