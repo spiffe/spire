@@ -118,16 +118,16 @@ func TestBan(t *testing.T) {
 			expectStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		tt := tt
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
 				test := setupTest(t, agent.NewBanCommandWithEnv)
 				test.server.err = tt.serverErr
-				tt.args = append(tt.args, "-format", format)
+				args := tt.args
+				args = append(args, "-output", format)
 				var returnCode int
 
 				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, tt.args...))
+					returnCode = test.client.Run(append(test.args, args...))
 				})
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
@@ -181,16 +181,16 @@ func TestEvict(t *testing.T) {
 			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		tt := tt
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
 				test := setupTest(t, agent.NewEvictCommandWithEnv)
 				test.server.err = tt.serverErr
-				tt.args = append(tt.args, "-format", format)
+				args := tt.args
+				args = append(args, "-output", format)
 				var returnCode int
 
 				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, tt.args...))
+					returnCode = test.client.Run(append(test.args, args...))
 				})
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
@@ -245,17 +245,17 @@ func TestCount(t *testing.T) {
 			expectedStderr:     common.AddrError,
 		},
 	} {
-		tt := tt
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
 				test := setupTest(t, agent.NewCountCommandWithEnv)
 				test.server.agents = tt.existentAgents
 				test.server.err = tt.serverErr
-				tt.args = append(tt.args, "-format", format)
+				args := tt.args
+				args = append(args, "-output", format)
 				var returnCode int
 
 				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, tt.args...))
+					returnCode = test.client.Run(append(test.args, args...))
 				})
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
@@ -430,17 +430,17 @@ func TestList(t *testing.T) {
 			expectedStderr:     common.AddrError,
 		},
 	} {
-		tt := tt
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
 				test := setupTest(t, agent.NewListCommandWithEnv)
 				test.server.agents = tt.existentAgents
 				test.server.err = tt.serverErr
-				tt.args = append(tt.args, "-format", format)
+				args := tt.args
+				args = append(args, "-output", format)
 				var returnCode int
 
 				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, tt.args...))
+					returnCode = test.client.Run(append(test.args, args...))
 				})
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
@@ -514,17 +514,17 @@ func TestShow(t *testing.T) {
 			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/banned"},"banned":true}`,
 		},
 	} {
-		tt := tt
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
 				test := setupTest(t, agent.NewShowCommandWithEnv)
 				test.server.err = tt.serverErr
 				test.server.agents = tt.existentAgents
-				tt.args = append(tt.args, "-format", format)
+				args := tt.args
+				args = append(args, "-output", format)
 				var returnCode int
 
 				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, tt.args...))
+					returnCode = test.client.Run(append(test.args, args...))
 				})
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
