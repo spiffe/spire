@@ -471,7 +471,7 @@ func TestLRUCacheCheckSVIDCallback(t *testing.T) {
 		return false
 	})
 
-	foo := makeRegistrationEntryWithTTL("FOO", 60)
+	foo := makeRegistrationEntryWithTTL("FOO", 70, 80)
 
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
@@ -509,7 +509,7 @@ func TestLRUCacheCheckSVIDCallback(t *testing.T) {
 func TestLRUCacheGetStaleEntries(t *testing.T) {
 	cache := newTestLRUCache()
 
-	bar := makeRegistrationEntryWithTTL("BAR", 120, "B")
+	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
 
 	// Create entry but don't mark it stale from checkSVID method;
 	// it will be marked stale cause it does not have SVID cached

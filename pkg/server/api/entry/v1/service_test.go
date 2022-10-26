@@ -1198,9 +1198,9 @@ func TestGetEntry(t *testing.T) {
 	entry1SpiffeID := spiffeid.RequireFromSegments(td, "bar")
 	expiresAt := time.Now().Unix()
 	goodEntry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
-		ParentId: parent.String(),
-		SpiffeId: entry1SpiffeID.String(),
-		Ttl:      60,
+		ParentId:    parent.String(),
+		SpiffeId:    entry1SpiffeID.String(),
+		X509SvidTtl: 60,
 		Selectors: []*common.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},
@@ -1263,10 +1263,10 @@ func TestGetEntry(t *testing.T) {
 			name:    "no outputMask",
 			entryID: goodEntry.EntryId,
 			expectEntry: &types.Entry{
-				Id:       goodEntry.EntryId,
-				ParentId: api.ProtoFromID(parent),
-				SpiffeId: api.ProtoFromID(entry1SpiffeID),
-				Ttl:      60,
+				Id:          goodEntry.EntryId,
+				ParentId:    api.ProtoFromID(parent),
+				SpiffeId:    api.ProtoFromID(entry1SpiffeID),
+				X509SvidTtl: 60,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -1441,9 +1441,9 @@ func TestBatchCreateEntry(t *testing.T) {
 	useDefaultEntryID := "DEFAULT_ENTRY_ID"
 
 	defaultEntry := &common.RegistrationEntry{
-		ParentId: entryParentID.String(),
-		SpiffeId: entrySpiffeID.String(),
-		Ttl:      60,
+		ParentId:    entryParentID.String(),
+		SpiffeId:    entrySpiffeID.String(),
+		X509SvidTtl: 60,
 		Selectors: []*common.Selector{
 			{Type: "unix", Value: "gid:1000"},
 			{Type: "unix", Value: "uid:1000"},
@@ -1469,7 +1469,8 @@ func TestBatchCreateEntry(t *testing.T) {
 		Downstream:    true,
 		ExpiresAt:     expiresAt,
 		FederatesWith: []string{"domain1.org"},
-		Ttl:           60,
+		X509SvidTtl:   45,
+		JwtSvidTtl:    30,
 	}
 	// Registration entry for test entry
 	testDSEntry := &common.RegistrationEntry{
@@ -1485,7 +1486,8 @@ func TestBatchCreateEntry(t *testing.T) {
 		Downstream:    true,
 		EntryExpiry:   expiresAt,
 		FederatesWith: []string{"spiffe://domain1.org"},
-		Ttl:           60,
+		X509SvidTtl:   45,
+		JwtSvidTtl:    30,
 	}
 
 	for _, tt := range []struct {
@@ -1521,7 +1523,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.RevisionNumber: "0",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
-						telemetry.TTL:            "60",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 					},
 				},
@@ -1547,7 +1550,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value",
 						telemetry.SPIFFEID:       "spiffe://example.org/malformed",
-						telemetry.TTL:            "0",
+						telemetry.X509SVIDTTL:    "0",
+						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 					},
 				},
@@ -1565,7 +1569,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload2",
-						telemetry.TTL:            "0",
+						telemetry.X509SVIDTTL:    "0",
+						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 					},
 				},
@@ -1657,7 +1662,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.RevisionNumber: "0",
 						telemetry.SPIFFEID:       "spiffe://example.org/svidstore",
-						telemetry.TTL:            "0",
+						telemetry.X509SVIDTTL:    "0",
+						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "true",
 					},
 				},
@@ -1715,7 +1721,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						Downstream:    true,
 						ExpiresAt:     expiresAt,
 						FederatesWith: []string{"domain1.org"},
-						Ttl:           60,
+						X509SvidTtl:   45,
+						JwtSvidTtl:    30,
 						StoreSvid:     false,
 					},
 				},
@@ -1739,7 +1746,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
-						telemetry.TTL:            "60",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 					},
 				},
@@ -1775,7 +1783,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
-						telemetry.TTL:            "60",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 					},
 				},
@@ -1804,10 +1813,11 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 			reqEntries: []*types.Entry{
 				{
-					Id:       "entry1",
-					ParentId: api.ProtoFromID(entryParentID),
-					SpiffeId: api.ProtoFromID(entrySpiffeID),
-					Ttl:      60,
+					Id:          "entry1",
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
 					Selectors: []*types.Selector{
 						{Type: "type", Value: "value1"},
 					},
@@ -1815,10 +1825,11 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 			expectDsEntries: map[string]*common.RegistrationEntry{
 				"entry1": {
-					EntryId:  "entry1",
-					ParentId: "spiffe://example.org/foo",
-					SpiffeId: "spiffe://example.org/bar",
-					Ttl:      60,
+					EntryId:     "entry1",
+					ParentId:    "spiffe://example.org/foo",
+					SpiffeId:    "spiffe://example.org/bar",
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
 					Selectors: []*common.Selector{
 						{Type: "type", Value: "value1"},
 					},
@@ -1839,7 +1850,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value1",
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
-						telemetry.TTL:            "60",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 					},
 				},
@@ -1866,10 +1878,11 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 			reqEntries: []*types.Entry{
 				{
-					ParentId: api.ProtoFromID(entryParentID),
-					SpiffeId: api.ProtoFromID(entrySpiffeID),
-					Ttl:      20,
-					Admin:    false,
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
+					Admin:       false,
 					Selectors: []*types.Selector{
 						{Type: "unix", Value: "gid:1000"},
 						{Type: "unix", Value: "uid:1000"},
@@ -1890,7 +1903,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Selectors:      "unix:gid:1000,unix:uid:1000",
 						telemetry.RevisionNumber: "0",
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
-						telemetry.TTL:            "20",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StatusCode:     "AlreadyExists",
 						telemetry.StatusMessage:  "similar entry already exists",
 						telemetry.StoreSvid:      "false",
@@ -1927,7 +1941,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Downstream:     "false",
 						telemetry.ExpiresAt:      "0",
 						telemetry.RevisionNumber: "0",
-						telemetry.TTL:            "0",
+						telemetry.X509SVIDTTL:    "0",
+						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "InvalidArgument",
 						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
@@ -1967,7 +1982,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
-						telemetry.TTL:            "60",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to create entry: creating error",
@@ -2016,7 +2032,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.Selectors:      "type:value1,type:value2",
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
-						telemetry.TTL:            "60",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
@@ -2337,10 +2354,10 @@ func TestBatchDeleteEntry(t *testing.T) {
 
 func TestGetAuthorizedEntries(t *testing.T) {
 	entry1 := types.Entry{
-		Id:       "entry-1",
-		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
-		Ttl:      60,
+		Id:          "entry-1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 60,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},
@@ -2355,10 +2372,10 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		Downstream: true,
 	}
 	entry2 := types.Entry{
-		Id:       "entry-2",
-		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/baz"},
-		Ttl:      3600,
+		Id:          "entry-2",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/baz"},
+		X509SvidTtl: 3600,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1001"},
 			{Type: "unix", Value: "gid:1001"},
@@ -2641,9 +2658,9 @@ func TestBatchUpdateEntry(t *testing.T) {
 	entry1SpiffeID := &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"}
 	expiresAt := time.Now().Unix()
 	initialEntry := &types.Entry{
-		ParentId: parent,
-		SpiffeId: entry1SpiffeID,
-		Ttl:      60,
+		ParentId:    parent,
+		SpiffeId:    entry1SpiffeID,
+		X509SvidTtl: 60,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "uid:2000"},
@@ -2657,10 +2674,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 		Downstream: true,
 	}
 	storeSvidEntry := &types.Entry{
-		ParentId:  parent,
-		SpiffeId:  entry1SpiffeID,
-		Ttl:       60,
-		StoreSvid: true,
+		ParentId:    parent,
+		SpiffeId:    entry1SpiffeID,
+		X509SvidTtl: 60,
+		StoreSvid:   true,
 		Selectors: []*types.Selector{
 			{Type: "typ", Value: "key1:value"},
 			{Type: "typ", Value: "key2:value"},
@@ -2671,9 +2688,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 		ExpiresAt: expiresAt,
 	}
 	updateEverythingEntry := &types.Entry{
-		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
-		Ttl:      500000,
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+		X509SvidTtl: 400000,
+		JwtSvidTtl:  300000,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:9999"},
 		},
@@ -2978,23 +2996,23 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
-			name:           "Success Update TTL",
+			name:           "Success Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask: &types.EntryMask{
-				Ttl: true,
+				X509SvidTtl: true,
 			},
 			outputMask: &types.EntryMask{
-				Ttl: true,
+				X509SvidTtl: true,
 			},
 			updateEntries: []*types.Entry{
 				{
-					Ttl: 1000,
+					X509SvidTtl: 1000,
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.Ttl = 1000
+				modifiedEntry.X509SvidTtl = 1000
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -3002,7 +3020,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						Ttl: 1000,
+						X509SvidTtl: 1000,
 					},
 				},
 			},
@@ -3015,7 +3033,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.TTL:            "1000",
+							telemetry.X509SVIDTTL:    "1000",
 						},
 					},
 				}
@@ -3241,17 +3259,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
-			name:           "Success Don't Update TTL",
+			name:           "Success Don't Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask:      &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{
-				Ttl: true,
+				X509SvidTtl: true,
 			},
 			updateEntries: []*types.Entry{
 				{
-					Ttl: 500000,
+					X509SvidTtl: 500000,
 				},
 			},
 			expectDsEntries: func(m string) []*types.Entry {
@@ -3264,7 +3282,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						Ttl: 60,
+						X509SvidTtl: 60,
 					},
 				},
 			},
@@ -3593,9 +3611,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
-						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
-						Ttl:      500000,
+						ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
+						X509SvidTtl: 400000,
+						JwtSvidTtl:  300000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
 						},
@@ -3625,7 +3644,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.RevisionNumber: "0",
 							telemetry.Selectors:      "unix:uid:9999",
 							telemetry.SPIFFEID:       "spiffe://example.org/validUpdated",
-							telemetry.TTL:            "500000",
+							telemetry.X509SVIDTTL:    "400000",
+							telemetry.JWTSVIDTTL:     "300000",
 							telemetry.StoreSvid:      "false",
 						},
 					},
@@ -3636,21 +3656,21 @@ func TestBatchUpdateEntry(t *testing.T) {
 			name:           "Success Nil Output Mask",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask: &types.EntryMask{
-				Ttl: true,
+				X509SvidTtl: true,
 			},
 			outputMask: nil,
 			updateEntries: []*types.Entry{
 				{
-					Ttl: 500000,
+					X509SvidTtl: 500000,
 				},
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: parent,
-						SpiffeId: entry1SpiffeID,
-						Ttl:      500000,
+						ParentId:    parent,
+						SpiffeId:    entry1SpiffeID,
+						X509SvidTtl: 500000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:1000"},
 							{Type: "unix", Value: "uid:2000"},
@@ -3675,7 +3695,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.TTL:            "500000",
+							telemetry.X509SVIDTTL:    "500000",
 						},
 					},
 				}
@@ -3724,19 +3744,19 @@ func TestBatchUpdateEntry(t *testing.T) {
 			name:           "Success Empty Output Mask",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask: &types.EntryMask{
-				Ttl: true,
+				X509SvidTtl: true,
 			},
 			// With the output mask empty, the update will take place, but the results will be empty
 			outputMask: &types.EntryMask{},
 			updateEntries: []*types.Entry{
 				{
-					Ttl: 500000,
+					X509SvidTtl: 500000,
 				},
 			},
 			expectDsEntries: func(m string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = m
-				modifiedEntry.Ttl = 500000
+				modifiedEntry.X509SvidTtl = 500000
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -3755,7 +3775,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.TTL:            "500000",
+							telemetry.X509SVIDTTL:    "500000",
 						},
 					},
 				}

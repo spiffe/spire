@@ -26,10 +26,11 @@ func TestRegistrationEntryToProto(t *testing.T) {
 		{
 			name: "success",
 			entry: &common.RegistrationEntry{
-				EntryId:  "entry1",
-				ParentId: "spiffe://example.org/foo",
-				SpiffeId: "spiffe://example.org/bar",
-				Ttl:      60,
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
 				Selectors: []*common.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -48,10 +49,11 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				RevisionNumber: 99,
 			},
 			expectEntry: &types.Entry{
-				Id:       "entry1",
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
-				Ttl:      60,
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -118,10 +120,11 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 		{
 			name: "mask including all fields",
 			entry: &types.Entry{
-				Id:       "entry1",
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
-				Ttl:      60,
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -140,10 +143,11 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				RevisionNumber: 99,
 			},
 			expectEntry: &common.RegistrationEntry{
-				EntryId:  "entry1",
-				ParentId: "spiffe://example.org/foo",
-				SpiffeId: "spiffe://example.org/bar",
-				Ttl:      60,
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
 				Selectors: []*common.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -168,7 +172,8 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				Selectors:      []*types.Selector{},
 				DnsNames:       []string{"name1"},
 				FederatesWith:  []string{"domain.test"},
-				Ttl:            1,
+				X509SvidTtl:    2,
+				JwtSvidTtl:     3,
 				Admin:          true,
 				Downstream:     true,
 				ExpiresAt:      4,
@@ -209,10 +214,11 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 		{
 			name: "success",
 			entry: &types.Entry{
-				Id:       "entry1",
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
-				Ttl:      60,
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -231,10 +237,11 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 				RevisionNumber: 99,
 			},
 			expectEntry: &common.RegistrationEntry{
-				EntryId:  "entry1",
-				ParentId: "spiffe://example.org/foo",
-				SpiffeId: "spiffe://example.org/bar",
-				Ttl:      60,
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
 				Selectors: []*common.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},

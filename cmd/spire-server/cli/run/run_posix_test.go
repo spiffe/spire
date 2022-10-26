@@ -4,17 +4,172 @@
 package run
 
 import (
+	"bytes"
+	"fmt"
 	"os"
+	"strings"
+	"syscall"
 	"testing"
+	"time"
 
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/fflag"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	configFile = "../../../../test/fixture/config/server_good_posix.conf"
+	configFile      = "../../../../test/fixture/config/server_good_posix.conf"
+	startConfigFile = "../../../../test/fixture/config/server_run_start_posix.conf"
+	crashConfigFile = "../../../../test/fixture/config/server_run_crash_posix.conf"
 )
+
+func TestCommand_Run(t *testing.T) {
+	testTempDir := t.TempDir()
+	testLogFile := testTempDir + "/spire-server.log"
+
+	type fields struct {
+		logOptions         []log.Option
+		env                *commoncli.Env
+		allowUnknownConfig bool
+	}
+	type args struct {
+		args              []string
+		killServerOnStart bool
+	}
+	type want struct {
+		code           int
+		dataDirCreated string
+		stderrContent  string
+	}
+	tests := []struct {
+		name         string
+		fields       fields
+		args         args
+		configLoaded bool
+		want         want
+	}{
+		{
+			name: "don't create any dir when error loading nonexistent config",
+			args: args{
+				args: []string{},
+			},
+			fields: fields{
+				logOptions: []log.Option{log.WithOutputFile(testLogFile)},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: false,
+			want: want{
+				code:          1,
+				stderrContent: "could not find config file",
+			},
+		},
+		{
+			name: "don't create any dir when error loading invalid config",
+			args: args{
+				args: []string{
+					"-config", startConfigFile,
+					"-namedPipeName", "\\spire-agent\\public\\api",
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{log.WithOutputFile(testLogFile)},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: false,
+			want: want{
+				code:          1,
+				stderrContent: "flag provided but not defined: -namedPipeName",
+			},
+		},
+		{
+			name: "create data dir when config is loaded and server crashes",
+			args: args{
+				args: []string{
+					"-config", crashConfigFile,
+					"-dataDir", fmt.Sprintf("%s/crash/data", testTempDir),
+					"-expandEnv", "true",
+				},
+			},
+			fields: fields{
+				logOptions: []log.Option{log.WithOutputFile(testLogFile)},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: true,
+			want: want{
+				code:           1,
+				dataDirCreated: fmt.Sprintf("%s/crash/data", testTempDir),
+			},
+		},
+		{
+			name: "create data dir when config is loaded and server stops",
+			args: args{
+				args: []string{
+					"-config", startConfigFile,
+					"-dataDir", fmt.Sprintf("%s/data", testTempDir),
+					"-expandEnv", "true",
+				},
+				killServerOnStart: true,
+			},
+			fields: fields{
+				logOptions: []log.Option{log.WithOutputFile(testLogFile)},
+				env: &commoncli.Env{
+					Stderr: new(bytes.Buffer),
+				},
+				allowUnknownConfig: false,
+			},
+			configLoaded: true,
+			want: want{
+				code:           0,
+				dataDirCreated: fmt.Sprintf("%s/data", testTempDir),
+			},
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			_ = fflag.Unload()
+			require.NoError(t, os.Setenv("SPIRE_SERVER_TEST_DATA_CONNECTION", fmt.Sprintf("%s/data/datastore.sqlite3", testTempDir)))
+			os.Remove(testLogFile)
+
+			cmd := &Command{
+				logOptions:         testCase.fields.logOptions,
+				env:                testCase.fields.env,
+				allowUnknownConfig: testCase.fields.allowUnknownConfig,
+			}
+
+			if testCase.args.killServerOnStart {
+				killServerOnStart(t, testLogFile)
+			}
+
+			code := cmd.Run(testCase.args.args)
+
+			assert.Equal(t, testCase.want.code, code)
+			if testCase.want.stderrContent == "" {
+				assert.Empty(t, testCase.fields.env.Stderr.(*bytes.Buffer).String())
+			} else {
+				assert.Contains(t, testCase.fields.env.Stderr.(*bytes.Buffer).String(), testCase.want.stderrContent)
+			}
+			if testCase.want.dataDirCreated != "" {
+				assert.DirExistsf(t, testCase.want.dataDirCreated, "data directory should be created")
+				currentUmask := syscall.Umask(0)
+				assert.Equalf(t, currentUmask, 0027, "spire-server process should have been created with 0027 umask")
+			} else {
+				assert.NoDirExistsf(t, testCase.want.dataDirCreated, "data directory should not be created")
+			}
+		})
+	}
+}
 
 func TestParseFlagsGood(t *testing.T) {
 	c, err := parseFlags("run", []string{
@@ -28,6 +183,37 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.SocketPath, "/tmp/flag.sock")
 	assert.Equal(t, c.TrustDomain, "example.org")
 	assert.Equal(t, c.LogLevel, "INFO")
+}
+
+func killServerOnStart(t *testing.T, testLogFile string) {
+	go func() {
+		serverStartWaitingTimeout := 10 * time.Second
+		serverStartWaitingInterval := 100 * time.Millisecond
+		ticker := time.NewTicker(serverStartWaitingInterval)
+		timer := time.NewTimer(serverStartWaitingTimeout)
+	waitingLoop:
+		for {
+			select {
+			case <-timer.C:
+				panic("server did not start in time")
+			case <-ticker.C:
+				logs, err := os.ReadFile(testLogFile)
+
+				if err != nil {
+					continue
+				}
+				if strings.Contains(string(logs), "Starting Server APIs") {
+					timer.Stop()
+					break waitingLoop
+				}
+			}
+		}
+
+		err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+		if err != nil {
+			t.Errorf("Failed to kill process: %v", err)
+		}
+	}()
 }
 
 func mergeInputCasesOS(t *testing.T) []mergeInputCase {

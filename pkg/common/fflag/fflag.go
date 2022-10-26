@@ -56,8 +56,9 @@ var (
 
 // Load initializes the fflag package and configures its feature flag state
 // based on the configuration input. Feature flags are designed to be
-// Write-Once-Read-Many, and as such, Load can be called only once. Load will
-// return an error if it is called more than once, if the configuration input
+// Write-Once-Read-Many, and as such, Load can be called only once (except when Using Unload function
+// for test scenarios, which will reset states enabling Load to be called again).
+// Load will return an error if it is called more than once, if the configuration input
 // cannot be parsed, or if an unrecognized flag is set.
 func Load(rc RawConfig) error {
 	singleton.mtx.Lock()
@@ -88,6 +89,24 @@ func Load(rc RawConfig) error {
 	}
 
 	singleton.loaded = true
+	return nil
+}
+
+// Unload resets the feature flags states to its default values. This function is intended to be used for testing
+// purposes only, it is not expected to be called by the normal execution of SPIRE.
+func Unload() error {
+	singleton.mtx.Lock()
+	defer singleton.mtx.Unlock()
+
+	if !singleton.loaded {
+		return errors.New("feature flags have not been loaded")
+	}
+
+	for f := range singleton.flags {
+		singleton.flags[f] = false
+	}
+
+	singleton.loaded = false
 	return nil
 }
 
