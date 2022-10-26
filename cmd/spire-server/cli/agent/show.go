@@ -37,7 +37,7 @@ func (*showCommand) Name() string {
 	return "agent show"
 }
 
-func (showCommand) Synopsis() string {
+func (*showCommand) Synopsis() string {
 	return "Shows the details of an attested agent given its SPIFFE ID"
 }
 

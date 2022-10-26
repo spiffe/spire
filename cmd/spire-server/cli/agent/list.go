@@ -41,7 +41,7 @@ func (*listCommand) Name() string {
 	return "agent list"
 }
 
-func (listCommand) Synopsis() string {
+func (*listCommand) Synopsis() string {
 	return "Lists attested agents and their SPIFFE IDs"
 }
 

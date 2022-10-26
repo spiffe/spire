@@ -36,7 +36,7 @@ func (*evictCommand) Name() string {
 	return "agent evict"
 }
 
-func (evictCommand) Synopsis() string {
+func (*evictCommand) Synopsis() string {
 	return "Evicts an attested agent given its SPIFFE ID"
 }
 

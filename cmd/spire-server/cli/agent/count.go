@@ -32,7 +32,7 @@ func (*countCommand) Name() string {
 	return "agent count"
 }
 
-func (countCommand) Synopsis() string {
+func (*countCommand) Synopsis() string {
 	return "Count attested agents"
 }
 
